@@ -1,0 +1,23 @@
+{
+  "name": "pos-system-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "db:push": "pnpm --filter @pos/db db:push",
+    "db:studio": "pnpm --filter @pos/db db:studio",
+    "db:generate": "pnpm --filter @pos/db generate",
+    "db:seed": "pnpm --filter @pos/db seed",
+    "setup": "pnpm install && pnpm db:generate && pnpm db:push"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

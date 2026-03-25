@@ -1,0 +1,299 @@
+// Prisma Schema for POS System - Toko Percetakan & ATK
+// All tables use pos_ prefix to avoid conflicts
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  OWNER
+  MANAGER
+  CASHIER
+  ADMIN
+}
+
+enum PaymentMethod {
+  CASH
+  DEBIT
+  CREDIT
+  QRIS
+  TRANSFER
+}
+
+enum TransactionStatus {
+  COMPLETED
+  VOIDED
+  REFUNDED
+}
+
+enum InventoryType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+// ============================================================
+// MODELS
+// ============================================================
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  role         Role          @default(CASHIER)
+  pin          String?       // 4-6 digit PIN for quick POS login
+  avatarUrl    String?
+  isActive     Boolean       @default(true)
+  storeId      String?
+  store        Store?        @relation(fields: [storeId], references: [id])
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("pos_users")
+}
+
+model Store {
+  id           String        @id @default(cuid())
+  name         String
+  address      String?
+  phone        String?
+  logoUrl      String?
+  users        User[]
+  products     Product[]
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("pos_stores")
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique // "Alat Tulis", "Kertas", "Tinta", "Jasa Cetak", "Amplop", "Map"
+  icon     String?   // Emoji or icon name
+  color    String?   // Hex color for category badge
+  order    Int       @default(0)
+  products Product[]
+
+  @@map("pos_categories")
+}
+
+model Product {
+  id            String            @id @default(cuid())
+  name          String
+  sku           String            @unique
+  barcode       String?
+  description   String?
+  price         Decimal           @db.Decimal(12, 2)
+  costPrice     Decimal?          @db.Decimal(12, 2)
+  stock         Int               @default(0)
+  minStock      Int               @default(5)    // Alert when stock below this
+  unit          String            @default("pcs") // pcs, rim, box, lembar, gsm, meter, roll, pack, lusin, kodi, set
+  size          String?           // e.g., "3x2m", "A4", "F4"
+  material      String?           // e.g., "Flexi 280gr", "Art Paper 150gsm"
+  categoryId    String
+  category      Category          @relation(fields: [categoryId], references: [id])
+  storeId       String
+  store         Store             @relation(fields: [storeId], references: [id])
+  isActive      Boolean           @default(true)
+  imageUrl      String?
+  items         TransactionItem[]
+  inventoryLogs InventoryLog[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([categoryId])
+  @@index([storeId])
+  @@index([sku])
+  @@map("pos_products")
+}
+
+model Transaction {
+  id            String            @id @default(cuid())
+  invoiceNumber String            @unique
+  storeId       String
+  store         Store             @relation(fields: [storeId], references: [id])
+  cashierId     String
+  cashier       User              @relation(fields: [cashierId], references: [id])
+  items         TransactionItem[]
+  subtotal      Decimal           @db.Decimal(12, 2)
+  discount      Decimal           @default(0) @db.Decimal(12, 2)
+  tax           Decimal           @default(0) @db.Decimal(12, 2)
+  total         Decimal           @db.Decimal(12, 2)
+  paymentMethod PaymentMethod     @default(CASH)
+  amountPaid    Decimal           @db.Decimal(12, 2)
+  change        Decimal           @default(0) @db.Decimal(12, 2)
+  status        TransactionStatus @default(COMPLETED)
+  customerName  String?
+  note          String?
+  createdAt     DateTime          @default(now())
+
+  @@index([storeId])
+  @@index([cashierId])
+  @@index([createdAt])
+  @@map("pos_transactions")
+}
+
+model TransactionItem {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  productName   String      // Snapshot of product name at time of sale
+  size          String?     // Snapshot of size
+  material      String?     // Snapshot of material
+  quantity      Int
+  unitPrice     Decimal     @db.Decimal(12, 2)
+  discount      Decimal     @default(0) @db.Decimal(12, 2)
+  subtotal      Decimal     @db.Decimal(12, 2)
+
+  @@index([transactionId])
+  @@map("pos_transaction_items")
+}
+
+model InventoryLog {
+  id        String        @id @default(cuid())
+  productId String
+  product   Product       @relation(fields: [productId], references: [id])
+  type      InventoryType
+  quantity  Int
+  note      String?
+  createdBy String?       // userId who made the change
+  createdAt DateTime      @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
+  @@map("pos_inventory_logs")
+}
+
+// ============================================================
+// LEGACY TABLES (To prevent Prisma from dropping them)
+// ============================================================
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chat_messages {
+  id            BigInt        @id @default(autoincrement())
+  session_id    String        @db.Uuid
+  role          String
+  content       String
+  meta          Json?
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  chat_id       String?       @db.Uuid
+  title         String?       @default("New Chat")
+  chats         chats?        @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  chat_sessions chat_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([chat_id, created_at], map: "chat_messages_chat_created_idx")
+  @@index([session_id, created_at], map: "chat_messages_session_created_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chat_messages_teladan {
+  id         BigInt   @id @default(autoincrement())
+  phone      String
+  role       String
+  content    String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  image_url  String?
+
+  @@index([phone, created_at(sort: Desc)], map: "idx_chat_messages_phone")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chat_sessions {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_key    String          @unique
+  title          String?
+  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  last_active_at DateTime        @default(now()) @db.Timestamptz(6)
+  chat_messages  chat_messages[]
+  chats          chats[]
+  documents      documents[]
+
+  @@index([last_active_at(sort: Desc)], map: "chat_sessions_last_active_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chats {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id     String          @db.Uuid
+  title          String?
+  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  last_active_at DateTime        @default(now()) @db.Timestamptz(6)
+  chat_messages  chat_messages[]
+  chat_sessions  chat_sessions   @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([session_id, last_active_at(sort: Desc)], map: "chats_session_last_active_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model documents {
+  id            BigInt                 @id @default(autoincrement())
+  content       String
+  embedding     Unsupported("vector")?
+  metadata      Json?                  @default("{}")
+  created_at    DateTime?              @default(now()) @db.Timestamptz(6)
+  session_id    String?                @db.Uuid
+  chat_sessions chat_sessions?         @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([embedding])
+  @@index([session_id], map: "documents_session_idx")
+}
+
+model papers_vectordb {
+  id         BigInt                 @id @default(autoincrement())
+  content    String
+  embedding  Unsupported("vector")?
+  metadata   Json?                  @default("{}")
+  created_at DateTime?              @default(now()) @db.Timestamptz(6)
+
+  @@index([embedding])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model products_teladan {
+  code       String    @id @db.VarChar(50)
+  name       String    @db.VarChar(255)
+  unit       String?   @db.VarChar(50)
+  price      Decimal   @db.Decimal(15, 2)
+  category   String?   @db.VarChar(50)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([code], map: "idx_products_code")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model receipts_teladan {
+  id               BigInt    @id @default(autoincrement())
+  transaction_id   String    @db.VarChar(50)
+  transaction_date DateTime? @default(now()) @db.Timestamptz(6)
+  customer_name    String?   @db.VarChar(100)
+  item_name        String    @db.VarChar(255)
+  size             String?   @db.VarChar(50)
+  material         String?   @db.VarChar(50)
+  quantity         String?   @db.VarChar(50)
+  price_per_item   Decimal?  @db.Decimal(15, 2)
+  total_price      Decimal?  @db.Decimal(15, 2)
+  payment_method   String?   @db.VarChar(50)
+  notes            String?
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+  down_payment     Decimal?  @db.Decimal
+
+  @@index([transaction_date(sort: Desc)], map: "idx_receipts_date")
+  @@index([transaction_id], map: "idx_receipts_transaction_id")
+}
