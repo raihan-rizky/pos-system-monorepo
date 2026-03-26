@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { isWaConfigured, sendWaTextMessage } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -39,46 +40,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Phone and content are required" }, { status: 400 });
     }
 
-    const waToken = process.env.WHATSAPP_TOKEN;
-    const waPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-
     // Send message via WhatsApp Cloud API if credentials are configured
-    if (waToken && waPhoneNumberId) {
-      // WhatsApp Cloud API requires phone in international format without + or spaces
-      const sanitizedPhone = phone.replace(/[^0-9]/g, "");
-
-      const waPayload = {
-        messaging_product: "whatsapp",
-        to: sanitizedPhone,
-        type: "text",
-        text: { body: content },
-      };
-
-      console.log("Sending WA message:", { to: sanitizedPhone, contentLength: content.length });
-
-      const waRes = await fetch(
-        `https://graph.facebook.com/v21.0/${waPhoneNumberId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${waToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(waPayload),
-        }
-      );
-
-      const waResponseBody = await waRes.json();
-
-      if (!waRes.ok) {
-        console.error("WhatsApp API error:", JSON.stringify(waResponseBody, null, 2));
+    if (isWaConfigured()) {
+      try {
+        await sendWaTextMessage(phone, content);
+      } catch (waError: any) {
+        console.error("WhatsApp API error:", waError.message);
         return NextResponse.json(
-          { message: waResponseBody.error?.message || "Failed to send WhatsApp message" },
-          { status: waRes.status }
+          { message: waError.message || "Failed to send WhatsApp message" },
+          { status: 500 }
         );
       }
-
-      console.log("WhatsApp API success:", JSON.stringify(waResponseBody));
     } else {
       console.warn("WhatsApp credentials not configured, skipping WA send");
     }
