@@ -8,11 +8,15 @@ import { PaymentModal } from "@/components/PaymentModal";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { AddProductModal } from "@/components/AddProductModal";
 import { EditProductModal } from "@/components/EditProductModal";
+import { OpenShiftModal } from "@/components/OpenShiftModal";
+import { CloseShiftModal } from "@/components/CloseShiftModal";
+import { ShiftStatusBanner } from "@/components/ShiftStatusBanner";
 import { Input, Button } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import { useProducts, useCategories, useDeleteProduct, Product } from "@/hooks/useProducts";
 import { useCart } from "@/hooks/useCart";
 import { useCreateTransaction } from "@/hooks/useTransactions";
+import { useActiveShift } from "@/hooks/useShift";
 
 export default function POSPage() {
   const [search, setSearch] = useState("");
@@ -23,9 +27,13 @@ export default function POSPage() {
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [showCloseShift, setShowCloseShift] = useState(false);
+  const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
+
+  const { data: activeShift, isLoading: shiftLoading } = useActiveShift();
 
   const { data: products = [], isLoading: productsLoading } = useProducts(
     search,
@@ -39,6 +47,15 @@ export default function POSPage() {
   const filteredProducts = useMemo(() => {
     return products;
   }, [products]);
+
+  const handleOpenPayment = () => {
+    if (!activeShift) {
+      alert("Anda harus membuka shift kasir terlebih dahulu sebelum bisa melakukan transaksi pembayaran.");
+      setShiftModalDismissed(false);
+      return;
+    }
+    setShowPayment(true);
+  };
 
   const handleCheckout = async (data: {
     paymentMethod: string;
@@ -79,9 +96,14 @@ export default function POSPage() {
       <Sidebar />
 
       {/* Main Content */}
-      <div className="flex flex-1 ml-0 md:ml-[72px] pb-16 md:pb-0">
-        {/* Products Area */}
-        <div className="flex-1 flex flex-col overflow-auto w-[100px]">
+      <div className="flex flex-1 flex-col ml-0 md:ml-[72px] pb-16 md:pb-0">
+        {!shiftLoading && activeShift && (
+          <ShiftStatusBanner shift={activeShift} onCloseShift={() => setShowCloseShift(true)} />
+        )}
+        
+        <div className="flex flex-1 overflow-hidden">
+          {/* Products Area */}
+          <div className="flex-1 flex flex-col overflow-auto w-[100px]">
           {/* Top Bar */}
           <header className="flex items-center gap-2 md:gap-4 px-3 md:px-6 py-3 md:py-4 bg-white border-b border-surface-100">
             <div className="flex-1">
@@ -203,10 +225,11 @@ export default function POSPage() {
               onUpdateQuantity={cart.updateQuantity}
               onRemoveItem={cart.removeItem}
               onClearCart={cart.clearCart}
-              onCheckout={() => setShowPayment(true)}
+              onCheckout={handleOpenPayment}
             />
           </div>
         )}
+        </div>
       </div>
 
       {/* Mobile Cart FAB - visible on <lg when cart has items */}
@@ -248,7 +271,7 @@ export default function POSPage() {
               onClearCart={cart.clearCart}
               onCheckout={() => {
                 closeCart();
-                setShowPayment(true);
+                handleOpenPayment();
               }}
               onClose={closeCart}
             />
@@ -286,6 +309,17 @@ export default function POSPage() {
         open={!!productToEdit}
         onClose={() => setProductToEdit(null)}
         product={productToEdit}
+      />
+
+      {/* Shift Modals */}
+      <OpenShiftModal 
+        open={!shiftLoading && !activeShift && !shiftModalDismissed} 
+        onClose={() => setShiftModalDismissed(true)} 
+      />
+      <CloseShiftModal 
+        open={showCloseShift} 
+        onClose={() => setShowCloseShift(false)} 
+        shift={activeShift || null} 
       />
     </div>
   );

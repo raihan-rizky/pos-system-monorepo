@@ -28,6 +28,21 @@ export interface Transaction {
   }[];
 }
 
+export interface PaginatedTransactions {
+  data: Transaction[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface TransactionHistoryParams {
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  categoryId?: string;
+  page?: number;
+}
+
 interface CreateTransactionInput {
   items: CartItem[];
   paymentMethod: string;
@@ -38,7 +53,24 @@ interface CreateTransactionInput {
 }
 
 async function fetchTransactions(): Promise<Transaction[]> {
-  const res = await fetch("/api/transactions");
+  const res = await fetch("/api/transactions?limit=50");
+  if (!res.ok) throw new Error("Failed to fetch transactions");
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+async function fetchTransactionHistory(
+  params: TransactionHistoryParams
+): Promise<PaginatedTransactions> {
+  const searchParams = new URLSearchParams();
+  if (params.search) searchParams.set("search", params.search);
+  if (params.dateFrom) searchParams.set("dateFrom", params.dateFrom);
+  if (params.dateTo) searchParams.set("dateTo", params.dateTo);
+  if (params.categoryId) searchParams.set("categoryId", params.categoryId);
+  searchParams.set("page", String(params.page || 1));
+  searchParams.set("limit", "10");
+
+  const res = await fetch(`/api/transactions?${searchParams.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch transactions");
   return res.json();
 }
@@ -65,6 +97,14 @@ export function useTransactions() {
   });
 }
 
+export function useTransactionHistory(params: TransactionHistoryParams) {
+  return useQuery({
+    queryKey: ["transaction-history", params],
+    queryFn: () => fetchTransactionHistory(params),
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useCreateTransaction() {
   const queryClient = useQueryClient();
 
@@ -72,7 +112,9 @@ export function useCreateTransaction() {
     mutationFn: createTransaction,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
   });
 }
+

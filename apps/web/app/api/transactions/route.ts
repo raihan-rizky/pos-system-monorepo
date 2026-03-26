@@ -4,11 +4,67 @@ import { db } from "@pos/db";
 export const dynamic = 'force-dynamic';
 
 // GET /api/transactions
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search") || "";
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
+    const categoryId = searchParams.get("categoryId");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "10", 10)));
+
+    // Build where clause
+    const where: any = {};
+    const andConditions: any[] = [];
+
+    // Search filter (invoice, customer name, product name)
+    if (search) {
+      andConditions.push({
+        OR: [
+          { invoiceNumber: { contains: search, mode: "insensitive" } },
+          { customerName: { contains: search, mode: "insensitive" } },
+          { items: { some: { productName: { contains: search, mode: "insensitive" } } } },
+        ],
+      });
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      const createdAtFilter: any = {};
+      if (dateFrom) {
+        const [year, month, day] = dateFrom.split("-");
+        createdAtFilter.gte = new Date(Number(year), Number(month) - 1, Number(day));
+      }
+      if (dateTo) {
+        // Include the entire "dateTo" day in local time
+        const [year, month, day] = dateTo.split("-");
+        const end = new Date(Number(year), Number(month) - 1, Number(day));
+        end.setDate(end.getDate() + 1);
+        createdAtFilter.lt = end;
+      }
+      andConditions.push({ createdAt: createdAtFilter });
+    }
+
+    // Category filter (transactions containing products in this category)
+    if (categoryId) {
+      andConditions.push({
+        items: { some: { product: { categoryId } } },
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
+    // Get total count for pagination
+    const total = await db.transaction.count({ where });
+
     const transactions = await db.transaction.findMany({
+      where,
       orderBy: { createdAt: "desc" },
-      take: 50,
+      skip: (page - 1) * limit,
+      take: limit,
       include: {
         items: {
           select: {
@@ -27,7 +83,12 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(transactions);
+    return NextResponse.json({
+      data: transactions,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
     console.error("Failed to fetch transactions:", error);
     return NextResponse.json(
