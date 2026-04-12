@@ -1,155 +1,154 @@
-const WA_API_BASE = "https://graph.facebook.com/v22.0";
-
 /**
- * Retrieves the WhatsApp API credentials from environment variables.
- * @throws {Error} If credentials are not configured.
- */
-export function getWaCredentials() {
-  const token = process.env.WHATSAPP_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneNumberId) {
-    throw new Error("Missing WhatsApp API credentials (WHATSAPP_TOKEN or WHATSAPP_PHONE_NUMBER_ID)");
-  }
-  return { token, phoneNumberId };
-}
-
-/**
- * Check if WhatsApp credentials are configured
- */
-export function isWaConfigured(): boolean {
-  return !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
-}
-
-/**
- * Send a text message to a WhatsApp user.
+ * WhatsApp API — interact with WAHA (WhatsApp HTTP API) self-hosted server.
  *
- * @param to Recipient phone number (e.g., "6281234567890").
- * @param body The text content to send.
+ * Endpoints used:
+ * - GET  /api/{session}/chats/overview      → list all chats with last message
+ * - GET  /api/{session}/chats/{chatId}/messages → get messages for a specific chat
+ * - POST /api/sendText                       → send a text message
  */
-export async function sendWaTextMessage(to: string, body: string): Promise<void> {
-  const { token, phoneNumberId } = getWaCredentials();
-  const url = `${WA_API_BASE}/${phoneNumberId}/messages`;
+
+// ── Credentials ─────────────────────────────────────────────────
+
+export function getWahaConfig() {
+  const baseUrl = process.env.WAHA_BASE_URL;
+  const apiKey = process.env.WAHA_API_KEY;
+  const session = process.env.WAHA_SESSION || "default";
+
+  if (!baseUrl) {
+    throw new Error("Missing WAHA_BASE_URL environment variable");
+  }
+
+  return { baseUrl, apiKey, session };
+}
+
+export function isWaConfigured(): boolean {
+  return !!process.env.WAHA_BASE_URL;
+}
+
+function getHeaders(apiKey?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (apiKey) {
+    headers["X-Api-Key"] = apiKey;
+  }
+  return headers;
+}
+
+// ── Types ───────────────────────────────────────────────────────
+
+export interface WahaChat {
+  /** Chat ID, e.g. "6281234567890@c.us" or "120363...@g.us" */
+  id: string;
+  /** Display name of the contact/group */
+  name: string | null;
+  /** Profile picture URL */
+  picture: string | null;
+  /** Last message preview */
+  lastMessage: {
+    id: string;
+    timestamp: number;
+    from: string;
+    fromMe: boolean;
+    body: string;
+    hasMedia: boolean;
+  } | null;
+}
+
+export interface WahaMessage {
+  id: string;
+  timestamp: number;
+  from: string;
+  fromMe: boolean;
+  body: string;
+  hasMedia: boolean;
+  /** Media URL if `downloadMedia=true` was used */
+  media?: {
+    url: string;
+    mimetype: string;
+    filename: string;
+  } | null;
+}
+
+// ── Get all chats (overview) ────────────────────────────────────
+
+export async function getWahaChats(): Promise<any[]> {
+  const { baseUrl, apiKey, session } = getWahaConfig();
+  // Using merge=true to include contact name and chat details together as shown in the user's curl example
+  const url = `${baseUrl}/api/${session}/chats?merge=true`;
+
+  const res = await fetch(url, {
+    headers: getHeaders(apiKey),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`[WAHA] Failed to fetch chats — ${res.status}: ${errorText}`);
+    throw new Error(`Failed to fetch chats from WAHA: ${res.statusText}`);
+  }
+
+  return res.json();
+}
+
+// ── Get messages for a specific chat ────────────────────────────
+
+export async function getWahaChatMessages(
+  chatId: string,
+  limit = 100,
+  downloadMedia = false,
+): Promise<WahaMessage[]> {
+  const { baseUrl, apiKey, session } = getWahaConfig();
+  const url = `${baseUrl}/api/${session}/chats/${encodeURIComponent(chatId)}/messages?sortBy=timestamp&downloadMedia=${downloadMedia}&merge=true&limit=${limit}`;
+
+  const res = await fetch(url, {
+    headers: getHeaders(apiKey),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(
+      `[WAHA] Failed to fetch messages for ${chatId} — ${res.status}: ${errorText}`,
+    );
+    throw new Error(`Failed to fetch messages from WAHA: ${res.statusText}`);
+  }
+
+  return res.json();
+}
+
+// ── Send text message ────────────────────────────────────────────
+
+export async function sendWaTextMessage(
+  to: string,
+  body: string,
+): Promise<void> {
+  const { baseUrl, apiKey, session } = getWahaConfig();
+  const url = `${baseUrl}/api/sendText`;
+
+  // Ensure proper chatId format
+  const chatId = to.includes("@") ? to : `${to}@c.us`;
 
   const payload = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to: to.replace(/[^0-9]/g, ""),
-    type: "text",
-    text: { preview_url: false, body },
+    session,
+    chatId,
+    text: body,
   };
 
-  const response = await fetch(url, {
+  const res = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: getHeaders(apiKey),
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Failed to send WA message to ${to} — ${response.status} ${errorText}`);
-    throw new Error(`Failed to send WhatsApp message: ${response.statusText}`);
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(
+      `[WAHA] Failed to send message to ${to} — ${res.status}: ${errorText}`,
+    );
+    throw new Error(`Failed to send WhatsApp message: ${res.statusText}`);
   }
 
-  console.log(`[WA] Message sent to ${to}`);
-}
-
-/**
- * Upload a file to the WhatsApp Media API.
- *
- * @param fileBuffer Raw file content as a Blob or Buffer.
- * @param mimeType MIME type (e.g., "application/pdf").
- * @param filename Display filename (e.g., "receipt.pdf").
- * @returns The WhatsApp media ID for the uploaded file.
- */
-export async function uploadWaMedia(
-  fileBuffer: Blob | Buffer,
-  mimeType: string,
-  filename: string
-): Promise<string> {
-  const { token, phoneNumberId } = getWaCredentials();
-  const url = `${WA_API_BASE}/${phoneNumberId}/media`;
-
-  const formData = new FormData();
-  formData.append("messaging_product", "whatsapp");
-  formData.append("type", mimeType);
-  
-  if (fileBuffer instanceof Blob) {
-    formData.append("file", fileBuffer, filename);
-  } else {
-    // Cast to any to bypass BlobPart strict typing for Buffer in Node environments
-    formData.append("file", new Blob([fileBuffer as any], { type: mimeType }), filename);
-  }
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      // fetch automatically sets Content-Type for FormData
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Failed to upload media — ${response.status} ${errorText}`);
-    throw new Error(`Failed to upload WhatsApp media: ${response.statusText}`);
-  }
-
-  const responseData = await response.json();
-  const mediaId = responseData.id;
-  console.log(`[WA] Uploaded media: ${mediaId} (${filename})`);
-  return mediaId;
-}
-
-/**
- * Send a document message to a WhatsApp user.
- *
- * @param to Recipient phone number.
- * @param mediaId WhatsApp media ID from `uploadWaMedia()`.
- * @param filename Display filename the recipient sees.
- * @param caption Optional caption text shown with the document.
- */
-export async function sendWaDocumentMessage(
-  to: string,
-  mediaId: string,
-  filename: string,
-  caption: string = ""
-): Promise<void> {
-  const { token, phoneNumberId } = getWaCredentials();
-  const url = `${WA_API_BASE}/${phoneNumberId}/messages`;
-
-  const payload: any = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to: to.replace(/[^0-9]/g, ""),
-    type: "document",
-    document: {
-      id: mediaId,
-      filename,
-    },
-  };
-
-  if (caption) {
-    payload.document.caption = caption;
-  }
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Failed to send document to ${to} — ${response.status} ${errorText}`);
-    throw new Error(`Failed to send WhatsApp document: ${response.statusText}`);
-  }
-
-  console.log(`[WA] Document '${filename}' sent to ${to}`);
+  console.log(`[WAHA] Message sent to ${to}`);
 }

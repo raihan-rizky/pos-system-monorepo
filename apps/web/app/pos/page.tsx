@@ -63,6 +63,8 @@ export default function POSPage() {
     discount: number;
     note: string;
     customerName: string;
+    salesName: string;
+    paymentStatus: string;
   }) => {
     try {
       const result = await createTransaction.mutateAsync({
@@ -72,6 +74,8 @@ export default function POSPage() {
         discount: data.discount,
         note: data.note,
         customerName: data.customerName,
+        salesName: data.salesName,
+        paymentStatus: data.paymentStatus,
       });
       setLastTransaction(result);
       cart.clearCart();

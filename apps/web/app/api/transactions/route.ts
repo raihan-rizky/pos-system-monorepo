@@ -102,7 +102,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { items, paymentMethod, amountPaid, discount = 0, note, customerName } = body;
+    const { items, paymentMethod, amountPaid, discount = 0, note, customerName, salesName, paymentStatus = "COMPLETED" } = body;
 
     if (!items || items.length === 0) {
       return NextResponse.json(
@@ -118,11 +118,21 @@ export async function POST(request: Request) {
       0
     );
     const total = subtotal - discount;
-    const change = amountPaid - total;
 
-    if (amountPaid < total) {
+    // For DP (down payment), allow partial payment. For full payment, require full amount.
+    const isDP = paymentStatus === "DP";
+    const change = isDP ? 0 : amountPaid - total;
+
+    if (!isDP && amountPaid < total) {
       return NextResponse.json(
         { message: "Pembayaran kurang" },
+        { status: 400 }
+      );
+    }
+
+    if (isDP && amountPaid <= 0) {
+      return NextResponse.json(
+        { message: "Jumlah DP harus lebih dari 0" },
         { status: 400 }
       );
     }
@@ -154,8 +164,10 @@ export async function POST(request: Request) {
           paymentMethod: paymentMethod || "CASH",
           amountPaid,
           change,
+          status: isDP ? "DP" : "COMPLETED",
           note: note || null,
           customerName: customerName || null,
+          salesName: salesName || null,
           items: {
             create: items.map(
               (item: {

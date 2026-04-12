@@ -1,82 +1,62 @@
 import { NextResponse } from "next/server";
+import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/wa/media/[id]
- * Proxies WhatsApp media downloads through Meta Graph API.
- * The `id` param is the WhatsApp media ID (e.g. "933807996004982").
+ * Proxies WhatsApp media downloads through WAHA.
+ * The `id` param is the WAHA message ID that contains media.
  *
- * Flow:
- * 1. Fetch media metadata from Graph API to get the download URL
- * 2. Download the actual binary from the returned URL
- * 3. Stream it back to the client with proper content-type
+ * Uses WAHA endpoint: GET /api/{session}/media?messageId={id}
  */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const token = process.env.WHATSAPP_TOKEN;
 
-  if (!token) {
+  if (!isWaConfigured()) {
     return NextResponse.json(
-      { message: "WHATSAPP_TOKEN is not configured" },
+      { message: "WAHA is not configured" },
       { status: 500 }
     );
   }
 
   try {
-    // Step 1: Get the media URL from Graph API
-    const metaRes = await fetch(`https://graph.facebook.com/v21.0/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const { baseUrl, apiKey, session } = getWahaConfig();
 
-    if (!metaRes.ok) {
-      const err = await metaRes.text();
-      console.error("Failed to fetch WA media metadata:", err);
-      return NextResponse.json(
-        { message: "Failed to fetch media info from WhatsApp" },
-        { status: metaRes.status }
-      );
+    // WAHA media download endpoint
+    const url = `${baseUrl}/api/${session}/media?messageId=${encodeURIComponent(id)}`;
+    const headers: Record<string, string> = {};
+    if (apiKey) {
+      headers["X-Api-Key"] = apiKey;
     }
 
-    const metaData = await metaRes.json();
-    const mediaUrl: string = metaData.url;
-
-    if (!mediaUrl) {
-      return NextResponse.json(
-        { message: "No download URL returned by WhatsApp" },
-        { status: 404 }
-      );
-    }
-
-    // Step 2: Download the actual media binary
-    const mediaRes = await fetch(mediaUrl, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const mediaRes = await fetch(url, { headers });
 
     if (!mediaRes.ok) {
-      console.error("Failed to download WA media binary:", mediaRes.status);
+      const err = await mediaRes.text();
+      console.error("[WAHA] Failed to fetch media:", err);
       return NextResponse.json(
-        { message: "Failed to download media from WhatsApp" },
+        { message: "Failed to fetch media from WAHA" },
         { status: mediaRes.status }
       );
     }
 
-    // Step 3: Stream the binary back with correct content-type
-    const contentType = mediaRes.headers.get("content-type") || "application/octet-stream";
+    const contentType =
+      mediaRes.headers.get("content-type") || "application/octet-stream";
     const body = mediaRes.body;
 
     return new Response(body as ReadableStream, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400", // Cache for 24h since WA media expires
+        "Cache-Control": "public, max-age=86400",
       },
     });
   } catch (error) {
-    console.error("WA media proxy error:", error);
+    console.error("[WAHA] Media proxy error:", error);
     return NextResponse.json(
       { message: "Internal error fetching WhatsApp media" },
       { status: 500 }

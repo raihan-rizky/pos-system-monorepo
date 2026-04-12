@@ -14,8 +14,9 @@ export interface Transaction {
   amountPaid: number;
   change: number;
   customerName: string | null;
+  salesName: string | null;
   note: string | null;
-  status: string;
+  status: string; // COMPLETED, DP, VOIDED, REFUNDED
   createdAt: string;
   items: {
     id: string;
@@ -50,6 +51,8 @@ interface CreateTransactionInput {
   discount?: number;
   note?: string;
   customerName?: string;
+  salesName?: string;
+  paymentStatus?: string; // 'COMPLETED' | 'DP'
 }
 
 async function fetchTransactions(): Promise<Transaction[]> {

@@ -193,12 +193,22 @@ export default function HistoryPage() {
                         <th className="py-4 px-6 font-semibold text-sm text-surface-600">Pelanggan</th>
                         <th className="py-4 px-6 font-semibold text-sm text-surface-600">Item</th>
                         <th className="py-4 px-6 font-semibold text-sm text-surface-600">Total</th>
+                        <th className="py-4 px-6 font-semibold text-sm text-surface-600">Status</th>
                         <th className="py-4 px-6 font-semibold text-sm text-surface-600 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-100">
-                      {transactions.map((tx: any) => (
-                        <tr key={tx.id} className="hover:bg-surface-50 transition-colors">
+                      {transactions.map((tx: any) => {
+                        const isDP = tx.status === "DP";
+                        const isVoided = tx.status === "VOIDED";
+                        const isRefunded = tx.status === "REFUNDED";
+                        const rowBg = isDP
+                          ? "bg-amber-50/60 hover:bg-amber-50"
+                          : isVoided || isRefunded
+                            ? "bg-surface-50/50 hover:bg-surface-50"
+                            : "hover:bg-surface-50";
+                        return (
+                        <tr key={tx.id} className={`${rowBg} transition-colors`}>
                           <td className="py-4 px-6 text-sm text-surface-900">
                             {formatDate(new Date(tx.createdAt))}
                           </td>
@@ -216,6 +226,25 @@ export default function HistoryPage() {
                           <td className="py-4 px-6 text-sm font-bold text-brand-600">
                             {formatRupiah(Number(tx.total))}
                           </td>
+                          <td className="py-4 px-6">
+                            {isDP ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                                💰 DP
+                              </span>
+                            ) : isVoided ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-surface-100 text-surface-500 border border-surface-200">
+                                ❌ Void
+                              </span>
+                            ) : isRefunded ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">
+                                ↩️ Refund
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                ✅ Lunas
+                              </span>
+                            )}
+                          </td>
                           <td className="py-4 px-6 text-right">
                             <Button
                               variant="secondary"
@@ -226,7 +255,8 @@ export default function HistoryPage() {
                             </Button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

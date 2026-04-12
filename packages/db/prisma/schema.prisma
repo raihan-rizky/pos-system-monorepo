@@ -32,6 +32,7 @@ enum PaymentMethod {
 
 enum TransactionStatus {
   COMPLETED
+  DP
   VOIDED
   REFUNDED
 }
@@ -143,6 +144,7 @@ model Transaction {
   change        Decimal           @default(0) @db.Decimal(12, 2)
   status        TransactionStatus @default(COMPLETED)
   customerName  String?
+  salesName     String?
   note          String?
   createdAt     DateTime          @default(now())
 

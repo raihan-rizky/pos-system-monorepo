@@ -16,6 +16,8 @@ interface PaymentModalProps {
     discount: number;
     note: string;
     customerName: string;
+    salesName: string;
+    paymentStatus: string;
   }) => void;
   isProcessing?: boolean;
 }
@@ -42,13 +44,28 @@ export function PaymentModal({
   const [amountPaid, setAmountPaid] = useState(0);
   const [note, setNote] = useState("");
   const [customerName, setCustomerName] = useState("Pelanggan Umum");
+  const [salesName, setSalesName] = useState("");
+  const [isDP, setIsDP] = useState(false);
 
   const total = subtotal - discount;
   const change = amountPaid - total;
-  const canPay = amountPaid >= total && total > 0;
+  const remaining = total - amountPaid;
+
+  // Full payment: must pay >= total. DP: must pay > 0 and < total.
+  const canPay = isDP
+    ? amountPaid > 0 && amountPaid < total && total > 0
+    : amountPaid >= total && total > 0;
 
   const handleConfirm = () => {
-    onConfirm({ paymentMethod, amountPaid, discount, note, customerName });
+    onConfirm({
+      paymentMethod,
+      amountPaid,
+      discount,
+      note,
+      customerName,
+      salesName,
+      paymentStatus: isDP ? "DP" : "COMPLETED",
+    });
   };
 
   const handleExactAmount = () => {
@@ -80,6 +97,14 @@ export function PaymentModal({
           placeholder="Pelanggan Umum"
         />
 
+        {/* Sales Name */}
+        <Input
+          label="Nama Sales"
+          value={salesName}
+          onChange={(e) => setSalesName(e.target.value)}
+          placeholder="Masukkan nama sales"
+        />
+
         {/* Payment Method */}
         <div>
           <label className="text-sm font-medium text-surface-700 mb-2 block">
@@ -106,6 +131,43 @@ export function PaymentModal({
           </div>
         </div>
 
+        {/* DP Toggle */}
+        <div>
+          <label className="text-sm font-medium text-surface-700 mb-2 block">
+            Tipe Pembayaran
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setIsDP(false)}
+              className={`
+                flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium
+                transition-all duration-200
+                ${!isDP
+                  ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
+                  : "border-surface-200 text-surface-600 hover:border-surface-300"
+                }
+              `}
+            >
+              <span>✅</span>
+              <span>Lunas</span>
+            </button>
+            <button
+              onClick={() => setIsDP(true)}
+              className={`
+                flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium
+                transition-all duration-200
+                ${isDP
+                  ? "border-amber-500 bg-amber-50 text-amber-700 shadow-sm"
+                  : "border-surface-200 text-surface-600 hover:border-surface-300"
+                }
+              `}
+            >
+              <span>💰</span>
+              <span>Uang Muka (DP)</span>
+            </button>
+          </div>
+        </div>
+
         {/* Discount */}
         <Input
           label="Diskon (Rp)"
@@ -116,7 +178,7 @@ export function PaymentModal({
         />
 
         {/* Totals */}
-        <div className="bg-gradient-to-r from-brand-600 to-brand-700 rounded-xl p-4 text-white">
+        <div className={`rounded-xl p-4 text-white ${isDP ? 'bg-gradient-to-r from-amber-500 to-amber-600' : 'bg-gradient-to-r from-brand-600 to-brand-700'}`}>
           <div className="flex justify-between text-sm opacity-80">
             <span>Subtotal</span>
             <span>{formatRupiah(subtotal)}</span>
@@ -136,19 +198,43 @@ export function PaymentModal({
         {/* Amount Paid */}
         <div>
           <Input
-            label="Jumlah Bayar (Rp)"
+            label={isDP ? "Jumlah DP / Uang Muka (Rp)" : "Jumlah Bayar (Rp)"}
             type="number"
             value={amountPaid || ""}
             onChange={(e) => setAmountPaid(Number(e.target.value) || 0)}
             placeholder="0"
           />
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={handleExactAmount}
-              className="px-3 py-1.5 text-xs font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
-            >
-              Uang Pas
-            </button>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {!isDP && (
+              <button
+                onClick={handleExactAmount}
+                className="px-3 py-1.5 text-xs font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
+              >
+                Uang Pas
+              </button>
+            )}
+            {isDP && (
+              <>
+                <button
+                  onClick={() => setAmountPaid(Math.round(total * 0.25))}
+                  className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  25%
+                </button>
+                <button
+                  onClick={() => setAmountPaid(Math.round(total * 0.50))}
+                  className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  50%
+                </button>
+                <button
+                  onClick={() => setAmountPaid(Math.round(total * 0.75))}
+                  className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  75%
+                </button>
+              </>
+            )}
             {quickAmounts.map((amount) => (
               <button
                 key={amount}
@@ -161,21 +247,38 @@ export function PaymentModal({
           </div>
         </div>
 
-        {/* Change */}
+        {/* Change / Remaining */}
         {amountPaid > 0 && (
-          <div
-            className={`flex justify-between items-center p-3 rounded-xl ${
-              change >= 0
-                ? "bg-success-50 text-success-600"
-                : "bg-danger-50 text-danger-600"
-            }`}
-          >
-            <span className="text-sm font-medium">
-              {change >= 0 ? "Kembalian" : "Kurang"}
-            </span>
-            <span className="text-lg font-extrabold">
-              {formatRupiah(Math.abs(change))}
-            </span>
+          <div>
+            {isDP ? (
+              <div className={`flex justify-between items-center p-3 rounded-xl ${
+                remaining > 0
+                  ? "bg-amber-50 text-amber-700"
+                  : "bg-danger-50 text-danger-600"
+              }`}>
+                <span className="text-sm font-medium">
+                  {remaining > 0 ? "Sisa Tagihan" : "Kelebihan (gunakan Lunas)"}
+                </span>
+                <span className="text-lg font-extrabold">
+                  {formatRupiah(Math.abs(remaining))}
+                </span>
+              </div>
+            ) : (
+              <div
+                className={`flex justify-between items-center p-3 rounded-xl ${
+                  change >= 0
+                    ? "bg-success-50 text-success-600"
+                    : "bg-danger-50 text-danger-600"
+                }`}
+              >
+                <span className="text-sm font-medium">
+                  {change >= 0 ? "Kembalian" : "Kurang"}
+                </span>
+                <span className="text-lg font-extrabold">
+                  {formatRupiah(Math.abs(change))}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -200,7 +303,12 @@ export function PaymentModal({
             loading={isProcessing}
             className="flex-1"
           >
-            {isProcessing ? "Memproses..." : "Konfirmasi Bayar"}
+            {isProcessing
+              ? "Memproses..."
+              : isDP
+                ? `Bayar DP ${amountPaid > 0 ? formatRupiah(amountPaid) : ''}`
+                : "Konfirmasi Bayar"
+            }
           </Button>
         </div>
       </div>

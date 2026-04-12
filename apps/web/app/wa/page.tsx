@@ -12,20 +12,20 @@ import { formatDate } from "@/lib/utils";
  */
 function resolveImageUrl(imageUrl: string | null): string | null {
   if (!imageUrl) return null;
-  if (imageUrl.startsWith("wa_media:")) {
-    const mediaId = imageUrl.replace("wa_media:", "");
+  if (imageUrl.startsWith("wa_media:") || imageUrl.startsWith("waha_media:")) {
+    const mediaId = imageUrl.replace(/^(wa_media:|waha_media:)/, "");
     return `/api/wa/media/${mediaId}`;
   }
   return imageUrl;
 }
 
 export default function WACoexistencePage() {
-  const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: contacts = [], isLoading: contactsLoading } = useWaContacts();
-  const { data: messages = [], isLoading: messagesLoading } = useWaMessages(selectedPhone);
+  const { data: messages = [], isLoading: messagesLoading } = useWaMessages(selectedChatId);
   const { mutateAsync: sendMessage, isPending: isSending } = useSendMessage();
 
   useEffect(() => {
@@ -35,19 +35,19 @@ export default function WACoexistencePage() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !selectedPhone) return;
+    if (!inputText.trim() || !selectedChatId) return;
 
     const content = inputText;
     setInputText("");
     try {
-      await sendMessage({ phone: selectedPhone, content });
+      await sendMessage({ chatId: selectedChatId, content });
     } catch (error) {
       alert("Gagal mengirim pesan: " + error);
       setInputText(content); // restore input on failure
     }
   };
 
-  const selectedContact = contacts.find(c => c.phone === selectedPhone);
+  const selectedContact = contacts.find(c => c.id === selectedChatId);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-surface-50">
@@ -57,7 +57,7 @@ export default function WACoexistencePage() {
       <div className="flex-1 flex ml-0 md:ml-[72px] bg-white border-l border-surface-200">
         
         {/* Left Pane - Contacts List */}
-        <div className={`w-full md:w-[350px] flex-shrink-0 flex-col border-r border-surface-200 ${selectedPhone ? "hidden md:flex" : "flex"}`}>
+        <div className={`w-full md:w-[350px] flex-shrink-0 flex-col border-r border-surface-200 ${selectedChatId ? "hidden md:flex" : "flex"}`}>
           <div className="p-4 bg-surface-50 border-b border-surface-200">
             <h2 className="text-xl font-extrabold text-surface-900">WA Live Chat</h2>
             <p className="text-xs text-brand-600 font-bold mt-1 tracking-wider uppercase">Bot Takeover Active</p>
@@ -72,12 +72,12 @@ export default function WACoexistencePage() {
               <ul className="divide-y divide-surface-100">
                 {contacts.map((contact) => (
                   <li 
-                    key={contact.phone}
-                    onClick={() => setSelectedPhone(contact.phone)}
-                    className={`p-4 cursor-pointer hover:bg-surface-50 transition-colors ${selectedPhone === contact.phone ? "bg-brand-50 hover:bg-brand-50" : ""}`}
+                    key={contact.id}
+                    onClick={() => setSelectedChatId(contact.id)}
+                    className={`p-4 cursor-pointer hover:bg-surface-50 transition-colors ${selectedChatId === contact.id ? "bg-brand-50 hover:bg-brand-50" : ""}`}
                   >
                     <div className="flex justify-between items-baseline mb-1">
-                      <h3 className="font-bold text-surface-900">{contact.phone}</h3>
+                      <h3 className="font-bold text-surface-900">{contact.name || contact.phone}</h3>
                       <span className="text-[11px] font-medium text-surface-400">
                         {new Date(contact.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
                       </span>
@@ -98,11 +98,11 @@ export default function WACoexistencePage() {
         </div>
 
         {/* Right Pane - Chat Window */}
-        <div className={`flex-1 flex-col bg-[#EFEAE2] relative ${!selectedPhone ? "hidden md:flex" : "flex"}`}>
+        <div className={`flex-1 flex-col bg-[#EFEAE2] relative ${!selectedChatId ? "hidden md:flex" : "flex"}`}>
           {/* Subtle WA Background Pattern using CSS */}
           <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ backgroundImage: "url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDEwMCAxMDAiPjxwYXRoIGZpbGw9IiNkMWQ1ZGIiIGQ9Ik0zMC41LDMyLjVsMTkuOS0xOS45YzEuNC0xLjQsMy42LTEuNCw1LDBsMTkuOSwxOS45aDBMNTUuNSw1Mi40YzEuNCwxLjQsMS40LDMuNiwwLDVMMzUuNSw3Ny4zYzEuNCwxLjQsMS40LDMuNiwwLDVMMTUuNiw2Mi40QzE0LjIsNjEuLDE0LjIsNTguOCwxNS42LDU3LjRMMzUuNSwzNy41QzM2LjgsMzYuMiwzNi44LDM0LjEsMzUuNSwzMi41eiIvPjwvc3ZnPg==')" }} />
 
-          {!selectedPhone ? (
+          {!selectedChatId ? (
             <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-surface-500 bg-surface-50">
               <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mb-4 opacity-40">
                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
@@ -115,7 +115,7 @@ export default function WACoexistencePage() {
               {/* Chat Header */}
               <div className="relative z-20 px-4 md:px-6 py-3 bg-white border-b border-surface-200 flex items-center shadow-sm">
                 <button 
-                  onClick={() => setSelectedPhone(null)}
+                  onClick={() => setSelectedChatId(null)}
                   className="mr-3 md:hidden p-2 -ml-2 text-surface-500 rounded-full hover:bg-surface-100 transition-colors"
                 >
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -124,15 +124,16 @@ export default function WACoexistencePage() {
                   </svg>
                 </button>
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="w-10 h-10 rounded-full bg-surface-200 flex items-center justify-center text-surface-500 flex-shrink-0">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-surface-900 leading-tight">{selectedContact?.phone || selectedPhone}</h3>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-success-500 animate-pulse"></div>
-                      <p className="text-[10px] font-bold text-success-600 uppercase tracking-widest leading-none mt-0.5">Anda Mengontrol Bot</p>
+                  {selectedContact?.picture ? (
+                    <img src={selectedContact.picture} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-surface-200 flex items-center justify-center text-surface-500 flex-shrink-0">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                     </div>
+                  )}
+                  <div>
+                    <h3 className="font-extrabold text-surface-900 leading-tight">{selectedContact?.name || selectedContact?.phone || selectedChatId}</h3>
+                    <p className="text-xs text-surface-400 mt-0.5">{selectedContact?.phone || selectedChatId}</p>
                   </div>
                 </div>
               </div>

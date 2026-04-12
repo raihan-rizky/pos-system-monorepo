@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 export interface WaContact {
   id: string;
   phone: string;
+  name: string | null;
+  picture: string | null;
   role: string;
   content: string;
   created_at: string;
@@ -33,17 +35,41 @@ export function useWaContacts() {
   });
 }
 
-export function useWaMessages(phone: string | null) {
+export function useWaMessages(chatId: string | null) {
+  const queryClient = useQueryClient();
+
   return useQuery({
-    queryKey: ["wa-messages", phone],
+    queryKey: ["wa-messages", chatId],
     queryFn: async (): Promise<WaMessage[]> => {
-      if (!phone) return [];
-      const res = await fetch(`/api/wa/messages?phone=${phone}`);
+      if (!chatId || chatId === "0") return [];
+      const res = await fetch(
+        `/api/wa/messages?chatId=${encodeURIComponent(chatId)}`,
+      );
       if (!res.ok) throw new Error("Failed to fetch WA messages");
       const json = await res.json();
-      return json.data;
+      const freshMessages: WaMessage[] = json.data;
+
+      // Merge with existing cached messages so fallback responses
+      // (which may only contain 1 message) don't erase history
+      const cached: WaMessage[] =
+        queryClient.getQueryData(["wa-messages", chatId]) || [];
+
+      // Use a map to deduplicate by ID
+      const merged = new Map<string, WaMessage>();
+      for (const msg of cached) {
+        merged.set(msg.id, msg);
+      }
+      for (const msg of freshMessages) {
+        merged.set(msg.id, msg);
+      }
+
+      // Sort by timestamp ascending (oldest first)
+      return Array.from(merged.values()).sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
     },
-    enabled: !!phone,
+    enabled: !!chatId,
     refetchInterval: 3000, // Poll every 3s when chat is open for real-time feel
   });
 }
@@ -51,11 +77,14 @@ export function useWaMessages(phone: string | null) {
 export function useSendMessage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { phone: string; content: string }) => {
+    mutationFn: async (vars: { chatId: string; content: string }) => {
       const res = await fetch("/api/wa/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(vars),
+        body: JSON.stringify({
+          ...vars,
+          phone: vars.chatId.split("@")[0],
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -63,9 +92,11 @@ export function useSendMessage() {
       }
       return res.json();
     },
-    onSuccess: (_, variables) => {
-      // Invalidate the specific chat and the contacts list to reflect new message immediately
-      queryClient.invalidateQueries({ queryKey: ["wa-messages", variables.phone] });
+    onSuccess: (_data, vars) => {
+      // Immediately refetch to show the sent message
+      queryClient.invalidateQueries({
+        queryKey: ["wa-messages", vars.chatId],
+      });
       queryClient.invalidateQueries({ queryKey: ["wa-contacts"] });
     },
   });
