@@ -73,6 +73,9 @@ importers:
         specifier: ^3.8.0
         version: 3.8.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react-is@19.2.4)(react@19.2.4)(redux@5.0.1)
     devDependencies:
+      '@pos/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.15
@@ -95,7 +98,14 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
-  packages/config: {}
+  packages/config:
+    devDependencies:
+      tailwindcss:
+        specifier: ^3.4.17
+        version: 3.4.19(tsx@4.21.0)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
 
   packages/db:
     dependencies:

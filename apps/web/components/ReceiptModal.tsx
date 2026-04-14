@@ -59,7 +59,11 @@ export function ReceiptModal({ open, onClose, transaction }: ReceiptModalProps) 
             </p>
           </div>
 
-          <div className={`h-0.5 bg-[#cc0000] w-full ${compact ? 'mb-1.5' : 'mb-3'}`}></div>
+          <div
+            className={`w-full ${compact ? 'mb-1.5' : 'mb-3'}`}
+            style={{ borderTop: '2.5px solid #cc0000', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as React.CSSProperties}
+          />
+
 
           {/* Info */}
           <div className={`grid grid-cols-2 gap-4 ${compact ? 'mb-1.5 text-[10px]' : 'mb-3 text-[12px]'}`}>

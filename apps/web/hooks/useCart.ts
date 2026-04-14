@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 export interface CartItem {
   productId: string;
@@ -13,13 +13,38 @@ export interface CartItem {
   material?: string;
 }
 
+const CART_STORAGE_KEY = "pos_cart_v1";
+
+function loadCartFromStorage(): CartItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(CART_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCartToStorage(items: CartItem[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Storage quota exceeded or private mode — fail silently
+  }
+}
+
 export function useCart() {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items, setItems] = useState<CartItem[]>(() => loadCartFromStorage());
+
+  // Persist to sessionStorage whenever items change
+  useEffect(() => {
+    saveCartToStorage(items);
+  }, [items]);
 
   const addItem = useCallback(
     (product: { id: string; name: string; price: number; unit: string; stock: number; size?: string; material?: string }) => {
       setItems((prev) => {
-        // Find existing based on ID (could expand to check size/material if needed, but ID is unique)
         const existing = prev.find((item) => item.productId === product.id);
         if (existing) {
           if (existing.quantity >= product.stock) return prev;
@@ -67,6 +92,9 @@ export function useCart() {
 
   const clearCart = useCallback(() => {
     setItems([]);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(CART_STORAGE_KEY);
+    }
   }, []);
 
   const subtotal = items.reduce(

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sidebar } from "@/components/Sidebar";
 import { useShiftHistory } from "@/hooks/useShift";
 import { formatRupiah, formatDate } from "@/lib/utils";
 
@@ -17,11 +16,9 @@ export default function ShiftHistoryPage() {
   const endItem = Math.min(page * 10, total);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-surface-50">
-      <Sidebar />
-
+    <>
       {/* Main Content */}
-      <div className="flex-1 flex flex-col ml-0 md:ml-[72px] overflow-hidden pb-16 md:pb-0">
+      <div className="flex-1 flex flex-col overflow-hidden">
         <header className="px-4 md:px-8 py-4 md:py-6 bg-white border-b border-surface-100">
           <div>
             <h1 className="text-xl md:text-2xl font-extrabold text-surface-900">Riwayat Shift Kasir</h1>
@@ -107,6 +104,6 @@ export default function ShiftHistoryPage() {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

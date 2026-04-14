@@ -22,10 +22,51 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
   const [size, setSize] = useState("");
   const [material, setMaterial] = useState("");
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const url = URL.createObjectURL(file);
+      setImagePreview(url);
+    }
+  };
+
   const handleConfirm = async () => {
     if (!name || !sku || !price || !stock || !categoryId) {
       alert("Harap isi semua kolom wajib (Nama, SKU, Harga, Stok, Kategori)");
       return;
+    }
+
+    setIsUploading(true);
+    let finalImageUrl = undefined;
+
+    if (imageFile) {
+      try {
+        const formData = new FormData();
+        formData.append("file", imageFile);
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          finalImageUrl = data.url;
+        } else {
+          alert("Gagal mengupload gambar.");
+          setIsUploading(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Upload failed", err);
+        alert("Terjadi kesalahan saat mengupload gambar.");
+        setIsUploading(false);
+        return;
+      }
     }
 
     try {
@@ -38,6 +79,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
         categoryId,
         size: size || undefined,
         material: material || undefined,
+        imageUrl: finalImageUrl,
       });
       // Reset form
       setName("");
@@ -48,16 +90,47 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
       setCategoryId("");
       setSize("");
       setMaterial("");
+      setImageFile(null);
+      setImagePreview(null);
+      setIsUploading(false);
       onClose();
     } catch (error) {
       console.error("Failed to create product:", error);
       alert("Gagal menambahkan barang. SKU mungkin sudah ada.");
+      setIsUploading(false);
     }
   };
 
   return (
     <Modal open={open} onClose={onClose} title="Tambah Barang Baru" size="lg">
       <div className="space-y-4">
+        {/* Image Upload */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-surface-700">Gambar Produk</label>
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 bg-surface-100 rounded-xl overflow-hidden flex items-center justify-center border border-surface-200 shrink-0">
+              {imagePreview ? (
+                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-surface-400">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+              )}
+            </div>
+            <div className="flex-1">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="w-full text-sm text-surface-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-600 hover:file:bg-brand-100 transition-colors"
+              />
+              <p className="text-xs text-surface-400 mt-1">Format: JPG, PNG, GIF (Maks. 5MB)</p>
+            </div>
+          </div>
+        </div>
+
         <Input
           label="Nama Barang *"
           value={name}

@@ -22,6 +22,7 @@ export async function PUT(
         size: body.size || null,
         material: body.material || null,
         categoryId: body.categoryId,
+        ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
       },
       include: {
         category: {

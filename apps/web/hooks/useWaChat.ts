@@ -57,7 +57,21 @@ export function useWaMessages(chatId: string | null) {
       // Use a map to deduplicate by ID
       const merged = new Map<string, WaMessage>();
       for (const msg of cached) {
-        merged.set(msg.id, msg);
+        const msgIdStr = String(msg.id);
+        if (msgIdStr.startsWith("optimistic-") || msgIdStr.startsWith("fast-")) {
+          // Keep optimistic messages for up to 15 seconds to prevent flickering
+          // while waiting for WAHA to truly sync the sent message
+          const msgAge = Date.now() - new Date(msg.created_at).getTime();
+          if (msgAge < 15000) {
+            // Check if backend already sent the true message (same content, assistant role, close timestamp)
+            const isDuplicated = freshMessages.some(fm => fm.content === msg.content && fm.role === msg.role && Math.abs(new Date(fm.created_at).getTime() - new Date(msg.created_at).getTime()) < 30000);
+            if (!isDuplicated) {
+              merged.set(msgIdStr, msg);
+            }
+          }
+        } else {
+          merged.set(msgIdStr, msg);
+        }
       }
       for (const msg of freshMessages) {
         merged.set(msg.id, msg);
@@ -92,12 +106,52 @@ export function useSendMessage() {
       }
       return res.json();
     },
-    onSuccess: (_data, vars) => {
-      // Immediately refetch to show the sent message
-      queryClient.invalidateQueries({
-        queryKey: ["wa-messages", vars.chatId],
+    onSuccess: (response, vars) => {
+      // The backend now resolves instantly. We append the server-acknowledged message to the cache natively
+      const serverMsg = response.data;
+      queryClient.setQueryData<WaMessage[]>(["wa-messages", vars.chatId], (old) => {
+        return [...(old || []), serverMsg];
       });
+    },
+    onSettled: (_data, _error, vars) => {
+      // We no longer blindly invalidate here because the server responded instantly and 
+      // the background WAHA task might take 2 seconds. The 3-second background polling
+      // will naturally catch the true message organically without duplicates.
       queryClient.invalidateQueries({ queryKey: ["wa-contacts"] });
     },
   });
 }
+
+export function useAutoReplyStatus() {
+  return useQuery({
+    queryKey: ["wa-auto-reply"],
+    queryFn: async (): Promise<boolean> => {
+      const res = await fetch("/api/wa/auto-reply");
+      if (!res.ok) throw new Error("Failed to fetch auto-reply status");
+      const json = await res.json();
+      return json.isAutoReplyOn;
+    },
+    refetchInterval: 5000,
+  });
+}
+
+export function useToggleAutoReply() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (enable: boolean) => {
+      const res = await fetch("/api/wa/auto-reply", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enable }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to update auto-reply status");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["wa-auto-reply"], data.isAutoReplyOn);
+    },
+  });
+}
+

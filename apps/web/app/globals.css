@@ -2,7 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* 
+  Google Fonts are now loaded via next/font/google in layout.tsx (self-hosted, zero render-blocking).
+  The CSS variables --font-inter and --font-mono are injected by Next.js automatically.
+*/
 
 :root {
   --color-brand: #0c98e9;
@@ -19,7 +22,7 @@
 }
 
 html {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-inter, 'Inter', system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -89,6 +92,45 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* ─── Route transition progress bar ─────────────────────────────────────────── */
+@keyframes progress-bar {
+  0%   { width: 0%;    opacity: 1; }
+  70%  { width: 80%;   opacity: 1; }
+  90%  { width: 95%;   opacity: 1; }
+  100% { width: 100%;  opacity: 0; }
+}
+
+.animate-progress-bar {
+  animation: progress-bar 1.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ─── PWA install prompt animation ──────────────────────────────────────────── */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* ─── AI Active Glowing Animation ─────────────────────────────────────────── */
+@keyframes ai-pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(12, 152, 233, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(12, 152, 233, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(12, 152, 233, 0);
+  }
+}
+
+.animate-ai-glow {
+  animation: ai-pulse-glow 2s infinite;
+}
+
 @media print {
   body * {
     visibility: hidden;
@@ -104,9 +146,10 @@ input[type="number"] {
     padding: 0;
   }
   
-  /* Hide any potential modal ovlerays/backgrounds */
+  /* Hide any potential modal overlays/backgrounds */
   .fixed, [role="dialog"] {
     position: absolute !important;
     background: transparent !important;
   }
 }
+

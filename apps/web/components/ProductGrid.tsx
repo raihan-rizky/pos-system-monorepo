@@ -1,8 +1,13 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { formatRupiah } from "@/lib/utils";
 import type { Product } from "@/hooks/useProducts";
+
+// Tiny 4×4 neutral grey pixel — used as blur placeholder (no external request)
+const BLUR_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEklEQVQImWNgYGD4z8BQDwAEgAF/QualIQAAAABJRU5ErkJggg==";
 
 interface ProductGridProps {
   products: Product[];
@@ -48,9 +53,11 @@ export function ProductGrid({
 
   return (
     <div className={isEditMode ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3"}>
-      {products.map((product) => {
+      {products.map((product, index) => {
         const isLowStock = product.stock <= 5;
         const isOutOfStock = product.stock <= 0;
+        // First 4 visible products are above the fold — mark as LCP priority
+        const isPriority = index < 4;
 
         return (
           <div
@@ -105,6 +112,31 @@ export function ProductGrid({
                 </button>
               </div>
             )}
+
+            {product.imageUrl ? (
+              <div className="relative w-full aspect-square bg-surface-100 rounded-xl mb-3 overflow-hidden flex items-center justify-center">
+                <Image
+                  src={product.imageUrl}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                  className="object-cover transition-transform duration-300 hover:scale-105"
+                  placeholder="blur"
+                  blurDataURL={BLUR_DATA_URL}
+                  priority={isPriority}
+                  loading={isPriority ? "eager" : "lazy"}
+                />
+              </div>
+            ) : (
+              <div className="w-full aspect-square bg-surface-100 rounded-xl mb-3 flex items-center justify-center text-surface-300">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+              </div>
+            )}
+
             {/* Category badge */}
             <div
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold mb-2 ${isEditMode ? 'pr-16' : ''}`}

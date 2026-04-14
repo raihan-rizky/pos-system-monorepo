@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const navItems = [
   {
@@ -64,6 +64,7 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <aside className="fixed bottom-0 left-0 w-full h-16 md:top-0 md:h-screen md:w-[72px] bg-surface-900 flex flex-row md:flex-col items-center justify-around md:justify-start md:py-4 z-[100]">
@@ -80,6 +81,9 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
+              onMouseEnter={() => router.prefetch(item.href)}
+              title={item.label}
               className={`
                 relative flex flex-col md:flex-col items-center justify-center
                 w-12 h-12 rounded-xl
@@ -92,11 +96,13 @@ export function Sidebar() {
             >
               {item.icon}
               {/* Tooltip on desktop */}
-              <span className={`
+              <span className="
                 hidden md:block absolute left-full ml-3 px-2.5 py-1 rounded-lg text-xs font-medium
-                opacity-50 pointer-events-none group-hover:opacity-100
+                bg-surface-800 text-white whitespace-nowrap
+                opacity-0 pointer-events-none group-hover:opacity-100
                 transition-opacity duration-200 shadow-lg
-              `}>
+              ">
+                {item.label}
               </span>
             </Link>
           );

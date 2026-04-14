@@ -72,6 +72,7 @@ export interface CreateProductInput {
   categoryId: string;
   size?: string;
   material?: string;
+  imageUrl?: string;
 }
 
 async function createProduct(input: CreateProductInput): Promise<Product> {

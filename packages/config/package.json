@@ -2,5 +2,9 @@
   "name": "@pos/config",
   "version": "0.0.0",
   "private": true,
-  "files": ["eslint.json", "tailwind.config.ts", "tsconfig.json"]
+  "files": ["eslint.json", "tailwind.config.ts", "tsconfig.json"],
+  "devDependencies": {
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0"
+  }
 }

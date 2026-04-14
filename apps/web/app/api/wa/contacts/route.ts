@@ -1,67 +1,124 @@
 import { NextResponse } from "next/server";
-import { getWahaChats, isWaConfigured } from "@/lib/whatsapp";
+import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/wa/contacts
  * Returns a list of all WhatsApp chats from WAHA, ordered by most recent.
- * Each entry includes the chat name, picture, and last message preview.
+ * Fetches from /api/{session}/chats/overview?merge=true&limit=20 which includes
+ * contact name, profile picture, and last message in a single call.
  */
 export async function GET() {
+  const startTime = performance.now();
+  console.log(`[WA/Contacts] GET request received`);
+
   if (!isWaConfigured()) {
     return NextResponse.json(
-      { message: "WAHA is not configured. Set WAHA_BASE_URL in your .env" },
-      { status: 503 }
+      { message: "WAHA is not configured." },
+      { status: 503 },
     );
   }
 
   try {
-    const chats = await getWahaChats();
+    const { baseUrl, apiKey, session } = getWahaConfig();
+    const url = `${baseUrl}/api/${session}/chats/overview?merge=true&limit=20`;
 
-    // Transform WAHA response to match the frontend's expected format
+    console.log(`[WA/Contacts] Fetching from: ${url}`);
+
+    const res = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(apiKey ? { "X-Api-Key": apiKey } : {}),
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[WA/Contacts] ❌ WAHA returned ${res.status}: ${errorText}`);
+      throw new Error(`WAHA overview API error: ${res.statusText}`);
+    }
+
+    const chats: any[] = await res.json();
+
     const contacts = chats
       .filter((chat: any) => {
-        const idString = chat.id?._serialized || chat.id || "";
-        // Allow @c.us and @lid (WhatsApp Linked Devices/Business contacts)
-        return (idString.endsWith("@c.us") || idString.endsWith("@lid") || idString.endsWith("@s.whatsapp.net")) && idString !== "0@c.us";
+        // Fix logic penentuan ID string
+        let idString =
+          chat.id?._serialized || (typeof chat.id === "string" ? chat.id : "");
+        if (!idString) return false;
+
+        if (idString.endsWith("@s.whatsapp.net")) {
+          idString = idString.replace("@s.whatsapp.net", "@c.us");
+        }
+        return (
+          (idString.endsWith("@c.us") || idString.endsWith("@lid")) &&
+          idString !== "0@c.us"
+        );
       })
       .map((chat: any) => {
-        const idString = chat.id?._serialized || chat.id;
-        // Strip out the server suffix suffix to get just the phone/user id
+        let idString =
+          chat.id?._serialized || (typeof chat.id === "string" ? chat.id : "");
+        if (idString.endsWith("@s.whatsapp.net")) {
+          idString = idString.replace("@s.whatsapp.net", "@c.us");
+        }
+
         const phoneStr = idString.split("@")[0];
-        
+
+        // Extract push name from lastMessage._data (overview endpoint returns name: null)
+        const pushName =
+          chat.lastMessage?._data?.pushName ||
+          chat.lastMessage?.pushName ||
+          null;
+
+        // --- LOGGING DEBUG UNTUK SETIAP KONTAK ---
+        console.log(`[WA/Debug] Contact: ${idString}`, {
+          rawName: chat.name,
+          pushName,
+          rawPicture: chat.picture ? "FOUND" : "NULL",
+          idType: idString.includes("@lid")
+            ? "LID (Business)"
+            : "C.US (Personal)",
+        });
+
         let role = "user";
         let content = "";
         let timestamp = chat.timestamp;
         let hasMedia = false;
 
         if (chat.lastMessage) {
-            // Using the _data object as seen in /api/{session}/chats payload, or fallback
-            const data = chat.lastMessage._data || chat.lastMessage;
-            if (data) {
-                // For nested structure, we might need to check multiple places depending on WAHA version
-                const isFromMe = data.id?.fromMe ?? data.fromMe ?? false;
-                role = isFromMe ? "assistant" : "user";
-                content = data.body || chat.lastMessage.body || "";
-                
-                // Identify media based on type
-                hasMedia = (data.type && data.type !== "chat" && data.type !== "notification_template") || 
-                           (chat.lastMessage.type && chat.lastMessage.type !== "chat" && chat.lastMessage.type !== "notification_template");
-                
-                // If the payload provides its own timestamp, use it
-                if (data.t) timestamp = data.t;
-                else if (chat.lastMessage.timestamp) timestamp = chat.lastMessage.timestamp;
-            }
+          const lm = chat.lastMessage;
+          const data = lm._data || lm;
+
+          // hasMedia is a top-level field in the overview response
+          hasMedia = lm.hasMedia === true;
+
+          const isFromMe =
+            lm.fromMe ?? data.key?.fromMe ?? data.id?.fromMe ?? false;
+          role = isFromMe ? "assistant" : "user";
+
+          // body is top-level in overview; also check deep _data paths
+          content =
+            lm.body ||
+            data.message?.conversation ||
+            data.message?.extendedTextMessage?.text ||
+            "";
+
+          // timestamp is top-level in overview response
+          timestamp = lm.timestamp ?? data.messageTimestamp ?? data.t;
         }
 
         return {
           id: idString,
           phone: phoneStr,
-          name: chat.name || phoneStr,
+          // overview returns name: null, so fall back through pushName → phone
+          name: chat.name || pushName || chat.pushname || phoneStr,
+          // picture is a direct CDN URL (e.g. pps.whatsapp.net) when available
           picture: chat.picture || null,
           role,
-          content,
+          content: hasMedia ? "📷 Media" : content,
           created_at: timestamp
             ? new Date(timestamp * 1000).toISOString()
             : new Date().toISOString(),
@@ -69,12 +126,20 @@ export async function GET() {
         };
       });
 
+    contacts.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+
+    const duration = (performance.now() - startTime).toFixed(1);
+    console.log(`[WA/Contacts] ✅ Success in ${duration}ms`);
+
     return NextResponse.json({ data: contacts });
   } catch (error: any) {
-    console.error("Failed to fetch WA contacts from WAHA:", error);
+    console.error(`[WA/Contacts] ❌ Error:`, error.message);
     return NextResponse.json(
-      { message: error.message || "Failed to fetch WA contacts" },
-      { status: 500 }
+      { message: "Failed to fetch WA contacts" },
+      { status: 500 },
     );
   }
 }

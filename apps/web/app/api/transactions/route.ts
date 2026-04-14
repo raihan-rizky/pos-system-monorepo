@@ -102,13 +102,19 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { items, paymentMethod, amountPaid, discount = 0, note, customerName, salesName, paymentStatus = "COMPLETED" } = body;
+    const {
+      items,
+      paymentMethod,
+      amountPaid,
+      discount = 0,
+      note,
+      customerName,
+      salesName,
+      paymentStatus = "COMPLETED",
+    } = body;
 
     if (!items || items.length === 0) {
-      return NextResponse.json(
-        { message: "Cart is empty" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Cart is empty" }, { status: 400 });
     }
 
     // Calculate totals
@@ -119,15 +125,12 @@ export async function POST(request: Request) {
     );
     const total = subtotal - discount;
 
-    // For DP (down payment), allow partial payment. For full payment, require full amount.
+    // For DP (down payment), allow partial payment.
     const isDP = paymentStatus === "DP";
     const change = isDP ? 0 : amountPaid - total;
 
     if (!isDP && amountPaid < total) {
-      return NextResponse.json(
-        { message: "Pembayaran kurang" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Pembayaran kurang" }, { status: 400 });
     }
 
     if (isDP && amountPaid <= 0) {
@@ -137,86 +140,101 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate invoice number
+    // Invoice number is generated INSIDE the DB transaction so the count
+    // and insert are atomic. We retry up to 5 times on a uniqueness collision
+    // (Prisma P2002) by incrementing the daily sequence suffix.
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const count = await db.transaction.count({
-      where: {
-        createdAt: {
-          gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-        },
-      },
-    });
-    const invoiceNumber = `INV-${dateStr}-${String(count + 1).padStart(4, "0")}`;
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // Create transaction with items and deduct stock (in a transaction)
-    const transaction = await db.$transaction(async (tx) => {
-      // Create transaction
-      const txn = await tx.transaction.create({
-        data: {
-          invoiceNumber,
-          storeId: "store-main",
-          cashierId: body.cashierId || "user-kasir1", // Default to Kasir 1 (will use auth later)
-          subtotal,
-          discount,
-          tax: 0,
-          total,
-          paymentMethod: paymentMethod || "CASH",
-          amountPaid,
-          change,
-          status: isDP ? "DP" : "COMPLETED",
-          note: note || null,
-          customerName: customerName || null,
-          salesName: salesName || null,
-          items: {
-            create: items.map(
-              (item: {
-                productId: string;
-                name: string;
-                size?: string;
-                material?: string;
-                price: number;
-                quantity: number;
-              }) => ({
+    const MAX_ATTEMPTS = 5;
+    let transaction: any = null;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        transaction = await db.$transaction(async (tx) => {
+          // Count today's transactions to build the sequence number.
+          // Running inside the transaction gives us a consistent snapshot.
+          const count = await tx.transaction.count({
+            where: { createdAt: { gte: dayStart } },
+          });
+          const invoiceNumber = `INV-${dateStr}-${String(count + 1 + attempt).padStart(4, "0")}`;
+
+          const txn = await tx.transaction.create({
+            data: {
+              invoiceNumber,
+              storeId: "store-main",
+              cashierId: body.cashierId || "user-kasir1",
+              subtotal,
+              discount,
+              tax: 0,
+              total,
+              paymentMethod: paymentMethod || "CASH",
+              amountPaid,
+              change,
+              status: isDP ? "DP" : "COMPLETED",
+              note: note || null,
+              customerName: customerName || null,
+              salesName: salesName || null,
+              items: {
+                create: items.map(
+                  (item: {
+                    productId: string;
+                    name: string;
+                    size?: string;
+                    material?: string;
+                    price: number;
+                    quantity: number;
+                  }) => ({
+                    productId: item.productId,
+                    productName: item.name,
+                    size: item.size || null,
+                    material: item.material || null,
+                    quantity: item.quantity,
+                    unitPrice: item.price,
+                    discount: 0,
+                    subtotal: item.price * item.quantity,
+                  })
+                ),
+              },
+            },
+            include: { items: true },
+          });
+
+          // Deduct stock for each item
+          for (const item of items) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { decrement: item.quantity } },
+            });
+
+            // Log inventory change
+            await tx.inventoryLog.create({
+              data: {
                 productId: item.productId,
-                productName: item.name,
-                size: item.size || null,
-                material: item.material || null,
+                type: "OUT",
                 quantity: item.quantity,
-                unitPrice: item.price,
-                discount: 0,
-                subtotal: item.price * item.quantity,
-              })
-            ),
-          },
-        },
-        include: {
-          items: true,
-        },
-      });
+                note: `Penjualan ${invoiceNumber}`,
+              },
+            });
+          }
 
-      // Deduct stock for each item
-      for (const item of items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: { decrement: item.quantity },
-          },
+          return txn;
         });
 
-        // Log inventory change
-        await tx.inventoryLog.create({
-          data: {
-            productId: item.productId,
-            type: "OUT",
-            quantity: item.quantity,
-            note: `Penjualan ${invoiceNumber}`,
-          },
-        });
+        // Transaction succeeded — break out of retry loop
+        break;
+      } catch (err: any) {
+        // P2002 = unique constraint violation on invoiceNumber — retry
+        if (err?.code === "P2002" && attempt < MAX_ATTEMPTS - 1) {
+          console.warn(
+            `Invoice number collision on attempt ${attempt + 1}, retrying…`
+          );
+          continue;
+        }
+        throw err; // non-recoverable error or max retries exceeded
       }
-
-      return txn;
-    });
+    }
 
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {

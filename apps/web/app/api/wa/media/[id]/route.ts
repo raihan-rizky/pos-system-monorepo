@@ -5,61 +5,113 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/wa/media/[id]
- * Proxies WhatsApp media downloads through WAHA.
- * The `id` param is the WAHA message ID that contains media.
  *
- * Uses WAHA endpoint: GET /api/{session}/media?messageId={id}
+ * Proxies WAHA media file downloads through our Next.js backend.
+ *
+ * Architecture (on-demand / lazy loading):
+ *  1. Frontend clicks a contact → messages are fetched with `downloadMedia=true`.
+ *  2. WAHA processes media and stores files locally, returning URLs like:
+ *       http://localhost:3000/api/files/default/<FILENAME>.jpeg
+ *  3. That full URL (or just the filename) is stored as `image_url` on the message.
+ *  4. When the frontend wants to render an image it calls:
+ *       GET /api/wa/media/<FILENAME>.jpeg
+ *     OR with full url encoded:
+ *       GET /api/wa/media/<encoded-full-url>
+ *  5. THIS route adds the WAHA X-Api-Key header and streams the file back to the browser.
+ *     The browser never touches WAHA directly — no CORS, no credentials leakage.
  */
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const startTime = performance.now();
   const { id } = await params;
 
+  console.log(`[WA/Media] GET request — id=${id}`);
+
   if (!isWaConfigured()) {
+    console.warn(`[WA/Media] WAHA not configured — returning 503`);
     return NextResponse.json(
       { message: "WAHA is not configured" },
-      { status: 500 }
+      { status: 503 },
     );
   }
 
   try {
     const { baseUrl, apiKey, session } = getWahaConfig();
 
-    // WAHA media download endpoint
-    const url = `${baseUrl}/api/${session}/media?messageId=${encodeURIComponent(id)}`;
-    const headers: Record<string, string> = {};
+    // ── Resolve the actual download URL ─────────────────────────────────────
+    //
+    // The `id` param can be one of:
+    //   (a) A bare filename:     "AC3D0CE3840F1E65B92C7A6A32D883F3.jpeg"
+    //   (b) A URL-encoded full WAHA file URL:
+    //       "http%3A%2F%2Flocalhost%3A3000%2Fapi%2Ffiles%2Fdefault%2FAC3D...jpeg"
+    //
+    // In both cases we want to call WAHA's /api/files/{session}/{filename} endpoint
+    // (or the full URL if it was explicitly provided) and stream the bytes back.
+
+    let fileUrl: string;
+
+    // Check if the id is a full URL (encoded or not)
+    const decoded = decodeURIComponent(id);
+    if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
+      // Case (b): the frontend passed the full WAHA file URL — use it directly.
+      fileUrl = decoded;
+    } else {
+      // Case (a): bare filename — construct the standard WAHA files endpoint.
+      // WAHA stores media under: GET /api/files/{session}/{filename}
+      fileUrl = `${baseUrl}/api/files/${session}/${id}`;
+    }
+
+    const headers: Record<string, string> = {
+      Accept: "image/*, video/*, audio/*, application/octet-stream, */*",
+    };
     if (apiKey) {
       headers["X-Api-Key"] = apiKey;
     }
 
-    const mediaRes = await fetch(url, { headers });
+    console.log(`[WA/Media] Fetching from WAHA: ${fileUrl}`);
+    const mediaRes = await fetch(fileUrl, { headers });
 
     if (!mediaRes.ok) {
-      const err = await mediaRes.text();
-      console.error("[WAHA] Failed to fetch media:", err);
+      const errText = await mediaRes.text();
+      const duration = (performance.now() - startTime).toFixed(1);
+      console.error(
+        `[WA/Media] ❌ WAHA returned ${mediaRes.status} after ${duration}ms:`,
+        errText,
+      );
       return NextResponse.json(
-        { message: "Failed to fetch media from WAHA" },
-        { status: mediaRes.status }
+        { message: "Failed to fetch media from WAHA", detail: errText },
+        { status: mediaRes.status },
       );
     }
 
     const contentType =
       mediaRes.headers.get("content-type") || "application/octet-stream";
-    const body = mediaRes.body;
 
-    return new Response(body as ReadableStream, {
+    const duration = (performance.now() - startTime).toFixed(1);
+    console.log(
+      `[WA/Media] ✅ Streaming media (type=${contentType}) for id=${id} in ${duration}ms`,
+    );
+
+    // Stream the binary directly to the browser — no buffering, memory-efficient.
+    return new Response(mediaRes.body as ReadableStream, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400",
+        // Allow aggressive browser caching — WAHA filenames are content-addressed.
+        "Cache-Control": "public, max-age=604800, immutable",
       },
     });
-  } catch (error) {
-    console.error("[WAHA] Media proxy error:", error);
+  } catch (error: any) {
+    const duration = (performance.now() - startTime).toFixed(1);
+    console.error(
+      `[WA/Media] ❌ Proxy error after ${duration}ms:`,
+      error.message || error,
+    );
     return NextResponse.json(
       { message: "Internal error fetching WhatsApp media" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

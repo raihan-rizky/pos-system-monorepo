@@ -13,12 +13,13 @@ export function getWahaConfig() {
   const baseUrl = process.env.WAHA_BASE_URL;
   const apiKey = process.env.WAHA_API_KEY;
   const session = process.env.WAHA_SESSION || "default";
+  const webhookUrl = process.env.WEBHOOK_BASE_URL;
 
   if (!baseUrl) {
     throw new Error("Missing WAHA_BASE_URL environment variable");
   }
 
-  return { baseUrl, apiKey, session };
+  return { baseUrl, apiKey, session, webhookUrl };
 }
 
 export function isWaConfigured(): boolean {
@@ -97,25 +98,40 @@ export async function getWahaChats(): Promise<any[]> {
 export async function getWahaChatMessages(
   chatId: string,
   limit = 100,
-  downloadMedia = false,
+  downloadMedia = true,
 ): Promise<WahaMessage[]> {
   const { baseUrl, apiKey, session } = getWahaConfig();
-  const url = `${baseUrl}/api/${session}/chats/${encodeURIComponent(chatId)}/messages?sortBy=timestamp&downloadMedia=${downloadMedia}&merge=true&limit=${limit}`;
 
-  const res = await fetch(url, {
-    headers: getHeaders(apiKey),
-    cache: "no-store",
+  // Pakai URLSearchParams biar lebih rapi nyusun query-nya
+  const params = new URLSearchParams({
+    sortBy: "timestamp",
+    downloadMedia: String(downloadMedia),
+    merge: "true",
+    limit: String(limit),
   });
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error(
-      `[WAHA] Failed to fetch messages for ${chatId} — ${res.status}: ${errorText}`,
-    );
-    throw new Error(`Failed to fetch messages from WAHA: ${res.statusText}`);
-  }
+  const url = `${baseUrl}/api/${session}/chats/${encodeURIComponent(chatId)}/messages?${params.toString()}`;
 
-  return res.json();
+  try {
+    const res = await fetch(url, {
+      headers: getHeaders(apiKey),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      // Kita log dulu di console buat dev, baru throw
+      const errorData = await res.json().catch(() => null);
+      const errorMessage = errorData?.exception?.message || res.statusText;
+
+      console.error("WAHA Error Detail:", errorData);
+      throw new Error(`WAHA API Error (${res.status}): ${errorMessage}`);
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("Fetch Execution Failed:", error);
+    throw error;
+  }
 }
 
 // ── Send text message ────────────────────────────────────────────
@@ -151,4 +167,5 @@ export async function sendWaTextMessage(
   }
 
   console.log(`[WAHA] Message sent to ${to}`);
+  return res.json();
 }

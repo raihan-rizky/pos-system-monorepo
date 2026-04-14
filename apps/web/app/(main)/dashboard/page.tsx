@@ -2,23 +2,22 @@
 
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sidebar } from "@/components/Sidebar";
+import dynamic from "next/dynamic";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { Card } from "@pos/ui";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { useTransactions } from "@/hooks/useTransactions";
 import type { Transaction } from "@/hooks/useTransactions";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from "recharts";
+
+const AreaChart = dynamic(() => import("recharts").then(mod => mod.AreaChart), { ssr: false });
+const Area = dynamic(() => import("recharts").then(mod => mod.Area), { ssr: false });
+const XAxis = dynamic(() => import("recharts").then(mod => mod.XAxis), { ssr: false });
+const YAxis = dynamic(() => import("recharts").then(mod => mod.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import("recharts").then(mod => mod.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import("recharts").then(mod => mod.Tooltip), { ssr: false });
+const ResponsiveContainer = dynamic(() => import("recharts").then(mod => mod.ResponsiveContainer), { ssr: false });
+const BarChart = dynamic(() => import("recharts").then(mod => mod.BarChart), { ssr: false });
+const Bar = dynamic(() => import("recharts").then(mod => mod.Bar), { ssr: false });
 
 interface DashboardData {
   todayRevenue: number;
@@ -47,10 +46,8 @@ export default function DashboardPage() {
   const { data: transactions = [], isLoading: txLoading } = useTransactions();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-50">
-      <Sidebar />
-
-      <main className="flex-1 ml-[72px] overflow-y-auto">
+    <>
+      <main className="flex-1 overflow-y-auto">
         {/* Header */}
         <header className="px-8 pt-8 pb-4">
           <h1 className="text-2xl font-extrabold text-surface-900">Dashboard</h1>
@@ -198,7 +195,7 @@ export default function DashboardPage() {
                           const numValue = Number(value);
                           return [isNaN(numValue) ? value : formatRupiah(numValue), "Pendapatan"];
                         }}
-                        labelFormatter={(label: any, payload: any[]) => {
+                        labelFormatter={(label: any, payload: readonly any[]) => {
                           if (payload && payload.length > 0) {
                             return `${label}, ${payload[0].payload.date}`;
                           }
@@ -348,6 +345,6 @@ export default function DashboardPage() {
           transaction={selectedTransaction}
         />
       )}
-    </div>
+    </>
   );
 }

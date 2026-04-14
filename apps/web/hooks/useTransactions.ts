@@ -121,3 +121,58 @@ export function useCreateTransaction() {
   });
 }
 
+export interface UpdateTransactionInput {
+  id: string;
+  salesName?: string;
+  customerName?: string;
+  paymentMethod?: string;
+  status?: string;
+}
+
+async function updateTransaction(input: UpdateTransactionInput): Promise<Transaction> {
+  const { id, ...body } = input;
+  const res = await fetch(`/api/transactions/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || "Failed to update transaction");
+  }
+  return res.json();
+}
+
+export function useUpdateTransaction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+    },
+  });
+}
+
+async function deleteTransaction(id: string): Promise<void> {
+  const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || "Failed to delete transaction");
+  }
+}
+
+export function useDeleteTransaction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+    },
+  });
+}
+
+

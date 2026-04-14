@@ -21,6 +21,7 @@
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@pos/config": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
