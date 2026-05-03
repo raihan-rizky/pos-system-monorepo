@@ -5,73 +5,95 @@ import { db } from "@pos/db";
 export async function GET() {
   try {
     const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    const sevenDaysAgo = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 6,
+    );
 
     // Run all independent queries in parallel (~3-4x faster than sequential)
-    const [todayTransactions, weekTransactions, monthlyTransactions, lowStockProducts, totalProducts] =
-      await Promise.all([
-        // Today's transactions
-        db.transaction.findMany({
-          where: {
-            createdAt: { gte: startOfDay },
-            status: "COMPLETED",
+    const [
+      todayTransactions,
+      weekTransactions,
+      monthlyTransactions,
+      lowStockProducts,
+      totalProducts,
+    ] = await Promise.all([
+      // Today's transactions
+      db.transaction.findMany({
+        where: {
+          createdAt: { gte: startOfDay },
+          status: "COMPLETED",
+        },
+        include: {
+          items: {
+            include: { product: { select: { name: true } } },
           },
-          include: {
-            items: {
-              include: { product: { select: { name: true } } },
-            },
-          },
-        }),
+        },
+      }),
 
-        // Last 7 days transactions for chart
-        db.transaction.findMany({
-          where: {
-            createdAt: { gte: sevenDaysAgo },
-            status: "COMPLETED",
-          },
-          select: {
-            createdAt: true,
-            total: true,
-          },
-        }),
+      // Last 7 days transactions for chart
+      db.transaction.findMany({
+        where: {
+          createdAt: { gte: sevenDaysAgo },
+          status: "COMPLETED",
+        },
+        select: {
+          createdAt: true,
+          total: true,
+        },
+      }),
 
-        // Monthly transactions
-        db.transaction.findMany({
-          where: {
-            createdAt: { gte: startOfMonth },
-            status: "COMPLETED",
-          },
-        }),
+      // Monthly transactions
+      db.transaction.findMany({
+        where: {
+          createdAt: { gte: startOfMonth },
+          status: "COMPLETED",
+        },
+      }),
 
-        // Low stock products
-        db.product.findMany({
-          where: {
-            isActive: true,
-            stock: { lte: db.product.fields.minStock || 5 },
-          },
-          select: { id: true, name: true, stock: true, minStock: true, unit: true },
-          take: 10,
-          orderBy: { stock: "asc" },
-        }),
+      // Low stock products
+      db.product.findMany({
+        where: {
+          isActive: true,
+          stock: { lte: db.product.fields.minStock || 5 },
+        },
+        select: {
+          id: true,
+          name: true,
+          stock: true,
+          minStock: true,
+          unit: true,
+        },
+        take: 10,
+        orderBy: { stock: "asc" },
+      }),
 
-        // Total products
-        db.product.count({ where: { isActive: true } }),
-      ]);
+      // Total products
+      db.product.count({ where: { isActive: true } }),
+    ]);
     // Calculate stats
     const todayRevenue = todayTransactions.reduce(
-      (sum: number, t) => sum + Number(t.total),
-      0
+      (sum: number, t: any) => sum + Number(t.total),
+      0,
     );
     const monthlyRevenue = monthlyTransactions.reduce(
-      (sum: number, t) => sum + Number(t.total),
-      0
+      (sum: number, t: any) => sum + Number(t.total),
+      0,
     );
 
     // Top products today
-    const productSalesMap = new Map<string, { name: string; quantity: number; revenue: number }>();
+    const productSalesMap = new Map<
+      string,
+      { name: string; quantity: number; revenue: number }
+    >();
     for (const txn of todayTransactions) {
       for (const item of txn.items) {
         const existing = productSalesMap.get(item.productId);
@@ -94,29 +116,38 @@ export async function GET() {
     // Format chart data (group by day)
     const revenueByDayMap = new Map<string, number>();
     for (let i = 0; i < 7; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-        // Add random dummy data between 1.5jt and 8.5jt for visual appeal
-        const randomRevenue = Math.floor(Math.random() * 7000000) + 1500000;
-        revenueByDayMap.set(d.toISOString().slice(0, 10), Math.round(randomRevenue / 1000) * 1000); // round to nearest thousand
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      // Add random dummy data between 1.5jt and 8.5jt for visual appeal
+      const randomRevenue = Math.floor(Math.random() * 7000000) + 1500000;
+      revenueByDayMap.set(
+        d.toISOString().slice(0, 10),
+        Math.round(randomRevenue / 1000) * 1000,
+      ); // round to nearest thousand
     }
-    
-    weekTransactions.forEach(tx => {
-        const dateStr = tx.createdAt.toISOString().slice(0, 10);
-        if (revenueByDayMap.has(dateStr)) {
-            revenueByDayMap.set(dateStr, revenueByDayMap.get(dateStr)! + Number(tx.total));
-        }
+
+    weekTransactions.forEach((tx) => {
+      const dateStr = tx.createdAt.toISOString().slice(0, 10);
+      if (revenueByDayMap.has(dateStr)) {
+        revenueByDayMap.set(
+          dateStr,
+          revenueByDayMap.get(dateStr)! + Number(tx.total),
+        );
+      }
     });
 
     const revenueChart = Array.from(revenueByDayMap.entries())
-        .map(([date, revenue]) => {
-            const d = new Date(date);
-            return {
-                name: d.toLocaleDateString('id-ID', { weekday: 'short' }),
-                date: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-                revenue
-            };
-        })
-        .reverse();
+      .map(([date, revenue]) => {
+        const d = new Date(date);
+        return {
+          name: d.toLocaleDateString("id-ID", { weekday: "short" }),
+          date: d.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+          }),
+          revenue,
+        };
+      })
+      .reverse();
 
     const res = NextResponse.json({
       todayRevenue,
@@ -128,13 +159,16 @@ export async function GET() {
       totalProducts,
       revenueChart,
     });
-    res.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+    res.headers.set(
+      "Cache-Control",
+      "private, max-age=10, stale-while-revalidate=30",
+    );
     return res;
   } catch (error) {
     console.error("Failed to fetch dashboard:", error);
     return NextResponse.json(
       { message: "Failed to fetch dashboard data" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
