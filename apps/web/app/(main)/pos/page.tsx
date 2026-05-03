@@ -92,8 +92,12 @@ export default function POSPage() {
     discount: number;
     note: string;
     customerName: string;
+    customerId: string | null;
     salesName: string;
+    salespersonId: string;
     paymentStatus: string;
+    isJobOrder: boolean;
+    estimatedDoneAt: string | null;
   }) => {
     try {
       const result = await createTransaction.mutateAsync({
@@ -103,8 +107,12 @@ export default function POSPage() {
         discount: data.discount,
         note: data.note,
         customerName: data.customerName,
+        customerId: data.customerId,
         salesName: data.salesName,
+        salespersonId: data.salespersonId,
         paymentStatus: data.paymentStatus,
+        isJobOrder: data.isJobOrder,
+        estimatedDoneAt: data.estimatedDoneAt,
       });
       setLastTransaction(result);
       cart.clearCart();
@@ -162,7 +170,7 @@ export default function POSPage() {
               <Button
                 variant={isEditMode ? "secondary" : "ghost"}
                 onClick={() => setIsEditMode(!isEditMode)}
-                className={`flex items-center gap-2 ${isEditMode ? "bg-surface-200 text-surface-900 border border-surface-300" : "text-surface-600 hover:bg-surface-100"}`}
+                className={`flex items-center gap-2 ${isEditMode ? "bg-surface-200 text-surface-900 border border-surface-300" : "text-surface-900 hover:bg-surface-200"}`}
               >
                 <svg
                   width="18"

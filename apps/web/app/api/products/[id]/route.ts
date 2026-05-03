@@ -1,29 +1,50 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 
+import { z } from "zod";
+
+const updateProductSchema = z.object({
+  name: z.string().min(1, "Name is required").optional(),
+  sku: z.string().min(1, "SKU is required").optional(),
+  barcode: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  price: z.coerce.number().min(0, "Price must be >= 0").optional(),
+  costPrice: z.coerce.number().optional().nullable(),
+  stock: z.coerce.number().optional(),
+  minStock: z.coerce.number().optional(),
+  unit: z.string().optional(),
+  size: z.string().optional().nullable(),
+  material: z.string().optional().nullable(),
+  categoryId: z.string().optional(),
+  imageUrl: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+    const { id } = await params;
     const body = await request.json();
+    
+    const validatedData = updateProductSchema.parse(body);
+
+    if (validatedData.sku) {
+      const existingProduct = await db.product.findUnique({
+        where: { sku: validatedData.sku },
+      });
+      if (existingProduct && existingProduct.id !== id) {
+        return NextResponse.json(
+          { message: "SKU already exists on another product." },
+          { status: 400 }
+        );
+      }
+    }
 
     const product = await db.product.update({
       where: { id },
-      data: {
-        name: body.name,
-        sku: body.sku,
-        price: body.price,
-        costPrice: body.costPrice || null,
-        stock: body.stock,
-        minStock: body.minStock || 5,
-        unit: body.unit,
-        size: body.size || null,
-        material: body.material || null,
-        categoryId: body.categoryId,
-        ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
-      },
+      data: validatedData,
       include: {
         category: {
           select: { id: true, name: true, icon: true, color: true },
@@ -34,6 +55,12 @@ export async function PUT(
     return NextResponse.json(product);
   } catch (error) {
     console.error("Failed to update product:", error);
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { message: "Validation error", errors: (error as z.ZodError).errors },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
       { message: "Failed to update product" },
       { status: 500 }
@@ -43,10 +70,10 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+    const { id } = await params;
     
     // Check if product is in any transactions
     const transactionsCount = await db.transactionItem.count({

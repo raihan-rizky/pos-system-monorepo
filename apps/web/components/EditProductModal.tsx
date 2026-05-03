@@ -146,7 +146,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           onChange={(e) => setName(e.target.value)}
         />
         
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="SKU / Kode *"
             value={sku}
@@ -171,7 +171,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Input
             label="Harga Jual (Rp) *"
             type="number"
@@ -191,7 +191,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Ukuran (Opsional)"
             value={size}

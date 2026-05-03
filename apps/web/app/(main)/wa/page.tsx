@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
+import dynamic from "next/dynamic";
+
+const ReactMarkdown = dynamic(() => import("react-markdown"), {
+  ssr: false,
+  loading: () => <span className="text-xs text-surface-400 italic">Loading...</span>,
+});
 // AppSidebar is provided by layout
 import {
   useWaContacts,
@@ -105,21 +110,7 @@ export default function WACoexistencePage() {
     // Scroll to bottom when messages finish loading or new message arrives
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-  useEffect(() => {
-    if (contacts && contacts.length > 0) {
-      console.group("🔍 WAHA Contacts Debugger");
-      contacts.forEach((contact, index) => {
-        console.log(`[Contact ${index + 1}]`, {
-          ID: contact.id,
-          Name: contact.name || "❌ Kosong (null/undefined)",
-          Phone: contact.phone || "❌ Kosong",
-          HasPicture: contact.picture ? "✅ Ada URL" : "❌ Tidak Ada (null)",
-          RawPictureUrl: contact.picture,
-        });
-      });
-      console.groupEnd();
-    }
-  }, [contacts]);
+  // Debug logger removed — was flooding console every 5s poll cycle
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -374,8 +365,6 @@ export default function WACoexistencePage() {
                   </div>
                 ) : (
                   messages.map((msg, idx) => {
-                    console.log(msg);
-
                     const isAssistant = msg.role === "assistant";
                     return (
                       <div

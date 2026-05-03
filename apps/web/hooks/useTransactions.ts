@@ -51,8 +51,11 @@ interface CreateTransactionInput {
   discount?: number;
   note?: string;
   customerName?: string;
+  customerId?: string | null;
   salesName?: string;
   paymentStatus?: string; // 'COMPLETED' | 'DP'
+  isJobOrder?: boolean;
+  estimatedDoneAt?: string | null;
 }
 
 async function fetchTransactions(): Promise<Transaction[]> {
@@ -117,6 +120,7 @@ export function useCreateTransaction() {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["job-orders"] });
     },
   });
 }

@@ -109,8 +109,12 @@ export async function POST(request: Request) {
       discount = 0,
       note,
       customerName,
+      customerId,
       salesName,
+      salespersonId,
       paymentStatus = "COMPLETED",
+      isJobOrder = false,
+      estimatedDoneAt,
     } = body;
 
     if (!items || items.length === 0) {
@@ -165,6 +169,7 @@ export async function POST(request: Request) {
               invoiceNumber,
               storeId: "store-main",
               cashierId: body.cashierId || "user-kasir1",
+              customerId: customerId || null,
               subtotal,
               discount,
               tax: 0,
@@ -176,6 +181,10 @@ export async function POST(request: Request) {
               note: note || null,
               customerName: customerName || null,
               salesName: salesName || null,
+              salespersonId: salespersonId || null,
+              isJobOrder,
+              productionStatus: isJobOrder ? "PENDING" : null,
+              estimatedDoneAt: estimatedDoneAt ? new Date(estimatedDoneAt) : null,
               items: {
                 create: items.map(
                   (item: {
@@ -215,6 +224,20 @@ export async function POST(request: Request) {
                 type: "OUT",
                 quantity: item.quantity,
                 note: `Penjualan ${invoiceNumber}`,
+              },
+            });
+          }
+
+          // Update customer analytics atomically
+          if (customerId) {
+            const debtIncrement = isDP ? total - amountPaid : 0;
+            await tx.customer.update({
+              where: { id: customerId },
+              data: {
+                totalSpent: { increment: amountPaid },
+                totalOrders: { increment: 1 },
+                totalDebt: debtIncrement > 0 ? { increment: debtIncrement } : undefined,
+                lastVisitAt: new Date(),
               },
             });
           }

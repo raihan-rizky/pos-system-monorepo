@@ -22,28 +22,62 @@ export function ReceiptModal({ open, onClose, transaction }: ReceiptModalProps) 
   return (
     <Modal open={open} onClose={onClose} title="Transaksi Berhasil" size="xl">
       <div className="space-y-6">
-        <style dangerouslySetInnerHTML={{ __html: `
-          @media print {
-            @page { size: 210mm 110mm; margin: 0; }
-            body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            body * { visibility: hidden; }
-            #print-receipt, #print-receipt * { visibility: visible; }
-            #print-receipt {
-              position: fixed;
-              left: 0;
-              top: 0;
-              width: 210mm;
-              height: 110mm;
-              overflow: hidden;
-              padding: ${compact ? '2mm 5mm' : '4mm 6mm'};
-              margin: 0;
-              page-break-inside: avoid;
-              break-inside: avoid;
-            }
-          }
-        `}} />
+       <style dangerouslySetInnerHTML={{ __html: `
+  @media print {
+    /* Set ukuran kertas spesifik (210x110mm) */
+    @page { 
+      size: 210mm 110mm; 
+      margin: 0; 
+    }
+    
+    /* Sembunyikan semua elemen kecuali area struk */
+    body * { 
+      visibility: hidden; 
+    }
+    
+    #print-receipt, #print-receipt * { 
+      visibility: visible; 
+    }
+
+    /* MATIKAN SEMUA POSITION & TRANSFORM DARI PARENT MODAL! 
+       Ini penting supaya absolute position bisa nempel ke ujung kertas,
+       bukan ke pembungkus modal asalnya. */
+    body *:not(#print-receipt):not(#print-receipt *) {
+      position: static !important;
+      transform: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    #print-receipt {
+      position: absolute !important; /* Pake absolute biar nempel ke top-left kertas */
+      left: 0 !important;
+      top: 0 !important;
+      width: 210mm !important;
+      height: 110mm !important;
+      margin: 0 !important;
+      padding: ${compact ? '2mm 5mm' : '4mm 6mm'} !important;
+      border: none !important;
+      box-shadow: none !important;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      page-break-after: avoid;
+      page-break-before: avoid;
+    }
+
+    /* Fix buat Chrome biar gak munculin header/footer default (tgl/url) */
+    body {
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+`}} />
         {/* The receipt area, styled for A4 (1/3 F4) document */}
-        <div className="w-full overflow-x-auto overflow-y-auto max-h-[65vh] pb-4">
+        <div className="w-full overflow-x-auto pb-4">
           <div id="print-receipt" className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[110mm] print:w-[210mm] print:h-[110mm] print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? 'text-[9px]' : 'text-xs'}`}>
             
             {/* Header */}

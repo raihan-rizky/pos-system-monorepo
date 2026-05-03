@@ -2,6 +2,10 @@
 const nextConfig = {
   transpilePackages: ["@pos/ui", "@pos/db", "@pos/config"],
 
+  // Disable strict mode double-renders — this is a POS cash register,
+  // dev performance matters for testing checkout flows.
+  reactStrictMode: false,
+
   // Image optimization
   images: {
     formats: ["image/avif", "image/webp"],
@@ -15,8 +19,14 @@ const nextConfig = {
 
   // Tree-shake large packages — only ship code that is actually used
   experimental: {
-    optimizePackageImports: ["recharts", "react-markdown"],
+    optimizePackageImports: [
+      "recharts",
+      "react-markdown",
+      "@tanstack/react-query",
+      "@supabase/supabase-js",
+    ],
   },
 };
 
 module.exports = nextConfig;
+

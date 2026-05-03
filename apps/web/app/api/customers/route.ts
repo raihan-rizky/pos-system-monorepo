@@ -1,0 +1,143 @@
+import { NextResponse } from "next/server";
+import { db } from "@pos/db";
+import { z } from "zod";
+
+export const dynamic = "force-dynamic";
+
+const createCustomerSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100),
+  phone: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.trim() : undefined)),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  company: z.string().max(100).optional(),
+  address: z.string().max(300).optional(),
+  type: z.enum(["REGULAR", "VIP", "CORPORATE"]).default("REGULAR"),
+  notes: z.string().max(500).optional(),
+});
+
+// GET /api/customers
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search") || "";
+    const type = searchParams.get("type") || "";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.max(
+      1,
+      Math.min(100, parseInt(searchParams.get("limit") || "20", 10))
+    );
+
+    const where: Record<string, unknown> = {
+      storeId: "store-main",
+    };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search, mode: "insensitive" } },
+        { company: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    if (type && ["REGULAR", "VIP", "CORPORATE"].includes(type)) {
+      where.type = type;
+    }
+
+    const [total, customers] = await db.$transaction([
+      db.customer.count({ where }),
+      db.customer.findMany({
+        where,
+        orderBy: { lastVisitAt: { sort: "desc", nulls: "last" } },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          company: true,
+          address: true,
+          type: true,
+          notes: true,
+          totalSpent: true,
+          totalOrders: true,
+          totalDebt: true,
+          loyaltyPoint: true,
+          lastVisitAt: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    return NextResponse.json({
+      data: customers,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    console.error("[GET /api/customers]", error);
+    return NextResponse.json(
+      { message: "Failed to fetch customers" },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/customers
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const parsed = createCustomerSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { message: "Validation error", errors: parsed.error.flatten() },
+        { status: 422 }
+      );
+    }
+
+    const { name, phone, email, company, address, type, notes } = parsed.data;
+
+    // Prevent duplicate phone within the same store
+    if (phone) {
+      const existing = await db.customer.findFirst({
+        where: { phone, storeId: "store-main" },
+        select: { id: true, name: true },
+      });
+      if (existing) {
+        return NextResponse.json(
+          {
+            message: `Nomor HP sudah terdaftar atas nama "${existing.name}"`,
+            existingId: existing.id,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const customer = await db.customer.create({
+      data: {
+        name,
+        phone: phone || null,
+        email: email || null,
+        company: company || null,
+        address: address || null,
+        type: type ?? "REGULAR",
+        notes: notes || null,
+        storeId: "store-main",
+      },
+    });
+
+    return NextResponse.json(customer, { status: 201 });
+  } catch (error) {
+    console.error("[POST /api/customers]", error);
+    return NextResponse.json(
+      { message: "Failed to create customer" },
+      { status: 500 }
+    );
+  }
+}

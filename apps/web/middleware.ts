@@ -8,8 +8,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    // Match all paths except static files, api, and _next
-    "/((?!_next/static|_next/image|favicon.ico|api).*)",
-  ],
+  // Disabled — no auth guard yet. Re-enable when Supabase auth is implemented.
+  // The empty matcher ensures Next.js never invokes this middleware,
+  // eliminating ~20-50ms overhead on every client-side navigation.
+  matcher: [],
 };

@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
+import { useDebounce } from "@/hooks/useDebounce";
+import type { Customer } from "@/hooks/useCustomers";
+
+interface SalespersonOption {
+  id: string;
+  name: string;
+}
 
 interface PaymentModalProps {
   open: boolean;
@@ -16,8 +23,12 @@ interface PaymentModalProps {
     discount: number;
     note: string;
     customerName: string;
+    customerId: string | null;
     salesName: string;
+    salespersonId: string;
     paymentStatus: string;
+    isJobOrder: boolean;
+    estimatedDoneAt: string | null;
   }) => void;
   isProcessing?: boolean;
 }
@@ -43,9 +54,63 @@ export function PaymentModal({
   const [discount, setDiscount] = useState(0);
   const [amountPaid, setAmountPaid] = useState(0);
   const [note, setNote] = useState("");
-  const [customerName, setCustomerName] = useState("Pelanggan Umum");
-  const [salesName, setSalesName] = useState("");
+  // Customer search
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const comboRef = useRef<HTMLDivElement>(null);
+  const debouncedQuery = useDebounce(customerQuery, 300);
+  const [salespersonId, setSalespersonId] = useState("");
+  const [salespersons, setSalespersons] = useState<SalespersonOption[]>([]);
   const [isDP, setIsDP] = useState(false);
+  const [isJobOrder, setIsJobOrder] = useState(false);
+  const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      fetch("/api/salespersons?storeId=store-main&activeOnly=true")
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed to fetch salespersons: ${res.status}`);
+          return res.json();
+        })
+        .then(data => setSalespersons(data))
+        .catch(err => console.error("Error fetching salespersons:", err));
+    } else {
+      // reset on close
+      setCustomerQuery("");
+      setSelectedCustomer(null);
+      setCustomerResults([]);
+      setShowDropdown(false);
+    }
+  }, [open]);
+
+  // Search customers when query changes
+  useEffect(() => {
+    if (!debouncedQuery || debouncedQuery.length < 2) {
+      setCustomerResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    fetch(`/api/customers?search=${encodeURIComponent(debouncedQuery)}&limit=5`)
+      .then(r => r.json())
+      .then(d => {
+        setCustomerResults(d.data ?? []);
+        setShowDropdown(true);
+      })
+      .catch(() => {});
+  }, [debouncedQuery]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const total = subtotal - discount;
   const change = amountPaid - total;
@@ -62,9 +127,13 @@ export function PaymentModal({
       amountPaid,
       discount,
       note,
-      customerName,
-      salesName,
+      customerName: selectedCustomer?.name || customerQuery || "Pelanggan Umum",
+      customerId: selectedCustomer?.id ?? null,
+      salesName: "",
+      salespersonId,
       paymentStatus: isDP ? "DP" : "COMPLETED",
+      isJobOrder,
+      estimatedDoneAt: estimatedDoneAt || null,
     });
   };
 
@@ -74,7 +143,7 @@ export function PaymentModal({
 
   return (
     <Modal open={open} onClose={onClose} title="Pembayaran" size="lg">
-      <div className="space-y-5 max-h-[80vh] overflow-y-auto px-1 py-1">
+      <div className="space-y-5 px-1 py-1">
         {/* Order Summary */}
         <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[200px] overflow-y-auto">
           {items.map((item) => (
@@ -89,21 +158,92 @@ export function PaymentModal({
           ))}
         </div>
 
-        {/* Customer Name */}
-        <Input
-          label="Nama Pelanggan"
-          value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
-          placeholder="Pelanggan Umum"
-        />
+        {/* Customer Search Combobox */}
+        <div ref={comboRef} className="relative">
+          <label className="text-sm font-medium text-surface-700 mb-1.5 block">Pelanggan</label>
+          {selectedCustomer ? (
+            <div>
+              <div className="flex items-center justify-between px-3 py-2.5 border border-brand-300 bg-brand-50 rounded-xl">
+                <div>
+                  <p className="font-semibold text-brand-900 text-sm">{selectedCustomer.name}</p>
+                  {selectedCustomer.phone && <p className="text-xs text-brand-600">{selectedCustomer.phone}</p>}
+                </div>
+                <button
+                  onClick={() => { setSelectedCustomer(null); setCustomerQuery(""); }}
+                  className="text-brand-400 hover:text-brand-700 text-xs px-2 py-1 rounded transition-colors"
+                >
+                  Ganti
+                </button>
+              </div>
+              {/* Debt warning */}
+              {Number(selectedCustomer.totalDebt) > 0 && (
+                <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
+                  <span className="text-sm">⚠️</span>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-red-700">Piutang belum lunas</p>
+                    <p className="text-sm font-extrabold text-red-800">{formatRupiah(Number(selectedCustomer.totalDebt))}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="relative">
+              <input
+                value={customerQuery}
+                onChange={e => setCustomerQuery(e.target.value)}
+                onFocus={() => customerResults.length > 0 && setShowDropdown(true)}
+                placeholder="Cari nama atau HP, atau ketik walk-in…"
+                className="w-full px-3 py-2.5 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 bg-surface-50"
+              />
+              {showDropdown && customerResults.length > 0 && (
+                <div className="absolute z-50 top-full mt-1 w-full bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden">
+                  {customerResults.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={() => { setSelectedCustomer(c); setShowDropdown(false); }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-brand-50 transition-colors text-left"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-surface-900">{c.name}</p>
+                        <p className="text-xs text-surface-500">{c.phone ?? c.email ?? c.company ?? ""}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {Number(c.totalDebt) > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-700">
+                            Piutang
+                          </span>
+                        )}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          c.type === "VIP" ? "bg-amber-100 text-amber-700" :
+                          c.type === "CORPORATE" ? "bg-violet-100 text-violet-700" :
+                          "bg-slate-100 text-slate-600"
+                        }`}>{c.type}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-        {/* Sales Name */}
-        <Input
-          label="Nama Sales"
-          value={salesName}
-          onChange={(e) => setSalesName(e.target.value)}
-          placeholder="Masukkan nama sales"
-        />
+        {/* Salesperson Dropdown */}
+        <div>
+          <label className="text-sm font-medium text-surface-700 mb-2 block">
+            Salesperson (Opsional)
+          </label>
+          <select
+            value={salespersonId}
+            onChange={(e) => setSalespersonId(e.target.value)}
+            className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">-- Pilih Salesperson --</option>
+            {salespersons.map(sp => (
+              <option key={sp.id} value={sp.id}>{sp.name}</option>
+            ))}
+          </select>
+        </div>
 
         {/* Payment Method */}
         <div>
@@ -166,6 +306,67 @@ export function PaymentModal({
               <span>Uang Muka (DP)</span>
             </button>
           </div>
+        </div>
+
+        {/* Job Order Toggle */}
+        <div>
+          <label className="text-sm font-medium text-surface-700 mb-2 block">
+            Tipe Pesanan
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setIsJobOrder(false)}
+              className={`
+                flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium
+                transition-all duration-200
+                ${!isJobOrder
+                  ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
+                  : "border-surface-200 text-surface-600 hover:border-surface-300"
+                }
+              `}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+                <path d="M3 6h18" />
+              </svg>
+              <span>Beli Langsung</span>
+            </button>
+            <button
+              onClick={() => setIsJobOrder(true)}
+              className={`
+                flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium
+                transition-all duration-200
+                ${isJobOrder
+                  ? "border-violet-500 bg-violet-50 text-violet-700 shadow-sm"
+                  : "border-surface-200 text-surface-600 hover:border-surface-300"
+                }
+              `}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M9 3v18" />
+                <path d="M15 3v18" />
+              </svg>
+              <span>Job Order</span>
+            </button>
+          </div>
+
+          {/* Deadline Picker — only shown when Job Order */}
+          {isJobOrder && (
+            <div className="mt-3 p-3 bg-violet-50/50 border border-violet-200 rounded-xl">
+              <label className="text-xs font-semibold text-violet-700 uppercase tracking-wider block mb-1.5">
+                Estimasi Selesai
+              </label>
+              <input
+                type="date"
+                value={estimatedDoneAt}
+                onChange={(e) => setEstimatedDoneAt(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                className="w-full px-3 py-2 bg-white border border-violet-200 rounded-lg text-sm
+                           focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400"
+              />
+            </div>
+          )}
         </div>
 
         {/* Discount */}

@@ -30,7 +30,7 @@ export function Modal({
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     },
-    [onClose]
+    [onClose],
   );
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
@@ -57,13 +57,13 @@ export function Modal({
       <div
         className={`
           relative z-10 w-full ${sizeClasses[size]}
-          mx-4 bg-white rounded-2xl shadow-2xl
+          bg-white rounded-2xl shadow-2xl max-h-[85%] flex flex-col translate-y-[-25px]
           animate-scale-in
           ${className}
         `}
       >
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 shrink-0">
             <h2 className="text-lg font-bold text-surface-900">{title}</h2>
             <button
               onClick={onClose}
@@ -85,7 +85,7 @@ export function Modal({
             </button>
           </div>
         )}
-        <div className="px-6 py-4">{children}</div>
+        <div className="px-6 py-4 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

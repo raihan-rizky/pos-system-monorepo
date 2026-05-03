@@ -42,7 +42,14 @@ export function ProductGrid({
   if (products.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-surface-400">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <svg
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        >
           <circle cx="11" cy="11" r="8" />
           <path d="M21 21l-4.35-4.35" />
         </svg>
@@ -52,7 +59,7 @@ export function ProductGrid({
   }
 
   return (
-    <div className={isEditMode ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3"}>
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
       {products.map((product, index) => {
         const isLowStock = product.stock <= 5;
         const isOutOfStock = product.stock <= 0;
@@ -75,8 +82,8 @@ export function ProductGrid({
                 isEditMode
                   ? "bg-white border-brand-300 ring-2 ring-brand-100 ring-opacity-50"
                   : isOutOfStock
-                  ? "bg-surface-50 border-surface-200 opacity-60 cursor-not-allowed"
-                  : "bg-white border-surface-200 hover:border-brand-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                    ? "bg-surface-50 border-surface-200 opacity-60 cursor-not-allowed"
+                    : "bg-white border-surface-200 hover:border-brand-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
               }
             `}
           >
@@ -91,7 +98,16 @@ export function ProductGrid({
                   }}
                   className="p-1.5 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
@@ -105,7 +121,16 @@ export function ProductGrid({
                   }}
                   className="p-1.5 text-danger-400 hover:text-danger-600 hover:bg-danger-50 rounded-md transition-colors"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <polyline points="3 6 5 6 21 6" />
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                   </svg>
@@ -129,7 +154,16 @@ export function ProductGrid({
               </div>
             ) : (
               <div className="w-full aspect-square bg-surface-100 rounded-xl mb-3 flex items-center justify-center text-surface-300">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="40"
+                  height="40"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                   <circle cx="8.5" cy="8.5" r="1.5" />
                   <polyline points="21 15 16 10 5 21" />
@@ -139,7 +173,7 @@ export function ProductGrid({
 
             {/* Category badge */}
             <div
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold mb-2 ${isEditMode ? 'pr-16' : ''}`}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold mb-2 ${isEditMode ? "pr-16" : ""}`}
               style={{
                 backgroundColor: `${product.category.color}15`,
                 color: product.category.color || "#64748b",
@@ -160,14 +194,16 @@ export function ProductGrid({
                 {formatRupiah(Number(product.price))}
               </p>
               <div className="flex items-center justify-between mt-1">
-                <span className="text-[10px] text-surface-400">/{product.unit}</span>
+                <span className="text-[10px] text-surface-400">
+                  /{product.unit}
+                </span>
                 <span
                   className={`text-[10px] font-medium ${
                     isOutOfStock
                       ? "text-danger-500"
                       : isLowStock
-                      ? "text-amber-500"
-                      : "text-surface-400"
+                        ? "text-amber-500"
+                        : "text-surface-400"
                   }`}
                 >
                   {isOutOfStock ? "Habis" : `Stok: ${product.stock}`}

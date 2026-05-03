@@ -32,6 +32,7 @@ export function useWaContacts() {
       return json.data;
     },
     refetchInterval: 5000, // Poll every 5s for new messages/contacts
+    refetchIntervalInBackground: false, // Stop polling when tab/page is not focused
   });
 }
 
@@ -85,6 +86,7 @@ export function useWaMessages(chatId: string | null) {
     },
     enabled: !!chatId,
     refetchInterval: 3000, // Poll every 3s when chat is open for real-time feel
+    refetchIntervalInBackground: false, // Stop polling when tab/page is not focused
   });
 }
 
@@ -132,6 +134,7 @@ export function useAutoReplyStatus() {
       return json.isAutoReplyOn;
     },
     refetchInterval: 5000,
+    refetchIntervalInBackground: false,
   });
 }
 

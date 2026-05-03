@@ -48,6 +48,21 @@ enum ShiftStatus {
   CLOSED
 }
 
+enum ProductionStatus {
+  PENDING
+  DESIGNING
+  PRINTING
+  FINISHING
+  READY_PICKUP
+  DELIVERED
+}
+
+enum CustomerType {
+  REGULAR
+  VIP
+  CORPORATE
+}
+
 // ============================================================
 // MODELS
 // ============================================================
@@ -80,6 +95,8 @@ model Store {
   products     Product[]
   transactions Transaction[]
   shifts       CashierShift[]
+  salespersons Salesperson[]
+  customers    Customer[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -134,6 +151,10 @@ model Transaction {
   store         Store             @relation(fields: [storeId], references: [id])
   cashierId     String
   cashier       User              @relation(fields: [cashierId], references: [id])
+  customerId    String?
+  customer      Customer?         @relation(fields: [customerId], references: [id])
+  salespersonId String?
+  salesperson   Salesperson?      @relation(fields: [salespersonId], references: [id])
   items         TransactionItem[]
   subtotal      Decimal           @db.Decimal(12, 2)
   discount      Decimal           @default(0) @db.Decimal(12, 2)
@@ -142,16 +163,65 @@ model Transaction {
   paymentMethod PaymentMethod     @default(CASH)
   amountPaid    Decimal           @db.Decimal(12, 2)
   change        Decimal           @default(0) @db.Decimal(12, 2)
-  status        TransactionStatus @default(COMPLETED)
-  customerName  String?
-  salesName     String?
-  note          String?
-  createdAt     DateTime          @default(now())
+  status           TransactionStatus @default(COMPLETED)
+  customerName     String?           // kept for walk-in / backward compat
+  salesName        String?
+  note             String?
+  isJobOrder       Boolean           @default(false)
+  productionStatus ProductionStatus?
+  estimatedDoneAt  DateTime?
+  createdAt        DateTime          @default(now())
 
   @@index([storeId])
   @@index([cashierId])
+  @@index([customerId])
+  @@index([salespersonId])
   @@index([createdAt])
   @@map("pos_transactions")
+}
+
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String?       // Standardized E.164 format e.g. +6281234567890
+  email        String?
+  company      String?
+  address      String?
+  type         CustomerType  @default(REGULAR)
+  notes        String?       // Free-text notes (allergies, preferences, etc.)
+
+  // Analytics — updated atomically on every transaction
+  totalSpent   Decimal       @default(0) @db.Decimal(12, 2)
+  totalOrders  Int           @default(0)
+  totalDebt    Decimal       @default(0) @db.Decimal(12, 2) // Outstanding piutang (remaining from DP)
+  loyaltyPoint Int           @default(0)
+  lastVisitAt  DateTime?
+
+  storeId      String
+  store        Store         @relation(fields: [storeId], references: [id])
+  transactions Transaction[]
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([storeId])
+  @@index([phone])
+  @@index([type])
+  @@map("pos_customers")
+}
+
+model Salesperson {
+  id           String        @id @default(cuid())
+  name         String
+  isActive     Boolean       @default(true)
+  storeId      String
+  store        Store         @relation(fields: [storeId], references: [id])
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([storeId])
+  @@map("pos_salespersons")
 }
 
 model TransactionItem {
@@ -326,4 +396,17 @@ model receipts_teladan {
 
   @@index([transaction_date(sort: Desc)], map: "idx_receipts_date")
   @@index([transaction_id], map: "idx_receipts_transaction_id")
+}
+
+// ============================================================
+// STORE SETTINGS (singleton — id is always "store-main")
+// ============================================================
+
+model StoreSettings {
+  id        String   @id @default("store-main")
+  name      String   @default("")
+  address   String   @default("")
+  phone     String   @default("")
+  logoUrl   String?
+  updatedAt DateTime @updatedAt
 }

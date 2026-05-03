@@ -13,7 +13,9 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(categories);
+    const res = NextResponse.json(categories);
+    res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
+    return res;
   } catch (error) {
     console.error("Failed to fetch categories:", error);
     return NextResponse.json(

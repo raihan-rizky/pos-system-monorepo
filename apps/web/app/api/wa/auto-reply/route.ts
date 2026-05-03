@@ -12,7 +12,7 @@ export async function GET() {
   }
 
   try {
-    const { baseUrl, apiKey, session } = getWahaConfig();
+    const { baseUrl, apiKey, session, webhookUrl } = getWahaConfig();
     const url = `${baseUrl}/api/sessions/${session}`;
 
     const res = await fetch(url, {
@@ -29,9 +29,10 @@ export async function GET() {
 
     const data = await res.json();
     const webhooks = data.config?.webhooks || [];
-    const isAutoReplyOn = webhooks.some((w: any) =>
-      w.url?.includes("chatbot-wa-sand.vercel.app"),
-    );
+    
+    // Consider AI toggle as ON if there is ANY webhook active in WAHA.
+    // This prevents the case where an old webhook is active but the UI says Passive.
+    const isAutoReplyOn = webhooks.length > 0;
 
     return NextResponse.json({ isAutoReplyOn });
   } catch (error: any) {
