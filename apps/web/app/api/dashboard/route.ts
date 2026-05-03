@@ -62,11 +62,11 @@ export async function GET() {
       ]);
     // Calculate stats
     const todayRevenue = todayTransactions.reduce(
-      (sum, t) => sum + Number(t.total),
+      (sum: number, t) => sum + Number(t.total),
       0
     );
     const monthlyRevenue = monthlyTransactions.reduce(
-      (sum, t) => sum + Number(t.total),
+      (sum: number, t) => sum + Number(t.total),
       0
     );
 
