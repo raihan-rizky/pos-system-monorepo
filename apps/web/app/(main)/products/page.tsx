@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useProducts, useCategories } from "@/hooks/useProducts";
+import { useProducts, useCategories, Product } from "@/hooks/useProducts";
 import { Package, Search, Plus, AlertTriangle, TrendingUp, LayoutGrid, List } from "lucide-react";
 import ProductTable from "@/components/inventory/ProductTable";
 import ProductFormModal from "@/components/inventory/ProductFormModal";
@@ -145,7 +145,7 @@ export default function ProductsPage() {
 
 /* ── Grid view (inline, no extra file) ── */
 function ProductGrid({ products, isLoading, onEdit, onUpdateStock }: {
-  products: ReturnType<typeof useProducts>["data"] extends (infer T)[] ? T[] : never[];
+  products: Product[];
   isLoading: boolean; onEdit: (id: string) => void; onUpdateStock: (id: string) => void;
 }) {
   if (isLoading) return (

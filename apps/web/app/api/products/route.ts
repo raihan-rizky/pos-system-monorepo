@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     console.error("Failed to create product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { message: "Validation error", errors: (error as z.ZodError).errors },
+        { message: "Validation error", errors: error.issues },
         { status: 400 }
       );
     }

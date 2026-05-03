@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json(settings);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "Validation error", errors: error.errors }, { status: 400 });
+      return NextResponse.json({ message: "Validation error", errors: error.issues }, { status: 400 });
     }
     console.error("[Settings/Store] PATCH failed:", error);
     return NextResponse.json({ message: "Failed to save settings" }, { status: 500 });

@@ -53,6 +53,7 @@ interface CreateTransactionInput {
   customerName?: string;
   customerId?: string | null;
   salesName?: string;
+  salespersonId?: string;
   paymentStatus?: string; // 'COMPLETED' | 'DP'
   isJobOrder?: boolean;
   estimatedDoneAt?: string | null;
