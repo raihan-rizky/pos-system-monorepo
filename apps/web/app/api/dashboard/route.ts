@@ -125,7 +125,7 @@ export async function GET() {
       );
     }
 
-    weekTransactions.forEach((tx) => {
+    weekTransactions.forEach((tx: (typeof weekTransactions)[number]) => {
       const dateStr = tx.createdAt.toISOString().slice(0, 10);
       if (revenueByDayMap.has(dateStr)) {
         revenueByDayMap.set(
