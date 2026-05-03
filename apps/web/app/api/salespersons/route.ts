@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { Prisma } from "@pos/db";
+
+type SalespersonWhereData = {
+  storeId?: string;
+  isActive?: boolean;
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +15,7 @@ export async function GET(request: NextRequest) {
     const storeId = searchParams.get("storeId");
     const activeOnly = searchParams.get("activeOnly") === "true";
 
-    const whereClause: Prisma.SalespersonWhereInput = {};
+    const whereClause: SalespersonWhereData = {};
     if (storeId) whereClause.storeId = storeId;
     if (activeOnly) whereClause.isActive = true;
 

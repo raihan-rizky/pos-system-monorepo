@@ -21,11 +21,19 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (signInError) throw signInError;
+
+      // Set cookie for middleware to detect
+      if (data.session) {
+        const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1].split(".")[0];
+        const cookieName = `sb-${projectRef}-auth-token`;
+        document.cookie = `${cookieName}=${JSON.stringify(data.session)}; path=/; max-age=${data.session.expires_in}; SameSite=Lax`;
+      }
+
       router.push("/pos");
       router.refresh();
     } catch (err: unknown) {

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { Prisma } from "@pos/db";
+
+type SalespersonUpdateData = {
+  name?: string;
+  isActive?: boolean;
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +18,7 @@ export async function PATCH(
     const body = await request.json();
     const { name, isActive } = body;
 
-    const updateData: Prisma.SalespersonUpdateInput = {};
+    const updateData: SalespersonUpdateData = {};
 
     if (name !== undefined) {
       if (typeof name !== "string") {

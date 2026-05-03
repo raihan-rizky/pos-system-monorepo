@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { db, Prisma } from "@pos/db";
+import { db } from "@pos/db";
+
+type TransactionWhereData = NonNullable<Parameters<typeof db.transaction.findMany>[0]>["where"];
+type DateTimeFilter = { gte?: Date; lt?: Date };
+type TxClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +19,8 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "10", 10)));
 
     // Build where clause
-    const where: Prisma.TransactionWhereInput = {};
-    const andConditions: Prisma.TransactionWhereInput[] = [];
+    const where: TransactionWhereData = {};
+    const andConditions: NonNullable<TransactionWhereData>[] = [];
 
     // Search filter (invoice, customer name, product name)
     if (search) {
@@ -31,7 +35,7 @@ export async function GET(request: Request) {
 
     // Date range filter
     if (dateFrom || dateTo) {
-      const createdAtFilter: Prisma.DateTimeFilter = {};
+      const createdAtFilter: DateTimeFilter = {};
       if (dateFrom) {
         const [year, month, day] = dateFrom.split("-");
         createdAtFilter.gte = new Date(Number(year), Number(month) - 1, Number(day));
@@ -156,7 +160,7 @@ export async function POST(request: Request) {
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        transaction = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+        transaction = await db.$transaction(async (tx: TxClient) => {
           // Count today's transactions to build the sequence number.
           // Running inside the transaction gives us a consistent snapshot.
           const count = await tx.transaction.count({

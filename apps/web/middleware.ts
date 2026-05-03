@@ -40,6 +40,6 @@ export const config = {
      * - /api/wa/webhook (WAHA webhook — called by external service, no browser session)
      * - Static files (images, fonts, favicon, etc.)
      */
-    "/((?!login|_next/static|_next/image|favicon.ico|api/wa/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf)).*)",
+    "/((?!login|_next/static|_next/image|favicon.ico|manifest.json|sw.js|api/wa/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|json)).*)",
   ],
 };

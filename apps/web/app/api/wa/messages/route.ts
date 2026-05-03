@@ -10,6 +10,19 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/** Safely extract the string form of a WAHA id union */
+function extractId(id: string | { _serialized: string } | undefined | null): string {
+  if (!id) return "";
+  if (typeof id === "string") return id;
+  return id._serialized;
+}
+
+/** Safely check fromMe from a WAHA id union (only the object form has it) */
+function extractFromMe(id: string | { _serialized: string; fromMe?: boolean } | undefined | null): boolean {
+  if (!id || typeof id === "string") return false;
+  return (id as { _serialized: string; fromMe?: boolean }).fromMe ?? false;
+}
+
 /**
  * GET /api/wa/messages?chatId=156500...89@lid
  * Fetches message history for a specific chat from WAHA.
@@ -54,14 +67,14 @@ export async function GET(request: Request) {
       try {
         const chats: WahaChat[] = await getWahaChats();
         const match = chats.find((c: WahaChat) => {
-          let id = c.id?._serialized || c.id || "";
+          let id = extractId(c.id);
           if (id.endsWith("@s.whatsapp.net")) {
             id = id.replace("@s.whatsapp.net", "@c.us");
           }
           return id.split("@")[0] === chatId;
         });
         if (match) {
-          chatId = match.id?._serialized || match.id;
+          chatId = extractId(match.id);
           if (chatId.endsWith("@s.whatsapp.net")) {
             chatId = chatId.replace("@s.whatsapp.net", "@c.us");
           }
@@ -106,7 +119,7 @@ export async function GET(request: Request) {
       try {
         const chats: WahaChat[] = await getWahaChats();
         const chat = chats.find((c: WahaChat) => {
-          const id = c.id?._serialized || c.id || "";
+          const id = extractId(c.id);
           return id === chatId;
         });
 
@@ -158,11 +171,10 @@ export async function GET(request: Request) {
     const messages = wahaMessages.map((msg: WahaMessage) => {
       const data = msg._data || msg;
       
-      let msgId = typeof msg.id === "string" 
-        ? msg.id 
-        : (msg.id?._serialized || data.id?._serialized || data.key?.id || (msg.id ? JSON.stringify(msg.id) : `msg_${Date.now()}_${Math.random()}`));
+      const extractedId = extractId(msg.id);
+      let msgId = extractedId || data.id?._serialized || data.key?.id || `msg_${Date.now()}_${Math.random()}`;
 
-      const isFromMe = msg.id?.fromMe ?? data.key?.fromMe ?? data.id?.fromMe ?? msg.fromMe ?? data.fromMe ?? false;
+      const isFromMe = extractFromMe(msg.id) ?? data.key?.fromMe ?? data.id?.fromMe ?? msg.fromMe ?? data.fromMe ?? false;
       const ts = msg.timestamp || data.messageTimestamp || data.timestamp || data.t || Math.floor(Date.now() / 1000);
 
       const content = msg.body || data.message?.conversation || data.message?.extendedTextMessage?.text || data.body || (msg.hasMedia || data.hasMedia ? "[Media]" : "");
