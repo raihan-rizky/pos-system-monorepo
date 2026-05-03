@@ -191,15 +191,19 @@ export default function DashboardPage() {
                           boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
                         }}
                         labelStyle={{ fontWeight: "bold", color: "#0f172a", marginBottom: "4px" }}
-                        formatter={(value: number | string): [string, string] => {
+                        // Recharts passes `ValueType | undefined` and `ReactNode`;
+                        // using `any` here is the standard approach for its complex generics.
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        formatter={(value: any): [string, string] => {
                           const numValue = Number(value);
-                          return [isNaN(numValue) ? String(value) : formatRupiah(numValue), "Pendapatan"];
+                          return [isNaN(numValue) ? String(value ?? "") : formatRupiah(numValue), "Pendapatan"];
                         }}
-                        labelFormatter={(label: string, payload: { payload: { date: string } }[]): string => {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        labelFormatter={(label: any, payload: readonly any[]): string => {
                           if (payload && payload.length > 0) {
-                            return `${label}, ${payload[0].payload.date}`;
+                            return `${label}, ${payload[0]?.payload?.date ?? ""}`;
                           }
-                          return String(label);
+                          return String(label ?? "");
                         }}
                       />
                       <Area
@@ -241,7 +245,8 @@ export default function DashboardPage() {
                       <Tooltip
                         cursor={{ fill: "#f1f5f9" }}
                         contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }}
-                        formatter={(value: number | string) => [`${value} terjual`, "Volume"]}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        formatter={(value: any): [string, string] => [`${String(value ?? "")} terjual`, "Volume"]}
                       />
                       <Bar dataKey="quantity" fill="#f97d12" radius={[0, 4, 4, 0]} barSize={24} />
                     </BarChart>
