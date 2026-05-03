@@ -191,15 +191,15 @@ export default function DashboardPage() {
                           boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
                         }}
                         labelStyle={{ fontWeight: "bold", color: "#0f172a", marginBottom: "4px" }}
-                        formatter={(value: number | string) => {
+                        formatter={(value: number | string): [string, string] => {
                           const numValue = Number(value);
-                          return [isNaN(numValue) ? value : formatRupiah(numValue), "Pendapatan"];
+                          return [isNaN(numValue) ? String(value) : formatRupiah(numValue), "Pendapatan"];
                         }}
-                        labelFormatter={(label: string, payload: any[]) => {
+                        labelFormatter={(label: string, payload: { payload: { date: string } }[]): string => {
                           if (payload && payload.length > 0) {
                             return `${label}, ${payload[0].payload.date}`;
                           }
-                          return label;
+                          return String(label);
                         }}
                       />
                       <Area
