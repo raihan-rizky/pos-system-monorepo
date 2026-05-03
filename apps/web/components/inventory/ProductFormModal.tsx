@@ -54,8 +54,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
       const { url } = await res.json();
       setFormData(prev => ({ ...prev, imageUrl: url }));
-    } catch (err: any) {
-      setError(err.message || "Failed to upload image");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to upload image");
     } finally {
       setIsUploading(false);
     }
@@ -119,8 +119,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         await createProduct.mutateAsync({ ...payload, stock: 0 });
       }
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
     }
   };
 

@@ -4,6 +4,8 @@ import {
   getWahaChats,
   isWaConfigured,
   sendWaTextMessage,
+  WahaChat,
+  WahaMessage,
 } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -50,8 +52,8 @@ export async function GET(request: Request) {
         `[WA/Messages] chatId has no suffix, auto-discovering from contacts...`,
       );
       try {
-        const chats = await getWahaChats();
-        const match = chats.find((c: any) => {
+        const chats: WahaChat[] = await getWahaChats();
+        const match = chats.find((c: WahaChat) => {
           let id = c.id?._serialized || c.id || "";
           if (id.endsWith("@s.whatsapp.net")) {
             id = id.replace("@s.whatsapp.net", "@c.us");
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
       }
     }
 
-    let wahaMessages: any[] = [];
+    let wahaMessages: WahaMessage[] = [];
     try {
       console.log(`[WA/Messages] Fetching messages for chatId=${chatId}...`);
       wahaMessages = await getWahaChatMessages(chatId, 100, true); // Pastiin downloadMedia = true
@@ -102,8 +104,8 @@ export async function GET(request: Request) {
         `[WA/Messages] Direct fetch failed (${fetchError.message}), attempting fallback extraction...`,
       );
       try {
-        const chats = await getWahaChats();
-        const chat = chats.find((c: any) => {
+        const chats: WahaChat[] = await getWahaChats();
+        const chat = chats.find((c: WahaChat) => {
           const id = c.id?._serialized || c.id || "";
           return id === chatId;
         });
@@ -153,7 +155,7 @@ export async function GET(request: Request) {
     }
 
     // Transform WAHA messages to match the frontend's expected format natively seamlessly
-    const messages = wahaMessages.map((msg: any) => {
+    const messages = wahaMessages.map((msg: WahaMessage) => {
       const data = msg._data || msg;
       
       let msgId = typeof msg.id === "string" 

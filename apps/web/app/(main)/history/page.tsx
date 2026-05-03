@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from "react";
 
 import { ReceiptModal } from "@/components/ReceiptModal";
-import { useTransactionHistory, useUpdateTransaction, useDeleteTransaction } from "@/hooks/useTransactions";
+import { useTransactionHistory, useUpdateTransaction, useDeleteTransaction, Transaction } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useProducts";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { Button } from "@pos/ui";
@@ -29,7 +29,7 @@ function EditModal({
   tx,
   onClose,
 }: {
-  tx: any;
+  tx: Transaction;
   onClose: () => void;
 }) {
   const updateTx = useUpdateTransaction();
@@ -58,8 +58,8 @@ function EditModal({
         status: form.status,
       });
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Gagal menyimpan perubahan");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
     }
   };
 
@@ -252,7 +252,7 @@ function DeleteConfirmModal({
   tx,
   onClose,
 }: {
-  tx: any;
+  tx: Transaction;
   onClose: () => void;
 }) {
   const deleteTx = useDeleteTransaction();
@@ -263,8 +263,8 @@ function DeleteConfirmModal({
     try {
       await deleteTx.mutateAsync(tx.id);
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Gagal menghapus transaksi");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal menghapus transaksi");
     }
   };
 
@@ -340,9 +340,9 @@ function DeleteConfirmModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
-  const [editingTransaction, setEditingTransaction] = useState<any>(null);
-  const [deletingTransaction, setDeletingTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
 
   // Filter state
   const [searchInput, setSearchInput] = useState("");
@@ -441,7 +441,7 @@ export default function HistoryPage() {
                 min-w-[180px]"
             >
               <option value="">Semua Kategori</option>
-              {categories.map((cat: any) => (
+              {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
@@ -531,7 +531,7 @@ export default function HistoryPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-100">
-                      {transactions.map((tx: any) => {
+                      {transactions.map((tx: Transaction) => {
                         const isDP = tx.status === "DP";
                         const isVoided = tx.status === "VOIDED";
                         const isRefunded = tx.status === "REFUNDED";

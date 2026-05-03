@@ -179,7 +179,7 @@ export default function DashboardPage() {
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: "#94a3b8", fontSize: 12 }}
-                        tickFormatter={(value: any) => `${value / 1000}k`}
+                        tickFormatter={(value: number) => `${value / 1000}k`}
                         dx={-10}
                       />
                       <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 4" />
@@ -191,11 +191,11 @@ export default function DashboardPage() {
                           boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
                         }}
                         labelStyle={{ fontWeight: "bold", color: "#0f172a", marginBottom: "4px" }}
-                        formatter={(value: any) => {
+                        formatter={(value: number | string) => {
                           const numValue = Number(value);
                           return [isNaN(numValue) ? value : formatRupiah(numValue), "Pendapatan"];
                         }}
-                        labelFormatter={(label: any, payload: readonly any[]) => {
+                        labelFormatter={(label: string, payload: any[]) => {
                           if (payload && payload.length > 0) {
                             return `${label}, ${payload[0].payload.date}`;
                           }
@@ -241,7 +241,7 @@ export default function DashboardPage() {
                       <Tooltip
                         cursor={{ fill: "#f1f5f9" }}
                         contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }}
-                        formatter={(value: any) => [`${value} terjual`, "Volume"]}
+                        formatter={(value: number | string) => [`${value} terjual`, "Volume"]}
                       />
                       <Bar dataKey="quantity" fill="#f97d12" radius={[0, 4, 4, 0]} barSize={24} />
                     </BarChart>

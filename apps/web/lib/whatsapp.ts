@@ -40,41 +40,42 @@ function getHeaders(apiKey?: string): Record<string, string> {
 // ── Types ───────────────────────────────────────────────────────
 
 export interface WahaChat {
-  /** Chat ID, e.g. "6281234567890@c.us" or "120363...@g.us" */
-  id: string;
-  /** Display name of the contact/group */
-  name: string | null;
-  /** Profile picture URL */
-  picture: string | null;
-  /** Last message preview */
-  lastMessage: {
-    id: string;
+  id: string | { _serialized: string };
+  name?: string | null;
+  pushname?: string | null;
+  picture?: string | null;
+  lastMessage?: {
+    id: string | { _serialized: string; fromMe: boolean; id: string; remote: string };
     timestamp: number;
     from: string;
     fromMe: boolean;
     body: string;
     hasMedia: boolean;
+    type?: string;
+    _data?: any;
   } | null;
+  timestamp?: number;
 }
 
 export interface WahaMessage {
-  id: string;
+  id: string | { _serialized: string };
   timestamp: number;
   from: string;
   fromMe: boolean;
   body: string;
   hasMedia: boolean;
-  /** Media URL if `downloadMedia=true` was used */
+  type?: string;
   media?: {
     url: string;
     mimetype: string;
     filename: string;
   } | null;
+  _data?: any;
 }
 
 // ── Get all chats (overview) ────────────────────────────────────
 
-export async function getWahaChats(): Promise<any[]> {
+export async function getWahaChats(): Promise<WahaChat[]> {
   const { baseUrl, apiKey, session } = getWahaConfig();
   // Using merge=true to include contact name and chat details together as shown in the user's curl example
   const url = `${baseUrl}/api/${session}/chats?merge=true`;

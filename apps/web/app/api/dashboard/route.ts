@@ -80,12 +80,12 @@ export async function GET() {
       db.product.count({ where: { isActive: true } }),
     ]);
     // Calculate stats
-    const todayRevenue = todayTransactions.reduce(
-      (sum: number, t: any) => sum + Number(t.total),
+    const todayRevenue: number = todayTransactions.reduce(
+      (sum: number, t) => sum + Number(t.total),
       0,
     );
-    const monthlyRevenue = monthlyTransactions.reduce(
-      (sum: number, t: any) => sum + Number(t.total),
+    const monthlyRevenue: number = monthlyTransactions.reduce(
+      (sum: number, t) => sum + Number(t.total),
       0,
     );
 

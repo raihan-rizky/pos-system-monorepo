@@ -76,8 +76,8 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
         note: note || undefined,
       });
       onClose();
-    } catch (err: any) {
-      setError(err.message ?? "Gagal memproses pembayaran");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal memproses pembayaran");
     }
   };
 
@@ -212,8 +212,8 @@ function CustomerFormModal({ initial, onClose }: FormModalProps) {
         await create.mutateAsync(form);
       }
       onClose();
-    } catch (err: any) {
-      setError(err.message ?? "Gagal menyimpan data");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan data");
     }
   };
 
