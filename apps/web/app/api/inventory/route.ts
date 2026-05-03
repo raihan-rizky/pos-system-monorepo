@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     // ADJUSTMENT uses the exact value provided (can be negative or positive)
 
     // Execute atomically
-    const result = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: any) => {
       // 1. Get current stock
       const product = await tx.product.findUnique({
         where: { id: validatedData.productId },

@@ -63,7 +63,7 @@ export async function POST(
     }
 
     // Atomically decrement debt and increment totalSpent
-    const updated = await db.$transaction(async (tx) => {
+    const updated = await db.$transaction(async (tx: any) => {
       const updatedCustomer = await tx.customer.update({
         where: { id: params.id },
         data: {

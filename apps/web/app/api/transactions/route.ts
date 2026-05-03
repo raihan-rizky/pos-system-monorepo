@@ -156,7 +156,7 @@ export async function POST(request: Request) {
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        transaction = await db.$transaction(async (tx) => {
+        transaction = await db.$transaction(async (tx: any) => {
           // Count today's transactions to build the sequence number.
           // Running inside the transaction gives us a consistent snapshot.
           const count = await tx.transaction.count({
