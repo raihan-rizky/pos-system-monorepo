@@ -3,6 +3,12 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
 
 /* ─────────────────────────────────────────────
    SVG icon helpers (kept inline to avoid deps)
@@ -434,6 +440,7 @@ function MobileGroup({
 ───────────────────────────────────────────── */
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   const toggle = (id: string) =>
@@ -512,11 +519,37 @@ export function Sidebar() {
           ))}
         </nav>
 
-        {/* Bottom avatar — desktop only */}
+        {/* Bottom logout — desktop only */}
         <div className="hidden md:flex mt-auto">
-          <div className="w-10 h-10 rounded-full bg-surface-700 flex items-center justify-center text-surface-300 text-sm font-semibold">
-            K1
-          </div>
+          <button
+            type="button"
+            id="sidebar-logout"
+            title="Keluar"
+            aria-label="Keluar"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push("/login");
+              router.refresh();
+            }}
+            className="w-10 h-10 rounded-full bg-surface-700 hover:bg-red-900/60 flex items-center
+              justify-center text-surface-300 hover:text-red-400 text-sm font-semibold
+              transition-colors cursor-pointer group/logout relative"
+          >
+            {/* Logout icon */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            {/* Tooltip */}
+            <span className="absolute left-full ml-3 px-2.5 py-1 rounded-lg text-xs font-medium
+              bg-surface-800 text-white whitespace-nowrap z-50
+              opacity-0 pointer-events-none group-hover/logout:opacity-100
+              transition-opacity duration-200 shadow-lg">
+              Keluar
+            </span>
+          </button>
         </div>
       </aside>
     </>

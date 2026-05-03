@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +63,7 @@ export async function POST(
     }
 
     // Atomically decrement debt and increment totalSpent
-    const updated = await db.$transaction(async (tx: any) => {
+    const updated = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       const updatedCustomer = await tx.customer.update({
         where: { id: params.id },
         data: {

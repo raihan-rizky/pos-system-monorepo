@@ -81,11 +81,11 @@ export async function GET() {
     ]);
     // Calculate stats
     const todayRevenue: number = todayTransactions.reduce(
-      (sum: number, t) => sum + Number(t.total),
+      (sum: number, t: (typeof todayTransactions)[number]) => sum + Number(t.total),
       0,
     );
     const monthlyRevenue: number = monthlyTransactions.reduce(
-      (sum: number, t) => sum + Number(t.total),
+      (sum: number, t: (typeof monthlyTransactions)[number]) => sum + Number(t.total),
       0,
     );
 
@@ -117,12 +117,12 @@ export async function GET() {
     const revenueByDayMap = new Map<string, number>();
     for (let i = 0; i < 7; i++) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      // Add random dummy data between 1.5jt and 8.5jt for visual appeal
+      // Seed with random data for visual appeal — real transactions are added on top below
       const randomRevenue = Math.floor(Math.random() * 7000000) + 1500000;
       revenueByDayMap.set(
         d.toISOString().slice(0, 10),
         Math.round(randomRevenue / 1000) * 1000,
-      ); // round to nearest thousand
+      );
     }
 
     weekTransactions.forEach((tx) => {

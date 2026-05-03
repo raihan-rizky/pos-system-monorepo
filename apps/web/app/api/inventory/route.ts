@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 
 const inventoryLogSchema = z.object({
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     // ADJUSTMENT uses the exact value provided (can be negative or positive)
 
     // Execute atomically
-    const result = await db.$transaction(async (tx: any) => {
+    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Get current stock
       const product = await tx.product.findUnique({
         where: { id: validatedData.productId },

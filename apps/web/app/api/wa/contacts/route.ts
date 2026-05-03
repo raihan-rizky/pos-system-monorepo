@@ -73,16 +73,7 @@ export async function GET() {
           chat.lastMessage?.pushName ||
           null;
 
-        // --- LOGGING DEBUG UNTUK SETIAP KONTAK ---
-        console.log(`[WA/Debug] Contact: ${idString}`, {
-          rawName: chat.name,
-          pushName,
-          rawPicture: chat.picture ? "FOUND" : "NULL",
-          idType: idString.includes("@lid")
-            ? "LID (Business)"
-            : "C.US (Personal)",
-        });
-
+        // Name resolution: overview endpoint often returns name: null, fall back to pushName or phone
         let role = "user";
         let content = "";
         let timestamp = chat.timestamp;
