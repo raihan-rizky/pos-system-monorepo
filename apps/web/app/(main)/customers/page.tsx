@@ -333,7 +333,7 @@ export default function CustomersPage() {
   }, [deleteCustomer]);
 
   // Summary stats
-  const totalDebtAll = data?.data.reduce((sum, c) => sum + Number(c.totalDebt), 0) ?? 0;
+  const totalDebtAll = data?.data.reduce((sum: number, c) => sum + Number(c.totalDebt), 0) ?? 0;
   const customersWithDebt = data?.data.filter(c => Number(c.totalDebt) > 0).length ?? 0;
 
   return (

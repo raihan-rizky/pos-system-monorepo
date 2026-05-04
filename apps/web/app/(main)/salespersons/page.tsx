@@ -119,11 +119,11 @@ export default function SalespersonsPage() {
   const totalSales = salespersons.length;
   const activeSales = salespersons.filter((s) => s.isActive).length;
   const totalTransactions = salespersons.reduce(
-    (sum, s) => sum + (s._count?.transactions || 0),
+    (sum: number, s) => sum + (s._count?.transactions || 0),
     0
   );
   const topPerformer = salespersons.reduce(
-    (top, s) => ((s._count?.transactions || 0) > (top?._count?.transactions || 0) ? s : top),
+    (top: Salesperson | undefined, s) => ((s._count?.transactions || 0) > (top?._count?.transactions || 0) ? s : top),
     salespersons[0]
   );
 
