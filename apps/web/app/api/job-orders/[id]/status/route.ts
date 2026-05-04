@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { z } from "zod";
 
 export const dynamic = 'force-dynamic';
+
+const updateStatusSchema = z.object({
+  productionStatus: z.enum(["PENDING", "DESIGNING", "PRINTING", "FINISHING", "READY_PICKUP", "DELIVERED"]),
+});
 
 // PATCH /api/job-orders/[id]/status — Move a job order to a new production status
 export async function PATCH(
@@ -11,18 +16,15 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { productionStatus } = body;
-
-    const validStatuses = [
-      "PENDING", "DESIGNING", "PRINTING", "FINISHING", "READY_PICKUP", "DELIVERED",
-    ];
-
-    if (!productionStatus || !validStatuses.includes(productionStatus)) {
+    
+    const validatedData = updateStatusSchema.safeParse(body);
+    if (!validatedData.success) {
       return NextResponse.json(
-        { message: "Invalid production status" },
+        { message: "Invalid production status", errors: validatedData.error.issues },
         { status: 400 }
       );
     }
+    const { productionStatus } = validatedData.data;
 
     // Verify the transaction exists and is a job order
     const existing = await db.transaction.findUnique({ where: { id } });

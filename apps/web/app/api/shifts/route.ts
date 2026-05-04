@@ -53,18 +53,30 @@ export async function GET(request: Request) {
   }
 }
 
+import { z } from "zod";
+
+const openShiftSchema = z.object({
+  openingBalance: z.number().min(0, "Saldo awalan invalid"),
+  note: z.string().optional().nullable(),
+});
+
 // POST /api/shifts
 // Open a new shift
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { openingBalance, note } = body;
+    const validatedData = openShiftSchema.safeParse(body);
+
+    if (!validatedData.success) {
+      return NextResponse.json(
+        { message: "Validation error", errors: validatedData.error.issues },
+        { status: 400 }
+      );
+    }
+    
+    const { openingBalance, note } = validatedData.data;
     const cashierId = "user-kasir1";
     const storeId = "store-main";
-    
-    if (openingBalance === undefined || openingBalance === null || openingBalance < 0) {
-      return NextResponse.json({ message: "Saldo awalan invalid" }, { status: 400 });
-    }
 
     // Check if there is already an active shift for this cashier
     const existing = await db.cashierShift.findFirst({

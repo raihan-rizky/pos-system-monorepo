@@ -228,6 +228,17 @@ export async function GET(request: Request) {
  * Send a text message via WAHA.
  * Body: { phone: string, content: string }
  */
+
+import { z } from "zod";
+
+const sendWaMessageSchema = z.object({
+  phone: z.string().optional(),
+  chatId: z.string().optional(),
+  content: z.string().min(1, "content is required"),
+}).refine(data => data.phone || data.chatId, {
+  message: "Phone/chatId and content are required"
+});
+
 export async function POST(request: Request) {
   const startTime = performance.now();
   console.log(`[WA/SendMsg] POST request received`);
@@ -241,7 +252,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { phone, chatId: rawChatId, content } = await request.json();
+    const body = await request.json();
+    const validatedData = sendWaMessageSchema.safeParse(body);
+
+    if (!validatedData.success) {
+      console.warn(`[WA/SendMsg] Bad request — missing targetId or content`);
+      return NextResponse.json(
+        { message: "Validation error", errors: validatedData.error.issues },
+        { status: 400 }
+      );
+    }
+    
+    const { phone, chatId: rawChatId, content } = validatedData.data;
 
     // Use chatId (with @lid/@c.us suffix) if provided, otherwise fall back to phone
     const targetId = rawChatId || phone;

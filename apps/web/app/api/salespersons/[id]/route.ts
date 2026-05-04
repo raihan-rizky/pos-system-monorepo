@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { z } from "zod";
 
 type SalespersonUpdateData = {
   name?: string;
   isActive?: boolean;
 };
+
+const updateSalespersonSchema = z.object({
+  name: z.string().min(1, "Name must be between 1 and 100 characters").max(100).optional(),
+  isActive: z.boolean().optional(),
+}).refine(data => data.name !== undefined || data.isActive !== undefined, {
+  message: "No valid fields to update"
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -16,30 +24,23 @@ export async function PATCH(
   try {
     const { id } = params;
     const body = await request.json();
-    const { name, isActive } = body;
-
+    
+    const validatedData = updateSalespersonSchema.safeParse(body);
+    if (!validatedData.success) {
+      return NextResponse.json(
+        { message: "Validation error", errors: validatedData.error.issues },
+        { status: 400 }
+      );
+    }
+    
     const updateData: SalespersonUpdateData = {};
 
-    if (name !== undefined) {
-      if (typeof name !== "string") {
-        return NextResponse.json({ message: "Name must be a string" }, { status: 400 });
-      }
-      const trimmedName = name.trim();
-      if (trimmedName.length === 0 || trimmedName.length > 100) {
-        return NextResponse.json({ message: "Name must be between 1 and 100 characters" }, { status: 400 });
-      }
-      updateData.name = trimmedName;
+    if (validatedData.data.name !== undefined) {
+      updateData.name = validatedData.data.name.trim();
     }
 
-    if (isActive !== undefined) {
-      if (typeof isActive !== "boolean") {
-        return NextResponse.json({ message: "isActive must be a boolean" }, { status: 400 });
-      }
-      updateData.isActive = isActive;
-    }
-
-    if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ message: "No valid fields to update" }, { status: 400 });
+    if (validatedData.data.isActive !== undefined) {
+      updateData.isActive = validatedData.data.isActive;
     }
 
     // Verify salesperson exists before update

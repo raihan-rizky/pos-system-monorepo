@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
+import { z } from "zod";
+
+const updateTransactionSchema = z.object({
+  salesName: z.string().optional().nullable(),
+  customerName: z.string().optional().nullable(),
+  paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional(),
+  status: z.enum(["COMPLETED", "DP", "VOIDED", "REFUNDED"]).optional(),
+});
 
 // PATCH /api/transactions/[id]
 export async function PATCH(
@@ -9,17 +17,16 @@ export async function PATCH(
   try {
     const { id } = params;
     const body = await request.json();
+    const parsed = updateTransactionSchema.safeParse(body);
 
-    const { salesName, customerName, paymentMethod, status } = body;
-
-    // Validate status if provided
-    const allowedStatuses = ["COMPLETED", "DP", "VOIDED", "REFUNDED"];
-    if (status && !allowedStatuses.includes(status)) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { message: `Status tidak valid. Gunakan: ${allowedStatuses.join(", ")}` },
-        { status: 400 }
+        { message: "Validation error", errors: parsed.error.flatten() },
+        { status: 422 }
       );
     }
+
+    const { salesName, customerName, paymentMethod, status } = parsed.data;
 
     // Build update payload — only include defined fields
     const updateData: Record<string, any> = {};

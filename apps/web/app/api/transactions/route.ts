@@ -1,6 +1,32 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { createClient } from "@/utils/supabase/server";
+import { z } from "zod";
+
+const transactionItemSchema = z.object({
+  productId: z.string(),
+  name: z.string(),
+  size: z.string().optional().nullable(),
+  material: z.string().optional().nullable(),
+  price: z.number().min(0),
+  quantity: z.number().min(1),
+});
+
+const createTransactionSchema = z.object({
+  items: z.array(transactionItemSchema).min(1, "Cart is empty"),
+  paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional().default("CASH"),
+  amountPaid: z.number().min(0),
+  discount: z.number().min(0).optional().default(0),
+  note: z.string().optional().nullable(),
+  customerName: z.string().optional().nullable(),
+  customerId: z.string().optional().nullable(),
+  salesName: z.string().optional().nullable(),
+  salespersonId: z.string().optional().nullable(),
+  cashierId: z.string().optional().nullable(),
+  paymentStatus: z.string().optional().default("COMPLETED"),
+  isJobOrder: z.boolean().optional().default(false),
+  estimatedDoneAt: z.string().optional().nullable(),
+});
 
 type TransactionWhereData = Prisma.TransactionWhereInput;
 type DateTimeFilter = { gte?: Date; lt?: Date };
@@ -120,29 +146,38 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    const parsed = createTransactionSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { message: "Validation error", errors: parsed.error.flatten() },
+        { status: 422 }
+      );
+    }
+
     const {
       items,
       paymentMethod,
       amountPaid,
-      discount = 0,
+      discount,
       note,
       customerName,
       customerId,
       salesName,
       salespersonId,
-      paymentStatus = "COMPLETED",
-      isJobOrder = false,
+      paymentStatus,
+      isJobOrder,
       estimatedDoneAt,
-    } = body;
+      cashierId,
+    } = parsed.data;
 
-    if (!items || items.length === 0) {
+    if (items.length === 0) {
       return NextResponse.json({ message: "Cart is empty" }, { status: 400 });
     }
 
     // Calculate totals
     const subtotal = items.reduce(
-      (sum: number, item: { price: number; quantity: number }) =>
-        sum + item.price * item.quantity,
+      (sum, item) => sum + item.price * item.quantity,
       0
     );
     const total = subtotal - discount;
@@ -186,13 +221,13 @@ export async function POST(request: Request) {
             data: {
               invoiceNumber,
               storeId: "store-main",
-              cashierId: body.cashierId || "user-kasir1",
+              cashierId: cashierId || "user-kasir1",
               customerId: customerId || null,
               subtotal,
               discount,
               tax: 0,
               total,
-              paymentMethod: paymentMethod || "CASH",
+              paymentMethod: paymentMethod,
               amountPaid,
               change,
               status: isDP ? "DP" : "COMPLETED",
@@ -205,14 +240,7 @@ export async function POST(request: Request) {
               estimatedDoneAt: estimatedDoneAt ? new Date(estimatedDoneAt) : null,
               items: {
                 create: items.map(
-                  (item: {
-                    productId: string;
-                    name: string;
-                    size?: string;
-                    material?: string;
-                    price: number;
-                    quantity: number;
-                  }) => ({
+                  (item) => ({
                     productId: item.productId,
                     productName: item.name,
                     size: item.size || null,

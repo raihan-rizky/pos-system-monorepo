@@ -1,19 +1,31 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
+
+const closeShiftSchema = z.object({
+  shiftId: z.string().min(1),
+  closingBalance: z.number(),
+  note: z.string().optional().nullable(),
+});
 
 // POST /api/shifts/close
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { shiftId, closingBalance, note } = body;
+    const parsed = closeShiftSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { message: "Validation error", errors: parsed.error.flatten() },
+        { status: 422 }
+      );
+    }
+
+    const { shiftId, closingBalance, note } = parsed.data;
     const cashierId = "user-kasir1";
     const storeId = "store-main";
-    
-    if (!shiftId || closingBalance === undefined || closingBalance === null) {
-      return NextResponse.json({ message: "Invalid parameters" }, { status: 400 });
-    }
 
     // Find the shift opening balance
     const shift = await db.cashierShift.findFirst({

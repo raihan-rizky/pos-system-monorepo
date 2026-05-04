@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { z } from "zod";
 
 type SalespersonWhereData = {
   storeId?: string;
   isActive?: boolean;
 };
+
+const createSalespersonSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100, "Name must be between 1 and 100 characters"),
+  storeId: z.string().min(1, "storeId is required"),
+  isActive: z.boolean().optional().default(true),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -38,21 +45,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, storeId, isActive } = body;
+    const validatedData = createSalespersonSchema.safeParse(body);
 
-    // Input validation
-    if (!name || typeof name !== "string") {
-      return NextResponse.json({ message: "Name is required and must be a string" }, { status: 400 });
+    if (!validatedData.success) {
+      return NextResponse.json(
+        { message: "Validation error", errors: validatedData.error.issues },
+        { status: 400 }
+      );
     }
-
+    
+    const { name, storeId, isActive } = validatedData.data;
     const trimmedName = name.trim();
-    if (trimmedName.length === 0 || trimmedName.length > 100) {
-      return NextResponse.json({ message: "Name must be between 1 and 100 characters" }, { status: 400 });
-    }
-
-    if (!storeId || typeof storeId !== "string") {
-      return NextResponse.json({ message: "storeId is required" }, { status: 400 });
-    }
 
     // Verify storeId exists
     const store = await db.store.findUnique({ where: { id: storeId } });
