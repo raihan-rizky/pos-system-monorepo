@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { createClient } from "@/utils/supabase/server";
 
 // GET /api/dashboard - Dashboard statistics
 export async function GET() {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
     const now = new Date();
     const startOfDay = new Date(
       now.getFullYear(),

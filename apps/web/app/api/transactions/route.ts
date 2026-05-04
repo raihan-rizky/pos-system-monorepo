@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { createClient } from "@/utils/supabase/server";
 
 type TransactionWhereData = NonNullable<Parameters<typeof db.transaction.findMany>[0]>["where"];
 type DateTimeFilter = { gte?: Date; lt?: Date };
@@ -10,6 +11,12 @@ export const dynamic = 'force-dynamic';
 // GET /api/transactions
 export async function GET(request: Request) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const dateFrom = searchParams.get("dateFrom");
@@ -105,6 +112,13 @@ export async function GET(request: Request) {
 // POST /api/transactions - Create new transaction with stock deduction
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       items,

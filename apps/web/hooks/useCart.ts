@@ -98,11 +98,11 @@ export function useCart() {
   }, []);
 
   const subtotal = items.reduce(
-    (sum: number, item) => sum + item.price * item.quantity,
+    (sum: number, item: CartItem) => sum + item.price * item.quantity,
     0
   );
 
-  const totalItems = items.reduce((sum: number, item) => sum + item.quantity, 0);
+  const totalItems = items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
 
   return {
     items,

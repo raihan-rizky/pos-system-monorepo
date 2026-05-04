@@ -46,7 +46,7 @@ export default function ProductsPage() {
 
   const totalProducts = products.length;
   const lowStock = products.filter(p => p.stock <= p.minStock).length;
-  const totalValue = products.reduce((s: number, p) => s + p.stock * p.price, 0);
+  const totalValue = products.reduce((s: number, p: Product) => s + p.stock * p.price, 0);
 
   const openAdd = () => { setEditingProductId(null); setIsProductModalOpen(true); };
   const openEdit = (id: string) => { setEditingProductId(id); setIsProductModalOpen(true); };

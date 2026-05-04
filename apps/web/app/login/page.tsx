@@ -1,13 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,13 +22,6 @@ export default function LoginPage() {
         password,
       });
       if (signInError) throw signInError;
-
-      // Set cookie for middleware to detect
-      if (data.session) {
-        const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1].split(".")[0];
-        const cookieName = `sb-${projectRef}-auth-token`;
-        document.cookie = `${cookieName}=${JSON.stringify(data.session)}; path=/; max-age=${data.session.expires_in}; SameSite=Lax`;
-      }
 
       router.push("/pos");
       router.refresh();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
+import { createClient } from "@/utils/supabase/server";
 
 const inventoryLogSchema = z.object({
   productId: z.string().min(1, "Product ID is required"),
@@ -12,6 +13,12 @@ const inventoryLogSchema = z.object({
 // POST /api/inventory - Record a stock change
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
     const validatedData = inventoryLogSchema.parse(body);
 

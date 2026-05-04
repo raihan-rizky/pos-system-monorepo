@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     });
 
     // For CASH transactions, the actual cash added to drawer is `total`
-    const totalCashIncome = cashTransactions.reduce((acc: number, txn) => acc + Number(txn.total), 0);
+    const totalCashIncome = cashTransactions.reduce((acc: number, txn: typeof cashTransactions[number]) => acc + Number(txn.total), 0);
     
     const opening = Number(shift.openingBalance);
     const expectedBalance = opening + totalCashIncome;
