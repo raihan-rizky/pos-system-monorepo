@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, Prisma } from "@pos/db";
 import { createClient } from "@/utils/supabase/server";
 
-type TransactionWhereData = NonNullable<Parameters<typeof db.transaction.findMany>[0]>["where"];
+type TransactionWhereData = Prisma.TransactionWhereInput;
 type DateTimeFilter = { gte?: Date; lt?: Date };
 type TxClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
