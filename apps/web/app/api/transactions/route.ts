@@ -28,7 +28,6 @@ const createTransactionSchema = z.object({
   estimatedDoneAt: z.string().optional().nullable(),
 });
 
-type TransactionWhereData = Prisma.TransactionWhereInput;
 type DateTimeFilter = { gte?: Date; lt?: Date };
 type TxClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
@@ -52,8 +51,8 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "10", 10)));
 
     // Build where clause
-    const where: TransactionWhereData = {};
-    const andConditions: NonNullable<TransactionWhereData>[] = [];
+    const where: any = {};
+    const andConditions: any[] = [];
 
     // Search filter (invoice, customer name, product name)
     if (search) {
