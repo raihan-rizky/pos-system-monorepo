@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, Prisma } from "@pos/db";
 
 // PATCH /api/transactions/[id]
 export async function PATCH(
@@ -79,7 +79,7 @@ export async function DELETE(
     const { id } = params;
 
     // Delete items first (referential integrity), then the transaction
-    await db.$transaction(async (tx) => {
+    await db.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.transactionItem.deleteMany({ where: { transactionId: id } });
       await tx.transaction.delete({ where: { id } });
     });
