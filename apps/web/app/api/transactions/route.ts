@@ -29,7 +29,7 @@ const createTransactionSchema = z.object({
 });
 
 type DateTimeFilter = { gte?: Date; lt?: Date };
-type TxClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+type TxClient = Prisma.TransactionClient;
 
 export const dynamic = 'force-dynamic';
 
