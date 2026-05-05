@@ -14,6 +14,7 @@
     "setup": "pnpm install && pnpm db:generate && pnpm db:push"
   },
   "devDependencies": {
+    "@prisma/nextjs-monorepo-workaround-plugin": "^7.8.0",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
   },
