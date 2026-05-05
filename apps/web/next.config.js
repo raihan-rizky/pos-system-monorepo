@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Prevent Next.js from bundling Prisma — the native query engine binary
+  // must stay in node_modules so Vercel's runtime can find it.
+  serverExternalPackages: ["@prisma/client", ".prisma/client"],
+
   transpilePackages: ["@pos/ui", "@pos/db", "@pos/config"],
 
   // Disable strict mode double-renders — this is a POS cash register,

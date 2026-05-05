@@ -5,6 +5,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
+    "postinstall": "pnpm --filter @pos/db generate",
     "type-check": "turbo run type-check",
     "db:push": "pnpm --filter @pos/db db:push",
     "db:studio": "pnpm --filter @pos/db db:studio",

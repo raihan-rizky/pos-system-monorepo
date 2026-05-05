@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "build": "prisma generate",
     "generate": "prisma generate",
+    "postinstall": "prisma generate",
     "seed": "tsx src/seed.ts",
     "type-check": "tsc --noEmit"
   },
