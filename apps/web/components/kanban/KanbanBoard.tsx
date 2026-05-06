@@ -330,7 +330,7 @@ function KanbanColumn({
 
   return (
     <div
-      className={`flex flex-col min-w-[280px] sm:min-w-[300px] max-w-[340px] rounded-2xl border transition-all duration-200 ${
+      className={`flex flex-col w-full md:w-auto md:min-w-[280px] lg:min-w-[300px] md:max-w-[340px] shrink-0 rounded-2xl border transition-all duration-200 ${
         isDragOver
           ? "border-brand-400 bg-brand-50/30 shadow-lg ring-2 ring-brand-200/50"
           : "border-surface-200/60 bg-white/60"
@@ -354,8 +354,7 @@ function KanbanColumn({
 
       {/* Cards Container */}
       <div
-        className={`flex-1 overflow-y-auto p-3 space-y-3 ${config.bgColor}`}
-        style={{ maxHeight: "calc(100vh - 280px)" }}
+        className={`flex-1 overflow-y-auto p-3 space-y-3 ${config.bgColor} max-h-[50vh] md:max-h-[calc(100vh-280px)]`}
       >
         {orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-surface-300">
@@ -396,7 +395,7 @@ export default function KanbanBoard({
 }: KanbanBoardProps) {
   return (
     <div
-      className="flex gap-4 overflow-x-auto pb-4 px-1 snap-x snap-mandatory scroll-smooth"
+      className="flex flex-col md:flex-row gap-5 md:overflow-x-auto pb-4 md:px-1 md:snap-x md:snap-mandatory md:scroll-smooth"
       style={{ WebkitOverflowScrolling: "touch" }}
     >
       {KANBAN_COLUMNS.map((col, idx) => {

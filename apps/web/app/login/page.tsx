@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,6 +17,9 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
+      // Supabase requires an email, so we append a dummy domain to the username
+      const email = username.includes("@") ? username : `${username}@pos.local`;
+      
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -59,15 +62,15 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                Email
+                Username
               </label>
               <input
-                id="login-email"
-                type="email"
+                id="login-username"
+                type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="kasir@toko.com"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="kasir1"
                 className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white
                   placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2
                   focus:ring-brand-500/40 focus:border-brand-500/40 transition-all"
