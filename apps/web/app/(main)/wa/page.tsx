@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), {
   ssr: false,
-  loading: () => <span className="text-xs text-surface-400 italic">Loading...</span>,
+  loading: () => (
+    <span className="text-xs text-surface-400 italic">Loading...</span>
+  ),
 });
 // AppSidebar is provided by layout
 import {
@@ -31,26 +33,51 @@ function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
         {/* Header */}
         <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-5 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           </div>
           <div>
-            <h3 className="text-white font-bold text-lg leading-tight">Koneksi WhatsApp Gagal</h3>
-            <p className="text-white/70 text-xs mt-0.5">Tidak dapat terhubung ke server WAHA</p>
+            <h3 className="text-white font-bold text-lg leading-tight">
+              Koneksi WhatsApp Gagal
+            </h3>
+            <p className="text-white/70 text-xs mt-0.5">
+              Tidak dapat terhubung ke server WAHA
+            </p>
           </div>
         </div>
 
         {/* Body */}
         <div className="px-6 py-5">
           <p className="text-surface-700 text-sm leading-relaxed">
-            Sistem tidak dapat mengambil data WhatsApp. Pastikan integrasi WhatsApp (WAHA) sudah dikonfigurasi dengan benar di halaman <strong>Settings</strong>.
+            Sistem tidak dapat mengambil data WhatsApp. Pastikan integrasi
+            WhatsApp (WAHA) sudah dikonfigurasi dengan benar di halaman{" "}
+            <strong>Settings</strong>.
           </p>
 
           <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex gap-3">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#d97706"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="flex-shrink-0 mt-0.5"
+            >
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               <line x1="12" y1="9" x2="12" y2="13" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -58,9 +85,7 @@ function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
             <div className="text-xs text-amber-800 leading-relaxed">
               <strong>Checklist konfigurasi:</strong>
               <ul className="mt-1.5 space-y-1 list-disc list-inside">
-                <li>WAHA Base URL sudah diisi</li>
-                <li>API Key WAHA valid</li>
-                <li>Server WAHA berjalan &amp; dapat diakses</li>
+                <li>Nomor WA Aktif</li>
                 <li>Session WhatsApp aktif (QR sudah di-scan)</li>
               </ul>
             </div>
@@ -79,7 +104,16 @@ function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
             onClick={() => router.push("/settings")}
             className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors shadow-md flex items-center justify-center gap-2"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
@@ -137,7 +171,14 @@ const WahaImage = ({ mediaId }: { mediaId: string }) => {
   if (hasError)
     return (
       <div className="text-xs text-red-500 p-2 border border-red-200 rounded-lg bg-red-50 flex items-center gap-2 mt-1">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <circle cx="12" cy="12" r="10" />
           <line x1="12" y1="8" x2="12" y2="12" />
           <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -149,9 +190,24 @@ const WahaImage = ({ mediaId }: { mediaId: string }) => {
   if (!imageSrc)
     return (
       <div className="text-xs text-surface-400 p-2 italic flex items-center gap-2 mt-1">
-        <svg className="animate-spin h-4 w-4 text-surface-400" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        <svg
+          className="animate-spin h-4 w-4 text-surface-400"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
         </svg>
         Loading media...
       </div>
@@ -174,13 +230,22 @@ export default function WACoexistencePage() {
   const [hasDismissedError, setHasDismissedError] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: contacts = [], isLoading: contactsLoading, isError: isContactsError } = useWaContacts();
+  const {
+    data: contacts = [],
+    isLoading: contactsLoading,
+    isError: isContactsError,
+  } = useWaContacts();
   const { data: messages = [], isLoading: messagesLoading } =
     useWaMessages(selectedChatId);
   const { mutateAsync: sendMessage, isPending: isSending } = useSendMessage();
 
-  const { data: isAutoReplyOn, isLoading: isAutoReplyLoading, isError: isAutoReplyError } = useAutoReplyStatus();
-  const { mutateAsync: toggleAutoReply, isPending: isTogglingAutoReply } = useToggleAutoReply();
+  const {
+    data: isAutoReplyOn,
+    isLoading: isAutoReplyLoading,
+    isError: isAutoReplyError,
+  } = useAutoReplyStatus();
+  const { mutateAsync: toggleAutoReply, isPending: isTogglingAutoReply } =
+    useToggleAutoReply();
 
   useEffect(() => {
     // Scroll to bottom when messages finish loading or new message arrives
@@ -429,9 +494,22 @@ export default function WACoexistencePage() {
                       ? "bg-brand-500 text-white animate-ai-glow"
                       : "bg-surface-100 text-surface-400 border border-surface-200"
                   } hover:shadow-md disabled:opacity-50`}
-                  title={isAutoReplyOn ? "Nonaktifkan AI Auto Reply" : "Aktifkan AI Auto Reply"}
+                  title={
+                    isAutoReplyOn
+                      ? "Nonaktifkan AI Auto Reply"
+                      : "Aktifkan AI Auto Reply"
+                  }
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <rect x="3" y="11" width="18" height="10" rx="2" />
                     <circle cx="12" cy="5" r="2" />
                     <path d="M12 7v4" />
@@ -478,8 +556,21 @@ export default function WACoexistencePage() {
                             if (msg.image_url.startsWith("waha_fallback:")) {
                               return (
                                 <div className="text-xs text-surface-400 p-2 italic flex items-center gap-1.5 mt-1">
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                                  <svg
+                                    width="13"
+                                    height="13"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                  >
+                                    <rect
+                                      x="3"
+                                      y="3"
+                                      width="18"
+                                      height="18"
+                                      rx="2"
+                                    />
                                     <circle cx="8.5" cy="8.5" r="1.5" />
                                     <polyline points="21 15 16 10 5 21" />
                                   </svg>
@@ -505,7 +596,8 @@ export default function WACoexistencePage() {
                                 "",
                               );
                               // Strip trailing query params
-                              if (rawId.includes("?")) rawId = rawId.split("?")[0];
+                              if (rawId.includes("?"))
+                                rawId = rawId.split("?")[0];
                               return <WahaImage mediaId={rawId} />;
                             }
 

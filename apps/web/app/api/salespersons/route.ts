@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/salespersons
 export async function GET(request: NextRequest) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { searchParams } = new URL(request.url);
     const storeId = searchParams.get("storeId");
     const activeOnly = searchParams.get("activeOnly") === "true";

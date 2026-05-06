@@ -23,6 +23,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     costPrice: "",
     minStock: "5",
     unit: "pcs",
+    stock: "0",
     size: "",
     material: "",
     imageUrl: "",
@@ -79,6 +80,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
               costPrice: product.costPrice?.toString() || "",
               minStock: product.minStock.toString(),
               unit: product.unit,
+              stock: product.stock.toString(),
               size: product.size || "",
               material: product.material || "",
               imageUrl: product.imageUrl || "",
@@ -94,6 +96,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         costPrice: "",
         minStock: "5",
         unit: "pcs",
+        stock: "0",
         size: "",
         material: "",
         imageUrl: "",
@@ -111,12 +114,13 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         price: Number(formData.price),
         costPrice: formData.costPrice ? Number(formData.costPrice) : undefined,
         minStock: Number(formData.minStock),
+        stock: Number(formData.stock),
       };
 
       if (productId) {
         await updateProduct.mutateAsync({ id: productId, ...payload });
       } else {
-        await createProduct.mutateAsync({ ...payload, stock: 0 });
+        await createProduct.mutateAsync(payload);
       }
       onClose();
     } catch (err: unknown) {
@@ -191,6 +195,14 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             placeholder="pcs, rim, meter, box"
             value={formData.unit}
             onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+            required
+          />
+          <Input
+            label="Current Stock"
+            type="number"
+            min="0"
+            value={formData.stock}
+            onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
             required
           />
         </div>

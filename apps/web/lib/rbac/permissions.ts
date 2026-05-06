@@ -68,7 +68,7 @@ export const ACTION_ACCESS: Record<string, Record<Action, Role[]>> = {
     delete: ["OWNER", "ADMIN"],
   },
   salesperson: {
-    read: ["OWNER", "ADMIN"],
+    read: ["OWNER", "ADMIN", "CASHIER", "SALES"],
     write: ["OWNER", "ADMIN"],
     delete: ["OWNER", "ADMIN"],
   },

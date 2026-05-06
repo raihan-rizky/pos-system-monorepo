@@ -50,6 +50,32 @@ export default function ProductsPage() {
   const { data: products = [], isLoading } = useProducts(search, categoryId);
   const { data: categories = [] } = useCategories();
 
+  const [showFilters, setShowFilters] = useState(false);
+  const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
+  const [sortBy, setSortBy] = useState<"name" | "price_asc" | "price_desc" | "stock_asc">("name");
+
+  const processedProducts = React.useMemo(() => {
+    let result = [...products];
+
+    // Status Filter
+    if (stockFilter === "low") {
+      result = result.filter(p => p.stock <= p.minStock && p.stock > 0);
+    } else if (stockFilter === "out") {
+      result = result.filter(p => p.stock <= 0);
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      if (sortBy === "price_asc") return a.price - b.price;
+      if (sortBy === "price_desc") return b.price - a.price;
+      if (sortBy === "stock_asc") return a.stock - b.stock;
+      return 0;
+    });
+
+    return result;
+  }, [products, stockFilter, sortBy]);
+
   const totalProducts = products.length;
   const lowStock = products.filter(p => p.stock <= p.minStock).length;
   const totalValue = products.reduce((s: number, p: Product) => s + p.stock * p.price, 0);
@@ -133,11 +159,76 @@ export default function ProductsPage() {
             </div>
 
             {/* Actions & Toggles */}
-            <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0">
-              <button className="flex items-center justify-center gap-2 px-4 py-3.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-2xl text-sm font-bold text-slate-700 transition-colors">
+            <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0 relative">
+              <button 
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center justify-center gap-2 px-4 py-3.5 border rounded-2xl text-sm font-bold transition-all ${showFilters || stockFilter !== "all" || sortBy !== "name" ? "bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20" : "bg-slate-50 hover:bg-slate-100 border-slate-200/60 text-slate-700"}`}
+              >
                 <SlidersHorizontal className="w-4 h-4" />
                 <span className="hidden sm:inline">Filters</span>
+                {(stockFilter !== "all" || sortBy !== "name") && (
+                   <span className="w-2 h-2 rounded-full bg-blue-400 absolute -top-1 -right-1 border-2 border-white"></span>
+                )}
               </button>
+
+              {/* Filter Dropdown */}
+              {showFilters && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowFilters(false)} />
+                  <div className="absolute top-full right-0 mt-3 w-64 bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 p-5 z-30 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-5">
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Stock Status</p>
+                          {stockFilter !== "all" && (
+                            <button onClick={() => setStockFilter("all")} className="text-[10px] font-bold text-blue-600 hover:underline">Reset</button>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          {[
+                            { id: "all", label: "All Items" },
+                            { id: "low", label: "Low Stock" },
+                            { id: "out", label: "Out of Stock" }
+                          ].map(opt => (
+                            <button
+                              key={opt.id}
+                              onClick={() => { setStockFilter(opt.id as any); setShowFilters(false); }}
+                              className={`text-left px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${stockFilter === opt.id ? "bg-blue-50 text-blue-600 ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50"}`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="h-px bg-slate-100" />
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort By</p>
+                          {sortBy !== "name" && (
+                            <button onClick={() => setSortBy("name")} className="text-[10px] font-bold text-blue-600 hover:underline">Reset</button>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          {[
+                            { id: "name", label: "Name (A-Z)" },
+                            { id: "price_asc", label: "Price (Low-High)" },
+                            { id: "price_desc", label: "Price (High-Low)" },
+                            { id: "stock_asc", label: "Stock (Low-High)" }
+                          ].map(opt => (
+                            <button
+                              key={opt.id}
+                              onClick={() => { setSortBy(opt.id as any); setShowFilters(false); }}
+                              className={`text-left px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${sortBy === opt.id ? "bg-blue-50 text-blue-600 ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50"}`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
               
               <div className="flex items-center p-1.5 bg-slate-100/80 rounded-2xl">
                 {([["grid", LayoutGrid], ["table", List]] as const).map(([v, Icon]) => (
@@ -186,20 +277,42 @@ export default function ProductsPage() {
 
           {/* Content Area */}
           <div className="bg-slate-50/50 min-h-[400px]">
-            {view === "table" ? (
-              <div className="hidden md:block">
-                <ProductTable products={products} isLoading={isLoading} onEdit={openEdit} onUpdateStock={openStock} />
-              </div>
-            ) : null}
+            {view === "table" && (
+              <ProductTable 
+                products={processedProducts} 
+                isLoading={isLoading} 
+                onEdit={openEdit} 
+                onUpdateStock={openStock} 
+              />
+            )}
             
-            {(view === "grid" || (view === "table" && typeof window !== 'undefined' && window.innerWidth < 768)) ? (
-              <ProductGrid products={products} isLoading={isLoading} onEdit={openEdit} onUpdateStock={openStock} />
-            ) : null}
-            
-            {/* Fallback info for mobile table view */}
-            {view === "table" && typeof window !== 'undefined' && window.innerWidth < 768 && (
-              <div className="md:hidden w-full text-center py-2 text-xs text-slate-400 bg-slate-100 border-b border-slate-200">
-                Switched to grid view for mobile screens
+            {view === "grid" && (
+              <ProductGrid 
+                products={processedProducts} 
+                isLoading={isLoading} 
+                onEdit={openEdit} 
+                onUpdateStock={openStock} 
+              />
+            )}
+
+            {/* No items found */}
+            {!isLoading && processedProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 px-6">
+                <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                  <Search className="w-10 h-10 text-slate-300" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">No products found</h3>
+                <p className="text-slate-500 text-center max-w-xs mt-1">
+                  Try adjusting your search or filters to find what you're looking for.
+                </p>
+                {(search || categoryId !== "" || stockFilter !== "all") && (
+                  <button 
+                    onClick={() => { setSearch(""); setCategoryId(""); setStockFilter("all"); }}
+                    className="mt-6 text-sm font-bold text-blue-600 hover:text-blue-700"
+                  >
+                    Clear all filters
+                  </button>
+                )}
               </div>
             )}
           </div>
