@@ -341,33 +341,61 @@ function NavItem({
 /* ─────────────────────────────────────────────
    Mobile group button + radial fan-out children
 ───────────────────────────────────────────── */
+function MobileMenuItem({ item, isActive, onClick }: { item: any, isActive: boolean, onClick: () => void }) {
+  return (
+    <Link
+      href={item.href}
+      onClick={onClick}
+      className={`
+        flex items-center gap-3 px-4 py-3 rounded-xl transition-colors
+        ${isActive ? "bg-brand-600 text-white shadow-glow" : "text-surface-300 hover:text-white hover:bg-surface-800"}
+      `}
+    >
+      <div className="shrink-0">{item.icon}</div>
+      <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
+    </Link>
+  );
+}
+
 function MobileGroup({
   group,
   pathname,
   isOpen,
   onToggle,
+  alignment,
 }: {
   group: (typeof navGroups)[number];
   pathname: string;
   isOpen: boolean;
   onToggle: () => void;
+  alignment: "left" | "center" | "right";
 }) {
   const hasActive = group.items.some((i) => pathname === i.href);
 
+  // Determine popup alignment styles
+  const alignmentStyles = 
+    alignment === "left" ? { left: "-10px" } :
+    alignment === "right" ? { right: "-10px" } :
+    { left: "50%", transform: "translateX(-50%)" };
+
   return (
     <div className="relative flex flex-col items-center">
-      {/* Child icons — slide upward above the group button */}
+      {/* Child items — slide upward above the group button */}
       <div
         className={`
-          absolute bottom-full mb-2 flex flex-col items-center gap-1.5
-          transition-all duration-200 ease-out bg-white rounded-md p-2
+          absolute bottom-full mb-3 flex flex-col items-stretch gap-1.5
+          transition-all duration-200 ease-out bg-surface-900 rounded-2xl p-2 shadow-2xl border border-surface-800
           ${
             isOpen
               ? "opacity-100 translate-y-0 pointer-events-auto"
               : "opacity-0 translate-y-3 pointer-events-none"
           }
         `}
-        style={{ transitionProperty: "opacity, transform" }}
+        style={{ 
+          transitionProperty: "opacity, transform",
+          minWidth: "160px",
+          ...alignmentStyles
+        }}
       >
         {group.items.map((item, idx) => {
           const isActive = pathname === item.href;
@@ -386,18 +414,10 @@ function MobileGroup({
                   : `translateY(${(group.items.length - idx) * 8}px)`,
               }}
             >
-              <NavItem
-                href={item.href}
-                label={item.label}
-                icon={item.icon}
-                isActive={isActive}
-                onNavigate={onToggle}
-              />
+              <MobileMenuItem item={item} isActive={isActive} onClick={onToggle} />
             </div>
           );
         })}
-        {/* Connecting line */}
-        <div className="w-px h-2 bg-surface-700 rounded-full" />
       </div>
 
       {/* Group trigger button */}
@@ -407,26 +427,41 @@ function MobileGroup({
         aria-label={group.label}
         aria-expanded={isOpen}
         className={`
-          relative flex items-center justify-center
-          w-12 h-12 rounded-xl shrink-0 cursor-pointer
+          relative flex flex-col items-center justify-center gap-1
+          w-16 h-14 rounded-xl shrink-0 cursor-pointer
           transition-all duration-200
           ${
             hasActive && !isOpen
-              ? "bg-brand-600/20 text-brand-400 ring-1 ring-brand-500/40"
+              ? "text-brand-400"
               : isOpen
-                ? "bg-surface-700 text-white ring-1 ring-surface-600"
-                : "text-surface-400 hover:text-white hover:bg-surface-800"
+                ? "text-white"
+                : "text-surface-400 hover:text-white"
           }
         `}
       >
+        {/* Backgrounds */}
+        {isOpen && (
+          <div className="absolute inset-0 bg-surface-700 rounded-xl" />
+        )}
+        {hasActive && !isOpen && (
+          <div className="absolute inset-0 bg-brand-600/20 ring-1 ring-brand-500/40 rounded-xl" />
+        )}
+
         <div
-          className={`transition-transform duration-200 ${isOpen ? "rotate-45 scale-90" : "rotate-0"}`}
+          className={`relative z-10 transition-transform duration-200 ${isOpen ? "rotate-45 scale-90 mb-1" : "rotate-0"}`}
         >
           {group.icon}
         </div>
+        
+        {!isOpen && (
+          <span className="relative z-10 text-[10px] font-medium leading-none tracking-wide text-center">
+            {group.label}
+          </span>
+        )}
+
         {/* Active dot */}
         {hasActive && !isOpen && (
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-brand-400" />
+          <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-brand-400 z-10" />
         )}
       </button>
     </div>
@@ -511,18 +546,22 @@ export function Sidebar() {
 
         {/* ── MOBILE: group icon row ── */}
         <nav
-          className="flex md:hidden flex-row gap-2 items-center w-full justify-around"
+          className="flex md:hidden flex-row gap-1 items-center w-full justify-between"
           aria-label="Main navigation"
         >
-          {navGroups.map((group) => (
-            <MobileGroup
-              key={group.id}
-              group={group}
-              pathname={pathname}
-              isOpen={openGroup === group.id}
-              onToggle={() => toggle(group.id)}
-            />
-          ))}
+          {navGroups.map((group, index) => {
+            const alignment = index === 0 ? "left" : index === navGroups.length - 1 ? "right" : "center";
+            return (
+              <MobileGroup
+                key={group.id}
+                group={group}
+                pathname={pathname}
+                isOpen={openGroup === group.id}
+                onToggle={() => toggle(group.id)}
+                alignment={alignment}
+              />
+            );
+          })}
         </nav>
 
         {/* Bottom logout — desktop only */}
