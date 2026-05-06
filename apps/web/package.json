@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3002",
-    "build": "pnpm --filter @pos/db generate && next build",
+    "build": "pnpm --filter @pos/db generate && pnpm --filter @pos/db seed && next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit"

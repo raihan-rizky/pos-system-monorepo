@@ -96,8 +96,17 @@ export async function updateSession(request: NextRequest) {
           if (request.nextUrl.pathname.startsWith("/api/")) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
           }
+
+          if (request.nextUrl.pathname === "/login") {
+            // Already on login page, sign out so they don't get stuck in a loop
+            await supabase.auth.signOut();
+            return supabaseResponse;
+          }
+
           const url = request.nextUrl.clone();
           url.pathname = "/login";
+          // append a query param so the login page can show an error
+          url.searchParams.set("error", "Account not found or deactivated");
           return NextResponse.redirect(url);
         }
       } catch (error) {
