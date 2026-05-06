@@ -261,22 +261,24 @@ export async function POST(request: Request) {
             include: { items: true },
           });
 
-          // Deduct stock for each item
-          for (const item of items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stock: { decrement: item.quantity } },
-            });
+          // Deduct stock for each item only if it's not a sales request
+          if (!isSalesRequest) {
+            for (const item of items) {
+              await tx.product.update({
+                where: { id: item.productId },
+                data: { stock: { decrement: item.quantity } },
+              });
 
-            // Log inventory change
-            await tx.inventoryLog.create({
-              data: {
-                productId: item.productId,
-                type: "OUT",
-                quantity: item.quantity,
-                note: `Penjualan ${invoiceNumber}`,
-              },
-            });
+              // Log inventory change
+              await tx.inventoryLog.create({
+                data: {
+                  productId: item.productId,
+                  type: "OUT",
+                  quantity: item.quantity,
+                  note: `Penjualan ${invoiceNumber}`,
+                },
+              });
+            }
           }
 
           // Update customer analytics atomically (skip if it's a sales request since payment is pending)

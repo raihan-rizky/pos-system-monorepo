@@ -66,15 +66,16 @@ export async function updateSession(request: NextRequest) {
     // If no role cookie, resolve from DB and set it
     if (!role || !isValidRole(role)) {
       try {
-        // Dynamic import to avoid circular deps at edge
-        const { db } = await import("@pos/db");
+        // Use Supabase PostgREST instead of Prisma to keep the Edge
+        // Function bundle under Vercel's 1 MB limit.
         const username = user.email?.split("@")[0];
-        const posUser = username
-          ? await db.user.findFirst({
-              where: { username },
-              select: { id: true, name: true, role: true, isActive: true },
-            })
-          : null;
+        const { data: posUser } = username
+          ? await supabase
+              .from("pos_users")
+              .select("id, name, role, isActive")
+              .eq("username", username)
+              .maybeSingle()
+          : { data: null };
 
         if (posUser && posUser.isActive) {
           role = posUser.role as Role;

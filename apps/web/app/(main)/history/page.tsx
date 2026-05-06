@@ -431,6 +431,61 @@ function ApproveModal({
   );
 }
 
+// ─── Reject Modal ─────────────────────────────────────────────────────────────
+
+function RejectModal({
+  tx,
+  onClose,
+  onSuccess,
+}: {
+  tx: Transaction;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleReject = async () => {
+    setError("");
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/transactions/${tx.id}/reject`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Failed to reject");
+      }
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-600" />
+        <div className="p-6 text-center">
+          <h2 className="text-lg font-bold text-surface-900 mb-1">Tolak Request?</h2>
+          <p className="text-sm text-surface-500 mb-4">
+            Request <span className="font-bold text-surface-700">{tx.invoiceNumber}</span> akan ditandai sebagai VOID.
+          </p>
+          {error && <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-left mb-4">{error}</p>}
+          <div className="flex items-center gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600 hover:bg-surface-50 transition-colors">Batal</button>
+            <button onClick={handleReject} disabled={isSubmitting} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
+              {isSubmitting ? "Proses..." : "Tolak"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
@@ -441,6 +496,7 @@ export default function HistoryPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [approvingTransaction, setApprovingTransaction] = useState<Transaction | null>(null);
+  const [rejectingTransaction, setRejectingTransaction] = useState<Transaction | null>(null);
 
   // Filter state
   const [searchInput, setSearchInput] = useState("");
@@ -702,14 +758,24 @@ export default function HistoryPage() {
                                   </>
                                 )}
                                 {!isSalesRole && tx.status === "PENDING_APPROVAL" && (
-                                  <button
-                                    onClick={() => setApprovingTransaction(tx)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                      bg-surface-100 text-blue-600 hover:bg-blue-50 hover:text-blue-700 border border-transparent
-                                      hover:border-blue-200 transition-all"
-                                  >
-                                    Approve
-                                  </button>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => setApprovingTransaction(tx)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                        bg-surface-100 text-blue-600 hover:bg-blue-50 hover:text-blue-700 border border-transparent
+                                        hover:border-blue-200 transition-all"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={() => setRejectingTransaction(tx)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                        bg-surface-100 text-red-500 hover:bg-red-50 hover:text-red-700 border border-transparent
+                                        hover:border-red-200 transition-all"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
                                 )}
                                 <Button
                                   variant="secondary"
@@ -804,6 +870,18 @@ export default function HistoryPage() {
             setApprovingTransaction(null);
             // Optionally, you could trigger a refetch here by refreshing the route or invalidating cache
             window.location.reload(); 
+          }}
+        />
+      )}
+
+      {/* Reject Modal */}
+      {rejectingTransaction && (
+        <RejectModal
+          tx={rejectingTransaction}
+          onClose={() => setRejectingTransaction(null)}
+          onSuccess={() => {
+            setRejectingTransaction(null);
+            window.location.reload();
           }}
         />
       )}

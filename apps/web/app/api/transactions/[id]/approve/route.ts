@@ -33,6 +33,7 @@ export async function POST(
     // Fetch the pending transaction
     const transaction = await db.transaction.findUnique({
       where: { id },
+      include: { items: true }
     });
 
     if (!transaction) {
@@ -67,7 +68,25 @@ export async function POST(
         },
       });
 
-      // 2. Update customer metrics if needed
+      // 2. Deduct stock for each item since it wasn't done during the request phase
+      for (const item of transaction.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity } },
+        });
+
+        // Log inventory change
+        await tx.inventoryLog.create({
+          data: {
+            productId: item.productId,
+            type: "OUT",
+            quantity: item.quantity,
+            note: `Approve Penjualan ${transaction.invoiceNumber}`,
+          },
+        });
+      }
+
+      // 3. Update customer metrics if needed
       if (transaction.customerId) {
         const debtIncrement = isDP ? total - finalAmountPaid : 0;
         await tx.customer.update({
