@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ const storeSchema = z.object({
 // GET /api/settings/store
 export async function GET() {
   try {
+    await requireRole("OWNER", "ADMIN");
     const settings = await db.storeSettings.findUnique({
       where: { id: SETTINGS_ID },
     });
@@ -25,6 +27,9 @@ export async function GET() {
       settings ?? { id: SETTINGS_ID, name: "", address: "", phone: "", logoUrl: null }
     );
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("[Settings/Store] GET failed:", error);
     return NextResponse.json({ message: "Failed to fetch settings" }, { status: 500 });
   }
@@ -33,6 +38,7 @@ export async function GET() {
 // PATCH /api/settings/store
 export async function PATCH(request: Request) {
   try {
+    await requireRole("OWNER", "ADMIN");
     const body = await request.json();
     const data = storeSchema.parse(body);
 
@@ -44,6 +50,9 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(settings);
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: "Validation error", errors: error.issues }, { status: 400 });
     }

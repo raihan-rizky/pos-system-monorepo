@@ -6,6 +6,7 @@ import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
 import { useDebounce } from "@/hooks/useDebounce";
 import type { Customer } from "@/hooks/useCustomers";
+import { useRole } from "@/components/providers/RoleProvider";
 
 interface SalespersonOption {
   id: string;
@@ -66,6 +67,9 @@ export function PaymentModal({
   const [isDP, setIsDP] = useState(false);
   const [isJobOrder, setIsJobOrder] = useState(false);
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
+  
+  const { role } = useRole();
+  const isSalesRole = role === "SALES";
 
   useEffect(() => {
     if (open) {
@@ -117,9 +121,12 @@ export function PaymentModal({
   const remaining = total - amountPaid;
 
   // Full payment: must pay >= total. DP: must pay > 0 and < total.
-  const canPay = isDP
-    ? amountPaid > 0 && amountPaid < total && total > 0
-    : amountPaid >= total && total > 0;
+  // SALES role just submits the request, no payment required yet.
+  const canPay = isSalesRole 
+    ? total > 0
+    : isDP
+      ? amountPaid > 0 && amountPaid < total && total > 0
+      : amountPaid >= total && total > 0;
 
   const handleConfirm = () => {
     onConfirm({
@@ -246,6 +253,7 @@ export function PaymentModal({
         </div>
 
         {/* Payment Method */}
+        {!isSalesRole && (
         <div>
           <label className="text-sm font-medium text-surface-700 mb-2 block">
             Metode Pembayaran
@@ -270,8 +278,10 @@ export function PaymentModal({
             ))}
           </div>
         </div>
+        )}
 
         {/* DP Toggle */}
+        {!isSalesRole && (
         <div>
           <label className="text-sm font-medium text-surface-700 mb-2 block">
             Tipe Pembayaran
@@ -307,6 +317,7 @@ export function PaymentModal({
             </button>
           </div>
         </div>
+        )}
 
         {/* Job Order Toggle */}
         <div>
@@ -397,6 +408,7 @@ export function PaymentModal({
         </div>
 
         {/* Amount Paid */}
+        {!isSalesRole && (
         <div>
           <Input
             label={isDP ? "Jumlah DP / Uang Muka (Rp)" : "Jumlah Bayar (Rp)"}
@@ -447,6 +459,7 @@ export function PaymentModal({
             ))}
           </div>
         </div>
+        )}
 
         {/* Change / Remaining */}
         {amountPaid > 0 && (
@@ -506,9 +519,11 @@ export function PaymentModal({
           >
             {isProcessing
               ? "Memproses..."
-              : isDP
-                ? `Bayar DP ${amountPaid > 0 ? formatRupiah(amountPaid) : ''}`
-                : "Konfirmasi Bayar"
+              : isSalesRole
+                ? "Kirim Permintaan"
+                : isDP
+                  ? `Bayar DP ${amountPaid > 0 ? formatRupiah(amountPaid) : ''}`
+                  : "Konfirmasi Bayar"
             }
           </Button>
         </div>

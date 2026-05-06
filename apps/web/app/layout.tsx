@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { cookies } from "next/headers";
+import type { Role } from "@/lib/rbac/permissions";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,18 +39,26 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = await cookies();
+  const role = (cookieStore.get("x-pos-role")?.value as Role) || null;
+  const userId = cookieStore.get("x-pos-user-id")?.value || null;
+  // Decode URI component since it might have spaces
+  const rawUserName = cookieStore.get("x-pos-user-name")?.value;
+  const userName = rawUserName ? decodeURIComponent(rawUserName) : null;
   return (
     <html lang="id" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className="antialiased">
-        <Providers>{children}</Providers>
+        <Providers role={role} userId={userId} userName={userName}>
+          {children}
+        </Providers>
       </body>
     </html>
   );

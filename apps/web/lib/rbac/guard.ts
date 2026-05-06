@@ -1,0 +1,130 @@
+// ============================================================
+// Server-side RBAC Guard — Used in API route handlers
+// ============================================================
+
+import { NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { db } from "@pos/db";
+import type { Role } from "./permissions";
+
+/**
+ * Custom error for authentication/authorization failures.
+ */
+export class AuthError extends Error {
+  public statusCode: number;
+
+  constructor(statusCode: number, message?: string) {
+    super(message || (statusCode === 401 ? "Unauthorized" : "Forbidden"));
+    this.statusCode = statusCode;
+    this.name = "AuthError";
+  }
+}
+
+/**
+ * Require the current user to have one of the specified roles.
+ *
+ * Usage in API routes:
+ * ```ts
+ * export async function GET() {
+ *   try {
+ *     const user = await requireRole('OWNER', 'ADMIN');
+ *     // ... proceed with authorized logic
+ *   } catch (error) {
+ *     if (error instanceof AuthError) {
+ *       return NextResponse.json({ message: error.message }, { status: error.statusCode });
+ *     }
+ *     return NextResponse.json({ message: 'Internal error' }, { status: 500 });
+ *   }
+ * }
+ * ```
+ *
+ * @returns The pos_users record (with id, username, name, role, storeId)
+ * @throws AuthError with 401 if not authenticated, 403 if wrong role
+ */
+export async function requireRole(...allowedRoles: Role[]) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new AuthError(401, "Unauthorized");
+  }
+
+  // Resolve Supabase auth user → pos_users record
+  // The username is the email prefix (e.g., "kasir1" from "kasir1@pos.local")
+  const username = user.email?.split("@")[0];
+
+  if (!username) {
+    throw new AuthError(401, "Invalid user identity");
+  }
+
+  const posUser = await db.user.findFirst({
+    where: { username },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      role: true,
+      storeId: true,
+      isActive: true,
+    },
+  });
+
+  if (!posUser) {
+    throw new AuthError(401, "User not found in POS system");
+  }
+
+  if (!posUser.isActive) {
+    throw new AuthError(403, "Account deactivated");
+  }
+
+  if (!allowedRoles.includes(posUser.role as Role)) {
+    throw new AuthError(403, "Insufficient permissions");
+  }
+
+  return posUser;
+}
+
+/**
+ * Get the current authenticated user WITHOUT role checking.
+ * Useful when you need the user info but want to handle role logic yourself.
+ *
+ * @returns The pos_users record or null if not authenticated
+ */
+export async function getCurrentUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const username = user.email?.split("@")[0];
+  if (!username) return null;
+
+  return db.user.findFirst({
+    where: { username },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      role: true,
+      storeId: true,
+      isActive: true,
+    },
+  });
+}
+
+/**
+ * Helper to create a consistent error response from an AuthError.
+ */
+export function handleAuthError(error: unknown) {
+  if (error instanceof AuthError) {
+    return NextResponse.json(
+      { message: error.message },
+      { status: error.statusCode }
+    );
+  }
+  return null;
+}

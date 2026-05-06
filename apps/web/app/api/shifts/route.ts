@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -8,10 +9,11 @@ export const dynamic = "force-dynamic";
 // else -> Get shift history
 export async function GET(request: Request) {
   try {
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
     const { searchParams } = new URL(request.url);
     const active = searchParams.get("active") === "true";
-    const cashierId = "user-kasir1"; // Hardcoded for now
-    const storeId = "store-main"; // Hardcoded for now
+    const cashierId = user.id; // Using real user id
+    const storeId = user.storeId || "store-main";
     
     if (active) {
       const shift = await db.cashierShift.findFirst({
@@ -48,6 +50,9 @@ export async function GET(request: Request) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to fetch shifts:", error);
     return NextResponse.json({ message: "Failed to fetch shifts" }, { status: 500 });
   }
@@ -64,6 +69,7 @@ const openShiftSchema = z.object({
 // Open a new shift
 export async function POST(request: Request) {
   try {
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
     const body = await request.json();
     const validatedData = openShiftSchema.safeParse(body);
 
@@ -75,8 +81,8 @@ export async function POST(request: Request) {
     }
     
     const { openingBalance, note } = validatedData.data;
-    const cashierId = "user-kasir1";
-    const storeId = "store-main";
+    const cashierId = user.id;
+    const storeId = user.storeId || "store-main";
 
     // Check if there is already an active shift for this cashier
     const existing = await db.cashierShift.findFirst({
@@ -103,6 +109,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(newShift, { status: 201 });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to open shift:", error);
     return NextResponse.json({ message: "Failed to open shift" }, { status: 500 });
   }

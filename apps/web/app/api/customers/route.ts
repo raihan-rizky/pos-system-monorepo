@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ const createCustomerSchema = z.object({
 // GET /api/customers
 export async function GET(request: Request) {
   try {
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const type = searchParams.get("type") || "";
@@ -79,6 +81,9 @@ export async function GET(request: Request) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("[GET /api/customers]", error);
     return NextResponse.json(
       { message: "Failed to fetch customers" },
@@ -90,6 +95,7 @@ export async function GET(request: Request) {
 // POST /api/customers
 export async function POST(request: Request) {
   try {
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const body = await request.json();
     const parsed = createCustomerSchema.safeParse(body);
 
@@ -134,6 +140,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(customer, { status: 201 });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("[POST /api/customers]", error);
     return NextResponse.json(
       { message: "Failed to create customer" },

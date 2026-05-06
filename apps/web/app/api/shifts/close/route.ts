@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ const closeShiftSchema = z.object({
 // POST /api/shifts/close
 export async function POST(request: Request) {
   try {
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
     const body = await request.json();
     const parsed = closeShiftSchema.safeParse(body);
 
@@ -24,8 +26,8 @@ export async function POST(request: Request) {
     }
 
     const { shiftId, closingBalance, note } = parsed.data;
-    const cashierId = "user-kasir1";
-    const storeId = "store-main";
+    const cashierId = user.id;
+    const storeId = user.storeId || "store-main";
 
     // Find the shift opening balance
     const shift = await db.cashierShift.findFirst({
@@ -80,6 +82,9 @@ export async function POST(request: Request) {
     return NextResponse.json(closedShift, { status: 200 });
 
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to close shift:", error);
     return NextResponse.json({ message: "Failed to close shift" }, { status: 500 });
   }

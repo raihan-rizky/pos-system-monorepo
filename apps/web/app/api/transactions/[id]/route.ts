@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 const updateTransactionSchema = z.object({
   salesName: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional(),
-  status: z.enum(["COMPLETED", "DP", "VOIDED", "REFUNDED"]).optional(),
+  status: z.enum(["COMPLETED", "DP", "VOIDED", "REFUNDED", "PENDING_APPROVAL"]).optional(),
 });
 
 // PATCH /api/transactions/[id]
@@ -15,6 +16,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { id } = params;
     const body = await request.json();
     const parsed = updateTransactionSchema.safeParse(body);
@@ -63,6 +65,9 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (error: any) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to update transaction:", error);
     if (error?.code === "P2025") {
       return NextResponse.json(
@@ -83,6 +88,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    await requireRole("OWNER", "ADMIN");
     const { id } = params;
 
     // Delete items first (referential integrity), then the transaction
@@ -93,6 +99,9 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Transaction deleted" });
   } catch (error: any) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to delete transaction:", error);
     if (error?.code === "P2025") {
       return NextResponse.json(

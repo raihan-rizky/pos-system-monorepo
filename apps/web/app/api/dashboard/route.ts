@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { createClient } from "@/utils/supabase/server";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 // GET /api/dashboard - Dashboard statistics
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const user = await requireRole("OWNER", "ADMIN");
     const now = new Date();
     const startOfDay = new Date(
       now.getFullYear(),
@@ -172,6 +167,9 @@ export async function GET() {
     );
     return res;
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+    
     console.error("Failed to fetch dashboard:", error);
     return NextResponse.json(
       { message: "Failed to fetch dashboard data" },

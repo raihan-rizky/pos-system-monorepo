@@ -18,7 +18,7 @@ datasource db {
 
 enum Role {
   OWNER
-  MANAGER
+  SALES
   CASHIER
   ADMIN
 }
@@ -32,6 +32,7 @@ enum PaymentMethod {
 }
 
 enum TransactionStatus {
+  PENDING_APPROVAL
   COMPLETED
   DP
   VOIDED
@@ -69,19 +70,20 @@ enum CustomerType {
 // ============================================================
 
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  name         String
-  role         Role          @default(CASHIER)
-  pin          String?       // 4-6 digit PIN for quick POS login
-  avatarUrl    String?
-  isActive     Boolean       @default(true)
-  storeId      String?
-  store        Store?        @relation(fields: [storeId], references: [id])
-  transactions Transaction[]
-  shifts       CashierShift[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                    String        @id @default(cuid())
+  username              String        @unique
+  name                  String
+  role                  Role          @default(CASHIER)
+  password              String?       // password for quick POS login
+  avatarUrl             String?
+  isActive              Boolean       @default(true)
+  storeId               String?
+  store                 Store?        @relation(fields: [storeId], references: [id])
+  transactions          Transaction[] @relation("processed_transactions")
+  requestedTransactions Transaction[] @relation("requested_transactions")
+  shifts                CashierShift[]
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
   @@map("pos_users")
 }
@@ -146,24 +148,26 @@ model Product {
 }
 
 model Transaction {
-  id            String            @id @default(cuid())
-  invoiceNumber String            @unique
-  storeId       String
-  store         Store             @relation(fields: [storeId], references: [id])
-  cashierId     String
-  cashier       User              @relation(fields: [cashierId], references: [id])
-  customerId    String?
-  customer      Customer?         @relation(fields: [customerId], references: [id])
-  salespersonId String?
-  salesperson   Salesperson?      @relation(fields: [salespersonId], references: [id])
-  items         TransactionItem[]
-  subtotal      Decimal           @db.Decimal(12, 2)
-  discount      Decimal           @default(0) @db.Decimal(12, 2)
-  tax           Decimal           @default(0) @db.Decimal(12, 2)
-  total         Decimal           @db.Decimal(12, 2)
-  paymentMethod PaymentMethod     @default(CASH)
-  amountPaid    Decimal           @db.Decimal(12, 2)
-  change        Decimal           @default(0) @db.Decimal(12, 2)
+  id               String            @id @default(cuid())
+  invoiceNumber    String            @unique
+  storeId          String
+  store            Store             @relation(fields: [storeId], references: [id])
+  cashierId        String?           // Nullable: filled when Cashier approves a SALES request
+  cashier          User?             @relation("processed_transactions", fields: [cashierId], references: [id])
+  requestedById    String?           // The SALES user who created the request
+  requestedBy      User?             @relation("requested_transactions", fields: [requestedById], references: [id])
+  customerId       String?
+  customer         Customer?         @relation(fields: [customerId], references: [id])
+  salespersonId    String?
+  salesperson      Salesperson?      @relation(fields: [salespersonId], references: [id])
+  items            TransactionItem[]
+  subtotal         Decimal           @db.Decimal(12, 2)
+  discount         Decimal           @default(0) @db.Decimal(12, 2)
+  tax              Decimal           @default(0) @db.Decimal(12, 2)
+  total            Decimal           @db.Decimal(12, 2)
+  paymentMethod    PaymentMethod     @default(CASH)
+  amountPaid       Decimal           @default(0) @db.Decimal(12, 2)
+  change           Decimal           @default(0) @db.Decimal(12, 2)
   status           TransactionStatus @default(COMPLETED)
   customerName     String?           // kept for walk-in / backward compat
   salesName        String?
@@ -175,9 +179,11 @@ model Transaction {
 
   @@index([storeId])
   @@index([cashierId])
+  @@index([requestedById])
   @@index([customerId])
   @@index([salespersonId])
   @@index([createdAt])
+  @@index([status])
   @@map("pos_transactions")
 }
 

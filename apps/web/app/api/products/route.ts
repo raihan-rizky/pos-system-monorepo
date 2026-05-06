@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -24,6 +25,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/products?search=xxx&categoryId=xxx
 export async function GET(request: Request) {
   try {
+    await requireRole("OWNER", "ADMIN");
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
@@ -52,6 +54,9 @@ export async function GET(request: Request) {
     res.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
     return res;
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to fetch products:", error);
     return NextResponse.json(
       { message: "Failed to fetch products" },
@@ -64,6 +69,7 @@ export async function GET(request: Request) {
 // POST /api/products - Create a new product
 export async function POST(request: Request) {
   try {
+    await requireRole("OWNER", "ADMIN");
     const body = await request.json();
     
     // Validate request body
@@ -92,6 +98,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to create product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(

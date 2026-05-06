@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { useRole } from "@/components/providers/RoleProvider";
 
 const supabase = createClient();
 
@@ -438,6 +439,7 @@ function MobileGroup({
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { canAccess, userName, role } = useRole();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   const toggle = (id: string) =>
@@ -445,6 +447,13 @@ export function Sidebar() {
 
   // Close open group when tapping backdrop area
   const closeAll = () => setOpenGroup(null);
+
+  const filteredNavGroups = navGroups.map(group => {
+    return {
+      ...group,
+      items: group.items.filter(item => canAccess(item.href))
+    };
+  }).filter(group => group.items.length > 0);
 
   return (
     <>
@@ -480,7 +489,7 @@ export function Sidebar() {
           className="hidden md:flex flex-col gap-4 items-center w-full"
           aria-label="Main navigation"
         >
-          {navGroups.map((group, gi) => (
+          {filteredNavGroups.map((group, gi) => (
             <React.Fragment key={group.id}>
               <div className="flex flex-col gap-1.5 items-center">
                 {group.items.map((item) => (
@@ -493,7 +502,7 @@ export function Sidebar() {
                   />
                 ))}
               </div>
-              {gi < navGroups.length - 1 && (
+              {gi < filteredNavGroups.length - 1 && (
                 <div className="w-8 h-px bg-surface-800 rounded-full" />
               )}
             </React.Fragment>

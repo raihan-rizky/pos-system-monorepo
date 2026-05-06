@@ -7,6 +7,7 @@ import { useTransactionHistory, useUpdateTransaction, useDeleteTransaction, Tran
 import { useCategories } from "@/hooks/useProducts";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { Button } from "@pos/ui";
+import { useRole } from "@/components/providers/RoleProvider";
 
 // ─── Edit Modal ──────────────────────────────────────────────────────────────
 
@@ -21,6 +22,7 @@ const PAYMENT_METHODS = ["CASH", "TRANSFER", "QRIS", "DEBIT", "KREDIT"];
 const STATUSES = [
   { value: "COMPLETED", label: "✅ Lunas", color: "text-emerald-700" },
   { value: "DP", label: "💰 DP", color: "text-amber-700" },
+  { value: "PENDING_APPROVAL", label: "⏳ Pending", color: "text-blue-600" },
   { value: "VOIDED", label: "❌ Void", color: "text-surface-500" },
   { value: "REFUNDED", label: "↩️ Refund", color: "text-red-600" },
 ];
@@ -207,6 +209,13 @@ function StatusBadge({ status }: { status: string }) {
       </span>
     );
   }
+  if (status === "PENDING_APPROVAL") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200">
+        ⏳ Pending
+      </span>
+    );
+  }
   if (status === "VOIDED") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-surface-100 text-surface-500 border border-surface-200">
@@ -337,12 +346,101 @@ function DeleteConfirmModal({
   );
 }
 
+// ─── Approve Modal ────────────────────────────────────────────────────────────
+
+function ApproveModal({
+  tx,
+  onClose,
+  onSuccess,
+}: {
+  tx: Transaction;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [amountPaid, setAmountPaid] = useState(Number(tx.total));
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleApprove = async () => {
+    setError("");
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/transactions/${tx.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentMethod, amountPaid }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Failed to approve");
+      }
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
+        <h2 className="text-lg font-bold text-surface-900">Approve Request</h2>
+        <p className="text-sm text-surface-500">Invoice: {tx.invoiceNumber} | Total: {formatRupiah(Number(tx.total))}</p>
+        
+        <div>
+          <label className="block text-xs font-semibold text-surface-600 mb-1.5">Metode Pembayaran</label>
+          <div className="grid grid-cols-3 gap-2">
+            {PAYMENT_METHODS.map((pm) => (
+              <button
+                key={pm}
+                onClick={() => setPaymentMethod(pm)}
+                className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                  paymentMethod === pm
+                    ? "bg-brand-600 text-white border-brand-600"
+                    : "bg-surface-50 text-surface-600 border-surface-200"
+                }`}
+              >
+                {pm}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-surface-600 mb-1.5">Jumlah Bayar</label>
+          <input
+            type="number"
+            value={amountPaid || ""}
+            onChange={(e) => setAmountPaid(Number(e.target.value))}
+            className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
+
+        {error && <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>}
+
+        <div className="flex items-center gap-3 mt-4">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600 hover:bg-surface-50">Batal</button>
+          <button onClick={handleApprove} disabled={isSubmitting} className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+            {isSubmitting ? "Proses..." : "Approve"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
+  const { role } = useRole();
+  const isSalesRole = role === "SALES";
+
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
+  const [approvingTransaction, setApprovingTransaction] = useState<Transaction | null>(null);
 
   // Filter state
   const [searchInput, setSearchInput] = useState("");
@@ -570,35 +668,49 @@ export default function HistoryPage() {
                             </td>
                             <td className="py-3.5 px-4 text-right">
                               <div className="flex items-center justify-end gap-2">
-                                <button
-                                  id={`edit-tx-${tx.id}`}
-                                  onClick={() => setEditingTransaction(tx)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                    bg-surface-100 text-surface-600 hover:bg-brand-50 hover:text-brand-700 border border-transparent
-                                    hover:border-brand-200 transition-all"
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                  </svg>
-                                  Edit
-                                </button>
-                                <button
-                                  id={`delete-tx-${tx.id}`}
-                                  onClick={() => setDeletingTransaction(tx)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                    bg-surface-100 text-red-500 hover:bg-red-50 hover:text-red-700 border border-transparent
-                                    hover:border-red-200 transition-all"
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                    <polyline points="3 6 5 6 21 6" />
-                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                    <path d="M10 11v6" />
-                                    <path d="M14 11v6" />
-                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                                  </svg>
-                                  Hapus
-                                </button>
+                                {!isSalesRole && (
+                                  <>
+                                    <button
+                                      id={`edit-tx-${tx.id}`}
+                                      onClick={() => setEditingTransaction(tx)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                        bg-surface-100 text-surface-600 hover:bg-brand-50 hover:text-brand-700 border border-transparent
+                                        hover:border-brand-200 transition-all"
+                                    >
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                      </svg>
+                                      Edit
+                                    </button>
+                                    <button
+                                      id={`delete-tx-${tx.id}`}
+                                      onClick={() => setDeletingTransaction(tx)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                        bg-surface-100 text-red-500 hover:bg-red-50 hover:text-red-700 border border-transparent
+                                        hover:border-red-200 transition-all"
+                                    >
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                        <polyline points="3 6 5 6 21 6" />
+                                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                        <path d="M10 11v6" />
+                                        <path d="M14 11v6" />
+                                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                      </svg>
+                                      Hapus
+                                    </button>
+                                  </>
+                                )}
+                                {!isSalesRole && tx.status === "PENDING_APPROVAL" && (
+                                  <button
+                                    onClick={() => setApprovingTransaction(tx)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                      bg-surface-100 text-blue-600 hover:bg-blue-50 hover:text-blue-700 border border-transparent
+                                      hover:border-blue-200 transition-all"
+                                  >
+                                    Approve
+                                  </button>
+                                )}
                                 <Button
                                   variant="secondary"
                                   onClick={() => setSelectedTransaction(tx)}
@@ -680,6 +792,19 @@ export default function HistoryPage() {
         <DeleteConfirmModal
           tx={deletingTransaction}
           onClose={() => setDeletingTransaction(null)}
+        />
+      )}
+
+      {/* Approve Modal */}
+      {approvingTransaction && (
+        <ApproveModal
+          tx={approvingTransaction}
+          onClose={() => setApprovingTransaction(null)}
+          onSuccess={() => {
+            setApprovingTransaction(null);
+            // Optionally, you could trigger a refetch here by refreshing the route or invalidating cache
+            window.location.reload(); 
+          }}
         />
       )}
     </>

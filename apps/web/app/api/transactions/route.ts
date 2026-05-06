@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
-import { createClient } from "@/utils/supabase/server";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 const transactionItemSchema = z.object({
@@ -36,12 +36,8 @@ export const dynamic = 'force-dynamic';
 // GET /api/transactions
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
 
-    if (!user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const dateFrom = searchParams.get("dateFrom");
@@ -126,6 +122,9 @@ export async function GET(request: Request) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to fetch transactions:", error);
     return NextResponse.json(
       { message: "Failed to fetch transactions" },
@@ -137,12 +136,8 @@ export async function GET(request: Request) {
 // POST /api/transactions - Create new transaction with stock deduction
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
 
-    if (!user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
 
     const body = await request.json();
     const parsed = createTransactionSchema.safeParse(body);
@@ -181,19 +176,29 @@ export async function POST(request: Request) {
     );
     const total = subtotal - discount;
 
-    // For DP (down payment), allow partial payment.
     const isDP = paymentStatus === "DP";
-    const change = isDP ? 0 : amountPaid - total;
+    const isSalesRequest = user.role === "SALES";
 
-    if (!isDP && amountPaid < total) {
-      return NextResponse.json({ message: "Pembayaran kurang" }, { status: 400 });
-    }
+    // Wait, SALES role doesn't handle payment
+    let amountPaidComputed = amountPaid;
+    let changeComputed = 0;
+    
+    if (isSalesRequest) {
+      amountPaidComputed = 0;
+      changeComputed = 0;
+    } else {
+      changeComputed = isDP ? 0 : amountPaid - total;
 
-    if (isDP && amountPaid <= 0) {
-      return NextResponse.json(
-        { message: "Jumlah DP harus lebih dari 0" },
-        { status: 400 }
-      );
+      if (!isDP && amountPaid < total) {
+        return NextResponse.json({ message: "Pembayaran kurang" }, { status: 400 });
+      }
+
+      if (isDP && amountPaid <= 0) {
+        return NextResponse.json(
+          { message: "Jumlah DP harus lebih dari 0" },
+          { status: 400 }
+        );
+      }
     }
 
     // Invoice number is generated INSIDE the DB transaction so the count
@@ -219,17 +224,18 @@ export async function POST(request: Request) {
           const txn = await tx.transaction.create({
             data: {
               invoiceNumber,
-              storeId: "store-main",
-              cashierId: cashierId || "user-kasir1",
+              storeId: user.storeId || "store-main",
+              cashierId: isSalesRequest ? null : (cashierId || user.id),
+              requestedById: isSalesRequest ? user.id : null,
               customerId: customerId || null,
               subtotal,
               discount,
               tax: 0,
               total,
               paymentMethod: paymentMethod,
-              amountPaid,
-              change,
-              status: isDP ? "DP" : "COMPLETED",
+              amountPaid: amountPaidComputed,
+              change: changeComputed,
+              status: isSalesRequest ? "PENDING_APPROVAL" : (isDP ? "DP" : "COMPLETED"),
               note: note || null,
               customerName: customerName || null,
               salesName: salesName || null,
@@ -273,13 +279,13 @@ export async function POST(request: Request) {
             });
           }
 
-          // Update customer analytics atomically
-          if (customerId) {
-            const debtIncrement = isDP ? total - amountPaid : 0;
+          // Update customer analytics atomically (skip if it's a sales request since payment is pending)
+          if (customerId && !isSalesRequest) {
+            const debtIncrement = isDP ? total - amountPaidComputed : 0;
             await tx.customer.update({
               where: { id: customerId },
               data: {
-                totalSpent: { increment: amountPaid },
+                totalSpent: { increment: amountPaidComputed },
                 totalOrders: { increment: 1 },
                 totalDebt: debtIncrement > 0 ? { increment: debtIncrement } : undefined,
                 lastVisitAt: new Date(),
@@ -310,6 +316,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to create transaction:", error);
     return NextResponse.json(
       { message: "Failed to create transaction" },

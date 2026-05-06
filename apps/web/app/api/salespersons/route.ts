@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 type SalespersonWhereData = {
   storeId?: string;
@@ -18,6 +19,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/salespersons
 export async function GET(request: NextRequest) {
   try {
+    await requireRole("OWNER", "ADMIN");
     const { searchParams } = new URL(request.url);
     const storeId = searchParams.get("storeId");
     const activeOnly = searchParams.get("activeOnly") === "true";
@@ -36,6 +38,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(salespersons);
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to fetch salespersons:", error);
     return NextResponse.json({ message: "Failed to fetch salespersons" }, { status: 500 });
   }
@@ -44,6 +49,7 @@ export async function GET(request: NextRequest) {
 // POST /api/salespersons
 export async function POST(request: NextRequest) {
   try {
+    await requireRole("OWNER", "ADMIN");
     const body = await request.json();
     const validatedData = createSalespersonSchema.safeParse(body);
 
@@ -73,6 +79,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(salesperson, { status: 201 });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to create salesperson:", error);
     return NextResponse.json({ message: "Failed to create salesperson" }, { status: 500 });
   }

@@ -1,10 +1,16 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+import { canAccessPage, DEFAULT_PAGE, isValidRole } from "@/lib/rbac/permissions";
+import type { Role } from "@/lib/rbac/permissions";
+
+const ROLE_COOKIE = "x-pos-role";
+const USER_ID_COOKIE = "x-pos-user-id";
+const USER_NAME_COOKIE = "x-pos-user-name";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
-  })
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,20 +18,22 @@ export async function updateSession(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll()
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
           supabaseResponse = NextResponse.next({
             request,
-          })
+          });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
-          )
+          );
         },
       },
     }
-  )
+  );
 
   // IMPORTANT: Avoid writing any logic between createServerClient and
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
@@ -33,22 +41,90 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
+  // ── Not authenticated ──
   if (
     !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
+    !request.nextUrl.pathname.startsWith("/login") &&
+    !request.nextUrl.pathname.startsWith("/auth")
   ) {
-    if (request.nextUrl.pathname.startsWith('/api/')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // no user, potentially respond by redirecting the user to the login page
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    // Redirect to login
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
 
-  return supabaseResponse
+  // ── Authenticated: resolve role ──
+  if (user) {
+    let role = request.cookies.get(ROLE_COOKIE)?.value as Role | undefined;
+
+    // If no role cookie, resolve from DB and set it
+    if (!role || !isValidRole(role)) {
+      try {
+        // Dynamic import to avoid circular deps at edge
+        const { db } = await import("@pos/db");
+        const username = user.email?.split("@")[0];
+        const posUser = username
+          ? await db.user.findFirst({
+              where: { username },
+              select: { id: true, name: true, role: true, isActive: true },
+            })
+          : null;
+
+        if (posUser && posUser.isActive) {
+          role = posUser.role as Role;
+
+          // Set role cookie on the response
+          const cookieOptions = {
+            path: "/",
+            httpOnly: false, // Needs to be readable by frontend RoleProvider
+            sameSite: "strict" as const,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 60 * 60 * 24, // 24 hours
+          };
+          supabaseResponse.cookies.set(ROLE_COOKIE, role, cookieOptions);
+          supabaseResponse.cookies.set(USER_ID_COOKIE, posUser.id, cookieOptions);
+          supabaseResponse.cookies.set(USER_NAME_COOKIE, posUser.name, cookieOptions);
+        } else {
+          // User exists in Supabase but not in POS system or deactivated
+          if (request.nextUrl.pathname.startsWith("/api/")) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+          }
+          const url = request.nextUrl.clone();
+          url.pathname = "/login";
+          return NextResponse.redirect(url);
+        }
+      } catch (error) {
+        console.error("[Middleware] Failed to resolve user role:", error);
+        // On DB error, allow request through — API guards will catch it
+        return supabaseResponse;
+      }
+    }
+
+    // ── Page-level access check (skip for API routes — handled by requireRole) ──
+    if (role && !request.nextUrl.pathname.startsWith("/api/")) {
+      const pathname = request.nextUrl.pathname;
+
+      // Skip access check for login, auth, and root pages
+      if (
+        pathname !== "/" &&
+        pathname !== "/login" &&
+        !pathname.startsWith("/auth")
+      ) {
+        if (!canAccessPage(role, pathname)) {
+          // Redirect to role's default page
+          const url = request.nextUrl.clone();
+          url.pathname = DEFAULT_PAGE[role];
+          return NextResponse.redirect(url);
+        }
+      }
+    }
+  }
+
+  return supabaseResponse;
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const customer = await db.customer.findUnique({
       where: { id: params.id },
       include: {
@@ -54,6 +56,9 @@ export async function GET(
 
     return NextResponse.json(customer);
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("[GET /api/customers/[id]]", error);
     return NextResponse.json(
       { message: "Failed to fetch customer" },
@@ -68,6 +73,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const body = await request.json();
     const parsed = updateCustomerSchema.safeParse(body);
 
@@ -106,6 +112,9 @@ export async function PATCH(
 
     return NextResponse.json(customer);
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("[PATCH /api/customers/[id]]", error);
     return NextResponse.json(
       { message: "Failed to update customer" },
@@ -120,6 +129,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    await requireRole("OWNER", "ADMIN");
     // Don't delete; instead nullify relation on transactions (soft approach)
     await db.transaction.updateMany({
       where: { customerId: params.id },
@@ -130,6 +140,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("[DELETE /api/customers/[id]]", error);
     return NextResponse.json(
       { message: "Failed to delete customer" },

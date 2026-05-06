@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAppPrefetch } from "@/hooks/usePrefetch";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { RoleProvider } from "@/components/providers/RoleProvider";
+import type { Role } from "@/lib/rbac/permissions";
 
 function AppBootstrap({ children }: { children: React.ReactNode }) {
   // Warm up the QueryClient cache on mount
@@ -11,7 +13,17 @@ function AppBootstrap({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ 
+  children,
+  role,
+  userId,
+  userName,
+}: { 
+  children: React.ReactNode;
+  role: Role | null;
+  userId: string | null;
+  userName: string | null;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -29,8 +41,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppBootstrap>{children}</AppBootstrap>
-      <ServiceWorkerRegistration />
+      <RoleProvider role={role} userId={userId} userName={userName}>
+        <AppBootstrap>{children}</AppBootstrap>
+        <ServiceWorkerRegistration />
+      </RoleProvider>
     </QueryClientProvider>
   );
 }

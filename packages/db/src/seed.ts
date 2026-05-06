@@ -21,32 +21,57 @@ async function main() {
   console.log(`  ✅ Store: ${store.name}`);
 
   // ============================================================
-  // Create Users
+  // Create Users (all 4 roles for testing)
   // ============================================================
   const owner = await prisma.user.upsert({
-    where: { email: "owner@posshop.com" },
-    update: {},
+    where: { username: "owner" },
+    update: { role: "OWNER" },
     create: {
-      email: "owner@posshop.com",
+      username: "owner",
       name: "Pemilik Toko",
       role: "OWNER",
-      pin: "1234",
+      password: "owner123",
+      storeId: store.id,
+    },
+  });
+
+  const admin = await prisma.user.upsert({
+    where: { username: "admin" },
+    update: { role: "ADMIN" },
+    create: {
+      username: "admin",
+      name: "Admin Toko",
+      role: "ADMIN",
+      password: "admin123",
       storeId: store.id,
     },
   });
 
   const cashier = await prisma.user.upsert({
-    where: { email: "kasir1@posshop.com" },
-    update: {},
+    where: { username: "kasir1" },
+    update: { role: "CASHIER" },
     create: {
-      email: "kasir1@posshop.com",
+      username: "kasir1",
       name: "Kasir 1",
       role: "CASHIER",
-      pin: "5678",
+      password: "kasir123",
       storeId: store.id,
     },
   });
-  console.log(`  ✅ Users: ${owner.name}, ${cashier.name}`);
+
+  const sales = await prisma.user.upsert({
+    where: { username: "sales1" },
+    update: { role: "SALES" },
+    create: {
+      username: "sales1",
+      name: "Sales 1",
+      role: "SALES",
+      password: "sales123",
+      storeId: store.id,
+    },
+  });
+
+  console.log(`  ✅ Users: ${owner.name}, ${admin.name}, ${cashier.name}, ${sales.name}`);
 
   // ============================================================
   // Create Categories
