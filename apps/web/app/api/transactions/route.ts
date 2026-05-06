@@ -288,6 +288,10 @@ export async function POST(request: Request) {
           }
 
           return txn;
+        },
+        {
+          maxWait: 5000, // 5 seconds max wait to connect
+          timeout: 15000, // 15 seconds timeout for the entire transaction
         });
 
         // Transaction succeeded — break out of retry loop
