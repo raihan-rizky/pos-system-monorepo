@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/products?search=xxx&categoryId=xxx
 export async function GET(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
