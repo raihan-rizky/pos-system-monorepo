@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), {
   ssr: false,
@@ -16,6 +17,79 @@ import {
   useToggleAutoReply,
 } from "@/hooks/useWaChat";
 import { formatDate } from "@/lib/utils";
+
+/* ─────────────────────────────────────────────────────────────────
+ * WA Connection Error Popup
+ * Shows when the WAHA API is unreachable or not configured.
+ * ────────────────────────────────────────────────────────────────── */
+function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
+  const router = useRouter();
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-[90%] overflow-hidden animate-scaleIn">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-5 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-white font-bold text-lg leading-tight">Koneksi WhatsApp Gagal</h3>
+            <p className="text-white/70 text-xs mt-0.5">Tidak dapat terhubung ke server WAHA</p>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5">
+          <p className="text-surface-700 text-sm leading-relaxed">
+            Sistem tidak dapat mengambil data WhatsApp. Pastikan integrasi WhatsApp (WAHA) sudah dikonfigurasi dengan benar di halaman <strong>Settings</strong>.
+          </p>
+
+          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex gap-3">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <div className="text-xs text-amber-800 leading-relaxed">
+              <strong>Checklist konfigurasi:</strong>
+              <ul className="mt-1.5 space-y-1 list-disc list-inside">
+                <li>WAHA Base URL sudah diisi</li>
+                <li>API Key WAHA valid</li>
+                <li>Server WAHA berjalan &amp; dapat diakses</li>
+                <li>Session WhatsApp aktif (QR sudah di-scan)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="px-6 pb-5 flex gap-3">
+          <button
+            onClick={onDismiss}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-surface-200 text-surface-600 text-sm font-semibold hover:bg-surface-50 transition-colors"
+          >
+            Tutup
+          </button>
+          <button
+            onClick={() => router.push("/settings")}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors shadow-md flex items-center justify-center gap-2"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            Buka Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * WahaImage — proxies a WAHA media file through our Next.js backend.
@@ -96,14 +170,16 @@ const WahaImage = ({ mediaId }: { mediaId: string }) => {
 export default function WACoexistencePage() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+  const [hasDismissedError, setHasDismissedError] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: contacts = [], isLoading: contactsLoading } = useWaContacts();
+  const { data: contacts = [], isLoading: contactsLoading, isError: isContactsError } = useWaContacts();
   const { data: messages = [], isLoading: messagesLoading } =
     useWaMessages(selectedChatId);
   const { mutateAsync: sendMessage, isPending: isSending } = useSendMessage();
 
-  const { data: isAutoReplyOn, isLoading: isAutoReplyLoading } = useAutoReplyStatus();
+  const { data: isAutoReplyOn, isLoading: isAutoReplyLoading, isError: isAutoReplyError } = useAutoReplyStatus();
   const { mutateAsync: toggleAutoReply, isPending: isTogglingAutoReply } = useToggleAutoReply();
 
   useEffect(() => {
@@ -111,6 +187,12 @@ export default function WACoexistencePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
   // Debug logger removed — was flooding console every 5s poll cycle
+
+  useEffect(() => {
+    if ((isContactsError || isAutoReplyError) && !hasDismissedError) {
+      setShowErrorPopup(true);
+    }
+  }, [isContactsError, isAutoReplyError, hasDismissedError]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,6 +212,14 @@ export default function WACoexistencePage() {
 
   return (
     <>
+      {showErrorPopup && (
+        <WaConnectionErrorPopup
+          onDismiss={() => {
+            setShowErrorPopup(false);
+            setHasDismissedError(true);
+          }}
+        />
+      )}
       {/* WA Wrapper */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Pane - Contacts List */}

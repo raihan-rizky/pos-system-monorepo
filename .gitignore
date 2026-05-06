@@ -36,3 +36,11 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+# sql
+disable_rls.sql
+enable_rls.sql
+
+#test file
+scratch.js
+test_rls.js

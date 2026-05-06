@@ -26,14 +26,12 @@ export async function POST(request: Request) {
     }
 
     const { shiftId, closingBalance, note } = parsed.data;
-    const cashierId = user.id;
     const storeId = user.storeId || "store-main";
 
-    // Find the shift opening balance
+    // Find the shift — store-wide, not tied to the closing user
     const shift = await db.cashierShift.findFirst({
       where: {
         id: shiftId,
-        cashierId,
         storeId,
         status: "OPEN",
       },
@@ -46,11 +44,9 @@ export async function POST(request: Request) {
     // Calculate expected balance: openingBalance + CASH transactions - CHANGEs
     // Since only CASH transactions go to the physical drawer
     
-    // Find all CASH transactions in this shift duration
-    // The transactions belong to the same cashier and store, and created after openedAt
+    // Find all CASH transactions in this shift duration (store-wide)
     const cashTransactions = await db.transaction.findMany({
       where: {
-        cashierId,
         storeId,
         paymentMethod: "CASH",
         createdAt: {

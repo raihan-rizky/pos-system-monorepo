@@ -9,18 +9,22 @@ export const dynamic = "force-dynamic";
 // else -> Get shift history
 export async function GET(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { searchParams } = new URL(request.url);
     const active = searchParams.get("active") === "true";
-    const cashierId = user.id; // Using real user id
     const storeId = user.storeId || "store-main";
     
     if (active) {
+      // Find ANY open shift in the store — shifts are shared across all roles
       const shift = await db.cashierShift.findFirst({
         where: {
-          cashierId,
           storeId,
           status: "OPEN",
+        },
+        include: {
+          cashier: {
+            select: { name: true },
+          },
         },
       });
       return NextResponse.json({ data: shift });
@@ -84,17 +88,16 @@ export async function POST(request: Request) {
     const cashierId = user.id;
     const storeId = user.storeId || "store-main";
 
-    // Check if there is already an active shift for this cashier
+    // Check if there is already an active shift in this store (store-wide)
     const existing = await db.cashierShift.findFirst({
       where: {
-        cashierId,
         storeId,
         status: "OPEN",
       },
     });
 
     if (existing) {
-      return NextResponse.json({ message: "Anda masih memiliki shift yang terbuka." }, { status: 400 });
+      return NextResponse.json({ message: "Masih ada shift yang terbuka di toko ini." }, { status: 400 });
     }
 
     const newShift = await db.cashierShift.create({

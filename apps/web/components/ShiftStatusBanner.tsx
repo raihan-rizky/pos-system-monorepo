@@ -7,9 +7,10 @@ import { formatRupiah } from "@/lib/utils";
 interface ShiftStatusBannerProps {
   shift: CashierShift;
   onCloseShift: () => void;
+  canCloseShift?: boolean;
 }
 
-export function ShiftStatusBanner({ shift, onCloseShift }: ShiftStatusBannerProps) {
+export function ShiftStatusBanner({ shift, onCloseShift, canCloseShift = true }: ShiftStatusBannerProps) {
   const [uptime, setUptime] = useState<string>("");
 
   useEffect(() => {
@@ -45,12 +46,14 @@ export function ShiftStatusBanner({ shift, onCloseShift }: ShiftStatusBannerProp
           Modal: <span className="text-brand-700">{formatRupiah(shift.openingBalance)}</span>
         </span>
       </div>
-      <button
-        onClick={onCloseShift}
-        className="text-brand-700 hover:text-brand-900 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors"
-      >
-        TUTUP SHIFT
-      </button>
+      {canCloseShift && (
+        <button
+          onClick={onCloseShift}
+          className="text-brand-700 hover:text-brand-900 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors"
+        >
+          TUTUP SHIFT
+        </button>
+      )}
     </div>
   );
 }

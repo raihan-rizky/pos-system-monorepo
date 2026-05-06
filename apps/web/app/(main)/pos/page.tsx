@@ -15,16 +15,6 @@ const ReceiptModal = dynamic(
   () => import("@/components/ReceiptModal").then((mod) => mod.ReceiptModal),
   { ssr: false },
 );
-const AddProductModal = dynamic(
-  () =>
-    import("@/components/AddProductModal").then((mod) => mod.AddProductModal),
-  { ssr: false },
-);
-const EditProductModal = dynamic(
-  () =>
-    import("@/components/EditProductModal").then((mod) => mod.EditProductModal),
-  { ssr: false },
-);
 const OpenShiftModal = dynamic(
   () => import("@/components/OpenShiftModal").then((mod) => mod.OpenShiftModal),
   { ssr: false },
@@ -38,20 +28,17 @@ import { formatRupiah } from "@/lib/utils";
 import {
   useProducts,
   useCategories,
-  useDeleteProduct,
   Product,
 } from "@/hooks/useProducts";
 import { useCart } from "@/hooks/useCart";
 import { useCreateTransaction } from "@/hooks/useTransactions";
 import { useActiveShift } from "@/hooks/useShift";
+import { useRole } from "@/components/providers/RoleProvider";
 
 export default function POSPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [showPayment, setShowPayment] = useState(false);
-  const [showAddProduct, setShowAddProduct] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showCloseShift, setShowCloseShift] = useState(false);
@@ -61,13 +48,14 @@ export default function POSPage() {
   const closeCart = useCallback(() => setIsCartOpen(false), []);
 
   const { data: activeShift, isLoading: shiftLoading } = useActiveShift();
+  const { role } = useRole();
+  const isSales = role === "SALES";
 
   const { data: products = [], isLoading: productsLoading } = useProducts(
     search,
     selectedCategory,
   );
   const { data: categories = [] } = useCategories();
-  const deleteProduct = useDeleteProduct();
   const cart = useCart();
   const createTransaction = useCreateTransaction();
 
@@ -122,22 +110,13 @@ export default function POSPage() {
     }
   };
 
-  const handleDeleteProduct = async (product: Product) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus "${product.name}"?`)) {
-      try {
-        await deleteProduct.mutateAsync(product.id);
-      } catch (error) {
-        alert("Gagal menghapus barang.");
-      }
-    }
-  };
-
   return (
     <>
       {!shiftLoading && activeShift && (
         <ShiftStatusBanner
           shift={activeShift}
           onCloseShift={() => setShowCloseShift(true)}
+          canCloseShift={!isSales}
         />
       )}
 
@@ -167,49 +146,7 @@ export default function POSPage() {
               />
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant={isEditMode ? "secondary" : "ghost"}
-                onClick={() => setIsEditMode(!isEditMode)}
-                className={`flex items-center gap-2 ${isEditMode ? "bg-surface-200 text-surface-900 border border-surface-300" : "text-surface-900 hover:bg-surface-200"}`}
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 20h9" />
-                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-                <span className="hidden md:inline">
-                  {isEditMode ? "Selesai Atur" : "Atur Barang"}
-                </span>
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setShowAddProduct(true)}
-                className="flex items-center gap-2"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                <span className="hidden md:inline">Tambah Barang</span>
-              </Button>
-              <div className="hidden md:block text-right border-l border-surface-200 pl-4">
+              <div className="hidden md:block text-right">
                 <p className="text-xs text-surface-400">
                   {new Date().toLocaleDateString("id-ID", {
                     weekday: "long",
@@ -282,31 +219,26 @@ export default function POSPage() {
                 })
               }
               isLoading={productsLoading}
-              isEditMode={isEditMode}
-              onEditProduct={setProductToEdit}
-              onDeleteProduct={handleDeleteProduct}
             />
           </div>
         </div>
 
         {/* Cart Sidebar - Desktop (lg+) */}
-        {!isEditMode && (
-          <div className="hidden lg:block w-[340px] flex-shrink-0">
-            <CartSidebar
-              items={cart.items}
-              subtotal={cart.subtotal}
-              totalItems={cart.totalItems}
-              onUpdateQuantity={cart.updateQuantity}
-              onRemoveItem={cart.removeItem}
-              onClearCart={cart.clearCart}
-              onCheckout={handleOpenPayment}
-            />
-          </div>
-        )}
+        <div className="hidden lg:block w-[340px] flex-shrink-0">
+          <CartSidebar
+            items={cart.items}
+            subtotal={cart.subtotal}
+            totalItems={cart.totalItems}
+            onUpdateQuantity={cart.updateQuantity}
+            onRemoveItem={cart.removeItem}
+            onClearCart={cart.clearCart}
+            onCheckout={handleOpenPayment}
+          />
+        </div>
       </div>
 
       {/* Mobile Cart FAB - visible on <lg when cart has items */}
-      {!isEditMode && !showPayment && cart.totalItems > 0 && (
+      {!showPayment && cart.totalItems > 0 && (
         <button
           onClick={openCart}
           className="lg:hidden fixed bottom-20 md:bottom-4 right-4 z-[90] flex items-center gap-2.5 px-5 py-3.5 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl shadow-lg shadow-brand-600/30 transition-all duration-200 active:scale-95 animate-scale-in"
@@ -383,29 +315,34 @@ export default function POSPage() {
         />
       )}
 
-      {/* Add Product Modal */}
-      {showAddProduct && (
-        <AddProductModal
-          open={showAddProduct}
-          onClose={() => setShowAddProduct(false)}
-        />
-      )}
-
-      {/* Edit Product Modal */}
-      {productToEdit && (
-        <EditProductModal
-          open={true}
-          onClose={() => setProductToEdit(null)}
-          product={productToEdit}
-        />
-      )}
-
       {/* Shift Modals */}
-      {!shiftLoading && !activeShift && !shiftModalDismissed && (
+      {!shiftLoading && !activeShift && !shiftModalDismissed && !isSales && (
         <OpenShiftModal
           open={true}
           onClose={() => setShiftModalDismissed(true)}
         />
+      )}
+      {!shiftLoading && !activeShift && isSales && !shiftModalDismissed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm mx-4 text-center shadow-xl">
+            <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Belum Ada Shift Aktif</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Kasir belum membuka shift. Hubungi kasir untuk membuka shift terlebih dahulu agar Anda bisa melakukan transaksi.
+            </p>
+            <button
+              onClick={() => setShiftModalDismissed(true)}
+              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
       )}
       {showCloseShift && (
         <CloseShiftModal
