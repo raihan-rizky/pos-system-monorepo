@@ -102,7 +102,12 @@ export default function POSPage() {
         isJobOrder: data.isJobOrder,
         estimatedDoneAt: data.estimatedDoneAt,
       });
-      setLastTransaction(result);
+      if (result.status !== "PENDING_APPROVAL") {
+        setLastTransaction(result);
+      } else {
+        // For sales requests, we show a success message instead of a receipt
+        alert("Permintaan pembayaran berhasil dikirim ke Kasir. Silakan tunggu persetujuan.");
+      }
       cart.clearCart();
       setShowPayment(false);
     } catch (error) {

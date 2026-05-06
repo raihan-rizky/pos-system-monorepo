@@ -16,7 +16,7 @@ export interface Transaction {
   customerName: string | null;
   salesName: string | null;
   note: string | null;
-  status: string; // COMPLETED, DP, VOIDED, REFUNDED
+  status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED
   createdAt: string;
   items: {
     id: string;
