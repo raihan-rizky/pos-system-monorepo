@@ -25,6 +25,10 @@ export const metadata: Metadata = {
     "Sistem Point of Sale untuk toko percetakan dan alat tulis kantor. Kelola penjualan, stok, dan laporan dengan mudah.",
   keywords: ["POS", "point of sale", "percetakan", "ATK", "kasir"],
   manifest: "/manifest.json",
+  icons: {
+    icon: [{ url: "/images/favicon.png", type: "image/png" }],
+    apple: "/images/favicon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -51,10 +55,12 @@ export default async function RootLayout({
   const rawUserName = cookieStore.get("x-pos-user-name")?.value;
   const userName = rawUserName ? decodeURIComponent(rawUserName) : null;
   return (
-    <html lang="id" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-      </head>
+    <html
+      lang="id"
+      suppressHydrationWarning
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
+    >
+      <head />
       <body className="antialiased">
         <Providers role={role} userId={userId} userName={userName}>
           {children}
