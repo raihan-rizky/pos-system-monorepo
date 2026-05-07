@@ -1,0 +1,886 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: products.spec.ts >> Product Management >> should create a new product and see it in the list
+- Location: e2e\products.spec.ts:23:7
+
+# Error details
+
+```
+Test timeout of 90000ms exceeded.
+```
+
+```
+Error: locator.selectOption: Test timeout of 90000ms exceeded.
+Call log:
+  - waiting for getByLabel('Category')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - img "Logo" [ref=e5]
+      - navigation "Main navigation" [ref=e6]:
+        - generic [ref=e7]:
+          - link "Dashboard" [ref=e8] [cursor=pointer]:
+            - /url: /dashboard
+            - img [ref=e9]
+            - generic: Dashboard
+          - link "Kasir" [ref=e14] [cursor=pointer]:
+            - /url: /pos
+            - img [ref=e15]
+            - generic: Kasir
+          - link "History" [ref=e17] [cursor=pointer]:
+            - /url: /history
+            - img [ref=e18]
+            - generic: History
+        - generic [ref=e22]:
+          - link "Products" [ref=e23] [cursor=pointer]:
+            - /url: /products
+            - img [ref=e24]
+            - generic: Products
+          - link "Production" [ref=e28] [cursor=pointer]:
+            - /url: /production
+            - img [ref=e29]
+            - generic: Production
+        - generic [ref=e32]:
+          - link "Pelanggan" [ref=e33] [cursor=pointer]:
+            - /url: /customers
+            - img [ref=e34]
+            - generic: Pelanggan
+          - link "Salespersons" [ref=e39] [cursor=pointer]:
+            - /url: /salespersons
+            - img [ref=e40]
+            - generic: Salespersons
+        - generic [ref=e43]:
+          - link "WA Chat" [ref=e44] [cursor=pointer]:
+            - /url: /wa
+            - img [ref=e45]
+            - generic: WA Chat
+          - link "Shift Kasir" [ref=e47] [cursor=pointer]:
+            - /url: /shift
+            - img [ref=e48]
+            - generic: Shift Kasir
+          - link "Settings" [ref=e51] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e52]
+            - generic: Settings
+      - button "Keluar" [ref=e57] [cursor=pointer]:
+        - img [ref=e58]
+        - generic: Keluar
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e65]:
+            - generic [ref=e66]: LIVE INVENTORY
+            - heading "Products Hub" [level=1] [ref=e70]
+            - paragraph [ref=e71]: Manage your catalog, pricing, and monitor stock levels in real-time.
+          - button "Add New Product" [ref=e72] [cursor=pointer]:
+            - img [ref=e73]
+            - generic [ref=e74]: Add New Product
+        - generic [ref=e75]:
+          - generic [ref=e78]:
+            - generic [ref=e79]:
+              - paragraph [ref=e80]: Total Products
+              - paragraph [ref=e81]: "31"
+            - img [ref=e83]
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - paragraph [ref=e91]: Low Stock Alerts
+              - paragraph [ref=e92]: "3"
+              - paragraph [ref=e93]: Action required
+            - img [ref=e96]
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - paragraph [ref=e102]: Inventory Value
+              - paragraph [ref=e103]: Rp 1.638.918.100
+            - img [ref=e105]
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - generic [ref=e110]:
+              - generic:
+                - img
+              - textbox "Search by name, SKU, or barcode..." [ref=e111]
+            - generic [ref=e112]:
+              - button "Filters" [ref=e113] [cursor=pointer]:
+                - img [ref=e114]
+                - generic [ref=e115]: Filters
+              - generic [ref=e116]:
+                - button "grid" [ref=e117] [cursor=pointer]:
+                  - img [ref=e118]
+                - button "table" [ref=e123] [cursor=pointer]:
+                  - img [ref=e124]
+          - generic [ref=e126]:
+            - button "All Products 31" [ref=e127] [cursor=pointer]
+            - button "✏️ Alat Tulis 5" [ref=e128] [cursor=pointer]:
+              - generic [ref=e129]: ✏️
+              - text: Alat Tulis
+              - generic [ref=e130]: "5"
+            - button "📄 Kertas 5" [ref=e131] [cursor=pointer]:
+              - generic [ref=e132]: 📄
+              - text: Kertas
+              - generic [ref=e133]: "5"
+            - button "🖨️ Tinta & Cartridge 4" [ref=e134] [cursor=pointer]:
+              - generic [ref=e135]: 🖨️
+              - text: Tinta & Cartridge
+              - generic [ref=e136]: "4"
+            - button "🖼️ Jasa Cetak 10" [ref=e137] [cursor=pointer]:
+              - generic [ref=e138]: 🖼️
+              - text: Jasa Cetak
+              - generic [ref=e139]: "10"
+            - button "📁 Amplop & Map 3" [ref=e140] [cursor=pointer]:
+              - generic [ref=e141]: 📁
+              - text: Amplop & Map
+              - generic [ref=e142]: "3"
+            - button "🏢 Perlengkapan Kantor 4" [ref=e143] [cursor=pointer]:
+              - generic [ref=e144]: 🏢
+              - text: Perlengkapan Kantor
+              - generic [ref=e145]: "4"
+          - generic [ref=e147]:
+            - generic [ref=e148] [cursor=pointer]:
+              - img "Amplop Coklat Besar" [ref=e151]
+              - generic [ref=e152]:
+                - paragraph [ref=e153]: Amplop Coklat Besar
+                - generic [ref=e155]: "SKU: AMP-002"
+              - generic [ref=e156]:
+                - generic [ref=e157]:
+                  - paragraph [ref=e158]: Price
+                  - paragraph [ref=e159]: Rp 2.000
+                - generic [ref=e160]:
+                  - paragraph [ref=e161]: In Stock
+                  - generic [ref=e162]:
+                    - generic [ref=e163]: "190"
+                    - generic [ref=e164]: pcs
+              - generic [ref=e165]:
+                - button "Update Stock" [ref=e166]:
+                  - img [ref=e167]
+                - button "Edit Product" [ref=e170]:
+                  - img [ref=e171]
+            - generic [ref=e173] [cursor=pointer]:
+              - img "Amplop Putih Polos" [ref=e176]
+              - generic [ref=e177]:
+                - paragraph [ref=e178]: Amplop Putih Polos
+                - generic [ref=e180]: "SKU: AMP-001"
+              - generic [ref=e181]:
+                - generic [ref=e182]:
+                  - paragraph [ref=e183]: Price
+                  - paragraph [ref=e184]: Rp 500
+                - generic [ref=e185]:
+                  - paragraph [ref=e186]: In Stock
+                  - generic [ref=e187]:
+                    - generic [ref=e188]: "482"
+                    - generic [ref=e189]: pcs
+              - generic [ref=e190]:
+                - button "Update Stock" [ref=e191]:
+                  - img [ref=e192]
+                - button "Edit Product" [ref=e195]:
+                  - img [ref=e196]
+            - generic [ref=e198] [cursor=pointer]:
+              - generic [ref=e199]:
+                - img "Banner Stand-X" [ref=e201]
+                - generic [ref=e202]:
+                  - img [ref=e203]
+                  - text: LOW STOCK
+              - generic [ref=e205]:
+                - paragraph [ref=e206]: Banner Stand-X
+                - generic [ref=e207]:
+                  - generic [ref=e208]: "SKU: BNR-X-01"
+                  - generic [ref=e209]: 60x160
+              - generic [ref=e210]:
+                - generic [ref=e211]:
+                  - paragraph [ref=e212]: Price
+                  - paragraph [ref=e213]: Rp 18.400
+                - generic [ref=e214]:
+                  - paragraph [ref=e215]: In Stock
+                  - generic [ref=e216]:
+                    - generic [ref=e217]: "0"
+                    - generic [ref=e218]: cm
+              - generic [ref=e219]:
+                - button "Update Stock" [ref=e220]:
+                  - img [ref=e221]
+                - button "Edit Product" [ref=e224]:
+                  - img [ref=e225]
+            - generic [ref=e227] [cursor=pointer]:
+              - img "Cetak Foto 4R" [ref=e230]
+              - generic [ref=e231]:
+                - paragraph [ref=e232]: Cetak Foto 4R
+                - generic [ref=e233]:
+                  - generic [ref=e234]: "SKU: JCT-004"
+                  - generic [ref=e235]: 4R
+              - generic [ref=e236]:
+                - generic [ref=e237]:
+                  - paragraph [ref=e238]: Price
+                  - paragraph [ref=e239]: Rp 5.000
+                - generic [ref=e240]:
+                  - paragraph [ref=e241]: In Stock
+                  - generic [ref=e242]:
+                    - generic [ref=e243]: "9483"
+                    - generic [ref=e244]: lembar
+              - generic [ref=e245]:
+                - button "Update Stock" [ref=e246]:
+                  - img [ref=e247]
+                - button "Edit Product" [ref=e250]:
+                  - img [ref=e251]
+            - generic [ref=e253] [cursor=pointer]:
+              - img "Fotokopi A4" [ref=e256]
+              - generic [ref=e257]:
+                - paragraph [ref=e258]: Fotokopi A4
+                - generic [ref=e259]:
+                  - generic [ref=e260]: "SKU: JCT-003"
+                  - generic [ref=e261]: A4
+              - generic [ref=e262]:
+                - generic [ref=e263]:
+                  - paragraph [ref=e264]: Price
+                  - paragraph [ref=e265]: Rp 300
+                - generic [ref=e266]:
+                  - paragraph [ref=e267]: In Stock
+                  - generic [ref=e268]:
+                    - generic [ref=e269]: "9987"
+                    - generic [ref=e270]: lembar
+              - generic [ref=e271]:
+                - button "Update Stock" [ref=e272]:
+                  - img [ref=e273]
+                - button "Edit Product" [ref=e276]:
+                  - img [ref=e277]
+            - generic [ref=e279] [cursor=pointer]:
+              - img "Gunting Joyko" [ref=e282]
+              - generic [ref=e283]:
+                - paragraph [ref=e284]: Gunting Joyko
+                - generic [ref=e286]: "SKU: PKT-003"
+              - generic [ref=e287]:
+                - generic [ref=e288]:
+                  - paragraph [ref=e289]: Price
+                  - paragraph [ref=e290]: Rp 15.000
+                - generic [ref=e291]:
+                  - paragraph [ref=e292]: In Stock
+                  - generic [ref=e293]:
+                    - generic [ref=e294]: "36"
+                    - generic [ref=e295]: pcs
+              - generic [ref=e296]:
+                - button "Update Stock" [ref=e297]:
+                  - img [ref=e298]
+                - button "Edit Product" [ref=e301]:
+                  - img [ref=e302]
+            - generic [ref=e304] [cursor=pointer]:
+              - img "Isi Staples No.10" [ref=e307]
+              - generic [ref=e308]:
+                - paragraph [ref=e309]: Isi Staples No.10
+                - generic [ref=e311]: "SKU: PKT-002"
+              - generic [ref=e312]:
+                - generic [ref=e313]:
+                  - paragraph [ref=e314]: Price
+                  - paragraph [ref=e315]: Rp 5.000
+                - generic [ref=e316]:
+                  - paragraph [ref=e317]: In Stock
+                  - generic [ref=e318]:
+                    - generic [ref=e319]: "94"
+                    - generic [ref=e320]: box
+              - generic [ref=e321]:
+                - button "Update Stock" [ref=e322]:
+                  - img [ref=e323]
+                - button "Edit Product" [ref=e326]:
+                  - img [ref=e327]
+            - generic [ref=e329] [cursor=pointer]:
+              - img "Kertas Art Paper 120gsm A4" [ref=e332]
+              - generic [ref=e333]:
+                - paragraph [ref=e334]: Kertas Art Paper 120gsm A4
+                - generic [ref=e336]: "SKU: KRT-005"
+              - generic [ref=e337]:
+                - generic [ref=e338]:
+                  - paragraph [ref=e339]: Price
+                  - paragraph [ref=e340]: Rp 1.500
+                - generic [ref=e341]:
+                  - paragraph [ref=e342]: In Stock
+                  - generic [ref=e343]:
+                    - generic [ref=e344]: "493"
+                    - generic [ref=e345]: lembar
+              - generic [ref=e346]:
+                - button "Update Stock" [ref=e347]:
+                  - img [ref=e348]
+                - button "Edit Product" [ref=e351]:
+                  - img [ref=e352]
+            - generic [ref=e354] [cursor=pointer]:
+              - img "Kertas F4 70gsm (1 Rim)" [ref=e357]
+              - generic [ref=e358]:
+                - paragraph [ref=e359]: Kertas F4 70gsm (1 Rim)
+                - generic [ref=e361]: "SKU: KRT-003"
+              - generic [ref=e362]:
+                - generic [ref=e363]:
+                  - paragraph [ref=e364]: Price
+                  - paragraph [ref=e365]: Rp 58.000
+                - generic [ref=e366]:
+                  - paragraph [ref=e367]: In Stock
+                  - generic [ref=e368]:
+                    - generic [ref=e369]: "23"
+                    - generic [ref=e370]: rim
+              - generic [ref=e371]:
+                - button "Update Stock" [ref=e372]:
+                  - img [ref=e373]
+                - button "Edit Product" [ref=e376]:
+                  - img [ref=e377]
+            - generic [ref=e379] [cursor=pointer]:
+              - img "Kertas Foto Glossy A4 (20 Lembar)" [ref=e382]
+              - generic [ref=e383]:
+                - paragraph [ref=e384]: Kertas Foto Glossy A4 (20 Lembar)
+                - generic [ref=e386]: "SKU: KRT-004"
+              - generic [ref=e387]:
+                - generic [ref=e388]:
+                  - paragraph [ref=e389]: Price
+                  - paragraph [ref=e390]: Rp 35.000
+                - generic [ref=e391]:
+                  - paragraph [ref=e392]: In Stock
+                  - generic [ref=e393]:
+                    - generic [ref=e394]: "18"
+                    - generic [ref=e395]: pack
+              - generic [ref=e396]:
+                - button "Update Stock" [ref=e397]:
+                  - img [ref=e398]
+                - button "Edit Product" [ref=e401]:
+                  - img [ref=e402]
+            - generic [ref=e404] [cursor=pointer]:
+              - img "Kertas HVS A4 70gsm (1 Rim)" [ref=e407]
+              - generic [ref=e408]:
+                - paragraph [ref=e409]: Kertas HVS A4 70gsm (1 Rim)
+                - generic [ref=e411]: "SKU: KRT-001"
+              - generic [ref=e412]:
+                - generic [ref=e413]:
+                  - paragraph [ref=e414]: Price
+                  - paragraph [ref=e415]: Rp 55.000
+                - generic [ref=e416]:
+                  - paragraph [ref=e417]: In Stock
+                  - generic [ref=e418]:
+                    - generic [ref=e419]: "46"
+                    - generic [ref=e420]: rim
+              - generic [ref=e421]:
+                - button "Update Stock" [ref=e422]:
+                  - img [ref=e423]
+                - button "Edit Product" [ref=e426]:
+                  - img [ref=e427]
+            - generic [ref=e429] [cursor=pointer]:
+              - img "Kertas HVS A4 80gsm (1 Rim)" [ref=e432]
+              - generic [ref=e433]:
+                - paragraph [ref=e434]: Kertas HVS A4 80gsm (1 Rim)
+                - generic [ref=e436]: "SKU: KRT-002"
+              - generic [ref=e437]:
+                - generic [ref=e438]:
+                  - paragraph [ref=e439]: Price
+                  - paragraph [ref=e440]: Rp 65.000
+                - generic [ref=e441]:
+                  - paragraph [ref=e442]: In Stock
+                  - generic [ref=e443]:
+                    - generic [ref=e444]: "38"
+                    - generic [ref=e445]: rim
+              - generic [ref=e446]:
+                - button "Update Stock" [ref=e447]:
+                  - img [ref=e448]
+                - button "Edit Product" [ref=e451]:
+                  - img [ref=e452]
+            - generic [ref=e454] [cursor=pointer]:
+              - img "Laminating A4" [ref=e457]
+              - generic [ref=e458]:
+                - paragraph [ref=e459]: Laminating A4
+                - generic [ref=e460]:
+                  - generic [ref=e461]: "SKU: JCT-005"
+                  - generic [ref=e462]: A4
+              - generic [ref=e463]:
+                - generic [ref=e464]:
+                  - paragraph [ref=e465]: Price
+                  - paragraph [ref=e466]: Rp 5.000
+                - generic [ref=e467]:
+                  - paragraph [ref=e468]: In Stock
+                  - generic [ref=e469]:
+                    - generic [ref=e470]: "9999"
+                    - generic [ref=e471]: lembar
+              - generic [ref=e472]:
+                - button "Update Stock" [ref=e473]:
+                  - img [ref=e474]
+                - button "Edit Product" [ref=e477]:
+                  - img [ref=e478]
+            - generic [ref=e480] [cursor=pointer]:
+              - img "Map Plastik Kancing" [ref=e483]
+              - generic [ref=e484]:
+                - paragraph [ref=e485]: Map Plastik Kancing
+                - generic [ref=e487]: "SKU: AMP-003"
+              - generic [ref=e488]:
+                - generic [ref=e489]:
+                  - paragraph [ref=e490]: Price
+                  - paragraph [ref=e491]: Rp 5.000
+                - generic [ref=e492]:
+                  - paragraph [ref=e493]: In Stock
+                  - generic [ref=e494]:
+                    - generic [ref=e495]: "93"
+                    - generic [ref=e496]: pcs
+              - generic [ref=e497]:
+                - button "Update Stock" [ref=e498]:
+                  - img [ref=e499]
+                - button "Edit Product" [ref=e502]:
+                  - img [ref=e503]
+            - generic [ref=e505] [cursor=pointer]:
+              - img "Penghapus Staedtler" [ref=e508]
+              - generic [ref=e509]:
+                - paragraph [ref=e510]: Penghapus Staedtler
+                - generic [ref=e512]: "SKU: ATU-003"
+              - generic [ref=e513]:
+                - generic [ref=e514]:
+                  - paragraph [ref=e515]: Price
+                  - paragraph [ref=e516]: Rp 4.000
+                - generic [ref=e517]:
+                  - paragraph [ref=e518]: In Stock
+                  - generic [ref=e519]:
+                    - generic [ref=e520]: "143"
+                    - generic [ref=e521]: pcs
+              - generic [ref=e522]:
+                - button "Update Stock" [ref=e523]:
+                  - img [ref=e524]
+                - button "Edit Product" [ref=e527]:
+                  - img [ref=e528]
+            - generic [ref=e530] [cursor=pointer]:
+              - img "Pensil 2B Faber Castell" [ref=e533]
+              - generic [ref=e534]:
+                - paragraph [ref=e535]: Pensil 2B Faber Castell
+                - generic [ref=e537]: "SKU: ATU-002"
+              - generic [ref=e538]:
+                - generic [ref=e539]:
+                  - paragraph [ref=e540]: Price
+                  - paragraph [ref=e541]: Rp 5.000
+                - generic [ref=e542]:
+                  - paragraph [ref=e543]: In Stock
+                  - generic [ref=e544]:
+                    - generic [ref=e545]: "194"
+                    - generic [ref=e546]: pcs
+              - generic [ref=e547]:
+                - button "Update Stock" [ref=e548]:
+                  - img [ref=e549]
+                - button "Edit Product" [ref=e552]:
+                  - img [ref=e553]
+            - generic [ref=e555] [cursor=pointer]:
+              - img "Print Hitam Putih A4" [ref=e558]
+              - generic [ref=e559]:
+                - paragraph [ref=e560]: Print Hitam Putih A4
+                - generic [ref=e561]:
+                  - generic [ref=e562]: "SKU: JCT-001"
+                  - generic [ref=e563]: A4
+              - generic [ref=e564]:
+                - generic [ref=e565]:
+                  - paragraph [ref=e566]: Price
+                  - paragraph [ref=e567]: Rp 500
+                - generic [ref=e568]:
+                  - paragraph [ref=e569]: In Stock
+                  - generic [ref=e570]:
+                    - generic [ref=e571]: "9972"
+                    - generic [ref=e572]: lembar
+              - generic [ref=e573]:
+                - button "Update Stock" [ref=e574]:
+                  - img [ref=e575]
+                - button "Edit Product" [ref=e578]:
+                  - img [ref=e579]
+            - generic [ref=e581] [cursor=pointer]:
+              - img "Print Warna A4" [ref=e584]
+              - generic [ref=e585]:
+                - paragraph [ref=e586]: Print Warna A4
+                - generic [ref=e587]:
+                  - generic [ref=e588]: "SKU: JCT-002"
+                  - generic [ref=e589]: A4
+              - generic [ref=e590]:
+                - generic [ref=e591]:
+                  - paragraph [ref=e592]: Price
+                  - paragraph [ref=e593]: Rp 1.500
+                - generic [ref=e594]:
+                  - paragraph [ref=e595]: In Stock
+                  - generic [ref=e596]:
+                    - generic [ref=e597]: "9995"
+                    - generic [ref=e598]: lembar
+              - generic [ref=e599]:
+                - button "Update Stock" [ref=e600]:
+                  - img [ref=e601]
+                - button "Edit Product" [ref=e604]:
+                  - img [ref=e605]
+            - generic [ref=e607] [cursor=pointer]:
+              - img "Pulpen Pilot G2" [ref=e610]
+              - generic [ref=e611]:
+                - paragraph [ref=e612]: Pulpen Pilot G2
+                - generic [ref=e614]: "SKU: ATU-001"
+              - generic [ref=e615]:
+                - generic [ref=e616]:
+                  - paragraph [ref=e617]: Price
+                  - paragraph [ref=e618]: Rp 15.000
+                - generic [ref=e619]:
+                  - paragraph [ref=e620]: In Stock
+                  - generic [ref=e621]:
+                    - generic [ref=e622]: "100"
+                    - generic [ref=e623]: pcs
+              - generic [ref=e624]:
+                - button "Update Stock" [ref=e625]:
+                  - img [ref=e626]
+                - button "Edit Product" [ref=e629]:
+                  - img [ref=e630]
+            - generic [ref=e632] [cursor=pointer]:
+              - img "Selotip Bening" [ref=e635]
+              - generic [ref=e636]:
+                - paragraph [ref=e637]: Selotip Bening
+                - generic [ref=e639]: "SKU: PKT-004"
+              - generic [ref=e640]:
+                - generic [ref=e641]:
+                  - paragraph [ref=e642]: Price
+                  - paragraph [ref=e643]: Rp 8.000
+                - generic [ref=e644]:
+                  - paragraph [ref=e645]: In Stock
+                  - generic [ref=e646]:
+                    - generic [ref=e647]: "59"
+                    - generic [ref=e648]: roll
+              - generic [ref=e649]:
+                - button "Update Stock" [ref=e650]:
+                  - img [ref=e651]
+                - button "Edit Product" [ref=e654]:
+                  - img [ref=e655]
+            - generic [ref=e657] [cursor=pointer]:
+              - generic [ref=e660]: 🖼️
+              - generic [ref=e661]:
+                - paragraph [ref=e662]: Spanduk Albatros
+                - generic [ref=e663]:
+                  - generic [ref=e664]: "SKU: ALB-A4-70"
+                  - generic [ref=e665]: A4
+              - generic [ref=e666]:
+                - generic [ref=e667]:
+                  - paragraph [ref=e668]: Price
+                  - paragraph [ref=e669]: Rp 10.000
+                - generic [ref=e670]:
+                  - paragraph [ref=e671]: In Stock
+                  - generic [ref=e672]:
+                    - generic [ref=e673]: "10"
+                    - generic [ref=e674]: pcs
+              - generic [ref=e675]:
+                - button "Update Stock" [ref=e676]:
+                  - img [ref=e677]
+                - button "Edit Product" [ref=e680]:
+                  - img [ref=e681]
+            - generic [ref=e683] [cursor=pointer]:
+              - img "Spanduk Flexi 280gr" [ref=e686]
+              - generic [ref=e687]:
+                - paragraph [ref=e688]: Spanduk Flexi 280gr
+                - generic [ref=e689]:
+                  - generic [ref=e690]: "SKU: JCT-006"
+                  - generic [ref=e691]: 3x2m
+              - generic [ref=e692]:
+                - generic [ref=e693]:
+                  - paragraph [ref=e694]: Price
+                  - paragraph [ref=e695]: Rp 100.000
+                - generic [ref=e696]:
+                  - paragraph [ref=e697]: In Stock
+                  - generic [ref=e698]:
+                    - generic [ref=e699]: "9991"
+                    - generic [ref=e700]: pcs
+              - generic [ref=e701]:
+                - button "Update Stock" [ref=e702]:
+                  - img [ref=e703]
+                - button "Edit Product" [ref=e706]:
+                  - img [ref=e707]
+            - generic [ref=e709] [cursor=pointer]:
+              - img "Spanduk Flexi 340gr" [ref=e712]
+              - generic [ref=e713]:
+                - paragraph [ref=e714]: Spanduk Flexi 340gr
+                - generic [ref=e715]:
+                  - generic [ref=e716]: "SKU: JCT-007"
+                  - generic [ref=e717]: 2x1m
+              - generic [ref=e718]:
+                - generic [ref=e719]:
+                  - paragraph [ref=e720]: Price
+                  - paragraph [ref=e721]: Rp 50.000
+                - generic [ref=e722]:
+                  - paragraph [ref=e723]: In Stock
+                  - generic [ref=e724]:
+                    - generic [ref=e725]: "9991"
+                    - generic [ref=e726]: pcs
+              - generic [ref=e727]:
+                - button "Update Stock" [ref=e728]:
+                  - img [ref=e729]
+                - button "Edit Product" [ref=e732]:
+                  - img [ref=e733]
+            - generic [ref=e735] [cursor=pointer]:
+              - generic [ref=e736]:
+                - generic [ref=e738]: 🖼️
+                - generic [ref=e739]:
+                  - img [ref=e740]
+                  - text: LOW STOCK
+              - generic [ref=e742]:
+                - paragraph [ref=e743]: Spanduk Luster
+                - generic [ref=e744]:
+                  - generic [ref=e745]: "SKU: LSR-A1-71"
+                  - generic [ref=e746]: A1
+              - generic [ref=e747]:
+                - generic [ref=e748]:
+                  - paragraph [ref=e749]: Price
+                  - paragraph [ref=e750]: Rp 45.000
+                - generic [ref=e751]:
+                  - paragraph [ref=e752]: In Stock
+                  - generic [ref=e753]:
+                    - generic [ref=e754]: "5"
+                    - generic [ref=e755]: pcs
+              - generic [ref=e756]:
+                - button "Update Stock" [ref=e757]:
+                  - img [ref=e758]
+                - button "Edit Product" [ref=e761]:
+                  - img [ref=e762]
+            - generic [ref=e764] [cursor=pointer]:
+              - img "Spidol Snowman" [ref=e767]
+              - generic [ref=e768]:
+                - paragraph [ref=e769]: Spidol Snowman
+                - generic [ref=e771]: "SKU: ATU-004"
+              - generic [ref=e772]:
+                - generic [ref=e773]:
+                  - paragraph [ref=e774]: Price
+                  - paragraph [ref=e775]: Rp 8.000
+                - generic [ref=e776]:
+                  - paragraph [ref=e777]: In Stock
+                  - generic [ref=e778]:
+                    - generic [ref=e779]: "77"
+                    - generic [ref=e780]: pcs
+              - generic [ref=e781]:
+                - button "Update Stock" [ref=e782]:
+                  - img [ref=e783]
+                - button "Edit Product" [ref=e786]:
+                  - img [ref=e787]
+            - generic [ref=e789] [cursor=pointer]:
+              - img "Stabilo Boss Highlighter" [ref=e792]
+              - generic [ref=e793]:
+                - paragraph [ref=e794]: Stabilo Boss Highlighter
+                - generic [ref=e796]: "SKU: ATU-005"
+              - generic [ref=e797]:
+                - generic [ref=e798]:
+                  - paragraph [ref=e799]: Price
+                  - paragraph [ref=e800]: Rp 18.000
+                - generic [ref=e801]:
+                  - paragraph [ref=e802]: In Stock
+                  - generic [ref=e803]:
+                    - generic [ref=e804]: "58"
+                    - generic [ref=e805]: pcs
+              - generic [ref=e806]:
+                - button "Update Stock" [ref=e807]:
+                  - img [ref=e808]
+                - button "Edit Product" [ref=e811]:
+                  - img [ref=e812]
+            - generic [ref=e814] [cursor=pointer]:
+              - img "Stapler Kangaro HS-10H" [ref=e817]
+              - generic [ref=e818]:
+                - paragraph [ref=e819]: Stapler Kangaro HS-10H
+                - generic [ref=e821]: "SKU: PKT-001"
+              - generic [ref=e822]:
+                - generic [ref=e823]:
+                  - paragraph [ref=e824]: Price
+                  - paragraph [ref=e825]: Rp 25.000
+                - generic [ref=e826]:
+                  - paragraph [ref=e827]: In Stock
+                  - generic [ref=e828]:
+                    - generic [ref=e829]: "27"
+                    - generic [ref=e830]: pcs
+              - generic [ref=e831]:
+                - button "Update Stock" [ref=e832]:
+                  - img [ref=e833]
+                - button "Edit Product" [ref=e836]:
+                  - img [ref=e837]
+            - generic [ref=e839] [cursor=pointer]:
+              - img "Tinta Epson 003 Black" [ref=e842]
+              - generic [ref=e843]:
+                - paragraph [ref=e844]: Tinta Epson 003 Black
+                - generic [ref=e846]: "SKU: TNT-001"
+              - generic [ref=e847]:
+                - generic [ref=e848]:
+                  - paragraph [ref=e849]: Price
+                  - paragraph [ref=e850]: Rp 85.000
+                - generic [ref=e851]:
+                  - paragraph [ref=e852]: In Stock
+                  - generic [ref=e853]:
+                    - generic [ref=e854]: "15"
+                    - generic [ref=e855]: pcs
+              - generic [ref=e856]:
+                - button "Update Stock" [ref=e857]:
+                  - img [ref=e858]
+                - button "Edit Product" [ref=e861]:
+                  - img [ref=e862]
+            - generic [ref=e864] [cursor=pointer]:
+              - img "Tinta Epson 003 Cyan" [ref=e867]
+              - generic [ref=e868]:
+                - paragraph [ref=e869]: Tinta Epson 003 Cyan
+                - generic [ref=e871]: "SKU: TNT-002"
+              - generic [ref=e872]:
+                - generic [ref=e873]:
+                  - paragraph [ref=e874]: Price
+                  - paragraph [ref=e875]: Rp 85.000
+                - generic [ref=e876]:
+                  - paragraph [ref=e877]: In Stock
+                  - generic [ref=e878]:
+                    - generic [ref=e879]: "13"
+                    - generic [ref=e880]: pcs
+              - generic [ref=e881]:
+                - button "Update Stock" [ref=e882]:
+                  - img [ref=e883]
+                - button "Edit Product" [ref=e886]:
+                  - img [ref=e887]
+            - generic [ref=e889] [cursor=pointer]:
+              - img "Tinta Epson 003 Magenta" [ref=e892]
+              - generic [ref=e893]:
+                - paragraph [ref=e894]: Tinta Epson 003 Magenta
+                - generic [ref=e896]: "SKU: TNT-003"
+              - generic [ref=e897]:
+                - generic [ref=e898]:
+                  - paragraph [ref=e899]: Price
+                  - paragraph [ref=e900]: Rp 85.000
+                - generic [ref=e901]:
+                  - paragraph [ref=e902]: In Stock
+                  - generic [ref=e903]:
+                    - generic [ref=e904]: "13"
+                    - generic [ref=e905]: pcs
+              - generic [ref=e906]:
+                - button "Update Stock" [ref=e907]:
+                  - img [ref=e908]
+                - button "Edit Product" [ref=e911]:
+                  - img [ref=e912]
+            - generic [ref=e914] [cursor=pointer]:
+              - generic [ref=e915]:
+                - img "Tinta Epson 003 Yellow" [ref=e917]
+                - generic [ref=e918]:
+                  - img [ref=e919]
+                  - text: LOW STOCK
+              - generic [ref=e921]:
+                - paragraph [ref=e922]: Tinta Epson 003 Yellow
+                - generic [ref=e924]: "SKU: TNT-004"
+              - generic [ref=e925]:
+                - generic [ref=e926]:
+                  - paragraph [ref=e927]: Price
+                  - paragraph [ref=e928]: Rp 85.000
+                - generic [ref=e929]:
+                  - paragraph [ref=e930]: In Stock
+                  - generic [ref=e931]:
+                    - generic [ref=e932]: "5"
+                    - generic [ref=e933]: pcs
+              - generic [ref=e934]:
+                - button "Update Stock" [ref=e935]:
+                  - img [ref=e936]
+                - button "Edit Product" [ref=e939]:
+                  - img [ref=e940]
+      - generic [ref=e944]:
+        - generic [ref=e945]:
+          - heading "Add New Product" [level=2] [ref=e946]
+          - button [ref=e947] [cursor=pointer]:
+            - img [ref=e948]
+        - generic [ref=e952]:
+          - generic [ref=e953]:
+            - generic [ref=e954]:
+              - generic [ref=e955]: Product Name
+              - textbox "Product Name" [ref=e957]:
+                - /placeholder: e.g. Banner Flexi 280gsm
+                - text: Test Product 1778128477937
+            - generic [ref=e958]:
+              - generic [ref=e959]: SKU / Item Code
+              - textbox "SKU / Item Code" [active] [ref=e961]:
+                - /placeholder: e.g. BNR-FLX-280
+                - text: SKU-1778128477937
+          - generic [ref=e962]:
+            - generic [ref=e963]:
+              - generic [ref=e964]: Category
+              - combobox [ref=e965]:
+                - option "Select Category" [disabled]
+                - option "Alat Tulis" [selected]
+                - option "Kertas"
+                - option "Tinta & Cartridge"
+                - option "Jasa Cetak"
+                - option "Amplop & Map"
+                - option "Perlengkapan Kantor"
+            - generic [ref=e966]:
+              - generic [ref=e967]: Selling Price (IDR)
+              - spinbutton "Selling Price (IDR)" [ref=e969]
+          - generic [ref=e970]:
+            - generic [ref=e971]:
+              - generic [ref=e972]: Cost Price (HPP)
+              - spinbutton "Cost Price (HPP)" [ref=e974]
+            - generic [ref=e975]:
+              - generic [ref=e976]: Unit
+              - textbox "Unit" [ref=e978]:
+                - /placeholder: pcs, rim, meter, box
+                - text: pcs
+            - generic [ref=e979]:
+              - generic [ref=e980]: Current Stock
+              - spinbutton "Current Stock" [ref=e982]: "0"
+          - generic [ref=e983]:
+            - generic [ref=e984]:
+              - generic [ref=e985]: Min Stock Alert
+              - spinbutton "Min Stock Alert" [ref=e987]: "5"
+            - generic [ref=e988]:
+              - generic [ref=e989]: Size / Dimensions
+              - textbox "Size / Dimensions" [ref=e991]:
+                - /placeholder: Optional
+          - generic [ref=e993]:
+            - generic [ref=e994]: Product Image
+            - generic [ref=e995]:
+              - generic [ref=e996]:
+                - img [ref=e997]
+                - generic [ref=e1000]: Upload
+                - button "Choose File" [ref=e1001] [cursor=pointer]
+              - generic [ref=e1002]:
+                - paragraph [ref=e1003]: Upload Product Image
+                - paragraph [ref=e1004]: Upload a square image (JPG, PNG, WebP) up to 5MB.
+                - paragraph [ref=e1005]: If skipped, the category icon will be used.
+          - generic [ref=e1006]:
+            - button "Cancel" [ref=e1007] [cursor=pointer]
+            - button "Save Product" [ref=e1008] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=e1014] [cursor=pointer]:
+    - img [ref=e1015]
+  - alert [ref=e1018]
+```
+
+# Test source
+
+```ts
+  1  | import { Page, Locator, expect } from '@playwright/test';
+  2  | 
+  3  | export class ProductsPage {
+  4  |   readonly page: Page;
+  5  |   readonly addButton: Locator;
+  6  |   readonly searchInput: Locator;
+  7  | 
+  8  |   constructor(page: Page) {
+  9  |     this.page = page;
+  10 |     this.addButton = page.getByRole('button', { name: 'Add New Product' });
+  11 |     this.searchInput = page.getByPlaceholder('Search by name, SKU, or barcode...');
+  12 |   }
+  13 | 
+  14 |   async goto() {
+  15 |     await this.page.goto('/products', { waitUntil: 'load' });
+  16 |   }
+  17 | 
+  18 |   async openAddModal() {
+  19 |     await this.addButton.click();
+  20 |     await expect(this.page.getByRole('heading', { name: 'Add New Product' })).toBeVisible();
+  21 |   }
+  22 | 
+  23 |   async fillProductForm(data: { name: string, sku: string, price: string, category: string }) {
+  24 |     await this.page.getByLabel('Product Name').fill(data.name);
+  25 |     await this.page.getByLabel('SKU / Item Code').fill(data.sku);
+  26 |     // Select category by label
+> 27 |     await this.page.getByLabel('Category').selectOption({ label: data.category });
+     |                                            ^ Error: locator.selectOption: Test timeout of 90000ms exceeded.
+  28 |     await this.page.getByLabel('Selling Price (IDR)').fill(data.price);
+  29 |     await this.page.getByLabel('Current Stock').fill('10');
+  30 |   }
+  31 | 
+  32 |   async saveProduct() {
+  33 |     await this.page.click('button:has-text("Save Product")');
+  34 |   }
+  35 | 
+  36 |   async searchProduct(name: string) {
+  37 |     await this.searchInput.fill(name);
+  38 |     // Wait for the list to filter (using a small delay or checking for the result)
+  39 |     await this.page.waitForTimeout(500); 
+  40 |   }
+  41 | }
+  42 | 
+```

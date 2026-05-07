@@ -9,9 +9,10 @@ interface ProductFormModalProps {
   onClose: () => void;
   productId: string | null;
   categories: { id: string; name: string }[];
+  initialData?: Product | null;
 }
 
-export default function ProductFormModal({ isOpen, onClose, productId, categories }: ProductFormModalProps) {
+export default function ProductFormModal({ isOpen, onClose, productId, categories, initialData }: ProductFormModalProps) {
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
 
@@ -63,31 +64,21 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   };
 
   useEffect(() => {
-    if (isOpen && productId) {
-      // If editing, fetch the existing product data
-      // For a real app, you might pass the initial data directly as a prop
-      // or fetch it from the React Query cache
-      fetch(`/api/products?search=${productId}`)
-        .then(res => res.json())
-        .then((data: Product[]) => {
-          const product = data.find(p => p.id === productId);
-          if (product) {
-            setFormData({
-              name: product.name,
-              sku: product.sku,
-              categoryId: product.category?.id || "",
-              price: product.price.toString(),
-              costPrice: product.costPrice?.toString() || "",
-              minStock: product.minStock.toString(),
-              unit: product.unit,
-              stock: product.stock.toString(),
-              size: product.size || "",
-              material: product.material || "",
-              imageUrl: product.imageUrl || "",
-            });
-          }
-        });
-    } else {
+    if (isOpen && initialData) {
+      setFormData({
+        name: initialData.name,
+        sku: initialData.sku,
+        categoryId: initialData.category?.id || "",
+        price: initialData.price.toString(),
+        costPrice: initialData.costPrice?.toString() || "",
+        minStock: initialData.minStock.toString(),
+        unit: initialData.unit,
+        stock: initialData.stock.toString(),
+        size: initialData.size || "",
+        material: initialData.material || "",
+        imageUrl: initialData.imageUrl || "",
+      });
+    } else if (isOpen) {
       setFormData({
         name: "",
         sku: "",
@@ -102,7 +93,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         imageUrl: "",
       });
     }
-  }, [isOpen, productId, categories]);
+  }, [isOpen, initialData, categories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

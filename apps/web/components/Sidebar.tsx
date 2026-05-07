@@ -549,8 +549,8 @@ export function Sidebar() {
           className="flex md:hidden flex-row gap-1 items-center w-full justify-between"
           aria-label="Main navigation"
         >
-          {navGroups.map((group, index) => {
-            const alignment = index === 0 ? "left" : index === navGroups.length - 1 ? "right" : "center";
+          {filteredNavGroups.map((group, index) => {
+            const alignment = index === 0 ? "left" : index === filteredNavGroups.length - 1 ? "right" : "center";
             return (
               <MobileGroup
                 key={group.id}

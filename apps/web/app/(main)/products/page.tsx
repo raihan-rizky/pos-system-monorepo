@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useProducts, useCategories, Product } from "@/hooks/useProducts";
-import { Package, Search, Plus, AlertTriangle, TrendingUp, LayoutGrid, List, SlidersHorizontal, ChevronRight } from "lucide-react";
+import { Package, Search, Plus, AlertTriangle, TrendingUp, LayoutGrid, List, SlidersHorizontal, ChevronRight, Edit2 } from "lucide-react";
 import ProductTable from "@/components/inventory/ProductTable";
 import ProductFormModal from "@/components/inventory/ProductFormModal";
 import StockUpdateModal from "@/components/inventory/StockUpdateModal";
@@ -320,7 +320,13 @@ export default function ProductsPage() {
       </div>
 
       {isProductModalOpen && (
-        <ProductFormModal isOpen={isProductModalOpen} onClose={closeProduct} productId={editingProductId} categories={categories} />
+        <ProductFormModal 
+          isOpen={isProductModalOpen} 
+          onClose={closeProduct} 
+          productId={editingProductId} 
+          categories={categories} 
+          initialData={products.find(p => p.id === editingProductId)}
+        />
       )}
       {isStockModalOpen && stockUpdateProductId && (
         <StockUpdateModal isOpen={isStockModalOpen} onClose={closeStock} product={products.find(p => p.id === stockUpdateProductId)!} />
@@ -409,9 +415,28 @@ function ProductGrid({ products, isLoading, onEdit, onUpdateStock }: {
               </div>
             </div>
             
-            {/* Quick action hint */}
-            <div className="absolute bottom-4 right-4 translate-y-10 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg">
-              <ChevronRight className="w-4 h-4" />
+            {/* Quick Actions Overlay */}
+            <div className="absolute bottom-4 right-4 flex gap-2 translate-y-10 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdateStock(p.id);
+                }}
+                className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg hover:bg-emerald-700 transition-colors"
+                title="Update Stock"
+              >
+                <TrendingUp className="w-5 h-5" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(p.id);
+                }}
+                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors"
+                title="Edit Product"
+              >
+                <Edit2 className="w-5 h-5" />
+              </button>
             </div>
           </div>
         );
