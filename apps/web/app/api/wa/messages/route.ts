@@ -18,9 +18,9 @@ function extractId(id: string | { _serialized: string } | undefined | null): str
 }
 
 /** Safely check fromMe from a WAHA id union (only the object form has it) */
-function extractFromMe(id: string | { _serialized: string; fromMe?: boolean } | undefined | null): boolean {
-  if (!id || typeof id === "string") return false;
-  return (id as { _serialized: string; fromMe?: boolean }).fromMe ?? false;
+function extractFromMe(id: string | { _serialized: string; fromMe?: boolean } | undefined | null): boolean | undefined {
+  if (!id || typeof id === "string") return undefined;
+  return (id as { _serialized: string; fromMe?: boolean }).fromMe;
 }
 
 /**

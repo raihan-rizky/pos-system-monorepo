@@ -223,6 +223,55 @@ const WahaImage = ({ mediaId }: { mediaId: string }) => {
   );
 };
 
+const AiToggleButton = ({ 
+  isAutoReplyOn, 
+  isAutoReplyLoading, 
+  isTogglingAutoReply, 
+  toggleAutoReply 
+}: any) => (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      toggleAutoReply(!isAutoReplyOn);
+    }}
+    disabled={isAutoReplyLoading || isTogglingAutoReply}
+    className={`h-9 px-3 rounded-full flex items-center gap-2 text-[11px] font-bold transition-all flex-shrink-0 shadow-sm ${
+      isAutoReplyOn
+        ? "bg-brand-500 text-white animate-ai-glow"
+        : "bg-surface-100 text-surface-400 border border-surface-200"
+    } hover:shadow-md disabled:opacity-50`}
+    title={
+      isAutoReplyOn
+        ? "Nonaktifkan AI Auto Reply"
+        : "Aktifkan AI Auto Reply"
+    }
+  >
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="11" width="18" height="10" rx="2" />
+      <circle cx="12" cy="5" r="2" />
+      <path d="M12 7v4" />
+      <line x1="8" y1="16" x2="8.01" y2="16" />
+      <line x1="16" y1="16" x2="16.01" y2="16" />
+    </svg>
+    <span className="hidden sm:inline">
+      {isAutoReplyOn ? "AI Aktif" : "AI Pasif"}
+    </span>
+    <span className="sm:hidden">
+      {isAutoReplyOn ? "Aktif" : "Pasif"}
+    </span>
+  </button>
+);
+
 export default function WACoexistencePage() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
@@ -291,13 +340,21 @@ export default function WACoexistencePage() {
         <div
           className={`w-full md:w-[350px] flex-shrink-0 flex-col border-r border-surface-200 ${selectedChatId ? "hidden md:flex" : "flex"}`}
         >
-          <div className="p-4 bg-surface-50 border-b border-surface-200">
-            <h2 className="text-xl font-extrabold text-surface-900">
-              WA Live Chat
-            </h2>
-            <p className="text-xs text-brand-600 font-bold mt-1 tracking-wider uppercase">
-              Bot Takeover Active
-            </p>
+          <div className="p-4 bg-surface-50 border-b border-surface-200 flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-extrabold text-surface-900">
+                WA Live Chat
+              </h2>
+              <p className="text-xs text-brand-600 font-bold mt-1 tracking-wider uppercase">
+                Bot Takeover Active
+              </p>
+            </div>
+            <AiToggleButton
+              isAutoReplyOn={isAutoReplyOn}
+              isAutoReplyLoading={isAutoReplyLoading}
+              isTogglingAutoReply={isTogglingAutoReply}
+              toggleAutoReply={toggleAutoReply}
+            />
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -482,47 +539,14 @@ export default function WACoexistencePage() {
                 </div>
 
                 {/* AI Toggle in Header */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleAutoReply(!isAutoReplyOn);
-                  }}
-                  disabled={isAutoReplyLoading || isTogglingAutoReply}
-                  className={`h-9 px-3 rounded-full flex items-center gap-2 text-[11px] font-bold transition-all flex-shrink-0 shadow-sm ${
-                    isAutoReplyOn
-                      ? "bg-brand-500 text-white animate-ai-glow"
-                      : "bg-surface-100 text-surface-400 border border-surface-200"
-                  } hover:shadow-md disabled:opacity-50`}
-                  title={
-                    isAutoReplyOn
-                      ? "Nonaktifkan AI Auto Reply"
-                      : "Aktifkan AI Auto Reply"
-                  }
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="11" width="18" height="10" rx="2" />
-                    <circle cx="12" cy="5" r="2" />
-                    <path d="M12 7v4" />
-                    <line x1="8" y1="16" x2="8.01" y2="16" />
-                    <line x1="16" y1="16" x2="16.01" y2="16" />
-                  </svg>
-                  <span className="hidden sm:inline">
-                    {isAutoReplyOn ? "AI Aktif" : "AI Pasif"}
-                  </span>
-                  <span className="sm:hidden">
-                    {isAutoReplyOn ? "Aktif" : "Pasif"}
-                  </span>
-                </button>
+                <div className="md:hidden ml-2 flex-shrink-0">
+                  <AiToggleButton
+                    isAutoReplyOn={isAutoReplyOn}
+                    isAutoReplyLoading={isAutoReplyLoading}
+                    isTogglingAutoReply={isTogglingAutoReply}
+                    toggleAutoReply={toggleAutoReply}
+                  />
+                </div>
               </div>
 
               {/* Messages Area */}
