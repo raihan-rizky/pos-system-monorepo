@@ -1,12 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
-import { useShiftHistory } from "@/hooks/useShift";
+import { useShiftHistory, CashierShift } from "@/hooks/useShift";
 import { formatRupiah, formatDate } from "@/lib/utils";
+import { useRole } from "@/components/providers/RoleProvider";
+import { EditShiftModal } from "@/components/EditShiftModal";
+import { Edit2 } from "lucide-react";
 
 export default function ShiftHistoryPage() {
   const [page, setPage] = useState(1);
   const { data: result, isLoading } = useShiftHistory(page, 10);
+  const { role } = useRole();
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedShift, setSelectedShift] = useState<CashierShift | null>(null);
 
   const shifts = result?.data ?? [];
   const total = result?.total ?? 0;
@@ -52,6 +58,7 @@ export default function ShiftHistoryPage() {
                         <th className="py-4 px-6 font-semibold">Catatan</th>
                         <th className="py-4 px-6 font-semibold text-right">Selisih</th>
                         <th className="py-4 px-6 font-semibold text-center">Status</th>
+                        {(role === "OWNER" || role === "ADMIN") && <th className="py-4 px-6 font-semibold text-center">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-100">
@@ -75,6 +82,20 @@ export default function ShiftHistoryPage() {
                               {shift.status}
                             </span>
                           </td>
+                          {(role === "OWNER" || role === "ADMIN") && (
+                            <td className="py-4 px-6 text-center">
+                              <button
+                                onClick={() => {
+                                  setSelectedShift(shift);
+                                  setEditOpen(true);
+                                }}
+                                className="p-2 rounded-lg text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                                title="Edit Shift"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -104,6 +125,15 @@ export default function ShiftHistoryPage() {
           </div>
         </div>
       </div>
+
+      <EditShiftModal
+        open={editOpen}
+        onClose={() => {
+          setEditOpen(false);
+          setSelectedShift(null);
+        }}
+        shift={selectedShift}
+      />
     </>
   );
 }

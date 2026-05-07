@@ -39,16 +39,10 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo / Brand */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-600 mb-4 shadow-lg">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-              <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <path d="M16 10a4 4 0 0 1-8 0" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-extrabold text-white">POS System</h1>
-          <p className="text-slate-400 text-sm mt-1">Masuk untuk melanjutkan</p>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <img src="/images/icon.png" alt="Icon" className="w-16 h-16 mb-4 object-contain drop-shadow-lg" />
+          <img src="/images/word-logo.png" alt="POS System" className="h-8 object-contain mb-2" />
+          <p className="text-slate-400 text-sm">Masuk untuk melanjutkan</p>
         </div>
 
         {/* Card */}

@@ -515,8 +515,8 @@ export function Sidebar() {
       "
       >
         {/* Logo — desktop only */}
-        <div className="hidden md:flex w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 items-center justify-center mb-6 shadow-glow shrink-0">
-          <span className="text-white font-extrabold text-lg">P</span>
+        <div className="hidden md:flex w-10 h-10 items-center justify-center mb-6 shrink-0">
+          <img src="/images/icon.png" alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
         </div>
 
         {/* ── DESKTOP: flat grouped list ── */}

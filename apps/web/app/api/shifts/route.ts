@@ -119,3 +119,79 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Failed to open shift" }, { status: 500 });
   }
 }
+
+const updateShiftSchema = z.object({
+  id: z.string(),
+  openingBalance: z.number().optional(),
+  closingBalance: z.number().optional(),
+  note: z.string().optional().nullable(),
+});
+
+// PATCH /api/shifts
+// Update an existing shift
+export async function PATCH(request: Request) {
+  try {
+    const user = await requireRole("OWNER", "ADMIN");
+    const body = await request.json();
+    const validatedData = updateShiftSchema.safeParse(body);
+
+    if (!validatedData.success) {
+      return NextResponse.json(
+        { message: "Validation error", errors: validatedData.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { id, openingBalance, closingBalance, note } = validatedData.data;
+    const storeId = user.storeId || "store-main";
+
+    // Find the shift to make sure it belongs to the store
+    const shift = await db.cashierShift.findFirst({
+      where: { id, storeId }
+    });
+
+    if (!shift) {
+      return NextResponse.json({ message: "Shift tidak ditemukan" }, { status: 404 });
+    }
+
+    const updateData: any = {};
+    if (openingBalance !== undefined) updateData.openingBalance = openingBalance;
+    if (closingBalance !== undefined) updateData.closingBalance = closingBalance;
+    if (note !== undefined) updateData.note = note;
+
+    // If balances change and shift is closed, we should probably recalculate discrepancy
+    if (shift.status === "CLOSED" && (openingBalance !== undefined || closingBalance !== undefined)) {
+      const cashTransactions = await db.transaction.findMany({
+        where: {
+          storeId,
+          paymentMethod: "CASH",
+          createdAt: {
+            gte: shift.openedAt,
+            lte: shift.closedAt || new Date(),
+          },
+        },
+      });
+
+      const totalCashIncome = cashTransactions.reduce((acc: number, txn: any) => acc + Number(txn.total), 0);
+      const newOpening = openingBalance !== undefined ? openingBalance : Number(shift.openingBalance);
+      const newExpected = newOpening + totalCashIncome;
+      const newClosing = closingBalance !== undefined ? closingBalance : Number(shift.closingBalance || 0);
+      
+      updateData.expectedBalance = newExpected;
+      updateData.discrepancy = newClosing - newExpected;
+    }
+
+    const updatedShift = await db.cashierShift.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return NextResponse.json(updatedShift);
+  } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
+    console.error("Failed to update shift:", error);
+    return NextResponse.json({ message: "Failed to update shift" }, { status: 500 });
+  }
+}

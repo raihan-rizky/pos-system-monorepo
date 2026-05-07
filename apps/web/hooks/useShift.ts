@@ -92,3 +92,25 @@ export function useCloseShift() {
     },
   });
 }
+
+export function useUpdateShift() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { id: string; openingBalance?: number; closingBalance?: number; note?: string }) => {
+      const res = await fetch("/api/shifts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vars),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to update shift");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["active-shift"] });
+      queryClient.invalidateQueries({ queryKey: ["shift-history"] });
+    },
+  });
+}
