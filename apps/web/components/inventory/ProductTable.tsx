@@ -72,9 +72,9 @@ export default function ProductTable({ products, isLoading, onEdit, onUpdateStoc
                     <span
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border"
                       style={{
-                        backgroundColor: `${product.category.color}18` || "#f3f4f6",
+                        backgroundColor: product.category.color ? `${product.category.color}18` : "#f3f4f6",
                         color: product.category.color || "#4b5563",
-                        borderColor: `${product.category.color}35` || "#e5e7eb",
+                        borderColor: product.category.color ? `${product.category.color}35` : "#e5e7eb",
                       }}
                     >
                       {product.category.icon} {product.category.name}
@@ -189,9 +189,9 @@ export default function ProductTable({ products, isLoading, onEdit, onUpdateStoc
                     <span
                       className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight border shadow-sm flex items-center gap-1.5"
                       style={{
-                        backgroundColor: `${product.category.color}12`,
-                        color: product.category.color,
-                        borderColor: `${product.category.color}25`,
+                        backgroundColor: product.category.color ? `${product.category.color}12` : undefined,
+                        color: product.category.color || undefined,
+                        borderColor: product.category.color ? `${product.category.color}25` : undefined,
                       }}
                     >
                       <span>{product.category.icon}</span>
