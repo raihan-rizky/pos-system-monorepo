@@ -55,11 +55,20 @@ export async function GET(
     // Check if the id is a full URL (encoded or not)
     const decoded = decodeURIComponent(id);
     if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
-      // Case (b): the frontend passed the full WAHA file URL — use it directly.
-      fileUrl = decoded;
+      // Case (b): the frontend passed a full URL.
+      // ⚠️ IMPORTANT: If the URL contains 'localhost' or '127.0.0.1', it likely came 
+      // from a local WAHA instance but we are now running in production (Vercel).
+      // We must replace the local address with our actual configured baseUrl.
+      if (decoded.includes("localhost:") || decoded.includes("127.0.0.1:")) {
+        console.log(`[WA/Media] 🔄 Patching localhost URL to use configured baseUrl`);
+        // Extract the path after the domain (e.g. /api/files/default/abc.jpg)
+        const urlObj = new URL(decoded);
+        fileUrl = `${baseUrl}${urlObj.pathname}${urlObj.search}`;
+      } else {
+        fileUrl = decoded;
+      }
     } else {
       // Case (a): bare filename — construct the standard WAHA files endpoint.
-      // WAHA stores media under: GET /api/files/{session}/{filename}
       fileUrl = `${baseUrl}/api/files/${session}/${id}`;
     }
 
