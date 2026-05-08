@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/categories
 export async function GET() {
   try {
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const categories = await db.category.findMany({
       orderBy: { order: "asc" },
       include: {
@@ -17,6 +19,9 @@ export async function GET() {
     res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
     return res;
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to fetch categories:", error);
     return NextResponse.json(
       { message: "Failed to fetch categories" },

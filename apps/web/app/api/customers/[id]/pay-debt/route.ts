@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
+    const storeId = user.storeId || "store-main";
     const body = await request.json();
     const parsed = payDebtSchema.safeParse(body);
 
@@ -28,11 +31,11 @@ export async function POST(
       );
     }
 
-    const { amount, paymentMethod, note } = parsed.data;
+    const { amount, note } = parsed.data;
 
     // Fetch current customer to validate debt
-    const customer = await db.customer.findUnique({
-      where: { id: params.id },
+    const customer = await db.customer.findFirst({
+      where: { id: params.id, storeId },
       select: { id: true, name: true, totalDebt: true },
     });
 
@@ -78,6 +81,7 @@ export async function POST(
       const dpTransaction = await tx.transaction.findFirst({
         where: {
           customerId: params.id,
+          storeId,
           status: "DP",
         },
         orderBy: { createdAt: "asc" },
@@ -114,6 +118,9 @@ export async function POST(
       },
     });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("[POST /api/customers/[id]/pay-debt]", error);
     return NextResponse.json(
       { message: "Gagal mencatat pembayaran piutang" },

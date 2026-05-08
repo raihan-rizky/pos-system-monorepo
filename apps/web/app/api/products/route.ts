@@ -16,22 +16,26 @@ const productSchema = z.object({
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   categoryId: z.string().min(1, "Category is required"),
-  storeId: z.string().default("store-main"),
   imageUrl: z.string().optional().nullable(),
 });
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/products?search=xxx&categoryId=xxx
+// GET /api/products?search=xxx&categoryId=xxx&limit=100
 export async function GET(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
+    const storeId = user.storeId || "store-main";
+    // Cap at 200 to prevent unbounded result sets on Vercel
+    const limit = Math.max(1, Math.min(200, parseInt(searchParams.get("limit") || "100", 10)));
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
 
     const products = await db.product.findMany({
       where: {
+        storeId,
         isActive: true,
         ...(search && {
           OR: [
@@ -48,6 +52,8 @@ export async function GET(request: Request) {
         },
       },
       orderBy: { name: "asc" },
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     const res = NextResponse.json(products);
@@ -69,7 +75,7 @@ export async function GET(request: Request) {
 // POST /api/products - Create a new product
 export async function POST(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    const user = await requireRole("OWNER", "ADMIN");
     const body = await request.json();
     
     // Validate request body
@@ -88,7 +94,10 @@ export async function POST(request: Request) {
     }
 
     const product = await db.product.create({
-      data: validatedData,
+      data: {
+        ...validatedData,
+        storeId: user.storeId || "store-main",
+      },
       include: {
         category: {
           select: { id: true, name: true, icon: true, color: true },

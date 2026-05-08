@@ -33,6 +33,11 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.tsbuildinfo
+playwright-report/
+test-results/
+apps/*/playwright-report/
+apps/*/test-results/
 
 # Vercel
 .vercel
@@ -44,3 +49,6 @@ enable_rls.sql
 #test file
 scratch.js
 test_rls.js
+
+#MD Files
+production_audit_report.MD

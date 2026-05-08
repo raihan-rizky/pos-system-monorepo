@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
   }
 }
 
-import { z } from "zod";
+
 
 const openShiftSchema = z.object({
   openingBalance: z.number().min(0, "Saldo awalan invalid"),
@@ -159,20 +160,22 @@ export async function PATCH(request: Request) {
     if (closingBalance !== undefined) updateData.closingBalance = closingBalance;
     if (note !== undefined) updateData.note = note;
 
-    // If balances change and shift is closed, we should probably recalculate discrepancy
+    // If balances change and shift is closed, recalculate discrepancy using aggregate
     if (shift.status === "CLOSED" && (openingBalance !== undefined || closingBalance !== undefined)) {
-      const cashTransactions = await db.transaction.findMany({
+      const cashAgg = await db.transaction.aggregate({
         where: {
           storeId,
           paymentMethod: "CASH",
+          status: { notIn: ["VOIDED", "REFUNDED"] },
           createdAt: {
             gte: shift.openedAt,
             lte: shift.closedAt || new Date(),
           },
         },
+        _sum: { total: true },
       });
 
-      const totalCashIncome = cashTransactions.reduce((acc: number, txn: any) => acc + Number(txn.total), 0);
+      const totalCashIncome = Number(cashAgg._sum.total || 0);
       const newOpening = openingBalance !== undefined ? openingBalance : Number(shift.openingBalance);
       const newExpected = newOpening + totalCashIncome;
       const newClosing = closingBalance !== undefined ? closingBalance : Number(shift.closingBalance || 0);

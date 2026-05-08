@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
+const toggleAutoReplySchema = z.object({
+  enable: z.boolean(),
+});
+
 export async function GET() {
+  try {
+    await requireRole("OWNER", "ADMIN");
+  } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+    return NextResponse.json({ message: "Internal error" }, { status: 500 });
+  }
+
   if (!isWaConfigured()) {
     return NextResponse.json(
       { message: "WAHA is not configured." },
@@ -45,6 +59,14 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  try {
+    await requireRole("OWNER", "ADMIN");
+  } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+    return NextResponse.json({ message: "Internal error" }, { status: 500 });
+  }
+
   if (!isWaConfigured()) {
     return NextResponse.json(
       { message: "WAHA is not configured." },
@@ -54,7 +76,14 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { enable } = body;
+    const parsed = toggleAutoReplySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { message: "Validation error", errors: parsed.error.flatten() },
+        { status: 422 },
+      );
+    }
+    const { enable } = parsed.data;
 
     const { baseUrl, apiKey, session, webhookUrl } = getWahaConfig();
     const url = `${baseUrl}/api/sessions/${session}`;

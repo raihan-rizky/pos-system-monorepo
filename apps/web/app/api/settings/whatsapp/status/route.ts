@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/settings/whatsapp/status
 export async function GET() {
-  if (!isWaConfigured()) {
-    console.log("[Settings/WA/Status] WAHA is not configured in env");
-    return NextResponse.json(
-      { status: "NOT_CONFIGURED", message: "WAHA_BASE_URL is not set." },
-      { status: 503 }
-    );
-  }
-
   try {
+    await requireRole("OWNER", "ADMIN");
+    if (!isWaConfigured()) {
+      console.log("[Settings/WA/Status] WAHA is not configured in env");
+      return NextResponse.json(
+        { status: "NOT_CONFIGURED", message: "WAHA_BASE_URL is not set." },
+        { status: 503 }
+      );
+    }
+
     const { baseUrl, apiKey, session } = getWahaConfig();
     const headers: Record<string, string> = { Accept: "application/json" };
     if (apiKey) headers["X-Api-Key"] = apiKey;
@@ -50,6 +52,9 @@ export async function GET() {
     console.log(`[Settings/WA/Status] Mapped status: ${mapped}`);
     return NextResponse.json({ status: mapped, raw: data });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("[Settings/WA/Status] Failed with exception:", error);
     return NextResponse.json({ status: "UNKNOWN" });
   }

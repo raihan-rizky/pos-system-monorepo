@@ -21,9 +21,10 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
-    const customer = await db.customer.findUnique({
-      where: { id: params.id },
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const storeId = user.storeId || "store-main";
+    const customer = await db.customer.findFirst({
+      where: { id: params.id, storeId },
       include: {
         transactions: {
           orderBy: { createdAt: "desc" },
@@ -73,7 +74,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const body = await request.json();
     const parsed = updateCustomerSchema.safeParse(body);
 
@@ -84,12 +85,14 @@ export async function PATCH(
       );
     }
 
+    const storeId = user.storeId || "store-main";
+
     // Check for phone conflict (excluding self)
     if (parsed.data.phone) {
       const conflict = await db.customer.findFirst({
         where: {
           phone: parsed.data.phone,
-          storeId: "store-main",
+          storeId,
           NOT: { id: params.id },
         },
         select: { id: true, name: true },
@@ -105,8 +108,20 @@ export async function PATCH(
       }
     }
 
+    const existingCustomer = await db.customer.findFirst({
+      where: { id: params.id, storeId },
+      select: { id: true },
+    });
+
+    if (!existingCustomer) {
+      return NextResponse.json(
+        { message: "Customer not found" },
+        { status: 404 }
+      );
+    }
+
     const customer = await db.customer.update({
-      where: { id: params.id },
+      where: { id: existingCustomer.id },
       data: parsed.data,
     });
 
@@ -129,14 +144,27 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    const user = await requireRole("OWNER", "ADMIN");
+    const storeId = user.storeId || "store-main";
+    const customer = await db.customer.findFirst({
+      where: { id: params.id, storeId },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      return NextResponse.json(
+        { message: "Customer not found" },
+        { status: 404 }
+      );
+    }
+
     // Don't delete; instead nullify relation on transactions (soft approach)
     await db.transaction.updateMany({
-      where: { customerId: params.id },
+      where: { customerId: customer.id, storeId },
       data: { customerId: null },
     });
 
-    await db.customer.delete({ where: { id: params.id } });
+    await db.customer.delete({ where: { id: customer.id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

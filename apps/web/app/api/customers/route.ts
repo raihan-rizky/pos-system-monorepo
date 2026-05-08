@@ -21,7 +21,7 @@ const createCustomerSchema = z.object({
 // GET /api/customers
 export async function GET(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const type = searchParams.get("type") || "";
@@ -31,8 +31,9 @@ export async function GET(request: Request) {
       Math.min(100, parseInt(searchParams.get("limit") || "20", 10))
     );
 
+    const storeId = user.storeId || "store-main";
     const where: Record<string, unknown> = {
-      storeId: "store-main",
+      storeId,
     };
 
     if (search) {
@@ -95,7 +96,7 @@ export async function GET(request: Request) {
 // POST /api/customers
 export async function POST(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const body = await request.json();
     const parsed = createCustomerSchema.safeParse(body);
 
@@ -106,12 +107,13 @@ export async function POST(request: Request) {
       );
     }
 
+    const storeId = user.storeId || "store-main";
     const { name, phone, email, company, address, type, notes } = parsed.data;
 
     // Prevent duplicate phone within the same store
     if (phone) {
       const existing = await db.customer.findFirst({
-        where: { phone, storeId: "store-main" },
+        where: { phone, storeId },
         select: { id: true, name: true },
       });
       if (existing) {
@@ -134,7 +136,7 @@ export async function POST(request: Request) {
         address: address || null,
         type: type ?? "REGULAR",
         notes: notes || null,
-        storeId: "store-main",
+        storeId,
       },
     });
 

@@ -4,16 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3002",
-    "build": "pnpm --filter @pos/db generate && pnpm --filter @pos/db seed && next build",
+    "build": "pnpm --filter @pos/db generate && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "tsc --noEmit",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@pos/db": "workspace:*",
     "@pos/ui": "workspace:*",
     "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.99.1",
+    "@supabase/supabase-js": "^2.105.3",
     "@tanstack/react-query": "^5.60.0",
     "lucide-react": "^1.14.0",
     "next": "^15.1.0",

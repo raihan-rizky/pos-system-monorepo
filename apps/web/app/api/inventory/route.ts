@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     const user = await requireRole("OWNER", "ADMIN");
     const body = await request.json();
     const validatedData = inventoryLogSchema.parse(body);
+    const storeId = user.storeId || "store-main";
 
     if (validatedData.quantity === 0) {
       return NextResponse.json(
@@ -38,8 +39,8 @@ export async function POST(request: Request) {
     // Execute atomically
     const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Get current stock
-      const product = await tx.product.findUnique({
-        where: { id: validatedData.productId },
+      const product = await tx.product.findFirst({
+        where: { id: validatedData.productId, storeId },
         select: { stock: true },
       });
 
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
           type: validatedData.type,
           quantity: Math.abs(validatedData.quantity), // Store absolute magnitude in log
           note: validatedData.note,
+          createdBy: user.id,
         },
       });
 

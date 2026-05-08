@@ -37,6 +37,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const storeId = user.storeId || "store-main";
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
@@ -47,10 +48,10 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "10", 10)));
 
     // Build where clause
-    const where: any = {
-      storeId: user.storeId || "store-main",
+    const where: Prisma.TransactionWhereInput = {
+      storeId,
     };
-    const andConditions: any[] = [];
+    const andConditions: Prisma.TransactionWhereInput[] = [];
 
     // Search filter (invoice, customer name, product name)
     if (search) {
@@ -144,6 +145,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const storeId = user.storeId || "store-main";
 
 
     const body = await request.json();
@@ -174,6 +176,26 @@ export async function POST(request: Request) {
 
     if (items.length === 0) {
       return NextResponse.json({ message: "Cart is empty" }, { status: 400 });
+    }
+
+    if (customerId) {
+      const customer = await db.customer.findFirst({
+        where: { id: customerId, storeId },
+        select: { id: true },
+      });
+      if (!customer) {
+        return NextResponse.json({ message: "Customer not found" }, { status: 404 });
+      }
+    }
+
+    if (salespersonId) {
+      const salesperson = await db.salesperson.findFirst({
+        where: { id: salespersonId, storeId },
+        select: { id: true },
+      });
+      if (!salesperson) {
+        return NextResponse.json({ message: "Salesperson not found" }, { status: 404 });
+      }
     }
 
     // Calculate totals
@@ -224,14 +246,14 @@ export async function POST(request: Request) {
           // Count today's transactions to build the sequence number.
           // Running inside the transaction gives us a consistent snapshot.
           const count = await tx.transaction.count({
-            where: { createdAt: { gte: dayStart } },
+            where: { storeId, createdAt: { gte: dayStart } },
           });
           const invoiceNumber = `INV-${dateStr}-${String(count + 1 + attempt).padStart(4, "0")}`;
 
           const txn = await tx.transaction.create({
             data: {
               invoiceNumber,
-              storeId: user.storeId || "store-main",
+              storeId,
               cashierId: isSalesRequest ? null : (cashierId || user.id),
               requestedById: isSalesRequest ? user.id : null,
               customerId: customerId || null,
@@ -273,22 +295,32 @@ export async function POST(request: Request) {
 
           // Deduct stock for each item only if it's not a sales request
           if (!isSalesRequest) {
-            for (const item of items) {
-              await tx.product.update({
-                where: { id: item.productId },
-                data: { stock: { decrement: item.quantity } },
-              });
+            const stockUpdates = await Promise.all(
+              items.map((item) =>
+                tx.product.updateMany({
+                  where: {
+                    id: item.productId,
+                    storeId,
+                    stock: { gte: item.quantity },
+                  },
+                  data: { stock: { decrement: item.quantity } },
+                })
+              )
+            );
 
-              // Log inventory change
-              await tx.inventoryLog.create({
-                data: {
-                  productId: item.productId,
-                  type: "OUT",
-                  quantity: item.quantity,
-                  note: `Penjualan ${invoiceNumber}`,
-                },
-              });
+            if (stockUpdates.some((result) => result.count !== 1)) {
+              throw new Error("INSUFFICIENT_STOCK");
             }
+
+            await tx.inventoryLog.createMany({
+              data: items.map((item) => ({
+                productId: item.productId,
+                type: "OUT",
+                quantity: item.quantity,
+                note: `Penjualan ${invoiceNumber}`,
+                createdBy: user.id,
+              })),
+            });
           }
 
           // Update customer analytics atomically (skip if it's a sales request since payment is pending)
@@ -330,6 +362,13 @@ export async function POST(request: Request) {
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof Error && error.message === "INSUFFICIENT_STOCK") {
+      return NextResponse.json(
+        { message: "Stok produk tidak mencukupi" },
+        { status: 409 }
+      );
+    }
 
     console.error("Failed to create transaction:", error);
     return NextResponse.json(

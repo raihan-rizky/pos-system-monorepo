@@ -140,7 +140,7 @@ export async function getWahaChatMessages(
 export async function sendWaTextMessage(
   to: string,
   body: string,
-): Promise<void> {
+): Promise<unknown> {
   const { baseUrl, apiKey, session } = getWahaConfig();
   const url = `${baseUrl}/api/sendText`;
 

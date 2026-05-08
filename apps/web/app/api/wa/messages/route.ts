@@ -7,6 +7,7 @@ import {
   WahaChat,
   WahaMessage,
 } from "@/lib/whatsapp";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    await requireRole("OWNER", "ADMIN");
     const phone = phoneParam;
 
     const targetId = chatIdParam || phone;
@@ -172,10 +174,14 @@ export async function GET(request: Request) {
       const data = msg._data || msg;
       
       const extractedId = extractId(msg.id);
-      let msgId = extractedId || data.id?._serialized || data.key?.id || `msg_${Date.now()}_${Math.random()}`;
+      const msgId = extractedId || data.id?._serialized || data.key?.id || `msg_${Date.now()}_${Math.random()}`;
 
       const isFromMe = extractFromMe(msg.id) ?? data.key?.fromMe ?? data.id?.fromMe ?? msg.fromMe ?? data.fromMe ?? false;
-      const ts = msg.timestamp || data.messageTimestamp || data.timestamp || data.t || Math.floor(Date.now() / 1000);
+      let ts = msg.timestamp || data.messageTimestamp || data.timestamp || data.t;
+      if (!ts) ts = Math.floor(Date.now() / 1000);
+      
+      // Some WAHA properties return seconds, some milliseconds. If ts < 1e11, assume seconds.
+      const tsMs = ts < 1e11 ? ts * 1000 : ts;
 
       const content = msg.body || data.message?.conversation || data.message?.extendedTextMessage?.text || data.body || (msg.hasMedia || data.hasMedia ? "[Media]" : "");
 
@@ -193,7 +199,7 @@ export async function GET(request: Request) {
         phone,
         role: isFromMe ? "assistant" : "user",
         content,
-        created_at: new Date(ts * 1000).toISOString(),
+        created_at: new Date(tsMs).toISOString(),
         image_url: wahaMediaUrl,
       };
     });
@@ -211,6 +217,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ data: messages });
   } catch (error: any) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     const duration = (performance.now() - startTime).toFixed(1);
     console.error(
       `[WA/Messages] ❌ Failed after ${duration}ms:`,
@@ -252,6 +261,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    await requireRole("OWNER", "ADMIN");
     const body = await request.json();
     const validatedData = sendWaMessageSchema.safeParse(body);
 
@@ -306,6 +316,9 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error: any) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     const duration = (performance.now() - startTime).toFixed(1);
     console.error(
       `[WA/SendMsg] ❌ Failed after ${duration}ms:`,

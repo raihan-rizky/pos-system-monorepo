@@ -14,7 +14,7 @@ export function ServiceWorkerRegistration() {
     // and causes unstyled white screens because it caches dynamic Dev chunks. 
     if (process.env.NODE_ENV !== "production") {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (let registration of registrations) {
+        for (const registration of registrations) {
           registration.unregister();
         }
       });

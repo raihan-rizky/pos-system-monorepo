@@ -6,8 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useRole } from "@/components/providers/RoleProvider";
 
-const supabase = createClient();
-
 /* ─────────────────────────────────────────────
    SVG icon helpers (kept inline to avoid deps)
 ───────────────────────────────────────────── */
@@ -572,6 +570,7 @@ export function Sidebar() {
             title="Keluar"
             aria-label="Keluar"
             onClick={async () => {
+              const supabase = createClient();
               await supabase.auth.signOut();
               router.push("/login");
               router.refresh();

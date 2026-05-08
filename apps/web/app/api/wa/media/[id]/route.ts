@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export async function GET(
   }
 
   try {
+    await requireRole("OWNER", "ADMIN");
     const { baseUrl, apiKey, session } = getWahaConfig();
 
     // ── Resolve the actual download URL ─────────────────────────────────────
@@ -113,6 +115,9 @@ export async function GET(
       },
     });
   } catch (error: any) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     const duration = (performance.now() - startTime).toFixed(1);
     console.error(
       `[WA/Media] ❌ Proxy error after ${duration}ms:`,

@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
 import { ShiftStatusBanner } from "@/components/ShiftStatusBanner";
-import { Input, Button } from "@pos/ui";
+import { Input } from "@pos/ui";
+
 
 const PaymentModal = dynamic(
   () => import("@/components/PaymentModal").then((mod) => mod.PaymentModal),
@@ -28,10 +29,9 @@ import { formatRupiah } from "@/lib/utils";
 import {
   useProducts,
   useCategories,
-  Product,
 } from "@/hooks/useProducts";
 import { useCart } from "@/hooks/useCart";
-import { useCreateTransaction } from "@/hooks/useTransactions";
+import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
 import { useActiveShift } from "@/hooks/useShift";
 import { useRole } from "@/components/providers/RoleProvider";
 
@@ -39,7 +39,7 @@ export default function POSPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [showPayment, setShowPayment] = useState(false);
-  const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showCloseShift, setShowCloseShift] = useState(false);
   const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
@@ -59,9 +59,6 @@ export default function POSPage() {
   const cart = useCart();
   const createTransaction = useCreateTransaction();
 
-  const filteredProducts = useMemo(() => {
-    return products;
-  }, [products]);
 
   const handleOpenPayment = () => {
     if (!activeShift) {
@@ -211,7 +208,7 @@ export default function POSPage() {
           {/* Product Grid */}
           <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4">
             <ProductGrid
-              products={filteredProducts}
+              products={products}
               onAddToCart={(product) =>
                 cart.addItem({
                   id: product.id,

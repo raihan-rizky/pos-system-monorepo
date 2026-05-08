@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
-import path from "path";
 import crypto from "crypto";
-import fs from "fs";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,9 +13,17 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/gif",
   "image/avif",
 ]);
+const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/avif": ".avif",
+};
 
 export async function POST(request: Request) {
   try {
+    await requireRole("OWNER", "ADMIN");
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -41,18 +48,34 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const ext = path.extname(file.name).toLowerCase() || `.${file.type.split("/")[1]}`;
+    const ext = EXTENSION_BY_MIME_TYPE[file.type];
     const filename = `${crypto.randomBytes(8).toString("hex")}${ext}`;
 
-    const publicDir = path.join(process.cwd(), "public", "images");
-    await fs.promises.mkdir(publicDir, { recursive: true });
+    const supabase = await createClient();
+    const { error } = await supabase.storage
+      .from("pos-media")
+      .upload(`products/${filename}`, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
 
-    const filepath = path.join(publicDir, filename);
-    await writeFile(filepath, buffer);
+    if (error) {
+      console.error("Supabase Storage Error:", error);
+      return NextResponse.json(
+        { message: "Failed to upload image to storage." },
+        { status: 500 }
+      );
+    }
 
-    const imageUrl = `/images/${filename}`;
-    return NextResponse.json({ url: imageUrl }, { status: 201 });
+    const { data: publicUrlData } = supabase.storage
+      .from("pos-media")
+      .getPublicUrl(`products/${filename}`);
+
+    return NextResponse.json({ url: publicUrlData.publicUrl }, { status: 201 });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to upload image:", error);
     return NextResponse.json(
       { message: "Failed to upload image" },

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export async function GET() {
   }
 
   try {
+    await requireRole("OWNER", "ADMIN");
     const { baseUrl, apiKey, session } = getWahaConfig();
     const url = `${baseUrl}/api/${session}/chats/overview?merge=true&limit=20`;
 
@@ -101,6 +103,11 @@ export async function GET() {
           timestamp = lm.timestamp ?? data.messageTimestamp ?? data.t;
         }
 
+        let tsMs = Date.now();
+        if (timestamp) {
+          tsMs = timestamp < 1e11 ? timestamp * 1000 : timestamp;
+        }
+
         return {
           id: idString,
           phone: phoneStr,
@@ -110,9 +117,7 @@ export async function GET() {
           picture: chat.picture || null,
           role,
           content: hasMedia ? "📷 Media" : content,
-          created_at: timestamp
-            ? new Date(timestamp * 1000).toISOString()
-            : new Date().toISOString(),
+          created_at: new Date(tsMs).toISOString(),
           image_url: hasMedia ? "media" : null,
         };
       });
@@ -127,6 +132,9 @@ export async function GET() {
 
     return NextResponse.json({ data: contacts });
   } catch (error: any) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error(`[WA/Contacts] ❌ Error:`, error.message);
     return NextResponse.json(
       { message: "Failed to fetch WA contacts" },

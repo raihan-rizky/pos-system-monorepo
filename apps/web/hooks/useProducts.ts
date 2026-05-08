@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebounce } from "./useDebounce";
 
 export interface Product {
   id: string;
@@ -51,9 +52,11 @@ async function fetchCategories(): Promise<Category[]> {
 }
 
 export function useProducts(search?: string, categoryId?: string) {
+  const debouncedSearch = useDebounce(search?.trim() || "", 300);
+
   return useQuery({
-    queryKey: ["products", search, categoryId],
-    queryFn: () => fetchProducts(search, categoryId),
+    queryKey: ["products", debouncedSearch, categoryId],
+    queryFn: () => fetchProducts(debouncedSearch, categoryId),
   });
 }
 

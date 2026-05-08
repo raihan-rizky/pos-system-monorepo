@@ -1,8 +1,25 @@
 import { PrismaClient } from "@prisma/client";
 
+declare const process: {
+  env: {
+    NODE_ENV?: string;
+    ALLOW_PRODUCTION_SEED?: string;
+  };
+  exit(code?: number): never;
+};
+
 const prisma = new PrismaClient();
 
 async function main() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_PRODUCTION_SEED !== "true"
+  ) {
+    throw new Error(
+      "Refusing to seed in production. Set ALLOW_PRODUCTION_SEED=true only for an intentional one-off seed."
+    );
+  }
+
   console.log("🌱 Seeding POS database...");
 
   // ============================================================
@@ -178,7 +195,7 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
+  .catch((e: unknown) => {
     console.error("❌ Seed failed:", e);
     process.exit(1);
   })

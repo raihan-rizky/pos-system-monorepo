@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { createClient } from "@/utils/supabase/client";
 
 export interface WaContact {
   id: string;
@@ -23,6 +25,21 @@ export interface WaMessage {
 }
 
 export function useWaContacts() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase.channel('waha-webhook-contacts')
+      .on('broadcast', { event: 'new-message' }, () => {
+         queryClient.invalidateQueries({ queryKey: ["wa-contacts"] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   return useQuery({
     queryKey: ["wa-contacts"],
     queryFn: async (): Promise<WaContact[]> => {
@@ -31,13 +48,30 @@ export function useWaContacts() {
       const json = await res.json();
       return json.data;
     },
-    refetchInterval: 5000, // Poll every 5s for new messages/contacts
+    refetchInterval: 60000, // Reduced from 5s to 60s fallback, relying on Webhooks for real-time
     refetchIntervalInBackground: false, // Stop polling when tab/page is not focused
   });
 }
 
 export function useWaMessages(chatId: string | null) {
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!chatId || chatId === "0") return;
+
+    const supabase = createClient();
+    const channel = supabase.channel('waha-webhook')
+      .on('broadcast', { event: 'new-message' }, (payload) => {
+         // Invalidate queries to trigger a refetch when a new message arrives via webhook
+         queryClient.invalidateQueries({ queryKey: ["wa-messages", chatId] });
+         queryClient.invalidateQueries({ queryKey: ["wa-contacts"] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chatId, queryClient]);
 
   return useQuery({
     queryKey: ["wa-messages", chatId],
@@ -85,7 +119,7 @@ export function useWaMessages(chatId: string | null) {
       );
     },
     enabled: !!chatId,
-    refetchInterval: 3000, // Poll every 3s when chat is open for real-time feel
+    refetchInterval: 60000, // Changed from 3s to 60s fallback, relying on Webhooks for real-time
     refetchIntervalInBackground: false, // Stop polling when tab/page is not focused
   });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { id } = await params;
     const body = await request.json();
     
@@ -52,6 +54,9 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to update job order status:", error);
     return NextResponse.json(
       { message: "Failed to update status" },

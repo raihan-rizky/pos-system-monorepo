@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 type SalespersonUpdateData = {
   name?: string;
@@ -22,7 +23,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireRole("OWNER", "ADMIN");
     const { id } = params;
+    const storeId = user.storeId || "store-main";
     const body = await request.json();
     
     const validatedData = updateSalespersonSchema.safeParse(body);
@@ -44,7 +47,7 @@ export async function PATCH(
     }
 
     // Verify salesperson exists before update
-    const existing = await db.salesperson.findUnique({ where: { id } });
+    const existing = await db.salesperson.findFirst({ where: { id, storeId } });
     if (!existing) {
       return NextResponse.json({ message: "Salesperson not found" }, { status: 404 });
     }
@@ -56,6 +59,9 @@ export async function PATCH(
 
     return NextResponse.json(salesperson);
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error(`Failed to update salesperson ${params.id}:`, error);
     return NextResponse.json({ message: "Failed to update salesperson" }, { status: 500 });
   }
@@ -67,11 +73,13 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireRole("OWNER", "ADMIN");
     const { id } = params;
+    const storeId = user.storeId || "store-main";
 
     // Check if salesperson exists and has transactions
-    const salesperson = await db.salesperson.findUnique({
-      where: { id },
+    const salesperson = await db.salesperson.findFirst({
+      where: { id, storeId },
       include: {
         _count: {
           select: { transactions: true }
@@ -96,6 +104,9 @@ export async function DELETE(
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error(`Failed to delete salesperson ${params.id}:`, error);
     return NextResponse.json({ message: "Failed to delete salesperson" }, { status: 500 });
   }

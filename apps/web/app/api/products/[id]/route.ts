@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
+import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 import { z } from "zod";
 
@@ -25,14 +26,16 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireRole("OWNER", "ADMIN");
     const { id } = await params;
+    const storeId = user.storeId || "store-main";
     const body = await request.json();
     
     const validatedData = updateProductSchema.parse(body);
 
     if (validatedData.sku) {
-      const existingProduct = await db.product.findUnique({
-        where: { sku: validatedData.sku },
+      const existingProduct = await db.product.findFirst({
+        where: { sku: validatedData.sku, storeId },
       });
       if (existingProduct && existingProduct.id !== id) {
         return NextResponse.json(
@@ -42,8 +45,20 @@ export async function PUT(
       }
     }
 
+    const existingProduct = await db.product.findFirst({
+      where: { id, storeId },
+      select: { id: true },
+    });
+
+    if (!existingProduct) {
+      return NextResponse.json(
+        { message: "Product not found" },
+        { status: 404 }
+      );
+    }
+
     const product = await db.product.update({
-      where: { id },
+      where: { id: existingProduct.id },
       data: validatedData,
       include: {
         category: {
@@ -54,6 +69,9 @@ export async function PUT(
 
     return NextResponse.json(product);
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to update product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -73,17 +91,30 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireRole("OWNER", "ADMIN");
     const { id } = await params;
+    const storeId = user.storeId || "store-main";
+    const existingProduct = await db.product.findFirst({
+      where: { id, storeId },
+      select: { id: true },
+    });
+
+    if (!existingProduct) {
+      return NextResponse.json(
+        { message: "Product not found" },
+        { status: 404 }
+      );
+    }
     
     // Check if product is in any transactions
     const transactionsCount = await db.transactionItem.count({
-      where: { productId: id },
+      where: { productId: existingProduct.id },
     });
 
     if (transactionsCount > 0) {
       // Soft delete by setting isActive to false
       const product = await db.product.update({
-        where: { id },
+        where: { id: existingProduct.id },
         data: { isActive: false },
       });
       return NextResponse.json({ success: true, softDeleted: true, product });
@@ -91,11 +122,14 @@ export async function DELETE(
 
     // Hard delete if it has never been sold
     await db.product.delete({
-      where: { id },
+      where: { id: existingProduct.id },
     });
 
     return NextResponse.json({ success: true, deleted: true });
   } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
     console.error("Failed to delete product:", error);
     return NextResponse.json(
       { message: "Failed to delete product" },

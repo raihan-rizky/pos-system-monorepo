@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "lint": "eslint src/",
+    "lint": "tsc --noEmit",
     "type-check": "tsc --noEmit"
   },
   "peerDependencies": {

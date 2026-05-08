@@ -4,6 +4,33 @@ import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = 'force-dynamic';
 
+type DashboardItem = {
+  quantity: number;
+  unitCost: unknown;
+  subtotal: unknown;
+};
+
+type LowStockProduct = {
+  id: string;
+  name: string;
+  sku: string;
+  stock: number;
+  minStock: number;
+  imageUrl: string | null;
+  categoryId: string;
+};
+
+const jakartaDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jakarta",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function jakartaDateKey(date: Date) {
+  return jakartaDateFormatter.format(date);
+}
+
 // GET /api/dashboard - Dashboard statistics optimized for serverless performance
 export async function GET() {
   try {
@@ -30,38 +57,38 @@ export async function GET() {
       dpTransactionsRaw,
       totalOutstandingDPRaw
     ] = await Promise.all([
-      // 1. Today's Revenue
-      db.transaction.aggregate({
+      // 1. Today's Revenue & Profit
+      db.transaction.findMany({
         where: {
           storeId,
           createdAt: { gte: today },
           status: { notIn: ["VOIDED", "REFUNDED"] },
         },
-        _sum: { total: true },
+        select: { total: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
       }),
-      // 2. Monthly Revenue
-      db.transaction.aggregate({
+      // 2. Monthly Revenue & Profit
+      db.transaction.findMany({
         where: {
           storeId,
           createdAt: { gte: firstDayOfMonth },
           status: { notIn: ["VOIDED", "REFUNDED"] },
         },
-        _sum: { total: true },
+        select: { total: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
       }),
       // 3. Total Products
       db.product.count({
         where: { storeId, isActive: true },
       }),
-      // 4. Low Stock
-      db.product.findMany({
-        where: {
-          storeId,
-          isActive: true,
-          stock: { lte: 5 },
-        },
-        take: 5,
-        orderBy: { stock: "asc" },
-      }),
+      // 4. Low Stock (Respecting dynamic minStock)
+      db.$queryRaw<LowStockProduct[]>`
+        SELECT id, name, sku, stock, "minStock", "imageUrl", "categoryId"
+        FROM pos_products
+        WHERE "storeId" = ${storeId}
+          AND "isActive" = true
+          AND stock <= "minStock"
+        ORDER BY stock ASC
+        LIMIT 5
+      `,
       // 5. Chart Data (Last 7 Days)
       db.transaction.findMany({
         where: {
@@ -69,7 +96,7 @@ export async function GET() {
           createdAt: { gte: last7Days },
           status: { notIn: ["VOIDED", "REFUNDED"] },
         },
-        select: { createdAt: true, total: true },
+        select: { createdAt: true, total: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
       }),
       // 6. Top Sales (Last 30 Days)
       db.transaction.groupBy({
@@ -135,37 +162,65 @@ export async function GET() {
       }),
     ]);
 
-    // Process Chart Data
+    // Calculate exact profit helper
+    const calculateProfit = (items: DashboardItem[]) => {
+      let profit = 0;
+      items.forEach(i => {
+         if (i.unitCost === null || i.unitCost === undefined) return;
+         const cost = Number(i.unitCost);
+         const sub = Number(i.subtotal || 0);
+         profit += sub - (cost * i.quantity);
+      });
+      return profit;
+    };
+
+    let todayRevenue = 0;
+    let todayProfit = 0;
+    todayStats.forEach(t => {
+      todayRevenue += Number(t.total || 0);
+      todayProfit += calculateProfit(t.items);
+    });
+
+    let monthlyRevenue = 0;
+    let monthlyProfit = 0;
+    monthlyStats.forEach(t => {
+      monthlyRevenue += Number(t.total || 0);
+      monthlyProfit += calculateProfit(t.items);
+    });
+
+    // Process Chart Data (Timezone safe: UTC+7)
     const dailyData: Record<string, { revenue: number; profit: number }> = {};
     for (let i = 0; i < 7; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = jakartaDateKey(d);
       dailyData[dateStr] = { revenue: 0, profit: 0 };
     }
 
     revenueChartRaw.forEach((item) => {
-      const dateStr = item.createdAt.toISOString().slice(0, 10);
+      const dateStr = jakartaDateKey(item.createdAt);
       if (dailyData[dateStr]) {
-        const rev = Number(item.total || 0);
-        dailyData[dateStr].revenue += rev;
-        dailyData[dateStr].profit += rev * 0.3; // 30% margin estimate
+        dailyData[dateStr].revenue += Number(item.total || 0);
+        dailyData[dateStr].profit += calculateProfit(item.items);
       }
     });
 
     const revenueChart = Object.entries(dailyData)
       .map(([date, data]) => ({
-        name: new Date(date).toLocaleDateString("id-ID", { weekday: "short" }),
+        name: new Intl.DateTimeFormat("id-ID", {
+          weekday: "short",
+          timeZone: "Asia/Jakarta",
+        }).format(new Date(`${date}T00:00:00+07:00`)),
         date,
         ...data,
       }))
       .reverse();
 
     return NextResponse.json({
-      todayRevenue: Number(todayStats._sum.total || 0),
-      todayProfit: Number(todayStats._sum.total || 0) * 0.3,
-      monthlyRevenue: Number(monthlyStats._sum.total || 0),
-      monthlyProfit: Number(monthlyStats._sum.total || 0) * 0.3,
+      todayRevenue,
+      todayProfit,
+      monthlyRevenue,
+      monthlyProfit,
       totalProducts,
       topProducts: topProductsRaw.map(tp => ({
         name: tp.productName,

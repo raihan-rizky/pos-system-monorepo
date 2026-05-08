@@ -110,6 +110,9 @@ export async function updateSession(request: NextRequest) {
           return NextResponse.redirect(url);
         }
       } catch (error) {
+        if (request.nextUrl.pathname.startsWith("/api/")) {
+          return NextResponse.json({ error: "Unable to verify access" }, { status: 503 });
+        }
         console.error("[Middleware] Failed to resolve user role:", error);
         // On DB error, allow request through — API guards will catch it
         return supabaseResponse;

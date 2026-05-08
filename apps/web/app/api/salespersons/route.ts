@@ -10,7 +10,6 @@ type SalespersonWhereData = {
 
 const createSalespersonSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be between 1 and 100 characters"),
-  storeId: z.string().min(1, "storeId is required"),
   isActive: z.boolean().optional().default(true),
 });
 
@@ -19,13 +18,12 @@ export const dynamic = 'force-dynamic';
 // GET /api/salespersons
 export async function GET(request: NextRequest) {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { searchParams } = new URL(request.url);
-    const storeId = searchParams.get("storeId");
+    const storeId = searchParams.get("storeId") || user.storeId || "store-main";
     const activeOnly = searchParams.get("activeOnly") === "true";
 
-    const whereClause: SalespersonWhereData = {};
-    if (storeId) whereClause.storeId = storeId;
+    const whereClause: SalespersonWhereData = { storeId };
     if (activeOnly) whereClause.isActive = true;
 
     const salespersons = await db.salesperson.findMany({
@@ -49,7 +47,7 @@ export async function GET(request: NextRequest) {
 // POST /api/salespersons
 export async function POST(request: NextRequest) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    const user = await requireRole("OWNER", "ADMIN");
     const body = await request.json();
     const validatedData = createSalespersonSchema.safeParse(body);
 
@@ -60,7 +58,8 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const { name, storeId, isActive } = validatedData.data;
+    const { name, isActive } = validatedData.data;
+    const storeId = user.storeId || "store-main";
     const trimmedName = name.trim();
 
     // Verify storeId exists

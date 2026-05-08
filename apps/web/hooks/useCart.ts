@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 
 export interface CartItem {
   productId: string;
@@ -97,12 +97,14 @@ export function useCart() {
     }
   }, []);
 
-  const subtotal = items.reduce(
-    (sum: number, item: CartItem) => sum + item.price * item.quantity,
-    0
-  );
-
-  const totalItems = items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
+  const { subtotal, totalItems } = useMemo(() => {
+    const sub = items.reduce(
+      (sum: number, item: CartItem) => sum + item.price * item.quantity,
+      0
+    );
+    const total = items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
+    return { subtotal: sub, totalItems: total };
+  }, [items]);
 
   return {
     items,
