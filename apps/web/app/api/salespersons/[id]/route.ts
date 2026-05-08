@@ -20,11 +20,12 @@ export const dynamic = 'force-dynamic';
 // PATCH /api/salespersons/:id
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  let id = "";
   try {
     const user = await requireRole("OWNER", "ADMIN");
-    const { id } = params;
+    ({ id } = await params);
     const storeId = user.storeId || "store-main";
     const body = await request.json();
     
@@ -62,7 +63,7 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error(`Failed to update salesperson ${params.id}:`, error);
+    console.error(`Failed to update salesperson ${id}:`, error);
     return NextResponse.json({ message: "Failed to update salesperson" }, { status: 500 });
   }
 }
@@ -70,11 +71,12 @@ export async function PATCH(
 // DELETE /api/salespersons/:id
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  let id = "";
   try {
     const user = await requireRole("OWNER", "ADMIN");
-    const { id } = params;
+    ({ id } = await params);
     const storeId = user.storeId || "store-main";
 
     // Check if salesperson exists and has transactions
@@ -107,7 +109,7 @@ export async function DELETE(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error(`Failed to delete salesperson ${params.id}:`, error);
+    console.error(`Failed to delete salesperson ${id}:`, error);
     return NextResponse.json({ message: "Failed to delete salesperson" }, { status: 500 });
   }
 }

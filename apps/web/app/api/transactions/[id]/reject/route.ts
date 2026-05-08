@@ -6,13 +6,13 @@ export const dynamic = "force-dynamic";
 
 // POST /api/transactions/[id]/reject
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER");
     
-    const { id } = params;
+    const { id } = await params;
 
     // Fetch the pending transaction
     const transaction = await db.transaction.findUnique({

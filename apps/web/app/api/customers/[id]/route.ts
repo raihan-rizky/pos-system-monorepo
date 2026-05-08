@@ -18,13 +18,14 @@ const updateCustomerSchema = z.object({
 // GET /api/customers/[id]
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const storeId = user.storeId || "store-main";
+    const { id } = await params;
     const customer = await db.customer.findFirst({
-      where: { id: params.id, storeId },
+      where: { id, storeId },
       include: {
         transactions: {
           orderBy: { createdAt: "desc" },
@@ -71,10 +72,11 @@ export async function GET(
 // PATCH /api/customers/[id]
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const { id } = await params;
     const body = await request.json();
     const parsed = updateCustomerSchema.safeParse(body);
 
@@ -93,7 +95,7 @@ export async function PATCH(
         where: {
           phone: parsed.data.phone,
           storeId,
-          NOT: { id: params.id },
+          NOT: { id },
         },
         select: { id: true, name: true },
       });
@@ -109,7 +111,7 @@ export async function PATCH(
     }
 
     const existingCustomer = await db.customer.findFirst({
-      where: { id: params.id, storeId },
+      where: { id, storeId },
       select: { id: true },
     });
 
@@ -141,13 +143,14 @@ export async function PATCH(
 // DELETE /api/customers/[id]
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireRole("OWNER", "ADMIN");
     const storeId = user.storeId || "store-main";
+    const { id } = await params;
     const customer = await db.customer.findFirst({
-      where: { id: params.id, storeId },
+      where: { id, storeId },
       select: { id: true },
     });
 

@@ -16,11 +16,12 @@ const payDebtSchema = z.object({
 // Decrements the customer's totalDebt and increments totalSpent.
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER");
     const storeId = user.storeId || "store-main";
+    const { id } = await params;
     const body = await request.json();
     const parsed = payDebtSchema.safeParse(body);
 
@@ -35,7 +36,7 @@ export async function POST(
 
     // Fetch current customer to validate debt
     const customer = await db.customer.findFirst({
-      where: { id: params.id, storeId },
+      where: { id, storeId },
       select: { id: true, name: true, totalDebt: true },
     });
 
@@ -68,7 +69,7 @@ export async function POST(
     // Atomically decrement debt and increment totalSpent
     const updated = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       const updatedCustomer = await tx.customer.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           totalDebt: { decrement: amount },
           totalSpent: { increment: amount },
@@ -80,7 +81,7 @@ export async function POST(
       // This provides traceability of debt payments
       const dpTransaction = await tx.transaction.findFirst({
         where: {
-          customerId: params.id,
+          customerId: id,
           storeId,
           status: "DP",
         },

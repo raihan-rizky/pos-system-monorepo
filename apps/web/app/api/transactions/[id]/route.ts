@@ -14,11 +14,12 @@ const updateTransactionSchema = z.object({
 // PATCH /api/transactions/[id]
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  let id = "";
   try {
     await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
-    const { id } = params;
+    ({ id } = await params);
     const body = await request.json();
     const parsed = updateTransactionSchema.safeParse(body);
 
@@ -87,11 +88,12 @@ export async function PATCH(
 // DELETE /api/transactions/[id]
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  let id = "";
   try {
     await requireRole("OWNER", "ADMIN");
-    const { id } = params;
+    ({ id } = await params);
 
     // Delete items first (referential integrity), then the transaction
     await db.$transaction(async (tx: Prisma.TransactionClient) => {

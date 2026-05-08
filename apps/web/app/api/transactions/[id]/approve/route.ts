@@ -13,10 +13,11 @@ export const dynamic = "force-dynamic";
 // POST /api/transactions/[id]/approve
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER");
+    const { id } = await params;
     
     const body = await request.json();
     const parsed = approveTransactionSchema.safeParse(body);
@@ -28,7 +29,6 @@ export async function POST(
     }
 
     const { paymentMethod, amountPaid } = parsed.data;
-    const { id } = params;
 
     // Fetch the pending transaction
     const transaction = await db.transaction.findUnique({
