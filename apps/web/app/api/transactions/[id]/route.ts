@@ -5,6 +5,7 @@ import { z } from "zod";
 
 const updateTransactionSchema = z.object({
   salesName: z.string().optional().nullable(),
+  salespersonId: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional(),
   status: z.enum(["COMPLETED", "DP", "VOIDED", "REFUNDED", "PENDING_APPROVAL"]).optional(),
@@ -28,11 +29,12 @@ export async function PATCH(
       );
     }
 
-    const { salesName, customerName, paymentMethod, status } = parsed.data;
+    const { salesName, salespersonId, customerName, paymentMethod, status } = parsed.data;
 
     // Build update payload — only include defined fields
     const updateData: Record<string, any> = {};
     if (salesName !== undefined) updateData.salesName = salesName || null;
+    if (salespersonId !== undefined) updateData.salespersonId = salespersonId || null;
     if (customerName !== undefined) updateData.customerName = customerName || null;
     if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
     if (status !== undefined) updateData.status = status;

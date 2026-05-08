@@ -56,6 +56,8 @@ export async function GET(request: Request) {
         OR: [
           { invoiceNumber: { contains: search, mode: "insensitive" } },
           { customerName: { contains: search, mode: "insensitive" } },
+          { salesName: { contains: search, mode: "insensitive" } },
+          { salesperson: { name: { contains: search, mode: "insensitive" } } },
           { items: { some: { productName: { contains: search, mode: "insensitive" } } } },
         ],
       });
@@ -110,6 +112,9 @@ export async function GET(request: Request) {
           },
         },
         cashier: {
+          select: { name: true },
+        },
+        salesperson: {
           select: { name: true },
         },
       },
@@ -258,7 +263,10 @@ export async function POST(request: Request) {
                 ),
               },
             },
-            include: { items: true },
+            include: { 
+              items: true,
+              salesperson: { select: { name: true } }
+            },
           });
 
           // Deduct stock for each item only if it's not a sales request

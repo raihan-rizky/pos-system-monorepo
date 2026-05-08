@@ -17,7 +17,8 @@ export function ReceiptModal({ open, onClose, transaction }: ReceiptModalProps) 
   };
 
   // When 4+ items, use compact sizing so everything fits in the 210mm × 110mm page
-  const compact = transaction.items.length >= 4;
+  const items = transaction?.items || [];
+  const compact = items.length >= 4;
 
   return (
     <Modal open={open} onClose={onClose} title="Transaksi Berhasil" size="xl">
@@ -105,35 +106,35 @@ export function ReceiptModal({ open, onClose, transaction }: ReceiptModalProps) 
               <div className="flex">
                 <span className={compact ? 'w-24' : 'w-32'}>Transaction ID</span>
                 <span className="mr-4">:</span>
-                <span className="font-bold text-[#cc0000]">{transaction.invoiceNumber}</span>
+                <span className="font-bold text-[#cc0000]">{transaction?.invoiceNumber}</span>
               </div>
               <div className="flex">
                 <span className={compact ? 'w-24' : 'w-32'}>Customer</span>
                 <span className="mr-4">:</span>
-                <span className="font-bold">{transaction.customerName || 'Pelanggan Umum'}</span>
+                <span className="font-bold">{transaction?.customerName || 'Pelanggan Umum'}</span>
               </div>
               <div className="flex">
                 <span className={compact ? 'w-24' : 'w-32'}>Sales</span>
                 <span className="mr-4">:</span>
-                <span className="font-bold">{transaction.salesName || '-'}</span>
+                <span className="font-bold">{transaction?.salesName || transaction?.salesperson?.name || '-'}</span>
               </div>
             </div>
             <div className={compact ? 'space-y-0.5' : 'space-y-2'}>
               <div className="flex">
                 <span className={compact ? 'w-20' : 'w-24'}>Date</span>
                 <span className="mr-4">:</span>
-                <span>{formatDate(transaction.createdAt || new Date().toISOString())}</span>
+                <span>{formatDate(transaction?.createdAt || new Date().toISOString())}</span>
               </div>
               <div className="flex">
                 <span className={compact ? 'w-20' : 'w-24'}>Payment</span>
                 <span className="mr-4">:</span>
-                <span>{transaction.paymentMethod === 'CASH' ? 'Cash' : transaction.paymentMethod}</span>
+                <span>{transaction?.paymentMethod === 'CASH' ? 'Cash' : transaction?.paymentMethod}</span>
               </div>
               <div className="flex">
                 <span className={compact ? 'w-20' : 'w-24'}>Status</span>
                 <span className="mr-4">:</span>
-                <span className={`font-bold ${transaction.status === 'DP' ? 'text-[#b45309]' : 'text-[#047857]'}`}>
-                  {transaction.status === 'DP' ? 'UANG MUKA (DP)' : 'LUNAS'}
+                <span className={`font-bold ${transaction?.status === 'DP' ? 'text-[#b45309]' : 'text-[#047857]'}`}>
+                  {transaction?.status === 'DP' ? 'UANG MUKA (DP)' : 'LUNAS'}
                 </span>
               </div>
             </div>
@@ -141,8 +142,8 @@ export function ReceiptModal({ open, onClose, transaction }: ReceiptModalProps) 
 
           {/* Table */}
           {(() => {
-            const hasSize = transaction.items.some(item => item.size);
-            const hasMaterial = transaction.items.some(item => item.material);
+            const hasSize = items.some(item => item.size);
+            const hasMaterial = items.some(item => item.material);
             const cellPad = compact ? 'py-0.5 px-1.5' : 'py-2 px-3';
             return (
             <table className={`w-full border-collapse border border-black ${compact ? 'text-[9px] mb-1' : 'text-[11px] mb-2'} flex-grow-0`}>
@@ -158,7 +159,7 @@ export function ReceiptModal({ open, onClose, transaction }: ReceiptModalProps) 
               </tr>
             </thead>
             <tbody>
-              {transaction.items.map((item, index) => (
+              {items.map((item, index) => (
                 <tr key={item.id}>
                   <td className={`border border-black ${cellPad} text-center`}>{index + 1}</td>
                   <td className={`border border-black ${cellPad}`}>{item.productName}</td>

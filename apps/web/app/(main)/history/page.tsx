@@ -13,6 +13,7 @@ import { useRole } from "@/components/providers/RoleProvider";
 
 type EditForm = {
   salesName: string;
+  salespersonId: string;
   customerName: string;
   paymentMethod: string;
   status: string;
@@ -38,10 +39,20 @@ function EditModal({
 
   const [form, setForm] = useState<EditForm>({
     salesName: tx.salesName ?? "",
+    salespersonId: tx.salespersonId ?? "",
     customerName: tx.customerName ?? "",
     paymentMethod: tx.paymentMethod ?? "CASH",
     status: tx.status ?? "COMPLETED",
   });
+
+  const [salespersons, setSalespersons] = useState<{ id: string; name: string }[]>([]);
+
+  React.useEffect(() => {
+    fetch("/api/salespersons?activeOnly=true")
+      .then((res) => res.json())
+      .then((data) => setSalespersons(data))
+      .catch((err) => console.error("Failed to fetch salespersons:", err));
+  }, []);
 
   const [error, setError] = useState("");
 
@@ -55,6 +66,7 @@ function EditModal({
       await updateTx.mutateAsync({
         id: tx.id,
         salesName: form.salesName,
+        salespersonId: form.salespersonId,
         customerName: form.customerName,
         paymentMethod: form.paymentMethod,
         status: form.status,
@@ -95,10 +107,34 @@ function EditModal({
 
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
-          {/* Sales Name */}
+          {/* Sales Person Selection */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 mb-1.5">
-              Nama Sales
+              Sales Person
+            </label>
+            <select
+              value={form.salespersonId}
+              onChange={(e) => {
+                const spId = e.target.value;
+                const spName = salespersons.find(s => s.id === spId)?.name || "";
+                setForm(prev => ({ ...prev, salespersonId: spId, salesName: spName }));
+              }}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+            >
+              <option value="">-- Pilih Sales (Opsional) --</option>
+              {salespersons.map((sp) => (
+                <option key={sp.id} value={sp.id}>
+                  {sp.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Custom Sales Name (Fallback) */}
+          <div>
+            <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+              Nama Sales (Custom)
             </label>
             <input
               type="text"
@@ -708,7 +744,7 @@ export default function HistoryPage() {
                               {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
                             </td>
                             <td className="py-3.5 px-4 text-sm text-surface-700 font-medium whitespace-nowrap">
-                              {tx.salesName || <span className="text-surface-400 italic">—</span>}
+                              {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
                             </td>
                             <td className="py-3.5 px-4 text-sm text-surface-600">
                               {tx.items.length} Barang

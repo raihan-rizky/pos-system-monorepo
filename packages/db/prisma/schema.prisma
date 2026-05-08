@@ -242,6 +242,7 @@ model TransactionItem {
   material      String?     // Snapshot of material
   quantity      Int
   unitPrice     Decimal     @db.Decimal(12, 2)
+  unitCost      Decimal?    @db.Decimal(12, 2)
   discount      Decimal     @default(0) @db.Decimal(12, 2)
   subtotal      Decimal     @db.Decimal(12, 2)
 

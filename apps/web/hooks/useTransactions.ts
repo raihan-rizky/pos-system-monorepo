@@ -15,6 +15,8 @@ export interface Transaction {
   change: number;
   customerName: string | null;
   salesName: string | null;
+  salespersonId: string | null;
+  salesperson?: { name: string } | null;
   note: string | null;
   status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED
   createdAt: string;
@@ -129,6 +131,7 @@ export function useCreateTransaction() {
 export interface UpdateTransactionInput {
   id: string;
   salesName?: string;
+  salespersonId?: string;
   customerName?: string;
   paymentMethod?: string;
   status?: string;
