@@ -232,8 +232,8 @@ export async function GET() {
         minStock: p.minStock || 5,
       })),
       revenueChart,
-      topSalespersons: topSalespersonsRaw.map(sp => ({
-        id: sp.salespersonId || "manual",
+      topSalespersons: topSalespersonsRaw.map((sp) => ({
+        id: sp.salespersonId || `manual:${sp.salesName || "sales"}`,
         name: sp.salesName || "Sales",
         revenue: Number(sp._sum.total || 0),
         txCount: sp._count.id,

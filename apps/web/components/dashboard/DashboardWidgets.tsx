@@ -33,7 +33,7 @@ export function TopSalespersonsWidget({ data }: { data: any[] }) {
         <div className="space-y-3">
           {data.map((sp, idx) => (
             <div
-              key={sp.id || idx}
+              key={`${sp.id || "salesperson"}-${sp.name || "sales"}-${idx}`}
               className="flex items-center justify-between border-b border-surface-50 pb-2 last:border-0 last:pb-0"
             >
               <div className="flex items-center gap-3">
