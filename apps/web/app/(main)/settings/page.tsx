@@ -1,15 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import { Settings, Store, MessageCircle } from "lucide-react";
+import { RefreshCw, Settings, Store, MessageCircle } from "lucide-react";
 import StoreInfoTab from "@/components/settings/StoreInfoTab";
 import WhatsAppTab from "@/components/settings/WhatsAppTab";
+import OfflineSyncTab from "@/components/settings/OfflineSyncTab";
 
-type Tab = "store" | "whatsapp";
+type Tab = "store" | "whatsapp" | "offline";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "store", label: "Store Info", icon: <Store className="w-4 h-4" /> },
   { id: "whatsapp", label: "WhatsApp", icon: <MessageCircle className="w-4 h-4" /> },
+  { id: "offline", label: "Offline Sync", icon: <RefreshCw className="w-4 h-4" /> },
 ];
 
 export default function SettingsPage() {
@@ -55,6 +57,7 @@ export default function SettingsPage() {
           <div className="flex-1 bg-white border border-surface-100 rounded-2xl shadow-sm p-6">
             {activeTab === "store" && <StoreInfoTab />}
             {activeTab === "whatsapp" && <WhatsAppTab />}
+            {activeTab === "offline" && <OfflineSyncTab />}
           </div>
         </div>
 

@@ -5,6 +5,8 @@ import { useState } from "react";
 import { useAppPrefetch } from "@/hooks/usePrefetch";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { RoleProvider } from "@/components/providers/RoleProvider";
+import { PwaStatusBanner } from "@/components/PwaStatusBanner";
+import { NotificationPermissionPrompt } from "@/components/NotificationPermissionPrompt";
 import type { Role } from "@/lib/rbac/permissions";
 
 function AppBootstrap({ children }: { children: React.ReactNode }) {
@@ -42,7 +44,9 @@ export function Providers({
   return (
     <QueryClientProvider client={queryClient}>
       <RoleProvider role={role} userId={userId} userName={userName}>
+        <PwaStatusBanner />
         <AppBootstrap>{children}</AppBootstrap>
+        <NotificationPermissionPrompt />
         <ServiceWorkerRegistration />
       </RoleProvider>
     </QueryClientProvider>

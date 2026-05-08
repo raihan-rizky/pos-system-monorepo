@@ -32,6 +32,23 @@ export function ServiceWorkerRegistration() {
         .then((registration) => {
           console.log("[SW] Registered with scope:", registration.scope);
 
+          if (registration.waiting) {
+            window.dispatchEvent(new CustomEvent("pos-pwa-update-available"));
+          }
+
+          registration.addEventListener("updatefound", () => {
+            const worker = registration.installing;
+            if (!worker) return;
+            worker.addEventListener("statechange", () => {
+              if (
+                worker.state === "installed" &&
+                navigator.serviceWorker.controller
+              ) {
+                window.dispatchEvent(new CustomEvent("pos-pwa-update-available"));
+              }
+            });
+          });
+
           // Auto-update: check for new SW every 60 minutes
           setInterval(() => {
             registration.update();

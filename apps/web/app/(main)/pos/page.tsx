@@ -85,7 +85,7 @@ export default function POSPage() {
     estimatedDoneAt: string | null;
   }) => {
     try {
-      const result = await createTransaction.mutateAsync({
+      const payload = {
         items: cart.items,
         paymentMethod: data.paymentMethod,
         amountPaid: data.amountPaid,
@@ -98,7 +98,8 @@ export default function POSPage() {
         paymentStatus: data.paymentStatus,
         isJobOrder: data.isJobOrder,
         estimatedDoneAt: data.estimatedDoneAt,
-      });
+      };
+      const result = await createTransaction.mutateAsync(payload);
       if (result.status !== "PENDING_APPROVAL") {
         setLastTransaction(result);
       } else {
@@ -109,6 +110,37 @@ export default function POSPage() {
       setShowPayment(false);
     } catch (error) {
       console.error("Transaction failed:", error);
+      if (
+        typeof window !== "undefined" &&
+        (!navigator.onLine || error instanceof TypeError)
+      ) {
+        try {
+          const { createOfflineTransaction } = await import(
+            "@/lib/offline/offline-db"
+          );
+          await createOfflineTransaction({
+            items: cart.items,
+            paymentMethod: data.paymentMethod as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER",
+            amountPaid: data.amountPaid,
+            discount: data.discount,
+            note: data.note,
+            customerName: data.customerName,
+            customerId: data.customerId,
+            salesName: data.salesName,
+            salespersonId: data.salespersonId,
+            paymentStatus: data.paymentStatus,
+            isJobOrder: data.isJobOrder,
+            estimatedDoneAt: data.estimatedDoneAt,
+            originalSubtotal: cart.subtotal,
+            originalTotal: Math.max(0, cart.subtotal - data.discount),
+          });
+          cart.clearCart();
+          setShowPayment(false);
+          alert("Transaksi tersimpan offline dan akan disinkronkan saat online.");
+        } catch (queueError) {
+          alert(queueError instanceof Error ? queueError.message : "Gagal menyimpan transaksi offline.");
+        }
+      }
     }
   };
 

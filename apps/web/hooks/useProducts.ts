@@ -41,14 +41,30 @@ async function fetchProducts(
   if (categoryId) params.set("categoryId", categoryId);
 
   const res = await fetch(`/api/products?${params.toString()}`);
-  if (!res.ok) throw new Error("Failed to fetch products");
-  return res.json();
+  if (!res.ok) {
+    const { getCachedCatalogProducts } = await import("@/lib/offline/offline-db");
+    const cached = await getCachedCatalogProducts<Product>(search, categoryId);
+    if (cached.length > 0) return cached;
+    throw new Error("Failed to fetch products");
+  }
+  const products = await res.json();
+  const { cacheCatalogProducts } = await import("@/lib/offline/offline-db");
+  await cacheCatalogProducts(products);
+  return products;
 }
 
 async function fetchCategories(): Promise<Category[]> {
   const res = await fetch("/api/categories");
-  if (!res.ok) throw new Error("Failed to fetch categories");
-  return res.json();
+  if (!res.ok) {
+    const { getCachedCatalogCategories } = await import("@/lib/offline/offline-db");
+    const cached = await getCachedCatalogCategories<Category>();
+    if (cached.length > 0) return cached;
+    throw new Error("Failed to fetch categories");
+  }
+  const categories = await res.json();
+  const { cacheCatalogCategories } = await import("@/lib/offline/offline-db");
+  await cacheCatalogCategories(categories);
+  return categories;
 }
 
 export function useProducts(search?: string, categoryId?: string) {

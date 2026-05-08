@@ -3,7 +3,7 @@ const nextConfig = {
   transpilePackages: ["@pos/ui", "@pos/db", "@pos/config"],
 
   webpack: (config, { isServer }) => {
-    if (isServer) {
+    if (isServer && process.env.NEXT_ENABLE_PRISMA_PLUGIN === "1") {
       config.plugins = [...config.plugins, new (require('@prisma/nextjs-monorepo-workaround-plugin').PrismaPlugin)()];
     }
     return config;

@@ -175,6 +175,9 @@ model Transaction {
   isJobOrder       Boolean           @default(false)
   productionStatus ProductionStatus?
   estimatedDoneAt  DateTime?
+  offlineClientMutationId String?     @unique
+  offlineOriginalPayload  Json?
+  offlineSyncMetadata     Json?
   createdAt        DateTime          @default(now())
 
   @@index([storeId])
@@ -184,6 +187,7 @@ model Transaction {
   @@index([salespersonId])
   @@index([createdAt])
   @@index([status])
+  @@index([offlineClientMutationId])
   @@map("pos_transactions")
 }
 
@@ -284,6 +288,25 @@ model CashierShift {
   @@index([storeId])
   @@index([status])
   @@map("pos_cashier_shifts")
+}
+
+model PushSubscription {
+  id          String   @id @default(cuid())
+  endpoint    String   @unique
+  userId      String
+  role        Role
+  storeId     String?
+  auth        String?
+  p256dh      String?
+  features    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([storeId])
+  @@index([role])
+  @@map("pos_push_subscriptions")
 }
 
 // ============================================================
