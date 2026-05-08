@@ -203,10 +203,10 @@ export function ActiveDPWidget({
               </div>
               <div className="text-right">
                 <p className="text-sm font-semibold text-surface-900">
-                  {formatRupiah(dp.total)}
+                  {formatRupiah(Number(dp.total || 0))}
                 </p>
                 <p className="text-xs text-danger-500">
-                  Kurang: {formatRupiah(dp.total - dp.paidAmount)}
+                  Kurang: {formatRupiah(Math.max(0, Number(dp.total || 0) - Number(dp.paidAmount || 0)))}
                 </p>
               </div>
             </div>

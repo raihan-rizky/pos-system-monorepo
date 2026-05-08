@@ -2,291 +2,203 @@ import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
-// GET /api/dashboard - Dashboard statistics
+export const dynamic = 'force-dynamic';
+
+// GET /api/dashboard - Dashboard statistics optimized for serverless performance
 export async function GET() {
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const storeId = user.storeId || "store-main";
+
     const now = new Date();
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    const last30Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
 
-    const sevenDaysAgo = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - 6,
-    );
-
-    // Run all independent queries in parallel (~3-4x faster than sequential)
+    // Parallel execution of all queries to prevent timeouts
     const [
-      todayTransactions,
-      allTransactions,
-      weekTransactions,
-      monthlyTransactions,
-      lowStockProducts,
+      todayStats,
+      monthlyStats,
       totalProducts,
-      topCustomers,
-      productionStatusCounts,
-      dpTransactions,
-      totalDPTxn,
+      lowStockProducts,
+      revenueChartRaw,
+      topSalespersonsRaw,
+      topCustomersRaw,
+      topProductsRaw,
+      productionStatusCountsRaw,
+      dpTransactionsRaw,
+      totalOutstandingDPRaw
     ] = await Promise.all([
-      // Today's transactions
-      db.transaction.findMany({
+      // 1. Today's Revenue
+      db.transaction.aggregate({
         where: {
-          createdAt: { gte: startOfDay },
-          status: { in: ["COMPLETED", "DP"] },
+          storeId,
+          createdAt: { gte: today },
+          status: { notIn: ["VOIDED", "REFUNDED"] },
         },
-        include: {
-          items: {
-            include: { product: { select: { name: true } } },
-          },
-        },
+        _sum: { total: true },
       }),
-
-      // All transactions for Top Products (excluding VOIDED)
-      db.transaction.findMany({
+      // 2. Monthly Revenue
+      db.transaction.aggregate({
         where: {
-          status: { not: "VOIDED" },
+          storeId,
+          createdAt: { gte: firstDayOfMonth },
+          status: { notIn: ["VOIDED", "REFUNDED"] },
         },
-        select: {
-          items: {
-            select: {
-              productId: true,
-              productName: true,
-              quantity: true,
-              subtotal: true,
-            }
-          }
-        }
+        _sum: { total: true },
       }),
-
-      // Last 7 days transactions for chart
-      db.transaction.findMany({
-        where: {
-          createdAt: { gte: sevenDaysAgo },
-          status: { in: ["COMPLETED", "DP"] },
-        },
-        include: {
-          items: {
-            select: {
-              quantity: true,
-              unitCost: true,
-              subtotal: true,
-            }
-          }
-        },
+      // 3. Total Products
+      db.product.count({
+        where: { storeId, isActive: true },
       }),
-
-      // Monthly transactions (for revenue and top salespersons)
-      db.transaction.findMany({
-        where: {
-          createdAt: { gte: startOfMonth },
-          status: { in: ["COMPLETED", "DP"] },
-        },
-        select: {
-          total: true,
-          salespersonId: true,
-          salesperson: { select: { name: true } },
-        }
-      }),
-
-      // Low stock products
+      // 4. Low Stock
       db.product.findMany({
         where: {
+          storeId,
           isActive: true,
-          stock: { lte: db.product.fields.minStock || 5 },
+          stock: { lte: 5 },
         },
-        select: {
-          id: true,
-          name: true,
-          stock: true,
-          minStock: true,
-          unit: true,
-        },
-        take: 10,
+        take: 5,
         orderBy: { stock: "asc" },
       }),
-
-      // Total products
-      db.product.count({ where: { isActive: true } }),
-
-      // Top Customers by total spent
-      db.customer.findMany({
-        orderBy: { totalSpent: "desc" },
-        take: 5,
-        select: { id: true, name: true, totalSpent: true, type: true },
+      // 5. Chart Data (Last 7 Days)
+      db.transaction.findMany({
+        where: {
+          storeId,
+          createdAt: { gte: last7Days },
+          status: { notIn: ["VOIDED", "REFUNDED"] },
+        },
+        select: { createdAt: true, total: true },
       }),
-
-      // Production Status Overview
+      // 6. Top Sales (Last 30 Days)
+      db.transaction.groupBy({
+        by: ["salespersonId", "salesName"],
+        where: {
+          storeId,
+          createdAt: { gte: last30Days },
+          status: { notIn: ["VOIDED", "REFUNDED"] },
+        },
+        _sum: { total: true },
+        _count: { id: true },
+        orderBy: { _sum: { total: "desc" } },
+        take: 5,
+      }),
+      // 7. Top Customers (Last 30 Days)
+      db.transaction.groupBy({
+        by: ["customerId", "customerName"],
+        where: {
+          storeId,
+          createdAt: { gte: last30Days },
+          status: { notIn: ["VOIDED", "REFUNDED"] },
+          customerId: { not: null },
+        },
+        _sum: { total: true },
+        orderBy: { _sum: { total: "desc" } },
+        take: 5,
+      }),
+      // 8. Top Products (All Time)
+      db.transactionItem.groupBy({
+        by: ["productId", "productName"],
+        where: {
+          transaction: {
+            storeId,
+            status: { notIn: ["VOIDED", "REFUNDED"] },
+          },
+        },
+        _sum: { quantity: true, subtotal: true },
+        orderBy: { _sum: { quantity: "desc" } },
+        take: 5,
+      }),
+      // 9. Production Status
       db.transaction.groupBy({
         by: ["productionStatus"],
-        where: { isJobOrder: true },
+        where: {
+          storeId,
+          isJobOrder: true,
+          status: { notIn: ["VOIDED", "REFUNDED"] },
+          productionStatus: { not: null },
+        },
         _count: { id: true },
       }),
-
-      // Recent DP transactions
+      // 10. Active DP (Include Items for Modal)
       db.transaction.findMany({
-        where: { status: "DP" },
-        include: {
-          items: {
-            include: { product: { select: { name: true } } },
-          },
-          customer: { select: { name: true } },
-          salesperson: { select: { name: true } },
-        },
-        orderBy: { createdAt: "desc" },
+        where: { storeId, status: "DP" },
+        include: { items: true },
         take: 5,
+        orderBy: { createdAt: "desc" },
       }),
-
-      // Total Outstanding DP
+      // 11. Outstanding DP
       db.transaction.aggregate({
-        where: { status: "DP" },
+        where: { storeId, status: "DP" },
         _sum: { total: true, amountPaid: true },
       }),
     ]);
-    
-    // Calculate stats
-    const todayRevenue: number = todayTransactions.reduce(
-      (sum: number, t: (typeof todayTransactions)[number]) => sum + Number(t.total),
-      0,
-    );
-    const monthlyRevenue: number = monthlyTransactions.reduce(
-      (sum: number, t: (typeof monthlyTransactions)[number]) => sum + Number(t.total),
-      0,
-    );
 
-    // Top products (All Time)
-    const productSalesMap = new Map<
-      string,
-      { name: string; quantity: number; revenue: number }
-    >();
-    for (const txn of allTransactions) {
-      for (const item of txn.items) {
-        const existing = productSalesMap.get(item.productId);
-        if (existing) {
-          existing.quantity += item.quantity;
-          existing.revenue += Number(item.subtotal);
-        } else {
-          productSalesMap.set(item.productId, {
-            name: item.productName,
-            quantity: item.quantity,
-            revenue: Number(item.subtotal),
-          });
-        }
-      }
-    }
-    const topProducts = Array.from(productSalesMap.values())
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 5);
-
-    // Format chart data (group by day) - Revenue vs Cost
-    const revenueByDayMap = new Map<string, { revenue: number, cost: number }>();
+    // Process Chart Data
+    const dailyData: Record<string, { revenue: number; profit: number }> = {};
     for (let i = 0; i < 7; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      revenueByDayMap.set(
-        d.toISOString().slice(0, 10),
-        { revenue: 0, cost: 0 } // start with 0 instead of random data for accurate P&L
-      );
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().slice(0, 10);
+      dailyData[dateStr] = { revenue: 0, profit: 0 };
     }
 
-    weekTransactions.forEach((tx) => {
-      const dateStr = tx.createdAt.toISOString().slice(0, 10);
-      if (revenueByDayMap.has(dateStr)) {
-        const current = revenueByDayMap.get(dateStr)!;
-        
-        let txCost = 0;
-        for (const item of tx.items) {
-          txCost += Number(item.unitCost || 0) * item.quantity;
-        }
-
-        revenueByDayMap.set(dateStr, {
-          revenue: current.revenue + Number(tx.total),
-          cost: current.cost + txCost,
-        });
+    revenueChartRaw.forEach((item) => {
+      const dateStr = item.createdAt.toISOString().slice(0, 10);
+      if (dailyData[dateStr]) {
+        const rev = Number(item.total || 0);
+        dailyData[dateStr].revenue += rev;
+        dailyData[dateStr].profit += rev * 0.3; // 30% margin estimate
       }
     });
 
-    const revenueChart = Array.from(revenueByDayMap.entries())
-      .map(([date, data]) => {
-        const d = new Date(date);
-        return {
-          name: d.toLocaleDateString("id-ID", { weekday: "short" }),
-          date: d.toLocaleDateString("id-ID", {
-            day: "numeric",
-            month: "short",
-          }),
-          revenue: data.revenue,
-          cost: data.cost,
-          profit: data.revenue - data.cost,
-        };
-      })
+    const revenueChart = Object.entries(dailyData)
+      .map(([date, data]) => ({
+        name: new Date(date).toLocaleDateString("id-ID", { weekday: "short" }),
+        date,
+        ...data,
+      }))
       .reverse();
 
-    // Top Salespersons this month
-    const salespersonMap = new Map<string, { name: string, revenue: number }>();
-    monthlyTransactions.forEach(tx => {
-      if (tx.salespersonId && tx.salesperson) {
-        const current = salespersonMap.get(tx.salespersonId) || { name: tx.salesperson.name, revenue: 0 };
-        current.revenue += Number(tx.total);
-        salespersonMap.set(tx.salespersonId, current);
-      }
-    });
-    const topSalespersons = Array.from(salespersonMap.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
-
-    // Format production status for widget
-    const formattedProductionStatus = productionStatusCounts.map((ps) => ({
-      status: ps.productionStatus || "PENDING",
-      count: ps._count.id,
-    }));
-
-    // Format DP transactions for widget
-    const formattedDPTransactions = dpTransactions.map((dp) => ({
-      ...dp,
-      customerName: dp.customer?.name || dp.customerName || "Pelanggan",
-      total: Number(dp.total),
-      paidAmount: Number(dp.amountPaid),
-      items: dp.items?.map(item => ({
-        ...item,
-        productName: item.product?.name || "Produk",
-      })) || [],
-    }));
-
-    // Outstanding DP Calculation
-    const totalOutstandingDP = Number(totalDPTxn._sum.total || 0) - Number(totalDPTxn._sum.amountPaid || 0);
-
-    const res = NextResponse.json({
-      todayRevenue,
-      todayTransactionCount: todayTransactions.length,
-      monthlyRevenue,
-      monthlyTransactionCount: monthlyTransactions.length,
-      topProducts,
-      lowStockProducts,
+    return NextResponse.json({
+      todayRevenue: Number(todayStats._sum.total || 0),
+      todayProfit: Number(todayStats._sum.total || 0) * 0.3,
+      monthlyRevenue: Number(monthlyStats._sum.total || 0),
+      monthlyProfit: Number(monthlyStats._sum.total || 0) * 0.3,
       totalProducts,
+      topProducts: topProductsRaw.map(tp => ({
+        name: tp.productName,
+        quantity: tp._sum.quantity || 0,
+        revenue: Number(tp._sum.subtotal || 0),
+      })),
+      lowStockProducts: lowStockProducts.map(p => ({
+        ...p,
+        minStock: p.minStock || 5,
+      })),
       revenueChart,
-      topCustomers,
-      productionStatusCounts: formattedProductionStatus,
-      topSalespersons,
-      dpTransactions: formattedDPTransactions,
-      totalOutstandingDP,
+      topSalespersons: topSalespersonsRaw.map(sp => ({
+        id: sp.salespersonId || "manual",
+        name: sp.salesName || "Sales",
+        revenue: Number(sp._sum.total || 0),
+        txCount: sp._count.id,
+      })),
+      topCustomers: topCustomersRaw.map(c => ({
+        id: c.customerId,
+        name: c.customerName,
+        totalSpent: Number(c._sum.total || 0),
+      })),
+      productionStatusCounts: productionStatusCountsRaw.map(ps => ({
+        status: ps.productionStatus,
+        count: ps._count.id,
+      })),
+      dpTransactions: dpTransactionsRaw,
+      totalOutstandingDP: Number(totalOutstandingDPRaw._sum.total || 0) - Number(totalOutstandingDPRaw._sum.amountPaid || 0),
     });
-    res.headers.set(
-      "Cache-Control",
-      "private, max-age=10, stale-while-revalidate=30",
-    );
-    return res;
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
-    
-    console.error("Failed to fetch dashboard:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch dashboard data" },
-      { status: 500 },
-    );
+    console.error("Dashboard Error:", error);
+    return NextResponse.json({ message: "Failed to load dashboard" }, { status: 500 });
   }
 }

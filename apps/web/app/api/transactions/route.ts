@@ -47,7 +47,9 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "10", 10)));
 
     // Build where clause
-    const where: any = {};
+    const where: any = {
+      storeId: user.storeId || "store-main",
+    };
     const andConditions: any[] = [];
 
     // Search filter (invoice, customer name, product name)

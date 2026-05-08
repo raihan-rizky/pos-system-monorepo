@@ -227,15 +227,27 @@ export default function DashboardPage() {
               {dashboardData?.topProducts?.length ? (
                 <div className="h-[250px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dashboardData.topProducts.slice(0, 5)} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
+                    <BarChart 
+                      data={dashboardData.topProducts.slice(0, 5)} 
+                      layout="vertical" 
+                      margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{ fill: "#475569", fontSize: 11 }} />
-                      <Tooltip 
-                        cursor={{ fill: "#f1f5f9" }} 
-                        contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }} 
-                        formatter={(value: any) => [`${value} sold`, "Volume"]} 
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        width={140} 
+                        tick={{ fill: "#475569", fontSize: 10, fontWeight: 500 }} 
                       />
-                      <Bar dataKey="quantity" fill="#f97d12" radius={[0, 4, 4, 0]} barSize={20} />
+                      <Tooltip 
+                        cursor={{ fill: "#f8fafc" }} 
+                        contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)" }} 
+                        formatter={(value: any) => [`${value} unit`, "Terjual"]} 
+                      />
+                      <Bar dataKey="quantity" fill="#f97d12" radius={[0, 6, 6, 0]} barSize={24} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

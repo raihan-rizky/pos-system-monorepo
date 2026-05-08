@@ -129,6 +129,7 @@ export function PaymentModal({
       : amountPaid >= total && total > 0;
 
   const handleConfirm = () => {
+    const selectedSales = salespersons.find(s => s.id === salespersonId);
     onConfirm({
       paymentMethod,
       amountPaid,
@@ -136,7 +137,7 @@ export function PaymentModal({
       note,
       customerName: selectedCustomer?.name || customerQuery || "Pelanggan Umum",
       customerId: selectedCustomer?.id ?? null,
-      salesName: "",
+      salesName: selectedSales?.name || "",
       salespersonId,
       paymentStatus: isDP ? "DP" : "COMPLETED",
       isJobOrder,
