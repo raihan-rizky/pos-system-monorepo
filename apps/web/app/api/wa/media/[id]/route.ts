@@ -4,6 +4,46 @@ import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
+function isSafeFilename(value: string) {
+  return /^[A-Za-z0-9._-]+$/.test(value) && !value.startsWith(".");
+}
+
+function resolveWahaFileUrl({
+  id,
+  baseUrl,
+  session,
+}: {
+  id: string;
+  baseUrl: string;
+  session: string;
+}) {
+  const configuredBase = new URL(baseUrl);
+  const decoded = decodeURIComponent(id);
+
+  if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
+    const urlObj = new URL(decoded);
+    const isLocalWahaUrl =
+      urlObj.hostname === "localhost" || urlObj.hostname === "127.0.0.1";
+
+    if (!isLocalWahaUrl && urlObj.origin !== configuredBase.origin) {
+      throw new Error("INVALID_MEDIA_URL");
+    }
+
+    const expectedPrefix = `/api/files/${session}/`;
+    if (!urlObj.pathname.startsWith(expectedPrefix)) {
+      throw new Error("INVALID_MEDIA_URL");
+    }
+
+    return `${configuredBase.origin}${urlObj.pathname}${urlObj.search}`;
+  }
+
+  if (!isSafeFilename(decoded)) {
+    throw new Error("INVALID_MEDIA_URL");
+  }
+
+  return `${configuredBase.origin}/api/files/${session}/${decoded}`;
+}
+
 /**
  * GET /api/wa/media/[id]
  *
@@ -73,6 +113,7 @@ export async function GET(
       // Case (a): bare filename — construct the standard WAHA files endpoint.
       fileUrl = `${baseUrl}/api/files/${session}/${id}`;
     }
+    fileUrl = resolveWahaFileUrl({ id, baseUrl, session });
 
     const headers: Record<string, string> = {
       Accept: "image/*, video/*, audio/*, application/octet-stream, */*",
@@ -117,6 +158,13 @@ export async function GET(
   } catch (error: any) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error?.message === "INVALID_MEDIA_URL") {
+      return NextResponse.json(
+        { message: "Invalid media URL" },
+        { status: 400 },
+      );
+    }
 
     const duration = (performance.now() - startTime).toFixed(1);
     console.error(

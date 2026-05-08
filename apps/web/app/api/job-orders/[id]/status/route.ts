@@ -15,7 +15,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const storeId = user.storeId || "store-main";
     const { id } = await params;
     const body = await request.json();
     
@@ -29,8 +30,11 @@ export async function PATCH(
     const { productionStatus } = validatedData.data;
 
     // Verify the transaction exists and is a job order
-    const existing = await db.transaction.findUnique({ where: { id } });
-    if (!existing || !existing.isJobOrder) {
+    const existing = await db.transaction.findFirst({
+      where: { id, storeId, isJobOrder: true },
+      select: { id: true },
+    });
+    if (!existing) {
       return NextResponse.json(
         { message: "Job order not found" },
         { status: 404 }

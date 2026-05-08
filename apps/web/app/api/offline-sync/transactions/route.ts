@@ -39,6 +39,8 @@ const syncSchema = z.object({
 });
 
 type TxClient = Prisma.TransactionClient;
+type OfflineTransactionInput = z.infer<typeof offlineTransactionSchema>;
+type ServerOfflineItem = z.infer<typeof offlineItemSchema>;
 
 export async function POST(request: Request) {
   try {
@@ -72,14 +74,47 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const productIds = offlineTx.items.map((item) => item.productId);
+      const productIds = [...new Set(offlineTx.items.map((item) => item.productId))];
       const products = await db.product.findMany({
         where: {
           id: { in: productIds },
           storeId,
           isActive: true,
         },
-        select: { id: true, stock: true },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          size: true,
+          material: true,
+          stock: true,
+        },
+      });
+      const productById = new Map(products.map((product) => [product.id, product]));
+
+      if (productById.size !== productIds.length) {
+        results.push({
+          clientMutationId: offlineTx.clientMutationId,
+          status: "FAILED_FINAL",
+          message: "One or more products were not found",
+        });
+        continue;
+      }
+
+      const serverItems: ServerOfflineItem[] = offlineTx.items.map((item) => {
+        const product = productById.get(item.productId);
+        if (!product) {
+          throw new Error("PRODUCT_NOT_FOUND");
+        }
+
+        return {
+          productId: product.id,
+          name: product.name,
+          size: product.size ?? item.size ?? null,
+          material: product.material ?? item.material ?? null,
+          price: Number(product.price),
+          quantity: item.quantity,
+        };
       });
       const stockByProductId = new Map(products.map((product) => [product.id, product.stock]));
 
@@ -87,7 +122,7 @@ export async function POST(request: Request) {
         {
           clientMutationId: offlineTx.clientMutationId,
           createdAt: offlineTx.createdAt,
-          items: offlineTx.items,
+          items: serverItems,
           discount: offlineTx.discount,
           originalTotal: offlineTx.originalTotal,
         },
@@ -136,19 +171,33 @@ export async function POST(request: Request) {
         }
       }
 
+      const serverOfflineTx: OfflineTransactionInput = {
+        ...offlineTx,
+        items: serverItems,
+      };
+      const finalDecision =
+        decision.transactionStatus === "COMPLETED" && offlineTx.amountPaid < decision.total
+          ? {
+              ...decision,
+              resultStatus: "PENDING_APPROVAL" as const,
+              transactionStatus: "PENDING_APPROVAL" as const,
+              reason: "ADJUSTED_TOTAL_CHANGED" as const,
+            }
+          : decision;
+
       const created = await createSyncedTransaction({
-        txData: offlineTx,
-        decision,
+        txData: serverOfflineTx,
+        decision: finalDecision,
         user,
         storeId,
       });
 
       results.push({
         clientMutationId: offlineTx.clientMutationId,
-        status: decision.resultStatus,
+        status: finalDecision.resultStatus,
         serverTransactionId: created.id,
         message:
-          decision.resultStatus === "PENDING_APPROVAL"
+          finalDecision.resultStatus === "PENDING_APPROVAL"
             ? "Synced as pending approval"
             : "Synced",
       });
@@ -173,7 +222,7 @@ async function createSyncedTransaction({
   user,
   storeId,
 }: {
-  txData: z.infer<typeof offlineTransactionSchema>;
+  txData: OfflineTransactionInput;
   decision: ReturnType<typeof buildOfflineSyncDecision>;
   user: Awaited<ReturnType<typeof requireRole>>;
   storeId: string;

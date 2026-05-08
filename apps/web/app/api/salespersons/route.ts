@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
     const { searchParams } = new URL(request.url);
-    const storeId = searchParams.get("storeId") || user.storeId || "store-main";
+    const storeId = user.storeId || "store-main";
     const activeOnly = searchParams.get("activeOnly") === "true";
 
     const whereClause: SalespersonWhereData = { storeId };

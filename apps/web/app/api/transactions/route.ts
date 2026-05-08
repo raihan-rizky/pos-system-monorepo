@@ -23,13 +23,21 @@ const createTransactionSchema = z.object({
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   cashierId: z.string().optional().nullable(),
-  paymentStatus: z.string().optional().default("COMPLETED"),
+  paymentStatus: z.enum(["COMPLETED", "DP"]).optional().default("COMPLETED"),
   isJobOrder: z.boolean().optional().default(false),
   estimatedDoneAt: z.string().optional().nullable(),
 });
 
 type DateTimeFilter = { gte?: Date; lt?: Date };
 type TxClient = Prisma.TransactionClient;
+type ServerTransactionItem = {
+  productId: string;
+  name: string;
+  size: string | null;
+  material: string | null;
+  price: number;
+  quantity: number;
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -171,7 +179,6 @@ export async function POST(request: Request) {
       paymentStatus,
       isJobOrder,
       estimatedDoneAt,
-      cashierId,
     } = parsed.data;
 
     if (items.length === 0) {
@@ -198,12 +205,52 @@ export async function POST(request: Request) {
       }
     }
 
+    const uniqueProductIds = [...new Set(items.map((item) => item.productId))];
+    const products = await db.product.findMany({
+      where: {
+        id: { in: uniqueProductIds },
+        storeId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        size: true,
+        material: true,
+      },
+    });
+    const productById = new Map(products.map((product) => [product.id, product]));
+
+    if (productById.size !== uniqueProductIds.length) {
+      return NextResponse.json(
+        { message: "One or more products were not found" },
+        { status: 404 }
+      );
+    }
+
+    const serverItems: ServerTransactionItem[] = items.map((item) => {
+      const product = productById.get(item.productId);
+      if (!product) {
+        throw new Error("PRODUCT_NOT_FOUND");
+      }
+
+      return {
+        productId: product.id,
+        name: product.name,
+        size: product.size ?? item.size ?? null,
+        material: product.material ?? item.material ?? null,
+        price: Number(product.price),
+        quantity: item.quantity,
+      };
+    });
+
     // Calculate totals
-    const subtotal = items.reduce(
+    const subtotal = serverItems.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0
     );
-    const total = subtotal - discount;
+    const total = Math.max(0, subtotal - discount);
 
     const isDP = paymentStatus === "DP";
     const isSalesRequest = user.role === "SALES";
@@ -254,7 +301,7 @@ export async function POST(request: Request) {
             data: {
               invoiceNumber,
               storeId,
-              cashierId: isSalesRequest ? null : (cashierId || user.id),
+              cashierId: isSalesRequest ? null : user.id,
               requestedById: isSalesRequest ? user.id : null,
               customerId: customerId || null,
               subtotal,
@@ -273,7 +320,7 @@ export async function POST(request: Request) {
               productionStatus: isJobOrder ? "PENDING" : null,
               estimatedDoneAt: estimatedDoneAt ? new Date(estimatedDoneAt) : null,
               items: {
-                create: items.map(
+                create: serverItems.map(
                   (item) => ({
                     productId: item.productId,
                     productName: item.name,
@@ -296,7 +343,7 @@ export async function POST(request: Request) {
           // Deduct stock for each item only if it's not a sales request
           if (!isSalesRequest) {
             const stockUpdates = await Promise.all(
-              items.map((item) =>
+              serverItems.map((item) =>
                 tx.product.updateMany({
                   where: {
                     id: item.productId,
@@ -313,7 +360,7 @@ export async function POST(request: Request) {
             }
 
             await tx.inventoryLog.createMany({
-              data: items.map((item) => ({
+              data: serverItems.map((item) => ({
                 productId: item.productId,
                 type: "OUT",
                 quantity: item.quantity,

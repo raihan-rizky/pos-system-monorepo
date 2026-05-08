@@ -18,7 +18,8 @@ export async function PATCH(
 ) {
   let id = "";
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const storeId = user.storeId || "store-main";
     ({ id } = await params);
     const body = await request.json();
     const parsed = updateTransactionSchema.safeParse(body);
@@ -32,13 +33,45 @@ export async function PATCH(
 
     const { salesName, salespersonId, customerName, paymentMethod, status } = parsed.data;
 
+    if (status !== undefined) {
+      return NextResponse.json(
+        { message: "Use a dedicated approval, rejection, refund, or void workflow to change transaction status" },
+        { status: 400 }
+      );
+    }
+
+    const existingTransaction = await db.transaction.findFirst({
+      where: { id, storeId },
+      select: { id: true },
+    });
+
+    if (!existingTransaction) {
+      return NextResponse.json(
+        { message: "Transaksi tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    if (salespersonId) {
+      const salesperson = await db.salesperson.findFirst({
+        where: { id: salespersonId, storeId },
+        select: { id: true },
+      });
+
+      if (!salesperson) {
+        return NextResponse.json(
+          { message: "Salesperson not found" },
+          { status: 404 }
+        );
+      }
+    }
+
     // Build update payload — only include defined fields
     const updateData: Record<string, any> = {};
     if (salesName !== undefined) updateData.salesName = salesName || null;
     if (salespersonId !== undefined) updateData.salespersonId = salespersonId || null;
     if (customerName !== undefined) updateData.customerName = customerName || null;
     if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
-    if (status !== undefined) updateData.status = status;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
@@ -92,8 +125,21 @@ export async function DELETE(
 ) {
   let id = "";
   try {
-    await requireRole("OWNER", "ADMIN");
+    const user = await requireRole("OWNER", "ADMIN");
+    const storeId = user.storeId || "store-main";
     ({ id } = await params);
+
+    const existingTransaction = await db.transaction.findFirst({
+      where: { id, storeId },
+      select: { id: true },
+    });
+
+    if (!existingTransaction) {
+      return NextResponse.json(
+        { message: "Transaksi tidak ditemukan" },
+        { status: 404 }
+      );
+    }
 
     // Delete items first (referential integrity), then the transaction
     await db.$transaction(async (tx: Prisma.TransactionClient) => {

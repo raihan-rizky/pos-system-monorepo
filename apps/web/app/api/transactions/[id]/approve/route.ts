@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, Prisma } from "@pos/db";
+import { db } from "@pos/db";
 import { z } from "zod";
 import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
@@ -17,6 +17,7 @@ export async function POST(
 ) {
   try {
     const user = await requireRole("OWNER", "ADMIN", "CASHIER");
+    const storeId = user.storeId || "store-main";
     const { id } = await params;
     
     const body = await request.json();
@@ -31,8 +32,8 @@ export async function POST(
     const { paymentMethod, amountPaid } = parsed.data;
 
     // Fetch the pending transaction
-    const transaction = await db.transaction.findUnique({
-      where: { id },
+    const transaction = await db.transaction.findFirst({
+      where: { id, storeId },
       include: { items: true }
     });
 
@@ -57,8 +58,8 @@ export async function POST(
     // Use a transaction block to update both transaction and customer stats
     const updatedTransaction = await db.$transaction(async (tx) => {
       // 1. Update the transaction
-      const updated = await tx.transaction.update({
-        where: { id },
+      const updateResult = await tx.transaction.updateMany({
+        where: { id, storeId, status: "PENDING_APPROVAL" },
         data: {
           status: newStatus,
           cashierId: user.id,
@@ -68,12 +69,24 @@ export async function POST(
         },
       });
 
+      if (updateResult.count !== 1) {
+        throw new Error("TRANSACTION_NOT_PENDING");
+      }
+
       // 2. Deduct stock for each item since it wasn't done during the request phase
       for (const item of transaction.items) {
-        await tx.product.update({
-          where: { id: item.productId },
+        const stockUpdate = await tx.product.updateMany({
+          where: {
+            id: item.productId,
+            storeId,
+            stock: { gte: item.quantity },
+          },
           data: { stock: { decrement: item.quantity } },
         });
+
+        if (stockUpdate.count !== 1) {
+          throw new Error("INSUFFICIENT_STOCK");
+        }
 
         // Log inventory change
         await tx.inventoryLog.create({
@@ -82,6 +95,7 @@ export async function POST(
             type: "OUT",
             quantity: item.quantity,
             note: `Approve Penjualan ${transaction.invoiceNumber}`,
+            createdBy: user.id,
           },
         });
       }
@@ -100,13 +114,30 @@ export async function POST(
         });
       }
 
-      return updated;
+      return tx.transaction.findUniqueOrThrow({
+        where: { id },
+        include: { items: true, salesperson: { select: { name: true } } },
+      });
     });
 
     return NextResponse.json(updatedTransaction, { status: 200 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof Error && error.message === "INSUFFICIENT_STOCK") {
+      return NextResponse.json(
+        { message: "Stok produk tidak mencukupi" },
+        { status: 409 }
+      );
+    }
+
+    if (error instanceof Error && error.message === "TRANSACTION_NOT_PENDING") {
+      return NextResponse.json(
+        { message: "Transaksi bukan PENDING_APPROVAL" },
+        { status: 409 }
+      );
+    }
 
     console.error("Failed to approve transaction:", error);
     return NextResponse.json(
