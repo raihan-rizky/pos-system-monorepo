@@ -105,6 +105,13 @@ export async function mockApis(page: Page) {
     }
     if (path === "/api/settings/whatsapp/status") return json(route, { status: "CONNECTED", raw: { me: { id: "628123456789@c.us", pushName: "E2E WA" } } });
     if (path === "/api/settings/whatsapp/qr") return json(route, { value: "" });
+    if (path === "/api/settings/whatsapp/pair-code") {
+      return json(route, {
+        code: "123-456",
+        phoneNumber: "628123456789",
+        method: "sms",
+      });
+    }
     if (path === "/api/wa/auto-reply" && method === "GET") return json(route, { isAutoReplyOn: true });
     if (path === "/api/wa/auto-reply") return json(route, { isAutoReplyOn: false });
     if (path === "/api/wa/contacts") return json(route, { data: [{ id: "628123456789@c.us", phone: "628123456789", name: "Budi WA", picture: null, role: "user", content: "Halo toko", created_at: "2026-05-09T01:00:00.000Z", image_url: null }] });

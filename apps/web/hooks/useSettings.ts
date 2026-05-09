@@ -26,6 +26,16 @@ export interface WaQrResponse {
   [key: string]: unknown;
 }
 
+export interface WaPairCodeRequest {
+  phoneNumber: string;
+}
+
+export interface WaPairCodeResponse {
+  code: string;
+  phoneNumber: string;
+  raw?: unknown;
+}
+
 // ── Store Settings ─────────────────────────────────────────────────────────────
 
 export function useStoreSettings() {
@@ -88,5 +98,24 @@ export function useWaQr() {
     },
     enabled: false, // manual trigger only
     retry: false,
+  });
+}
+
+export function useWaPairCode() {
+  return useMutation({
+    mutationFn: async (data: WaPairCodeRequest) => {
+      const res = await fetch("/api/settings/whatsapp/pair-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.message || "Failed to request pairing code");
+      }
+
+      return body as WaPairCodeResponse;
+    },
   });
 }

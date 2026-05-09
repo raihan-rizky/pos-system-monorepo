@@ -1,9 +1,25 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, Wifi, WifiOff, QrCode, AlertTriangle, CheckCircle2, UserCircle2 } from "lucide-react";
-import { useWaStatus, useWaQr, WaStatus } from "@/hooks/useSettings";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  KeyRound,
+  QrCode,
+  RefreshCw,
+  Smartphone,
+  UserCircle2,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
+import {
+  useWaPairCode,
+  useWaQr,
+  useWaStatus,
+  type WaStatus,
+} from "@/hooks/useSettings";
 
 function StatusBadge({ status }: { status: WaStatus }) {
   const config: Record<WaStatus, { label: string; dot: string; bg: string; text: string }> = {
@@ -16,137 +32,251 @@ function StatusBadge({ status }: { status: WaStatus }) {
   const c = config[status] ?? config.UNKNOWN;
 
   return (
-    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider ${c.bg} ${c.text}`}>
-      <span className={`w-2 h-2 rounded-full ${c.dot}`} />
+    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${c.bg} ${c.text}`}>
+      <span className={`h-2 w-2 rounded-full ${c.dot}`} />
       {c.label}
     </span>
   );
+}
+
+type WahaMe = {
+  id?: string;
+  pushName?: string;
+};
+
+function isWahaMe(value: unknown): value is WahaMe {
+  return Boolean(value && typeof value === "object");
 }
 
 export default function WhatsAppTab() {
   const queryClient = useQueryClient();
   const { data: statusData, isLoading: statusLoading } = useWaStatus();
   const { data: qrData, isFetching: qrFetching, isError: qrError, refetch: fetchQr } = useWaQr();
+  const pairCode = useWaPairCode();
+  const [connectMethod, setConnectMethod] = useState<"qr" | "pair">("qr");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const status = statusData?.status ?? "UNKNOWN";
   const isNotConfigured = status === "NOT_CONFIGURED";
+  const rawMe = isWahaMe(statusData?.raw?.me) ? statusData.raw.me : null;
+  const waPhone = rawMe?.id?.split("@")[0] || null;
+  const waName = rawMe?.pushName || "WhatsApp User";
 
   const handleRefresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["settings", "wa-status"] });
     await fetchQr();
   };
 
-  // Helper to safely parse phone number from me.id (e.g. "6281991029210@c.us" -> "6281991029210")
-  const rawMe = statusData?.raw?.me as any;
-  const waPhone = rawMe?.id?.split("@")[0] || null;
-  const waName = rawMe?.pushName || "WhatsApp User";
+  const handlePairCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setCopied(false);
+    await pairCode.mutateAsync({ phoneNumber });
+    await queryClient.invalidateQueries({ queryKey: ["settings", "wa-status"] });
+  };
+
+  const handleCopyCode = async () => {
+    if (!pairCode.data?.code) return;
+    await navigator.clipboard.writeText(pairCode.data.code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="max-w-xl space-y-6">
       <div>
         <h2 className="text-lg font-bold text-surface-900">WhatsApp Integration</h2>
-        <p className="text-sm text-surface-500 mt-0.5">Pair your WhatsApp account to enable automated notifications.</p>
+        <p className="mt-0.5 text-sm text-surface-500">
+          Pair your WhatsApp account to enable automated notifications.
+        </p>
       </div>
 
-      {/* Not configured banner */}
       {isNotConfigured && (
-        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
           <div>
-            <p className="font-semibold text-amber-800 text-sm">WAHA not configured</p>
-            <p className="text-xs text-amber-700 mt-1">
-              Set <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">WAHA_BASE_URL</code> in your <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">.env</code> file to enable WhatsApp features.
+            <p className="text-sm font-semibold text-amber-800">WAHA not configured</p>
+            <p className="mt-1 text-xs text-amber-700">
+              Set <code className="rounded bg-amber-100 px-1 py-0.5 font-mono">WAHA_BASE_URL</code> in your environment variables to enable WhatsApp features.
             </p>
           </div>
         </div>
       )}
 
-      {/* Status card */}
       {!isNotConfigured && (
-        <div className="bg-white border border-surface-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="space-y-4 rounded-2xl border border-surface-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              {status === "CONNECTED"
-                ? <Wifi className="w-5 h-5 text-emerald-600" />
-                : <WifiOff className="w-5 h-5 text-surface-400" />
-              }
-              <span className="font-semibold text-surface-900 text-sm">Session Status</span>
+              {status === "CONNECTED" ? (
+                <Wifi className="h-5 w-5 text-emerald-600" />
+              ) : (
+                <WifiOff className="h-5 w-5 text-surface-400" />
+              )}
+              <span className="text-sm font-semibold text-surface-900">Session Status</span>
             </div>
-            {statusLoading
-              ? <RefreshCw className="w-4 h-4 text-surface-400 animate-spin" />
-              : <StatusBadge status={status} />
-            }
+            {statusLoading ? (
+              <RefreshCw className="h-4 w-4 animate-spin text-surface-400" />
+            ) : (
+              <StatusBadge status={status} />
+            )}
           </div>
 
-          {/* Connected state */}
           {status === "CONNECTED" && (
-            <div className="flex flex-col gap-3 p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl">
+            <div className="flex flex-col gap-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
                 <p className="text-sm font-semibold text-emerald-800">Ready to send messages</p>
               </div>
-              
+
               {rawMe && (
-                <div className="flex items-center gap-3 pt-3 border-t border-emerald-100">
-                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                    <UserCircle2 className="w-6 h-6 text-emerald-600" />
+                <div className="flex items-center gap-3 border-t border-emerald-100 pt-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                    <UserCircle2 className="h-6 w-6 text-emerald-600" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-surface-900">{waName}</p>
-                    <p className="text-xs font-medium text-surface-500">+{waPhone}</p>
+                    {waPhone && <p className="text-xs font-medium text-surface-500">+{waPhone}</p>}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* QR code section */}
           {(status === "SCAN_QR_CODE" || status === "DISCONNECTED" || status === "UNKNOWN") && (
             <div className="space-y-4">
-              <p className="text-sm text-surface-600">
-                Scan the QR code with WhatsApp on your phone to connect.
-              </p>
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-surface-200 bg-surface-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setConnectMethod("qr")}
+                  className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition-all ${connectMethod === "qr" ? "bg-white text-brand-700 shadow-sm" : "text-surface-500 hover:text-surface-800"}`}
+                >
+                  <QrCode className="h-4 w-4" />
+                  QR Scan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConnectMethod("pair")}
+                  className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition-all ${connectMethod === "pair" ? "bg-white text-brand-700 shadow-sm" : "text-surface-500 hover:text-surface-800"}`}
+                >
+                  <Smartphone className="h-4 w-4" />
+                  Pair Code
+                </button>
+              </div>
 
-              {qrFetching ? (
-                <div className="flex flex-col items-center justify-center bg-surface-50 border border-surface-200 rounded-2xl h-52 gap-3">
-                  <RefreshCw className="w-6 h-6 text-brand-400 animate-spin" />
-                  <p className="text-xs text-surface-400">Fetching QR code…</p>
-                </div>
-              ) : qrError ? (
-                <div className="flex flex-col items-center justify-center bg-red-50 border border-red-100 rounded-2xl h-52 gap-2">
-                  <AlertTriangle className="w-6 h-6 text-red-500" />
-                  <p className="text-xs text-red-600 font-medium">Failed to load QR. Click "Refresh QR" to try again.</p>
-                </div>
-              ) : qrData?.value ? (
-                <div className="flex justify-center p-4 bg-white border border-surface-200 rounded-2xl shadow-sm">
-                  <img
-                    src={`data:image/png;base64,${qrData.value}`}
-                    alt="WhatsApp QR Code"
-                    className="w-48 h-48 object-contain"
-                  />
+              {connectMethod === "qr" ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-surface-600">
+                    Scan the QR code with WhatsApp on your phone to connect.
+                  </p>
+
+                  {qrFetching ? (
+                    <div className="flex h-52 flex-col items-center justify-center gap-3 rounded-2xl border border-surface-200 bg-surface-50">
+                      <RefreshCw className="h-6 w-6 animate-spin text-brand-400" />
+                      <p className="text-xs text-surface-400">Fetching QR code...</p>
+                    </div>
+                  ) : qrError ? (
+                    <div className="flex h-52 flex-col items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50">
+                      <AlertTriangle className="h-6 w-6 text-red-500" />
+                      <p className="text-xs font-medium text-red-600">Failed to load QR. Click Refresh QR to try again.</p>
+                    </div>
+                  ) : qrData?.value ? (
+                    <div className="flex justify-center rounded-2xl border border-surface-200 bg-white p-4 shadow-sm">
+                      <img
+                        src={`data:image/png;base64,${qrData.value}`}
+                        alt="WhatsApp QR Code"
+                        className="h-48 w-48 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-52 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-surface-200 bg-surface-50 text-surface-400">
+                      <QrCode className="h-10 w-10" />
+                      <p className="text-xs">Click Refresh QR to generate a QR code</p>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleRefresh}
+                    disabled={qrFetching}
+                    className="flex min-h-[44px] items-center gap-2 rounded-xl border border-surface-200 bg-white px-4 py-2.5 text-sm font-semibold text-surface-700 transition-all hover:bg-surface-50 hover:shadow-sm active:scale-95 disabled:opacity-60"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${qrFetching ? "animate-spin" : ""}`} />
+                    Refresh QR
+                  </button>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center bg-surface-50 border-2 border-dashed border-surface-200 rounded-2xl h-52 gap-3 text-surface-400">
-                  <QrCode className="w-10 h-10" />
-                  <p className="text-xs">Click "Refresh QR" to generate a QR code</p>
-                </div>
-              )}
+                <form onSubmit={handlePairCode} className="space-y-4 rounded-2xl border border-surface-200 bg-white p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+                      <KeyRound className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-surface-900">Request a WhatsApp pairing code</p>
+                      <p className="mt-0.5 text-xs text-surface-500">
+                        Use the same phone number registered on WhatsApp, including country code.
+                      </p>
+                    </div>
+                  </div>
 
-              <button
-                onClick={handleRefresh}
-                disabled={qrFetching}
-                className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl border border-surface-200 bg-white hover:bg-surface-50 text-surface-700 font-semibold text-sm transition-all hover:shadow-sm active:scale-95 disabled:opacity-60 cursor-pointer"
-              >
-                <RefreshCw className={`w-4 h-4 ${qrFetching ? "animate-spin" : ""}`} />
-                Refresh QR
-              </button>
+                  <div>
+                    <div>
+                      <label htmlFor="wa-pair-phone" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-surface-500">
+                        Phone Number
+                      </label>
+                      <input
+                        id="wa-pair-phone"
+                        type="tel"
+                        inputMode="tel"
+                        value={phoneNumber}
+                        onChange={(event) => setPhoneNumber(event.target.value)}
+                        placeholder="628123456789"
+                        className="min-h-[44px] w-full rounded-xl border border-surface-200 bg-surface-50 px-3 text-sm font-semibold text-surface-900 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  {pairCode.error && (
+                    <p className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                      {pairCode.error instanceof Error ? pairCode.error.message : "Failed to request pairing code."}
+                    </p>
+                  )}
+
+                  {pairCode.data?.code && (
+                    <div className="flex flex-col gap-3 rounded-2xl border border-brand-100 bg-brand-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Pairing Code</p>
+                        <p className="mt-1 font-mono text-3xl font-black tracking-[0.18em] text-surface-950">
+                          {pairCode.data.code}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyCode}
+                        className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl bg-surface-950 px-4 text-sm font-bold text-white transition hover:bg-surface-800"
+                      >
+                        <Copy className="h-4 w-4" />
+                        {copied ? "Copied" : "Copy"}
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={pairCode.isPending || phoneNumber.trim().length < 8}
+                    className="flex min-h-[44px] items-center gap-2 rounded-xl bg-surface-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-surface-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${pairCode.isPending ? "animate-spin" : ""}`} />
+                    Request Code
+                  </button>
+                </form>
+              )}
             </div>
           )}
         </div>
       )}
 
       <p className="text-xs text-surface-400">
-        QR codes expire after ~20 seconds. Click "Refresh QR" when ready to scan.
+        QR codes expire after about 20 seconds. Pairing codes are requested from the same WAHA session.
         Status auto-refreshes every 3 seconds.
       </p>
     </div>
