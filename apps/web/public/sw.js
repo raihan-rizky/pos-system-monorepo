@@ -5,7 +5,7 @@
  * hashed assets can be cached safely because they are content-addressed.
  */
 
-const CACHE_NAME = "pos-v3";
+const CACHE_NAME = "pos-v4";
 
 const PRECACHE_ASSETS = [
   "/manifest.json",
@@ -108,10 +108,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (request.mode === "navigate") {
-    event.respondWith(navigationNetworkOnly(request));
-    return;
-  }
+  if (request.mode === "navigate") return;
 
   event.respondWith(staleWhileRevalidate(request));
 });
@@ -140,17 +137,6 @@ async function networkOnlyApi(request) {
       { message: "Offline - data tidak tersedia" },
       { status: 503 },
     );
-  }
-}
-
-async function navigationNetworkOnly(request) {
-  try {
-    return await fetch(request);
-  } catch {
-    return new Response("<!doctype html><html><body><p>Offline</p></body></html>", {
-      status: 503,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
   }
 }
 

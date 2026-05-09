@@ -35,12 +35,19 @@ function saveCartToStorage(items: CartItem[]) {
 }
 
 export function useCart() {
-  const [items, setItems] = useState<CartItem[]>(() => loadCartFromStorage());
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [hasLoadedStorage, setHasLoadedStorage] = useState(false);
+
+  useEffect(() => {
+    setItems(loadCartFromStorage());
+    setHasLoadedStorage(true);
+  }, []);
 
   // Persist to sessionStorage whenever items change
   useEffect(() => {
+    if (!hasLoadedStorage) return;
     saveCartToStorage(items);
-  }, [items]);
+  }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
     (product: { id: string; name: string; price: number; unit: string; stock: number; size?: string; material?: string }) => {

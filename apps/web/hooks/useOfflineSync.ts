@@ -20,9 +20,7 @@ const EMPTY_SUMMARY: OfflineSyncSummary = {
 
 export function useOfflineSync() {
   const [summary, setSummary] = useState<OfflineSyncSummary>(EMPTY_SUMMARY);
-  const [isOnline, setIsOnline] = useState(
-    () => typeof navigator === "undefined" || navigator.onLine,
-  );
+  const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

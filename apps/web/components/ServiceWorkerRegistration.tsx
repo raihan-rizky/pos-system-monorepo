@@ -27,13 +27,18 @@ export function ServiceWorkerRegistration() {
 
     // Wait for the window load event to avoid competing with critical resources
     const register = () => {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
         .then((registration) => {
-          console.log("[SW] Registered with scope:", registration.scope);
-
           if (registration.waiting) {
-            window.dispatchEvent(new CustomEvent("pos-pwa-update-available"));
+            registration.waiting.postMessage({ type: "SKIP_WAITING" });
           }
 
           registration.addEventListener("updatefound", () => {
@@ -44,10 +49,12 @@ export function ServiceWorkerRegistration() {
                 worker.state === "installed" &&
                 navigator.serviceWorker.controller
               ) {
-                window.dispatchEvent(new CustomEvent("pos-pwa-update-available"));
+                worker.postMessage({ type: "SKIP_WAITING" });
               }
             });
           });
+
+          void registration.update();
 
           // Auto-update: check for new SW every 60 minutes
           setInterval(() => {
