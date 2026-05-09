@@ -82,7 +82,12 @@ export default function StoreInfoTab() {
 
       {/* Logo */}
       <div>
-        <label className="block text-sm font-semibold text-surface-700 mb-2">Store Logo</label>
+        <label
+          htmlFor="store-logo"
+          className="block text-sm font-semibold text-surface-700 mb-2"
+        >
+          Store Logo
+        </label>
         <div className="flex items-center gap-4">
           {form.logoUrl ? (
             <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-surface-200 shadow-sm shrink-0">
@@ -107,6 +112,7 @@ export default function StoreInfoTab() {
                 : <><Store className="w-5 h-5 text-surface-400 mb-1" /><span className="text-[9px] font-bold text-surface-400 uppercase tracking-widest">Upload</span></>
               }
               <input
+                id="store-logo"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleUpload}
@@ -125,8 +131,14 @@ export default function StoreInfoTab() {
 
       {/* Name */}
       <div>
-        <label className="block text-sm font-semibold text-surface-700 mb-1.5">Store Name</label>
+        <label
+          htmlFor="store-name"
+          className="block text-sm font-semibold text-surface-700 mb-1.5"
+        >
+          Store Name
+        </label>
         <input
+          id="store-name"
           type="text"
           value={form.name}
           onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
@@ -137,8 +149,14 @@ export default function StoreInfoTab() {
 
       {/* Address */}
       <div>
-        <label className="block text-sm font-semibold text-surface-700 mb-1.5">Address</label>
+        <label
+          htmlFor="store-address"
+          className="block text-sm font-semibold text-surface-700 mb-1.5"
+        >
+          Address
+        </label>
         <textarea
+          id="store-address"
           value={form.address}
           onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
           placeholder="Jl. Contoh No. 1, Bandung"
@@ -149,8 +167,14 @@ export default function StoreInfoTab() {
 
       {/* Phone */}
       <div>
-        <label className="block text-sm font-semibold text-surface-700 mb-1.5">Phone Number</label>
+        <label
+          htmlFor="store-phone"
+          className="block text-sm font-semibold text-surface-700 mb-1.5"
+        >
+          Phone Number
+        </label>
         <input
+          id="store-phone"
           type="tel"
           value={form.phone}
           onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}

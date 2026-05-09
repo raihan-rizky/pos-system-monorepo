@@ -35,6 +35,9 @@ export async function authenticate(page: Page, role: Role = "OWNER") {
 }
 
 export async function mockApis(page: Page) {
+  let currentJobOrder = { ...jobOrder };
+  let currentStoreSettings = { ...storeSettings };
+
   await page.route("**/auth/v1/token**", async (route) => {
     await json(route, { error: "Invalid login credentials", msg: "Invalid login credentials" }, 400);
   });
@@ -71,8 +74,15 @@ export async function mockApis(page: Page) {
     if (path.match(/^\/api\/transactions\/[^/]+\/(approve|reject)$/)) return json(route, transaction);
 
     if (path === "/api/dashboard") return json(route, dashboard);
-    if (path === "/api/job-orders") return json(route, [jobOrder]);
-    if (path === "/api/job-orders/job-1/status") return json(route, { ...jobOrder, productionStatus: "DESIGNING" });
+    if (path === "/api/job-orders") return json(route, [currentJobOrder]);
+    if (path === "/api/job-orders/job-1/status") {
+      const body = JSON.parse(request.postData() || "{}") as { productionStatus?: typeof jobOrder.productionStatus };
+      currentJobOrder = {
+        ...currentJobOrder,
+        productionStatus: body.productionStatus || "DESIGNING",
+      };
+      return json(route, currentJobOrder);
+    }
 
     if (path === "/api/customers" && method === "GET") {
       return json(route, { data: customers, total: customers.length, page: 1, totalPages: 1 });
@@ -85,7 +95,14 @@ export async function mockApis(page: Page) {
     if (path === "/api/salespersons" && method === "POST") return json(route, { ...salespersons[0], id: "sp-new" }, 201);
     if (path.startsWith("/api/salespersons/")) return json(route, salespersons[0]);
 
-    if (path === "/api/settings/store") return json(route, storeSettings);
+    if (path === "/api/settings/store" && method === "GET") return json(route, currentStoreSettings);
+    if (path === "/api/settings/store" && method === "PATCH") {
+      currentStoreSettings = {
+        ...currentStoreSettings,
+        ...(JSON.parse(request.postData() || "{}") as Partial<typeof storeSettings>),
+      };
+      return json(route, currentStoreSettings);
+    }
     if (path === "/api/settings/whatsapp/status") return json(route, { status: "CONNECTED", raw: { me: { id: "628123456789@c.us", pushName: "E2E WA" } } });
     if (path === "/api/settings/whatsapp/qr") return json(route, { value: "" });
     if (path === "/api/wa/auto-reply" && method === "GET") return json(route, { isAutoReplyOn: true });
