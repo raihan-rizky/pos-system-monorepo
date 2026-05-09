@@ -4,15 +4,9 @@ import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
-type PairMethod = "sms" | "voice";
-
 function normalizePhoneNumber(phoneNumber: unknown) {
   if (typeof phoneNumber !== "string") return "";
   return phoneNumber.replace(/[^\d+]/g, "").replace(/^\+/, "");
-}
-
-function normalizeMethod(method: unknown): PairMethod {
-  return method === "voice" ? "voice" : "sms";
 }
 
 function extractPairCode(data: unknown) {
@@ -51,7 +45,6 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const phoneNumber = normalizePhoneNumber(body.phoneNumber);
-    const method = normalizeMethod(body.method);
 
     if (!phoneNumber || phoneNumber.length < 8) {
       return NextResponse.json(
@@ -92,7 +85,6 @@ export async function POST(request: Request) {
     return NextResponse.json({
       code: typeof code === "string" ? code : "",
       phoneNumber,
-      method,
       raw: data,
     });
   } catch (error) {

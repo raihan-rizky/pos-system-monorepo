@@ -109,7 +109,6 @@ export async function mockApis(page: Page) {
       return json(route, {
         code: "123-456",
         phoneNumber: "628123456789",
-        method: "sms",
       });
     }
     if (path === "/api/wa/auto-reply" && method === "GET") return json(route, { isAutoReplyOn: true });
