@@ -11,7 +11,7 @@
     "db:push": "prisma db push",
     "db:pull": "prisma db pull",
     "db:studio": "prisma studio",
-    "build": "prisma generate",
+    "build": "prisma generate && node -e \"const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/.build','prisma generated\\n')\"",
     "generate": "prisma generate",
     "postinstall": "prisma generate",
     "seed": "tsx src/seed.ts",
