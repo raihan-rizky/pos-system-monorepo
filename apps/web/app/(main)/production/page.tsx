@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "@pos/ui";
 import { useJobOrders, useMoveJobOrder, ProductionStatus } from "@/hooks/useJobOrders";
 import KanbanBoard, { KANBAN_COLUMNS } from "@/components/kanban/KanbanBoard";
@@ -51,12 +51,17 @@ function StatCard({
 export default function ProductionPage() {
   const { data: jobOrders = [], isLoading, isError } = useJobOrders();
   const moveJobOrder = useMoveJobOrder();
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
 
   // Derived stats
   const totalActive = jobOrders.length;
   const overdueCount = jobOrders.filter((o) => {
-    if (!o.estimatedDoneAt) return false;
-    return new Date(o.estimatedDoneAt).getTime() < Date.now();
+    if (!o.estimatedDoneAt || now === null) return false;
+    return new Date(o.estimatedDoneAt).getTime() < now;
   }).length;
   const readyCount = jobOrders.filter((o) => o.productionStatus === "READY_PICKUP").length;
   const inProgressCount = jobOrders.filter((o) =>

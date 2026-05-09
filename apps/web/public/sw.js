@@ -1,56 +1,40 @@
 /**
  * POS System Service Worker
- * Strategy:
- *   - Static/font/image assets  → Cache First (serve from cache, update in background)
- *   - Next.js page chunks (_next/static) → Cache First
- *   - API routes (/api/*)        → Network First with 5s timeout, fallback to cache
- *   - HTML navigation            → Network First, fallback to cached shell
+ *
+ * Authenticated API and SSR navigation responses are never cached. Static
+ * hashed assets can be cached safely because they are content-addressed.
  */
 
-const CACHE_NAME = "pos-v2";
-const OFFLINE_URL = "/pos"; // fallback page when fully offline
+const CACHE_NAME = "pos-v3";
 
-// Assets to pre-cache on install
 const PRECACHE_ASSETS = [
-  "/",
-  "/pos",
-  "/dashboard",
-  "/history",
-  "/production",
-  "/customers",
-  "/products",
-  "/salespersons",
-  "/shift",
-  "/settings",
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
 
-// ─── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
       Promise.allSettled(
         PRECACHE_ASSETS.map((asset) =>
-          cache.add(new Request(asset, { cache: "reload" }))
-        )
-      )
-    )
+          cache.add(new Request(asset, { cache: "reload" })),
+        ),
+      ),
+    ),
   );
   self.skipWaiting();
 });
 
-// ─── Activate ─────────────────────────────────────────────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys
           .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    )
+          .map((key) => caches.delete(key)),
+      ),
+    ),
   );
   self.clients.claim();
 });
@@ -82,7 +66,7 @@ self.addEventListener("push", (event) => {
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       data: { url: payload.url || "/dashboard" },
-    })
+    }),
   );
 });
 
@@ -99,28 +83,22 @@ self.addEventListener("notificationclick", (event) => {
         return;
       }
       return clients.openWindow(targetUrl);
-    })
+    }),
   );
 });
 
-// ─── Fetch ────────────────────────────────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Only handle same-origin requests
   if (url.origin !== location.origin) return;
-
-  // Skip non-GET requests
   if (request.method !== "GET") return;
 
-  // API routes → Network First (fresh data preferred, cache as fallback)
   if (url.pathname.startsWith("/api/")) {
-    event.respondWith(networkFirstWithTimeout(request, 5000));
+    event.respondWith(networkOnlyApi(request));
     return;
   }
 
-  // Next.js static chunks → Cache First (immutable hashed filenames)
   if (
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/images/") ||
@@ -130,67 +108,48 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // HTML navigation → Network First, offline fallback
   if (request.mode === "navigate") {
-    event.respondWith(
-      navigationNetworkFirst(request)
-    );
+    event.respondWith(navigationNetworkOnly(request));
     return;
   }
 
-  // Everything else → Stale While Revalidate
   event.respondWith(staleWhileRevalidate(request));
 });
-
-// ─── Strategies ───────────────────────────────────────────────────────────────
 
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
-  const network = await fetch(request);
-  if (network.ok) {
-    const cache = await caches.open(CACHE_NAME);
-    cache.put(request, network.clone());
-  }
-  return network;
-}
 
-async function networkFirstWithTimeout(request, timeoutMs) {
-  const cache = await caches.open(CACHE_NAME);
-  try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
-    const network = await fetch(request, { signal: controller.signal });
-    clearTimeout(id);
-    if (network.ok) cache.put(request, network.clone());
-    return network;
-  } catch {
-    const cached = await cache.match(request);
-    return cached || Response.json({ message: "Offline — data tidak tersedia" }, { status: 503 });
-  }
-}
-
-async function navigationNetworkFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
   try {
     const network = await fetch(request);
     if (network.ok) {
-      await cache.put(request, network.clone());
-      await cache.put(new URL(request.url).pathname, network.clone());
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, network.clone());
     }
     return network;
   } catch {
-    const url = new URL(request.url);
-    const cached =
-      (await cache.match(request)) ||
-      (await cache.match(url.pathname)) ||
-      (await cache.match(OFFLINE_URL));
+    return new Response("", { status: 503 });
+  }
+}
 
-    if (cached) return cached;
+async function networkOnlyApi(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    return Response.json(
+      { message: "Offline - data tidak tersedia" },
+      { status: 503 },
+    );
+  }
+}
 
-    return new Response("Offline", {
+async function navigationNetworkOnly(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    return new Response("<!doctype html><html><body><p>Offline</p></body></html>", {
       status: 503,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 }
@@ -198,9 +157,12 @@ async function navigationNetworkFirst(request) {
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request);
-  const networkPromise = fetch(request).then((network) => {
-    if (network.ok) cache.put(request, network.clone());
-    return network;
-  });
+  const networkPromise = fetch(request)
+    .then((network) => {
+      if (network.ok) cache.put(request, network.clone());
+      return network;
+    })
+    .catch(() => cached || new Response("", { status: 503 }));
+
   return cached || networkPromise;
 }

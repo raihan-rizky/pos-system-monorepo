@@ -16,7 +16,7 @@ async function fetchCategories() {
 }
 
 async function fetchActiveShift() {
-  const res = await fetch("/api/shifts/active");
+  const res = await fetch("/api/shifts?active=true");
   if (!res.ok) throw new Error("Failed to prefetch shift");
   return res.json();
 }
@@ -27,10 +27,12 @@ async function fetchActiveShift() {
  *
  * Call this once in the root layout or providers component.
  */
-export function useAppPrefetch() {
+export function useAppPrefetch(enabled = true) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    if (!enabled) return;
+
     // Small delay so the first page's own data load gets priority
     const timer = setTimeout(() => {
       queryClient.prefetchQuery({
@@ -51,5 +53,5 @@ export function useAppPrefetch() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [queryClient]);
+  }, [enabled, queryClient]);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
@@ -47,9 +47,22 @@ export default function POSPage() {
     tone: "success" | "warning" | "danger";
     message: string;
   } | null>(null);
+  const [todayLabel, setTodayLabel] = useState("");
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
+
+  useEffect(() => {
+    setTodayLabel(
+      new Intl.DateTimeFormat("id-ID", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "Asia/Jakarta",
+      }).format(new Date()),
+    );
+  }, []);
 
   const { data: activeShift, isLoading: shiftLoading } = useActiveShift();
   const { role } = useRole();
@@ -208,16 +221,13 @@ export default function POSPage() {
               />
             </div>
             <div className="flex items-center gap-2">
-              <div className="hidden md:block text-right">
-                <p className="text-xs text-surface-400">
-                  {new Date().toLocaleDateString("id-ID", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </p>
-              </div>
+              {todayLabel && (
+                <div className="hidden md:block text-right">
+                  <p className="text-xs text-surface-400">
+                    {todayLabel}
+                  </p>
+                </div>
+              )}
             </div>
           </header>
 

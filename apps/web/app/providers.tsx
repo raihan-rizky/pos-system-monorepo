@@ -9,9 +9,14 @@ import { PwaStatusBanner } from "@/components/PwaStatusBanner";
 import { NotificationPermissionPrompt } from "@/components/NotificationPermissionPrompt";
 import type { Role } from "@/lib/rbac/permissions";
 
-function AppBootstrap({ children }: { children: React.ReactNode }) {
-  // Warm up the QueryClient cache on mount
-  useAppPrefetch();
+function AppBootstrap({
+  children,
+  enabled,
+}: {
+  children: React.ReactNode;
+  enabled: boolean;
+}) {
+  useAppPrefetch(enabled);
   return <>{children}</>;
 }
 
@@ -45,7 +50,7 @@ export function Providers({
     <QueryClientProvider client={queryClient}>
       <RoleProvider role={role} userId={userId} userName={userName}>
         <PwaStatusBanner />
-        <AppBootstrap>{children}</AppBootstrap>
+        <AppBootstrap enabled={Boolean(role)}>{children}</AppBootstrap>
         <NotificationPermissionPrompt />
         <ServiceWorkerRegistration />
       </RoleProvider>
