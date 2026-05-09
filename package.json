@@ -6,6 +6,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "e2e": "pnpm --filter @pos/web e2e",
+    "prepare": "husky",
+    "lint-staged": "lint-staged",
     "postinstall": "pnpm --filter @pos/db generate",
     "type-check": "turbo run type-check",
     "db:push": "pnpm --filter @pos/db db:push",
@@ -20,6 +22,8 @@
     "@typescript-eslint/parser": "^8.59.2",
     "eslint": "^9",
     "eslint-config-next": "^15.5.12",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
   },
