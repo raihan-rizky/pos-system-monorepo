@@ -17,6 +17,35 @@ type PushResult = {
 
 let vapidConfigured = false;
 
+function describeEndpoint(endpoint: string) {
+  try {
+    const url = new URL(endpoint);
+    return `${url.hostname}...${endpoint.slice(-8)}`;
+  } catch {
+    return `invalid...${endpoint.slice(-8)}`;
+  }
+}
+
+function describeError(error: unknown) {
+  if (error instanceof WebPushError) {
+    return {
+      name: error.name,
+      message: error.message,
+      statusCode: error.statusCode,
+      body: error.body,
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return error;
+}
+
 function configureVapid() {
   if (vapidConfigured) return;
 
@@ -30,6 +59,8 @@ function configureVapid() {
 
   webpush.setVapidDetails(subject, publicKey, privateKey);
   vapidConfigured = true;
+
+  console.info("[push] VAPID configured", { subject });
 }
 
 export async function sendPushToSubscriptions(
@@ -45,14 +76,37 @@ export async function sendPushToSubscriptions(
     deactivated: 0,
   };
 
+  console.info("[push] Sending notification batch", {
+    attempted: result.attempted,
+    title: payload.title,
+    tag: payload.tag,
+    url: payload.url,
+  });
+
   await Promise.all(
     subscriptions.map(async (subscription) => {
+      const endpoint = describeEndpoint(subscription.endpoint);
+
       if (!subscription.auth || !subscription.p256dh) {
         result.failed += 1;
+        console.warn("[push] Skipping subscription with missing keys", {
+          subscriptionId: subscription.id,
+          endpoint,
+          hasAuth: Boolean(subscription.auth),
+          hasP256dh: Boolean(subscription.p256dh),
+        });
         return;
       }
 
       try {
+        console.info("[push] Sending notification", {
+          subscriptionId: subscription.id,
+          endpoint,
+          role: subscription.role,
+          storeId: subscription.storeId,
+          tag: payload.tag,
+        });
+
         await webpush.sendNotification(
           {
             endpoint: subscription.endpoint,
@@ -64,6 +118,10 @@ export async function sendPushToSubscriptions(
           JSON.stringify(payload),
         );
         result.sent += 1;
+        console.info("[push] Notification sent", {
+          subscriptionId: subscription.id,
+          endpoint,
+        });
       } catch (error) {
         result.failed += 1;
 
@@ -73,15 +131,23 @@ export async function sendPushToSubscriptions(
             data: { isActive: false },
           });
           result.deactivated += 1;
+          console.warn("[push] Deactivated expired subscription", {
+            subscriptionId: subscription.id,
+            endpoint,
+            error: describeError(error),
+          });
         } else {
           console.error("[push] Failed to send notification", {
-            endpoint: subscription.endpoint,
-            error,
+            subscriptionId: subscription.id,
+            endpoint,
+            error: describeError(error),
           });
         }
       }
     }),
   );
+
+  console.info("[push] Notification batch complete", result);
 
   return result;
 }

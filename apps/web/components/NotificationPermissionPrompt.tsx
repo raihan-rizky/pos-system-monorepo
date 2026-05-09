@@ -1,22 +1,55 @@
 "use client";
 
 import { Bell } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useRole } from "@/components/providers/RoleProvider";
 
 const STORAGE_KEY = "pos_push_prompt_seen_v1";
+const DEV_SW_PATH = "/sw.js";
 
 export function NotificationPermissionPrompt() {
   const { role } = useRole();
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
+  const [isEnabling, setIsEnabling] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!role || typeof window === "undefined") return;
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      console.info("[push-permission] Browser does not support notifications or service workers");
+      return;
+    }
+    if (!("PushManager" in window)) {
+      console.info("[push-permission] Browser does not support PushManager");
+      return;
+    }
+    if (!window.isSecureContext) {
+      console.info("[push-permission] Push notifications require HTTPS or localhost");
+      return;
+    }
+
+    const isWaPage = pathname === "/wa" || pathname.startsWith("/wa/");
+    if (Notification.permission === "granted") {
+      setVisible(false);
+      return;
+    }
+
+    if (isWaPage) {
+      if (Notification.permission === "denied") {
+        setMessage("Izin notifikasi diblokir. Aktifkan lagi dari site settings browser.");
+      } else {
+        setMessage(null);
+      }
+      setVisible(true);
+      return;
+    }
+
     if (Notification.permission !== "default") return;
     if (localStorage.getItem(STORAGE_KEY) === "1") return;
     setVisible(true);
-  }, [role]);
+  }, [pathname, role]);
 
   if (!visible) return null;
 
@@ -26,31 +59,59 @@ export function NotificationPermissionPrompt() {
   };
 
   const enable = async () => {
-    localStorage.setItem(STORAGE_KEY, "1");
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") {
+    setIsEnabling(true);
+    setMessage(null);
+
+    try {
+      if (!window.isSecureContext) {
+        setMessage("Notifikasi browser hanya bisa aktif di HTTPS atau localhost.");
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      console.info("[push-permission] Browser permission result", { permission });
+
+      if (permission !== "granted") {
+        setMessage(
+          permission === "denied"
+            ? "Izin notifikasi diblokir. Aktifkan lagi dari site settings browser."
+            : "Browser belum memberikan izin notifikasi.",
+        );
+        return;
+      }
+
+      const applicationServerKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!applicationServerKey) {
+        setMessage("VAPID public key belum dikonfigurasi.");
+        return;
+      }
+
+      const registration = await getServiceWorkerRegistration();
+      const subscription =
+        (await registration.pushManager.getSubscription()) ||
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(applicationServerKey),
+        }));
+
+      const response = await fetch("/api/push/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription.toJSON()),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save push subscription: ${response.status}`);
+      }
+
+      localStorage.setItem(STORAGE_KEY, "1");
       setVisible(false);
-      return;
+    } catch (error) {
+      console.error("[push-permission] Failed to enable push notifications", error);
+      setMessage("Gagal mengaktifkan notifikasi. Cek console/server log untuk detail.");
+    } finally {
+      setIsEnabling(false);
     }
-
-    const registration = await navigator.serviceWorker.ready;
-    const applicationServerKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!applicationServerKey) {
-      setVisible(false);
-      return;
-    }
-
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(applicationServerKey),
-    });
-
-    await fetch("/api/push/subscriptions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(subscription.toJSON()),
-    });
-    setVisible(false);
   };
 
   return (
@@ -64,17 +125,24 @@ export function NotificationPermissionPrompt() {
           <p className="mt-1 text-sm text-surface-500">
             Dapatkan info closing deal, sync, approval, order, dan status produksi sesuai role Anda.
           </p>
+          {message ? (
+            <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-800">
+              {message}
+            </p>
+          ) : null}
           <div className="mt-3 flex gap-2">
             <button
               type="button"
               onClick={() => void enable()}
+              disabled={isEnabling}
               className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-bold text-white"
             >
-              Enable
+              {isEnabling ? "Enabling..." : "Enable"}
             </button>
             <button
               type="button"
               onClick={dismiss}
+              disabled={isEnabling}
               className="rounded-md border border-surface-200 px-3 py-1.5 text-xs font-bold text-surface-600"
             >
               Later
@@ -84,6 +152,17 @@ export function NotificationPermissionPrompt() {
       </div>
     </div>
   );
+}
+
+async function getServiceWorkerRegistration() {
+  const existing = await navigator.serviceWorker.getRegistration("/");
+  if (existing) return existing;
+
+  const registration = await navigator.serviceWorker.register(DEV_SW_PATH, {
+    scope: "/",
+  });
+  await navigator.serviceWorker.ready;
+  return registration;
 }
 
 function urlBase64ToUint8Array(base64String: string) {

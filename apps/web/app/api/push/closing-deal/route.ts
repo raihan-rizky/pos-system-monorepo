@@ -31,12 +31,19 @@ function isAuthorized(request: Request) {
 export async function POST(request: Request) {
   try {
     if (!isAuthorized(request)) {
+      console.warn("[POST /api/push/closing-deal] Unauthorized request", {
+        hasAuthorization: Boolean(request.headers.get("authorization")),
+        hasWebhookSecret: Boolean(request.headers.get("x-webhook-secret")),
+      });
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     const parsed = closingDealSchema.safeParse(await request.json());
 
     if (!parsed.success) {
+      console.warn("[POST /api/push/closing-deal] Validation failed", {
+        errors: parsed.error.flatten(),
+      });
       return NextResponse.json(
         { message: "Validation error", errors: parsed.error.flatten() },
         { status: 422 },
@@ -44,6 +51,15 @@ export async function POST(request: Request) {
     }
 
     const event = parsed.data;
+    console.info("[POST /api/push/closing-deal] Request accepted", {
+      storeId: event.storeId,
+      source: event.source,
+      chatId: event.chatId,
+      hasCustomerName: Boolean(event.customerName),
+      hasMessage: Boolean(event.message),
+      hasAmount: event.amount !== undefined,
+    });
+
     const subscriptions = await db.pushSubscription.findMany({
       where: {
         isActive: true,
@@ -52,6 +68,13 @@ export async function POST(request: Request) {
       },
     });
     const closingDealSubscriptions = subscriptions.filter(wantsClosingDeals);
+    console.info("[POST /api/push/closing-deal] Subscriptions selected", {
+      activeCandidates: subscriptions.length,
+      closingDealRecipients: closingDealSubscriptions.length,
+      filteredOut: subscriptions.length - closingDealSubscriptions.length,
+      storeId: event.storeId,
+    });
+
     const customer = event.customerName || event.chatId || "Customer";
     const amount = event.amount ? ` senilai ${formatRupiah(event.amount)}` : "";
     const body = event.message || `${customer} closing deal${amount}.`;
@@ -61,6 +84,11 @@ export async function POST(request: Request) {
       body,
       url: event.url || "/wa",
       tag: event.chatId ? `closing-deal:${event.chatId}` : "closing-deal",
+    });
+
+    console.info("[POST /api/push/closing-deal] Notification result", {
+      recipients: closingDealSubscriptions.length,
+      ...result,
     });
 
     return NextResponse.json({
