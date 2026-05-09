@@ -7,6 +7,7 @@ import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistratio
 import { RoleProvider } from "@/components/providers/RoleProvider";
 import { PwaStatusBanner } from "@/components/PwaStatusBanner";
 import { NotificationPermissionPrompt } from "@/components/NotificationPermissionPrompt";
+import { InAppPushNotifications } from "@/components/InAppPushNotifications";
 import type { Role } from "@/lib/rbac/permissions";
 
 function AppBootstrap({
@@ -51,6 +52,7 @@ export function Providers({
       <RoleProvider role={role} userId={userId} userName={userName}>
         <PwaStatusBanner />
         <AppBootstrap enabled={Boolean(role)}>{children}</AppBootstrap>
+        <InAppPushNotifications />
         <NotificationPermissionPrompt />
         <ServiceWorkerRegistration />
       </RoleProvider>

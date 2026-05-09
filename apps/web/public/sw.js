@@ -5,7 +5,7 @@
  * hashed assets can be cached safely because they are content-addressed.
  */
 
-const CACHE_NAME = "pos-v4";
+const CACHE_NAME = "pos-v5";
 
 const PRECACHE_ASSETS = [
   "/manifest.json",
@@ -61,16 +61,33 @@ self.addEventListener("push", (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      tag: payload.tag,
-      renotify: Boolean(payload.tag),
-      data: { url: payload.url || "/dashboard" },
-    }),
+    Promise.all([
+      notifyOpenClients(payload),
+      self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: payload.tag,
+        renotify: Boolean(payload.tag),
+        data: { url: payload.url || "/dashboard" },
+      }),
+    ]),
   );
 });
+
+async function notifyOpenClients(payload) {
+  const clientList = await clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+
+  for (const client of clientList) {
+    client.postMessage({
+      type: "POS_PUSH_NOTIFICATION",
+      payload,
+    });
+  }
+}
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
