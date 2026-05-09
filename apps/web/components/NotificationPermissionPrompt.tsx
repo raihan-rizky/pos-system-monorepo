@@ -62,7 +62,7 @@ export function NotificationPermissionPrompt() {
         <div>
           <p className="text-sm font-bold text-surface-900">Aktifkan notifikasi</p>
           <p className="mt-1 text-sm text-surface-500">
-            Dapatkan info sync, approval, order, dan status produksi sesuai role Anda.
+            Dapatkan info closing deal, sync, approval, order, dan status produksi sesuai role Anda.
           </p>
           <div className="mt-3 flex gap-2">
             <button

@@ -69,6 +69,7 @@ function defaultFeaturesForRole(role: string) {
       pendingApprovals: true,
       productionStatus: true,
       whatsapp: true,
+      closingDeals: true,
       orders: true,
     };
   }
@@ -85,6 +86,7 @@ function defaultFeaturesForRole(role: string) {
   return {
     customerUpdates: true,
     orderUpdates: true,
+    closingDeals: true,
     productionStatus: true,
   };
 }
