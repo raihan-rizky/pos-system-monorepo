@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     }
 
     const event = parsed.data;
-    console.info("[POST /api/push/closing-deal] Request accepted", {
+    console.info("[POST /api/push/closing-deal] Webhook payload received", {
       storeId: event.storeId,
       source: event.source,
       chatId: event.chatId,

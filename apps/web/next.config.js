@@ -4,6 +4,15 @@ const { PrismaPlugin } = require("@prisma/nextjs-monorepo-workaround-plugin");
 const nextConfig = {
   transpilePackages: ["@pos/ui", "@pos/db", "@pos/config"],
 
+  async rewrites() {
+    return [
+      {
+        source: "/wa/:path*",
+        destination: "/wa",
+      },
+    ];
+  },
+
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.plugins = [...config.plugins, new PrismaPlugin()];

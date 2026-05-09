@@ -60,6 +60,12 @@ self.addEventListener("push", (event) => {
     }
   }
 
+  console.info("[sw][push] Notification received", {
+    title: payload.title,
+    tag: payload.tag,
+    url: payload.url,
+  });
+
   event.waitUntil(
     Promise.all([
       notifyOpenClients(payload),

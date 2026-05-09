@@ -10,6 +10,26 @@ const ReactMarkdown = dynamic(() => import("react-markdown"), {
     <span className="text-xs text-surface-400 italic">Loading...</span>
   ),
 });
+
+function resolveInitialChatId(pathname: string | null) {
+  if (!pathname) return null;
+
+  const parts = pathname.split("/").filter(Boolean);
+  const waIndex = parts.indexOf("wa");
+  const rawSegment = waIndex >= 0 ? parts[waIndex + 1] : parts[parts.length - 1];
+
+  if (!rawSegment) return null;
+
+  const decoded = decodeURIComponent(rawSegment.trim());
+  const normalized = decoded.startsWith("chat_id=")
+    ? decoded.slice("chat_id=".length)
+    : decoded;
+
+  if (!normalized) return null;
+  if (normalized.includes("@")) return normalized;
+
+  return `${normalized}@c.us`;
+}
 // AppSidebar is provided by layout
 import {
   useWaContacts,
@@ -300,6 +320,9 @@ export default function WACoexistencePage() {
     // Scroll to bottom when messages finish loading or new message arrives
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+  useEffect(() => {
+    setSelectedChatId(resolveInitialChatId(window.location.pathname));
+  }, []);
   // Debug logger removed — was flooding console every 5s poll cycle
 
   useEffect(() => {

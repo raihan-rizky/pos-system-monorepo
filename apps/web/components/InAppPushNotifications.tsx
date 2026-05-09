@@ -43,6 +43,11 @@ export function InAppPushNotifications() {
       if (event.data?.type !== "POS_PUSH_NOTIFICATION") return;
 
       const payload = event.data.payload || {};
+      console.info("[push][client] Notification received from service worker", {
+        title: payload.title || DEFAULT_NOTIFICATION.title,
+        tag: payload.tag,
+        url: payload.url || DEFAULT_NOTIFICATION.url,
+      });
       setNotification({
         id: `${payload.tag || "push"}:${Date.now()}`,
         title: payload.title || DEFAULT_NOTIFICATION.title,
