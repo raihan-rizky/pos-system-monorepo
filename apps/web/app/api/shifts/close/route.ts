@@ -44,19 +44,20 @@ export async function POST(request: Request) {
     // Calculate expected balance: openingBalance + CASH transactions - CHANGEs
     // Since only CASH transactions go to the physical drawer
     
-    // Find all CASH transactions in this shift duration (store-wide)
-    const cashTransactions = await db.transaction.findMany({
+    const cashAgg = await db.transaction.aggregate({
       where: {
         storeId,
         paymentMethod: "CASH",
+        status: { notIn: ["VOIDED", "REFUNDED"] },
         createdAt: {
           gte: shift.openedAt,
         },
       },
+      _sum: { total: true },
     });
 
     // For CASH transactions, the actual cash added to drawer is `total`
-    const totalCashIncome = cashTransactions.reduce((acc: number, txn: typeof cashTransactions[number]) => acc + Number(txn.total), 0);
+    const totalCashIncome = Number(cashAgg._sum.total || 0);
     
     const opening = Number(shift.openingBalance);
     const expectedBalance = opening + totalCashIncome;

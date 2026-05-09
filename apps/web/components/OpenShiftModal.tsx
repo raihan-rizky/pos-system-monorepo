@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Input, Button } from "@pos/ui";
+import { AlertCircle, WalletCards, X } from "lucide-react";
 import { useOpenShift } from "@/hooks/useShift";
 import { formatRupiah } from "@/lib/utils";
 
@@ -13,45 +14,46 @@ interface OpenShiftModalProps {
 export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
   const [openingBalance, setOpeningBalance] = useState<string>("0");
   const [note, setNote] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const { mutateAsync: openShift, isPending } = useOpenShift();
 
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     try {
       await openShift({ openingBalance: Number(openingBalance), note });
       if (onClose) onClose();
     } catch (error) {
-      alert("Gagal membuka shift: " + error);
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Gagal membuka shift. Coba lagi.",
+      );
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div 
         className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" 
         onClick={() => onClose && onClose()} 
       />
-      <div className="relative z-10 w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl p-6 animate-scale-in">
+      <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 animate-scale-in">
         {onClose && (
           <button
             type="button"
             onClick={onClose}
+            aria-label="Tutup modal buka shift"
             className="absolute top-4 right-4 p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors"
           >
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <X className="h-5 w-5" />
           </button>
         )}
         <div className="text-center mb-6">
           <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0c98e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="5" width="20" height="14" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-            </svg>
+            <WalletCards className="h-8 w-8 text-brand-600" />
           </div>
           <h2 className="text-xl font-extrabold text-surface-900">Buka Shift Kasir</h2>
           <p className="text-sm text-surface-500 mt-1">
@@ -60,6 +62,16 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {submitError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2.5 text-sm text-danger-700"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{submitError}</span>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">
               Saldo Awal (Modal)
@@ -71,7 +83,10 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
                 required
                 min="0"
                 value={openingBalance}
-                onChange={(e) => setOpeningBalance(e.target.value)}
+                onChange={(e) => {
+                  setOpeningBalance(e.target.value);
+                  setSubmitError(null);
+                }}
                 placeholder="0"
                 className="pl-12 text-lg font-bold"
               />

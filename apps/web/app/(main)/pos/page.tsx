@@ -43,6 +43,10 @@ export default function POSPage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showCloseShift, setShowCloseShift] = useState(false);
   const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
+  const [checkoutNotice, setCheckoutNotice] = useState<{
+    tone: "success" | "warning" | "danger";
+    message: string;
+  } | null>(null);
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
@@ -62,12 +66,15 @@ export default function POSPage() {
 
   const handleOpenPayment = () => {
     if (!activeShift) {
-      alert(
-        "Anda harus membuka shift kasir terlebih dahulu sebelum bisa melakukan transaksi pembayaran.",
-      );
+      setCheckoutNotice({
+        tone: "warning",
+        message:
+          "Buka shift kasir terlebih dahulu sebelum melakukan transaksi pembayaran.",
+      });
       setShiftModalDismissed(false);
       return;
     }
+    setCheckoutNotice(null);
     setShowPayment(true);
   };
 
@@ -103,8 +110,11 @@ export default function POSPage() {
       if (result.status !== "PENDING_APPROVAL") {
         setLastTransaction(result);
       } else {
-        // For sales requests, we show a success message instead of a receipt
-        alert("Permintaan pembayaran berhasil dikirim ke Kasir. Silakan tunggu persetujuan.");
+        setCheckoutNotice({
+          tone: "success",
+          message:
+            "Permintaan pembayaran berhasil dikirim ke kasir. Tunggu persetujuan sebelum menyerahkan barang.",
+        });
       }
       cart.clearCart();
       setShowPayment(false);
@@ -136,10 +146,28 @@ export default function POSPage() {
           });
           cart.clearCart();
           setShowPayment(false);
-          alert("Transaksi tersimpan offline dan akan disinkronkan saat online.");
+          setCheckoutNotice({
+            tone: "warning",
+            message:
+              "Transaksi tersimpan offline dan akan disinkronkan saat online.",
+          });
         } catch (queueError) {
-          alert(queueError instanceof Error ? queueError.message : "Gagal menyimpan transaksi offline.");
+          setCheckoutNotice({
+            tone: "danger",
+            message:
+              queueError instanceof Error
+                ? queueError.message
+                : "Gagal menyimpan transaksi offline.",
+          });
         }
+      } else {
+        setCheckoutNotice({
+          tone: "danger",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Transaksi gagal diproses. Periksa data pembayaran lalu coba lagi.",
+        });
       }
     }
   };
@@ -150,7 +178,7 @@ export default function POSPage() {
         <ShiftStatusBanner
           shift={activeShift}
           onCloseShift={() => setShowCloseShift(true)}
-          canCloseShift={!isSales}
+          canCloseShift={!isSales && !activeShift.isLocalOnly}
         />
       )}
 
@@ -192,6 +220,21 @@ export default function POSPage() {
               </div>
             </div>
           </header>
+
+          {checkoutNotice && (
+            <div
+              role="status"
+              className={`mx-3 mt-3 rounded-xl border px-4 py-3 text-sm font-medium md:mx-6 ${
+                checkoutNotice.tone === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : checkoutNotice.tone === "danger"
+                    ? "border-danger-200 bg-danger-50 text-danger-700"
+                    : "border-warning-200 bg-warning-50 text-warning-900"
+              }`}
+            >
+              {checkoutNotice.message}
+            </div>
+          )}
 
           {/* Category Filter */}
           <div

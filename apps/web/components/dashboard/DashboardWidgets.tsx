@@ -1,6 +1,6 @@
 import React from "react";
 import { Card } from "@pos/ui";
-import { formatRupiah, formatDate } from "@/lib/utils";
+import { formatRupiah } from "@/lib/utils";
 import {
   PieChart,
   Pie,
@@ -21,9 +21,34 @@ const STATUS_COLORS: Record<string, string> = {
   UNKNOWN: "#cbd5e1", // Slate 300
 };
 
-// Make sure to add this type or use it implicitly
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function TopSalespersonsWidget({ data }: { data: any[] }) {
+export type TopSalesperson = {
+  id?: string | null;
+  name?: string | null;
+  txCount?: number | null;
+  revenue?: number | string | null;
+};
+
+export type TopCustomer = {
+  id?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  totalSpent?: number | string | null;
+};
+
+export type ProductionStatusCount = {
+  status?: string | null;
+  count?: number | null;
+};
+
+export type ActiveDPTransaction = {
+  id?: string | null;
+  invoiceNumber?: string | null;
+  customerName?: string | null;
+  total?: number | string | null;
+  paidAmount?: number | string | null;
+};
+
+export function TopSalespersonsWidget({ data }: { data: TopSalesperson[] }) {
   return (
     <Card>
       <h2 className="text-base font-bold text-surface-900 mb-4">
@@ -45,12 +70,12 @@ export function TopSalespersonsWidget({ data }: { data: any[] }) {
                     {sp.name}
                   </p>
                   <p className="text-xs text-surface-400">
-                    {sp.txCount} transaksi
+                    {sp.txCount ?? 0} transaksi
                   </p>
                 </div>
               </div>
               <p className="text-sm font-semibold text-surface-900">
-                {formatRupiah(sp.revenue)}
+                {formatRupiah(Number(sp.revenue || 0))}
               </p>
             </div>
           ))}
@@ -62,8 +87,7 @@ export function TopSalespersonsWidget({ data }: { data: any[] }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function TopCustomersWidget({ data }: { data: any[] }) {
+export function TopCustomersWidget({ data }: { data: TopCustomer[] }) {
   return (
     <Card>
       <h2 className="text-base font-bold text-surface-900 mb-4">
@@ -88,7 +112,7 @@ export function TopCustomersWidget({ data }: { data: any[] }) {
                 </div>
               </div>
               <p className="text-sm font-semibold text-surface-900">
-                {formatRupiah(c.totalSpent)}
+                {formatRupiah(Number(c.totalSpent || 0))}
               </p>
             </div>
           ))}
@@ -100,13 +124,12 @@ export function TopCustomersWidget({ data }: { data: any[] }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function ProductionStatusWidget({ data }: { data: any[] }) {
+export function ProductionStatusWidget({ data }: { data: ProductionStatusCount[] }) {
   // Format data for chart and handle label mapping
   const chartData =
     data?.map((ps) => ({
       name: (ps.status || "UNKNOWN").replace(/_/g, " "),
-      value: ps.count,
+      value: ps.count ?? 0,
       rawStatus: ps.status || "UNKNOWN",
     })) || [];
 
@@ -172,13 +195,12 @@ export function ProductionStatusWidget({ data }: { data: any[] }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function ActiveDPWidget({
+export function ActiveDPWidget<T extends ActiveDPTransaction>({
   data,
   onSelect,
 }: {
-  data: any[];
-  onSelect?: (tx: any) => void;
+  data: T[];
+  onSelect?: (tx: T) => void;
 }) {
   return (
     <Card>
@@ -190,8 +212,17 @@ export function ActiveDPWidget({
           {data.map((dp, idx) => (
             <div
               key={dp.id || idx}
+              role={onSelect ? "button" : undefined}
+              tabIndex={onSelect ? 0 : undefined}
               className={`flex items-center justify-between border-b border-surface-50 pb-2 last:border-0 last:pb-0 ${onSelect ? "cursor-pointer hover:bg-surface-50 -mx-2 px-2 rounded-lg transition-colors" : ""}`}
               onClick={() => onSelect?.(dp)}
+              onKeyDown={(event) => {
+                if (!onSelect) return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(dp);
+                }
+              }}
             >
               <div>
                 <p className="text-sm font-medium text-brand-600">

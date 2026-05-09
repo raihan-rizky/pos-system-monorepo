@@ -36,16 +36,20 @@ export function PwaStatusBanner() {
           : `${summary.pending} transaksi menunggu sync`;
 
   return (
-    <div className="sticky top-0 z-[120] flex min-h-10 items-center justify-between gap-3 border-b border-warning-200 bg-warning-50 px-4 py-2 text-sm text-warning-900">
-      <div className="flex items-center gap-2">
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed inset-x-3 top-3 z-[300] flex min-h-10 items-center justify-between gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-2 text-sm text-warning-900 shadow-lg shadow-warning-900/10 md:left-20 md:right-4"
+    >
+      <div className="flex min-w-0 items-center gap-2">
         {!isOnline ? (
-          <WifiOff className="h-4 w-4" />
+          <WifiOff className="h-4 w-4 shrink-0" />
         ) : updateAvailable ? (
-          <Download className="h-4 w-4" />
+          <Download className="h-4 w-4 shrink-0" />
         ) : (
-          <AlertTriangle className="h-4 w-4" />
+          <AlertTriangle className="h-4 w-4 shrink-0" />
         )}
-        <span className="font-medium">{message}</span>
+        <span className="truncate font-medium">{message}</span>
       </div>
       <div className="flex items-center gap-2">
         {summary.pending > 0 && isOnline && (

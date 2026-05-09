@@ -48,11 +48,28 @@ export type SyncAttemptRecord = {
   createdAt: string;
 };
 
+export type OfflineShiftRecord = {
+  id: string;
+  cashierId: string;
+  storeId: string;
+  openingBalance: number;
+  closingBalance: number | null;
+  expectedBalance: number | null;
+  discrepancy: number | null;
+  status: "OPEN" | "CLOSED";
+  note: string | null;
+  openedAt: string;
+  closedAt: string | null;
+  cashier?: { name: string };
+  isLocalOnly: true;
+};
+
 export class PosOfflineDatabase extends Dexie {
   offlineTransactions!: Table<OfflineTransactionRecord, string>;
   syncAttempts!: Table<SyncAttemptRecord, number>;
   catalogProducts!: Table<Record<string, unknown> & { id: string; updatedAt: string }, string>;
   catalogCategories!: Table<Record<string, unknown> & { id: string; order?: number }, string>;
+  offlineShifts!: Table<OfflineShiftRecord, string>;
 
   constructor() {
     super("pos-offline-pwa");
@@ -66,6 +83,18 @@ export class PosOfflineDatabase extends Dexie {
       salespersons: "&id,isActive",
       cachedCustomers: "&id,phone,updatedAt",
       notificationSubscriptions: "&endpoint,userId,role,storeId,updatedAt",
+    });
+
+    this.version(2).stores({
+      offlineTransactions:
+        "&clientMutationId,status,createdAt,updatedAt,syncedAt",
+      syncAttempts: "++id,clientMutationId,status,createdAt",
+      catalogProducts: "&id,sku,categoryId,updatedAt",
+      catalogCategories: "&id,order",
+      salespersons: "&id,isActive",
+      cachedCustomers: "&id,phone,updatedAt",
+      notificationSubscriptions: "&endpoint,userId,role,storeId,updatedAt",
+      offlineShifts: "&id,status,openedAt,closedAt",
     });
   }
 }
@@ -178,4 +207,48 @@ export async function cacheCatalogCategories<T extends { id: string }>(categorie
 
 export async function getCachedCatalogCategories<T>() {
   return (await offlineDb.catalogCategories.toArray()) as T[];
+}
+
+export async function getOfflineActiveShift() {
+  return offlineDb.offlineShifts.where("status").equals("OPEN").first();
+}
+
+export async function createOfflineShift({
+  openingBalance,
+  note,
+  cashierId = "offline-user",
+  cashierName = "Offline cashier",
+  storeId = "offline-store",
+  now = new Date(),
+}: {
+  openingBalance: number;
+  note?: string | null;
+  cashierId?: string;
+  cashierName?: string;
+  storeId?: string;
+  now?: Date;
+}) {
+  const existing = await getOfflineActiveShift();
+  if (existing) return existing;
+
+  const openedAt = now.toISOString();
+  const shift: OfflineShiftRecord = {
+    id: `offline-shift-${openedAt.replace(/\D/g, "")}`,
+    cashierId,
+    storeId,
+    openingBalance,
+    closingBalance: null,
+    expectedBalance: null,
+    discrepancy: null,
+    status: "OPEN",
+    note: note || null,
+    openedAt,
+    closedAt: null,
+    cashier: { name: cashierName },
+    isLocalOnly: true,
+  };
+
+  await offlineDb.offlineShifts.add(shift);
+  window.dispatchEvent(new CustomEvent("pos-offline-shift-changed"));
+  return shift;
 }

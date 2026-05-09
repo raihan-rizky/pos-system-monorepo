@@ -7,13 +7,21 @@
  *   - HTML navigation            → Network First, fallback to cached shell
  */
 
-const CACHE_NAME = "pos-v1";
+const CACHE_NAME = "pos-v2";
 const OFFLINE_URL = "/pos"; // fallback page when fully offline
 
 // Assets to pre-cache on install
 const PRECACHE_ASSETS = [
   "/",
   "/pos",
+  "/dashboard",
+  "/history",
+  "/production",
+  "/customers",
+  "/products",
+  "/salespersons",
+  "/shift",
+  "/settings",
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
@@ -22,7 +30,13 @@ const PRECACHE_ASSETS = [
 // ─── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(
+        PRECACHE_ASSETS.map((asset) =>
+          cache.add(new Request(asset, { cache: "reload" }))
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
@@ -119,9 +133,7 @@ self.addEventListener("fetch", (event) => {
   // HTML navigation → Network First, offline fallback
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match(OFFLINE_URL).then((cached) => cached || fetch(OFFLINE_URL))
-      )
+      navigationNetworkFirst(request)
     );
     return;
   }
@@ -155,6 +167,31 @@ async function networkFirstWithTimeout(request, timeoutMs) {
   } catch {
     const cached = await cache.match(request);
     return cached || Response.json({ message: "Offline — data tidak tersedia" }, { status: 503 });
+  }
+}
+
+async function navigationNetworkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const network = await fetch(request);
+    if (network.ok) {
+      await cache.put(request, network.clone());
+      await cache.put(new URL(request.url).pathname, network.clone());
+    }
+    return network;
+  } catch {
+    const url = new URL(request.url);
+    const cached =
+      (await cache.match(request)) ||
+      (await cache.match(url.pathname)) ||
+      (await cache.match(OFFLINE_URL));
+
+    if (cached) return cached;
+
+    return new Response("Offline", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
   }
 }
 

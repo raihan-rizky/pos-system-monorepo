@@ -16,6 +16,7 @@ export interface CashierShift {
   openedAt: string;
   closedAt: string | null;
   cashier?: { name: string };
+  isLocalOnly?: boolean;
 }
 
 export interface PaginatedShifts {
@@ -29,11 +30,24 @@ export function useActiveShift() {
   return useQuery({
     queryKey: ["active-shift"],
     queryFn: async (): Promise<CashierShift | null> => {
-      const res = await fetch("/api/shifts?active=true");
-      if (!res.ok) throw new Error("Failed to fetch active shift");
-      const json = await res.json();
-      return json.data || null;
+      const { getOfflineActiveShift } = await import("@/lib/offline/offline-db");
+      if (typeof window !== "undefined" && !navigator.onLine) {
+        return (await getOfflineActiveShift()) || null;
+      }
+
+      try {
+        const res = await fetch("/api/shifts?active=true");
+        if (!res.ok) throw new Error("Failed to fetch active shift");
+        const json = await res.json();
+        return json.data || (await getOfflineActiveShift()) || null;
+      } catch (error) {
+        if (typeof window !== "undefined" && (error instanceof TypeError || !navigator.onLine)) {
+          return (await getOfflineActiveShift()) || null;
+        }
+        throw error;
+      }
     },
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -53,18 +67,32 @@ export function useOpenShift() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (vars: { openingBalance: number; note?: string }) => {
-      const res = await fetch("/api/shifts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(vars),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Failed to open shift");
+      const { createOfflineShift } = await import("@/lib/offline/offline-db");
+
+      if (typeof window !== "undefined" && !navigator.onLine) {
+        return createOfflineShift(vars);
       }
-      return res.json();
+
+      try {
+        const res = await fetch("/api/shifts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(vars),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.message || "Failed to open shift");
+        }
+        return res.json();
+      } catch (error) {
+        if (typeof window !== "undefined" && (error instanceof TypeError || !navigator.onLine)) {
+          return createOfflineShift(vars);
+        }
+        throw error;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (shift) => {
+      queryClient.setQueryData(["active-shift"], shift);
       queryClient.invalidateQueries({ queryKey: ["active-shift"] });
       queryClient.invalidateQueries({ queryKey: ["shift-history"] });
     },

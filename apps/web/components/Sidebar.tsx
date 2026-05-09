@@ -283,6 +283,8 @@ const navGroups = [
   },
 ];
 
+type NavEntry = (typeof navGroups)[number]["items"][number];
+
 /* ─────────────────────────────────────────────
    Reusable nav item link
 ───────────────────────────────────────────── */
@@ -300,12 +302,20 @@ function NavItem({
   onNavigate?: () => void;
 }) {
   const router = useRouter();
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    onNavigate?.();
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      event.preventDefault();
+      window.location.assign(href);
+    }
+  };
+
   return (
     <Link
       href={href}
       prefetch
       onMouseEnter={() => router.prefetch(href)}
-      onClick={onNavigate}
+      onClick={handleClick}
       title={label}
       aria-label={label}
       aria-current={isActive ? "page" : undefined}
@@ -339,11 +349,28 @@ function NavItem({
 /* ─────────────────────────────────────────────
    Mobile group button + radial fan-out children
 ───────────────────────────────────────────── */
-function MobileMenuItem({ item, isActive, onClick }: { item: any, isActive: boolean, onClick: () => void }) {
+function MobileMenuItem({
+  item,
+  isActive,
+  onClick,
+}: {
+  item: NavEntry;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    onClick();
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      event.preventDefault();
+      window.location.assign(item.href);
+    }
+  };
+
   return (
     <Link
       href={item.href}
-      onClick={onClick}
+      onClick={handleClick}
+      aria-current={isActive ? "page" : undefined}
       className={`
         flex items-center gap-3 px-4 py-3 rounded-xl transition-colors
         ${isActive ? "bg-brand-600 text-white shadow-glow" : "text-surface-300 hover:text-white hover:bg-surface-800"}
@@ -472,7 +499,7 @@ function MobileGroup({
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { canAccess, userName, role } = useRole();
+  const { canAccess } = useRole();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   const toggle = (id: string) =>

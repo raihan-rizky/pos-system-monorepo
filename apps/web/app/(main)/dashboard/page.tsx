@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { Card } from "@pos/ui";
-import { formatRupiah, formatDate } from "@/lib/utils";
+import { formatRupiah } from "@/lib/utils";
 import { useTransactions } from "@/hooks/useTransactions";
 import type { Transaction } from "@/hooks/useTransactions";
 import { 
@@ -13,6 +13,11 @@ import {
   TopCustomersWidget, 
   ProductionStatusWidget, 
   ActiveDPWidget 
+} from "@/components/dashboard/DashboardWidgets";
+import type {
+  ProductionStatusCount,
+  TopCustomer,
+  TopSalesperson,
 } from "@/components/dashboard/DashboardWidgets";
 
 const AreaChart = dynamic(() => import("recharts").then(mod => mod.AreaChart), { ssr: false });
@@ -24,8 +29,6 @@ const Tooltip = dynamic(() => import("recharts").then(mod => mod.Tooltip), { ssr
 const ResponsiveContainer = dynamic(() => import("recharts").then(mod => mod.ResponsiveContainer), { ssr: false });
 const BarChart = dynamic(() => import("recharts").then(mod => mod.BarChart), { ssr: false });
 const Bar = dynamic(() => import("recharts").then(mod => mod.Bar), { ssr: false });
-const Legend = dynamic(() => import("recharts").then(mod => mod.Legend), { ssr: false });
-
 interface DashboardData {
   todayRevenue: number;
   todayProfit: number;
@@ -37,10 +40,10 @@ interface DashboardData {
   lowStockProducts: { id: string; name: string; stock: number; minStock: number; unit: string }[];
   totalProducts: number;
   revenueChart: { name: string; date: string; revenue: number; profit: number; cost: number }[];
-  topSalespersons: any[];
-  topCustomers: any[];
-  productionStatusCounts: any[];
-  dpTransactions: any[];
+  topSalespersons: TopSalesperson[];
+  topCustomers: TopCustomer[];
+  productionStatusCounts: ProductionStatusCount[];
+  dpTransactions: Transaction[];
   totalOutstandingDP: number;
 }
 
@@ -197,7 +200,7 @@ export default function DashboardPage() {
                       <Tooltip
                         contentStyle={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)" }}
                         labelStyle={{ fontWeight: "bold", color: "#0f172a", marginBottom: "4px" }}
-                        formatter={(value: any, name: any) => [
+                        formatter={(value: unknown, name: unknown) => [
                           formatRupiah(Number(value)), 
                           typeof name === 'string' ? name.charAt(0).toUpperCase() + name.slice(1) : ''
                         ]}
@@ -245,7 +248,7 @@ export default function DashboardPage() {
                       <Tooltip 
                         cursor={{ fill: "#f8fafc" }} 
                         contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)" }} 
-                        formatter={(value: any) => [`${value} unit`, "Terjual"]} 
+                        formatter={(value: unknown) => [`${value} unit`, "Terjual"]} 
                       />
                       <Bar dataKey="quantity" fill="#f97d12" radius={[0, 6, 6, 0]} barSize={24} />
                     </BarChart>

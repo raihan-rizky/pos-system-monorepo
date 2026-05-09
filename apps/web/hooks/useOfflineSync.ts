@@ -20,7 +20,9 @@ const EMPTY_SUMMARY: OfflineSyncSummary = {
 
 export function useOfflineSync() {
   const [summary, setSummary] = useState<OfflineSyncSummary>(EMPTY_SUMMARY);
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(
+    () => typeof navigator === "undefined" || navigator.onLine,
+  );
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,9 +72,14 @@ export function useOfflineSync() {
     const onQueueChange = () => refresh();
     const onOnline = () => {
       setIsOnline(true);
+      setError(null);
       void syncNow();
     };
-    const onOffline = () => setIsOnline(false);
+    const onOffline = () => {
+      setIsOnline(false);
+      setError(null);
+      void refresh();
+    };
 
     window.addEventListener("pos-offline-queue-changed", onQueueChange);
     window.addEventListener("online", onOnline);

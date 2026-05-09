@@ -38,7 +38,9 @@ export function ShiftStatusBanner({ shift, onCloseShift, canCloseShift = true }:
     <div className="bg-brand-50 border-b border-brand-100 px-4 md:px-6 py-2.5 flex items-center justify-between text-sm">
       <div className="flex items-center gap-3">
         <div className="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse" />
-        <span className="font-semibold text-brand-900">Shift Aktif</span>
+        <span className="font-semibold text-brand-900">
+          {shift.isLocalOnly ? "Shift Offline Aktif" : "Shift Aktif"}
+        </span>
         <span className="hidden sm:inline text-brand-600/60 font-medium px-2 border-l border-brand-200">
           Uptime: <span className="text-brand-700">{uptime}</span>
         </span>
