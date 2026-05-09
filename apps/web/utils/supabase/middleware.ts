@@ -8,6 +8,40 @@ const USER_ID_COOKIE = "x-pos-user-id";
 const USER_NAME_COOKIE = "x-pos-user-name";
 
 export async function updateSession(request: NextRequest) {
+  if (process.env.E2E_AUTH_BYPASS === "1") {
+    const role = (request.cookies.get(ROLE_COOKIE)?.value || "OWNER") as Role;
+    const userId = request.cookies.get(USER_ID_COOKIE)?.value || "e2e-user";
+    const userName = request.cookies.get(USER_NAME_COOKIE)?.value || "E2E Owner";
+
+    const response = NextResponse.next({ request });
+    const cookieOptions = {
+      path: "/",
+      httpOnly: false,
+      sameSite: "strict" as const,
+      secure: false,
+      maxAge: 60 * 60,
+    };
+
+    response.cookies.set(ROLE_COOKIE, role, cookieOptions);
+    response.cookies.set(USER_ID_COOKIE, userId, cookieOptions);
+    response.cookies.set(USER_NAME_COOKIE, userName, cookieOptions);
+
+    if (
+      !request.nextUrl.pathname.startsWith("/api/") &&
+      request.nextUrl.pathname !== "/" &&
+      request.nextUrl.pathname !== "/login" &&
+      !request.nextUrl.pathname.startsWith("/auth") &&
+      isValidRole(role) &&
+      !canAccessPage(role, request.nextUrl.pathname)
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = DEFAULT_PAGE[role];
+      return NextResponse.redirect(url);
+    }
+
+    return response;
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
