@@ -204,11 +204,6 @@ export async function GET(request: Request) {
       };
     });
 
-    // Sort by timestamp ascending (oldest first) for chat display
-    messages.sort(
-      (a, b) =>
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-    );
 
     const duration = (performance.now() - startTime).toFixed(1);
     console.log(

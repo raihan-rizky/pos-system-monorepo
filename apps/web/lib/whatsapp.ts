@@ -105,7 +105,6 @@ export async function getWahaChatMessages(
 
   // Pakai URLSearchParams biar lebih rapi nyusun query-nya
   const params = new URLSearchParams({
-    sortBy: "timestamp",
     downloadMedia: String(downloadMedia),
     merge: "true",
     limit: String(limit),

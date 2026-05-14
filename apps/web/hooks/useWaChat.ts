@@ -136,10 +136,7 @@ function upsertMessage(messages: WaMessage[] | undefined, incoming: WaMessage) {
   }
   byId.set(incoming.id, incoming);
 
-  return Array.from(byId.values()).sort(
-    (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
+  return Array.from(byId.values());
 }
 
 function upsertContact(
@@ -299,11 +296,7 @@ export function useWaMessages(chatId: string | null) {
         merged.set(msg.id, msg);
       }
 
-      // Sort by timestamp ascending (oldest first)
-      return Array.from(merged.values()).sort(
-        (a, b) =>
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-      );
+      return Array.from(merged.values());
     },
     enabled: !!chatId,
     staleTime: 1000,
