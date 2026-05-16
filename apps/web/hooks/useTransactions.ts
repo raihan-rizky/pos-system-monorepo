@@ -119,10 +119,32 @@ export function useCreateTransaction() {
 
   return useMutation({
     mutationFn: createTransaction,
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
+      // Optimistically decrement stock in the products cache to prevent grid flash
+      queryClient.setQueriesData<any[]>(
+        { queryKey: ["products"] },
+        (old) => {
+          if (!old) return old;
+          const itemMap = new Map(
+            variables.items.map((i) => [i.productId, i.quantity])
+          );
+          return old.map((product: any) => {
+            const qty = itemMap.get(product.id);
+            if (qty != null) {
+              return { ...product, stock: Math.max(0, product.stock - qty) };
+            }
+            return product;
+          });
+        }
+      );
+
+      // Refetch products in background (non-urgent, data is already optimistic)
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+
+      // Defer transaction list refetch — user is looking at the receipt,
+      // not the transaction history page
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["job-orders"] });
     },
   });

@@ -76,6 +76,15 @@ export default function POSPage() {
   const cart = useCart();
   const createTransaction = useCreateTransaction();
 
+  // Prefetch PaymentModal chunk as soon as the cart has items,
+  // so the first "Checkout" click doesn't wait for network
+  const hasItems = cart.totalItems > 0;
+  useEffect(() => {
+    if (hasItems) {
+      import("@/components/PaymentModal");
+    }
+  }, [hasItems]);
+
 
   const handleOpenPayment = () => {
     if (!activeShift) {
@@ -105,21 +114,10 @@ export default function POSPage() {
     estimatedDoneAt: string | null;
   }) => {
     try {
-      const payload = {
+      const result = await createTransaction.mutateAsync({
         items: cart.items,
-        paymentMethod: data.paymentMethod,
-        amountPaid: data.amountPaid,
-        discount: data.discount,
-        note: data.note,
-        customerName: data.customerName,
-        customerId: data.customerId,
-        salesName: data.salesName,
-        salespersonId: data.salespersonId,
-        paymentStatus: data.paymentStatus,
-        isJobOrder: data.isJobOrder,
-        estimatedDoneAt: data.estimatedDoneAt,
-      };
-      const result = await createTransaction.mutateAsync(payload);
+        ...data,
+      });
       if (result.status !== "PENDING_APPROVAL") {
         setLastTransaction(result);
       } else {

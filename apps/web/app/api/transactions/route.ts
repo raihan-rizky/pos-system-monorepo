@@ -185,41 +185,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Cart is empty" }, { status: 400 });
     }
 
-    if (customerId) {
-      const customer = await db.customer.findFirst({
-        where: { id: customerId, storeId },
-        select: { id: true },
-      });
-      if (!customer) {
-        return NextResponse.json({ message: "Customer not found" }, { status: 404 });
-      }
-    }
-
-    if (salespersonId) {
-      const salesperson = await db.salesperson.findFirst({
-        where: { id: salespersonId, storeId },
-        select: { id: true },
-      });
-      if (!salesperson) {
-        return NextResponse.json({ message: "Salesperson not found" }, { status: 404 });
-      }
-    }
-
+    // Parallel pre-validation: run independent lookups concurrently
     const uniqueProductIds = [...new Set(items.map((item) => item.productId))];
-    const products = await db.product.findMany({
-      where: {
-        id: { in: uniqueProductIds },
-        storeId,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        price: true,
-        size: true,
-        material: true,
-      },
-    });
+
+    const [customerCheck, salespersonCheck, products] = await Promise.all([
+      customerId
+        ? db.customer.findFirst({
+            where: { id: customerId, storeId },
+            select: { id: true },
+          })
+        : Promise.resolve(true), // no customer to validate
+      salespersonId
+        ? db.salesperson.findFirst({
+            where: { id: salespersonId, storeId },
+            select: { id: true },
+          })
+        : Promise.resolve(true), // no salesperson to validate
+      db.product.findMany({
+        where: {
+          id: { in: uniqueProductIds },
+          storeId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          size: true,
+          material: true,
+        },
+      }),
+    ]);
+
+    if (customerId && !customerCheck) {
+      return NextResponse.json({ message: "Customer not found" }, { status: 404 });
+    }
+    if (salespersonId && !salespersonCheck) {
+      return NextResponse.json({ message: "Salesperson not found" }, { status: 404 });
+    }
+
     const productById = new Map(products.map((product) => [product.id, product]));
 
     if (productById.size !== uniqueProductIds.length) {

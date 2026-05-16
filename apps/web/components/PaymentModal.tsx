@@ -7,11 +7,9 @@ import type { CartItem } from "@/hooks/useCart";
 import { useDebounce } from "@/hooks/useDebounce";
 import type { Customer } from "@/hooks/useCustomers";
 import { useRole } from "@/components/providers/RoleProvider";
+import { useSalespersons } from "@/hooks/useSalespersons";
 
-interface SalespersonOption {
-  id: string;
-  name: string;
-}
+
 
 interface PaymentModalProps {
   open: boolean;
@@ -63,7 +61,7 @@ export function PaymentModal({
   const comboRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(customerQuery, 300);
   const [salespersonId, setSalespersonId] = useState("");
-  const [salespersons, setSalespersons] = useState<SalespersonOption[]>([]);
+  const { data: salespersons = [] } = useSalespersons();
   const [isDP, setIsDP] = useState(false);
   const [isJobOrder, setIsJobOrder] = useState(false);
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
@@ -72,15 +70,7 @@ export function PaymentModal({
   const isSalesRole = role === "SALES";
 
   useEffect(() => {
-    if (open) {
-      fetch("/api/salespersons?storeId=store-main&activeOnly=true")
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed to fetch salespersons: ${res.status}`);
-          return res.json();
-        })
-        .then(data => setSalespersons(data))
-        .catch(err => console.error("Error fetching salespersons:", err));
-    } else {
+    if (!open) {
       // reset on close
       setCustomerQuery("");
       setSelectedCustomer(null);
