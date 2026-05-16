@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@pos/db";
+import { db, Role } from "@pos/db";
 import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       where: { endpoint: parsed.data.endpoint },
       update: {
         userId: user.id,
-        role: user.role,
+        role: user.role as Role,
         storeId: user.storeId || null,
         auth: parsed.data.keys?.auth || null,
         p256dh: parsed.data.keys?.p256dh || null,
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       create: {
         endpoint: parsed.data.endpoint,
         userId: user.id,
-        role: user.role,
+        role: user.role as Role,
         storeId: user.storeId || null,
         auth: parsed.data.keys?.auth || null,
         p256dh: parsed.data.keys?.p256dh || null,

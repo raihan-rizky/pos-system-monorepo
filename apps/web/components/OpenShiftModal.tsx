@@ -1,43 +1,64 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { AlertCircle, Terminal, X } from "lucide-react";
 import { useOpenShift } from "@/hooks/useShift";
 import { formatRupiah } from "@/lib/utils";
 
-interface OpenShiftModalProps {
+export interface OpenShiftModalProps {
   open: boolean;
   onClose?: () => void;
 }
 
-export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
+export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({ open, onClose }) => {
+  // 1. Hooks
   const [openingBalance, setOpeningBalance] = useState<string>("");
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState<string>("");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  
   const { mutateAsync: openShift, isPending } = useOpenShift();
 
-  if (!open) return null;
+  // 2. Handlers
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setSubmitError(null);
+      try {
+        await openShift({ openingBalance: Number(openingBalance) || 0, note });
+        onClose?.();
+      } catch (error) {
+        setSubmitError(
+          error instanceof Error
+            ? error.message
+            : "System fault: Init shift failed.",
+        );
+      }
+    },
+    [openingBalance, note, openShift, onClose]
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleClose = useCallback(() => {
+    onClose?.();
+  }, [onClose]);
+
+  const handleOpeningBalanceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setOpeningBalance(e.target.value);
     setSubmitError(null);
-    try {
-      await openShift({ openingBalance: Number(openingBalance) || 0, note });
-      if (onClose) onClose();
-    } catch (error) {
-      setSubmitError(
-        error instanceof Error
-          ? error.message
-          : "System fault: Init shift failed.",
-      );
-    }
-  };
+  }, []);
+
+  const handleNoteChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setNote(e.target.value);
+  }, []);
+
+  // 3. Render
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
       <div 
         className="absolute inset-0 bg-surface-900/80 backdrop-blur-md transition-opacity animate-fade-in" 
-        onClick={() => onClose && onClose()} 
+        onClick={handleClose} 
+        aria-hidden="true"
       />
       
       {/* Industrial Utilitarian Modal */}
@@ -54,7 +75,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
           {onClose && (
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               aria-label="Tutup modal buka shift"
               className="p-1 text-surface-900 hover:bg-brand-200 transition-colors border-2 border-transparent hover:border-surface-900"
             >
@@ -87,10 +108,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
                 required
                 min="0"
                 value={openingBalance}
-                onChange={(e) => {
-                  setOpeningBalance(e.target.value);
-                  setSubmitError(null);
-                }}
+                onChange={handleOpeningBalanceChange}
                 placeholder="0"
                 className="w-full bg-transparent text-5xl sm:text-7xl font-mono font-black text-surface-900 placeholder:text-surface-200 focus:outline-none tracking-tighter"
                 autoFocus
@@ -114,7 +132,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
             <input
               type="text"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={handleNoteChange}
               placeholder="e.g. Starting float adjusted"
               className="w-full border-2 border-surface-300 bg-surface-50 px-4 py-3 font-mono text-sm font-medium text-surface-900 placeholder:text-surface-400 focus:border-surface-900 focus:bg-white focus:outline-none focus:ring-0 transition-all shadow-inner"
             />
@@ -146,4 +164,6 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
       </div>
     </div>
   );
-}
+};
+
+export default OpenShiftModal;
