@@ -1,3 +1,3 @@
 export default {
-  "*.{js,jsx,ts,tsx}": () => "pnpm type-check",
+  "*.{js,jsx,ts,tsx}": "eslint --fix",
 };
