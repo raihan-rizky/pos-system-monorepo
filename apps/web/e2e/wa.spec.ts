@@ -7,6 +7,7 @@ test("WA live chat lists contacts, opens messages, and sends a reply", async ({ 
   await page.getByText("Budi WA").click();
 
   await expect(page.getByText("Halo toko").first()).toBeVisible();
+  await page.getByTitle("Nonaktifkan AI Auto Reply").first().click();
   await page.getByPlaceholder("Ketik balasan untuk pelanggan ini...").fill("Siap dibantu");
   await page.getByPlaceholder("Ketik balasan untuk pelanggan ini...").press("Enter");
   await expect(page.getByText("Siap dibantu")).toBeVisible();
