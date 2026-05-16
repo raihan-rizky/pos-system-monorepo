@@ -1,168 +1,217 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
-import { AlertCircle, Terminal, X } from "lucide-react";
+import React, { useState, useCallback, useMemo } from "react";
+import { Modal, Input, Button } from "@pos/ui";
+import { AlertCircle, Wallet, StickyNote } from "lucide-react";
 import { useOpenShift } from "@/hooks/useShift";
 import { formatRupiah } from "@/lib/utils";
 
+/** Props for the OpenShiftModal component. */
 export interface OpenShiftModalProps {
   open: boolean;
   onClose?: () => void;
 }
 
+/**
+ * Modal for initializing a new cashier shift.
+ * Uses shared @pos/ui primitives (Modal, Input, Button) to stay
+ * visually consistent with CloseShiftModal, EditShiftModal, and PaymentModal.
+ */
 export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({ open, onClose }) => {
-  // 1. Hooks
+  // ── Hooks ──────────────────────────────────────────────────────────────
   const [openingBalance, setOpeningBalance] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [submitError, setSubmitError] = useState<string | null>(null);
-  
+
   const { mutateAsync: openShift, isPending } = useOpenShift();
 
-  // 2. Handlers
+  // ── Derived ────────────────────────────────────────────────────────────
+  const numericBalance = useMemo(
+    () => Number(openingBalance) || 0,
+    [openingBalance],
+  );
+
+  const formattedBalance = useMemo(
+    () => formatRupiah(numericBalance),
+    [numericBalance],
+  );
+
+  // ── Handlers ───────────────────────────────────────────────────────────
+  const handleClose = useCallback(() => {
+    onClose?.();
+  }, [onClose]);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       setSubmitError(null);
       try {
-        await openShift({ openingBalance: Number(openingBalance) || 0, note });
+        await openShift({ openingBalance: numericBalance, note });
         onClose?.();
       } catch (error) {
         setSubmitError(
           error instanceof Error
             ? error.message
-            : "System fault: Init shift failed.",
+            : "Gagal membuka shift. Coba lagi.",
         );
       }
     },
-    [openingBalance, note, openShift, onClose]
+    [numericBalance, note, openShift, onClose],
   );
 
-  const handleClose = useCallback(() => {
-    onClose?.();
-  }, [onClose]);
+  const handleOpeningBalanceChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setOpeningBalance(e.target.value);
+      setSubmitError(null);
+    },
+    [],
+  );
 
-  const handleOpeningBalanceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setOpeningBalance(e.target.value);
+  const handleNoteChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setNote(e.target.value);
+    },
+    [],
+  );
+
+  // ── Quick-fill presets ─────────────────────────────────────────────────
+  const quickAmounts = useMemo(() => [100000, 200000, 300000, 500000], []);
+
+  const handleQuickFill = useCallback((amount: number) => {
+    setOpeningBalance(String(amount));
     setSubmitError(null);
   }, []);
 
-  const handleNoteChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setNote(e.target.value);
-  }, []);
-
-  // 3. Render
-  if (!open) return null;
-
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
-      <div 
-        className="absolute inset-0 bg-surface-900/80 backdrop-blur-md transition-opacity animate-fade-in" 
-        onClick={handleClose} 
-        aria-hidden="true"
-      />
-      
-      {/* Industrial Utilitarian Modal */}
-      <div className="relative z-10 w-full max-w-lg bg-white shadow-[8px_8px_0px_0px_rgba(15,23,42,1)] border-4 border-surface-900 animate-scale-in">
-        
-        {/* Header Ribbon */}
-        <div className="flex items-center justify-between border-b-4 border-surface-900 bg-brand-50 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Terminal className="w-6 h-6 text-brand-600" />
-            <h2 className="text-sm font-mono font-bold tracking-widest text-surface-900 uppercase">
-              Sys // Shift_Init
-            </h2>
+    <Modal open={open} onClose={handleClose} title="Buka Shift Kasir">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Hero badge — visual anchor */}
+        <div className="flex flex-col items-center gap-3 py-2">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-glow">
+            <Wallet className="w-7 h-7 text-white" />
           </div>
-          {onClose && (
-            <button
-              type="button"
-              onClick={handleClose}
-              aria-label="Tutup modal buka shift"
-              className="p-1 text-surface-900 hover:bg-brand-200 transition-colors border-2 border-transparent hover:border-surface-900"
-            >
-              <X className="h-5 w-5 stroke-[3]" />
-            </button>
-          )}
+          <div className="text-center">
+            <p className="text-sm text-surface-500 leading-relaxed max-w-[280px]">
+              Masukkan jumlah uang fisik yang ada di laci kasir sebelum memulai.
+            </p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8 bg-white bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
-          
-          {/* Status Alert */}
-          {submitError && (
-            <div className="flex items-start gap-3 border-l-4 border-danger-500 bg-danger-50 p-4 shadow-[4px_4px_0px_0px_rgba(220,38,38,0.2)]">
-              <AlertCircle className="h-5 w-5 text-danger-600 shrink-0 mt-0.5" />
-              <p className="text-sm font-mono font-medium text-danger-900">{submitError}</p>
-            </div>
-          )}
-
-          {/* Primary Input Group */}
-          <div className="space-y-2">
-            <label className="block text-xs font-mono font-bold tracking-widest text-surface-500 uppercase">
-              [01] Opening Balance_
-            </label>
-            <div className="relative flex items-baseline border-b-4 border-surface-900 group focus-within:border-brand-600 transition-colors pb-2">
-              <span className="text-3xl sm:text-4xl font-mono font-bold text-surface-400 mr-3 select-none group-focus-within:text-brand-600 transition-colors">
-                Rp
-              </span>
-              <input
-                type="number"
-                required
-                min="0"
-                value={openingBalance}
-                onChange={handleOpeningBalanceChange}
-                placeholder="0"
-                className="w-full bg-transparent text-5xl sm:text-7xl font-mono font-black text-surface-900 placeholder:text-surface-200 focus:outline-none tracking-tighter"
-                autoFocus
-              />
-            </div>
-            <div className="flex justify-between items-center mt-3">
-              <p className="text-xs font-mono text-brand-700 font-bold bg-brand-100 px-3 py-1.5 border-2 border-brand-200 inline-block">
-                FMT: {formatRupiah(Number(openingBalance) || 0)}
-              </p>
-              <p className="text-[10px] font-mono text-surface-400 uppercase tracking-widest hidden sm:block">
-                Numeric Input Only
-              </p>
-            </div>
+        {/* Error alert */}
+        {submitError && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2.5 text-sm text-danger-700 animate-fade-in"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{submitError}</span>
           </div>
+        )}
 
-          {/* Secondary Input Group */}
-          <div className="space-y-2">
-            <label className="block text-xs font-mono font-bold tracking-widest text-surface-500 uppercase">
-              [02] Auth Note (Optional)_
-            </label>
-            <input
-              type="text"
-              value={note}
-              onChange={handleNoteChange}
-              placeholder="e.g. Starting float adjusted"
-              className="w-full border-2 border-surface-300 bg-surface-50 px-4 py-3 font-mono text-sm font-medium text-surface-900 placeholder:text-surface-400 focus:border-surface-900 focus:bg-white focus:outline-none focus:ring-0 transition-all shadow-inner"
+        {/* Opening Balance */}
+        <div>
+          <label
+            htmlFor="opening-balance"
+            className="block text-sm font-medium text-surface-700 mb-1"
+          >
+            Modal Awal Laci
+          </label>
+          <p className="text-xs text-surface-400 mb-3">
+            Hitung seluruh uang tunai di dalam laci saat ini.
+          </p>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-500 font-bold select-none">
+              Rp
+            </span>
+            <Input
+              id="opening-balance"
+              type="number"
+              required
+              min="0"
+              value={openingBalance}
+              onChange={handleOpeningBalanceChange}
+              placeholder="0"
+              className="pl-12 text-xl font-extrabold h-14"
+              autoFocus
             />
           </div>
 
-          {/* Action Area */}
-          <div className="pt-6">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="group relative w-full overflow-hidden border-4 border-surface-900 bg-brand-500 px-6 py-4 font-mono text-lg font-black uppercase tracking-widest text-surface-900 transition-all hover:bg-brand-400 hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] active:translate-y-0 active:shadow-none disabled:bg-surface-200 disabled:border-surface-300 disabled:text-surface-400 disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:cursor-not-allowed"
-            >
-              <span className="relative z-10 flex items-center justify-center gap-3">
-                {isPending ? (
-                  <>
-                    <Terminal className="w-5 h-5 animate-pulse" />
-                    <span>Processing...</span>
-                  </>
-                ) : (
-                  <>
-                    Initialize Shift
-                    <span className="inline-block transition-transform group-hover:translate-x-2">→</span>
-                  </>
-                )}
-              </span>
-            </button>
+          {/* Formatted preview */}
+          {numericBalance > 0 && (
+            <p className="text-xs text-brand-600 font-medium mt-1.5 animate-fade-in">
+              Diformat: {formattedBalance}
+            </p>
+          )}
+
+          {/* Quick-fill chips */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {quickAmounts.map((amount) => (
+              <button
+                key={amount}
+                type="button"
+                onClick={() => handleQuickFill(amount)}
+                className={`
+                  px-3 py-1.5 text-xs font-medium rounded-lg
+                  transition-colors duration-200 cursor-pointer
+                  ${
+                    numericBalance === amount
+                      ? "bg-brand-100 text-brand-700 border border-brand-300"
+                      : "bg-surface-100 text-surface-600 hover:bg-surface-200 border border-transparent"
+                  }
+                `}
+              >
+                {formatRupiah(amount)}
+              </button>
+            ))}
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        {/* Note */}
+        <div>
+          <label
+            htmlFor="shift-note"
+            className="block text-sm font-medium text-surface-700 mb-1"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <StickyNote className="w-3.5 h-3.5" />
+              Catatan (Opsional)
+            </span>
+          </label>
+          <Input
+            id="shift-note"
+            type="text"
+            value={note}
+            onChange={handleNoteChange}
+            placeholder="Cth: Uang pas, tidak ada pecahan"
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="pt-4 flex gap-3">
+          {onClose && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleClose}
+              className="flex-1"
+              disabled={isPending}
+            >
+              Nanti
+            </Button>
+          )}
+          <Button
+            type="submit"
+            variant="primary"
+            className="flex-1"
+            disabled={isPending}
+            loading={isPending}
+          >
+            {isPending ? "Memproses..." : "Buka Shift"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
