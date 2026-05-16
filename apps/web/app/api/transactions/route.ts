@@ -36,6 +36,7 @@ type ServerTransactionItem = {
   size: string | null;
   material: string | null;
   price: number;
+  costPrice: number | null;
   quantity: number;
 };
 
@@ -211,6 +212,7 @@ export async function POST(request: Request) {
           id: true,
           name: true,
           price: true,
+          costPrice: true,
           size: true,
           material: true,
         },
@@ -245,6 +247,7 @@ export async function POST(request: Request) {
         size: product.size ?? item.size ?? null,
         material: product.material ?? item.material ?? null,
         price: Number(product.price),
+        costPrice: product.costPrice ? Number(product.costPrice) : null,
         quantity: item.quantity,
       };
     });
@@ -332,6 +335,7 @@ export async function POST(request: Request) {
                     material: item.material || null,
                     quantity: item.quantity,
                     unitPrice: item.price,
+                    unitCost: item.costPrice,
                     discount: 0,
                     subtotal: item.price * item.quantity,
                   })
