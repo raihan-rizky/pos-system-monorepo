@@ -104,10 +104,13 @@ export async function getWahaChatMessages(
   const { baseUrl, apiKey, session } = getWahaConfig();
 
   // Pakai URLSearchParams biar lebih rapi nyusun query-nya
+  // sortBy + sortOrder ensure NOWEB returns messages in chronological order
   const params = new URLSearchParams({
     downloadMedia: String(downloadMedia),
     merge: "true",
     limit: String(limit),
+    sortBy: "messageTimestamp",
+    sortOrder: "asc",
   });
 
   const url = `${baseUrl}/api/${session}/chats/${encodeURIComponent(chatId)}/messages?${params.toString()}`;

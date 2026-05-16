@@ -204,6 +204,11 @@ export async function GET(request: Request) {
       };
     });
 
+    // Safety-net: ensure chronological order regardless of WAHA response ordering
+    messages.sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
 
     const duration = (performance.now() - startTime).toFixed(1);
     console.log(
