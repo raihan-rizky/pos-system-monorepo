@@ -22,7 +22,7 @@
 }
 
 html {
-  font-family: var(--font-inter, 'Inter', system-ui, sans-serif);
+  font-family: var(--font-inter, "Inter", system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -59,7 +59,11 @@ body {
   }
 
   .text-gradient {
-    background: linear-gradient(135deg, var(--color-brand), var(--color-accent));
+    background: linear-gradient(
+      135deg,
+      var(--color-brand),
+      var(--color-accent)
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -94,10 +98,22 @@ input[type="number"] {
 
 /* ─── Route transition progress bar ─────────────────────────────────────────── */
 @keyframes progress-bar {
-  0%   { width: 0%;    opacity: 1; }
-  70%  { width: 80%;   opacity: 1; }
-  90%  { width: 95%;   opacity: 1; }
-  100% { width: 100%;  opacity: 0; }
+  0% {
+    width: 0%;
+    opacity: 1;
+  }
+  70% {
+    width: 80%;
+    opacity: 1;
+  }
+  90% {
+    width: 95%;
+    opacity: 1;
+  }
+  100% {
+    width: 100%;
+    opacity: 0;
+  }
 }
 
 .animate-progress-bar {
@@ -106,8 +122,14 @@ input[type="number"] {
 
 /* ─── PWA install prompt animation ──────────────────────────────────────────── */
 @keyframes slide-up {
-  from { transform: translateY(100%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .animate-slide-up {
@@ -133,30 +155,65 @@ input[type="number"] {
 
 /* ─── Slide To Takeover Button ────────────────────────────────────────────── */
 @keyframes slideUp {
-  from { transform: translateY(12px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slide-thumb-glow {
-  0%   { box-shadow: 0 0 8px 2px rgba(12, 152, 233, 0.5), 0 0 20px 4px rgba(12, 152, 233, 0.2); }
-  50%  { box-shadow: 0 0 14px 4px rgba(12, 152, 233, 0.7), 0 0 32px 8px rgba(12, 152, 233, 0.3); }
-  100% { box-shadow: 0 0 8px 2px rgba(12, 152, 233, 0.5), 0 0 20px 4px rgba(12, 152, 233, 0.2); }
+  0% {
+    box-shadow:
+      0 0 8px 2px rgba(12, 152, 233, 0.5),
+      0 0 20px 4px rgba(12, 152, 233, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 14px 4px rgba(12, 152, 233, 0.7),
+      0 0 32px 8px rgba(12, 152, 233, 0.3);
+  }
+  100% {
+    box-shadow:
+      0 0 8px 2px rgba(12, 152, 233, 0.5),
+      0 0 20px 4px rgba(12, 152, 233, 0.2);
+  }
 }
 
 @keyframes slide-shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes slide-chevron-drift {
-  0%   { transform: translateX(0); opacity: 0.4; }
-  50%  { transform: translateX(6px); opacity: 0.7; }
-  100% { transform: translateX(0); opacity: 0.4; }
+  0% {
+    transform: translateX(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateX(6px);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 0.4;
+  }
 }
 
 .animate-slideUp {
@@ -272,7 +329,7 @@ input[type="number"] {
 .slide-chevrons {
   position: absolute;
   left: 64px;
-  top: 50%;
+  top: 35%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
@@ -285,8 +342,8 @@ input[type="number"] {
   position: absolute;
   top: 4px;
   left: 4px;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   border-radius: 9999px;
   background: linear-gradient(135deg, #0c98e9, #0b7fd4);
   color: white;
@@ -304,13 +361,17 @@ input[type="number"] {
   cursor: grabbing;
   transform: scale(1.05);
   animation: none;
-  box-shadow: 0 0 16px 4px rgba(12, 152, 233, 0.6), 0 0 36px 10px rgba(12, 152, 233, 0.3);
+  box-shadow:
+    0 0 16px 4px rgba(12, 152, 233, 0.6),
+    0 0 36px 10px rgba(12, 152, 233, 0.3);
 }
 
 .slide-thumb--completed {
   background: linear-gradient(135deg, #10b981, #059669);
   animation: none;
-  box-shadow: 0 0 12px 3px rgba(16, 185, 129, 0.5), 0 0 24px 6px rgba(16, 185, 129, 0.2);
+  box-shadow:
+    0 0 12px 3px rgba(16, 185, 129, 0.5),
+    0 0 24px 6px rgba(16, 185, 129, 0.2);
   cursor: default;
 }
 
@@ -318,7 +379,8 @@ input[type="number"] {
   body * {
     visibility: hidden;
   }
-  #print-receipt, #print-receipt * {
+  #print-receipt,
+  #print-receipt * {
     visibility: visible;
   }
   #print-receipt {
@@ -328,9 +390,10 @@ input[type="number"] {
     margin: 0;
     padding: 0;
   }
-  
+
   /* Hide any potential modal overlays/backgrounds */
-  .fixed, [role="dialog"] {
+  .fixed,
+  [role="dialog"] {
     position: absolute !important;
     background: transparent !important;
   }
@@ -343,8 +406,7 @@ input[type="number"] {
   }
   /* Hide scrollbar for IE, Edge and Firefox */
   .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
   }
 }
-
