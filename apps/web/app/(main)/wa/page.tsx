@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 
@@ -291,6 +291,139 @@ const AiToggleButton = ({
     </span>
   </button>
 );
+
+/* ─────────────────────────────────────────────────────────────────
+ * SlideToTakeover — swipeable action button
+ * Appears when AI auto-reply is active, replacing the message input.
+ * User drags a glowing thumb across the track to deactivate AI.
+ * ────────────────────────────────────────────────────────────────── */
+function SlideToTakeover({ onSlideComplete }: { onSlideComplete: () => void }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [dragX, setDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const startXRef = useRef(0);
+  const thumbWidth = 56; // px
+  const completionThreshold = 0.85; // 85% of track
+
+  const getMaxDrag = useCallback(() => {
+    if (!trackRef.current) return 200;
+    return trackRef.current.offsetWidth - thumbWidth - 8; // 8px for padding
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (isCompleted) return;
+    setIsDragging(true);
+    startXRef.current = e.clientX - dragX;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [dragX, isCompleted]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isDragging || isCompleted) return;
+    const maxDrag = getMaxDrag();
+    const newX = Math.max(0, Math.min(e.clientX - startXRef.current, maxDrag));
+    setDragX(newX);
+  }, [isDragging, isCompleted, getMaxDrag]);
+
+  const handlePointerUp = useCallback(() => {
+    if (!isDragging || isCompleted) return;
+    setIsDragging(false);
+    const maxDrag = getMaxDrag();
+    const progress = dragX / maxDrag;
+
+    if (progress >= completionThreshold) {
+      setDragX(maxDrag);
+      setIsCompleted(true);
+      // Small haptic delay before completing
+      setTimeout(() => {
+        onSlideComplete();
+      }, 300);
+    } else {
+      // Snap back
+      setDragX(0);
+    }
+  }, [isDragging, isCompleted, dragX, getMaxDrag, onSlideComplete]);
+
+  const maxDrag = getMaxDrag();
+  const progress = maxDrag > 0 ? dragX / maxDrag : 0;
+
+  return (
+    <div className="slide-takeover-container animate-slideUp">
+      {/* Instructional text */}
+      <div className="flex items-center justify-center gap-2 mb-2">
+        <div className="slide-ai-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="10" rx="2" />
+            <circle cx="12" cy="5" r="2" />
+            <path d="M12 7v4" />
+          </svg>
+          <span>AI sedang aktif merespons</span>
+        </div>
+      </div>
+
+      {/* Slide track */}
+      <div
+        ref={trackRef}
+        className={`slide-track ${
+          isCompleted ? "slide-track--completed" : ""
+        } ${isDragging ? "slide-track--dragging" : ""}`}
+      >
+        {/* Progress fill */}
+        <div
+          className="slide-track-fill"
+          style={{ width: `${dragX + thumbWidth / 2}px` }}
+        />
+
+        {/* Label */}
+        <span
+          className="slide-label"
+          style={{ opacity: 1 - progress * 1.5 }}
+        >
+          {isCompleted ? "Mengambil alih..." : "Geser untuk ambil alih chat"}
+        </span>
+
+        {/* Chevrons hint */}
+        <div className="slide-chevrons" style={{ opacity: isDragging ? 0 : 0.5 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: "-6px" }}>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: "-6px" }}>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </div>
+
+        {/* Thumb */}
+        <div
+          className={`slide-thumb ${
+            isCompleted ? "slide-thumb--completed" : ""
+          } ${isDragging ? "slide-thumb--active" : ""}`}
+          style={{
+            transform: `translateX(${dragX}px)`,
+            transition: isDragging ? "none" : "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          {isCompleted ? (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="13 17 18 12 13 7" />
+              <polyline points="6 17 11 12 6 7" />
+            </svg>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function WACoexistencePage() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -758,42 +891,52 @@ export default function WACoexistencePage() {
                 <div ref={messagesEndRef} className="h-2" />
               </div>
 
-              {/* Message Input Area */}
+              {/* Message Input Area — conditional based on AI toggle */}
               <div className="relative z-20 p-3 md:p-4 bg-surface-50 border-t border-surface-200">
-                <form
-                  onSubmit={handleSend}
-                  className="flex gap-2.5 max-w-4xl mx-auto"
-                >
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      placeholder="Ketik balasan untuk pelanggan ini..."
-                      className="w-full pl-5 pr-12 py-3.5 rounded-full border border-surface-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 shadow-sm transition-all"
+                {isAutoReplyOn && selectedChatId ? (
+                  <div className="max-w-4xl mx-auto">
+                    <SlideToTakeover
+                      onSlideComplete={() => {
+                        toggleAutoReply(false);
+                      }}
                     />
                   </div>
-                  <button
-                    type="submit"
-                    disabled={!inputText.trim() || isSending}
-                    className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 hover:shadow-lg disabled:opacity-50 disabled:hover:shadow-md transition-all flex-shrink-0 shadow-md transform active:scale-95"
+                ) : (
+                  <form
+                    onSubmit={handleSend}
+                    className="flex gap-2.5 max-w-4xl mx-auto animate-fadeIn"
                   >
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="ml-1"
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        placeholder="Ketik balasan untuk pelanggan ini..."
+                        className="w-full pl-5 pr-12 py-3.5 rounded-full border border-surface-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 shadow-sm transition-all"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={!inputText.trim() || isSending}
+                      className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 hover:shadow-lg disabled:opacity-50 disabled:hover:shadow-md transition-all flex-shrink-0 shadow-md transform active:scale-95"
                     >
-                      <line x1="22" y1="2" x2="11" y2="13" />
-                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                    </svg>
-                  </button>
-                </form>
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="ml-1"
+                      >
+                        <line x1="22" y1="2" x2="11" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                      </svg>
+                    </button>
+                  </form>
+                )}
               </div>
             </>
           )}
