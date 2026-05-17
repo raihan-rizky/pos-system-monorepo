@@ -215,6 +215,9 @@ export async function POST(request: Request) {
         batchOperationId: batch.id,
         undoAvailable: true,
       };
+    }, {
+      maxWait: 15000,  // max time to wait to acquire a transaction slot (15s)
+      timeout: 60000,  // max time the transaction can run (60s)
     });
 
     return NextResponse.json(result, { status: 201 });
