@@ -6,6 +6,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "e2e": "pnpm --filter @pos/web e2e",
+    "test": "pnpm --filter @pos/web test",
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "postinstall": "pnpm --filter @pos/db generate",

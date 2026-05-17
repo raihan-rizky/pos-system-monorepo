@@ -9,6 +9,7 @@ import { PwaStatusBanner } from "@/components/PwaStatusBanner";
 import { NotificationPermissionPrompt } from "@/components/NotificationPermissionPrompt";
 import { InAppPushNotifications } from "@/components/InAppPushNotifications";
 import type { Role } from "@/lib/rbac/permissions";
+import type { RolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 function AppBootstrap({
   children,
@@ -26,11 +27,13 @@ export function Providers({
   role,
   userId,
   userName,
+  permissions,
 }: { 
   children: React.ReactNode;
   role: Role | null;
   userId: string | null;
   userName: string | null;
+  permissions: RolePermissions;
 }) {
   const [queryClient] = useState(
     () =>
@@ -49,7 +52,7 @@ export function Providers({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RoleProvider role={role} userId={userId} userName={userName}>
+      <RoleProvider role={role} userId={userId} userName={userName} permissions={permissions}>
         <PwaStatusBanner />
         <AppBootstrap enabled={Boolean(role)}>{children}</AppBootstrap>
         <InAppPushNotifications />

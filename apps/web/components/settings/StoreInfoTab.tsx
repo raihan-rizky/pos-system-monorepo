@@ -3,8 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { Upload, X, RefreshCw, Save, Store, CheckCircle2 } from "lucide-react";
 import { useStoreSettings, useUpdateStore } from "@/hooks/useSettings";
+import { useRole } from "@/components/providers/RoleProvider";
+import { shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 
 export default function StoreInfoTab() {
+  const { canPerform } = useRole();
+  const canUpdateSettings = shouldShowUpdateAction("settings", canPerform);
   const { data: settings, isLoading } = useStoreSettings();
   const updateStore = useUpdateStore();
 
@@ -26,6 +30,7 @@ export default function StoreInfoTab() {
   }, [settings]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canUpdateSettings) return;
     const file = e.target.files?.[0];
     if (!file) return;
     setIsUploading(true);
@@ -49,6 +54,7 @@ export default function StoreInfoTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canUpdateSettings) return;
     setSaveError(null);
     setSaved(false);
     try {
@@ -97,13 +103,15 @@ export default function StoreInfoTab() {
                 className="w-full h-full object-cover"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).src = ""; }}
               />
-              <button
-                type="button"
-                onClick={() => setForm(p => ({ ...p, logoUrl: "" }))}
-                className="absolute top-1 right-1 bg-white/90 rounded-full p-1 text-surface-500 hover:text-red-600 shadow cursor-pointer transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
+              {canUpdateSettings && (
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, logoUrl: "" }))}
+                  className="absolute top-1 right-1 bg-white/90 rounded-full p-1 text-surface-500 hover:text-red-600 shadow cursor-pointer transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
           ) : (
             <div className="relative w-20 h-20 rounded-2xl bg-surface-50 border-2 border-dashed border-surface-300 flex flex-col items-center justify-center hover:bg-surface-100 transition-colors shrink-0 overflow-hidden">
@@ -116,7 +124,7 @@ export default function StoreInfoTab() {
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleUpload}
-                disabled={isUploading}
+                disabled={isUploading || !canUpdateSettings}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               />
             </div>
@@ -142,6 +150,7 @@ export default function StoreInfoTab() {
           type="text"
           value={form.name}
           onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+          disabled={!canUpdateSettings}
           placeholder="e.g. Teladan Print & ATK"
           className="w-full px-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all"
         />
@@ -159,6 +168,7 @@ export default function StoreInfoTab() {
           id="store-address"
           value={form.address}
           onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+          disabled={!canUpdateSettings}
           placeholder="Jl. Contoh No. 1, Bandung"
           rows={3}
           className="w-full px-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all resize-none"
@@ -178,6 +188,7 @@ export default function StoreInfoTab() {
           type="tel"
           value={form.phone}
           onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+          disabled={!canUpdateSettings}
           placeholder="e.g. 0812-3456-7890"
           className="w-full px-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all"
         />
@@ -187,6 +198,7 @@ export default function StoreInfoTab() {
       {saveError && (
         <p className="text-sm text-red-600 font-medium">{saveError}</p>
       )}
+      {canUpdateSettings && (
       <button
         type="submit"
         disabled={updateStore.isPending}
@@ -199,6 +211,7 @@ export default function StoreInfoTab() {
             : <><Save className="w-4 h-4" /> Save Changes</>
         }
       </button>
+      )}
     </form>
   );
 }

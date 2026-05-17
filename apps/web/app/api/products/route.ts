@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/products?search=xxx&categoryId=xxx&limit=100
 export async function GET(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("product", "read");
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
 // POST /api/products - Create a new product
 export async function POST(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("product", "create");
     const body = await request.json();
     
     // Validate request body

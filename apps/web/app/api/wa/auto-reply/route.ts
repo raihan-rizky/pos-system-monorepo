@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ const toggleAutoReplySchema = z.object({
 
 export async function GET() {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("whatsapp", "read");
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
@@ -60,7 +60,7 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("whatsapp", "update");
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ const createCustomerSchema = z.object({
 // GET /api/customers
 export async function GET(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("customer", "read");
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const type = searchParams.get("type") || "";
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
 // POST /api/customers
 export async function POST(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("customer", "create");
     const body = await request.json();
     const parsed = createCustomerSchema.safeParse(body);
 

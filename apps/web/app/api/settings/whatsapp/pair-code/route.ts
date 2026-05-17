@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,7 @@ function parseJsonObject(text: string): Record<string, unknown> {
 
 export async function POST(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("whatsapp", "update");
     if (!isWaConfigured()) {
       return NextResponse.json(
         { message: "WAHA_BASE_URL is not set. Configure it in your environment variables." },

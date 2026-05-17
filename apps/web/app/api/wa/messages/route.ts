@@ -7,7 +7,7 @@ import {
   WahaChat,
   WahaMessage,
 } from "@/lib/whatsapp";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("whatsapp", "read");
     const phone = phoneParam;
 
     const targetId = chatIdParam || phone;
@@ -261,7 +261,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("whatsapp", "create");
     const body = await request.json();
     const validatedData = sendWaMessageSchema.safeParse(body);
 

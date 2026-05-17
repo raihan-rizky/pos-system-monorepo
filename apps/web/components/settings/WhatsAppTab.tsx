@@ -20,6 +20,8 @@ import {
   useWaStatus,
   type WaStatus,
 } from "@/hooks/useSettings";
+import { useRole } from "@/components/providers/RoleProvider";
+import { shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 
 function StatusBadge({ status }: { status: WaStatus }) {
   const config: Record<WaStatus, { label: string; dot: string; bg: string; text: string }> = {
@@ -49,6 +51,8 @@ function isWahaMe(value: unknown): value is WahaMe {
 }
 
 export default function WhatsAppTab() {
+  const { canPerform } = useRole();
+  const canUpdateWhatsApp = shouldShowUpdateAction("whatsapp", canPerform);
   const queryClient = useQueryClient();
   const { data: statusData, isLoading: statusLoading } = useWaStatus();
   const { data: qrData, isFetching: qrFetching, isError: qrError, refetch: fetchQr } = useWaQr();
@@ -64,12 +68,14 @@ export default function WhatsAppTab() {
   const waName = rawMe?.pushName || "WhatsApp User";
 
   const handleRefresh = async () => {
+    if (!canUpdateWhatsApp) return;
     await queryClient.invalidateQueries({ queryKey: ["settings", "wa-status"] });
     await fetchQr();
   };
 
   const handlePairCode = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!canUpdateWhatsApp) return;
     setCopied(false);
     await pairCode.mutateAsync({ phoneNumber });
     await queryClient.invalidateQueries({ queryKey: ["settings", "wa-status"] });
@@ -142,7 +148,7 @@ export default function WhatsAppTab() {
             </div>
           )}
 
-          {(status === "SCAN_QR_CODE" || status === "DISCONNECTED" || status === "UNKNOWN") && (
+          {canUpdateWhatsApp && (status === "SCAN_QR_CODE" || status === "DISCONNECTED" || status === "UNKNOWN") && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2 rounded-2xl border border-surface-200 bg-surface-50 p-1">
                 <button

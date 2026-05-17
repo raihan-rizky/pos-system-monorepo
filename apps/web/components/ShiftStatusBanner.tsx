@@ -17,6 +17,10 @@ export function ShiftStatusBanner({ shift, onCloseShift, canCloseShift = true }:
     const updateTime = () => {
       const now = new Date();
       const start = new Date(shift.openedAt);
+      if (Number.isNaN(start.getTime())) {
+        setUptime("-");
+        return;
+      }
       const diffStr = calculateDiff(start, now);
       setUptime(diffStr);
     };

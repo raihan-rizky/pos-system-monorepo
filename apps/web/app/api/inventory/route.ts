@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 const inventoryLogSchema = z.object({
   productId: z.string().min(1, "Product ID is required"),
@@ -13,7 +13,7 @@ const inventoryLogSchema = z.object({
 // POST /api/inventory - Record a stock change
 export async function POST(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("inventory", "update");
     const body = await request.json();
     const validatedData = inventoryLogSchema.parse(body);
     const storeId = user.storeId || "store-main";

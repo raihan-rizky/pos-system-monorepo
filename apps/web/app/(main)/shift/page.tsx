@@ -6,11 +6,13 @@ import { formatRupiah, formatDate } from "@/lib/utils";
 import { useRole } from "@/components/providers/RoleProvider";
 import { EditShiftModal } from "@/components/EditShiftModal";
 import { Edit2 } from "lucide-react";
+import { shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 
 export default function ShiftHistoryPage() {
   const [page, setPage] = useState(1);
   const { data: result, isLoading } = useShiftHistory(page, 10);
-  const { role } = useRole();
+  const { canPerform } = useRole();
+  const canUpdateShifts = shouldShowUpdateAction("shift", canPerform);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<CashierShift | null>(null);
 
@@ -58,7 +60,7 @@ export default function ShiftHistoryPage() {
                         <th className="py-4 px-6 font-semibold">Catatan</th>
                         <th className="py-4 px-6 font-semibold text-right">Selisih</th>
                         <th className="py-4 px-6 font-semibold text-center">Status</th>
-                        {(role === "OWNER" || role === "ADMIN") && <th className="py-4 px-6 font-semibold text-center">Aksi</th>}
+                        {canUpdateShifts && <th className="py-4 px-6 font-semibold text-center">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-100">
@@ -82,7 +84,7 @@ export default function ShiftHistoryPage() {
                               {shift.status}
                             </span>
                           </td>
-                          {(role === "OWNER" || role === "ADMIN") && (
+                          {canUpdateShifts && (
                             <td className="py-4 px-6 text-center">
                               <button
                                 onClick={() => {
@@ -127,7 +129,7 @@ export default function ShiftHistoryPage() {
       </div>
 
       <EditShiftModal
-        open={editOpen}
+        open={editOpen && canUpdateShifts}
         onClose={() => {
           setEditOpen(false);
           setSelectedShift(null);

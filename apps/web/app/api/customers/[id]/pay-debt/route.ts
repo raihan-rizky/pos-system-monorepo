@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
+    const user = await requirePermission("customer", "update");
     const storeId = user.storeId || "store-main";
     const { id } = await params;
     const body = await request.json();

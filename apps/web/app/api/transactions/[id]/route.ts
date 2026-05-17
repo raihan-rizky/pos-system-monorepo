@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
+
+const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
+  COMPLETED: ["DP", "VOIDED", "REFUNDED"],
+  DP: ["COMPLETED", "VOIDED"],
+  PENDING_APPROVAL: ["COMPLETED", "VOIDED"],
+  VOIDED: [],
+  REFUNDED: [],
+};
 
 const updateTransactionSchema = z.object({
   salesName: z.string().optional().nullable(),
@@ -18,7 +26,7 @@ export async function PATCH(
 ) {
   let id = "";
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("transaction", "update");
     const storeId = user.storeId || "store-main";
     ({ id } = await params);
     const body = await request.json();
@@ -33,16 +41,9 @@ export async function PATCH(
 
     const { salesName, salespersonId, customerName, paymentMethod, status } = parsed.data;
 
-    if (status !== undefined) {
-      return NextResponse.json(
-        { message: "Use a dedicated approval, rejection, refund, or void workflow to change transaction status" },
-        { status: 400 }
-      );
-    }
-
     const existingTransaction = await db.transaction.findFirst({
       where: { id, storeId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
 
     if (!existingTransaction) {
@@ -50,6 +51,25 @@ export async function PATCH(
         { message: "Transaksi tidak ditemukan" },
         { status: 404 }
       );
+    }
+
+    // Validate status transition
+    if (status !== undefined && status !== existingTransaction.status) {
+      const userRole = user.role;
+      if (userRole !== "OWNER" && userRole !== "ADMIN") {
+        return NextResponse.json(
+          { message: "Hanya Owner atau Admin yang dapat mengubah status transaksi" },
+          { status: 403 }
+        );
+      }
+
+      const allowed = ALLOWED_STATUS_TRANSITIONS[existingTransaction.status] ?? [];
+      if (!allowed.includes(status)) {
+        return NextResponse.json(
+          { message: `Tidak dapat mengubah status dari ${existingTransaction.status} ke ${status}` },
+          { status: 400 }
+        );
+      }
     }
 
     if (salespersonId) {
@@ -72,6 +92,7 @@ export async function PATCH(
     if (salespersonId !== undefined) updateData.salespersonId = salespersonId || null;
     if (customerName !== undefined) updateData.customerName = customerName || null;
     if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
+    if (status !== undefined && status !== existingTransaction.status) updateData.status = status;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
@@ -125,7 +146,7 @@ export async function DELETE(
 ) {
   let id = "";
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("transaction", "delete");
     const storeId = user.storeId || "store-main";
     ({ id } = await params);
 

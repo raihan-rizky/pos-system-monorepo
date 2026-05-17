@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { createClient } from "@/utils/supabase/server";
+import {
+  isMissingStorageBucketError,
+  POS_MEDIA_BUCKET,
+} from "@/features/upload/helpers/upload-core";
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +27,7 @@ const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
 
 export async function POST(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("product", "update");
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
     const { error } = await supabase.storage
-      .from("pos-media")
+      .from(POS_MEDIA_BUCKET)
       .upload(`products/${filename}`, buffer, {
         contentType: file.type,
         upsert: false,
@@ -61,6 +65,16 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error("Supabase Storage Error:", error);
+      if (isMissingStorageBucketError(error)) {
+        return NextResponse.json(
+          {
+            message:
+              "Supabase Storage bucket is missing. Apply the pos-media storage migration before uploading images.",
+          },
+          { status: 503 },
+        );
+      }
+
       return NextResponse.json(
         { message: "Failed to upload image to storage." },
         { status: 500 }
@@ -68,7 +82,7 @@ export async function POST(request: Request) {
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from("pos-media")
+      .from(POS_MEDIA_BUCKET)
       .getPublicUrl(`products/${filename}`);
 
     return NextResponse.json({ url: publicUrlData.publicUrl }, { status: 201 });

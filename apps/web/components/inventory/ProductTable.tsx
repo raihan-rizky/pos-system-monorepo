@@ -7,9 +7,22 @@ interface ProductTableProps {
   isLoading: boolean;
   onEdit: (id: string) => void;
   onUpdateStock: (id: string) => void;
+  canUpdateProduct: boolean;
+  canUpdateStock: boolean;
+  selectedProductIds?: Set<string>;
+  onToggleProduct?: (id: string) => void;
 }
 
-export default function ProductTable({ products, isLoading, onEdit, onUpdateStock }: ProductTableProps) {
+export default function ProductTable({
+  products,
+  isLoading,
+  onEdit,
+  onUpdateStock,
+  canUpdateProduct,
+  canUpdateStock,
+  selectedProductIds = new Set(),
+  onToggleProduct,
+}: ProductTableProps) {
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center py-20 gap-3 text-surface-400">
       <RefreshCw className="w-7 h-7 animate-spin text-brand-400" />
@@ -35,6 +48,7 @@ export default function ProductTable({ products, isLoading, onEdit, onUpdateStoc
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-surface-100">
+              {onToggleProduct && <th className="py-3 pl-5 pr-0 w-10" />}
               <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest">Product</th>
               <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest">Category</th>
               <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest text-right">Price</th>
@@ -47,6 +61,17 @@ export default function ProductTable({ products, isLoading, onEdit, onUpdateStoc
               const isLow = product.stock <= product.minStock;
               return (
                 <tr key={product.id} className="group border-b border-surface-50 hover:bg-brand-50/30 transition-colors duration-150">
+                  {onToggleProduct && (
+                    <td className="py-3.5 pl-5 pr-0 align-middle">
+                      <input
+                        type="checkbox"
+                        checked={selectedProductIds.has(product.id)}
+                        onChange={() => onToggleProduct(product.id)}
+                        className="h-4 w-4 rounded border-slate-300"
+                        aria-label={`Select ${product.name}`}
+                      />
+                    </td>
+                  )}
                   {/* Product Info */}
                   <td className="py-3.5 px-5 align-middle">
                     <div className="flex items-center gap-3.5">
@@ -58,7 +83,9 @@ export default function ProductTable({ products, isLoading, onEdit, onUpdateStoc
                       <div>
                         <p
                           className="font-semibold text-surface-900 group-hover:text-brand-600 transition-colors cursor-pointer text-sm"
-                          onClick={() => onEdit(product.id)}
+                          onClick={() => {
+                            if (canUpdateProduct) onEdit(product.id);
+                          }}
                         >{product.name}</p>
                         <p className="text-[11px] text-surface-400 mt-0.5">
                           {product.sku}{product.size ? ` · ${product.size}` : ""}{product.material ? ` · ${product.material}` : ""}
@@ -111,22 +138,28 @@ export default function ProductTable({ products, isLoading, onEdit, onUpdateStoc
 
                   {/* Actions */}
                   <td className="py-3.5 px-5 align-middle text-right">
-                    <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                      <button
-                        onClick={() => onUpdateStock(product.id)}
-                        title="Update Stock"
-                        className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
-                      >
-                        <TrendingUp className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => onEdit(product.id)}
-                        title="Edit Product"
-                        className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {(canUpdateStock || canUpdateProduct) && (
+                      <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                        {canUpdateStock && (
+                          <button
+                            onClick={() => onUpdateStock(product.id)}
+                            title="Update Stock"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                          >
+                            <TrendingUp className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canUpdateProduct && (
+                          <button
+                            onClick={() => onEdit(product.id)}
+                            title="Edit Product"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -145,6 +178,15 @@ export default function ProductTable({ products, isLoading, onEdit, onUpdateStoc
               key={product.id} 
               className="relative group bg-white rounded-3xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 hover:border-brand-200 transition-all duration-300"
             >
+              {onToggleProduct && (
+                <input
+                  type="checkbox"
+                  checked={selectedProductIds.has(product.id)}
+                  onChange={() => onToggleProduct(product.id)}
+                  className="absolute right-4 top-4 z-10 h-5 w-5 rounded border-slate-300"
+                  aria-label={`Select ${product.name}`}
+                />
+              )}
               <div className="flex gap-4">
                 {/* Product Image */}
                 <div className="relative shrink-0">
@@ -167,22 +209,28 @@ export default function ProductTable({ products, isLoading, onEdit, onUpdateStoc
                       <h3 className="font-extrabold text-slate-900 text-[15px] leading-tight truncate pr-2">{product.name}</h3>
                       <p className="text-[10px] font-bold text-slate-400 mt-1 tracking-wider uppercase truncate">{product.sku}</p>
                     </div>
-                    <div className="flex gap-1.5 shrink-0">
-                      <button 
-                        onClick={() => onUpdateStock(product.id)}
-                        className="p-2.5 bg-slate-50 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 rounded-xl transition-all cursor-pointer"
-                        title="Update Stock"
-                      >
-                        <TrendingUp className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => onEdit(product.id)}
-                        className="p-2.5 bg-slate-50 text-slate-500 hover:text-brand-600 hover:bg-brand-50 active:bg-brand-100 rounded-xl transition-all cursor-pointer"
-                        title="Edit Product"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {(canUpdateStock || canUpdateProduct) && (
+                      <div className="flex gap-1.5 shrink-0">
+                        {canUpdateStock && (
+                          <button
+                            onClick={() => onUpdateStock(product.id)}
+                            className="p-2.5 bg-slate-50 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 rounded-xl transition-all cursor-pointer"
+                            title="Update Stock"
+                          >
+                            <TrendingUp className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canUpdateProduct && (
+                          <button
+                            onClick={() => onEdit(product.id)}
+                            className="p-2.5 bg-slate-50 text-slate-500 hover:text-brand-600 hover:bg-brand-50 active:bg-brand-100 rounded-xl transition-all cursor-pointer"
+                            title="Edit Product"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">

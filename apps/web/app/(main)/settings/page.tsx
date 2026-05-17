@@ -1,23 +1,28 @@
 "use client";
 
 import React, { useState } from "react";
-import { Bell, RefreshCw, Settings, Store, MessageCircle } from "lucide-react";
+import { Bell, RefreshCw, Settings, Store, MessageCircle, ShieldCheck } from "lucide-react";
 import StoreInfoTab from "@/components/settings/StoreInfoTab";
 import WhatsAppTab from "@/components/settings/WhatsAppTab";
 import OfflineSyncTab from "@/components/settings/OfflineSyncTab";
 import NotificationsTab from "@/components/settings/NotificationsTab";
+import RbacTab from "@/components/settings/RbacTab";
+import { useRole } from "@/components/providers/RoleProvider";
 
-type Tab = "store" | "whatsapp" | "notifications" | "offline";
+type Tab = "store" | "whatsapp" | "rbac" | "notifications" | "offline";
 
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
   { id: "store", label: "Store Info", icon: <Store className="w-4 h-4" /> },
   { id: "whatsapp", label: "WhatsApp", icon: <MessageCircle className="w-4 h-4" /> },
+  { id: "rbac", label: "RBAC", icon: <ShieldCheck className="w-4 h-4" />, ownerOnly: true },
   { id: "notifications", label: "Notifications", icon: <Bell className="w-4 h-4" /> },
   { id: "offline", label: "Offline Sync", icon: <RefreshCw className="w-4 h-4" /> },
 ];
 
 export default function SettingsPage() {
+  const { role } = useRole();
   const [activeTab, setActiveTab] = useState<Tab>("store");
+  const visibleTabs = TABS.filter((tab) => !tab.ownerOnly || role === "OWNER");
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-surface-50 min-h-screen">
@@ -39,7 +44,7 @@ export default function SettingsPage() {
 
           {/* Tab Pills */}
           <nav className="flex sm:flex-col gap-1 sm:w-48 shrink-0">
-            {TABS.map(tab => (
+            {visibleTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -59,6 +64,7 @@ export default function SettingsPage() {
           <div className="flex-1 bg-white border border-surface-100 rounded-2xl shadow-sm p-6">
             {activeTab === "store" && <StoreInfoTab />}
             {activeTab === "whatsapp" && <WhatsAppTab />}
+            {activeTab === "rbac" && role === "OWNER" && <RbacTab />}
             {activeTab === "notifications" && <NotificationsTab />}
             {activeTab === "offline" && <OfflineSyncTab />}
           </div>

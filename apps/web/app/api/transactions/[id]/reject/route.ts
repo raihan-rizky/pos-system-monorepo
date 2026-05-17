@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
+    const user = await requirePermission("transaction.approve", "delete");
     
     const { id } = await params;
 

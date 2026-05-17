@@ -12,6 +12,8 @@ import {
   CustomerType,
 } from "@/hooks/useCustomers";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useRole } from "@/components/providers/RoleProvider";
+import { shouldShowAction, shouldShowDeleteAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 
 // ─── Type Badge ───────────────────────────────────────────────────────────────
 
@@ -306,6 +308,10 @@ function CustomerFormModal({ initial, onClose }: FormModalProps) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CustomersPage() {
+  const { canPerform } = useRole();
+  const canCreateCustomers = shouldShowAction("customer", "create", canPerform);
+  const canUpdateCustomers = shouldShowUpdateAction("customer", canPerform);
+  const canDeleteCustomers = shouldShowDeleteAction("customer", canPerform);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<CustomerType | "">("");
   const [page, setPage] = useState(1);
@@ -323,14 +329,15 @@ export default function CustomersPage() {
     limit: 20,
   });
 
-  const openCreate = () => { setEditTarget(null); setModalOpen(true); };
-  const openEdit = (c: Customer) => { setEditTarget(c); setModalOpen(true); };
+  const openCreate = () => { if (!canCreateCustomers) return; setEditTarget(null); setModalOpen(true); };
+  const openEdit = (c: Customer) => { if (!canUpdateCustomers) return; setEditTarget(c); setModalOpen(true); };
   const closeModal = () => setModalOpen(false);
 
   const handleDelete = useCallback(async (c: Customer) => {
+    if (!canDeleteCustomers) return;
     if (!confirm(`Hapus pelanggan "${c.name}"?`)) return;
     await deleteCustomer.mutateAsync(c.id);
-  }, [deleteCustomer]);
+  }, [canDeleteCustomers, deleteCustomer]);
 
   // Summary stats
   const totalDebtAll = data?.data.reduce((sum: number, c: Customer) => sum + Number(c.totalDebt), 0) ?? 0;
@@ -346,10 +353,12 @@ export default function CustomersPage() {
             {data?.total ?? 0} pelanggan terdaftar
           </p>
         </div>
-        <button onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors shadow-sm">
-          + Tambah Pelanggan
-        </button>
+        {canCreateCustomers && (
+          <button onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors shadow-sm">
+            + Tambah Pelanggan
+          </button>
+        )}
       </header>
 
       {/* Debt Summary Banner */}
@@ -428,20 +437,24 @@ export default function CustomersPage() {
                       <td className="px-4 py-3 text-surface-500 text-xs hidden xl:table-cell">{fmtDate(c.lastVisitAt)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {Number(c.totalDebt) > 0 && (
+                          {Number(c.totalDebt) > 0 && canUpdateCustomers && (
                             <button onClick={() => setDebtTarget(c)}
                               className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 text-xs font-medium transition-colors">
                               Bayar
                             </button>
                           )}
-                          <button onClick={() => openEdit(c)}
-                            className="px-3 py-1.5 rounded-lg bg-surface-100 text-surface-700 hover:bg-brand-50 hover:text-brand-700 text-xs font-medium transition-colors">
-                            Edit
-                          </button>
-                          <button onClick={() => handleDelete(c)}
-                            className="px-3 py-1.5 rounded-lg bg-surface-100 text-surface-700 hover:bg-red-50 hover:text-red-700 text-xs font-medium transition-colors">
-                            Hapus
-                          </button>
+                          {canUpdateCustomers && (
+                            <button onClick={() => openEdit(c)}
+                              className="px-3 py-1.5 rounded-lg bg-surface-100 text-surface-700 hover:bg-brand-50 hover:text-brand-700 text-xs font-medium transition-colors">
+                              Edit
+                            </button>
+                          )}
+                          {canDeleteCustomers && (
+                            <button onClick={() => handleDelete(c)}
+                              className="px-3 py-1.5 rounded-lg bg-surface-100 text-surface-700 hover:bg-red-50 hover:text-red-700 text-xs font-medium transition-colors">
+                              Hapus
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -473,10 +486,10 @@ export default function CustomersPage() {
       </div>
 
       {/* Modals */}
-      {modalOpen && (
+      {modalOpen && (editTarget ? canUpdateCustomers : canCreateCustomers) && (
         <CustomerFormModal initial={editTarget} onClose={closeModal} />
       )}
-      {debtTarget && (
+      {debtTarget && canUpdateCustomers && (
         <PayDebtModal customer={debtTarget} onClose={() => setDebtTarget(null)} />
       )}
     </div>

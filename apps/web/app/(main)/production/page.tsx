@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   TrendingUp,
 } from "lucide-react";
+import { useRole } from "@/components/providers/RoleProvider";
+import { shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 
 // ─── Stat Card ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,8 @@ function StatCard({
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function ProductionPage() {
+  const { canPerform } = useRole();
+  const canUpdateProduction = shouldShowUpdateAction("production", canPerform);
   const { data: jobOrders = [], isLoading, isError } = useJobOrders();
   const moveJobOrder = useMoveJobOrder();
   const [now, setNow] = useState<number | null>(null);
@@ -69,10 +73,12 @@ export default function ProductionPage() {
   ).length;
 
   const handleMoveForward = (id: string, nextStatus: ProductionStatus) => {
+    if (!canUpdateProduction) return;
     moveJobOrder.mutate({ id, productionStatus: nextStatus });
   };
 
   const handleDrop = (orderId: string, targetStatus: ProductionStatus) => {
+    if (!canUpdateProduction) return;
     // Don't update if already in the same column
     const current = jobOrders.find((o) => o.id === orderId);
     if (current && current.productionStatus !== targetStatus) {
@@ -155,8 +161,8 @@ export default function ProductionPage() {
         ) : (
           <KanbanBoard
             orders={jobOrders}
-            onMoveForward={handleMoveForward}
-            onDrop={handleDrop}
+            onMoveForward={canUpdateProduction ? handleMoveForward : undefined}
+            onDrop={canUpdateProduction ? handleDrop : undefined}
           />
         )}
       </div>

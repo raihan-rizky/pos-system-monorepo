@@ -2,7 +2,13 @@
 
 import React, { createContext, useContext } from "react";
 import type { Role } from "@/lib/rbac/permissions";
-import { canAccessPage, canPerformAction, Action } from "@/lib/rbac/permissions";
+import { Action } from "@/lib/rbac/permissions";
+import {
+  buildDefaultRolePermissions,
+  canRoleAccessPage,
+  canRolePerformAction,
+} from "@/features/rbac/helpers/rbac-core";
+import type { RolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 interface RoleContextType {
   role: Role | null;
@@ -29,17 +35,24 @@ interface RoleProviderProps {
   role: Role | null;
   userId: string | null;
   userName: string | null;
+  permissions?: RolePermissions;
 }
 
-export function RoleProvider({ children, role, userId, userName }: RoleProviderProps) {
+export function RoleProvider({
+  children,
+  role,
+  userId,
+  userName,
+  permissions = buildDefaultRolePermissions(),
+}: RoleProviderProps) {
   const canAccess = (path: string) => {
     if (!role) return false;
-    return canAccessPage(role, path);
+    return canRoleAccessPage(role, path, permissions);
   };
 
   const canPerform = (resource: string, action: Action) => {
     if (!role) return false;
-    return canPerformAction(role, resource, action);
+    return canRolePerformAction(role, resource, action, permissions);
   };
 
   return (

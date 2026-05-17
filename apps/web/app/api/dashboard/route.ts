@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +34,7 @@ function jakartaDateKey(date: Date) {
 // GET /api/dashboard - Dashboard statistics optimized for serverless performance
 export async function GET() {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("transaction", "read");
     const storeId = user.storeId || "store-main";
 
     const now = new Date();

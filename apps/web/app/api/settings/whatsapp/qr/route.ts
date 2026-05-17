@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/settings/whatsapp/qr
 export async function GET() {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("whatsapp", "read");
     if (!isWaConfigured()) {
       console.log("[Settings/WA/QR] WAHA is not configured in env");
       return NextResponse.json(

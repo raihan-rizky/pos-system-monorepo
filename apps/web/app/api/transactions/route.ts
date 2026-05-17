@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 const transactionItemSchema = z.object({
@@ -45,7 +45,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/transactions
 export async function GET(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("transaction", "read");
     const storeId = user.storeId || "store-main";
 
     const { searchParams } = new URL(request.url);
@@ -153,7 +153,7 @@ export async function GET(request: Request) {
 // POST /api/transactions - Create new transaction with stock deduction
 export async function POST(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("transaction", "create");
     const storeId = user.storeId || "store-main";
 
 

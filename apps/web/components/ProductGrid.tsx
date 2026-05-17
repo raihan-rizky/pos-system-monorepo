@@ -4,6 +4,8 @@ import React from "react";
 import Image from "next/image";
 import { formatRupiah } from "@/lib/utils";
 import type { Product } from "@/hooks/useProducts";
+import { useRole } from "@/components/providers/RoleProvider";
+import { shouldShowDeleteAction } from "@/features/rbac/helpers/rbac-ui";
 
 // Tiny 4×4 neutral grey pixel — used as blur placeholder (no external request)
 const BLUR_DATA_URL =
@@ -26,6 +28,9 @@ export function ProductGrid({
   onEditProduct,
   onDeleteProduct,
 }: ProductGridProps) {
+  const { canPerform } = useRole();
+  const canDeleteProducts = shouldShowDeleteAction("product", canPerform);
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
@@ -112,29 +117,33 @@ export function ProductGrid({
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </button>
-                <div className="w-px h-4 bg-surface-200"></div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteProduct?.(product);
-                  }}
-                  className="p-1.5 text-danger-400 hover:text-danger-600 hover:bg-danger-50 rounded-md transition-colors"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
-                </button>
+                {canDeleteProducts && (
+                  <>
+                    <div className="w-px h-4 bg-surface-200"></div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteProduct?.(product);
+                      }}
+                      className="p-1.5 text-danger-400 hover:text-danger-600 hover:bg-danger-50 rounded-md transition-colors"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  </>
+                )}
               </div>
             )}
 

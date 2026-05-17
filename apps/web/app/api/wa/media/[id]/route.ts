@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +79,7 @@ export async function GET(
   }
 
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("whatsapp", "read");
     const { baseUrl, apiKey, session } = getWahaConfig();
 
     // ── Resolve the actual download URL ─────────────────────────────────────

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 type SalespersonWhereData = {
   storeId?: string;
@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/salespersons
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("salesperson", "read");
     const { searchParams } = new URL(request.url);
     const storeId = user.storeId || "store-main";
     const activeOnly = searchParams.get("activeOnly") === "true";
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 // POST /api/salespersons
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("salesperson", "create");
     const body = await request.json();
     const validatedData = createSalespersonSchema.safeParse(body);
 

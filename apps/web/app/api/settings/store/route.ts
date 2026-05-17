@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ const storeSchema = z.object({
 // GET /api/settings/store
 export async function GET() {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("settings", "read");
     const settings = await db.storeSettings.findUnique({
       where: { id: SETTINGS_ID },
     });
@@ -38,7 +38,7 @@ export async function GET() {
 // PATCH /api/settings/store
 export async function PATCH(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN");
+    await requirePermission("settings", "update");
     const body = await request.json();
     const data = storeSchema.parse(body);
 

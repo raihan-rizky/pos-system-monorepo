@@ -45,6 +45,28 @@ enum InventoryType {
   ADJUSTMENT
 }
 
+enum BatchOperationType {
+  PRODUCT_IMPORT
+  BULK_STOCK_ADJUSTMENT
+  UNDO
+}
+
+enum BatchOperationStatus {
+  COMMITTED
+  UNDONE
+  UNDO_BLOCKED
+}
+
+enum BatchOperationItemAction {
+  CREATE
+  UPDATE
+  SKIP
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  UNDO
+}
+
 enum ShiftStatus {
   OPEN
   CLOSED
@@ -82,6 +104,8 @@ model User {
   transactions          Transaction[] @relation("processed_transactions")
   requestedTransactions Transaction[] @relation("requested_transactions")
   shifts                CashierShift[]
+  batchOperations       BatchOperation[] @relation("created_batch_operations")
+  undoneBatchOperations BatchOperation[] @relation("undone_batch_operations")
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
@@ -100,6 +124,7 @@ model Store {
   shifts       CashierShift[]
   salespersons Salesperson[]
   customers    Customer[]
+  batchOperations BatchOperation[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -138,6 +163,7 @@ model Product {
   imageUrl      String?
   items         TransactionItem[]
   inventoryLogs InventoryLog[]
+  batchItems    BatchOperationItem[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -267,6 +293,48 @@ model InventoryLog {
   @@index([productId])
   @@index([createdAt])
   @@map("pos_inventory_logs")
+}
+
+model BatchOperation {
+  id              String               @id @default(cuid())
+  type            BatchOperationType
+  status          BatchOperationStatus @default(COMMITTED)
+  storeId         String
+  store           Store                @relation(fields: [storeId], references: [id])
+  createdBy       String
+  creator         User                 @relation("created_batch_operations", fields: [createdBy], references: [id])
+  summary         Json
+  items           BatchOperationItem[]
+  createdAt       DateTime             @default(now())
+  undoneAt        DateTime?
+  undoneBy        String?
+  undoneByUser    User?                @relation("undone_batch_operations", fields: [undoneBy], references: [id])
+  undoOfBatchId   String?
+  undoOfBatch     BatchOperation?      @relation("batch_operation_undo", fields: [undoOfBatchId], references: [id])
+  undoOperations  BatchOperation[]     @relation("batch_operation_undo")
+
+  @@index([storeId])
+  @@index([createdAt])
+  @@map("pos_batch_operations")
+}
+
+model BatchOperationItem {
+  id               String                   @id @default(cuid())
+  batchOperationId String
+  batchOperation   BatchOperation           @relation(fields: [batchOperationId], references: [id], onDelete: Cascade)
+  productId        String?
+  product          Product?                 @relation(fields: [productId], references: [id])
+  sku              String
+  action           BatchOperationItemAction
+  beforeSnapshot   Json?
+  afterSnapshot    Json?
+  inventoryLogId   String?
+  createdAt        DateTime                 @default(now())
+
+  @@index([batchOperationId])
+  @@index([productId])
+  @@index([productId, createdAt])
+  @@map("pos_batch_operation_items")
 }
 
 model CashierShift {
@@ -440,4 +508,19 @@ model StoreSettings {
   phone     String   @default("")
   logoUrl   String?
   updatedAt DateTime @updatedAt
+}
+
+model RolePermission {
+  id        String   @id @default(cuid())
+  role      Role
+  scope     String
+  target    String
+  action    String
+  allowed   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([role, scope, target, action])
+  @@index([role])
+  @@map("pos_role_permissions")
 }

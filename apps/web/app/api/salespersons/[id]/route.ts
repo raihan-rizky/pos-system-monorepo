@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 type SalespersonUpdateData = {
   name?: string;
@@ -24,7 +24,7 @@ export async function PATCH(
 ) {
   let id = "";
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("salesperson", "update");
     ({ id } = await params);
     const storeId = user.storeId || "store-main";
     const body = await request.json();
@@ -75,7 +75,7 @@ export async function DELETE(
 ) {
   let id = "";
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("salesperson", "delete");
     ({ id } = await params);
     const storeId = user.storeId || "store-main";
 

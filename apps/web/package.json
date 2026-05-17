@@ -10,7 +10,9 @@
     "type-check": "tsc --noEmit",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "e2e:report": "playwright show-report"
+    "e2e:report": "playwright show-report",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@pos/db": "workspace:*",
@@ -26,6 +28,7 @@
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.0",
     "web-push": "^3.6.7",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.1"
   },
   "devDependencies": {
@@ -38,6 +41,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.6"
   }
 }

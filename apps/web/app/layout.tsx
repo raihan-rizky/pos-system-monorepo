@@ -4,6 +4,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { cookies } from "next/headers";
 import type { Role } from "@/lib/rbac/permissions";
+import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -54,6 +56,11 @@ export default async function RootLayout({
   // Decode URI component since it might have spaces
   const rawUserName = cookieStore.get("x-pos-user-name")?.value;
   const userName = rawUserName ? decodeURIComponent(rawUserName) : null;
+  const permissions = await getGlobalRolePermissions().catch((error) => {
+    console.error("[RootLayout] Failed to load RBAC settings", error);
+    return buildDefaultRolePermissions();
+  });
+
   return (
     <html
       lang="id"
@@ -62,7 +69,7 @@ export default async function RootLayout({
     >
       <head />
       <body className="antialiased">
-        <Providers role={role} userId={userId} userName={userName}>
+        <Providers role={role} userId={userId} userName={userName} permissions={permissions}>
           {children}
         </Providers>
       </body>

@@ -6,6 +6,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@pos/db";
 import type { Role } from "./permissions";
+import type { Action } from "./permissions";
+import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
+import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 
 // Short-lived in-memory cache for POS user lookups (survives across requests in the same worker)
 const POS_USER_CACHE_TTL = 60_000; // 60 seconds
@@ -111,6 +114,20 @@ export async function requireRole(...allowedRoles: Role[]) {
   }
 
   return posUser;
+}
+
+/**
+ * Require the current user to have a configured resource permission.
+ */
+export async function requirePermission(resource: string, action: Action) {
+  const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+  const permissions = await getGlobalRolePermissions();
+
+  if (!canRolePerformAction(user.role as Role, resource, action, permissions)) {
+    throw new AuthError(403, "Insufficient permissions");
+  }
+
+  return user;
 }
 
 /**

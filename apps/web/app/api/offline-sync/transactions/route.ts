@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { buildOfflineSyncDecision } from "@/lib/offline/offline-sync-core";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ type ServerOfflineItem = z.infer<typeof offlineItemSchema>;
 
 export async function POST(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("transaction", "create");
     const storeId = user.storeId || "store-main";
     const body = await request.json();
     const parsed = syncSchema.safeParse(body);
@@ -224,7 +224,7 @@ async function createSyncedTransaction({
 }: {
   txData: OfflineTransactionInput;
   decision: ReturnType<typeof buildOfflineSyncDecision>;
-  user: Awaited<ReturnType<typeof requireRole>>;
+  user: Awaited<ReturnType<typeof requirePermission>>;
   storeId: string;
 }) {
   return db.$transaction(async (tx: TxClient) => {

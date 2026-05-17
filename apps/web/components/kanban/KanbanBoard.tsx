@@ -150,7 +150,7 @@ function PaymentBadge({
 
 interface KanbanCardProps {
   order: JobOrder;
-  onMoveForward: (id: string, nextStatus: ProductionStatus) => void;
+  onMoveForward?: (id: string, nextStatus: ProductionStatus) => void;
   columnIndex: number;
 }
 
@@ -176,8 +176,8 @@ function KanbanCard({ order, onMoveForward, columnIndex }: KanbanCardProps) {
 
   return (
     <div
-      draggable
-      onDragStart={handleDragStart}
+      draggable={Boolean(onMoveForward)}
+      onDragStart={onMoveForward ? handleDragStart : undefined}
       onDragEnd={handleDragEnd}
       className="bg-white border border-surface-200/80 rounded-xl p-4 shadow-sm hover:shadow-md 
                  transition-all duration-200 cursor-grab active:cursor-grabbing active:shadow-lg 
@@ -234,11 +234,11 @@ function KanbanCard({ order, onMoveForward, columnIndex }: KanbanCardProps) {
             </span>
           </div>
         ))}
-        {order.items.length > 3 && (
+        {order.items.length > 3 ? (
           <p className="text-[10px] text-surface-400 italic">
             +{order.items.length - 3} more items
           </p>
-        )}
+        ) : null}
       </div>
 
       {/* Footer */}
@@ -247,7 +247,7 @@ function KanbanCard({ order, onMoveForward, columnIndex }: KanbanCardProps) {
           <DeadlineBadge estimatedDoneAt={order.estimatedDoneAt} />
         </div>
 
-        {nextColumn ? (
+        {onMoveForward && nextColumn ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -261,7 +261,7 @@ function KanbanCard({ order, onMoveForward, columnIndex }: KanbanCardProps) {
             {nextColumn.label}
             <ChevronRight className="w-3 h-3" />
           </button>
-        ) : (
+        ) : onMoveForward ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -276,7 +276,7 @@ function KanbanCard({ order, onMoveForward, columnIndex }: KanbanCardProps) {
             <CheckCircle2 className="w-3.5 h-3.5" />
             DONE
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* Salesperson */}
@@ -296,8 +296,8 @@ interface KanbanColumnProps {
   config: KanbanColumnConfig;
   orders: JobOrder[];
   columnIndex: number;
-  onMoveForward: (id: string, nextStatus: ProductionStatus) => void;
-  onDrop: (orderId: string, targetStatus: ProductionStatus) => void;
+  onMoveForward?: (id: string, nextStatus: ProductionStatus) => void;
+  onDrop?: (orderId: string, targetStatus: ProductionStatus) => void;
 }
 
 function KanbanColumn({
@@ -323,7 +323,7 @@ function KanbanColumn({
     e.preventDefault();
     setIsDragOver(false);
     const orderId = e.dataTransfer.getData("text/plain");
-    if (orderId) {
+    if (orderId && onDrop) {
       onDrop(orderId, config.id);
     }
   };
@@ -335,9 +335,9 @@ function KanbanColumn({
           ? "border-brand-400 bg-brand-50/30 shadow-lg ring-2 ring-brand-200/50"
           : "border-surface-200/60 bg-white/60"
       }`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragOver={onDrop ? handleDragOver : undefined}
+      onDragLeave={onDrop ? handleDragLeave : undefined}
+      onDrop={onDrop ? handleDrop : undefined}
     >
       {/* Column Header */}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-surface-200/50">
@@ -384,8 +384,8 @@ function KanbanColumn({
 
 interface KanbanBoardProps {
   orders: JobOrder[];
-  onMoveForward: (id: string, nextStatus: ProductionStatus) => void;
-  onDrop: (orderId: string, targetStatus: ProductionStatus) => void;
+  onMoveForward?: (id: string, nextStatus: ProductionStatus) => void;
+  onDrop?: (orderId: string, targetStatus: ProductionStatus) => void;
 }
 
 export default function KanbanBoard({

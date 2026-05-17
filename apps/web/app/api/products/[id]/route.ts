@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { z } from "zod";
 
@@ -26,7 +26,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("product", "update");
     const { id } = await params;
     const storeId = user.storeId || "store-main";
     const body = await request.json();
@@ -91,7 +91,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("product", "delete");
     const { id } = await params;
     const storeId = user.storeId || "store-main";
     const existingProduct = await db.product.findFirst({

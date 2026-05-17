@@ -1,7 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { canAccessPage, DEFAULT_PAGE, isValidRole } from "@/lib/rbac/permissions";
+import { DEFAULT_PAGE, isValidRole } from "@/lib/rbac/permissions";
 import type { Role } from "@/lib/rbac/permissions";
+import {
+  buildDefaultRolePermissions,
+  canRoleAccessPage,
+  normalizeRolePermissions,
+} from "@/features/rbac/helpers/rbac-core";
+import type { PermissionEntry } from "@/features/rbac/helpers/rbac-core";
 
 const ROLE_COOKIE = "x-pos-role";
 const USER_ID_COOKIE = "x-pos-user-id";
@@ -32,7 +38,7 @@ export async function updateSession(request: NextRequest) {
       request.nextUrl.pathname !== "/login" &&
       !request.nextUrl.pathname.startsWith("/auth") &&
       isValidRole(role) &&
-      !canAccessPage(role, request.nextUrl.pathname)
+      !canRoleAccessPage(role, request.nextUrl.pathname, buildDefaultRolePermissions())
     ) {
       const url = request.nextUrl.clone();
       url.pathname = DEFAULT_PAGE[role];
@@ -163,7 +169,13 @@ export async function updateSession(request: NextRequest) {
         pathname !== "/login" &&
         !pathname.startsWith("/auth")
       ) {
-        if (!canAccessPage(role, pathname)) {
+        const canAccess = await canAccessPageWithConfiguredPermissions(
+          supabase,
+          role,
+          pathname,
+        );
+
+        if (!canAccess) {
           // Redirect to role's default page
           const url = request.nextUrl.clone();
           url.pathname = DEFAULT_PAGE[role];
@@ -174,4 +186,34 @@ export async function updateSession(request: NextRequest) {
   }
 
   return supabaseResponse;
+}
+
+type PermissionClient = {
+  from: (table: string) => {
+    select: (columns: string) => unknown;
+  };
+};
+
+async function canAccessPageWithConfiguredPermissions(
+  supabase: PermissionClient,
+  role: Role,
+  path: string,
+) {
+  try {
+    const { data, error } = await (supabase
+      .from("pos_role_permissions")
+      .select("role,scope,target,action,allowed") as PromiseLike<{
+      data: PermissionEntry[] | null;
+      error: unknown;
+    }>);
+
+    if (error || !data?.length) {
+      return canRoleAccessPage(role, path, buildDefaultRolePermissions());
+    }
+
+    return canRoleAccessPage(role, path, normalizeRolePermissions(data));
+  } catch (error) {
+    console.error("[Middleware] Failed to load RBAC page permissions:", error);
+    return canRoleAccessPage(role, path, buildDefaultRolePermissions());
+  }
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ const closeShiftSchema = z.object({
 // POST /api/shifts/close
 export async function POST(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
+    const user = await requirePermission("shift", "update");
     const body = await request.json();
     const parsed = closeShiftSchema.safeParse(body);
 

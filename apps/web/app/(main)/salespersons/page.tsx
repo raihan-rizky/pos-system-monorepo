@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Card } from "@pos/ui";
+import { useRole } from "@/components/providers/RoleProvider";
+import { shouldShowAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 
 interface Salesperson {
   id: string;
@@ -85,6 +87,9 @@ function StatCard({
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function SalespersonsPage() {
+  const { canPerform } = useRole();
+  const canCreateSalespersons = shouldShowAction("salesperson", "create", canPerform);
+  const canUpdateSalespersons = shouldShowUpdateAction("salesperson", canPerform);
   const [salespersons, setSalespersons] = useState<Salesperson[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -177,6 +182,7 @@ export default function SalespersonsPage() {
   };
 
   const handleQuickToggle = async (sp: Salesperson) => {
+    if (!canUpdateSalespersons) return;
     setTogglingId(sp.id);
     try {
       const res = await fetch(`/api/salespersons/${sp.id}`, {
@@ -195,6 +201,7 @@ export default function SalespersonsPage() {
   };
 
   const openEditModal = (sp: Salesperson) => {
+    if (!canUpdateSalespersons) return;
     setEditingId(sp.id);
     setName(sp.name);
     setIsActive(sp.isActive);
@@ -203,6 +210,7 @@ export default function SalespersonsPage() {
   };
 
   const openAddModal = () => {
+    if (!canCreateSalespersons) return;
     setEditingId(null);
     setName("");
     setIsActive(true);
@@ -225,17 +233,19 @@ export default function SalespersonsPage() {
               Kelola tim penjualan dan pantau performa mereka
             </p>
           </div>
-          <button
-            id="add-salesperson-btn"
-            onClick={openAddModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-semibold text-sm shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-95"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Tambah Sales
-          </button>
+          {canCreateSalespersons && (
+            <button
+              id="add-salesperson-btn"
+              onClick={openAddModal}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-semibold text-sm shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-95"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Tambah Sales
+            </button>
+          )}
         </header>
 
         <div className="px-4 md:px-8 pb-24 md:pb-8 space-y-6">
@@ -355,7 +365,7 @@ export default function SalespersonsPage() {
                     ? "Tidak ada sales yang cocok dengan filter."
                     : "Belum ada salesperson. Mulai tambahkan tim sales Anda!"}
                 </p>
-                {!searchQuery && filterStatus === "all" && (
+                {!searchQuery && filterStatus === "all" && canCreateSalespersons && (
                   <button
                     onClick={openAddModal}
                     className="mt-4 text-sm text-brand-600 hover:text-brand-700 font-semibold underline underline-offset-2 cursor-pointer"
@@ -403,11 +413,19 @@ export default function SalespersonsPage() {
                           {/* Status Toggle */}
                           <td className="py-4 px-5">
                             <div className="flex items-center gap-2.5">
-                              <StatusToggle
-                                id={`toggle-${sp.id}`}
-                                checked={sp.isActive}
-                                onChange={() => handleQuickToggle(sp)}
-                              />
+                              {canUpdateSalespersons ? (
+                                <StatusToggle
+                                  id={`toggle-${sp.id}`}
+                                  checked={sp.isActive}
+                                  onChange={() => handleQuickToggle(sp)}
+                                />
+                              ) : (
+                                <span
+                                  className={`inline-flex h-6 min-w-11 items-center justify-center rounded-full px-2 text-[10px] font-bold ${sp.isActive ? "bg-emerald-100 text-emerald-700" : "bg-surface-100 text-surface-500"}`}
+                                >
+                                  {sp.isActive ? "ON" : "OFF"}
+                                </span>
+                              )}
                               <span className={`text-xs font-semibold ${sp.isActive ? "text-emerald-600" : "text-surface-400"}`}>
                                 {togglingId === sp.id ? "..." : sp.isActive ? "Aktif" : "Nonaktif"}
                               </span>
@@ -433,19 +451,21 @@ export default function SalespersonsPage() {
 
                           {/* Actions */}
                           <td className="py-4 px-5 text-right">
-                            <button
-                              id={`edit-sp-${sp.id}`}
-                              onClick={() => openEditModal(sp)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                bg-surface-100 text-surface-600 hover:bg-brand-50 hover:text-brand-700 border border-transparent
-                                hover:border-brand-200 transition-all duration-200 cursor-pointer"
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                              Edit
-                            </button>
+                            {canUpdateSalespersons && (
+                              <button
+                                id={`edit-sp-${sp.id}`}
+                                onClick={() => openEditModal(sp)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                  bg-surface-100 text-surface-600 hover:bg-brand-50 hover:text-brand-700 border border-transparent
+                                  hover:border-brand-200 transition-all duration-200 cursor-pointer"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                                Edit
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -459,7 +479,7 @@ export default function SalespersonsPage() {
       </main>
 
       {/* ─── Add/Edit Modal ────────────────────────────────────────────────────── */}
-      {isModalOpen && (
+      {isModalOpen && (editingId ? canUpdateSalespersons : canCreateSalespersons) && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4"
           onClick={(e) => e.target === e.currentTarget && setIsModalOpen(false)}

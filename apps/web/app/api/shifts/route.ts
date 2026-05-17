@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // else -> Get shift history
 export async function GET(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requirePermission("shift", "read");
     const { searchParams } = new URL(request.url);
     const active = searchParams.get("active") === "true";
     const storeId = user.storeId || "store-main";
@@ -74,7 +74,7 @@ const openShiftSchema = z.object({
 // Open a new shift
 export async function POST(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER");
+    const user = await requirePermission("shift", "create");
     const body = await request.json();
     const validatedData = openShiftSchema.safeParse(body);
 
@@ -132,7 +132,7 @@ const updateShiftSchema = z.object({
 // Update an existing shift
 export async function PATCH(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("shift", "update");
     const body = await request.json();
     const validatedData = updateShiftSchema.safeParse(body);
 

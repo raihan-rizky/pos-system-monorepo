@@ -1,11 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, lazy, Suspense } from "react";
 import { useProducts, useCategories, Product } from "@/hooks/useProducts";
-import { Package, Search, Plus, AlertTriangle, TrendingUp, LayoutGrid, List, SlidersHorizontal, ChevronRight, Edit2 } from "lucide-react";
+import { Package, Search, Plus, AlertTriangle, TrendingUp, LayoutGrid, List, SlidersHorizontal, Edit2, History, ClipboardList, FileSpreadsheet, Boxes, X } from "lucide-react";
 import ProductTable from "@/components/inventory/ProductTable";
 import ProductFormModal from "@/components/inventory/ProductFormModal";
 import StockUpdateModal from "@/components/inventory/StockUpdateModal";
+import { useRole } from "@/components/providers/RoleProvider";
+import { shouldShowAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
+
+const StockHistoryTab = lazy(() => import("@/app/(main)/inventory/StockHistoryTab"));
+const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
+const ProductImportDrawer = lazy(() => import("@/features/product-import/components/ProductImportDrawer").then((mod) => ({ default: mod.ProductImportDrawer })));
+const BulkStockDrawer = lazy(() => import("@/features/bulk-stock-adjustment/components/BulkStockDrawer").then((mod) => ({ default: mod.BulkStockDrawer })));
+
+type PageTab = "products" | "history" | "logs";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n);
@@ -37,15 +46,23 @@ function StatCard({ label, value, sub, icon, accent, delay = 0 }: {
 }
 
 export default function ProductsPage() {
+  const { canPerform } = useRole();
+  const canCreateProducts = shouldShowAction("product", "create", canPerform);
+  const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
+  const canUpdateInventory = shouldShowUpdateAction("inventory", canPerform);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   // Default to grid on mobile, table on desktop. We'll manage this via state, but default "grid" is safer for initial mobile load.
   const [view, setView] = useState<"table" | "grid">("grid");
+  const [activeTab, setActiveTab] = useState<PageTab>("products");
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [stockUpdateProductId, setStockUpdateProductId] = useState<string | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isBulkStockOpen, setIsBulkStockOpen] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
 
   const { data: products = [], isLoading } = useProducts(search, categoryId);
   const { data: categories = [] } = useCategories();
@@ -79,12 +96,21 @@ export default function ProductsPage() {
   const totalProducts = products.length;
   const lowStock = products.filter(p => p.stock <= p.minStock).length;
   const totalValue = products.reduce((s: number, p: Product) => s + p.stock * p.price, 0);
+  const selectedProducts = products.filter((product) => selectedProductIds.has(product.id));
 
-  const openAdd = () => { setEditingProductId(null); setIsProductModalOpen(true); };
-  const openEdit = (id: string) => { setEditingProductId(id); setIsProductModalOpen(true); };
+  const openAdd = () => { if (!canCreateProducts) return; setEditingProductId(null); setIsProductModalOpen(true); };
+  const openEdit = (id: string) => { if (!canUpdateProducts) return; setEditingProductId(id); setIsProductModalOpen(true); };
   const closeProduct = () => { setIsProductModalOpen(false); setEditingProductId(null); };
-  const openStock = (id: string) => { setStockUpdateProductId(id); setIsStockModalOpen(true); };
+  const openStock = (id: string) => { if (!canUpdateInventory) return; setStockUpdateProductId(id); setIsStockModalOpen(true); };
   const closeStock = () => { setIsStockModalOpen(false); setStockUpdateProductId(null); };
+  const toggleSelectedProduct = (id: string) => {
+    setSelectedProductIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-purple-50/50 min-h-screen">
@@ -103,14 +129,25 @@ export default function ProductsPage() {
             <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Products Hub</h1>
             <p className="text-base text-slate-500 font-medium">Manage your catalog, pricing, and monitor stock levels in real-time.</p>
           </div>
-          <button
-            onClick={openAdd}
-            className="group relative flex items-center justify-center gap-2 px-6 py-3.5 w-full md:w-auto rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-[0_8px_20px_rgb(0,0,0,0.16)] hover:shadow-[0_12px_25px_rgb(0,0,0,0.25)] transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
-          >
-            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" /> 
-            <span>Add New Product</span>
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-          </button>
+          {canCreateProducts && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setIsImportOpen(true)}
+                className="group relative flex items-center justify-center gap-2 px-5 py-3.5 w-full md:w-auto rounded-2xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-sm shadow-sm transition-all duration-300"
+              >
+                <FileSpreadsheet className="w-5 h-5" />
+                <span>Import</span>
+              </button>
+              <button
+                onClick={openAdd}
+                className="group relative flex items-center justify-center gap-2 px-6 py-3.5 w-full md:w-auto rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-[0_8px_20px_rgb(0,0,0,0.16)] hover:shadow-[0_12px_25px_rgb(0,0,0,0.25)] transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+              >
+                <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                <span>Add New Product</span>
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Stats ── */}
@@ -139,7 +176,39 @@ export default function ProductsPage() {
           />
         </div>
 
-        {/* ── Main Workspace ── */}
+        {/* ── Tab Navigation ── */}
+        <div className="flex items-center gap-2 p-1.5 bg-slate-100/80 rounded-2xl w-fit">
+          {([
+            { id: "products" as PageTab, label: "Products", icon: <Package className="w-4 h-4" /> },
+            { id: "history" as PageTab, label: "Stock History", icon: <History className="w-4 h-4" /> },
+            { id: "logs" as PageTab, label: "Stock Logs", icon: <ClipboardList className="w-4 h-4" /> },
+          ]).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
+                activeTab === tab.id
+                  ? "text-slate-900 shadow-sm"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              {activeTab === tab.id && (
+                <span className="absolute inset-0 bg-white rounded-xl shadow-[0_2px_8px_rgb(0,0,0,0.08)] pointer-events-none" />
+              )}
+              <span className="relative z-10 flex items-center gap-2">{tab.icon}{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ── Tab Content ── */}
+        {activeTab !== "products" ? (
+          <div className="bg-white/70 backdrop-blur-2xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[32px] overflow-hidden p-5 md:p-6">
+            <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400"><span className="text-sm">Loading…</span></div>}>
+              {activeTab === "history" && <StockHistoryTab />}
+              {activeTab === "logs" && <StockLogsTab />}
+            </Suspense>
+          </div>
+        ) : (
         <div className="bg-white/70 backdrop-blur-2xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[32px] overflow-hidden flex flex-col">
           
           {/* Toolbar */}
@@ -283,6 +352,10 @@ export default function ProductsPage() {
                 isLoading={isLoading} 
                 onEdit={openEdit} 
                 onUpdateStock={openStock} 
+                canUpdateProduct={canUpdateProducts}
+                canUpdateStock={canUpdateInventory}
+                selectedProductIds={selectedProductIds}
+                onToggleProduct={canUpdateInventory ? toggleSelectedProduct : undefined}
               />
             )}
             
@@ -292,6 +365,10 @@ export default function ProductsPage() {
                 isLoading={isLoading} 
                 onEdit={openEdit} 
                 onUpdateStock={openStock} 
+                canUpdateProduct={canUpdateProducts}
+                canUpdateStock={canUpdateInventory}
+                selectedProductIds={selectedProductIds}
+                onToggleProduct={canUpdateInventory ? toggleSelectedProduct : undefined}
               />
             )}
 
@@ -317,9 +394,10 @@ export default function ProductsPage() {
             )}
           </div>
         </div>
+        )}
       </div>
 
-      {isProductModalOpen && (
+      {isProductModalOpen && (editingProductId ? canUpdateProducts : canCreateProducts) && (
         <ProductFormModal 
           isOpen={isProductModalOpen} 
           onClose={closeProduct} 
@@ -328,17 +406,71 @@ export default function ProductsPage() {
           initialData={products.find(p => p.id === editingProductId)}
         />
       )}
-      {isStockModalOpen && stockUpdateProductId && (
+      {isStockModalOpen && stockUpdateProductId && canUpdateInventory && (
         <StockUpdateModal isOpen={isStockModalOpen} onClose={closeStock} product={products.find(p => p.id === stockUpdateProductId)!} />
       )}
+      {selectedProductIds.size > 0 && activeTab === "products" && canUpdateInventory && (
+        <div className="fixed bottom-5 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xl">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
+              <Boxes className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-900">{selectedProductIds.size} selected</p>
+              <p className="text-xs text-slate-500">Apply stock changes in one batch.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsBulkStockOpen(true)}
+              className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white"
+            >
+              Bulk Stock
+            </button>
+            <button
+              onClick={() => setSelectedProductIds(new Set())}
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
+              aria-label="Clear selection"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+      <Suspense fallback={null}>
+        {isImportOpen && canCreateProducts && <ProductImportDrawer open={isImportOpen} onClose={() => setIsImportOpen(false)} />}
+        {isBulkStockOpen && (
+          <BulkStockDrawer
+            open={isBulkStockOpen}
+            onClose={() => {
+              setIsBulkStockOpen(false);
+              setSelectedProductIds(new Set());
+            }}
+            products={selectedProducts}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
 
 /* ── Redesigned Grid View ── */
-function ProductGrid({ products, isLoading, onEdit, onUpdateStock }: {
+function ProductGrid({
+  products,
+  isLoading,
+  onEdit,
+  onUpdateStock,
+  canUpdateProduct,
+  canUpdateStock,
+  selectedProductIds = new Set(),
+  onToggleProduct,
+}: {
   products: Product[];
   isLoading: boolean; onEdit: (id: string) => void; onUpdateStock: (id: string) => void;
+  canUpdateProduct: boolean;
+  canUpdateStock: boolean;
+  selectedProductIds?: Set<string>;
+  onToggleProduct?: (id: string) => void;
 }) {
   if (isLoading) return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 p-5 md:p-6">
@@ -373,9 +505,21 @@ function ProductGrid({ products, isLoading, onEdit, onUpdateStock }: {
         return (
           <div 
             key={p.id} 
-            onClick={() => onEdit(p.id)}
-            className="group bg-white rounded-[24px] p-5 cursor-pointer border border-slate-200/60 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_12px_30px_rgb(0,0,0,0.08)] hover:border-blue-200 transition-all duration-300 flex flex-col gap-4 relative overflow-hidden"
+            onClick={() => {
+              if (canUpdateProduct) onEdit(p.id);
+            }}
+            className={`group bg-white rounded-[24px] p-5 border border-slate-200/60 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_12px_30px_rgb(0,0,0,0.08)] hover:border-blue-200 transition-all duration-300 flex flex-col gap-4 relative overflow-hidden ${canUpdateProduct ? "cursor-pointer" : ""}`}
           >
+            {onToggleProduct && (
+              <input
+                type="checkbox"
+                checked={selectedProductIds.has(p.id)}
+                onClick={(event) => event.stopPropagation()}
+                onChange={() => onToggleProduct(p.id)}
+                className="absolute right-4 top-4 z-30 h-5 w-5 rounded border-slate-300"
+                aria-label={`Select ${p.name}`}
+              />
+            )}
             {/* Hover Glow */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-blue-400/20 blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
@@ -416,28 +560,34 @@ function ProductGrid({ products, isLoading, onEdit, onUpdateStock }: {
             </div>
             
             {/* Quick Actions Overlay */}
-            <div className="absolute bottom-4 right-4 flex gap-2 translate-y-10 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUpdateStock(p.id);
-                }}
-                className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg hover:bg-emerald-700 transition-colors"
-                title="Update Stock"
-              >
-                <TrendingUp className="w-5 h-5" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(p.id);
-                }}
-                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors"
-                title="Edit Product"
-              >
-                <Edit2 className="w-5 h-5" />
-              </button>
-            </div>
+            {(canUpdateStock || canUpdateProduct) && (
+              <div className="absolute bottom-4 right-4 flex gap-2 translate-y-10 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20">
+                {canUpdateStock && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdateStock(p.id);
+                    }}
+                    className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg hover:bg-emerald-700 transition-colors"
+                    title="Update Stock"
+                  >
+                    <TrendingUp className="w-5 h-5" />
+                  </button>
+                )}
+                {canUpdateProduct && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(p.id);
+                    }}
+                    className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors"
+                    title="Edit Product"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

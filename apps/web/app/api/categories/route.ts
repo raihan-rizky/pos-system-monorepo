@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/categories
 export async function GET() {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    await requirePermission("product", "read");
     const categories = await db.category.findMany({
       orderBy: { order: "asc" },
       include: {
