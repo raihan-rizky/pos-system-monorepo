@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, requireRole, AuthError, handleAuthError } from "@/lib/rbac/guard";
+import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
+import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import type { Role } from "@/lib/rbac/permissions";
 import { z } from "zod";
 
 const transactionItemSchema = z.object({
@@ -153,7 +156,13 @@ export async function GET(request: Request) {
 // POST /api/transactions - Create new transaction with stock deduction
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("transaction", "create");
+    // SALES role uses "transaction.request" resource; others use "transaction"
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const permissions = await getGlobalRolePermissions();
+    const resource = user.role === "SALES" ? "transaction.request" : "transaction";
+    if (!canRolePerformAction(user.role as Role, resource, "create", permissions)) {
+      throw new AuthError(403, "Insufficient permissions");
+    }
     const storeId = user.storeId || "store-main";
 
 

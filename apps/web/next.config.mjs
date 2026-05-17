@@ -1,4 +1,6 @@
-const { PrismaPlugin } = require("@prisma/nextjs-monorepo-workaround-plugin");
+import prismaWorkaround from "@prisma/nextjs-monorepo-workaround-plugin";
+
+const { PrismaPlugin } = prismaWorkaround;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -20,8 +22,7 @@ const nextConfig = {
     return config;
   },
 
-  // Disable strict mode double-renders — this is a POS cash register,
-  // dev performance matters for testing checkout flows.
+  // Disable strict mode double-renders because dev checkout flow testing is latency-sensitive.
   reactStrictMode: false,
 
   // Image optimization
@@ -29,13 +30,20 @@ const nextConfig = {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 86400, // 24h browser cache for optimized images
     localPatterns: [{ pathname: "/images/**" }],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "pjgkfajkunbpwiyovtnc.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
   },
 
   // Production security & performance
   compress: true,
   poweredByHeader: false,
 
-  // Tree-shake large packages — only ship code that is actually used
+  // Tree-shake large packages; only ship code that is actually used.
   experimental: {
     optimizePackageImports: [
       "recharts",
@@ -46,5 +54,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
-
+export default nextConfig;
