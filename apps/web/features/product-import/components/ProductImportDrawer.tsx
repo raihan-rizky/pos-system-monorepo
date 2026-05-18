@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Button } from "@pos/ui";
 import {
   AlertTriangle,
   CheckCircle2,
+  Database,
   FileSpreadsheet,
   Filter,
+  LoaderCircle,
   Upload,
 } from "lucide-react";
 import {
@@ -59,6 +61,8 @@ export function ProductImportDrawer({
     suggestions: Record<string, string>;
   } | null>(null);
   const [headerLoading, setHeaderLoading] = useState(false);
+  const [commitStarted, setCommitStarted] = useState(false);
+  const [commitProgress, setCommitProgress] = useState(0);
 
   const previewData = method === "image" ? imageExtract.data : preview.data;
   const rows: NormalizedImportRow[] = previewData?.rows ?? [];
@@ -96,6 +100,7 @@ export function ProductImportDrawer({
     rows.length > 0 &&
     blockingErrors.length === 0 &&
     needsDecision.length === 0;
+  const showCommitProgress = commitStarted && step === "preview";
 
   // Filter counts for badges
   const filterCounts = useMemo(() => {
@@ -111,6 +116,57 @@ export function ProductImportDrawer({
     return { all: rows.length, ready, errors, warnings, duplicate, newCategory };
   }, [rows]);
 
+  const commitSummary = useMemo(() => {
+    return rows.reduce(
+      (summary, row) => {
+        const decision = decisions[String(row.rowNumber)] ?? decisions[row.sku];
+
+        if (decision === "skip") {
+          summary.skipped += 1;
+          return summary;
+        }
+
+        if (row.existingProductId) {
+          summary.updated += 1;
+        } else {
+          summary.created += 1;
+        }
+
+        if (row.stock !== 0) summary.stockLogs += 1;
+        return summary;
+      },
+      {
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        stockLogs: 0,
+      },
+    );
+  }, [decisions, rows]);
+
+  const commitStatus = useMemo(() => {
+    if (commit.error) return "Import failed before completion.";
+    if (commitProgress < 25) return "Validating selected rows.";
+    if (commitProgress < 55) return "Writing products and categories.";
+    if (commitProgress < 85) return "Recording stock movement logs.";
+    return "Finalizing batch audit record.";
+  }, [commit.error, commitProgress]);
+
+  useEffect(() => {
+    if (!commit.isPending) return;
+
+    const timer = window.setInterval(() => {
+      setCommitProgress((current) => {
+        if (current < 30) return current + 6;
+        if (current < 70) return current + 4;
+        if (current < 92) return current + 2;
+        return current;
+      });
+    }, 450);
+
+    return () => window.clearInterval(timer);
+  }, [commit.isPending]);
+
   const reset = () => {
     setStep("upload");
     setFile(null);
@@ -120,6 +176,8 @@ export function ProductImportDrawer({
     setPreviewFilter("all");
     setMissingColDialogOpen(false);
     setMissingColData(null);
+    setCommitStarted(false);
+    setCommitProgress(0);
     preview.reset();
     imageExtract.reset();
     commit.reset();
@@ -157,6 +215,8 @@ export function ProductImportDrawer({
     if (!file) return;
     setDecisions({});
     setPreviewFilter("all");
+    setCommitStarted(false);
+    setCommitProgress(0);
     try {
       const result = await preview.mutateAsync({
         file,
@@ -185,6 +245,8 @@ export function ProductImportDrawer({
   const handleImageExtract = async (files: File[]) => {
     setDecisions({});
     setPreviewFilter("all");
+    setCommitStarted(false);
+    setCommitProgress(0);
     try {
       await imageExtract.mutateAsync(files);
       setStep("preview");
@@ -196,13 +258,18 @@ export function ProductImportDrawer({
   const handleCommit = async () => {
     if (!canCommit) return;
 
+    setCommitStarted(true);
+    setCommitProgress(8);
     try {
       const result = await commit.mutateAsync({
         rows,
         decisions,
         createMissingCategories,
       });
-      if (result) setStep("result");
+      if (result) {
+        setCommitProgress(100);
+        setStep("result");
+      }
     } catch {
       // React Query keeps the error in commit.error for the inline message.
     }
@@ -396,21 +463,46 @@ export function ProductImportDrawer({
                   {(commit.error as Error).message}
                 </div>
               )}
+              {showCommitProgress && (
+                <CommitProgressPanel
+                  progress={commit.error ? 100 : commitProgress}
+                  isError={Boolean(commit.error)}
+                  status={commitStatus}
+                  totalRows={rows.length}
+                  created={commitSummary.created}
+                  updated={commitSummary.updated}
+                  skipped={commitSummary.skipped}
+                  newCategories={
+                    createMissingCategories
+                      ? (previewData.missingCategories?.length ?? 0)
+                      : 0
+                  }
+                  stockLogs={commitSummary.stockLogs}
+                />
+              )}
               <div className="flex justify-between gap-3">
                 <Button
                   type="button"
                   variant="secondary"
+                  disabled={commit.isPending}
                   onClick={() => {
                     setStep(method === "image" ? "upload" : "mapping");
                     preview.reset();
                     imageExtract.reset();
                     setDecisions({});
+                    setCommitStarted(false);
+                    setCommitProgress(0);
                   }}
                 >
                   Back
                 </Button>
                 <div className="flex gap-3">
-                  <Button type="button" variant="secondary" onClick={reset}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={commit.isPending}
+                    onClick={reset}
+                  >
                     Start Over
                   </Button>
                   <Button
@@ -525,6 +617,124 @@ function PreviewFilterBar({
 }
 
 /* ── Preview Table ── */
+function CommitProgressPanel({
+  progress,
+  isError,
+  status,
+  totalRows,
+  created,
+  updated,
+  skipped,
+  newCategories,
+  stockLogs,
+}: {
+  progress: number;
+  isError: boolean;
+  status: string;
+  totalRows: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  newCategories: number;
+  stockLogs: number;
+}) {
+  const boundedProgress = Math.min(100, Math.max(0, progress));
+  const details = [
+    { label: "Rows", value: totalRows },
+    { label: "Create", value: created },
+    { label: "Update", value: updated },
+    { label: "Skip", value: skipped },
+    { label: "Categories", value: newCategories },
+    { label: "Stock logs", value: stockLogs },
+  ];
+
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        isError
+          ? "border-red-200 bg-red-50"
+          : "border-blue-200 bg-blue-50"
+      }`}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div
+            className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+              isError ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
+            }`}
+          >
+            {isError ? (
+              <AlertTriangle className="h-4 w-4" />
+            ) : (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            )}
+          </div>
+          <div>
+            <div
+              className={`text-sm font-bold ${
+                isError ? "text-red-900" : "text-slate-900"
+              }`}
+            >
+              Committing import
+            </div>
+            <div
+              className={`mt-0.5 text-xs ${
+                isError ? "text-red-700" : "text-slate-600"
+              }`}
+            >
+              {status}
+            </div>
+          </div>
+        </div>
+        <div
+          className={`flex items-center gap-2 text-xs font-bold ${
+            isError ? "text-red-700" : "text-blue-700"
+          }`}
+        >
+          <Database className="h-4 w-4" />
+          {boundedProgress}%
+        </div>
+      </div>
+
+      <div
+        className={`mt-4 h-2 overflow-hidden rounded-full ${
+          isError ? "bg-red-100" : "bg-blue-100"
+        }`}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={boundedProgress}
+        aria-label="Import commit progress"
+      >
+        <div
+          className={`h-full rounded-full transition-all duration-300 ${
+            isError ? "bg-red-600" : "bg-blue-600"
+          }`}
+          style={{ width: `${boundedProgress}%` }}
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {details.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-lg border border-white/70 bg-white/80 px-3 py-2"
+          >
+            <div className="text-[11px] font-medium text-slate-500">
+              {item.label}
+            </div>
+            <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900">
+              {item.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ImportPreviewTable({
   rows,
   decisions,
