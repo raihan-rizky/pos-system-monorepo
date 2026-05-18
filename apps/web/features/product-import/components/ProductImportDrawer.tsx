@@ -576,7 +576,23 @@ function ImportPreviewTable({
                   {row.price}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
-                  {row.stock} {row.unit}
+                  <div className="flex items-center justify-end gap-1.5">
+                    {row.stock < 0 && (
+                      <div 
+                        className="group relative flex items-center justify-center cursor-help"
+                        aria-label="Negative stock warning"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-max max-w-xs opacity-0 scale-95 invisible group-hover:opacity-100 group-hover:scale-100 group-hover:visible transition-all duration-200 z-50">
+                          <div className="bg-slate-900 text-white text-xs font-medium rounded-lg py-1.5 px-3 shadow-xl">
+                            This stock is not supposed to be negative
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <span>{row.stock} {row.unit}</span>
+                  </div>
                 </td>
                 <td className="px-3 py-2">
                   {row.existingProductId ? (

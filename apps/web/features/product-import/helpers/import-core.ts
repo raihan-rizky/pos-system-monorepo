@@ -36,7 +36,7 @@ export const importRowCommitSchema = z.object({
   sku: z.string().trim().min(1),
   category: z.string().trim().min(1),
   price: z.coerce.number().min(0),
-  stock: z.coerce.number().int().min(0),
+  stock: z.coerce.number().int(),
   unit: z.string().trim().min(1),
   costPrice: z.coerce.number().min(0).optional().nullable(),
   minStock: z.coerce.number().int().min(0).optional(),
@@ -159,7 +159,7 @@ export function normalizeImportRows(
     if (!sku) rowErrors.push("SKU is required.");
     if (!category) rowErrors.push("Category is required.");
     if (!Number.isFinite(price) || price < 0) rowErrors.push("Price must be a valid number >= 0.");
-    if (!Number.isInteger(stock) || stock < 0) rowErrors.push("Stock must be a whole number >= 0.");
+    if (!Number.isInteger(stock)) rowErrors.push("Stock must be a whole number.");
     if (!normalizeValue(record.unit)) rowErrors.push("Unit is required.");
 
     const duplicateInFile = sku ? (skuCounts.get(sku) ?? 0) > 1 : false;
