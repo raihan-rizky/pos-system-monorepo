@@ -18,10 +18,13 @@ import {
 import {
   useProductImportCommit,
   useProductImportPreview,
+  useProductImageExtract,
 } from "../hooks/useProductImport";
 import { BatchResultPanel } from "@/features/batch-operations/components/BatchResultPanel";
 import { MissingColumnsDialog } from "./MissingColumnsDialog";
 import { ColumnMappingStep } from "./ColumnMappingStep";
+import { MethodSelector, type ImportMethod } from "./MethodSelector";
+import { ImageUploadStep } from "./ImageUploadStep";
 import { readFileHeaders, buildAutoMapping } from "../helpers/client-parser";
 
 type ImportStep = "upload" | "mapping" | "preview" | "result";
@@ -34,8 +37,10 @@ export function ProductImportDrawer({
   onClose: () => void;
 }) {
   const preview = useProductImportPreview();
+  const imageExtract = useProductImageExtract();
   const commit = useProductImportCommit();
 
+  const [method, setMethod] = useState<ImportMethod>("file");
   const [step, setStep] = useState<ImportStep>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [rawHeaders, setRawHeaders] = useState<string[]>([]);
@@ -53,7 +58,8 @@ export function ProductImportDrawer({
   } | null>(null);
   const [headerLoading, setHeaderLoading] = useState(false);
 
-  const rows = preview.data?.rows ?? [];
+  const previewData = method === "image" ? imageExtract.data : preview.data;
+  const rows: NormalizedImportRow[] = previewData?.rows ?? [];
 
   // Filter rows for the preview table
   const filteredRows = useMemo(() => {
@@ -114,6 +120,7 @@ export function ProductImportDrawer({
     setMissingColDialogOpen(false);
     setMissingColData(null);
     preview.reset();
+    imageExtract.reset();
     commit.reset();
   };
 
@@ -174,6 +181,17 @@ export function ProductImportDrawer({
     }
   };
 
+  const handleImageExtract = async (files: File[]) => {
+    setDecisions({});
+    setPreviewFilter("all");
+    try {
+      await imageExtract.mutateAsync(files);
+      setStep("preview");
+    } catch (error) {
+      // Error is handled by react-query error state
+    }
+  };
+
   const handleCommit = async () => {
     const result = await commit.mutateAsync({
       rows,
@@ -184,12 +202,18 @@ export function ProductImportDrawer({
   };
 
   // Step indicators
-  const STEPS: { key: ImportStep; label: string; num: number }[] = [
-    { key: "upload", label: "Upload", num: 1 },
-    { key: "mapping", label: "Map Columns", num: 2 },
-    { key: "preview", label: "Preview", num: 3 },
-    { key: "result", label: "Result", num: 4 },
-  ];
+  const STEPS: { key: ImportStep; label: string; num: number }[] = method === "file" 
+    ? [
+        { key: "upload", label: "Upload", num: 1 },
+        { key: "mapping", label: "Map Columns", num: 2 },
+        { key: "preview", label: "Preview", num: 3 },
+        { key: "result", label: "Result", num: 4 },
+      ]
+    : [
+        { key: "upload", label: "Upload", num: 1 },
+        { key: "preview", label: "Preview", num: 2 },
+        { key: "result", label: "Result", num: 3 },
+      ];
   const stepIndex = STEPS.findIndex((s) => s.key === step);
 
   return (
@@ -251,10 +275,14 @@ export function ProductImportDrawer({
 
           {/* Step 1: Upload */}
           {step === "upload" && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                CSV or Excel file
-              </label>
+            <div className="space-y-6">
+              <MethodSelector value={method} onChange={setMethod} />
+              
+              {method === "file" ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    CSV or Excel file
+                  </label>
               <input
                 type="file"
                 accept=".csv,.xlsx"
@@ -274,7 +302,14 @@ export function ProductImportDrawer({
                 onClick={handleUpload}
               >
                 Continue
-              </Button>
+                  </Button>
+                </div>
+              ) : (
+                <ImageUploadStep 
+                  onExtract={handleImageExtract} 
+                  isLoading={imageExtract.isPending} 
+                />
+              )}
             </div>
           )}
 
@@ -288,21 +323,22 @@ export function ProductImportDrawer({
               onBack={() => {
                 setStep("upload");
                 preview.reset();
+                imageExtract.reset();
               }}
             />
           )}
 
           {/* Step 3: Preview */}
-          {step === "preview" && preview.data && (
+          {step === "preview" && previewData && (
             <div className="space-y-4">
-              {preview.data.unknownColumns.length > 0 && (
+              {(previewData.unknownColumns?.length ?? 0) > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   Unknown columns ignored:{" "}
-                  {preview.data.unknownColumns.join(", ")}
+                  {previewData.unknownColumns?.join(", ")}
                 </div>
               )}
 
-              {preview.data.missingCategories.length > 0 && (
+              {(previewData.missingCategories?.length ?? 0) > 0 && (
                 <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700">
                   <input
                     type="checkbox"
@@ -313,8 +349,15 @@ export function ProductImportDrawer({
                     className="h-4 w-4"
                   />
                   Create missing categories:{" "}
-                  {preview.data.missingCategories.join(", ")}
+                  {previewData.missingCategories?.join(", ")}
                 </label>
+              )}
+
+              {method === "image" && previewData.source && (
+                <div className="flex justify-between items-center bg-blue-50 text-blue-800 text-xs font-bold px-3 py-2 rounded-lg border border-blue-100">
+                  <span>AI Extraction complete via {previewData.source}</span>
+                  <span className="opacity-80">Check data carefully</span>
+                </div>
               )}
 
               {/* Preview Filters */}
@@ -351,8 +394,9 @@ export function ProductImportDrawer({
                   type="button"
                   variant="secondary"
                   onClick={() => {
-                    setStep("mapping");
+                    setStep(method === "image" ? "upload" : "mapping");
                     preview.reset();
+                    imageExtract.reset();
                     setDecisions({});
                   }}
                 >
@@ -393,6 +437,15 @@ export function ProductImportDrawer({
                 </div>
               </div>
             )}
+            
+          {imageExtract.error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <div className="flex items-center gap-2 font-bold">
+                <AlertTriangle className="w-4 h-4" />
+                {(imageExtract.error as Error).message}
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 

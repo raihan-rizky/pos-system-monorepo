@@ -53,4 +53,43 @@ export interface ImportPreviewResponse {
   missingCategories: string[];
   requiredColumns: readonly string[];
   suggestions: Record<string, string>;
+  source?: string;
+  imageCount?: number;
+}
+
+export type ImportMethod = "file" | "image";
+export type ImportStep = "method" | "upload" | "image-upload" | "mapping" | "preview" | "result";
+
+export type ExtractionSource = "easyocr" | "nebius-vision";
+
+export interface FieldConfidence {
+  name: number;   // 0.0 - 1.0
+  price: number;
+  sku: number;
+}
+
+export interface ExtractedProduct {
+  name: string;
+  sku: string;
+  category: string;
+  price: number;
+  stock: number;
+  unit: string;
+  costPrice?: number | null;
+  description?: string | null;
+  size?: string | null;
+  material?: string | null;
+  confidence: FieldConfidence;
+}
+
+export interface ImageExtractResponse {
+  rows: NormalizedImportRow[];
+  extractedProducts: ExtractedProduct[];
+  source: ExtractionSource;
+  warnings: string[];
+  errors: string[];
+  existingSkuMatches: Array<{ sku: string; productId: string; name: string }>;
+  missingCategories: string[];
+  imageCount: number;
+  processingTimeMs: number;
 }

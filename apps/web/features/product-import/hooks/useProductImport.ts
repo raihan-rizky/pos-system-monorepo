@@ -61,3 +61,23 @@ export function useProductImportCommit() {
     },
   });
 }
+
+export function useProductImageExtract() {
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const formData = new FormData();
+      files.forEach((file, i) => formData.append(`image_${i}`, file));
+      
+      const res = await fetch("/api/products/import/image-extract", {
+        method: "POST",
+        body: formData,
+      });
+      
+      const payload = await res.json();
+      if (!res.ok) throw Object.assign(new Error(payload.error || "Failed to extract images"), payload);
+      
+      // We return the payload as an ImportPreviewResponse so it fits right into the existing preview UI
+      return payload as ImportPreviewResponse;
+    }
+  });
+}
