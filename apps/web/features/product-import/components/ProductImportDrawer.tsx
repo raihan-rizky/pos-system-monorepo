@@ -298,7 +298,7 @@ export function ProductImportDrawer({
               />
               <p className="mt-3 text-xs text-slate-500">
                 Required columns: {REQUIRED_IMPORT_COLUMNS.join(", ")}. Maximum
-                500 rows.
+                2000 rows.
               </p>
               <Button
                 type="button"

@@ -144,7 +144,7 @@ export function normalizeImportRows(
   const warnings: string[] = [];
   const errors: string[] = [];
 
-  const rows: NormalizedImportRow[] = records.slice(0, 500).map((record, index) => {
+  const rows: NormalizedImportRow[] = records.slice(0, 2000).map((record, index) => {
     const rowErrors: string[] = [];
     const rowWarnings: string[] = [];
     const rowNumber = index + 2;
@@ -204,8 +204,8 @@ export function normalizeImportRows(
     };
   });
 
-  if (records.length > 500) {
-    errors.push("Import files are limited to 500 rows.");
+  if (records.length > 2000) {
+    errors.push("Import files are limited to 2000 rows.");
   }
 
   return {

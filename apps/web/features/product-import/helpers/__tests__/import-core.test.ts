@@ -67,8 +67,8 @@ describe("normalizeImportRows", () => {
     expect(result.rows[0].errors.join(" ")).toContain("SKU is required");
   });
 
-  it("limits to 500 rows", () => {
-    const records = Array.from({ length: 510 }, (_, i) => ({
+  it("limits to 2000 rows", () => {
+    const records = Array.from({ length: 2010 }, (_, i) => ({
       name: `Product ${i}`,
       sku: `SKU-${i}`,
       category: "Drinks",
@@ -77,8 +77,8 @@ describe("normalizeImportRows", () => {
       unit: "pcs",
     }));
     const result = normalizeImportRows(records, new Map(), categories);
-    expect(result.rows.length).toBe(500);
-    expect(result.errors).toContain("Import files are limited to 500 rows.");
+    expect(result.rows.length).toBe(2000);
+    expect(result.errors).toContain("Import files are limited to 2000 rows.");
   });
 
   it("returns correct row numbers (starting at 2 for first data row)", () => {

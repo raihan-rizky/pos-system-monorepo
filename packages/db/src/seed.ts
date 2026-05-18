@@ -141,6 +141,81 @@ async function main() {
       update: {},
       create: { name: "Stamp", icon: "💮", color: "#06b6d4", order: 8 },
     }),
+    prisma.category.upsert({
+      where: { name: "Sparepart Fc" },
+      update: {},
+      create: { name: "Sparepart Fc", icon: "⚙️", color: "#64748b", order: 9 },
+    }),
+    prisma.category.upsert({
+      where: { name: "MNM" },
+      update: {},
+      create: { name: "MNM", icon: "📦", color: "#3b82f6", order: 10 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Id Card" },
+      update: {},
+      create: { name: "Id Card", icon: "🪪", color: "#10b981", order: 11 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Toner HP" },
+      update: {},
+      create: { name: "Toner HP", icon: "🖨️", color: "#f97316", order: 12 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Toner DP" },
+      update: {},
+      create: { name: "Toner DP", icon: "🖨️", color: "#8b5cf6", order: 13 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Toner E print" },
+      update: {},
+      create: { name: "Toner E print", icon: "🖨️", color: "#ec4899", order: 14 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Cardridge Canon" },
+      update: {},
+      create: { name: "Cardridge Canon", icon: "🖨️", color: "#ef4444", order: 15 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Tinta" },
+      update: {},
+      create: { name: "Tinta", icon: "💧", color: "#0ea5e9", order: 16 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Tinta Printing" },
+      update: {},
+      create: { name: "Tinta Printing", icon: "💧", color: "#2563eb", order: 17 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Kertas" },
+      update: {},
+      create: { name: "Kertas", icon: "📄", color: "#f59e0b", order: 18 },
+    }),
+    prisma.category.upsert({
+      where: { name: "PRNT" },
+      update: {},
+      create: { name: "PRNT", icon: "🖨️", color: "#64748b", order: 19 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Catridge M.TIK" },
+      update: {},
+      create: { name: "Catridge M.TIK", icon: "🖨️", color: "#8b5cf6", order: 20 },
+    }),
+    prisma.category.upsert({
+      where: { name: "Cartridge" },
+      update: {},
+      create: { name: "Cartridge", icon: "🖨️", color: "#64748b", order: 21 },
+    }),
+    prisma.category.upsert({
+      where: { name: "PLAT" },
+      update: {},
+      create: { name: "PLAT", icon: "💿", color: "#94a3b8", order: 22 },
+    }),
+    prisma.category.upsert({
+      where: { name: "JLD" },
+      update: {},
+      create: { name: "JLD", icon: "📦", color: "#06b6d4", order: 23 },
+    }),
   ]);
   console.log(`  ✅ Categories: ${categories.length} created`);
 
