@@ -54,6 +54,7 @@ export default defineConfig({
         timeout: 120 * 1000,
         env: {
           E2E_AUTH_BYPASS: '1',
+          NEXT_PUBLIC_E2E: '1',
           COREPACK_HOME: process.env.COREPACK_HOME || '../../.corepack',
           NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321',
           NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'e2e-anon-key',

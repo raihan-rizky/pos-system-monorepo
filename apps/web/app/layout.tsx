@@ -56,10 +56,13 @@ export default async function RootLayout({
   // Decode URI component since it might have spaces
   const rawUserName = cookieStore.get("x-pos-user-name")?.value;
   const userName = rawUserName ? decodeURIComponent(rawUserName) : null;
-  const permissions = await getGlobalRolePermissions().catch((error) => {
-    console.error("[RootLayout] Failed to load RBAC settings", error);
-    return buildDefaultRolePermissions();
-  });
+  const permissions =
+    process.env.E2E_AUTH_BYPASS === "1"
+      ? buildDefaultRolePermissions()
+      : await getGlobalRolePermissions().catch((error) => {
+          console.error("[RootLayout] Failed to load RBAC settings", error);
+          return buildDefaultRolePermissions();
+        });
 
   return (
     <html

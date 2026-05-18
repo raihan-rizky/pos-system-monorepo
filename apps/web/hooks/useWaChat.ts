@@ -170,6 +170,8 @@ export function useWaContacts() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_E2E === "1") return;
+
     const supabase = createClient();
     const channel = supabase
       .channel("waha-webhook")
@@ -218,6 +220,7 @@ export function useWaMessages(chatId: string | null) {
 
   useEffect(() => {
     if (!chatId || chatId === "0") return;
+    if (process.env.NEXT_PUBLIC_E2E === "1") return;
 
     const supabase = createClient();
     const channel = supabase

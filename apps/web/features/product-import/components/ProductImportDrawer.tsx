@@ -12,6 +12,7 @@ import {
 import {
   REQUIRED_IMPORT_COLUMNS,
   type ColumnMapping,
+  type ImportRowDecision,
   type NormalizedImportRow,
   type PreviewFilter,
 } from "../types";
@@ -26,6 +27,7 @@ import { ColumnMappingStep } from "./ColumnMappingStep";
 import { MethodSelector, type ImportMethod } from "./MethodSelector";
 import { ImageUploadStep } from "./ImageUploadStep";
 import { readFileHeaders, buildAutoMapping } from "../helpers/client-parser";
+import { getRowsMissingImportDecision } from "../helpers/import-decisions";
 
 type ImportStep = "upload" | "mapping" | "preview" | "result";
 
@@ -46,7 +48,7 @@ export function ProductImportDrawer({
   const [rawHeaders, setRawHeaders] = useState<string[]>([]);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [decisions, setDecisions] = useState<
-    Record<string, "create" | "update" | "skip">
+    Record<string, ImportRowDecision>
   >({});
   const [createMissingCategories, setCreateMissingCategories] = useState(true);
   const [previewFilter, setPreviewFilter] = useState<PreviewFilter>("all");
@@ -86,10 +88,9 @@ export function ProductImportDrawer({
     () => rows.flatMap((row) => row.errors),
     [rows]
   );
-  const needsDecision = rows.filter(
-    (row) =>
-      (row.existingProductId || row.duplicateInFile) &&
-      !decisions[String(row.rowNumber)]
+  const needsDecision = useMemo(
+    () => getRowsMissingImportDecision(rows, decisions),
+    [rows, decisions]
   );
   const canCommit =
     rows.length > 0 &&
@@ -193,12 +194,18 @@ export function ProductImportDrawer({
   };
 
   const handleCommit = async () => {
-    const result = await commit.mutateAsync({
-      rows,
-      decisions,
-      createMissingCategories,
-    });
-    if (result) setStep("result");
+    if (!canCommit) return;
+
+    try {
+      const result = await commit.mutateAsync({
+        rows,
+        decisions,
+        createMissingCategories,
+      });
+      if (result) setStep("result");
+    } catch {
+      // React Query keeps the error in commit.error for the inline message.
+    }
   };
 
   // Step indicators
@@ -524,9 +531,9 @@ function ImportPreviewTable({
   setDecisions,
 }: {
   rows: NormalizedImportRow[];
-  decisions: Record<string, "create" | "update" | "skip">;
+  decisions: Record<string, ImportRowDecision>;
   setDecisions: React.Dispatch<
-    React.SetStateAction<Record<string, "create" | "update" | "skip">>
+    React.SetStateAction<Record<string, ImportRowDecision>>
   >;
 }) {
   return (
