@@ -216,6 +216,16 @@ async function main() {
       update: {},
       create: { name: "JLD", icon: "📦", color: "#06b6d4", order: 23 },
     }),
+    prisma.category.upsert({
+      where: { name: "SP" },
+      update: {},
+      create: { name: "SP", icon: "📦", color: "#8b5cf6", order: 24 },
+    }),
+    prisma.category.upsert({
+      where: { name: "AYK" },
+      update: {},
+      create: { name: "AYK", icon: "📦", color: "#10b981", order: 25 },
+    }),
   ]);
   console.log(`  ✅ Categories: ${categories.length} created`);
 

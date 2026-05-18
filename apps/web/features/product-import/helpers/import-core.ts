@@ -35,7 +35,7 @@ export const importRowCommitSchema = z.object({
   name: z.string().trim().min(1),
   sku: z.string().trim().min(1),
   category: z.string().trim().min(1),
-  price: z.coerce.number().min(0),
+  price: z.coerce.number(),
   stock: z.coerce.number().int(),
   unit: z.string().trim().min(1),
   costPrice: z.coerce.number().min(0).optional().nullable(),
@@ -158,7 +158,7 @@ export function normalizeImportRows(
     if (!normalizeValue(record.name)) rowErrors.push("Name is required.");
     if (!sku) rowErrors.push("SKU is required.");
     if (!category) rowErrors.push("Category is required.");
-    if (!Number.isFinite(price) || price < 0) rowErrors.push("Price must be a valid number >= 0.");
+    if (!Number.isFinite(price)) rowErrors.push("Price must be a valid number.");
     if (!Number.isInteger(stock)) rowErrors.push("Stock must be a whole number.");
     if (!normalizeValue(record.unit)) rowErrors.push("Unit is required.");
 
