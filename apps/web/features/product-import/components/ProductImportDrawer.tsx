@@ -545,8 +545,10 @@ function ImportPreviewTable({
             <th className="px-3 py-2">Product</th>
             <th className="px-3 py-2">SKU</th>
             <th className="px-3 py-2">Category</th>
+            <th className="px-3 py-2 text-right">Cost Price</th>
             <th className="px-3 py-2 text-right">Price</th>
             <th className="px-3 py-2 text-right">Stock</th>
+            <th className="px-3 py-2 text-right">Min Stock</th>
             <th className="px-3 py-2">Decision</th>
             <th className="px-3 py-2">Status</th>
           </tr>
@@ -572,6 +574,9 @@ function ImportPreviewTable({
                     </span>
                   )}
                 </td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-500">
+                  {row.costPrice != null ? row.costPrice : "-"}
+                </td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {row.price}
                 </td>
@@ -593,6 +598,9 @@ function ImportPreviewTable({
                     )}
                     <span>{row.stock} {row.unit}</span>
                   </div>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-500">
+                  {row.minStock != null ? row.minStock : "-"}
                 </td>
                 <td className="px-3 py-2">
                   {row.existingProductId ? (
@@ -650,7 +658,7 @@ function ImportPreviewTable({
           {rows.length === 0 && (
             <tr>
               <td
-                colSpan={8}
+                colSpan={10}
                 className="px-3 py-8 text-center text-sm text-slate-400"
               >
                 No rows match the selected filter.

@@ -3,10 +3,13 @@ import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { productSnapshot } from "@/features/batch-operations/helpers/snapshots";
-import { importRowCommitSchema } from "@/features/product-import/helpers/import-core";
+import {
+  MAX_PRODUCT_IMPORT_ROWS,
+  importRowCommitSchema,
+} from "@/features/product-import/helpers/import-core";
 
 const commitSchema = z.object({
-  rows: z.array(importRowCommitSchema).max(500),
+  rows: z.array(importRowCommitSchema).max(MAX_PRODUCT_IMPORT_ROWS),
   decisions: z
     .record(z.string(), z.enum(["create", "update", "skip"]))
     .default({}),
@@ -223,8 +226,8 @@ export async function POST(request: Request) {
                 : await tx.inventoryLog.create({
                     data: {
                       productId: created.id,
-                      type: "IN",
-                      quantity: row.stock,
+                      type: row.stock < 0 ? "ADJUSTMENT" : "IN",
+                      quantity: Math.abs(row.stock),
                       note: `Batch import initial stock: ${row.name}`,
                       createdBy: user.id,
                     },

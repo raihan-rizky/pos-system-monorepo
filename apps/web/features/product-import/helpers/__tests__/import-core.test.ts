@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  MAX_PRODUCT_IMPORT_ROWS,
+  importRowCommitSchema,
   normalizeImportRows,
   buildMissingColumnResponse,
   extractRawHeaders,
@@ -67,6 +69,44 @@ describe("normalizeImportRows", () => {
     expect(result.rows[0].errors.join(" ")).toContain("SKU is required");
   });
 
+  it("allows negative decimal stock as a warning", () => {
+    const records = [{ name: "Product", sku: "SKU-NEG", category: "Drinks", price: 10000, stock: -285.2, unit: "pcs" }];
+    const result = normalizeImportRows(records, new Map(), categories);
+    expect(result.rows[0].stock).toBe(-285.2);
+    expect(result.rows[0].errors).toEqual([]);
+    expect(result.rows[0].warnings).toContain("This stock is not supposed to be negative.");
+  });
+
+  it("defaults invalid prices to 0 as a warning", () => {
+    const records = [{ name: "Product", sku: "SKU-PRICE", category: "Drinks", price: "", stock: 5, unit: "pcs" }];
+    const result = normalizeImportRows(records, new Map(), categories);
+    expect(result.rows[0].price).toBe(0);
+    expect(result.rows[0].errors).toEqual([]);
+    expect(result.rows[0].warnings).toContain("Price was not a valid number and will be imported as 0.");
+  });
+
+  it("defaults invalid min stock to 5 instead of sending a commit-invalid value", () => {
+    const records = [{ name: "Product", sku: "SKU-MIN-STOCK", category: "Drinks", price: 10000, stock: 5, minStock: "abc", unit: "pcs" }];
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0].errors).toEqual([]);
+    expect(result.rows[0].minStock).toBe(5);
+    expect(result.rows[0].warnings).toContain("Min stock was not a valid number and will be imported as 5.");
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+  });
+
+  it("sanitizes negative optional numeric fields before commit", () => {
+    const records = [{ name: "Product", sku: "SKU-OPTIONAL", category: "Drinks", price: 10000, stock: 5, costPrice: -100, minStock: -1, unit: "pcs" }];
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0].errors).toEqual([]);
+    expect(result.rows[0].costPrice).toBeNull();
+    expect(result.rows[0].minStock).toBe(5);
+    expect(result.rows[0].warnings).toContain("Cost price was not a valid number and will be imported as empty.");
+    expect(result.rows[0].warnings).toContain("Min stock was not a valid number and will be imported as 5.");
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+  });
+
   it("limits to 2000 rows", () => {
     const records = Array.from({ length: 2010 }, (_, i) => ({
       name: `Product ${i}`,
@@ -77,7 +117,8 @@ describe("normalizeImportRows", () => {
       unit: "pcs",
     }));
     const result = normalizeImportRows(records, new Map(), categories);
-    expect(result.rows.length).toBe(2000);
+    expect(MAX_PRODUCT_IMPORT_ROWS).toBe(2000);
+    expect(result.rows.length).toBe(MAX_PRODUCT_IMPORT_ROWS);
     expect(result.errors).toContain("Import files are limited to 2000 rows.");
   });
 

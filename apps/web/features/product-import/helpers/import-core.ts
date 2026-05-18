@@ -8,6 +8,8 @@ import {
   type NormalizedImportRow,
 } from "../types";
 
+export const MAX_PRODUCT_IMPORT_ROWS = 2000;
+
 const HEADER_ALIASES: Record<string, string> = {
   productname: "name",
   product_name: "name",
@@ -36,7 +38,7 @@ export const importRowCommitSchema = z.object({
   sku: z.string().trim().min(1),
   category: z.string().trim().min(1),
   price: z.coerce.number(),
-  stock: z.coerce.number().int(),
+  stock: z.coerce.number(),
   unit: z.string().trim().min(1),
   costPrice: z.coerce.number().min(0).optional().nullable(),
   minStock: z.coerce.number().int().min(0).optional(),
@@ -144,7 +146,7 @@ export function normalizeImportRows(
   const warnings: string[] = [];
   const errors: string[] = [];
 
-  const rows: NormalizedImportRow[] = records.slice(0, 2000).map((record, index) => {
+  const rows: NormalizedImportRow[] = records.slice(0, MAX_PRODUCT_IMPORT_ROWS).map((record, index) => {
     const rowErrors: string[] = [];
     const rowWarnings: string[] = [];
     const rowNumber = index + 2;
@@ -154,13 +156,25 @@ export function normalizeImportRows(
     const stock = toNumber(record.stock);
     const minStockRaw = normalizeValue(record.minStock);
     const costPriceRaw = normalizeValue(record.costPrice);
+    const minStock = minStockRaw ? toNumber(record.minStock) : 5;
+    const costPrice = costPriceRaw ? toNumber(record.costPrice) : Number.NaN;
 
     if (!normalizeValue(record.name)) rowErrors.push("Name is required.");
     if (!sku) rowErrors.push("SKU is required.");
     if (!category) rowErrors.push("Category is required.");
-    if (!Number.isFinite(price)) rowErrors.push("Price must be a valid number.");
-    if (!Number.isInteger(stock)) rowErrors.push("Stock must be a whole number.");
+    if (!Number.isFinite(price)) {
+      rowWarnings.push("Price was not a valid number and will be imported as 0.");
+    }
     if (!normalizeValue(record.unit)) rowErrors.push("Unit is required.");
+    if (Number.isFinite(stock) && stock < 0) {
+      rowWarnings.push("This stock is not supposed to be negative.");
+    }
+    if (costPriceRaw && (!Number.isFinite(costPrice) || costPrice < 0)) {
+      rowWarnings.push("Cost price was not a valid number and will be imported as empty.");
+    }
+    if (minStockRaw && (!Number.isFinite(minStock) || minStock < 0)) {
+      rowWarnings.push("Min stock was not a valid number and will be imported as 5.");
+    }
 
     const duplicateInFile = sku ? (skuCounts.get(sku) ?? 0) > 1 : false;
     if (duplicateInFile) rowWarnings.push("Duplicate SKU in file.");
@@ -188,8 +202,8 @@ export function normalizeImportRows(
       price: Number.isFinite(price) ? price : 0,
       stock: Number.isFinite(stock) ? stock : 0,
       unit: normalizeValue(record.unit),
-      costPrice: costPriceRaw ? toNumber(record.costPrice) : null,
-      minStock: minStockRaw ? Math.trunc(toNumber(record.minStock)) : 5,
+      costPrice: costPriceRaw && Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : null,
+      minStock: minStockRaw && Number.isFinite(minStock) && minStock >= 0 ? Math.trunc(minStock) : 5,
       barcode: normalizeValue(record.barcode) || null,
       description: normalizeValue(record.description) || null,
       size: normalizeValue(record.size) || null,
@@ -204,7 +218,7 @@ export function normalizeImportRows(
     };
   });
 
-  if (records.length > 2000) {
+  if (records.length > MAX_PRODUCT_IMPORT_ROWS) {
     errors.push("Import files are limited to 2000 rows.");
   }
 

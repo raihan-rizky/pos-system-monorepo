@@ -150,7 +150,7 @@ model Product {
   description   String?
   price         Decimal           @db.Decimal(12, 2)
   costPrice     Decimal?          @db.Decimal(12, 2)
-  stock         Int               @default(0)
+  stock         Float             @default(0)
   minStock      Int               @default(5)    // Alert when stock below this
   unit          String            @default("pcs") // pcs, rim, box, lembar, gsm, meter, roll, pack, lusin, kodi, set
   size          String?           // e.g., "3x2m", "A4", "F4"
@@ -285,7 +285,7 @@ model InventoryLog {
   productId String
   product   Product       @relation(fields: [productId], references: [id])
   type      InventoryType
-  quantity  Int
+  quantity  Float
   note      String?
   createdBy String?       // userId who made the change
   createdAt DateTime      @default(now())
