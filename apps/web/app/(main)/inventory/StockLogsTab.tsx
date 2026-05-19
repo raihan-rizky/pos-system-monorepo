@@ -192,7 +192,7 @@ export default function StockLogsTab() {
                     </div>
                   </div>
                   <div className="mt-2 pt-2 border-t border-slate-50 space-y-1">
-                    <p className="text-xs text-slate-600 font-medium">By: {log.person || "—"}</p>
+                    <p className="text-xs text-slate-600 font-medium">By: {log.person || "-"}</p>
                     {log.note && (
                       <p className="text-xs text-slate-500 truncate">{log.note}</p>
                     )}

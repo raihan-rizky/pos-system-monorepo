@@ -49,7 +49,7 @@ export async function mockApis(page: Page) {
     const path = url.pathname;
 
     if (path === "/api/categories") return json(route, categories);
-    if (path === "/api/products" && method === "GET") return json(route, products);
+    if (path === "/api/products" && method === "GET") return json(route, { data: products, pagination: { total: products.length, page: 1, limit: 100, totalPages: 1 } });
     if (path === "/api/products" && method === "POST") return json(route, { ...products[0], id: "prod-new" }, 201);
     if (path.startsWith("/api/products/")) return json(route, { ...products[0], name: "Updated Product" });
     if (path === "/api/inventory") return emptyOk(route);
@@ -128,6 +128,7 @@ export const test = base.extend<{ appPage: Page }>({
   appPage: async ({ page }, use) => {
     await authenticate(page);
     await mockApis(page);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(page);
   },
 });

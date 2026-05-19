@@ -95,6 +95,7 @@ export function useProducts(search?: string, categoryId?: string) {
   return useQuery({
     queryKey: ["products", debouncedSearch, categoryId],
     queryFn: () => fetchProducts(debouncedSearch, categoryId),
+    select: (data) => data.data,
   });
 }
 

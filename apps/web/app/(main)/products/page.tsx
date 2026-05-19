@@ -154,14 +154,14 @@ export default function ProductsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <StatCard 
             label="Total Products" 
-            value={isLoading ? "—" : totalProducts}
+            value={isLoading ? "-" : totalProducts}
             icon={<Package className="w-6 h-6 text-blue-600" />} 
             accent="bg-blue-100" 
             delay={0}
           />
           <StatCard 
             label="Low Stock Alerts" 
-            value={isLoading ? "—" : lowStock}
+            value={isLoading ? "-" : lowStock}
             sub={lowStock > 0 ? <><span className="w-2 h-2 rounded-full bg-red-500"></span> Action required</> : <><span className="w-2 h-2 rounded-full bg-emerald-500"></span> All levels healthy</>}
             icon={<AlertTriangle className={`w-6 h-6 ${lowStock > 0 ? "text-red-600 animate-pulse" : "text-amber-600"}`} />} 
             accent={lowStock > 0 ? "bg-red-100" : "bg-amber-100"} 
@@ -169,7 +169,7 @@ export default function ProductsPage() {
           />
           <StatCard 
             label="Inventory Value" 
-            value={isLoading ? "—" : fmt(totalValue)}
+            value={isLoading ? "-" : fmt(totalValue)}
             icon={<TrendingUp className="w-6 h-6 text-emerald-600" />} 
             accent="bg-emerald-100" 
             delay={200}
@@ -203,7 +203,7 @@ export default function ProductsPage() {
         {/* -- Tab Content -- */}
         {activeTab !== "products" ? (
           <div className="bg-white/70 backdrop-blur-2xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[32px] overflow-hidden p-5 md:p-6">
-            <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400"><span className="text-sm">Loading…</span></div>}>
+            <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400"><span className="text-sm">Loading...</span></div>}>
               {activeTab === "history" && <StockHistoryTab />}
               {activeTab === "logs" && <StockLogsTab />}
             </Suspense>
