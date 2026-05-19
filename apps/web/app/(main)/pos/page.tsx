@@ -343,7 +343,7 @@ export default function POSPage() {
           <span className="font-bold text-sm">
             Keranjang ({cart.totalItems})
           </span>
-          <span className="text-xs opacity-80">•</span>
+          <span className="text-xs opacity-80">â€¢</span>
           <span className="font-extrabold text-sm">
             {formatRupiah(cart.subtotal)}
           </span>
