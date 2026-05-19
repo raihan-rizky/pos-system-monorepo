@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(200, parseInt(searchParams.get("limit") || "100", 10)));
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
 
-    const whereClause = {
+    const whereClause: Prisma.ProductWhereInput = {
       storeId,
       isActive: true,
       ...(search && {

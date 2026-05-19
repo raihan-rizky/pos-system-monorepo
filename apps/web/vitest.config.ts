@@ -8,7 +8,8 @@ export default defineConfig({
     include: ["features/**/__tests__/**/*.test.ts", "app/**/__tests__/**/*.test.ts"],
     // Run tests serially to avoid Prisma prepared statement conflicts
     pool: "threads",
-    singleThread: true,
+    fileParallelism: false,
+    maxWorkers: 1,
   },
   resolve: {
     alias: {

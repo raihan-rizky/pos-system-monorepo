@@ -84,7 +84,6 @@ export async function POST(
           status: "COMMITTED",
           storeId,
           createdBy: user.id,
-          person: user.name,
           undoOfBatchId: batch.id,
           summary: {
             undoneBatchId: batch.id,

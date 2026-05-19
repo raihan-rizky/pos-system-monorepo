@@ -34,14 +34,16 @@ describe("Stock Warning Detection", () => {
     name: "Test Product",
     sku: "TEST-001",
     price: 10000,
+    costPrice: null,
     stock,
     minStock,
     unit: "pcs",
-    categoryId: "cat-1",
-    storeId: "store-1",
+    size: null,
+    material: null,
+    imageUrl: null,
     isActive: true,
-    category: { id: "cat-1", name: "Test", icon: null, color: null, order: 0 },
-  } as Product);
+    category: { id: "cat-1", name: "Test", icon: null, color: null },
+  });
 
   describe("isMinusStock", () => {
     it("should return true for negative stock", () => {

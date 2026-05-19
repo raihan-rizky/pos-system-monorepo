@@ -7,6 +7,8 @@
       "env": [
         "DATABASE_URL",
         "DIRECT_URL",
+        "EASYOCR_API_KEY",
+        "NEBIUS_API_KEY",
         "SUPABASE_SERVICE_KEY",
         "WEBHOOK_BASE_URL",
         "WAHA_BASE_URL",
