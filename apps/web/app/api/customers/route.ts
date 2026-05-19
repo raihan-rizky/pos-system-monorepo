@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:customers");
 export const dynamic = "force-dynamic";
 
 const createCustomerSchema = z.object({
@@ -25,11 +29,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const type = searchParams.get("type") || "";
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.max(
-      1,
-      Math.min(100, parseInt(searchParams.get("limit") || "20", 10))
-    );
+    const { page, limit, skip } = parsePagination(searchParams, {
+      defaultLimit: 20,
+      maxLimit: 100,
+    });
 
     const storeId = user.storeId || "store-main";
     const where: Record<string, unknown> = {
@@ -54,7 +57,7 @@ export async function GET(request: Request) {
       db.customer.findMany({
         where,
         orderBy: { lastVisitAt: { sort: "desc", nulls: "last" } },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
         select: {
           id: true,
@@ -75,17 +78,12 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    return NextResponse.json({
-      data: customers,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    });
+    return apiList(customers, buildPaginationMeta(total, page, limit));
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[GET /api/customers]", error);
+    log.error("[GET /api/customers]", error);
     return NextResponse.json(
       { message: "Failed to fetch customers" },
       { status: 500 }
@@ -145,7 +143,7 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[POST /api/customers]", error);
+    log.error("[POST /api/customers]", error);
     return NextResponse.json(
       { message: "Failed to create customer" },
       { status: 500 }

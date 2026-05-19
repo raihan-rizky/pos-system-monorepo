@@ -79,7 +79,7 @@ export async function mockApis(page: Page) {
       const body = JSON.parse(request.postData() || "{}") as { productionStatus?: typeof jobOrder.productionStatus };
       currentJobOrder = {
         ...currentJobOrder,
-        productionStatus: body.productionStatus || "DESIGNING",
+        productionStatus: body.productionStatus || "PRINTING",
       };
       return json(route, currentJobOrder);
     }

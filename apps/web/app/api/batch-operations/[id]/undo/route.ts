@@ -6,6 +6,9 @@ import {
   snapshotsMatch,
   type ProductSnapshot,
 } from "@/features/batch-operations/helpers/snapshots";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("api:batch-operations:undo");
 
 function asSnapshot(value: Prisma.JsonValue | null | undefined) {
   return value as unknown as ProductSnapshot | null;
@@ -201,13 +204,13 @@ export async function POST(
     if (authErr) return authErr;
     if (error instanceof Error) {
       if (error.message === "BATCH_NOT_FOUND") return NextResponse.json({ message: "Batch operation not found" }, { status: 404 });
-      if (error.message === "ALREADY_UNDONE") return NextResponse.json({ message: "Batch operation is already undone" }, { status: 400 });
-      if (error.message === "CANNOT_UNDO_UNDO") return NextResponse.json({ message: "Undo operations cannot be undone" }, { status: 400 });
+      if (error.message === "ALREADY_UNDONE") return NextResponse.json({ message: "Batch operation is already undone" }, { status: 409 });
+      if (error.message === "CANNOT_UNDO_UNDO") return NextResponse.json({ message: "Undo operations cannot be undone" }, { status: 409 });
       if (error.message.startsWith("LATER_BATCH_TOUCH:")) {
-        return NextResponse.json({ message: "A later batch touched at least one affected product", blockedProducts: [error.message.replace("LATER_BATCH_TOUCH:", "")] }, { status: 400 });
+        return NextResponse.json({ message: "A later batch touched at least one affected product", blockedProducts: [error.message.replace("LATER_BATCH_TOUCH:", "")] }, { status: 409 });
       }
     }
-    console.error("Failed to undo batch operation:", error);
+    logger.error("batch.undo.failed", { error });
     return NextResponse.json({ message: "Failed to undo batch operation" }, { status: 500 });
   }
 }

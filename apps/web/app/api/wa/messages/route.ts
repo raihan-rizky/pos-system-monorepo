@@ -9,6 +9,9 @@ import {
 } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:wa:messages");
 export const dynamic = "force-dynamic";
 
 /** Safely extract the string form of a WAHA id union */
@@ -33,12 +36,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const phoneParam = searchParams.get("phone");
   const chatIdParam = searchParams.get("chatId");
-  console.log(
-    `[WA/Messages] GET request — phone=${phoneParam}, chatId=${chatIdParam}`,
+  log.info(
+    `[WA/Messages] GET request â€” phone=${phoneParam}, chatId=${chatIdParam}`,
   );
 
   if (!isWaConfigured()) {
-    console.warn(`[WA/Messages] WAHA not configured — returning 503`);
+    log.warn(`[WA/Messages] WAHA not configured â€” returning 503`);
     return NextResponse.json(
       { message: "WAHA is not configured" },
       { status: 503 },
@@ -52,7 +55,7 @@ export async function GET(request: Request) {
     const targetId = chatIdParam || phone;
 
     if (!targetId || targetId === "0") {
-      console.warn(`[WA/Messages] Bad request — missing or invalid targetId`);
+      log.warn(`[WA/Messages] Bad request â€” missing or invalid targetId`);
       return NextResponse.json(
         { message: "Valid Phone or ChatId parameter is required" },
         { status: 400 },
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
 
     // If frontend sends an old format (no suffix), auto-discover it from the contacts list
     if (!chatId.includes("@")) {
-      console.log(
+      log.info(
         `[WA/Messages] chatId has no suffix, auto-discovering from contacts...`,
       );
       try {
@@ -80,16 +83,16 @@ export async function GET(request: Request) {
           if (chatId.endsWith("@s.whatsapp.net")) {
             chatId = chatId.replace("@s.whatsapp.net", "@c.us");
           }
-          console.log(`[WA/Messages] Resolved chatId to: ${chatId}`);
+          log.info(`[WA/Messages] Resolved chatId to: ${chatId}`);
         } else {
           chatId = `${chatId}@c.us`; // Fallback
-          console.log(
+          log.info(
             `[WA/Messages] No match found, falling back to: ${chatId}`,
           );
         }
       } catch (e) {
         chatId = `${chatId}@c.us`; // Fallback if WAHA chats API fails
-        console.warn(
+        log.warn(
           `[WA/Messages] Chats API failed during discovery, falling back to: ${chatId}`,
         );
       }
@@ -97,16 +100,16 @@ export async function GET(request: Request) {
 
     let wahaMessages: WahaMessage[] = [];
     try {
-      console.log(`[WA/Messages] Fetching messages for chatId=${chatId}...`);
+      log.info(`[WA/Messages] Fetching messages for chatId=${chatId}...`);
       wahaMessages = await getWahaChatMessages(chatId, 100, true); // Pastiin downloadMedia = true
-      console.log(
+      log.info(
         `[WA/Messages] Direct fetch returned ${wahaMessages?.length || 0} messages`,
       );
 
       // If WEBJS succeeds but returns an empty array due to sync delays for brand new numbers,
       // intentionally throw an error to force the fallback mechanism to extract the lastMessage.
       if (!wahaMessages || wahaMessages.length === 0) {
-        console.log(
+        log.info(
           `[WA/Messages] Empty result from direct fetch, triggering fallback...`,
         );
         throw new Error(
@@ -115,7 +118,7 @@ export async function GET(request: Request) {
       }
     } catch (fetchError: any) {
       // Fallback: extract the last message from the chat overview silently
-      console.log(
+      log.info(
         `[WA/Messages] Direct fetch failed (${fetchError.message}), attempting fallback extraction...`,
       );
       try {
@@ -153,17 +156,17 @@ export async function GET(request: Request) {
               _data: data // keep _data payload for custom extracting
             },
           ];
-          console.log(
+          log.info(
             `[WA/Messages] Fallback extracted 1 message from chat overview`,
           );
         } else {
-          console.log(
+          log.info(
             `[WA/Messages] Fallback found no lastMessage for chatId=${chatId}`,
           );
         }
       } catch (fallbackError: any) {
-        console.warn(
-          `[WA/Messages] ⚠️ Fallback extraction also failed for ${chatId}:`,
+        log.warn(
+          `[WA/Messages] âš ï¸ Fallback extraction also failed for ${chatId}:`,
           fallbackError.message,
         );
       }
@@ -211,8 +214,8 @@ export async function GET(request: Request) {
     );
 
     const duration = (performance.now() - startTime).toFixed(1);
-    console.log(
-      `[WA/Messages] ✅ Returning ${messages.length} messages for chatId=${chatIdParam || phone} in ${duration}ms`,
+    log.info(
+      `[WA/Messages] âœ… Returning ${messages.length} messages for chatId=${chatIdParam || phone} in ${duration}ms`,
     );
 
     return NextResponse.json({ data: messages });
@@ -221,8 +224,8 @@ export async function GET(request: Request) {
     if (authErr) return authErr;
 
     const duration = (performance.now() - startTime).toFixed(1);
-    console.error(
-      `[WA/Messages] ❌ Failed after ${duration}ms:`,
+    log.error(
+      `[WA/Messages] âŒ Failed after ${duration}ms:`,
       error.message || error,
     );
     return NextResponse.json(
@@ -250,10 +253,10 @@ const sendWaMessageSchema = z.object({
 
 export async function POST(request: Request) {
   const startTime = performance.now();
-  console.log(`[WA/SendMsg] POST request received`);
+  log.info(`[WA/SendMsg] POST request received`);
 
   if (!isWaConfigured()) {
-    console.warn(`[WA/SendMsg] WAHA not configured — returning 503`);
+    log.warn(`[WA/SendMsg] WAHA not configured â€” returning 503`);
     return NextResponse.json(
       { message: "WAHA is not configured" },
       { status: 503 },
@@ -266,41 +269,40 @@ export async function POST(request: Request) {
     const validatedData = sendWaMessageSchema.safeParse(body);
 
     if (!validatedData.success) {
-      console.warn(`[WA/SendMsg] Bad request — missing targetId or content`);
+      log.warn(`[WA/SendMsg] Validation failed`);
       return NextResponse.json(
-        { message: "Validation error", errors: validatedData.error.issues },
-        { status: 400 }
+        { message: "Validation error", errors: validatedData.error.flatten().fieldErrors },
+        { status: 422 }
       );
     }
-    
+
     const { phone, chatId: rawChatId, content } = validatedData.data;
 
-    // Use chatId (with @lid/@c.us suffix) if provided, otherwise fall back to phone
+    // Use chatId (with @lid/@c.us suffix) if provided, otherwise fall back to phone.
+    // Schema refinement ensures one of them is set, but TS narrowing can't see it.
     const targetId = rawChatId || phone;
-    console.log(
-      `[WA/SendMsg] targetId=${targetId}, contentLength=${content?.length || 0}`,
-    );
-
-    if (!targetId || !content) {
-      console.warn(`[WA/SendMsg] Bad request — missing targetId or content`);
+    if (!targetId) {
       return NextResponse.json(
-        { message: "Phone/chatId and content are required" },
-        { status: 400 },
+        { message: "Validation error", errors: { phone: ["Phone or chatId is required"] } },
+        { status: 422 },
       );
     }
+    log.info(
+      `[WA/SendMsg] targetId=${targetId}, contentLength=${content?.length || 0}`,
+    );
 
     // Send message via WAHA instantly in the background without awaiting it.
     // This allows the UI to unlock immediately and appear instantaneous organically.
     sendWaTextMessage(targetId, content).catch((e) => {
-      console.error(
-        `[WA/SendMsg] ❌ Background WAHA send failed for ${targetId}:`,
+      log.error(
+        `[WA/SendMsg] âŒ Background WAHA send failed for ${targetId}:`,
         e.message,
       );
     });
 
     const duration = (performance.now() - startTime).toFixed(1);
-    console.log(
-      `[WA/SendMsg] ✅ Message queued for ${targetId} in ${duration}ms (fire-and-forget)`,
+    log.info(
+      `[WA/SendMsg] âœ… Message queued for ${targetId} in ${duration}ms (fire-and-forget)`,
     );
 
     return NextResponse.json(
@@ -320,8 +322,8 @@ export async function POST(request: Request) {
     if (authErr) return authErr;
 
     const duration = (performance.now() - startTime).toFixed(1);
-    console.error(
-      `[WA/SendMsg] ❌ Failed after ${duration}ms:`,
+    log.error(
+      `[WA/SendMsg] âŒ Failed after ${duration}ms:`,
       error.message || error,
     );
     return NextResponse.json(

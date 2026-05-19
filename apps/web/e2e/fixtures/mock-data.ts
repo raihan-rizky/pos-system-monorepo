@@ -96,7 +96,7 @@ export const jobOrder = {
   id: "job-1",
   invoiceNumber: "JOB-20260509-0001",
   status: "DP",
-  productionStatus: "PENDING",
+  productionStatus: "PRINTING",
   total: 120000,
   amountPaid: 50000,
   estimatedDoneAt: "2026-05-12T08:00:00.000Z",
@@ -154,7 +154,7 @@ export const dashboard = {
   ],
   topSalespersons: [{ id: "sp-1", name: "Rina Sales", revenue: 55000, txCount: 1 }],
   topCustomers: [{ id: "cust-1", name: "Budi", phone: "08123456789", totalSpent: 55000 }],
-  productionStatusCounts: [{ status: "PENDING", count: 1 }],
+  productionStatusCounts: [{ status: "PRINTING", count: 1 }],
   dpTransactions: [jobOrder],
   totalOutstandingDP: 70000,
 };

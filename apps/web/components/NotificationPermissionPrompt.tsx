@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useRole } from "@/components/providers/RoleProvider";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("ui:NotificationPermissionPrompt");
 const STORAGE_KEY = "pos_push_prompt_seen_v1";
 const DEV_SW_PATH = "/sw.js";
 
@@ -18,15 +21,15 @@ export function NotificationPermissionPrompt() {
   useEffect(() => {
     if (!role || typeof window === "undefined") return;
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-      console.info("[push-permission] Browser does not support notifications or service workers");
+      log.info("[push-permission] Browser does not support notifications or service workers");
       return;
     }
     if (!("PushManager" in window)) {
-      console.info("[push-permission] Browser does not support PushManager");
+      log.info("[push-permission] Browser does not support PushManager");
       return;
     }
     if (!window.isSecureContext) {
-      console.info("[push-permission] Push notifications require HTTPS or localhost");
+      log.info("[push-permission] Push notifications require HTTPS or localhost");
       return;
     }
 
@@ -69,7 +72,7 @@ export function NotificationPermissionPrompt() {
       }
 
       const permission = await Notification.requestPermission();
-      console.info("[push-permission] Browser permission result", { permission });
+      log.info("[push-permission] Browser permission result", { permission });
 
       if (permission !== "granted") {
         setMessage(
@@ -107,7 +110,7 @@ export function NotificationPermissionPrompt() {
       localStorage.setItem(STORAGE_KEY, "1");
       setVisible(false);
     } catch (error) {
-      console.error("[push-permission] Failed to enable push notifications", error);
+      log.error("[push-permission] Failed to enable push notifications", error);
       setMessage("Gagal mengaktifkan notifikasi. Cek console/server log untuk detail.");
     } finally {
       setIsEnabling(false);

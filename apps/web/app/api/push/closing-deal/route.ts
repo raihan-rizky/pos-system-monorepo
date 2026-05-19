@@ -3,6 +3,9 @@ import { z } from "zod";
 import { db } from "@pos/db";
 import { sendPushToSubscriptions } from "@/lib/push";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:push:closing-deal");
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -31,7 +34,7 @@ function isAuthorized(request: Request) {
 export async function POST(request: Request) {
   try {
     if (!isAuthorized(request)) {
-      console.warn("[POST /api/push/closing-deal] Unauthorized request", {
+      log.warn("[POST /api/push/closing-deal] Unauthorized request", {
         hasAuthorization: Boolean(request.headers.get("authorization")),
         hasWebhookSecret: Boolean(request.headers.get("x-webhook-secret")),
       });
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
     const parsed = closingDealSchema.safeParse(await request.json());
 
     if (!parsed.success) {
-      console.warn("[POST /api/push/closing-deal] Validation failed", {
+      log.warn("[POST /api/push/closing-deal] Validation failed", {
         errors: parsed.error.flatten(),
       });
       return NextResponse.json(
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     const event = parsed.data;
-    console.info("[POST /api/push/closing-deal] Webhook payload received", {
+    log.info("[POST /api/push/closing-deal] Webhook payload received", {
       storeId: event.storeId,
       source: event.source,
       chatId: event.chatId,
@@ -68,7 +71,7 @@ export async function POST(request: Request) {
       },
     });
     const closingDealSubscriptions = subscriptions.filter(wantsClosingDeals);
-    console.info("[POST /api/push/closing-deal] Subscriptions selected", {
+    log.info("[POST /api/push/closing-deal] Subscriptions selected", {
       activeCandidates: subscriptions.length,
       closingDealRecipients: closingDealSubscriptions.length,
       filteredOut: subscriptions.length - closingDealSubscriptions.length,
@@ -86,7 +89,7 @@ export async function POST(request: Request) {
       tag: event.chatId ? `closing-deal:${event.chatId}` : "closing-deal",
     });
 
-    console.info("[POST /api/push/closing-deal] Notification result", {
+    log.info("[POST /api/push/closing-deal] Notification result", {
       recipients: closingDealSubscriptions.length,
       ...result,
     });
@@ -97,7 +100,7 @@ export async function POST(request: Request) {
       ...result,
     });
   } catch (error) {
-    console.error("[POST /api/push/closing-deal]", error);
+    log.error("[POST /api/push/closing-deal]", error);
     return NextResponse.json(
       { message: "Failed to send closing deal notification" },
       { status: 500 },

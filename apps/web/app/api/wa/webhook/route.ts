@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:wa:webhook");
 export const dynamic = "force-dynamic";
 
 function isAuthorizedWebhook(request: Request) {
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
             await supabase.removeChannel(channel);
             resolve();
           } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            console.error("[WAHA Webhook] Supabase Channel Error:", status);
+            log.error("[WAHA Webhook] Supabase Channel Error:", status);
             await supabase.removeChannel(channel);
             resolve();
           }
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("WAHA Webhook error:", error);
+    log.error("WAHA Webhook error:", error);
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("api:inventory:bulk:commit");
 import { productSnapshot, stockDelta } from "@/features/batch-operations/helpers/snapshots";
 
 const bulkCommitSchema = z.object({
@@ -105,14 +108,14 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "Validation error", errors: error.issues }, { status: 400 });
+      return NextResponse.json({ message: "Validation error", errors: error.flatten().fieldErrors }, { status: 422 });
     }
     if (error instanceof Error) {
       if (error.message === "PRODUCT_NOT_FOUND") return NextResponse.json({ message: "Some selected products were not found" }, { status: 404 });
-      if (error.message === "QUANTITY_REQUIRED") return NextResponse.json({ message: "Every selected product needs a quantity" }, { status: 400 });
-      if (error.message === "NEGATIVE_STOCK") return NextResponse.json({ message: "Stock cannot be negative" }, { status: 400 });
+      if (error.message === "QUANTITY_REQUIRED") return NextResponse.json({ message: "Every selected product needs a quantity" }, { status: 422 });
+      if (error.message === "NEGATIVE_STOCK") return NextResponse.json({ message: "Stock cannot be negative" }, { status: 422 });
     }
-    console.error("Failed to commit bulk stock update:", error);
+    logger.error("inventory.bulk.commit.failed", { error });
     return NextResponse.json({ message: "Failed to commit bulk stock update" }, { status: 500 });
   }
 }

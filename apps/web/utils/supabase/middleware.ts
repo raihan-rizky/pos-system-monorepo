@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+﻿import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { DEFAULT_PAGE, isValidRole } from "@/lib/rbac/permissions";
 import type { Role } from "@/lib/rbac/permissions";
@@ -8,6 +8,9 @@ import {
   normalizeRolePermissions,
 } from "@/features/rbac/helpers/rbac-core";
 import type { PermissionEntry } from "@/features/rbac/helpers/rbac-core";
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("supabase-middleware");
 
 const ROLE_COOKIE = "x-pos-role";
 const USER_ID_COOKIE = "x-pos-user-id";
@@ -42,6 +45,7 @@ export async function updateSession(request: NextRequest) {
     ) {
       const url = request.nextUrl.clone();
       url.pathname = DEFAULT_PAGE[role];
+      log.debug("e2e.redirect", { from: request.nextUrl.pathname, to: url.pathname, role });
       return NextResponse.redirect(url);
     }
 
@@ -83,31 +87,29 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // ── Not authenticated ──
+  // Not authenticated
   if (
     !user &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth")
   ) {
     if (request.nextUrl.pathname.startsWith("/api/")) {
+      log.debug("unauthenticated.api", { path: request.nextUrl.pathname });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Redirect to login
+    log.debug("unauthenticated.redirect", { path: request.nextUrl.pathname });
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // ── Authenticated: resolve role ──
+  // Authenticated: resolve role
   if (user) {
     let role = request.cookies.get(ROLE_COOKIE)?.value as Role | undefined;
 
-    // If no role cookie, resolve from DB and set it
     if (!role || !isValidRole(role)) {
       try {
-        // Use Supabase PostgREST instead of Prisma to keep the Edge
-        // Function bundle under Vercel's 1 MB limit.
         const username = user.email?.split("@")[0];
         const { data: posUser } = username
           ? await supabase
@@ -120,50 +122,46 @@ export async function updateSession(request: NextRequest) {
         if (posUser && posUser.isActive) {
           role = posUser.role as Role;
 
-          // Set role cookie on the response
           const cookieOptions = {
             path: "/",
-            httpOnly: false, // Needs to be readable by frontend RoleProvider
+            httpOnly: false,
             sameSite: "strict" as const,
             secure: process.env.NODE_ENV === "production",
-            maxAge: 60 * 60 * 24, // 24 hours
+            maxAge: 60 * 60 * 24,
           };
           supabaseResponse.cookies.set(ROLE_COOKIE, role, cookieOptions);
           supabaseResponse.cookies.set(USER_ID_COOKIE, posUser.id, cookieOptions);
           supabaseResponse.cookies.set(USER_NAME_COOKIE, posUser.name, cookieOptions);
+          log.info("role.resolved", { username, role });
         } else {
-          // User exists in Supabase but not in POS system or deactivated
+          log.warn("user.inactive_or_missing", { username, hasPosUser: Boolean(posUser) });
           if (request.nextUrl.pathname.startsWith("/api/")) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
           }
 
           if (request.nextUrl.pathname === "/login") {
-            // Already on login page, sign out so they don't get stuck in a loop
             await supabase.auth.signOut();
             return supabaseResponse;
           }
 
           const url = request.nextUrl.clone();
           url.pathname = "/login";
-          // append a query param so the login page can show an error
           url.searchParams.set("error", "Account not found or deactivated");
           return NextResponse.redirect(url);
         }
       } catch (error) {
         if (request.nextUrl.pathname.startsWith("/api/")) {
+          log.error("role.resolve.failed.api", { error, path: request.nextUrl.pathname });
           return NextResponse.json({ error: "Unable to verify access" }, { status: 503 });
         }
-        console.error("[Middleware] Failed to resolve user role:", error);
-        // On DB error, allow request through — API guards will catch it
+        log.error("role.resolve.failed", { error, path: request.nextUrl.pathname });
         return supabaseResponse;
       }
     }
 
-    // ── Page-level access check (skip for API routes — handled by requireRole) ──
     if (role && !request.nextUrl.pathname.startsWith("/api/")) {
       const pathname = request.nextUrl.pathname;
 
-      // Skip access check for login, auth, and root pages
       if (
         pathname !== "/" &&
         pathname !== "/login" &&
@@ -176,7 +174,7 @@ export async function updateSession(request: NextRequest) {
         );
 
         if (!canAccess) {
-          // Redirect to role's default page
+          log.info("page.access.denied", { role, path: pathname });
           const url = request.nextUrl.clone();
           url.pathname = DEFAULT_PAGE[role];
           return NextResponse.redirect(url);
@@ -208,12 +206,15 @@ async function canAccessPageWithConfiguredPermissions(
     }>);
 
     if (error || !data?.length) {
+      if (error) {
+        log.warn("rbac.permissions.empty", { error, role, path });
+      }
       return canRoleAccessPage(role, path, buildDefaultRolePermissions());
     }
 
     return canRoleAccessPage(role, path, normalizeRolePermissions(data));
   } catch (error) {
-    console.error("[Middleware] Failed to load RBAC page permissions:", error);
+    log.error("rbac.permissions.load.failed", { error, role, path });
     return canRoleAccessPage(role, path, buildDefaultRolePermissions());
   }
 }

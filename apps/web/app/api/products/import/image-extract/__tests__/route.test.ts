@@ -56,7 +56,7 @@ describe("POST /api/products/import/image-extract", () => {
     dbCategoryFindManyMock.mockResolvedValue([{ name: "Jasa Cetak" }, { name: "Uncategorized" }]);
   });
 
-  it("returns 400 if no files uploaded", async () => {
+  it("returns 422 if no files uploaded", async () => {
     const formData = new FormData();
     const req = new NextRequest("http://localhost/api/products/import/image-extract", {
       method: "POST",
@@ -64,12 +64,12 @@ describe("POST /api/products/import/image-extract", () => {
     });
 
     const response = await POST(req);
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(422);
     const json = await response.json();
-    expect(json.error).toBe("No images provided");
+    expect(json.message).toBe("No images provided");
   });
 
-  it("returns 400 if more than 5 images uploaded", async () => {
+  it("returns 422 if more than 5 images uploaded", async () => {
     const formData = new FormData();
     for (let i = 0; i < 6; i++) {
       formData.append(`image_${i}`, new Blob(["test"], { type: "image/jpeg" }));
@@ -80,24 +80,24 @@ describe("POST /api/products/import/image-extract", () => {
     });
 
     const response = await POST(req);
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(422);
     const json = await response.json();
-    expect(json.error).toBe("Maximum 5 images allowed");
+    expect(json.message).toBe("Maximum 5 images allowed");
   });
 
-  it("returns 400 if invalid file type uploaded", async () => {
+  it("returns 415 if invalid file type uploaded", async () => {
     const formData = new FormData();
     formData.append("image_0", new Blob(["test"], { type: "text/plain" }));
-    
+
     const req = new NextRequest("http://localhost/api/products/import/image-extract", {
       method: "POST",
       body: formData,
     });
 
     const response = await POST(req);
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(415);
     const json = await response.json();
-    expect(json.error).toContain("Invalid file type");
+    expect(json.message).toContain("Invalid file type");
   });
 
   it("calls EasyOCR and returns products if successful", async () => {
@@ -321,10 +321,10 @@ describe("POST /api/products/import/image-extract", () => {
     });
 
     const response = await POST(req);
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(502);
     const json = await response.json();
 
-    expect(json.error).toContain("NEBIUS_API_KEY is not configured");
+    expect(json.message).toBe("AI extraction failed");
     expect(openAIConstructorMock).not.toHaveBeenCalled();
   });
 });

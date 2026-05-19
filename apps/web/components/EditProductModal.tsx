@@ -4,6 +4,9 @@ import React, { useState, useEffect } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { useUpdateProduct, useCategories, Product } from "@/hooks/useProducts";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("ui:EditProductModal");
 interface EditProductModalProps {
   open: boolean;
   onClose: () => void;
@@ -79,7 +82,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           return;
         }
       } catch (err) {
-        console.error("Upload failed", err);
+        log.error("Upload failed", err);
         alert("Terjadi kesalahan saat mengupload gambar.");
         setIsUploading(false);
         return;
@@ -102,7 +105,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
       setIsUploading(false);
       onClose();
     } catch (error) {
-      console.error("Failed to update product:", error);
+      log.error("Failed to update product:", error);
       alert("Gagal merubah barang. SKU mungkin sudah ada.");
       setIsUploading(false);
     }

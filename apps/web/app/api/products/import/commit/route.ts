@@ -7,6 +7,9 @@ import {
   MAX_PRODUCT_IMPORT_ROWS,
   importRowCommitSchema,
 } from "@/features/product-import/helpers/import-core";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("api:products:import:commit");
 
 const commitSchema = z.object({
   rows: z.array(importRowCommitSchema).max(MAX_PRODUCT_IMPORT_ROWS),
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
     if (rows.length === 0) {
       return NextResponse.json(
         { message: "No rows to import" },
-        { status: 400 },
+        { status: 422 },
       );
     }
 
@@ -54,7 +57,7 @@ export async function POST(request: Request) {
           message: "Import contains duplicate SKUs. Mark extra rows as skip.",
           duplicateSkus,
         },
-        { status: 400 },
+        { status: 409 },
       );
     }
 
@@ -286,8 +289,8 @@ export async function POST(request: Request) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { message: "Validation error", errors: error.issues },
-        { status: 400 },
+        { message: "Validation error", errors: error.flatten().fieldErrors },
+        { status: 422 },
       );
     }
     if (error instanceof Error) {
@@ -299,7 +302,7 @@ export async function POST(request: Request) {
               .replace("MISSING_CATEGORIES:", "")
               .split(", "),
           },
-          { status: 400 },
+          { status: 409 },
         );
       }
       if (error.message.startsWith("ROW_DECISION_REQUIRED:")) {
@@ -310,12 +313,12 @@ export async function POST(request: Request) {
               error.message.replace("ROW_DECISION_REQUIRED:", ""),
             ),
           },
-          { status: 400 },
+          { status: 409 },
         );
       }
     }
 
-    console.error("Failed to commit product import:", error);
+    logger.error("products.import.commit.failed", { error });
     return NextResponse.json(
       { message: "Failed to commit product import" },
       { status: 500 },

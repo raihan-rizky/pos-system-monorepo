@@ -2,7 +2,16 @@ import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import {
+  parseSearchQuery,
+  buildProductSearchOR,
+} from "@/features/pos-search/pos-search";
+import { buildProductStockFilter } from "@/features/pos-search/pos-stock-filter";
+import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:products");
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
   sku: z.string().min(1, "SKU is required"),
@@ -30,20 +39,22 @@ export async function GET(request: Request) {
     const categoryId = searchParams.get("categoryId") || "";
     const storeId = user.storeId || "store-main";
     // Cap at 200 to prevent unbounded result sets on Vercel
-    const limit = Math.max(1, Math.min(200, parseInt(searchParams.get("limit") || "100", 10)));
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const { page, limit, skip } = parsePagination(searchParams, {
+      defaultLimit: 100,
+      maxLimit: 200,
+    });
+    const inStockOnly = searchParams.get("inStockOnly") === "true";
+
+    const tokens = parseSearchQuery(search);
+    const searchWhere = buildProductSearchOR(tokens);
+    const stockFilter = buildProductStockFilter(inStockOnly);
 
     const whereClause: Prisma.ProductWhereInput = {
       storeId,
       isActive: true,
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: "insensitive" } },
-          { sku: { contains: search, mode: "insensitive" } },
-          { barcode: { contains: search, mode: "insensitive" } },
-        ],
-      }),
+      ...(searchWhere ?? {}),
       ...(categoryId && { categoryId }),
+      ...(stockFilter ?? {}),
     };
 
     const products = await db.product.findMany({
@@ -54,7 +65,7 @@ export async function GET(request: Request) {
         },
       },
       orderBy: { name: "asc" },
-      skip: (page - 1) * limit,
+      skip,
       take: limit,
     });
 
@@ -62,19 +73,14 @@ export async function GET(request: Request) {
       where: whereClause,
     });
 
-    const totalPages = Math.ceil(total / limit);
-
-    const res = NextResponse.json({
-      data: products,
-      pagination: { total, page, limit, totalPages },
-    });
+    const res = apiList(products, buildPaginationMeta(total, page, limit));
     res.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
     return res;
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to fetch products:", error);
+    log.error("Failed to fetch products:", error);
     return NextResponse.json(
       { message: "Failed to fetch products" },
       { status: 500 }
@@ -100,7 +106,7 @@ export async function POST(request: Request) {
     if (existingProduct) {
       return NextResponse.json(
         { message: "SKU already exists. Please use a unique SKU." },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
@@ -121,15 +127,61 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to create product:", error);
+    log.error("Failed to create product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { message: "Validation error", errors: error.issues },
-        { status: 400 }
+        { message: "Validation error", errors: error.flatten().fieldErrors },
+        { status: 422 }
       );
     }
     return NextResponse.json(
       { message: "Failed to create product" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/products?ids=a,b,c — bulk delete by ID
+export async function DELETE(request: Request) {
+  try {
+    const user = await requirePermission("product", "delete");
+    const { searchParams } = new URL(request.url);
+    const idsParam = searchParams.get("ids") || "";
+    const productIds = idsParam.split(",").map((s) => s.trim()).filter(Boolean);
+
+    if (productIds.length === 0) {
+      return NextResponse.json(
+        { message: "Validation error", errors: { ids: ["At least one product id is required"] } },
+        { status: 422 }
+      );
+    }
+
+    const storeId = user.storeId || "store-main";
+
+    const products = await db.product.findMany({
+      where: { id: { in: productIds }, storeId },
+      select: { id: true },
+    });
+
+    if (products.length !== productIds.length) {
+      return NextResponse.json(
+        { message: "Some products not found or do not belong to your store" },
+        { status: 404 }
+      );
+    }
+
+    await db.product.deleteMany({
+      where: { id: { in: productIds }, storeId },
+    });
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
+    log.error("Failed to bulk-delete products:", error);
+    return NextResponse.json(
+      { message: "Failed to delete products" },
       { status: 500 }
     );
   }

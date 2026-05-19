@@ -73,10 +73,7 @@ enum ShiftStatus {
 }
 
 enum ProductionStatus {
-  PENDING
-  DESIGNING
   PRINTING
-  FINISHING
   READY_PICKUP
   DELIVERED
 }

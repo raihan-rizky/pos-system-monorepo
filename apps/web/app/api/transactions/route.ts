@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { requirePermission, requireRole, AuthError, handleAuthError } from "@/lib/rbac/guard";
 import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import type { Role } from "@/lib/rbac/permissions";
 import { z } from "zod";
+import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 
+import { getLogger } from "@/lib/logger";
+import { buildStockDecrementParams } from "@/features/pos-checkout/stock-decrement";
+import {
+  buildCustomerUpdateArgs,
+  buildInventoryLogRows,
+} from "@/features/pos-checkout/post-commit";
+
+const log = getLogger("api:transactions");
 const transactionItemSchema = z.object({
   productId: z.string(),
   name: z.string(),
@@ -56,8 +66,10 @@ export async function GET(request: Request) {
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const categoryId = searchParams.get("categoryId");
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "10", 10)));
+    const { page, limit, skip } = parsePagination(searchParams, {
+      defaultLimit: 10,
+      maxLimit: 100,
+    });
 
     // Build where clause
     const where: Prisma.TransactionWhereInput = {
@@ -112,7 +124,7 @@ export async function GET(request: Request) {
     const transactions = await db.transaction.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
+      skip,
       take: limit,
       include: {
         items: {
@@ -135,17 +147,12 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.json({
-      data: transactions,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    });
+    return apiList(transactions, buildPaginationMeta(total, page, limit));
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to fetch transactions:", error);
+    log.error("Failed to fetch transactions:", error);
     return NextResponse.json(
       { message: "Failed to fetch transactions" },
       { status: 500 }
@@ -192,13 +199,21 @@ export async function POST(request: Request) {
     } = parsed.data;
 
     if (items.length === 0) {
-      return NextResponse.json({ message: "Cart is empty" }, { status: 400 });
+      return NextResponse.json({ message: "Cart is empty" }, { status: 422 });
     }
 
     // Parallel pre-validation: run independent lookups concurrently
     const uniqueProductIds = [...new Set(items.map((item) => item.productId))];
 
-    const [customerCheck, salespersonCheck, products] = await Promise.all([
+    // Compute the day window once so the daily-count query can join the
+    // pre-validation parallel batch instead of running serially inside the
+    // interactive transaction below. The retry loop on P2002 already covers
+    // the rare race where two cashiers read the same count.
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const [customerCheck, salespersonCheck, products, todayCount] = await Promise.all([
       customerId
         ? db.customer.findFirst({
             where: { id: customerId, storeId },
@@ -225,6 +240,9 @@ export async function POST(request: Request) {
           size: true,
           material: true,
         },
+      }),
+      db.transaction.count({
+        where: { storeId, createdAt: { gte: dayStart } },
       }),
     ]);
 
@@ -282,36 +300,30 @@ export async function POST(request: Request) {
       changeComputed = isDP ? 0 : amountPaid - total;
 
       if (!isDP && amountPaid < total) {
-        return NextResponse.json({ message: "Pembayaran kurang" }, { status: 400 });
+        return NextResponse.json({ message: "Pembayaran kurang" }, { status: 422 });
       }
 
       if (isDP && amountPaid <= 0) {
         return NextResponse.json(
           { message: "Jumlah DP harus lebih dari 0" },
-          { status: 400 }
+          { status: 422 }
         );
       }
     }
 
-    // Invoice number is generated INSIDE the DB transaction so the count
-    // and insert are atomic. We retry up to 5 times on a uniqueness collision
-    // (Prisma P2002) by incrementing the daily sequence suffix.
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
+    // Invoice number sequence is computed from the pre-fetched daily count.
+    // We retry up to 5 times on a uniqueness collision (Prisma P2002) by
+    // incrementing the suffix — cheap, and avoids holding the locked
+    // interactive transaction open for an extra COUNT round-trip.
     const MAX_ATTEMPTS = 5;
     let transaction: any = null;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         transaction = await db.$transaction(async (tx: TxClient) => {
-          // Count today's transactions to build the sequence number.
-          // Running inside the transaction gives us a consistent snapshot.
-          const count = await tx.transaction.count({
-            where: { storeId, createdAt: { gte: dayStart } },
-          });
-          const invoiceNumber = `INV-${dateStr}-${String(count + 1 + attempt).padStart(4, "0")}`;
+          const invoiceNumber = `INV-${dateStr}-${String(
+            todayCount + 1 + attempt,
+          ).padStart(4, "0")}`;
 
           const txn = await tx.transaction.create({
             data: {
@@ -333,7 +345,7 @@ export async function POST(request: Request) {
               salesName: salesName || null,
               salespersonId: salespersonId || null,
               isJobOrder,
-              productionStatus: isJobOrder ? "PENDING" : null,
+              productionStatus: isJobOrder ? "PRINTING" : null,
               estimatedDoneAt: estimatedDoneAt ? new Date(estimatedDoneAt) : null,
               items: {
                 create: serverItems.map(
@@ -359,48 +371,51 @@ export async function POST(request: Request) {
 
           // Deduct stock for each item only if it's not a sales request
           if (!isSalesRequest) {
-            const stockUpdates = await Promise.all(
-              serverItems.map((item) =>
-                tx.product.updateMany({
-                  where: {
-                    id: item.productId,
-                    storeId,
-                    stock: { gte: item.quantity },
-                  },
-                  data: { stock: { decrement: item.quantity } },
-                })
-              )
+            // Batched stock decrement: a single UPDATE ... FROM (VALUES ...)
+            // round-trip instead of N sequential updateMany calls. The
+            // RETURNING clause lets us count matched rows so we can detect
+            // insufficient stock without an extra read.
+            const { values, expectedRowCount } = buildStockDecrementParams(
+              serverItems.map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+              })),
+              storeId,
             );
 
-            if (stockUpdates.some((result) => result.count !== 1)) {
-              throw new Error("INSUFFICIENT_STOCK");
+            if (expectedRowCount > 0) {
+              // unnest(text[], float8[]) gives Postgres the column types
+              // up front, which a parameterized VALUES list cannot. This
+              // is the standard pattern for batched Prisma raw upserts.
+              const productIds = values.map(([id]) => id);
+              const quantities = values.map(([, qty]) => qty);
+              const updated = await tx.$queryRaw<Array<{ id: string }>>`
+                UPDATE pos_products AS p
+                SET stock = p.stock - v.qty
+                FROM unnest(${productIds}::text[], ${quantities}::float8[])
+                  AS v(id, qty)
+                WHERE p.id = v.id
+                  AND p."storeId" = ${storeId}
+                  AND p.stock >= v.qty
+                RETURNING p.id
+              `;
+
+              if (updated.length !== expectedRowCount) {
+                // Either a row was missing (caught by pre-validation) or
+                // its current stock fell below the requested quantity
+                // between read and write. Treat both as insufficient stock
+                // — the interactive transaction will roll back cleanly.
+                throw new Error("INSUFFICIENT_STOCK");
+              }
             }
-
-            await tx.inventoryLog.createMany({
-              data: serverItems.map((item) => ({
-                productId: item.productId,
-                type: "OUT",
-                quantity: item.quantity,
-                note: `Penjualan ${invoiceNumber}`,
-                createdBy: user.id,
-                person: user.name,
-              })),
-            });
+            // Inventory logs are an audit trail — they are written *after*
+            // the response (see `after()` below) so they don't extend the
+            // cashier's wait time.
           }
 
-          // Update customer analytics atomically (skip if it's a sales request since payment is pending)
-          if (customerId && !isSalesRequest) {
-            const debtIncrement = isDP ? total - amountPaidComputed : 0;
-            await tx.customer.update({
-              where: { id: customerId },
-              data: {
-                totalSpent: { increment: amountPaidComputed },
-                totalOrders: { increment: 1 },
-                totalDebt: debtIncrement > 0 ? { increment: debtIncrement } : undefined,
-                lastVisitAt: new Date(),
-              },
-            });
-          }
+          // Customer analytics are also written post-response (see
+          // `after()` below). They're additive counters / a debt increment
+          // that don't gate the receipt and don't need to share the txn.
 
           return txn;
         },
@@ -409,18 +424,55 @@ export async function POST(request: Request) {
           timeout: 15000, // 15 seconds timeout for the entire transaction
         });
 
-        // Transaction succeeded — break out of retry loop
+        // Transaction succeeded â€” break out of retry loop
         break;
       } catch (err: any) {
-        // P2002 = unique constraint violation on invoiceNumber — retry
+        // P2002 = unique constraint violation on invoiceNumber â€” retry
         if (err?.code === "P2002" && attempt < MAX_ATTEMPTS - 1) {
-          console.warn(
-            `Invoice number collision on attempt ${attempt + 1}, retrying…`
+          log.warn(
+            `Invoice number collision on attempt ${attempt + 1}, retryingâ€¦`
           );
           continue;
         }
         throw err; // non-recoverable error or max retries exceeded
       }
+    }
+
+    // Schedule audit log + customer analytics writes to run AFTER the
+    // response is sent. The cashier already has the receipt; these are
+    // additive bookkeeping that doesn't need to gate UI latency.
+    if (transaction && !isSalesRequest) {
+      const invoiceNumber = transaction.invoiceNumber as string;
+      const inventoryRows = buildInventoryLogRows({
+        items: serverItems,
+        invoiceNumber,
+        userId: user.id,
+        userName: user.name ?? null,
+      });
+      const customerArgs = buildCustomerUpdateArgs({
+        customerId: customerId || null,
+        isDP,
+        total,
+        amountPaid: amountPaidComputed,
+      });
+
+      after(async () => {
+        try {
+          await Promise.all([
+            inventoryRows.length > 0
+              ? db.inventoryLog.createMany({ data: inventoryRows })
+              : Promise.resolve(),
+            customerArgs ? db.customer.update(customerArgs) : Promise.resolve(),
+          ]);
+        } catch (sideEffectError) {
+          // Log only — the transaction itself is already committed and the
+          // cashier has been told the sale succeeded.
+          log.error(
+            `Post-commit side effects failed for ${invoiceNumber}:`,
+            sideEffectError,
+          );
+        }
+      });
     }
 
     return NextResponse.json(transaction, { status: 201 });
@@ -435,7 +487,7 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error("Failed to create transaction:", error);
+    log.error("Failed to create transaction:", error);
     return NextResponse.json(
       { message: "Failed to create transaction" },
       { status: 500 }

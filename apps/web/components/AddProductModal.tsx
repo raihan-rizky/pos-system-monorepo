@@ -4,6 +4,9 @@ import React, { useState } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { useCreateProduct, useCategories } from "@/hooks/useProducts";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("ui:AddProductModal");
 interface AddProductModalProps {
   open: boolean;
   onClose: () => void;
@@ -62,7 +65,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
           return;
         }
       } catch (err) {
-        console.error("Upload failed", err);
+        log.error("Upload failed", err);
         alert("Terjadi kesalahan saat mengupload gambar.");
         setIsUploading(false);
         return;
@@ -95,7 +98,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
       setIsUploading(false);
       onClose();
     } catch (error) {
-      console.error("Failed to create product:", error);
+      log.error("Failed to create product:", error);
       alert("Gagal menambahkan barang. SKU mungkin sudah ada.");
       setIsUploading(false);
     }

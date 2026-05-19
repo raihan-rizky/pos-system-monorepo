@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { apiCollection } from "@/lib/api/responses";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:salespersons");
 type SalespersonWhereData = {
   storeId?: string;
   isActive?: boolean;
@@ -34,12 +38,12 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    return NextResponse.json(salespersons);
+    return apiCollection(salespersons);
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to fetch salespersons:", error);
+    log.error("Failed to fetch salespersons:", error);
     return NextResponse.json({ message: "Failed to fetch salespersons" }, { status: 500 });
   }
 }
@@ -53,8 +57,8 @@ export async function POST(request: NextRequest) {
 
     if (!validatedData.success) {
       return NextResponse.json(
-        { message: "Validation error", errors: validatedData.error.issues },
-        { status: 400 }
+        { message: "Validation error", errors: validatedData.error.flatten().fieldErrors },
+        { status: 422 }
       );
     }
     
@@ -81,7 +85,7 @@ export async function POST(request: NextRequest) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to create salesperson:", error);
+    log.error("Failed to create salesperson:", error);
     return NextResponse.json({ message: "Failed to create salesperson" }, { status: 500 });
   }
 }

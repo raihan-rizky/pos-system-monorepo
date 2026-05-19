@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CartItem } from "./useCart";
+import { decrementProductStockInCache } from "@/features/pos-checkout/products-cache-update";
 
 export interface Transaction {
   id: string;
@@ -33,9 +34,14 @@ export interface Transaction {
 
 export interface PaginatedTransactions {
   data: Transaction[];
-  total: number;
-  page: number;
-  totalPages: number;
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
 }
 
 export interface TransactionHistoryParams {
@@ -64,8 +70,8 @@ interface CreateTransactionInput {
 async function fetchTransactions(): Promise<Transaction[]> {
   const res = await fetch("/api/transactions?limit=50");
   if (!res.ok) throw new Error("Failed to fetch transactions");
-  const json = await res.json();
-  return json.data ?? json;
+  const json = (await res.json()) as PaginatedTransactions;
+  return json.data;
 }
 
 async function fetchTransactionHistory(
@@ -121,31 +127,38 @@ export function useCreateTransaction() {
     mutationFn: createTransaction,
     onSuccess: (_result, variables) => {
       // Optimistically decrement stock in the products cache to prevent grid flash
-      queryClient.setQueriesData<any[]>(
+      const itemMap = new Map(
+        variables.items.map((i) => [i.productId, i.quantity])
+      );
+      queryClient.setQueriesData<unknown>(
         { queryKey: ["products"] },
-        (old) => {
-          if (!old) return old;
-          const itemMap = new Map(
-            variables.items.map((i) => [i.productId, i.quantity])
-          );
-          return old.map((product: any) => {
-            const qty = itemMap.get(product.id);
-            if (qty != null) {
-              return { ...product, stock: Math.max(0, product.stock - qty) };
-            }
-            return product;
-          });
-        }
+        (old: unknown) => decrementProductStockInCache(old, itemMap)
       );
 
-      // Refetch products in background (non-urgent, data is already optimistic)
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      // Defer all background refetches until *after* the receipt has painted.
+      // The product cache is already optimistic, and the cashier is staring
+      // at the invoice — not the transaction history — so kicking off four
+      // simultaneous fetches now would only steal main-thread time during
+      // the most latency-sensitive moment of the checkout flow.
+      const schedule: (cb: () => void) => void =
+        typeof window !== "undefined" &&
+        typeof (window as unknown as { requestIdleCallback?: unknown })
+          .requestIdleCallback === "function"
+          ? (cb) =>
+              (window as unknown as {
+                requestIdleCallback: (
+                  cb: () => void,
+                  opts?: { timeout: number },
+                ) => number;
+              }).requestIdleCallback(cb, { timeout: 500 })
+          : (cb) => setTimeout(cb, 250);
 
-      // Defer transaction list refetch — user is looking at the receipt,
-      // not the transaction history page
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
-      queryClient.invalidateQueries({ queryKey: ["job-orders"] });
+      schedule(() => {
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+        queryClient.invalidateQueries({ queryKey: ["job-orders"] });
+      });
     },
   });
 }

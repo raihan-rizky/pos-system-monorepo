@@ -4,6 +4,9 @@ import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { buildOfflineSyncDecision } from "@/lib/offline/offline-sync-core";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:offline-sync:transactions");
 export const dynamic = "force-dynamic";
 
 const offlineItemSchema = z.object({
@@ -208,7 +211,7 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[POST /api/offline-sync/transactions]", error);
+    log.error("[POST /api/offline-sync/transactions]", error);
     return NextResponse.json(
       { message: "Failed to sync offline transactions" },
       { status: 500 },
@@ -258,7 +261,7 @@ async function createSyncedTransaction({
         salesName: txData.salesName || null,
         salespersonId: txData.salespersonId || null,
         isJobOrder: txData.isJobOrder,
-        productionStatus: txData.isJobOrder ? "PENDING" : null,
+        productionStatus: txData.isJobOrder ? "PRINTING" : null,
         estimatedDoneAt: txData.estimatedDoneAt ? new Date(txData.estimatedDoneAt) : null,
         offlineClientMutationId: txData.clientMutationId,
         offlineOriginalPayload: txData as Prisma.JsonObject,

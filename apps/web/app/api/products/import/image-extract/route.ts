@@ -5,6 +5,9 @@ import { parseOCRTextToProducts, mapExtractedToImportRows, PRODUCT_EXTRACTION_SC
 import type { ExtractedProduct } from "../../../../../features/product-import/types";
 import OpenAI from "openai";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:products:import:image-extract");
 interface EasyOCRWord {
   text?: unknown;
   score?: unknown;
@@ -36,11 +39,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (imageFiles.length === 0) {
-      return NextResponse.json({ error: "No images provided" }, { status: 400 });
+      return NextResponse.json({ message: "No images provided" }, { status: 422 });
     }
 
     if (imageFiles.length > 5) {
-      return NextResponse.json({ error: "Maximum 5 images allowed" }, { status: 400 });
+      return NextResponse.json({ message: "Maximum 5 images allowed" }, { status: 422 });
     }
 
     // Validate file types
@@ -48,8 +51,8 @@ export async function POST(req: NextRequest) {
     for (const file of imageFiles) {
       if (!validTypes.includes(file.type)) {
         return NextResponse.json(
-          { error: `Invalid file type ${file.type}. Only JPG, PNG, and WebP are allowed.` },
-          { status: 400 }
+          { message: `Invalid file type ${file.type}. Only JPG, PNG, and WebP are allowed.` },
+          { status: 415 }
         );
       }
     }
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (error) {
-      console.warn("EasyOCR failed, falling back to Vision LLM:", error);
+      log.warn("EasyOCR failed, falling back to Vision LLM:", error);
     }
 
     // Tier 2: Nebius Vision LLM
@@ -80,10 +83,10 @@ export async function POST(req: NextRequest) {
       const products = await callNebiusVision(imageFiles);
       return NextResponse.json(await buildImageExtractResponse("nebius-vision", products, imageFiles.length, storeId));
     } catch (error: any) {
-      console.error("Nebius Vision failed:", error);
+      log.error("Nebius Vision failed:", error);
       return NextResponse.json(
-        { error: `AI extraction failed: ${error.message}` },
-        { status: 500 }
+        { message: "AI extraction failed" },
+        { status: 502 }
       );
     }
 
@@ -91,8 +94,8 @@ export async function POST(req: NextRequest) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Image extract error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    log.error("Image extract error:", error);
+    return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
   }
 }
 

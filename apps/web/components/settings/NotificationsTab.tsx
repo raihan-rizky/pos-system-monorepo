@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Bell, BellOff, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("ui:settings:NotificationsTab");
 type PermissionState = NotificationPermission | "unsupported";
 
 const DEV_SW_PATH = "/sw.js";
@@ -39,7 +42,7 @@ export default function NotificationsTab() {
       localStorage.setItem(STORAGE_KEY, "1");
       setMessage("Notifikasi aktif untuk perangkat ini.");
     } catch (error) {
-      console.error("[push-settings] Failed to update notification setting", error);
+      log.error("[push-settings] Failed to update notification setting", error);
       setMessage(error instanceof Error ? error.message : "Gagal memperbarui pengaturan notifikasi.");
       await refreshState();
     } finally {
@@ -137,7 +140,7 @@ async function enablePushSubscription() {
   }
 
   const permission = await Notification.requestPermission();
-  console.info("[push-settings] Browser permission result", { permission });
+  log.info("[push-settings] Browser permission result", { permission });
 
   if (permission !== "granted") {
     throw new Error(

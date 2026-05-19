@@ -7,6 +7,9 @@ import type { Role } from "@/lib/rbac/permissions";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("layout:root");
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
@@ -60,7 +63,7 @@ export default async function RootLayout({
     process.env.E2E_AUTH_BYPASS === "1"
       ? buildDefaultRolePermissions()
       : await getGlobalRolePermissions().catch((error) => {
-          console.error("[RootLayout] Failed to load RBAC settings", error);
+          log.error("[RootLayout] Failed to load RBAC settings", error);
           return buildDefaultRolePermissions();
         });
 

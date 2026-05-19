@@ -5,10 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
 export type ProductionStatus =
-  | "PENDING"
-  | "DESIGNING"
   | "PRINTING"
-  | "FINISHING"
   | "READY_PICKUP"
   | "DELIVERED";
 
@@ -48,7 +45,8 @@ export interface JobOrder {
 async function fetchJobOrders(): Promise<JobOrder[]> {
   const res = await fetch("/api/job-orders");
   if (!res.ok) throw new Error("Failed to fetch job orders");
-  return res.json();
+  const json = (await res.json()) as { data: JobOrder[] };
+  return json.data;
 }
 
 // ─── Hooks ──────────────────────────────────────────────────────────────────────

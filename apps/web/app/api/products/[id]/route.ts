@@ -4,6 +4,9 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { z } from "zod";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:products:id");
 const updateProductSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   sku: z.string().min(1, "SKU is required").optional(),
@@ -40,7 +43,7 @@ export async function PUT(
       if (existingProduct && existingProduct.id !== id) {
         return NextResponse.json(
           { message: "SKU already exists on another product." },
-          { status: 400 }
+          { status: 409 }
         );
       }
     }
@@ -72,11 +75,11 @@ export async function PUT(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to update product:", error);
+    log.error("Failed to update product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { message: "Validation error", errors: error.issues },
-        { status: 400 }
+        { message: "Validation error", errors: error.flatten().fieldErrors },
+        { status: 422 }
       );
     }
     return NextResponse.json(
@@ -113,11 +116,11 @@ export async function DELETE(
 
     if (transactionsCount > 0) {
       // Soft delete by setting isActive to false
-      const product = await db.product.update({
+      await db.product.update({
         where: { id: existingProduct.id },
         data: { isActive: false },
       });
-      return NextResponse.json({ success: true, softDeleted: true, product });
+      return new NextResponse(null, { status: 204 });
     }
 
     // Hard delete if it has never been sold
@@ -125,12 +128,12 @@ export async function DELETE(
       where: { id: existingProduct.id },
     });
 
-    return NextResponse.json({ success: true, deleted: true });
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to delete product:", error);
+    log.error("Failed to delete product:", error);
     return NextResponse.json(
       { message: "Failed to delete product" },
       { status: 500 }

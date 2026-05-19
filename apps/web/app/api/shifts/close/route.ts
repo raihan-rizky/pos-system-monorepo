@@ -3,6 +3,9 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:shifts:close");
 export const dynamic = "force-dynamic";
 
 const closeShiftSchema = z.object({
@@ -28,7 +31,7 @@ export async function POST(request: Request) {
     const { shiftId, closingBalance, note } = parsed.data;
     const storeId = user.storeId || "store-main";
 
-    // Find the shift — store-wide, not tied to the closing user
+    // Find the shift â€” store-wide, not tied to the closing user
     const shift = await db.cashierShift.findFirst({
       where: {
         id: shiftId,
@@ -82,7 +85,7 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to close shift:", error);
+    log.error("Failed to close shift:", error);
     return NextResponse.json({ message: "Failed to close shift" }, { status: 500 });
   }
 }

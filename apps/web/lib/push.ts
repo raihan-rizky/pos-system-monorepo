@@ -1,6 +1,9 @@
 import webpush, { WebPushError } from "web-push";
 import { db, type PushSubscription } from "@pos/db";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("lib:push");
 type PushPayload = {
   title: string;
   body: string;
@@ -60,7 +63,7 @@ function configureVapid() {
   webpush.setVapidDetails(subject, publicKey, privateKey);
   vapidConfigured = true;
 
-  console.info("[push] VAPID configured", { subject });
+  log.info("[push] VAPID configured", { subject });
 }
 
 export async function sendPushToSubscriptions(
@@ -76,7 +79,7 @@ export async function sendPushToSubscriptions(
     deactivated: 0,
   };
 
-  console.info("[push] Sending notification batch", {
+  log.info("[push] Sending notification batch", {
     attempted: result.attempted,
     title: payload.title,
     tag: payload.tag,
@@ -89,7 +92,7 @@ export async function sendPushToSubscriptions(
 
       if (!subscription.auth || !subscription.p256dh) {
         result.failed += 1;
-        console.warn("[push] Skipping subscription with missing keys", {
+        log.warn("[push] Skipping subscription with missing keys", {
           subscriptionId: subscription.id,
           endpoint,
           hasAuth: Boolean(subscription.auth),
@@ -99,7 +102,7 @@ export async function sendPushToSubscriptions(
       }
 
       try {
-        console.info("[push] Sending notification", {
+        log.info("[push] Sending notification", {
           subscriptionId: subscription.id,
           endpoint,
           role: subscription.role,
@@ -118,7 +121,7 @@ export async function sendPushToSubscriptions(
           JSON.stringify(payload),
         );
         result.sent += 1;
-        console.info("[push] Notification sent", {
+        log.info("[push] Notification sent", {
           subscriptionId: subscription.id,
           endpoint,
         });
@@ -131,13 +134,13 @@ export async function sendPushToSubscriptions(
             data: { isActive: false },
           });
           result.deactivated += 1;
-          console.warn("[push] Deactivated expired subscription", {
+          log.warn("[push] Deactivated expired subscription", {
             subscriptionId: subscription.id,
             endpoint,
             error: describeError(error),
           });
         } else {
-          console.error("[push] Failed to send notification", {
+          log.error("[push] Failed to send notification", {
             subscriptionId: subscription.id,
             endpoint,
             error: describeError(error),
@@ -147,7 +150,7 @@ export async function sendPushToSubscriptions(
     }),
   );
 
-  console.info("[push] Notification batch complete", result);
+  log.info("[push] Notification batch complete", result);
 
   return result;
 }

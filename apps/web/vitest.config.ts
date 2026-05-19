@@ -5,7 +5,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["features/**/__tests__/**/*.test.ts", "app/**/__tests__/**/*.test.ts"],
+    include: [
+      "features/**/__tests__/**/*.test.ts",
+      "app/**/__tests__/**/*.test.ts",
+      "lib/**/__tests__/**/*.test.ts",
+    ],
     // Run tests serially to avoid Prisma prepared statement conflicts
     pool: "threads",
     fileParallelism: false,

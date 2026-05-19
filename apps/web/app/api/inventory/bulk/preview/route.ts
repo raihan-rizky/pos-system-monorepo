@@ -4,6 +4,9 @@ import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { stockDelta } from "@/features/batch-operations/helpers/snapshots";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:inventory:bulk:preview");
 const bulkPreviewSchema = z.object({
   productIds: z.array(z.string().min(1)).min(1).max(500),
   type: z.enum(["IN", "OUT", "ADJUSTMENT"]),
@@ -54,9 +57,9 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "Validation error", errors: error.issues }, { status: 400 });
+      return NextResponse.json({ message: "Validation error", errors: error.flatten().fieldErrors }, { status: 422 });
     }
-    console.error("Failed to preview bulk stock update:", error);
+    log.error("Failed to preview bulk stock update:", error);
     return NextResponse.json({ message: "Failed to preview bulk stock update" }, { status: 500 });
   }
 }

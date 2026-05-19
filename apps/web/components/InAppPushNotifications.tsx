@@ -3,6 +3,9 @@
 import { Bell, ExternalLink, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("ui:InAppPushNotifications");
 type PushPayload = {
   title?: string;
   body?: string;
@@ -43,7 +46,7 @@ export function InAppPushNotifications() {
       if (event.data?.type !== "POS_PUSH_NOTIFICATION") return;
 
       const payload = event.data.payload || {};
-      console.info("[push][client] Notification received from service worker", {
+      log.info("[push][client] Notification received from service worker", {
         title: payload.title || DEFAULT_NOTIFICATION.title,
         tag: payload.tag,
         url: payload.url || DEFAULT_NOTIFICATION.url,

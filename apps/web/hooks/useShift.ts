@@ -21,9 +21,14 @@ export interface CashierShift {
 
 export interface PaginatedShifts {
   data: CashierShift[];
-  total: number;
-  page: number;
-  totalPages: number;
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
 }
 
 export function useActiveShift() {
@@ -125,10 +130,11 @@ export function useUpdateShift() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (vars: { id: string; openingBalance?: number; closingBalance?: number; note?: string }) => {
-      const res = await fetch("/api/shifts", {
+      const { id, ...body } = vars;
+      const res = await fetch(`/api/shifts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(vars),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const err = await res.json();

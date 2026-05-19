@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:settings:whatsapp:pair-code");
 export const dynamic = "force-dynamic";
 
 function normalizePhoneNumber(phoneNumber: unknown) {
@@ -91,7 +94,7 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[Settings/WA/PairCode] Failed with exception:", error);
+    log.error("[Settings/WA/PairCode] Failed with exception:", error);
     return NextResponse.json(
       { message: "Failed to request WhatsApp pairing code" },
       { status: 500 },

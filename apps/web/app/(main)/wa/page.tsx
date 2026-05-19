@@ -4,6 +4,9 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("page:main:wa");
 const ReactMarkdown = dynamic(() => import("react-markdown"), {
   ssr: false,
   loading: () => (
@@ -175,7 +178,7 @@ const WahaImage = ({ mediaId }: { mediaId: string }) => {
         objectUrl = URL.createObjectURL(blob);
         setImageSrc(objectUrl);
       } catch (err) {
-        console.error("[WahaImage] Failed to load:", id, err);
+        log.error("[WahaImage] Failed to load:", id, err);
         setHasError(true);
       }
     }

@@ -3,6 +3,9 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:customers:id");
 export const dynamic = "force-dynamic";
 
 const updateCustomerSchema = z.object({
@@ -61,7 +64,7 @@ export async function GET(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[GET /api/customers/[id]]", error);
+    log.error("[GET /api/customers/[id]]", error);
     return NextResponse.json(
       { message: "Failed to fetch customer" },
       { status: 500 }
@@ -132,7 +135,7 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[PATCH /api/customers/[id]]", error);
+    log.error("[PATCH /api/customers/[id]]", error);
     return NextResponse.json(
       { message: "Failed to update customer" },
       { status: 500 }
@@ -169,12 +172,12 @@ export async function DELETE(
 
     await db.customer.delete({ where: { id: customer.id } });
 
-    return NextResponse.json({ success: true });
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[DELETE /api/customers/[id]]", error);
+    log.error("[DELETE /api/customers/[id]]", error);
     return NextResponse.json(
       { message: "Failed to delete customer" },
       { status: 500 }

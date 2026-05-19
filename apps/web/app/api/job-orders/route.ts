@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { apiCollection } from "@/lib/api/responses";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:job-orders");
 export const dynamic = 'force-dynamic';
 
-// GET /api/job-orders — Fetch all active job orders for the Kanban board
+// GET /api/job-orders â€” Fetch all active job orders for the Kanban board
 export async function GET() {
   try {
     const user = await requirePermission("production", "read");
@@ -29,12 +33,12 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(jobOrders);
+    return apiCollection(jobOrders);
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to fetch job orders:", error);
+    log.error("Failed to fetch job orders:", error);
     return NextResponse.json(
       { message: "Failed to fetch job orders" },
       { status: 500 }

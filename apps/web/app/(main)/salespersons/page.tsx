@@ -5,6 +5,9 @@ import { Card } from "@pos/ui";
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("page:main:salespersons");
 interface Salesperson {
   id: string;
   name: string;
@@ -106,11 +109,11 @@ export default function SalespersonsPage() {
     try {
       const res = await fetch("/api/salespersons?storeId=store-main");
       if (res.ok) {
-        const data = await res.json();
-        setSalespersons(data);
+        const json = await res.json();
+        setSalespersons(json.data ?? []);
       }
     } catch (error) {
-      console.error("Error fetching salespersons:", error);
+      log.error("Error fetching salespersons:", error);
     } finally {
       setLoading(false);
     }
@@ -176,7 +179,7 @@ export default function SalespersonsPage() {
       setErrorMessage(null);
       fetchSalespersons();
     } catch (error) {
-      console.error("Error saving salesperson:", error);
+      log.error("Error saving salesperson:", error);
       setErrorMessage("Network error. Please try again.");
     }
   };
@@ -194,7 +197,7 @@ export default function SalespersonsPage() {
         fetchSalespersons();
       }
     } catch (error) {
-      console.error("Error toggling status:", error);
+      log.error("Error toggling status:", error);
     } finally {
       setTogglingId(null);
     }

@@ -3,6 +3,9 @@ import { Upload, X, SlidersHorizontal, Image as ImageIcon, Loader2, Sparkles } f
 import { Button } from "@pos/ui";
 import { preprocessImage, PreprocessOptions } from "../helpers/image-preprocess";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("feature:product-import:components:ImageUploadStep");
 export function ImageUploadStep({
   onExtract,
   onProgress,
@@ -51,7 +54,7 @@ export function ImageUploadStep({
           });
         }
       } catch (error) {
-        console.error("Preview generation failed", error);
+        log.error("Preview generation failed", error);
       } finally {
         if (active) setIsProcessing(false);
       }

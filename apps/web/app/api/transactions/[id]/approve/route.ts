@@ -3,6 +3,9 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:transactions:id:approve");
 const approveTransactionSchema = z.object({
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
   amountPaid: z.number().min(0),
@@ -42,13 +45,13 @@ export async function POST(
     }
 
     if (transaction.status !== "PENDING_APPROVAL") {
-      return NextResponse.json({ message: "Transaksi bukan PENDING_APPROVAL" }, { status: 400 });
+      return NextResponse.json({ message: "Transaksi bukan PENDING_APPROVAL" }, { status: 409 });
     }
 
     const total = Number(transaction.total);
     const isDP = amountPaid > 0 && amountPaid < total;
     if (amountPaid === 0) {
-      return NextResponse.json({ message: "Pembayaran harus lebih dari 0" }, { status: 400 });
+      return NextResponse.json({ message: "Pembayaran harus lebih dari 0" }, { status: 422 });
     }
 
     const change = amountPaid > total ? amountPaid - total : 0;
@@ -140,7 +143,7 @@ export async function POST(
       );
     }
 
-    console.error("Failed to approve transaction:", error);
+    log.error("Failed to approve transaction:", error);
     return NextResponse.json(
       { message: "Failed to approve transaction" },
       { status: 500 }

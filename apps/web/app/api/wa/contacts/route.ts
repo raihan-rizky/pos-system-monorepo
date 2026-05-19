@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:wa:contacts");
 export const dynamic = "force-dynamic";
 
 /**
@@ -12,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const startTime = performance.now();
-  console.log(`[WA/Contacts] GET request received`);
+  log.info(`[WA/Contacts] GET request received`);
 
   if (!isWaConfigured()) {
     return NextResponse.json(
@@ -26,7 +29,7 @@ export async function GET() {
     const { baseUrl, apiKey, session } = getWahaConfig();
     const url = `${baseUrl}/api/${session}/chats/overview?merge=true&limit=20`;
 
-    console.log(`[WA/Contacts] Fetching from: ${url}`);
+    log.info(`[WA/Contacts] Fetching from: ${url}`);
 
     const res = await fetch(url, {
       headers: {
@@ -39,7 +42,7 @@ export async function GET() {
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error(`[WA/Contacts] ❌ WAHA returned ${res.status}: ${errorText}`);
+      log.error(`[WA/Contacts] âŒ WAHA returned ${res.status}: ${errorText}`);
       throw new Error(`WAHA overview API error: ${res.statusText}`);
     }
 
@@ -111,12 +114,12 @@ export async function GET() {
         return {
           id: idString,
           phone: phoneStr,
-          // overview returns name: null, so fall back through pushName → phone
+          // overview returns name: null, so fall back through pushName â†’ phone
           name: chat.name || pushName || chat.pushname || phoneStr,
           // picture is a direct CDN URL (e.g. pps.whatsapp.net) when available
           picture: chat.picture || null,
           role,
-          content: hasMedia ? "📷 Media" : content,
+          content: hasMedia ? "ðŸ“· Media" : content,
           created_at: new Date(tsMs).toISOString(),
           image_url: hasMedia ? "media" : null,
         };
@@ -128,14 +131,14 @@ export async function GET() {
     );
 
     const duration = (performance.now() - startTime).toFixed(1);
-    console.log(`[WA/Contacts] ✅ Success in ${duration}ms`);
+    log.info(`[WA/Contacts] âœ… Success in ${duration}ms`);
 
     return NextResponse.json({ data: contacts });
   } catch (error: any) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error(`[WA/Contacts] ❌ Error:`, error.message);
+    log.error(`[WA/Contacts] âŒ Error:`, error.message);
     return NextResponse.json(
       { message: "Failed to fetch WA contacts" },
       { status: 500 },

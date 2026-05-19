@@ -207,8 +207,17 @@ export default function ProductTable({
                 <div className="flex-1 min-w-0 py-0.5">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-extrabold text-slate-900 text-[15px] leading-tight truncate pr-2">{product.name}</h3>
-                      <p className="text-[10px] font-bold text-slate-400 mt-1 tracking-wider uppercase truncate">{product.sku}</p>
+                      <h3
+                        className="font-extrabold text-slate-900 text-[15px] leading-snug break-words pr-2"
+                        title={product.name}
+                      >
+                        {product.name}
+                      </h3>
+                      <p
+                        className="text-[10px] font-bold text-slate-400 mt-1 tracking-wider uppercase break-all"
+                      >
+                        {product.sku}
+                      </p>
                     </div>
                     {(canUpdateStock || canUpdateProduct) && (
                       <div className="flex gap-1.5 shrink-0">

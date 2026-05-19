@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:transactions:id:reject");
 export const dynamic = "force-dynamic";
 
 // POST /api/transactions/[id]/reject
@@ -24,7 +27,7 @@ export async function POST(
     }
 
     if (transaction.status !== "PENDING_APPROVAL") {
-      return NextResponse.json({ message: "Transaksi bukan PENDING_APPROVAL" }, { status: 400 });
+      return NextResponse.json({ message: "Transaksi bukan PENDING_APPROVAL" }, { status: 409 });
     }
 
     // Set status to VOIDED
@@ -41,7 +44,7 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to reject transaction:", error);
+    log.error("Failed to reject transaction:", error);
     return NextResponse.json(
       { message: "Failed to reject transaction" },
       { status: 500 }

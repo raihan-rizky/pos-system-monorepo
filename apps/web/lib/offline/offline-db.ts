@@ -183,21 +183,32 @@ export async function cacheCatalogProducts<T extends { id: string }>(products: T
 export async function getCachedCatalogProducts<T>(
   search?: string,
   categoryId?: string,
+  inStockOnly = false,
 ) {
   const all = (await offlineDb.catalogProducts.toArray()) as T[];
-  const normalizedSearch = search?.trim().toLowerCase();
+  const { parseSearchQuery, matchesSearchTokens } = await import(
+    "@/features/pos-search/pos-search"
+  );
+  const { matchesStockFilter } = await import(
+    "@/features/pos-search/pos-stock-filter"
+  );
+  const tokens = parseSearchQuery(search);
 
   return all.filter((product) => {
     const item = product as {
       name?: string;
       sku?: string;
+      barcode?: string;
+      stock?: number;
       category?: { id?: string };
     };
-    const matchesSearch = normalizedSearch
-      ? `${item.name || ""} ${item.sku || ""}`.toLowerCase().includes(normalizedSearch)
-      : true;
     const matchesCategory = categoryId ? item.category?.id === categoryId : true;
-    return matchesSearch && matchesCategory;
+    if (!matchesCategory) return false;
+    if (!matchesStockFilter({ stock: item.stock }, inStockOnly)) return false;
+    return matchesSearchTokens(
+      { name: item.name, sku: item.sku, barcode: item.barcode },
+      tokens,
+    );
   });
 }
 

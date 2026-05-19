@@ -10,6 +10,9 @@ import { Button } from "@pos/ui";
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowDeleteAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("page:main:history");
 // ─── Edit Modal ──────────────────────────────────────────────────────────────
 
 type EditForm = {
@@ -51,8 +54,8 @@ function EditModal({
   React.useEffect(() => {
     fetch("/api/salespersons?activeOnly=true")
       .then((res) => res.json())
-      .then((data) => setSalespersons(data))
-      .catch((err) => console.error("Failed to fetch salespersons:", err));
+      .then((json) => setSalespersons(json.data ?? []))
+      .catch((err) => log.error("Failed to fetch salespersons:", err));
   }, []);
 
   const [error, setError] = useState("");
@@ -252,8 +255,12 @@ function StatusBadge({ status }: { status: string }) {
   }
   if (status === "PENDING_APPROVAL") {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200">
-        ⏳ Pending
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-300 animate-pending-badge">
+        <span aria-hidden="true" className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75 animate-ping" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-600" />
+        </span>
+        Pending
       </span>
     );
   }
@@ -573,8 +580,8 @@ export default function HistoryPage() {
   });
 
   const transactions = result?.data ?? [];
-  const total = result?.total ?? 0;
-  const totalPages = result?.totalPages ?? 1;
+  const total = result?.pagination.total ?? 0;
+  const totalPages = result?.pagination.totalPages ?? 1;
 
   const hasActiveFilters = debouncedSearch || dateFrom || dateTo || categoryId;
 
@@ -734,11 +741,14 @@ export default function HistoryPage() {
                         const isDP = tx.status === "DP";
                         const isVoided = tx.status === "VOIDED";
                         const isRefunded = tx.status === "REFUNDED";
-                        const rowBg = isDP
-                          ? "bg-amber-50/60 hover:bg-amber-50"
-                          : isVoided || isRefunded
-                            ? "bg-surface-50/50 hover:bg-surface-50"
-                            : "hover:bg-surface-50";
+                        const isPending = tx.status === "PENDING_APPROVAL";
+                        const rowBg = isPending
+                          ? "bg-blue-50/70 hover:bg-blue-50 animate-pending-row relative"
+                          : isDP
+                            ? "bg-amber-50/60 hover:bg-amber-50"
+                            : isVoided || isRefunded
+                              ? "bg-surface-50/50 hover:bg-surface-50"
+                              : "hover:bg-surface-50";
                         return (
                           <tr key={tx.id} className={`${rowBg} transition-colors`}>
                             <td className="py-3.5 px-4 text-sm text-surface-900 whitespace-nowrap">
@@ -830,13 +840,15 @@ export default function HistoryPage() {
                                     )}
                                   </div>
                                 )}
-                                <Button
-                                  variant="secondary"
-                                  onClick={() => setSelectedTransaction(tx)}
-                                  className="!py-1.5 !px-3 text-sm h-auto"
-                                >
-                                  Lihat Struk
-                                </Button>
+                                {!isPending && (
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() => setSelectedTransaction(tx)}
+                                    className="!py-1.5 !px-3 text-sm h-auto"
+                                  >
+                                    Lihat Struk
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </tr>

@@ -350,7 +350,7 @@ export default function CustomersPage() {
         <div>
           <h1 className="text-xl font-bold text-surface-900">Database Pelanggan</h1>
           <p className="text-sm text-surface-500 mt-0.5">
-            {data?.total ?? 0} pelanggan terdaftar
+            {data?.pagination.total ?? 0} pelanggan terdaftar
           </p>
         </div>
         {canCreateCustomers && (
@@ -464,17 +464,17 @@ export default function CustomersPage() {
             </div>
 
             {/* Pagination */}
-            {(data?.totalPages ?? 1) > 1 && (
+            {(data?.pagination.totalPages ?? 1) > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-surface-100 bg-surface-50">
                 <p className="text-xs text-surface-500">
-                  Halaman {data?.page} dari {data?.totalPages}
+                  Halaman {data?.pagination.page} dari {data?.pagination.totalPages}
                 </p>
                 <div className="flex gap-2">
                   <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
                     className="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium text-surface-600 disabled:opacity-40 hover:bg-surface-100 transition-colors">
                     ← Prev
                   </button>
-                  <button disabled={page >= (data?.totalPages ?? 1)} onClick={() => setPage(p => p + 1)}
+                  <button disabled={page >= (data?.pagination.totalPages ?? 1)} onClick={() => setPage(p => p + 1)}
                     className="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium text-surface-600 disabled:opacity-40 hover:bg-surface-100 transition-colors">
                     Next →
                   </button>

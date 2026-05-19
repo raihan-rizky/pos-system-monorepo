@@ -7,6 +7,9 @@ import {
   POS_MEDIA_BUCKET,
 } from "@/features/upload/helpers/upload-core";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:upload");
 export const dynamic = 'force-dynamic';
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -32,7 +35,7 @@ export async function POST(request: Request) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ message: "No file received." }, { status: 400 });
+      return NextResponse.json({ message: "No file received." }, { status: 422 });
     }
 
     // Validate MIME type
@@ -64,7 +67,7 @@ export async function POST(request: Request) {
       });
 
     if (error) {
-      console.error("Supabase Storage Error:", error);
+      log.error("Supabase Storage Error:", error);
       if (isMissingStorageBucketError(error)) {
         return NextResponse.json(
           {
@@ -90,7 +93,7 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to upload image:", error);
+    log.error("Failed to upload image:", error);
     return NextResponse.json(
       { message: "Failed to upload image" },
       { status: 500 }

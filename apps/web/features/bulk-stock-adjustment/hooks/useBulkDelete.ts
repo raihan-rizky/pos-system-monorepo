@@ -15,10 +15,9 @@ interface UseBulkDeleteReturn {
 }
 
 async function deleteProducts(productIds: string[]): Promise<void> {
-  const res = await fetch("/api/products/bulk-delete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ productIds }),
+  const params = new URLSearchParams({ ids: productIds.join(",") });
+  const res = await fetch(`/api/products?${params.toString()}`, {
+    method: "DELETE",
   });
   if (!res.ok) {
     const error = await res.json();

@@ -23,12 +23,14 @@ export interface InventoryLog {
 }
 
 export interface InventoryLogsResponse {
-  logs: InventoryLog[];
+  data: InventoryLog[];
   pagination: {
     page: number;
     limit: number;
     total: number;
     totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
   };
 }
 

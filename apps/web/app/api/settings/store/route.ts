@@ -3,6 +3,9 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:settings:store");
 export const dynamic = "force-dynamic";
 
 const SETTINGS_ID = "store-main";
@@ -30,7 +33,7 @@ export async function GET() {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[Settings/Store] GET failed:", error);
+    log.error("[Settings/Store] GET failed:", error);
     return NextResponse.json({ message: "Failed to fetch settings" }, { status: 500 });
   }
 }
@@ -54,9 +57,9 @@ export async function PATCH(request: Request) {
     if (authErr) return authErr;
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "Validation error", errors: error.issues }, { status: 400 });
+      return NextResponse.json({ message: "Validation error", errors: error.flatten().fieldErrors }, { status: 422 });
     }
-    console.error("[Settings/Store] PATCH failed:", error);
+    log.error("[Settings/Store] PATCH failed:", error);
     return NextResponse.json({ message: "Failed to save settings" }, { status: 500 });
   }
 }

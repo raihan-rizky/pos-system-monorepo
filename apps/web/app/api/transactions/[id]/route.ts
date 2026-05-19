@@ -3,6 +3,9 @@ import { db, Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:transactions:id");
 const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   COMPLETED: ["DP", "VOIDED", "REFUNDED"],
   DP: ["COMPLETED", "VOIDED"],
@@ -67,7 +70,7 @@ export async function PATCH(
       if (!allowed.includes(status)) {
         return NextResponse.json(
           { message: `Tidak dapat mengubah status dari ${existingTransaction.status} ke ${status}` },
-          { status: 400 }
+          { status: 409 }
         );
       }
     }
@@ -86,7 +89,7 @@ export async function PATCH(
       }
     }
 
-    // Build update payload — only include defined fields
+    // Build update payload â€” only include defined fields
     const updateData: Record<string, any> = {};
     if (salesName !== undefined) updateData.salesName = salesName || null;
     if (salespersonId !== undefined) updateData.salespersonId = salespersonId || null;
@@ -97,7 +100,7 @@ export async function PATCH(
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
         { message: "Tidak ada field yang diubah" },
-        { status: 400 }
+        { status: 422 }
       );
     }
 
@@ -125,7 +128,7 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to update transaction:", error);
+    log.error("Failed to update transaction:", error);
     if (error?.code === "P2025") {
       return NextResponse.json(
         { message: "Transaksi tidak ditemukan" },
@@ -168,12 +171,12 @@ export async function DELETE(
       await tx.transaction.delete({ where: { id } });
     });
 
-    return NextResponse.json({ message: "Transaction deleted" });
+    return new NextResponse(null, { status: 204 });
   } catch (error: any) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to delete transaction:", error);
+    log.error("Failed to delete transaction:", error);
     if (error?.code === "P2025") {
       return NextResponse.json(
         { message: "Transaksi tidak ditemukan" },

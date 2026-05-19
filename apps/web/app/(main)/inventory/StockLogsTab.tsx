@@ -45,7 +45,7 @@ export default function StockLogsTab() {
     days: 60,
   });
 
-  const logs = data?.logs || [];
+  const logs = data?.data || [];
   const pagination = data?.pagination;
 
   return (

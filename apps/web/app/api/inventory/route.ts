@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("api:inventory");
 
 const inventoryLogSchema = z.object({
   productId: z.string().min(1, "Product ID is required"),
@@ -21,7 +24,7 @@ export async function POST(request: Request) {
     if (validatedData.quantity === 0) {
       return NextResponse.json(
         { message: "Quantity cannot be zero" },
-        { status: 400 }
+        { status: 422 }
       );
     }
 
@@ -80,20 +83,20 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to record inventory log:", error);
+    logger.error("inventory.record.failed", { error });
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { message: "Validation error", errors: error.issues },
-        { status: 400 }
+        { message: "Validation error", errors: error.flatten().fieldErrors },
+        { status: 422 }
       );
     }
-    
+
     if (error instanceof Error) {
       if (error.message === "PRODUCT_NOT_FOUND") {
         return NextResponse.json({ message: "Product not found" }, { status: 404 });
       }
       if (error.message === "NEGATIVE_STOCK") {
-        return NextResponse.json({ message: "Stock cannot be negative" }, { status: 400 });
+        return NextResponse.json({ message: "Stock cannot be negative" }, { status: 422 });
       }
     }
 

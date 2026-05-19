@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:dashboard");
 export const dynamic = 'force-dynamic';
 
 type DashboardItem = {
@@ -253,7 +256,7 @@ export async function GET() {
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
-    console.error("Dashboard Error:", error);
+    log.error("Dashboard Error:", error);
     return NextResponse.json({ message: "Failed to load dashboard" }, { status: 500 });
   }
 }

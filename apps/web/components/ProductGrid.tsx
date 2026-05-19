@@ -34,11 +34,11 @@ export function ProductGrid({
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 items-stretch">
         {Array.from({ length: 12 }).map((_, i) => (
           <div
             key={i}
-            className="h-[160px] rounded-2xl bg-surface-100 animate-pulse"
+            className="min-h-[220px] rounded-2xl bg-surface-100 animate-pulse"
           />
         ))}
       </div>
@@ -65,7 +65,7 @@ export function ProductGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 items-stretch">
       {products.map((product, index) => {
         const isLowStock = product.stock <= 5;
         const isOutOfStock = product.stock <= 0;
@@ -80,7 +80,7 @@ export function ProductGrid({
               if (!isOutOfStock) onAddToCart(product);
             }}
             className={`
-              relative flex flex-col items-start p-3.5
+              relative flex h-full flex-col items-start p-3.5
               rounded-2xl border text-left
               transition-all duration-200
               animate-fade-in
@@ -194,7 +194,10 @@ export function ProductGrid({
             </div>
 
             {/* Product name */}
-            <h3 className="text-sm font-semibold text-surface-900 line-clamp-2 leading-tight mb-auto">
+            <h3
+              className="text-sm font-semibold text-surface-900 leading-snug break-words mb-auto"
+              title={product.name}
+            >
               {product.name}
             </h3>
 

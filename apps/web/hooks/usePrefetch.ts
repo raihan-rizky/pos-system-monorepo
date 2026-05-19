@@ -12,13 +12,15 @@ async function fetchProducts() {
 async function fetchCategories() {
   const res = await fetch("/api/categories");
   if (!res.ok) throw new Error("Failed to prefetch categories");
-  return res.json();
+  const json = await res.json();
+  return json.data ?? [];
 }
 
 async function fetchActiveShift() {
   const res = await fetch("/api/shifts?active=true");
   if (!res.ok) throw new Error("Failed to prefetch shift");
-  return res.json();
+  const json = await res.json();
+  return json.data ?? null;
 }
 
 /**

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:wa:media:id");
 export const dynamic = "force-dynamic";
 
 function isSafeFilename(value: string) {
@@ -50,7 +53,7 @@ function resolveWahaFileUrl({
  * Proxies WAHA media file downloads through our Next.js backend.
  *
  * Architecture (on-demand / lazy loading):
- *  1. Frontend clicks a contact → messages are fetched with `downloadMedia=true`.
+ *  1. Frontend clicks a contact â†’ messages are fetched with `downloadMedia=true`.
  *  2. WAHA processes media and stores files locally, returning URLs like:
  *       http://localhost:3000/api/files/default/<FILENAME>.jpeg
  *  3. That full URL (or just the filename) is stored as `image_url` on the message.
@@ -59,7 +62,7 @@ function resolveWahaFileUrl({
  *     OR with full url encoded:
  *       GET /api/wa/media/<encoded-full-url>
  *  5. THIS route adds the WAHA X-Api-Key header and streams the file back to the browser.
- *     The browser never touches WAHA directly — no CORS, no credentials leakage.
+ *     The browser never touches WAHA directly â€” no CORS, no credentials leakage.
  */
 export async function GET(
   _request: Request,
@@ -68,10 +71,10 @@ export async function GET(
   const startTime = performance.now();
   const { id } = await params;
 
-  console.log(`[WA/Media] GET request — id=${id}`);
+  log.info(`[WA/Media] GET request â€” id=${id}`);
 
   if (!isWaConfigured()) {
-    console.warn(`[WA/Media] WAHA not configured — returning 503`);
+    log.warn(`[WA/Media] WAHA not configured â€” returning 503`);
     return NextResponse.json(
       { message: "WAHA is not configured" },
       { status: 503 },
@@ -82,7 +85,7 @@ export async function GET(
     await requirePermission("whatsapp", "read");
     const { baseUrl, apiKey, session } = getWahaConfig();
 
-    // ── Resolve the actual download URL ─────────────────────────────────────
+    // â”€â”€ Resolve the actual download URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //
     // The `id` param can be one of:
     //   (a) A bare filename:     "AC3D0CE3840F1E65B92C7A6A32D883F3.jpeg"
@@ -98,11 +101,11 @@ export async function GET(
     const decoded = decodeURIComponent(id);
     if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
       // Case (b): the frontend passed a full URL.
-      // ⚠️ IMPORTANT: If the URL contains 'localhost' or '127.0.0.1', it likely came 
+      // âš ï¸ IMPORTANT: If the URL contains 'localhost' or '127.0.0.1', it likely came 
       // from a local WAHA instance but we are now running in production (Vercel).
       // We must replace the local address with our actual configured baseUrl.
       if (decoded.includes("localhost:") || decoded.includes("127.0.0.1:")) {
-        console.log(`[WA/Media] 🔄 Patching localhost URL to use configured baseUrl`);
+        log.info(`[WA/Media] ðŸ”„ Patching localhost URL to use configured baseUrl`);
         // Extract the path after the domain (e.g. /api/files/default/abc.jpg)
         const urlObj = new URL(decoded);
         fileUrl = `${baseUrl}${urlObj.pathname}${urlObj.search}`;
@@ -110,7 +113,7 @@ export async function GET(
         fileUrl = decoded;
       }
     } else {
-      // Case (a): bare filename — construct the standard WAHA files endpoint.
+      // Case (a): bare filename â€” construct the standard WAHA files endpoint.
       fileUrl = `${baseUrl}/api/files/${session}/${id}`;
     }
     fileUrl = resolveWahaFileUrl({ id, baseUrl, session });
@@ -122,14 +125,14 @@ export async function GET(
       headers["X-Api-Key"] = apiKey;
     }
 
-    console.log(`[WA/Media] Fetching from WAHA: ${fileUrl}`);
+    log.info(`[WA/Media] Fetching from WAHA: ${fileUrl}`);
     const mediaRes = await fetch(fileUrl, { headers });
 
     if (!mediaRes.ok) {
       const errText = await mediaRes.text();
       const duration = (performance.now() - startTime).toFixed(1);
-      console.error(
-        `[WA/Media] ❌ WAHA returned ${mediaRes.status} after ${duration}ms:`,
+      log.error(
+        `[WA/Media] âŒ WAHA returned ${mediaRes.status} after ${duration}ms:`,
         errText,
       );
       return NextResponse.json(
@@ -142,16 +145,16 @@ export async function GET(
       mediaRes.headers.get("content-type") || "application/octet-stream";
 
     const duration = (performance.now() - startTime).toFixed(1);
-    console.log(
-      `[WA/Media] ✅ Streaming media (type=${contentType}) for id=${id} in ${duration}ms`,
+    log.info(
+      `[WA/Media] âœ… Streaming media (type=${contentType}) for id=${id} in ${duration}ms`,
     );
 
-    // Stream the binary directly to the browser — no buffering, memory-efficient.
+    // Stream the binary directly to the browser â€” no buffering, memory-efficient.
     return new Response(mediaRes.body as ReadableStream, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        // Allow aggressive browser caching — WAHA filenames are content-addressed.
+        // Allow aggressive browser caching â€” WAHA filenames are content-addressed.
         "Cache-Control": "public, max-age=604800, immutable",
       },
     });
@@ -167,8 +170,8 @@ export async function GET(
     }
 
     const duration = (performance.now() - startTime).toFixed(1);
-    console.error(
-      `[WA/Media] ❌ Proxy error after ${duration}ms:`,
+    log.error(
+      `[WA/Media] âŒ Proxy error after ${duration}ms:`,
       error.message || error,
     );
     return NextResponse.json(

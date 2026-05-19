@@ -3,13 +3,16 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:job-orders:id:status");
 export const dynamic = 'force-dynamic';
 
 const updateStatusSchema = z.object({
-  productionStatus: z.enum(["PENDING", "DESIGNING", "PRINTING", "FINISHING", "READY_PICKUP", "DELIVERED"]),
+  productionStatus: z.enum(["PRINTING", "READY_PICKUP", "DELIVERED"]),
 });
 
-// PATCH /api/job-orders/[id]/status — Move a job order to a new production status
+// PATCH /api/job-orders/[id]/status â€” Move a job order to a new production status
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -23,8 +26,8 @@ export async function PATCH(
     const validatedData = updateStatusSchema.safeParse(body);
     if (!validatedData.success) {
       return NextResponse.json(
-        { message: "Invalid production status", errors: validatedData.error.issues },
-        { status: 400 }
+        { message: "Invalid production status", errors: validatedData.error.flatten().fieldErrors },
+        { status: 422 }
       );
     }
     const { productionStatus } = validatedData.data;
@@ -61,7 +64,7 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to update job order status:", error);
+    log.error("Failed to update job order status:", error);
     return NextResponse.json(
       { message: "Failed to update status" },
       { status: 500 }

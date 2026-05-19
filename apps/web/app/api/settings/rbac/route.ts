@@ -12,6 +12,9 @@ import {
   RESOURCE_TARGETS,
 } from "@/features/rbac/helpers/rbac-core";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:settings:rbac");
 export async function GET() {
   try {
     await requireRole("OWNER");
@@ -27,7 +30,7 @@ export async function GET() {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[GET /api/settings/rbac] Failed to load RBAC settings", error);
+    log.error("[GET /api/settings/rbac] Failed to load RBAC settings", error);
     return NextResponse.json({ message: "Failed to load RBAC settings" }, { status: 500 });
   }
 }
@@ -49,14 +52,14 @@ export async function PUT(request: Request) {
     if (authErr) return authErr;
 
     if (error instanceof Error && error.message.startsWith("Invalid")) {
-      return NextResponse.json({ message: error.message }, { status: 400 });
+      return NextResponse.json({ message: error.message }, { status: 422 });
     }
 
     if (error instanceof Error && error.message.includes("OWNER permissions")) {
-      return NextResponse.json({ message: error.message }, { status: 400 });
+      return NextResponse.json({ message: error.message }, { status: 422 });
     }
 
-    console.error("[PUT /api/settings/rbac] Failed to save RBAC settings", error);
+    log.error("[PUT /api/settings/rbac] Failed to save RBAC settings", error);
     return NextResponse.json({ message: "Failed to save RBAC settings" }, { status: 500 });
   }
 }

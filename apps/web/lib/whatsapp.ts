@@ -1,3 +1,6 @@
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("lib:whatsapp");
 /**
  * WhatsApp API — interact with WAHA (WhatsApp HTTP API) self-hosted server.
  *
@@ -87,7 +90,7 @@ export async function getWahaChats(): Promise<WahaChat[]> {
 
   if (!res.ok) {
     const errorText = await res.text();
-    console.error(`[WAHA] Failed to fetch chats — ${res.status}: ${errorText}`);
+    log.error(`[WAHA] Failed to fetch chats — ${res.status}: ${errorText}`);
     throw new Error(`Failed to fetch chats from WAHA: ${res.statusText}`);
   }
 
@@ -126,13 +129,13 @@ export async function getWahaChatMessages(
       const errorData = await res.json().catch(() => null);
       const errorMessage = errorData?.exception?.message || res.statusText;
 
-      console.error("WAHA Error Detail:", errorData);
+      log.error("WAHA Error Detail:", errorData);
       throw new Error(`WAHA API Error (${res.status}): ${errorMessage}`);
     }
 
     return await res.json();
   } catch (error) {
-    console.error("Fetch Execution Failed:", error);
+    log.error("Fetch Execution Failed:", error);
     throw error;
   }
 }
@@ -163,12 +166,12 @@ export async function sendWaTextMessage(
 
   if (!res.ok) {
     const errorText = await res.text();
-    console.error(
+    log.error(
       `[WAHA] Failed to send message to ${to} — ${res.status}: ${errorText}`,
     );
     throw new Error(`Failed to send WhatsApp message: ${res.statusText}`);
   }
 
-  console.log(`[WAHA] Message sent to ${to}`);
+  log.info(`[WAHA] Message sent to ${to}`);
   return res.json();
 }

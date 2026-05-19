@@ -1,14 +1,106 @@
 import { PrismaClient } from "@prisma/client";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 declare const process: {
+  cwd(): string;
   env: {
     NODE_ENV?: string;
     ALLOW_PRODUCTION_SEED?: string;
+    DATABASE_URL?: string;
+    DIRECT_URL?: string;
+    SEED_DATABASE_URL?: string;
+    [key: string]: string | undefined;
   };
   exit(code?: number): never;
 };
 
-const prisma = new PrismaClient();
+function parseEnvValue(value: string) {
+  const trimmed = value.trim();
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+
+  return trimmed;
+}
+
+function loadEnvFile(path: string, overrideExisting = false) {
+  if (!existsSync(path)) {
+    return;
+  }
+
+  for (const rawLine of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const line = rawLine.trim();
+
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const match = line.match(
+      /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/,
+    );
+
+    if (!match) {
+      continue;
+    }
+
+    const [, key, rawValue] = match;
+
+    if (!overrideExisting && process.env[key] !== undefined) {
+      continue;
+    }
+
+    process.env[key] = parseEnvValue(rawValue);
+  }
+}
+
+function normalizePooledPostgresUrl(url: string) {
+  try {
+    const parsedUrl = new URL(url);
+
+    if (!parsedUrl.protocol.startsWith("postgres")) {
+      return url;
+    }
+
+    if (
+      parsedUrl.port === "6543" &&
+      !parsedUrl.searchParams.has("pgbouncer")
+    ) {
+      parsedUrl.searchParams.set("pgbouncer", "true");
+    }
+
+    if (
+      parsedUrl.port === "6543" &&
+      !parsedUrl.searchParams.has("connection_limit")
+    ) {
+      parsedUrl.searchParams.set("connection_limit", "1");
+    }
+
+    return parsedUrl.toString();
+  } catch {
+    return url;
+  }
+}
+
+loadEnvFile(resolve(process.cwd(), ".env"));
+loadEnvFile(resolve(process.cwd(), ".env.local"));
+
+const seedDatasourceUrl =
+  process.env.SEED_DATABASE_URL ?? process.env.DATABASE_URL ?? process.env.DIRECT_URL;
+
+if (!seedDatasourceUrl) {
+  throw new Error(
+    "SEED_DATABASE_URL, DATABASE_URL, or DIRECT_URL must be set before seeding.",
+  );
+}
+
+const prisma = new PrismaClient({
+  datasourceUrl: normalizePooledPostgresUrl(seedDatasourceUrl),
+});
 
 async function main() {
   if (
@@ -95,28 +187,28 @@ async function main() {
   // ============================================================
   // Create Categories
   // ============================================================
-  const categories = await Promise.all([
-    prisma.category.upsert({
+  const categoryUpserts = [
+    () => prisma.category.upsert({
       where: { name: "ATK" },
       update: {},
       create: { name: "ATK", icon: "✏️", color: "#3b82f6", order: 1 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Bot" },
       update: {},
       create: { name: "Bot", icon: "🍾", color: "#22c55e", order: 2 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Plano" },
       update: {},
       create: { name: "Plano", icon: "📄", color: "#a855f7", order: 3 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Catridge HP" },
       update: {},
       create: { name: "Catridge HP", icon: "🖨️", color: "#f97316", order: 4 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Catridge Canon" },
       update: {},
       create: {
@@ -126,108 +218,113 @@ async function main() {
         order: 5,
       },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Cetakan" },
       update: {},
       create: { name: "Cetakan", icon: "🖼️", color: "#eab308", order: 6 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "FC" },
       update: {},
       create: { name: "FC", icon: "📄", color: "#64748b", order: 7 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Stamp" },
       update: {},
       create: { name: "Stamp", icon: "💮", color: "#06b6d4", order: 8 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Sparepart Fc" },
       update: {},
       create: { name: "Sparepart Fc", icon: "⚙️", color: "#64748b", order: 9 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "MNM" },
       update: {},
       create: { name: "MNM", icon: "📦", color: "#3b82f6", order: 10 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Id Card" },
       update: {},
       create: { name: "Id Card", icon: "🪪", color: "#10b981", order: 11 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Toner HP" },
       update: {},
       create: { name: "Toner HP", icon: "🖨️", color: "#f97316", order: 12 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Toner DP" },
       update: {},
       create: { name: "Toner DP", icon: "🖨️", color: "#8b5cf6", order: 13 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Toner E print" },
       update: {},
       create: { name: "Toner E print", icon: "🖨️", color: "#ec4899", order: 14 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Cardridge Canon" },
       update: {},
       create: { name: "Cardridge Canon", icon: "🖨️", color: "#ef4444", order: 15 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Tinta" },
       update: {},
       create: { name: "Tinta", icon: "💧", color: "#0ea5e9", order: 16 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Tinta Printing" },
       update: {},
       create: { name: "Tinta Printing", icon: "💧", color: "#2563eb", order: 17 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Kertas" },
       update: {},
       create: { name: "Kertas", icon: "📄", color: "#f59e0b", order: 18 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "PRNT" },
       update: {},
       create: { name: "PRNT", icon: "🖨️", color: "#64748b", order: 19 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Catridge M.TIK" },
       update: {},
       create: { name: "Catridge M.TIK", icon: "🖨️", color: "#8b5cf6", order: 20 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "Cartridge" },
       update: {},
       create: { name: "Cartridge", icon: "🖨️", color: "#64748b", order: 21 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "PLAT" },
       update: {},
       create: { name: "PLAT", icon: "💿", color: "#94a3b8", order: 22 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "JLD" },
       update: {},
       create: { name: "JLD", icon: "📦", color: "#06b6d4", order: 23 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "SP" },
       update: {},
       create: { name: "SP", icon: "📦", color: "#8b5cf6", order: 24 },
     }),
-    prisma.category.upsert({
+    () => prisma.category.upsert({
       where: { name: "AYK" },
       update: {},
       create: { name: "AYK", icon: "📦", color: "#10b981", order: 25 },
     }),
-  ]);
-  console.log(`  ✅ Categories: ${categories.length} created`);
+  ];
+
+  for (const upsertCategory of categoryUpserts) {
+    await upsertCategory();
+  }
+
+  console.log(`  ✅ Categories: ${categoryUpserts.length} created`);
 
   // ============================================================
   // Create Products

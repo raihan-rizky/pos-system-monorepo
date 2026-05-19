@@ -9,6 +9,9 @@ import {
   parseImportFile,
 } from "@/features/product-import/helpers/import-core";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:products:import:preview");
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
@@ -18,12 +21,12 @@ export async function POST(request: Request) {
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
-      return NextResponse.json({ message: "File is required" }, { status: 400 });
+      return NextResponse.json({ message: "File is required" }, { status: 422 });
     }
 
     const fileName = file.name.toLowerCase();
     if (!fileName.endsWith(".csv") && !fileName.endsWith(".xlsx")) {
-      return NextResponse.json({ message: "Only .csv and .xlsx files are supported" }, { status: 400 });
+      return NextResponse.json({ message: "Only .csv and .xlsx files are supported" }, { status: 415 });
     }
 
     // Optional column mapping from the client
@@ -45,7 +48,7 @@ export async function POST(request: Request) {
           unknownColumns,
           suggestions,
         },
-        { status: 400 },
+        { status: 422 },
       );
     }
 
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("Failed to preview product import:", error);
+    log.error("Failed to preview product import:", error);
     return NextResponse.json({ message: "Failed to preview product import" }, { status: 500 });
   }
 }

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm vitest *)",
+      "Bash(pnpm type-check *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm --filter @pos/db exec prisma generate)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm tsc *)",
+      "Bash(pnpm exec *)"
+    ]
+  }
+}

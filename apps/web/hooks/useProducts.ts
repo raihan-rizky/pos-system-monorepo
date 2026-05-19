@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "./useDebounce";
 
 export interface Product {
@@ -37,6 +37,8 @@ export interface PaginationInfo {
   page: number;
   limit: number;
   totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 export interface ProductsResponse {
@@ -44,32 +46,50 @@ export interface ProductsResponse {
   pagination: PaginationInfo;
 }
 
+export interface UseProductsOptions {
+  page?: number;
+  limit?: number;
+  inStockOnly?: boolean;
+}
+
 async function fetchProducts(
   search?: string,
-  categoryId?: string
+  categoryId?: string,
+  page = 1,
+  limit = 100,
+  inStockOnly = false,
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   if (categoryId) params.set("categoryId", categoryId);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+  if (inStockOnly) params.set("inStockOnly", "true");
 
   const res = await fetch(`/api/products?${params.toString()}`);
   if (!res.ok) {
     const { getCachedCatalogProducts } = await import("@/lib/offline/offline-db");
-    const cached = await getCachedCatalogProducts<Product>(search, categoryId);
+    const cached = await getCachedCatalogProducts<Product>(
+      search,
+      categoryId,
+      inStockOnly,
+    );
     if (cached.length > 0) {
       return {
         data: cached,
         pagination: {
           total: cached.length,
           page: 1,
-          limit: 100,
+          limit: cached.length,
           totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
         },
       };
     }
     throw new Error("Failed to fetch products");
   }
-  const response = await res.json();
+  const response = (await res.json()) as ProductsResponse;
   const { cacheCatalogProducts } = await import("@/lib/offline/offline-db");
   await cacheCatalogProducts(response.data);
   return response;
@@ -83,19 +103,89 @@ async function fetchCategories(): Promise<Category[]> {
     if (cached.length > 0) return cached;
     throw new Error("Failed to fetch categories");
   }
-  const categories = await res.json();
+  const json = (await res.json()) as { data: Category[] };
   const { cacheCatalogCategories } = await import("@/lib/offline/offline-db");
-  await cacheCatalogCategories(categories);
-  return categories;
+  await cacheCatalogCategories(json.data);
+  return json.data;
 }
 
-export function useProducts(search?: string, categoryId?: string) {
+export function useProducts(
+  search?: string,
+  categoryId?: string,
+  options: UseProductsOptions = {},
+) {
+  const { page = 1, limit = 100, inStockOnly = false } = options;
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
 
   return useQuery({
-    queryKey: ["products", debouncedSearch, categoryId],
-    queryFn: () => fetchProducts(debouncedSearch, categoryId),
+    queryKey: [
+      "products",
+      debouncedSearch,
+      categoryId,
+      page,
+      limit,
+      inStockOnly,
+    ],
+    queryFn: () =>
+      fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly),
     select: (data) => data.data,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export interface ProductStats {
+  totalProducts: number;
+  lowStock: number;
+  negativeStock: number;
+  inventoryValue: number;
+}
+
+async function fetchProductStats(
+  search?: string,
+  categoryId?: string,
+): Promise<ProductStats> {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (categoryId) params.set("categoryId", categoryId);
+
+  const res = await fetch(`/api/products/stats?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch product stats");
+  }
+  return res.json();
+}
+
+export function useProductStats(search?: string, categoryId?: string) {
+  const debouncedSearch = useDebounce(search?.trim() || "", 300);
+
+  return useQuery({
+    queryKey: ["products", "stats", debouncedSearch, categoryId],
+    queryFn: () => fetchProductStats(debouncedSearch, categoryId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useProductsPage(
+  search?: string,
+  categoryId?: string,
+  options: UseProductsOptions = {},
+) {
+  const { page = 1, limit = 100, inStockOnly = false } = options;
+  const debouncedSearch = useDebounce(search?.trim() || "", 300);
+
+  return useQuery({
+    queryKey: [
+      "products",
+      "page",
+      debouncedSearch,
+      categoryId,
+      page,
+      limit,
+      inStockOnly,
+    ],
+    queryFn: () =>
+      fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -184,7 +274,6 @@ async function deleteProduct(id: string): Promise<void> {
     const error = await res.json();
     throw new Error(error.message || "Failed to delete product");
   }
-  return res.json();
 }
 
 export function useDeleteProduct() {

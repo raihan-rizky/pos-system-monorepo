@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
 import { ShiftStatusBanner } from "@/components/ShiftStatusBanner";
+import { Pagination } from "@/components/Pagination";
 import { Input } from "@pos/ui";
 
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("page:main:pos");
 const PaymentModal = dynamic(
   () => import("@/components/PaymentModal").then((mod) => mod.PaymentModal),
   { ssr: false },
@@ -27,7 +31,7 @@ const CloseShiftModal = dynamic(
 );
 import { formatRupiah } from "@/lib/utils";
 import {
-  useProducts,
+  useProductsPage,
   useCategories,
 } from "@/hooks/useProducts";
 import { useCart } from "@/hooks/useCart";
@@ -35,10 +39,25 @@ import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions"
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift } from "@/hooks/useShift";
 import { useRole } from "@/components/providers/RoleProvider";
+import { parseSearchQuery } from "@/features/pos-search/pos-search";
+import {
+  loadStockOnlyPreference,
+  matchesStockFilter,
+  saveStockOnlyPreference,
+} from "@/features/pos-search/pos-stock-filter";
+import { getInitialHideOutOfStock } from "@/features/pos-search/pos-stock-filter-hydration";
+
+const POS_PAGE_SIZE = 24;
 
 export default function POSPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [page, setPage] = useState(1);
+  // Start with the SSR-safe baseline so the server and client first render
+  // agree. The persisted preference is hydrated below after mount.
+  const [hideOutOfStock, setHideOutOfStock] = useState<boolean>(
+    getInitialHideOutOfStock,
+  );
   const [showPayment, setShowPayment] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -53,6 +72,18 @@ export default function POSPage() {
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
 
+  const toggleHideOutOfStock = useCallback(() => {
+    setHideOutOfStock((prev) => {
+      const next = !prev;
+      // Persist outside the render cycle so the click feels instant.
+      saveStockOnlyPreference(next);
+      return next;
+    });
+    // Reset to the first page so the user is not stranded on a page
+    // that no longer exists after the filter narrows the result set.
+    setPage(1);
+  }, []);
+
   useEffect(() => {
     setTodayLabel(
       new Intl.DateTimeFormat("id-ID", {
@@ -65,14 +96,57 @@ export default function POSPage() {
     );
   }, []);
 
+  // Hydrate the persisted "hide out of stock" preference after mount so the
+  // first server/client render agrees on the SSR-safe default (false). React
+  // will only flip the toggle once we've safely accessed localStorage.
+  useEffect(() => {
+    const persisted = loadStockOnlyPreference();
+    if (persisted) setHideOutOfStock(true);
+  }, []);
+
   const { data: activeShift, isLoading: shiftLoading } = useActiveShift();
   const { role } = useRole();
   const isSales = role === "SALES";
 
-  const { data: products = [], isLoading: productsLoading } = useProducts(
-    search,
-    selectedCategory,
+  const productsQuery = useProductsPage(search, selectedCategory, {
+    page,
+    limit: POS_PAGE_SIZE,
+    inStockOnly: hideOutOfStock,
+  });
+  const products = productsQuery.data?.data ?? [];
+  // Apply the stock filter client-side too so toggling feels instant
+  // even before the server confirms (placeholderData keeps the prior
+  // page mounted while the new query is in flight).
+  const visibleProducts = useMemo(
+    () => products.filter((p) => matchesStockFilter({ stock: p.stock }, hideOutOfStock)),
+    [products, hideOutOfStock],
   );
+  const productsLoading = productsQuery.isLoading;
+  const isPageFetching = productsQuery.isFetching;
+  const pagination = productsQuery.data?.pagination;
+  const totalPages = Math.max(1, pagination?.totalPages ?? 1);
+  const currentPage = Math.min(
+    Math.max(1, pagination?.page ?? page),
+    totalPages,
+  );
+  const searchTokens = parseSearchQuery(search);
+
+  // Reset to page 1 whenever search query or category changes
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedCategory]);
+
+  // Clamp page if the result set shrinks below the current page
+  useEffect(() => {
+    if (
+      pagination &&
+      pagination.totalPages > 0 &&
+      page > pagination.totalPages
+    ) {
+      setPage(pagination.totalPages);
+    }
+  }, [pagination, page]);
+
   const { data: categories = [] } = useCategories();
   const cart = useCart();
   const createTransaction = useCreateTransaction();
@@ -83,6 +157,10 @@ export default function POSPage() {
   useEffect(() => {
     if (hasItems) {
       import("@/components/PaymentModal");
+      // Warm the ReceiptModal chunk too — the cashier will need it
+      // immediately after confirming, and we want the optimistic open
+      // below to render in the very next frame.
+      import("@/components/ReceiptModal");
     }
   }, [hasItems]);
 
@@ -131,7 +209,7 @@ export default function POSPage() {
       cart.clearCart();
       setShowPayment(false);
     } catch (error) {
-      console.error("Transaction failed:", error);
+      log.error("Transaction failed:", error);
       if (
         typeof window !== "undefined" &&
         (!navigator.onLine || error instanceof TypeError)
@@ -200,8 +278,15 @@ export default function POSPage() {
           {/* Top Bar */}
           <header className="flex items-center gap-2 md:gap-4 px-3 md:px-6 py-3 md:py-4 bg-white border-b border-surface-100">
             <div className="flex-1">
+              <div className="relative">
               <Input
                 placeholder="Cari produk, SKU, atau barcode..."
+                aria-label="Cari produk, SKU, atau barcode"
+                hint={
+                  searchTokens.length > 1
+                    ? `Mencocokkan semua kata: ${searchTokens.join(" + ")}`
+                    : undefined
+                }
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 icon={
@@ -218,6 +303,20 @@ export default function POSPage() {
                   </svg>
                 }
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Hapus pencarian"
+                  className="absolute right-3 top-[18px] -translate-y-1/2 text-surface-400 hover:text-surface-600 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {todayLabel && (
@@ -247,6 +346,54 @@ export default function POSPage() {
 
           {/* Category Filter */}
           <HorizontalScroll className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100 flex items-center gap-2 flex-nowrap" showScrollIndicators={true}>
+            <button
+              type="button"
+              onClick={toggleHideOutOfStock}
+              role="switch"
+              aria-checked={hideOutOfStock}
+              aria-label="Sembunyikan produk stok habis"
+              title={
+                hideOutOfStock
+                  ? "Menampilkan produk tersedia saja"
+                  : "Tampilkan semua, termasuk stok habis"
+              }
+              className={`
+                px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap flex-shrink-0
+                flex items-center gap-1.5
+                transition-colors duration-150 will-change-transform active:scale-[0.97]
+                ${
+                  hideOutOfStock
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-surface-100 text-surface-600 hover:bg-surface-200"
+                }
+              `}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                {hideOutOfStock ? (
+                  <polyline points="20 6 9 17 4 12" />
+                ) : (
+                  <>
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M8 12h8" />
+                  </>
+                )}
+              </svg>
+              <span>Stok tersedia</span>
+            </button>
+            <span
+              aria-hidden="true"
+              className="h-5 w-px bg-surface-200 mx-1 flex-shrink-0"
+            />
             <button
               onClick={() => setSelectedCategory("")}
               className={`
@@ -289,7 +436,7 @@ export default function POSPage() {
           {/* Product Grid */}
           <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4">
             <ProductGrid
-              products={products}
+              products={visibleProducts}
               onAddToCart={(product) =>
                 cart.addItem({
                   id: product.id,
@@ -304,6 +451,18 @@ export default function POSPage() {
               isLoading={productsLoading}
             />
           </div>
+
+          {/* Pagination */}
+          {pagination && pagination.total > 0 && (
+            <Pagination
+              page={currentPage}
+              totalPages={totalPages}
+              total={pagination.total}
+              pageSize={pagination.limit}
+              isFetching={isPageFetching}
+              onPageChange={(next) => setPage(next)}
+            />
+          )}
         </div>
 
         {/* Cart Sidebar - Desktop (lg+) */}

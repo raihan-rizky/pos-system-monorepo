@@ -12,12 +12,9 @@ import {
 
 // Mapping colors for production stages
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: "#94a3b8", // Slate 400 #94a3b8
-  DESIGNING: "#8b5cf6", // Blue 500 #3b82f6
-  PRINTING: "#3b82f6", // Amber 500 #f59e0b
-  FINISHING: "#f59e0b", // Violet 500 #8b5cf6
-  READY_PICKUP: "#10b981", // Emerald 500 #10b981
-  DELIVERED: "#06b6d4", // Cyan 500 #06b6d4
+  PRINTING: "#3b82f6", // Blue 500
+  READY_PICKUP: "#10b981", // Emerald 500
+  DELIVERED: "#06b6d4", // Cyan 500
   UNKNOWN: "#cbd5e1", // Slate 300
 };
 

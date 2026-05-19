@@ -118,7 +118,7 @@ function TopMovers({ logs }: { logs: InventoryLog[] }) {
 
 export default function StockHistoryTab() {
   const { data, isLoading, isError } = useInventoryLogs({ limit: 100, days: 60 });
-  const logs = data?.logs || [];
+  const logs = data?.data || [];
   const dailyStats = useDailyStats(logs);
 
   // Summary stats

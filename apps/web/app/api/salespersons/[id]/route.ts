@@ -3,6 +3,9 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:salespersons:id");
 type SalespersonUpdateData = {
   name?: string;
   isActive?: boolean;
@@ -32,8 +35,8 @@ export async function PATCH(
     const validatedData = updateSalespersonSchema.safeParse(body);
     if (!validatedData.success) {
       return NextResponse.json(
-        { message: "Validation error", errors: validatedData.error.issues },
-        { status: 400 }
+        { message: "Validation error", errors: validatedData.error.flatten().fieldErrors },
+        { status: 422 }
       );
     }
     
@@ -63,7 +66,7 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error(`Failed to update salesperson ${id}:`, error);
+    log.error(`Failed to update salesperson ${id}:`, error);
     return NextResponse.json({ message: "Failed to update salesperson" }, { status: 500 });
   }
 }
@@ -96,7 +99,7 @@ export async function DELETE(
     if (salesperson._count.transactions > 0) {
       return NextResponse.json(
         { message: "Cannot delete salesperson with existing transactions. Please deactivate instead." },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
@@ -109,7 +112,7 @@ export async function DELETE(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error(`Failed to delete salesperson ${id}:`, error);
+    log.error(`Failed to delete salesperson ${id}:`, error);
     return NextResponse.json({ message: "Failed to delete salesperson" }, { status: 500 });
   }
 }

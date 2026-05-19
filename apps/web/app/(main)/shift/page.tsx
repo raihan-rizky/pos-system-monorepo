@@ -17,8 +17,8 @@ export default function ShiftHistoryPage() {
   const [selectedShift, setSelectedShift] = useState<CashierShift | null>(null);
 
   const shifts = result?.data ?? [];
-  const total = result?.total ?? 0;
-  const totalPages = result?.totalPages ?? 1;
+  const total = result?.pagination.total ?? 0;
+  const totalPages = result?.pagination.totalPages ?? 1;
 
   const startItem = total === 0 ? 0 : (page - 1) * 10 + 1;
   const endItem = Math.min(page * 10, total);

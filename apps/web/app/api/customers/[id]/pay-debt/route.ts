@@ -3,6 +3,9 @@ import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:customers:id:pay-debt");
 export const dynamic = "force-dynamic";
 
 const payDebtSchema = z.object({
@@ -52,7 +55,7 @@ export async function POST(
     if (currentDebt <= 0) {
       return NextResponse.json(
         { message: "Pelanggan tidak memiliki piutang" },
-        { status: 400 }
+        { status: 422 }
       );
     }
 
@@ -62,7 +65,7 @@ export async function POST(
           message: `Jumlah pembayaran (${amount}) melebihi sisa piutang (${currentDebt})`,
           maxAmount: currentDebt,
         },
-        { status: 400 }
+        { status: 422 }
       );
     }
 
@@ -122,7 +125,7 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    console.error("[POST /api/customers/[id]/pay-debt]", error);
+    log.error("[POST /api/customers/[id]/pay-debt]", error);
     return NextResponse.json(
       { message: "Gagal mencatat pembayaran piutang" },
       { status: 500 }

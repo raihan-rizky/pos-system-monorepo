@@ -3,6 +3,9 @@ import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger("api:wa:auto-reply");
 export const dynamic = "force-dynamic";
 
 const toggleAutoReplySchema = z.object({
@@ -12,21 +15,15 @@ const toggleAutoReplySchema = z.object({
 export async function GET() {
   try {
     await requirePermission("whatsapp", "read");
-  } catch (error) {
-    const authErr = handleAuthError(error);
-    if (authErr) return authErr;
-    return NextResponse.json({ message: "Internal error" }, { status: 500 });
-  }
 
-  if (!isWaConfigured()) {
-    return NextResponse.json(
-      { message: "WAHA is not configured." },
-      { status: 503 },
-    );
-  }
+    if (!isWaConfigured()) {
+      return NextResponse.json(
+        { message: "WAHA is not configured." },
+        { status: 503 },
+      );
+    }
 
-  try {
-    const { baseUrl, apiKey, session, webhookUrl } = getWahaConfig();
+    const { baseUrl, apiKey, session } = getWahaConfig();
     const url = `${baseUrl}/api/sessions/${session}`;
 
     const res = await fetch(url, {
@@ -43,14 +40,17 @@ export async function GET() {
 
     const data = await res.json();
     const webhooks = data.config?.webhooks || [];
-    
+
     // Consider AI toggle as ON if there is ANY webhook active in WAHA.
     // This prevents the case where an old webhook is active but the UI says Passive.
     const isAutoReplyOn = webhooks.length > 0;
 
     return NextResponse.json({ isAutoReplyOn });
   } catch (error: any) {
-    console.error(`[WA/AutoReply] ❌ Error GET:`, error.message);
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
+    log.error(`[WA/AutoReply] Error GET:`, error.message);
     return NextResponse.json(
       { message: "Failed to fetch auto-reply status" },
       { status: 500 },
@@ -61,25 +61,19 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     await requirePermission("whatsapp", "update");
-  } catch (error) {
-    const authErr = handleAuthError(error);
-    if (authErr) return authErr;
-    return NextResponse.json({ message: "Internal error" }, { status: 500 });
-  }
 
-  if (!isWaConfigured()) {
-    return NextResponse.json(
-      { message: "WAHA is not configured." },
-      { status: 503 },
-    );
-  }
+    if (!isWaConfigured()) {
+      return NextResponse.json(
+        { message: "WAHA is not configured." },
+        { status: 503 },
+      );
+    }
 
-  try {
     const body = await req.json();
     const parsed = toggleAutoReplySchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { message: "Validation error", errors: parsed.error.flatten() },
+        { message: "Validation error", errors: parsed.error.flatten().fieldErrors },
         { status: 422 },
       );
     }
@@ -132,7 +126,7 @@ export async function PUT(req: Request) {
       },
     };
 
-    console.log(`[WA/AutoReply] PUT webhooks enable=${enable}`);
+    log.info(`[WA/AutoReply] PUT webhooks enable=${enable}`);
 
     const res = await fetch(url, {
       method: "PUT",
@@ -146,15 +140,18 @@ export async function PUT(req: Request) {
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error(
-        `[WA/AutoReply] ❌ WAHA returned ${res.status}: ${errorText}`,
+      log.error(
+        `[WA/AutoReply] WAHA returned ${res.status}: ${errorText}`,
       );
       throw new Error(`WAHA sessions API error: ${res.statusText}`);
     }
 
-    return NextResponse.json({ success: true, isAutoReplyOn: enable });
+    return NextResponse.json({ isAutoReplyOn: enable });
   } catch (error: any) {
-    console.error(`[WA/AutoReply] ❌ Error PUT:`, error.message);
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
+    log.error(`[WA/AutoReply] Error PUT:`, error.message);
     return NextResponse.json(
       { message: "Failed to update auto-reply status" },
       { status: 500 },
