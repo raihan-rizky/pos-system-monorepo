@@ -96,6 +96,7 @@ export async function POST(
             quantity: item.quantity,
             note: `Approve Penjualan ${transaction.invoiceNumber}`,
             createdBy: user.id,
+            person: user.name,
           },
         });
       }
@@ -146,3 +147,5 @@ export async function POST(
     );
   }
 }
+
+

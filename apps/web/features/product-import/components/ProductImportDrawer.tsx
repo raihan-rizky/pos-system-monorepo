@@ -17,6 +17,7 @@ import {
   type ImportRowDecision,
   type NormalizedImportRow,
   type PreviewFilter,
+  type ImportPreviewResponse,
 } from "../types";
 import {
   useProductImportCommit,
@@ -63,8 +64,10 @@ export function ProductImportDrawer({
   const [headerLoading, setHeaderLoading] = useState(false);
   const [commitStarted, setCommitStarted] = useState(false);
   const [commitProgress, setCommitProgress] = useState(0);
+  const [extractProgress, setExtractProgress] = useState<{ current: number; total: number; stage: "preprocessing" | "extracting" } | null>(null);
+  const [accumulatedPreviewData, setAccumulatedPreviewData] = useState<ImportPreviewResponse | null>(null);
 
-  const previewData = method === "image" ? imageExtract.data : preview.data;
+  const previewData = method === "image" ? accumulatedPreviewData : preview.data;
   const rows: NormalizedImportRow[] = previewData?.rows ?? [];
 
   // Filter rows for the preview table
@@ -178,6 +181,8 @@ export function ProductImportDrawer({
     setMissingColData(null);
     setCommitStarted(false);
     setCommitProgress(0);
+    setExtractProgress(null);
+    setAccumulatedPreviewData(null);
     preview.reset();
     imageExtract.reset();
     commit.reset();
@@ -247,11 +252,57 @@ export function ProductImportDrawer({
     setPreviewFilter("all");
     setCommitStarted(false);
     setCommitProgress(0);
+    setExtractProgress({ current: 0, total: files.length, stage: "extracting" });
+    setAccumulatedPreviewData(null);
+    
     try {
-      await imageExtract.mutateAsync(files);
+      const BATCH_SIZE = 5;
+      const combinedData: ImportPreviewResponse = {
+        rows: [],
+        missingColumns: [],
+        missingCategories: [],
+        unknownColumns: [],
+        warnings: [],
+        errors: [],
+        existingSkuMatches: [],
+        requiredColumns: [],
+        suggestions: {}
+      };
+      
+      const missingCatSet = new Set<string>();
+      const unknownColSet = new Set<string>();
+      
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        const result = await imageExtract.mutateAsync(batch);
+        
+        const startIdx = combinedData.rows.length;
+        const newRows = result.rows.map((r, idx) => ({
+          ...r,
+          rowNumber: startIdx + idx + 1
+        }));
+        combinedData.rows.push(...newRows);
+        combinedData.source = result.source;
+        
+        result.missingCategories?.forEach((c) => missingCatSet.add(c));
+        result.unknownColumns?.forEach((c) => unknownColSet.add(c));
+        
+        setExtractProgress({ 
+          current: Math.min(i + batch.length, files.length), 
+          total: files.length,
+          stage: "extracting" 
+        });
+      }
+      
+      combinedData.missingCategories = Array.from(missingCatSet);
+      combinedData.unknownColumns = Array.from(unknownColSet);
+      
+      setAccumulatedPreviewData(combinedData);
       setStep("preview");
     } catch (error) {
       // Error is handled by react-query error state
+    } finally {
+      setExtractProgress(null);
     }
   };
 
@@ -379,10 +430,35 @@ export function ProductImportDrawer({
                   </Button>
                 </div>
               ) : (
-                <ImageUploadStep 
-                  onExtract={handleImageExtract} 
-                  isLoading={imageExtract.isPending} 
-                />
+                <div className="space-y-4">
+                  <ImageUploadStep 
+                    onExtract={handleImageExtract}
+                    onProgress={(current, total, stage) => setExtractProgress({ current, total, stage })}
+                    isLoading={extractProgress !== null} 
+                  />
+                  
+                  {extractProgress && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                          <LoaderCircle className="w-4 h-4 animate-spin" />
+                          {extractProgress.stage === "preprocessing" ? "Preprocessing Images..." : "Extracting Data..."}
+                        </span>
+                        <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded-md">
+                          {extractProgress.current} / {extractProgress.total} files processed
+                        </span>
+                      </div>
+                      <div className="h-2.5 bg-blue-100 rounded-full overflow-hidden border border-blue-200/50">
+                        <div 
+                          className="h-full bg-blue-600 transition-all duration-300 relative" 
+                          style={{ width: `${Math.max(5, (extractProgress.current / extractProgress.total) * 100)}%` }}
+                        >
+                          <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -880,3 +956,4 @@ function ImportPreviewTable({
     </div>
   );
 }
+

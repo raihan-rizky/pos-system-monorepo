@@ -309,6 +309,7 @@ async function createSyncedTransaction({
           quantity: item.quantity,
           note: `Offline sync ${invoiceNumber}`,
           createdBy: user.id,
+          person: user.name,
         })),
       });
     }
@@ -324,3 +325,5 @@ function buildOfflineNote(
   const auditNote = `Offline sync: ${decision.reason}`;
   return note ? `${note} | ${auditNote}` : auditNote;
 }
+
+

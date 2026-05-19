@@ -33,19 +33,21 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(200, parseInt(searchParams.get("limit") || "100", 10)));
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
 
+    const whereClause = {
+      storeId,
+      isActive: true,
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { sku: { contains: search, mode: "insensitive" } },
+          { barcode: { contains: search, mode: "insensitive" } },
+        ],
+      }),
+      ...(categoryId && { categoryId }),
+    };
+
     const products = await db.product.findMany({
-      where: {
-        storeId,
-        isActive: true,
-        ...(search && {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { sku: { contains: search, mode: "insensitive" } },
-            { barcode: { contains: search, mode: "insensitive" } },
-          ],
-        }),
-        ...(categoryId && { categoryId }),
-      },
+      where: whereClause,
       include: {
         category: {
           select: { id: true, name: true, icon: true, color: true },
@@ -56,7 +58,16 @@ export async function GET(request: Request) {
       take: limit,
     });
 
-    const res = NextResponse.json(products);
+    const total = await db.product.count({
+      where: whereClause,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    const res = NextResponse.json({
+      data: products,
+      pagination: { total, page, limit, totalPages },
+    });
     res.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
     return res;
   } catch (error) {
@@ -123,3 +134,6 @@ export async function POST(request: Request) {
     );
   }
 }
+
+
+

@@ -32,6 +32,7 @@ import {
 } from "@/hooks/useProducts";
 import { useCart } from "@/hooks/useCart";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
+import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift } from "@/hooks/useShift";
 import { useRole } from "@/components/providers/RoleProvider";
 
@@ -245,10 +246,7 @@ export default function POSPage() {
           )}
 
           {/* Category Filter */}
-          <div
-            className="flex items-center gap-2 px-3 md:px-6 py-2 md:py-3 overflow-x-auto bg-white border-b border-surface-100 flex-nowrap scrollbar-hide"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
+          <HorizontalScroll className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100 flex items-center gap-2 flex-nowrap" showScrollIndicators={true}>
             <button
               onClick={() => setSelectedCategory("")}
               className={`
@@ -286,7 +284,7 @@ export default function POSPage() {
                 </span>
               </button>
             ))}
-          </div>
+          </HorizontalScroll>
 
           {/* Product Grid */}
           <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4">
@@ -345,7 +343,7 @@ export default function POSPage() {
           <span className="font-bold text-sm">
             Keranjang ({cart.totalItems})
           </span>
-          <span className="text-xs opacity-80">â€¢</span>
+          <span className="text-xs opacity-80">•</span>
           <span className="font-extrabold text-sm">
             {formatRupiah(cart.subtotal)}
           </span>
@@ -439,3 +437,9 @@ export default function POSPage() {
     </>
   );
 }
+
+
+
+
+
+

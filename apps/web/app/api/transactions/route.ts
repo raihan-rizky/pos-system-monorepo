@@ -383,6 +383,7 @@ export async function POST(request: Request) {
                 quantity: item.quantity,
                 note: `Penjualan ${invoiceNumber}`,
                 createdBy: user.id,
+                person: user.name,
               })),
             });
           }
@@ -441,3 +442,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+

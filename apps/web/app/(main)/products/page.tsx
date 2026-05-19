@@ -116,7 +116,7 @@ export default function ProductsPage() {
     <div className="flex-1 overflow-y-auto w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-purple-50/50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 space-y-8">
 
-        {/* ── Header ── */}
+        {/* -- Header -- */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100/50 border border-blue-200/50 text-blue-700 text-xs font-bold tracking-wide mb-2">
@@ -150,18 +150,18 @@ export default function ProductsPage() {
           )}
         </div>
 
-        {/* ── Stats ── */}
+        {/* -- Stats -- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <StatCard 
             label="Total Products" 
-            value={isLoading ? "—" : totalProducts}
+            value={isLoading ? "�" : totalProducts}
             icon={<Package className="w-6 h-6 text-blue-600" />} 
             accent="bg-blue-100" 
             delay={0}
           />
           <StatCard 
             label="Low Stock Alerts" 
-            value={isLoading ? "—" : lowStock}
+            value={isLoading ? "�" : lowStock}
             sub={lowStock > 0 ? <><span className="w-2 h-2 rounded-full bg-red-500"></span> Action required</> : <><span className="w-2 h-2 rounded-full bg-emerald-500"></span> All levels healthy</>}
             icon={<AlertTriangle className={`w-6 h-6 ${lowStock > 0 ? "text-red-600 animate-pulse" : "text-amber-600"}`} />} 
             accent={lowStock > 0 ? "bg-red-100" : "bg-amber-100"} 
@@ -169,14 +169,14 @@ export default function ProductsPage() {
           />
           <StatCard 
             label="Inventory Value" 
-            value={isLoading ? "—" : fmt(totalValue)}
+            value={isLoading ? "�" : fmt(totalValue)}
             icon={<TrendingUp className="w-6 h-6 text-emerald-600" />} 
             accent="bg-emerald-100" 
             delay={200}
           />
         </div>
 
-        {/* ── Tab Navigation ── */}
+        {/* -- Tab Navigation -- */}
         <div className="flex items-center gap-2 p-1.5 bg-slate-100/80 rounded-2xl w-fit">
           {([
             { id: "products" as PageTab, label: "Products", icon: <Package className="w-4 h-4" /> },
@@ -200,10 +200,10 @@ export default function ProductsPage() {
           ))}
         </div>
 
-        {/* ── Tab Content ── */}
+        {/* -- Tab Content -- */}
         {activeTab !== "products" ? (
           <div className="bg-white/70 backdrop-blur-2xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[32px] overflow-hidden p-5 md:p-6">
-            <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400"><span className="text-sm">Loading…</span></div>}>
+            <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400"><span className="text-sm">Loading�</span></div>}>
               {activeTab === "history" && <StockHistoryTab />}
               {activeTab === "logs" && <StockLogsTab />}
             </Suspense>
@@ -454,7 +454,7 @@ export default function ProductsPage() {
   );
 }
 
-/* ── Redesigned Grid View ── */
+/* -- Redesigned Grid View -- */
 function ProductGrid({
   products,
   isLoading,
@@ -527,7 +527,7 @@ function ProductGrid({
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/80 flex items-center justify-center overflow-hidden shadow-sm group-hover:scale-105 transition-transform duration-300">
                 {p.imageUrl
                   ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
-                  : <span className="text-3xl drop-shadow-sm">{p.category?.icon || "📦"}</span>}
+                  : <span className="text-3xl drop-shadow-sm">{p.category?.icon || "??"}</span>}
               </div>
               
               {isLow && (

@@ -109,6 +109,7 @@ export default function StockLogsTab() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100">
+                  <th className="py-3 px-4 text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Person</th>
                   <th className="py-3 px-4 text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Date</th>
                   <th className="py-3 px-4 text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Product</th>
                   <th className="py-3 px-4 text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Type</th>
@@ -190,9 +191,12 @@ export default function StockLogsTab() {
                       </span>
                     </div>
                   </div>
-                  {log.note && (
-                    <p className="mt-2 pt-2 border-t border-slate-50 text-xs text-slate-500 truncate">{log.note}</p>
-                  )}
+                  <div className="mt-2 pt-2 border-t border-slate-50 space-y-1">
+                    <p className="text-xs text-slate-600 font-medium">By: {log.person || "—"}</p>
+                    {log.note && (
+                      <p className="text-xs text-slate-500 truncate">{log.note}</p>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -227,3 +231,6 @@ export default function StockLogsTab() {
     </div>
   );
 }
+
+
+

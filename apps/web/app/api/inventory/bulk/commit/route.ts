@@ -62,6 +62,7 @@ export async function POST(request: Request) {
             quantity: Math.abs(input.type === "ADJUSTMENT" ? impact.delta : impact.quantity),
             note: input.note,
             createdBy: user.id,
+            person: user.name,
           },
         });
         inventoryLogCount += 1;
@@ -115,3 +116,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Failed to commit bulk stock update" }, { status: 500 });
   }
 }
+

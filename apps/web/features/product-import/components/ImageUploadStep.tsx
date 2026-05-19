@@ -5,9 +5,11 @@ import { preprocessImage, PreprocessOptions } from "../helpers/image-preprocess"
 
 export function ImageUploadStep({
   onExtract,
+  onProgress,
   isLoading,
 }: {
   onExtract: (files: File[]) => Promise<void>;
+  onProgress?: (current: number, total: number, stage: "preprocessing") => void;
   isLoading: boolean;
 }) {
   const [files, setFiles] = useState<File[]>([]);
@@ -34,12 +36,14 @@ export function ImageUploadStep({
       
       setIsProcessing(true);
       try {
-        const newPreviews = await Promise.all(
-          files.map(async (file) => {
-            const processed = await preprocessImage(file, options);
-            return URL.createObjectURL(processed);
-          })
-        );
+        const newPreviews: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          if (!active) break;
+          const processed = await preprocessImage(files[i], options);
+          newPreviews.push(URL.createObjectURL(processed));
+          // Previews are generated fast enough, but we could update progress here if we wanted
+        }
+        
         if (active) {
           setPreviews((prev) => {
             prev.forEach((url) => URL.revokeObjectURL(url));
@@ -70,7 +74,7 @@ export function ImageUploadStep({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selected = Array.from(e.target.files);
-      const newFiles = [...files, ...selected].slice(0, 5); // Max 5
+      const newFiles = [...files, ...selected].slice(0, 2000); // Max 2000 files to match CSV
       setFiles(newFiles);
     }
     // Reset input value so the same file can be selected again if removed
@@ -89,12 +93,13 @@ export function ImageUploadStep({
     // We process the images before sending to API to reduce payload and improve OCR
     setIsProcessing(true);
     try {
-      const processedFiles = await Promise.all(
-        files.map(async (file) => {
-          const processedBlob = await preprocessImage(file, options);
-          return new File([processedBlob], file.name, { type: "image/jpeg" });
-        })
-      );
+      const processedFiles: File[] = [];
+      for (let i = 0; i < files.length; i++) {
+        if (onProgress) onProgress(i, files.length, "preprocessing");
+        const processedBlob = await preprocessImage(files[i], options);
+        processedFiles.push(new File([processedBlob], files[i].name, { type: "image/jpeg" }));
+      }
+      if (onProgress) onProgress(files.length, files.length, "preprocessing");
       await onExtract(processedFiles);
     } finally {
       setIsProcessing(false);
@@ -110,7 +115,7 @@ export function ImageUploadStep({
               Upload Price List Images
             </label>
             <p className="text-xs text-slate-500 mt-1">
-              Max 5 images (JPG, PNG, WebP). Better quality = better extraction.
+              Supports JPG, PNG, WebP. Better quality = better extraction.
             </p>
           </div>
           
@@ -177,7 +182,7 @@ export function ImageUploadStep({
           </div>
         )}
 
-        {files.length < 5 && (
+        {files.length < 2000 && (
           <div className="mb-4">
             <input
               type="file"

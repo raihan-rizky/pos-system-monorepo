@@ -84,6 +84,7 @@ export async function POST(
           status: "COMMITTED",
           storeId,
           createdBy: user.id,
+          person: user.name,
           undoOfBatchId: batch.id,
           summary: {
             undoneBatchId: batch.id,
@@ -115,6 +116,7 @@ export async function POST(
               quantity: Math.abs(delta),
               note: `Undo batch ${batch.id}`,
               createdBy: user.id,
+          person: user.name,
             },
           });
           if (log) reversalInventoryLogCount += 1;
@@ -160,6 +162,7 @@ export async function POST(
             quantity: Math.abs(delta),
             note: `Undo batch ${batch.id}`,
             createdBy: user.id,
+          person: user.name,
           },
         });
         if (log) reversalInventoryLogCount += 1;
@@ -209,3 +212,5 @@ export async function POST(
     return NextResponse.json({ message: "Failed to undo batch operation" }, { status: 500 });
   }
 }
+
+

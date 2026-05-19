@@ -9,6 +9,7 @@ export interface InventoryLog {
   quantity: number;
   note: string | null;
   createdBy: string | null;
+  person: string | null;
   createdAt: string;
   product: {
     id: string;
@@ -62,3 +63,4 @@ export function useInventoryLogs(params: {
     queryFn: () => fetchInventoryLogs(params),
   });
 }
+

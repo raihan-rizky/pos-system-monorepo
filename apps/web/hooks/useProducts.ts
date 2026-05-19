@@ -32,10 +32,22 @@ export interface Category {
   _count: { products: number };
 }
 
+export interface PaginationInfo {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ProductsResponse {
+  data: Product[];
+  pagination: PaginationInfo;
+}
+
 async function fetchProducts(
   search?: string,
   categoryId?: string
-): Promise<Product[]> {
+): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   if (categoryId) params.set("categoryId", categoryId);
@@ -44,13 +56,23 @@ async function fetchProducts(
   if (!res.ok) {
     const { getCachedCatalogProducts } = await import("@/lib/offline/offline-db");
     const cached = await getCachedCatalogProducts<Product>(search, categoryId);
-    if (cached.length > 0) return cached;
+    if (cached.length > 0) {
+      return {
+        data: cached,
+        pagination: {
+          total: cached.length,
+          page: 1,
+          limit: 100,
+          totalPages: 1,
+        },
+      };
+    }
     throw new Error("Failed to fetch products");
   }
-  const products = await res.json();
+  const response = await res.json();
   const { cacheCatalogProducts } = await import("@/lib/offline/offline-db");
-  await cacheCatalogProducts(products);
-  return products;
+  await cacheCatalogProducts(response.data);
+  return response;
 }
 
 async function fetchCategories(): Promise<Category[]> {
@@ -208,4 +230,3 @@ export function useUpdateStock() {
     },
   });
 }
-

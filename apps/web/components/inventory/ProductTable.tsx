@@ -1,6 +1,7 @@
 import React from "react";
 import { Product } from "@/hooks/useProducts";
 import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw } from "lucide-react";
+import { StockWarningBadge } from "@/features/product-stock-warnings/components";
 
 interface ProductTableProps {
   products: Product[];
@@ -274,7 +275,10 @@ export default function ProductTable({
                       isLow ? "text-amber-600" : 
                       "text-emerald-600"
                     }`}>
+                      <div className="flex items-center gap-2">
                       {product.stock} <span className="text-[10px] opacity-70 ml-0.5 uppercase tracking-tighter">{product.unit}</span>
+                      <StockWarningBadge stock={product.stock} minStock={product.minStock} productName={product.name} />
+                    </div>
                     </p>
                     {isLow && (
                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg shadow-sm ${
@@ -293,3 +297,4 @@ export default function ProductTable({
     </div>
   );
 }
+

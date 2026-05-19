@@ -288,6 +288,7 @@ model InventoryLog {
   quantity  Float
   note      String?
   createdBy String?       // userId who made the change
+  person    String?       // name of the person who performed the action
   createdAt DateTime      @default(now())
 
   @@index([productId])
@@ -524,3 +525,4 @@ model RolePermission {
   @@index([role])
   @@map("pos_role_permissions")
 }
+

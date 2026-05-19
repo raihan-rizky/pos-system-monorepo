@@ -62,6 +62,7 @@ export async function POST(request: Request) {
           quantity: Math.abs(validatedData.quantity), // Store absolute magnitude in log
           note: validatedData.note,
           createdBy: user.id,
+          person: user.name,
         },
       });
 
@@ -102,3 +103,4 @@ export async function POST(request: Request) {
     );
   }
 }
+
