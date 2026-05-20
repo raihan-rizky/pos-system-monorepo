@@ -202,41 +202,41 @@ export function ReceiptModal({
                   <thead>
                     <tr>
                       <th
-                        className={`border border-black ${cellPad} text-center w-10 font-bold`}
+                        className={`border border-black ${cellPad} text-center w-10 font-bold text-black`}
                       >
                         No
                       </th>
                       <th
-                        className={`border border-black ${cellPad} text-center w-64 font-bold`}
+                        className={`border border-black ${cellPad} text-center w-64 font-bold text-black`}
                       >
                         Item Name
                       </th>
                       {hasSize && (
                         <th
-                          className={`border border-black ${cellPad} text-center w-20 font-bold`}
+                          className={`border border-black ${cellPad} text-center w-20 font-bold text-black`}
                         >
                           Size
                         </th>
                       )}
                       {hasMaterial && (
                         <th
-                          className={`border border-black ${cellPad} text-center w-32 font-bold`}
+                          className={`border border-black ${cellPad} text-center w-32 font-bold text-black`}
                         >
                           Material
                         </th>
                       )}
                       <th
-                        className={`border border-black ${cellPad} text-center w-16 font-bold`}
+                        className={`border border-black ${cellPad} text-center w-16 font-bold text-black`}
                       >
                         Qty
                       </th>
                       <th
-                        className={`border border-black ${cellPad} text-center w-28 font-bold`}
+                        className={`border border-black ${cellPad} text-center w-28 font-bold text-black`}
                       >
                         Price Per Item
                       </th>
                       <th
-                        className={`border border-black ${cellPad} text-center w-32 font-bold`}
+                        className={`border border-black ${cellPad} text-center w-32 font-bold text-black`}
                       >
                         Total
                       </th>
