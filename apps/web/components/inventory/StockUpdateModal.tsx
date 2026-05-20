@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { useUpdateStock, Product } from "@/hooks/useProducts";
+import { getDefaultProductImage } from "@/lib/utils";
 import { PackagePlus, PackageMinus, Settings2 } from "lucide-react";
 
 interface StockUpdateModalProps {
@@ -61,8 +62,8 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
       <form onSubmit={handleSubmit} className="mt-4">
         {/* Product Summary */}
         <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-50 border border-surface-200 mb-6">
-          <div className="w-12 h-12 rounded-lg bg-white border border-surface-200 flex items-center justify-center text-2xl shrink-0">
-             {product.imageUrl ? <img src={product.imageUrl} alt="" className="w-full h-full object-cover rounded-lg"/> : product.category.icon}
+          <div className="w-12 h-12 rounded-lg bg-white border border-surface-200 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+             <img src={product.imageUrl || getDefaultProductImage(product.category?.name)} alt="" className="w-full h-full object-cover rounded-lg"/>
           </div>
           <div>
             <h4 className="font-semibold text-surface-900">{product.name}</h4>

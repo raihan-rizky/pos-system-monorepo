@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import { useInventoryLogs, InventoryLog } from "@/hooks/useInventoryLogs";
 import { RefreshCw, TrendingUp, TrendingDown, Activity, Archive, PackagePlus, PackageMinus, Settings2 } from "lucide-react";
+import { getDefaultProductImage } from "@/lib/utils";
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
@@ -90,9 +91,7 @@ function TopMovers({ logs }: { logs: InventoryLog[] }) {
             <div key={m.product.id} className="flex items-center gap-3">
               <span className="w-5 text-[10px] font-black text-slate-300 tabular-nums text-right">{i + 1}</span>
               <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-sm">
-                {m.product.imageUrl
-                  ? <img src={m.product.imageUrl} alt="" className="w-full h-full object-cover rounded-lg" />
-                  : (m.product.category?.icon || "📦")}
+                <img src={m.product.imageUrl || getDefaultProductImage(m.product.category?.name)} alt="" className="w-full h-full object-cover rounded-lg" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-slate-800 truncate">{m.product.name}</p>

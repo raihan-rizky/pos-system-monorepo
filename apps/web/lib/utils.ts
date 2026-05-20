@@ -41,3 +41,17 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
     timeout = setTimeout(() => fn(...args), ms);
   };
 }
+
+// Get default product image based on category name
+export function getDefaultProductImage(categoryName?: string | null): string {
+  if (!categoryName) return "/images/atk_default.png";
+
+  const lowerName = categoryName.toLowerCase();
+
+  if (lowerName.includes("kertas")) return "/images/kertas_default.png";
+  if (lowerName.includes("tinta")) return "/images/tinta_default.png";
+  if (lowerName.includes("cartridge") || lowerName.includes("katrid")) return "/images/cartridge_default.png";
+  if (lowerName.includes("id card") || lowerName.includes("idcard")) return "/images/idcard_default.png";
+
+  return "/images/atk_default.png";
+}

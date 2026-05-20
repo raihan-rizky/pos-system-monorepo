@@ -2,6 +2,7 @@ import React from "react";
 import { Product } from "@/hooks/useProducts";
 import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw } from "lucide-react";
 import { StockWarningBadge } from "@/features/product-stock-warnings/components";
+import { getDefaultProductImage } from "@/lib/utils";
 
 interface ProductTableProps {
   products: Product[];
@@ -77,9 +78,7 @@ export default function ProductTable({
                   <td className="py-3.5 px-5 align-middle">
                     <div className="flex items-center gap-3.5">
                       <div className="w-11 h-11 rounded-xl bg-surface-50 border border-surface-100 flex items-center justify-center overflow-hidden shrink-0">
-                        {product.imageUrl
-                          ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-                          : <span className="text-xl">{product.category.icon || "📦"}</span>}
+                        <img src={product.imageUrl || getDefaultProductImage(product.category?.name)} alt={product.name} className="w-full h-full object-cover" />
                       </div>
                       <div>
                         <p
@@ -192,9 +191,7 @@ export default function ProductTable({
                 {/* Product Image */}
                 <div className="relative shrink-0">
                   <div className="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm">
-                    {product.imageUrl
-                      ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-                      : <span className="text-3xl">{product.category.icon || "📦"}</span>}
+                    <img src={product.imageUrl || getDefaultProductImage(product.category?.name)} alt={product.name} className="w-full h-full object-cover" />
                   </div>
                   {isLow && (
                     <div className={`absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-sm ${isOut ? 'bg-red-500' : 'bg-amber-500'}`}>

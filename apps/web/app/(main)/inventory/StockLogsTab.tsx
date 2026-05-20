@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useInventoryLogs, InventoryLog } from "@/hooks/useInventoryLogs";
 import { PackagePlus, PackageMinus, Settings2, RefreshCw, ChevronLeft, ChevronRight, Filter, Calendar, Archive } from "lucide-react";
+import { getDefaultProductImage } from "@/lib/utils";
 
 const typeConfig: Record<string, { label: string; icon: React.ReactNode; color: string; bg: string; border: string }> = {
   IN:         { label: "Stock In",    icon: <PackagePlus  className="w-4 h-4" />, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" },
@@ -129,9 +130,7 @@ export default function StockLogsTab() {
                       <td className="py-3 px-4 align-middle">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                            {log.product.imageUrl
-                              ? <img src={log.product.imageUrl} alt="" className="w-full h-full object-cover" />
-                              : <span className="text-lg">{log.product.category?.icon || "📦"}</span>}
+                            <img src={log.product.imageUrl || getDefaultProductImage(log.product.category?.name)} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div>
                             <p className="font-semibold text-slate-900 text-sm">{log.product.name}</p>
@@ -171,9 +170,7 @@ export default function StockLogsTab() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                        {log.product.imageUrl
-                          ? <img src={log.product.imageUrl} alt="" className="w-full h-full object-cover rounded-xl" />
-                          : <span className="text-lg">{log.product.category?.icon || "📦"}</span>}
+                        <img src={log.product.imageUrl || getDefaultProductImage(log.product.category?.name)} alt="" className="w-full h-full object-cover rounded-xl" />
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-slate-900 text-sm truncate">{log.product.name}</p>

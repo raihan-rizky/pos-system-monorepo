@@ -2,7 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiah, getDefaultProductImage } from "@/lib/utils";
 import type { Product } from "@/hooks/useProducts";
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowDeleteAction } from "@/features/rbac/helpers/rbac-ui";
@@ -148,38 +148,24 @@ export function ProductGrid({
               </div>
             )}
 
-            {product.imageUrl ? (
-              <div className="relative w-full aspect-square bg-surface-100 rounded-xl mb-3 overflow-hidden flex items-center justify-center">
-                <Image
-                  src={product.imageUrl}
-                  alt={product.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                  className="object-cover transition-transform duration-300 hover:scale-105"
-                  placeholder="blur"
-                  blurDataURL={BLUR_DATA_URL}
-                  priority={isPriority}
-                  loading={isPriority ? "eager" : "lazy"}
-                />
-              </div>
-            ) : (
-              <div className="w-full aspect-square bg-surface-100 rounded-xl mb-3 flex items-center justify-center text-surface-300">
-                <svg
-                  width="40"
-                  height="40"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-              </div>
-            )}
+            {(() => {
+              const imgSrc = product.imageUrl || getDefaultProductImage(product.category?.name);
+              return (
+                <div className="relative w-full aspect-square bg-surface-100 rounded-xl mb-3 overflow-hidden flex items-center justify-center">
+                  <Image
+                    src={imgSrc}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                    className="object-cover transition-transform duration-300 hover:scale-105"
+                    placeholder="blur"
+                    blurDataURL={BLUR_DATA_URL}
+                    priority={isPriority}
+                    loading={isPriority ? "eager" : "lazy"}
+                  />
+                </div>
+              );
+            })()}
 
             {/* Category badge */}
             <div
