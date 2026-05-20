@@ -7,12 +7,36 @@ import { getLogger } from "@/lib/logger";
 const logger = getLogger("api:inventory:bulk:commit");
 import { productSnapshot, stockDelta } from "@/features/batch-operations/helpers/snapshots";
 
-const bulkCommitSchema = z.object({
-  productIds: z.array(z.string().min(1)).min(1).max(500),
-  type: z.enum(["IN", "OUT", "ADJUSTMENT"]),
-  quantities: z.record(z.string(), z.coerce.number().int().min(0)),
-  note: z.string().trim().min(1, "Note is required"),
-});
+const REASONS_BY_TYPE = {
+  IN: ["RESTOCK", "SALE_RETURN"],
+  OUT: ["WASTE", "USAGE", "SUPPLIER_RETURN"],
+  ADJUSTMENT: ["OPNAME", "MANUAL_ADJUSTMENT"],
+} as const;
+
+const bulkCommitSchema = z
+  .object({
+    productIds: z.array(z.string().min(1)).min(1).max(500),
+    type: z.enum(["IN", "OUT", "ADJUSTMENT"]),
+    reason: z.enum([
+      "RESTOCK",
+      "SALE_RETURN",
+      "WASTE",
+      "USAGE",
+      "SUPPLIER_RETURN",
+      "OPNAME",
+      "MANUAL_ADJUSTMENT",
+    ]),
+    quantities: z.record(z.string(), z.coerce.number().int().min(0)),
+    note: z.string().trim().min(1, "Note is required"),
+  })
+  .refine(
+    (data) =>
+      (REASONS_BY_TYPE[data.type] as readonly string[]).includes(data.reason),
+    {
+      message: "Reason is not valid for the selected type",
+      path: ["reason"],
+    },
+  );
 
 export async function POST(request: Request) {
   try {
@@ -62,7 +86,12 @@ export async function POST(request: Request) {
           data: {
             productId: updated.id,
             type: input.type,
+            reason: input.reason,
             quantity: Math.abs(input.type === "ADJUSTMENT" ? impact.delta : impact.quantity),
+            unitCost:
+              impact.product.costPrice === null
+                ? null
+                : Number(impact.product.costPrice.toString()),
             note: input.note,
             createdBy: user.id,
             person: user.name,

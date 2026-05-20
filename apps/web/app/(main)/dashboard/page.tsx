@@ -1,575 +1,322 @@
 "use client";
 
-import React from "react";
-import { useQuery } from "@tanstack/react-query";
-import dynamic from "next/dynamic";
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  Wallet,
+  TrendingUp,
+  Hourglass,
+  Package,
+  AlertTriangle,
+  BarChart3,
+  CreditCard,
+  Crown,
+  Trophy,
+  Receipt,
+  Sparkles,
+} from "lucide-react";
 import { ReceiptModal } from "@/components/ReceiptModal";
-import { Card } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import { useTransactions } from "@/hooks/useTransactions";
 import type { Transaction } from "@/hooks/useTransactions";
+import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
+import { StatTile } from "@/features/dashboard/components/StatTile";
+import { SectionCard } from "@/features/dashboard/components/SectionCard";
+import { RevenueTrendChart } from "@/features/dashboard/components/RevenueTrendChart";
+import { PaymentMixCard } from "@/features/dashboard/components/PaymentMixCard";
+import { ActiveDpList } from "@/features/dashboard/components/ActiveDpList";
+import { TopProductsList } from "@/features/dashboard/components/TopProductsList";
 import {
-  TopSalespersonsWidget,
-  TopCustomersWidget,
-  ProductionStatusWidget,
-  ActiveDPWidget,
-} from "@/components/dashboard/DashboardWidgets";
-import type {
-  ProductionStatusCount,
-  TopCustomer,
-  TopSalesperson,
-} from "@/components/dashboard/DashboardWidgets";
+  RankList,
+  formatRupiahLabel,
+} from "@/features/dashboard/components/RankList";
+import { RecentTransactionsList } from "@/features/dashboard/components/RecentTransactionsList";
+import { LowStockList } from "@/features/dashboard/components/LowStockList";
 
-const AreaChart = dynamic(
-  () => import("recharts").then((mod) => mod.AreaChart),
-  { ssr: false },
-);
-const Area = dynamic(() => import("recharts").then((mod) => mod.Area), {
-  ssr: false,
-});
-const XAxis = dynamic(() => import("recharts").then((mod) => mod.XAxis), {
-  ssr: false,
-});
-const YAxis = dynamic(() => import("recharts").then((mod) => mod.YAxis), {
-  ssr: false,
-});
-const CartesianGrid = dynamic(
-  () => import("recharts").then((mod) => mod.CartesianGrid),
-  { ssr: false },
-);
-const Tooltip = dynamic(() => import("recharts").then((mod) => mod.Tooltip), {
-  ssr: false,
-});
-const ResponsiveContainer = dynamic(
-  () => import("recharts").then((mod) => mod.ResponsiveContainer),
-  { ssr: false },
-);
-const BarChart = dynamic(() => import("recharts").then((mod) => mod.BarChart), {
-  ssr: false,
-});
-const Bar = dynamic(() => import("recharts").then((mod) => mod.Bar), {
-  ssr: false,
-});
-interface DashboardData {
-  todayRevenue: number;
-  todayProfit: number;
-  todayTransactionCount: number;
-  monthlyRevenue: number;
-  monthlyProfit: number;
-  monthlyTransactionCount: number;
-  topProducts: { name: string; quantity: number; revenue: number }[];
-  lowStockProducts: {
-    id: string;
-    name: string;
-    stock: number;
-    minStock: number;
-    unit: string;
-  }[];
-  totalProducts: number;
-  revenueChart: {
-    name: string;
-    date: string;
-    revenue: number;
-    profit: number;
-    cost: number;
-  }[];
-  topSalespersons: TopSalesperson[];
-  topCustomers: TopCustomer[];
-  productionStatusCounts: ProductionStatusCount[];
-  dpTransactions: Transaction[];
-  totalOutstandingDP: number;
+function formatTodayLabel(): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Jakarta",
+  }).format(new Date());
 }
 
 export default function DashboardPage() {
   const [selectedTransaction, setSelectedTransaction] =
-    React.useState<Transaction | null>(null);
+    useState<Transaction | null>(null);
 
-  const { data: dashboardData, isLoading: dashLoading } =
-    useQuery<DashboardData>({
-      queryKey: ["dashboard"],
-      queryFn: async () => {
-        const res = await fetch("/api/dashboard");
-        if (!res.ok) throw new Error("Failed to fetch");
-        return res.json();
-      },
-      refetchInterval: 30000,
-    });
-
+  const { data: dashboardData, isLoading: dashLoading } = useDashboard();
   const { data: transactions = [], isLoading: txLoading } = useTransactions();
+
+  const handleSelectTransaction = useCallback((tx: Transaction) => {
+    setSelectedTransaction(tx);
+  }, []);
+
+  const handleCloseReceipt = useCallback(() => {
+    setSelectedTransaction(null);
+  }, []);
+
+  const todayLabel = useMemo(() => formatTodayLabel(), []);
+
+  const todayMargin = useMemo(() => {
+    const revenue = dashboardData?.todayRevenue ?? 0;
+    const profit = dashboardData?.todayProfit ?? 0;
+    return revenue > 0 ? (profit / revenue) * 100 : 0;
+  }, [dashboardData?.todayRevenue, dashboardData?.todayProfit]);
+
+  const monthlyMargin = useMemo(() => {
+    const revenue = dashboardData?.monthlyRevenue ?? 0;
+    const profit = dashboardData?.monthlyProfit ?? 0;
+    return revenue > 0 ? (profit / revenue) * 100 : 0;
+  }, [dashboardData?.monthlyRevenue, dashboardData?.monthlyProfit]);
+
+  const lowStockCount = dashboardData?.lowStockProducts?.length ?? 0;
+
+  const salesRows = useMemo(
+    () =>
+      (dashboardData?.topSalespersons ?? []).map((sp, idx) => ({
+        key: `${sp.id ?? "sp"}-${idx}`,
+        name: sp.name ?? "Tanpa nama",
+        primaryValue: formatRupiahLabel(sp.revenue),
+        hint: `${sp.txCount ?? 0} transaksi`,
+      })),
+    [dashboardData?.topSalespersons],
+  );
+
+  const customerRows = useMemo(
+    () =>
+      (dashboardData?.topCustomers ?? []).map((c, idx) => ({
+        key: c.id ?? `cust-${idx}`,
+        name: c.name ?? "Tanpa nama",
+        primaryValue: formatRupiahLabel(c.totalSpent),
+        hint: c.phone || "Tanpa nomor",
+      })),
+    [dashboardData?.topCustomers],
+  );
 
   return (
     <>
-      <main className="flex-1 overflow-y-auto">
-        {/* Header */}
-        <header className="px-8 pt-8 pb-4">
-          <h1 className="text-2xl font-extrabold text-surface-900">
-            Dashboard Intelligence
-          </h1>
-          <p className="text-sm text-surface-400 mt-1">
-            Real-time business performance & operational overview
-          </p>
+      <main className="flex-1 overflow-y-auto bg-surface-50/40">
+        <header className="sticky top-0 z-20 border-b border-surface-100 bg-white/85 backdrop-blur-md">
+          <div className="px-4 py-4 md:px-8 md:py-5 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-extrabold text-surface-900">
+                Dashboard
+              </h1>
+              <p className="mt-1 text-sm text-surface-500">
+                Ringkasan performa toko hari ini, {todayLabel}.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-100 bg-emerald-50/70 px-3 py-1 text-[11px] font-semibold text-emerald-700 md:self-auto">
+              <span className="relative flex h-2 w-2" aria-hidden="true">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 motion-safe:animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Live · refresh tiap 30 dtk
+            </div>
+          </div>
         </header>
 
-        <div className="px-8 pb-8 space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card glass className="animate-fade-in">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
-                    Revenue Today
-                  </p>
-                  <p className="text-xl font-extrabold text-surface-900 mt-1">
-                    {dashLoading
-                      ? "..."
-                      : formatRupiah(dashboardData?.todayRevenue || 0)}
-                  </p>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-success-50 flex items-center justify-center">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#16a34a"
-                    strokeWidth="2.5"
-                  >
-                    <line x1="12" y1="1" x2="12" y2="23" />
-                    <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-[10px] text-surface-400 mt-2">
-                Profit:{" "}
-                <span className="text-success-600 font-bold">
-                  {formatRupiah(dashboardData?.todayProfit || 0)}
-                </span>
-              </p>
-            </Card>
+        <div className="space-y-6 px-4 py-6 md:px-8">
+          <section
+            aria-label="Ringkasan KPI"
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          >
+            <StatTile
+              label="Revenue Hari Ini"
+              value={formatRupiah(dashboardData?.todayRevenue ?? 0)}
+              hint={
+                <>
+                  Profit{" "}
+                  <span className="font-semibold text-emerald-700">
+                    {formatRupiah(dashboardData?.todayProfit ?? 0)}
+                  </span>{" "}
+                  · margin {todayMargin.toFixed(1)}%
+                </>
+              }
+              tone="brand"
+              loading={dashLoading}
+              icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
+            />
+            <StatTile
+              label="Revenue Bulan Ini"
+              value={formatRupiah(dashboardData?.monthlyRevenue ?? 0)}
+              hint={
+                <>
+                  Profit{" "}
+                  <span className="font-semibold text-emerald-700">
+                    {formatRupiah(dashboardData?.monthlyProfit ?? 0)}
+                  </span>{" "}
+                  · margin {monthlyMargin.toFixed(1)}%
+                </>
+              }
+              tone="success"
+              loading={dashLoading}
+              icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
+            />
+            <StatTile
+              label="Outstanding DP"
+              value={formatRupiah(dashboardData?.totalOutstandingDP ?? 0)}
+              hint={`${dashboardData?.dpTransactions?.length ?? 0} transaksi belum lunas`}
+              tone="warning"
+              loading={dashLoading}
+              icon={<Hourglass className="h-4 w-4" aria-hidden="true" />}
+            />
+            <StatTile
+              label="Total Produk"
+              value={dashboardData?.totalProducts ?? 0}
+              hint="Item aktif di katalog"
+              tone="neutral"
+              loading={dashLoading}
+              icon={<Package className="h-4 w-4" aria-hidden="true" />}
+            />
+            <StatTile
+              label="Stok Menipis"
+              value={lowStockCount}
+              hint={
+                lowStockCount > 0
+                  ? "Perlu restock segera"
+                  : "Semua stok aman"
+              }
+              tone={lowStockCount > 0 ? "danger" : "success"}
+              loading={dashLoading}
+              icon={<AlertTriangle className="h-4 w-4" aria-hidden="true" />}
+            />
+          </section>
 
-            <Card
-              glass
-              className="animate-fade-in"
-              style={{ animationDelay: "0.05s" }}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
-                    Revenue Month
-                  </p>
-                  <p className="text-xl font-extrabold text-surface-900 mt-1">
-                    {dashLoading
-                      ? "..."
-                      : formatRupiah(dashboardData?.monthlyRevenue || 0)}
-                  </p>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#0c98e9"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-                    <polyline points="17 6 23 6 23 12" />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-[10px] text-surface-400 mt-2">
-                Profit:{" "}
-                <span className="text-brand-600 font-bold">
-                  {formatRupiah(dashboardData?.monthlyProfit || 0)}
-                </span>
-              </p>
-            </Card>
-
-            <Card
-              glass
-              className="animate-fade-in border-l-4 border-l-warning-500"
-              style={{ animationDelay: "0.1s" }}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
-                    Outstanding DP
-                  </p>
-                  <p className="text-xl font-extrabold text-danger-600 mt-1">
-                    {dashLoading
-                      ? "..."
-                      : formatRupiah(dashboardData?.totalOutstandingDP || 0)}
-                  </p>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-warning-50 flex items-center justify-center">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#f97d12"
-                    strokeWidth="2.5"
-                  >
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-[10px] text-surface-400 mt-2">Perlu ditagih</p>
-            </Card>
-
-            <Card
-              glass
-              className="animate-fade-in"
-              style={{ animationDelay: "0.15s" }}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
-                    Total Products
-                  </p>
-                  <p className="text-xl font-extrabold text-surface-900 mt-1">
-                    {dashLoading ? "..." : dashboardData?.totalProducts || 0}
-                  </p>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-accent-50 flex items-center justify-center">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#f97d12"
-                    strokeWidth="2.5"
-                  >
-                    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-[10px] text-surface-400 mt-2">
-                Active catalog items
-              </p>
-            </Card>
-
-            <Card
-              glass
-              className="animate-fade-in"
-              style={{ animationDelay: "0.2s" }}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
-                    Low Stock
-                  </p>
-                  <p className="text-xl font-extrabold text-danger-600 mt-1">
-                    {dashLoading
-                      ? "..."
-                      : dashboardData?.lowStockProducts?.length || 0}
-                  </p>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-danger-50 flex items-center justify-center">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#dc2626"
-                    strokeWidth="2.5"
-                  >
-                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                    <line x1="12" y1="9" x2="12" y2="13" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-[10px] text-danger-500 mt-2 font-bold">
-                Needs attention
-              </p>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* P&L Trend Chart */}
-            <Card className="lg:col-span-2">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-base font-bold text-surface-900">
-                    📊 Profit & Loss Analysis
-                  </h2>
-                  <p className="text-sm text-surface-400">
-                    7-Day Financial Performance
-                  </p>
-                </div>
-                <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest">
-                  <div className="flex items-center gap-1.5 text-brand-600">
-                    <div className="w-2 h-2 rounded-full bg-brand-600" />{" "}
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+            <SectionCard
+              className="xl:col-span-2"
+              title="Tren Profit & Loss"
+              subtitle="Performa 7 hari terakhir"
+              accent="brand"
+              icon={<BarChart3 className="h-4 w-4" aria-hidden="true" />}
+              action={
+                <div className="flex gap-3 text-[10px] font-bold uppercase tracking-wider">
+                  <span className="inline-flex items-center gap-1.5 text-brand-700">
+                    <span className="h-2 w-2 rounded-full bg-brand-500" />
                     Revenue
-                  </div>
-                  <div className="flex items-center gap-1.5 text-success-600">
-                    <div className="w-2 h-2 rounded-full bg-success-600" />{" "}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-emerald-700">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
                     Profit
-                  </div>
+                  </span>
                 </div>
-              </div>
-              <div className="h-[300px] w-full mt-4">
-                {dashLoading ? (
-                  <div className="w-full h-full bg-surface-50 rounded-xl animate-pulse flex items-center justify-center">
-                    <span className="text-surface-400">
-                      Loading Financial Data...
-                    </span>
-                  </div>
-                ) : (
-                  <ResponsiveContainer
-                    width="100%"
-                    height="100%"
-                    minHeight={300}
-                  >
-                    <AreaChart
-                      data={dashboardData?.revenueChart || []}
-                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="colorRevenue"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="5%"
-                            stopColor="#0c98e9"
-                            stopOpacity={0.2}
-                          />
-                          <stop
-                            offset="95%"
-                            stopColor="#0c98e9"
-                            stopOpacity={0}
-                          />
-                        </linearGradient>
-                        <linearGradient
-                          id="colorProfit"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="5%"
-                            stopColor="#16a34a"
-                            stopOpacity={0.2}
-                          />
-                          <stop
-                            offset="95%"
-                            stopColor="#16a34a"
-                            stopOpacity={0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "#94a3b8", fontSize: 11 }}
-                        dy={10}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "#94a3b8", fontSize: 11 }}
-                        tickFormatter={(value: number) => `${value / 1000}k`}
-                        dx={-10}
-                      />
-                      <CartesianGrid
-                        vertical={false}
-                        stroke="#e2e8f0"
-                        strokeDasharray="4 4"
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#fff",
-                          borderRadius: "12px",
-                          border: "1px solid #e2e8f0",
-                          boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-                        }}
-                        labelStyle={{
-                          fontWeight: "bold",
-                          color: "#0f172a",
-                          marginBottom: "4px",
-                        }}
-                        formatter={(value: unknown, name: unknown) => [
-                          formatRupiah(Number(value)),
-                          typeof name === "string"
-                            ? name.charAt(0).toUpperCase() + name.slice(1)
-                            : "",
-                        ]}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="revenue"
-                        stroke="#0c98e9"
-                        strokeWidth={3}
-                        fillOpacity={1}
-                        fill="url(#colorRevenue)"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="profit"
-                        stroke="#16a34a"
-                        strokeWidth={3}
-                        fillOpacity={1}
-                        fill="url(#colorProfit)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </Card>
+              }
+            >
+              <RevenueTrendChart
+                data={dashboardData?.revenueChart ?? []}
+                loading={dashLoading}
+              />
+            </SectionCard>
 
-            {/* Production Status */}
-            <ProductionStatusWidget
-              data={dashboardData?.productionStatusCounts || []}
-            />
+            <SectionCard
+              title="Mix Pembayaran"
+              subtitle="Komposisi metode hari ini"
+              accent="brand"
+              icon={<CreditCard className="h-4 w-4" aria-hidden="true" />}
+            >
+              <PaymentMixCard
+                rows={dashboardData?.paymentMixToday ?? []}
+                loading={dashLoading}
+              />
+            </SectionCard>
+          </section>
 
-            {/* Middle Row */}
-            <TopSalespersonsWidget
-              data={dashboardData?.topSalespersons || []}
-            />
-            <TopCustomersWidget data={dashboardData?.topCustomers || []} />
-            <ActiveDPWidget
-              data={dashboardData?.dpTransactions || []}
-              onSelect={setSelectedTransaction}
-            />
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+            <SectionCard
+              title="Top Salesperson"
+              subtitle="Bulan berjalan"
+              accent="brand"
+              icon={<Trophy className="h-4 w-4" aria-hidden="true" />}
+            >
+              <RankList
+                rows={salesRows}
+                loading={dashLoading}
+                emptyText="Belum ada data sales."
+                accent="brand"
+              />
+            </SectionCard>
 
-            {/* Products & Stock */}
-            <Card>
-              <h2 className="text-base font-bold text-surface-900 mb-6">
-                🔥 Top Products (All Time)
-              </h2>
-              {dashboardData?.topProducts?.length ? (
-                <div className="h-[250px] w-full">
-                  <ResponsiveContainer
-                    width="100%"
-                    height="100%"
-                    minHeight={250}
-                  >
-                    <BarChart
-                      data={dashboardData.topProducts.slice(0, 5)}
-                      layout="vertical"
-                      margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        horizontal={false}
-                        stroke="#f1f5f9"
-                      />
-                      <XAxis type="number" hide />
-                      <YAxis
-                        dataKey="name"
-                        type="category"
-                        axisLine={false}
-                        tickLine={false}
-                        width={140}
-                        tick={{
-                          fill: "#475569",
-                          fontSize: 10,
-                          fontWeight: 500,
-                        }}
-                      />
-                      <Tooltip
-                        cursor={{ fill: "#f8fafc" }}
-                        contentStyle={{
-                          borderRadius: "12px",
-                          border: "none",
-                          boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-                        }}
-                        formatter={(value: unknown) => [
-                          `${value} unit`,
-                          "Terjual",
-                        ]}
-                      />
-                      <Bar
-                        dataKey="quantity"
-                        fill="#f97d12"
-                        radius={[0, 6, 6, 0]}
-                        barSize={24}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-sm text-surface-400">No sales data yet</p>
-              )}
-            </Card>
+            <SectionCard
+              title="Top Customer"
+              subtitle="30 hari terakhir"
+              accent="warning"
+              icon={<Crown className="h-4 w-4" aria-hidden="true" />}
+            >
+              <RankList
+                rows={customerRows}
+                loading={dashLoading}
+                emptyText="Belum ada data pelanggan."
+                accent="amber"
+              />
+            </SectionCard>
 
-            <Card className="lg:col-span-2">
-              <h2 className="text-base font-bold text-surface-900 mb-4">
-                📋 Recent Transactions
-              </h2>
-              {txLoading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-10 bg-surface-100 rounded-lg animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-surface-100 text-left">
-                        <th className="py-2 px-3 text-[10px] font-bold text-surface-400 uppercase">
-                          Invoice
-                        </th>
-                        <th className="py-2 px-3 text-[10px] font-bold text-surface-400 uppercase">
-                          Customer
-                        </th>
-                        <th className="py-2 px-3 text-[10px] font-bold text-surface-400 uppercase">
-                          Status
-                        </th>
-                        <th className="py-2 px-3 text-right text-[10px] font-bold text-surface-400 uppercase">
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transactions.slice(0, 5).map((txn) => (
-                        <tr
-                          key={txn.id}
-                          className="border-b border-surface-50 hover:bg-surface-50 transition-colors cursor-pointer"
-                          onClick={() => setSelectedTransaction(txn)}
-                        >
-                          <td className="py-2 px-3 font-mono text-xs text-brand-600">
-                            {txn.invoiceNumber}
-                          </td>
-                          <td className="py-2 px-3 text-surface-600 truncate max-w-[120px]">
-                            {txn.customerName || "Walk-in"}
-                          </td>
-                          <td className="py-2 px-3">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${txn.status === "COMPLETED" ? "bg-success-50 text-success-600" : "bg-warning-50 text-warning-600"}`}
-                            >
-                              {txn.status}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-right font-bold text-surface-900">
-                            {formatRupiah(Number(txn.total))}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          </div>
+            <SectionCard
+              title="Down Payment Aktif"
+              subtitle={`${dashboardData?.dpTransactions?.length ?? 0} transaksi`}
+              accent="warning"
+              icon={<Hourglass className="h-4 w-4" aria-hidden="true" />}
+            >
+              <ActiveDpList
+                data={dashboardData?.dpTransactions ?? []}
+                loading={dashLoading}
+                onSelect={handleSelectTransaction}
+              />
+            </SectionCard>
+          </section>
+
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+            <SectionCard
+              title="Produk Terlaris"
+              subtitle="Sepanjang waktu"
+              accent="warning"
+              icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
+            >
+              <TopProductsList
+                data={dashboardData?.topProducts ?? []}
+                loading={dashLoading}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Stok Menipis"
+              subtitle={
+                lowStockCount > 0
+                  ? `${lowStockCount} produk perlu perhatian`
+                  : "Semua stok aman"
+              }
+              accent={lowStockCount > 0 ? "danger" : "success"}
+              icon={<AlertTriangle className="h-4 w-4" aria-hidden="true" />}
+            >
+              <LowStockList
+                data={dashboardData?.lowStockProducts ?? []}
+                loading={dashLoading}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Transaksi Terbaru"
+              subtitle="Klik baris untuk melihat struk"
+              accent="brand"
+              icon={<Receipt className="h-4 w-4" aria-hidden="true" />}
+              bodyClassName="px-0 py-1"
+            >
+              <RecentTransactionsList
+                transactions={transactions}
+                loading={txLoading}
+                onSelect={handleSelectTransaction}
+              />
+            </SectionCard>
+          </section>
         </div>
       </main>
 
       {selectedTransaction && (
         <ReceiptModal
           open={!!selectedTransaction}
-          onClose={() => setSelectedTransaction(null)}
+          onClose={handleCloseReceipt}
           transaction={selectedTransaction}
         />
       )}

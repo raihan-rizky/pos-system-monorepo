@@ -29,7 +29,19 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
   }) => void;
+  onSaveDraft?: (data: {
+    discount: number;
+    note: string;
+    customerName: string;
+    customerId: string | null;
+    salesName: string;
+    salespersonId: string;
+    isJobOrder: boolean;
+    estimatedDoneAt: string | null;
+  }) => void;
   isProcessing?: boolean;
+  isSavingDraft?: boolean;
+  draftError?: string | null;
 }
 
 const paymentMethods = [
@@ -47,10 +59,14 @@ export function PaymentModal({
   items,
   subtotal,
   onConfirm,
+  onSaveDraft,
   isProcessing,
+  isSavingDraft,
+  draftError,
 }: PaymentModalProps) {
   const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [discount, setDiscount] = useState(0);
+  const [discountMode, setDiscountMode] = useState<"RP" | "PERCENT">("RP");
+  const [discountInput, setDiscountInput] = useState(0);
   const [amountPaid, setAmountPaid] = useState(0);
   const [note, setNote] = useState("");
   // Customer search
@@ -106,6 +122,12 @@ export function PaymentModal({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const rawDiscount =
+    discountMode === "PERCENT"
+      ? Math.round(subtotal * (Math.min(Math.max(discountInput, 0), 100) / 100))
+      : Math.max(discountInput, 0);
+  const discount = Math.min(rawDiscount, subtotal);
+  const isClamped = rawDiscount > subtotal;
   const total = subtotal - discount;
   const change = amountPaid - total;
   const remaining = total - amountPaid;
@@ -134,6 +156,23 @@ export function PaymentModal({
       estimatedDoneAt: estimatedDoneAt || null,
     });
   };
+
+  const handleSaveDraft = () => {
+    if (!onSaveDraft) return;
+    const selectedSales = salespersons.find((s) => s.id === salespersonId);
+    onSaveDraft({
+      discount,
+      note,
+      customerName: selectedCustomer?.name || customerQuery || "Pelanggan Umum",
+      customerId: selectedCustomer?.id ?? null,
+      salesName: selectedSales?.name || "",
+      salespersonId,
+      isJobOrder,
+      estimatedDoneAt: estimatedDoneAt || null,
+    });
+  };
+
+  const canSaveDraft = total > 0 && !isProcessing && !isSavingDraft;
 
   const handleExactAmount = () => {
     setAmountPaid(total);
@@ -372,13 +411,60 @@ export function PaymentModal({
         </div>
 
         {/* Discount */}
-        <Input
-          label="Diskon (Rp)"
-          type="number"
-          value={discount || ""}
-          onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-          placeholder="0"
-        />
+        <div>
+          <label className="text-sm font-medium text-surface-700 mb-1.5 block">
+            Diskon
+          </label>
+          <div className="flex gap-2">
+            <select
+              value={discountMode}
+              onChange={(e) => {
+                setDiscountMode(e.target.value as "RP" | "PERCENT");
+                setDiscountInput(0);
+              }}
+              className="bg-white border border-surface-200 rounded-xl px-3 py-2.5 text-sm font-medium text-surface-700 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400 cursor-pointer"
+              aria-label="Tipe diskon"
+            >
+              <option value="RP">Rp</option>
+              <option value="PERCENT">%</option>
+            </select>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={discountMode === "PERCENT" ? 100 : undefined}
+              step={discountMode === "PERCENT" ? 0.5 : 1}
+              value={discountInput || ""}
+              onChange={(e) => setDiscountInput(Number(e.target.value) || 0)}
+              placeholder="0"
+              aria-label={discountMode === "PERCENT" ? "Diskon persen" : "Diskon rupiah"}
+              className="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-white border border-surface-200 text-surface-900 placeholder:text-surface-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400 hover:border-surface-300"
+            />
+          </div>
+          {discountMode === "PERCENT" && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[5, 10, 15, 20, 25, 50].map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setDiscountInput(p)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                    discountInput === p
+                      ? "bg-brand-600 text-white"
+                      : "bg-brand-50 text-brand-700 hover:bg-brand-100"
+                  }`}
+                >
+                  {p}%
+                </button>
+              ))}
+            </div>
+          )}
+          {isClamped && (
+            <p className="text-xs text-amber-600 mt-1.5">
+              Diskon dipotong sampai subtotal ({formatRupiah(subtotal)})
+            </p>
+          )}
+        </div>
 
         {/* Totals */}
         <div className={`rounded-xl p-4 text-white ${isDP ? 'bg-gradient-to-r from-amber-500 to-amber-600' : 'bg-gradient-to-r from-brand-600 to-brand-700'}`}>
@@ -388,7 +474,14 @@ export function PaymentModal({
           </div>
           {discount > 0 && (
             <div className="flex justify-between text-sm opacity-80 mt-1">
-              <span>Diskon</span>
+              <span>
+                Diskon
+                {discountMode === "PERCENT" && discountInput > 0 && (
+                  <span className="ml-1 opacity-75">
+                    ({Math.min(discountInput, 100)}%)
+                  </span>
+                )}
+              </span>
               <span>-{formatRupiah(discount)}</span>
             </div>
           )}
@@ -496,17 +589,61 @@ export function PaymentModal({
         />
 
         {/* Actions */}
-        <div className="flex gap-3 pt-2">
-          <Button variant="secondary" size="lg" onClick={onClose} className="flex-1">
+        {draftError && (
+          <p
+            id="payment-draft-error"
+            className="text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2"
+          >
+            {draftError}
+          </p>
+        )}
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={onClose}
+            className="sm:flex-1"
+          >
             Batal
           </Button>
+          {onSaveDraft && (
+            <button
+              type="button"
+              id="payment-save-draft"
+              onClick={handleSaveDraft}
+              disabled={!canSaveDraft}
+              className="sm:flex-1 inline-flex items-center justify-center gap-2 min-h-12 px-4 rounded-xl
+                bg-slate-700 text-white text-sm font-semibold cursor-pointer
+                hover:bg-slate-800 transition-colors duration-200
+                disabled:opacity-60 disabled:cursor-not-allowed
+                focus:outline-none focus:ring-2 focus:ring-slate-500/50"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <circle cx="12" cy="14" r="3" />
+                <polyline points="12 11 12 14 14 14" />
+              </svg>
+              {isSavingDraft ? "Menyimpan..." : "Faktur Sementara"}
+            </button>
+          )}
           <Button
             variant="accent"
             size="lg"
             onClick={handleConfirm}
             disabled={!canPay}
             loading={isProcessing}
-            className="flex-1"
+            className="sm:flex-1"
           >
             {isProcessing
               ? "Memproses..."

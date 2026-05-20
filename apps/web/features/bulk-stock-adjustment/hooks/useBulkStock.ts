@@ -2,9 +2,19 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+export type BulkStockReason =
+  | "RESTOCK"
+  | "SALE_RETURN"
+  | "WASTE"
+  | "USAGE"
+  | "SUPPLIER_RETURN"
+  | "OPNAME"
+  | "MANUAL_ADJUSTMENT";
+
 export interface BulkStockInput {
   productIds: string[];
   type: "IN" | "OUT" | "ADJUSTMENT";
+  reason: BulkStockReason;
   quantities: Record<string, number>;
   note: string;
 }

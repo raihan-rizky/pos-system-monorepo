@@ -58,7 +58,8 @@ export async function GET() {
       topProductsRaw,
       productionStatusCountsRaw,
       dpTransactionsRaw,
-      totalOutstandingDPRaw
+      totalOutstandingDPRaw,
+      paymentMixTodayRaw,
     ] = await Promise.all([
       // 1. Today's Revenue & Profit
       db.transaction.findMany({
@@ -163,6 +164,17 @@ export async function GET() {
         where: { storeId, status: "DP" },
         _sum: { total: true, amountPaid: true },
       }),
+      // 12. Payment Mix Today (group by paymentMethod, exclude voided/refunded)
+      db.transaction.groupBy({
+        by: ["paymentMethod"],
+        where: {
+          storeId,
+          createdAt: { gte: today },
+          status: { notIn: ["VOIDED", "REFUNDED"] },
+        },
+        _sum: { total: true },
+        _count: { id: true },
+      }),
     ]);
 
     // Calculate exact profit helper
@@ -252,6 +264,11 @@ export async function GET() {
       })),
       dpTransactions: dpTransactionsRaw,
       totalOutstandingDP: Number(totalOutstandingDPRaw._sum.total || 0) - Number(totalOutstandingDPRaw._sum.amountPaid || 0),
+      paymentMixToday: paymentMixTodayRaw.map((row) => ({
+        method: row.paymentMethod,
+        revenue: Number(row._sum.total || 0),
+        transactionCount: row._count.id,
+      })),
     });
   } catch (error) {
     const authErr = handleAuthError(error);

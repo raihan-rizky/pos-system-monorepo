@@ -33,6 +33,20 @@ describe("RBAC settings persistence helpers", () => {
     expect(parsed).toHaveLength(5);
   });
 
+  it("rejects edits to OWNER-locked resources like inventory.approve", () => {
+    expect(() =>
+      parseRolePermissionPayload([
+        {
+          role: "ADMIN",
+          scope: "resource",
+          target: "inventory.approve",
+          action: "update",
+          allowed: true,
+        },
+      ]),
+    ).toThrow(/OWNER-locked/);
+  });
+
   it("builds stable upsert inputs keyed by role, scope, target, and action", () => {
     const entries = parseRolePermissionPayload([
       { role: "ADMIN", scope: "page", target: "/products", action: "access", allowed: true },

@@ -115,6 +115,7 @@ export async function POST(
             data: {
               productId: current.id,
               type: "OUT",
+              reason: "SUPPLIER_RETURN",
               quantity: Math.abs(delta),
               note: `Undo batch ${batch.id}`,
               createdBy: user.id,
@@ -161,6 +162,7 @@ export async function POST(
           data: {
             productId: current.id,
             type: delta > 0 ? "IN" : "OUT",
+            reason: delta > 0 ? "RESTOCK" : "SUPPLIER_RETURN",
             quantity: Math.abs(delta),
             note: `Undo batch ${batch.id}`,
             createdBy: user.id,

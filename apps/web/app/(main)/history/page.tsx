@@ -3,7 +3,15 @@
 import React, { useState, useCallback } from "react";
 
 import { ReceiptModal } from "@/components/ReceiptModal";
-import { useTransactionHistory, useUpdateTransaction, useDeleteTransaction, Transaction } from "@/hooks/useTransactions";
+import {
+  useTransactionHistory,
+  useUpdateTransaction,
+  useDeleteTransaction,
+  useApproveTransaction,
+  useRejectTransaction,
+  Transaction,
+} from "@/hooks/useTransactions";
+import { ApproveDraftDialog } from "@/features/transactions-draft";
 import { useCategories } from "@/hooks/useProducts";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { Button } from "@pos/ui";
@@ -246,6 +254,25 @@ function EditModal({
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
+  if (status === "DRAFT") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          aria-hidden="true"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+        SEMENTARA
+      </span>
+    );
+  }
   if (status === "DP") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
@@ -405,29 +432,18 @@ function ApproveModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const approveTx = useApproveTransaction();
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountPaid, setAmountPaid] = useState(Number(tx.total));
   const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleApprove = async () => {
     setError("");
-    setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/transactions/${tx.id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentMethod, amountPaid }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to approve");
-      }
+      await approveTx.mutateAsync({ id: tx.id, paymentMethod, amountPaid });
       onSuccess();
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -470,8 +486,8 @@ function ApproveModal({
 
         <div className="flex items-center gap-3 mt-4">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600 hover:bg-surface-50">Batal</button>
-          <button onClick={handleApprove} disabled={isSubmitting} className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-            {isSubmitting ? "Proses..." : "Approve"}
+          <button onClick={handleApprove} disabled={approveTx.isPending} className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+            {approveTx.isPending ? "Proses..." : "Approve"}
           </button>
         </div>
       </div>
@@ -490,25 +506,16 @@ function RejectModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const rejectTx = useRejectTransaction();
   const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleReject = async () => {
     setError("");
-    setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/transactions/${tx.id}/reject`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to reject");
-      }
+      await rejectTx.mutateAsync(tx.id);
       onSuccess();
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -524,8 +531,8 @@ function RejectModal({
           {error && <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-left mb-4">{error}</p>}
           <div className="flex items-center gap-3">
             <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600 hover:bg-surface-50 transition-colors">Batal</button>
-            <button onClick={handleReject} disabled={isSubmitting} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
-              {isSubmitting ? "Proses..." : "Tolak"}
+            <button onClick={handleReject} disabled={rejectTx.isPending} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
+              {rejectTx.isPending ? "Proses..." : "Tolak"}
             </button>
           </div>
         </div>
@@ -549,6 +556,9 @@ export default function HistoryPage() {
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [approvingTransaction, setApprovingTransaction] = useState<Transaction | null>(null);
   const [rejectingTransaction, setRejectingTransaction] = useState<Transaction | null>(null);
+  const [approvingDraft, setApprovingDraft] = useState<Transaction | null>(null);
+
+  const canApproveDrafts = canPerform("transaction.draft", "update");
 
   // Filter state
   const [searchInput, setSearchInput] = useState("");
@@ -742,21 +752,24 @@ export default function HistoryPage() {
                         const isVoided = tx.status === "VOIDED";
                         const isRefunded = tx.status === "REFUNDED";
                         const isPending = tx.status === "PENDING_APPROVAL";
+                        const isDraft = tx.status === "DRAFT";
                         const rowBg = isPending
                           ? "bg-blue-50/70 hover:bg-blue-50 animate-pending-row relative"
-                          : isDP
-                            ? "bg-amber-50/60 hover:bg-amber-50"
-                            : isVoided || isRefunded
-                              ? "bg-surface-50/50 hover:bg-surface-50"
-                              : "hover:bg-surface-50";
+                          : isDraft
+                            ? "bg-amber-50/40 hover:bg-amber-50"
+                            : isDP
+                              ? "bg-amber-50/60 hover:bg-amber-50"
+                              : isVoided || isRefunded
+                                ? "bg-surface-50/50 hover:bg-surface-50"
+                                : "hover:bg-surface-50";
                         return (
                           <tr key={tx.id} className={`${rowBg} transition-colors`}>
                             <td className="py-3.5 px-4 text-sm text-surface-900 whitespace-nowrap">
                               {formatDate(new Date(tx.createdAt))}
                             </td>
                             <td className="py-3.5 px-4">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-surface-100 text-surface-700">
-                                {tx.invoiceNumber}
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : "bg-surface-100 text-surface-700"}`}>
+                                {tx.invoiceNumber ?? tx.draftNumber ?? "—"}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 text-sm text-surface-700 font-medium whitespace-nowrap">
@@ -840,7 +853,18 @@ export default function HistoryPage() {
                                     )}
                                   </div>
                                 )}
-                                {!isPending && (
+                                {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
+                                  <button
+                                    id={`approve-draft-${tx.id}`}
+                                    onClick={() => setApprovingDraft(tx)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                      bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 border border-amber-200
+                                      transition-all cursor-pointer"
+                                  >
+                                    Setujui
+                                  </button>
+                                )}
+                                {tx.status !== "DRAFT" && (
                                   <Button
                                     variant="secondary"
                                     onClick={() => setSelectedTransaction(tx)}
@@ -931,11 +955,7 @@ export default function HistoryPage() {
         <ApproveModal
           tx={approvingTransaction}
           onClose={() => setApprovingTransaction(null)}
-          onSuccess={() => {
-            setApprovingTransaction(null);
-            // Optionally, you could trigger a refetch here by refreshing the route or invalidating cache
-            window.location.reload(); 
-          }}
+          onSuccess={() => setApprovingTransaction(null)}
         />
       )}
 
@@ -944,10 +964,16 @@ export default function HistoryPage() {
         <RejectModal
           tx={rejectingTransaction}
           onClose={() => setRejectingTransaction(null)}
-          onSuccess={() => {
-            setRejectingTransaction(null);
-            window.location.reload();
-          }}
+          onSuccess={() => setRejectingTransaction(null)}
+        />
+      )}
+
+      {/* Approve Draft Dialog */}
+      {approvingDraft && canApproveDrafts && (
+        <ApproveDraftDialog
+          draft={approvingDraft}
+          onClose={() => setApprovingDraft(null)}
+          onSuccess={() => setApprovingDraft(null)}
         />
       )}
     </>

@@ -1,16 +1,24 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+export type InventoryLogStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export interface InventoryLog {
   id: string;
   productId: string;
   type: "IN" | "OUT" | "ADJUSTMENT";
+  reason: string | null;
   quantity: number;
   note: string | null;
   createdBy: string | null;
   person: string | null;
   createdAt: string;
+  status: InventoryLogStatus;
+  approvedBy: string | null;
+  approverName: string | null;
+  decidedAt: string | null;
+  rejectionReason: string | null;
   product: {
     id: string;
     name: string;
@@ -31,19 +39,26 @@ export interface InventoryLogsResponse {
     totalPages: number;
     hasNextPage: boolean;
     hasPreviousPage: boolean;
+    pendingTotal?: number;
   };
 }
 
-async function fetchInventoryLogs(params: {
+export type InventoryLogsParams = {
   productId?: string;
   type?: string;
+  status?: string; // comma-separated PENDING/APPROVED/REJECTED
   page?: number;
   limit?: number;
   days?: number;
-}): Promise<InventoryLogsResponse> {
+};
+
+async function fetchInventoryLogs(
+  params: InventoryLogsParams,
+): Promise<InventoryLogsResponse> {
   const searchParams = new URLSearchParams();
   if (params.productId) searchParams.set("productId", params.productId);
   if (params.type) searchParams.set("type", params.type);
+  if (params.status) searchParams.set("status", params.status);
   if (params.page) searchParams.set("page", String(params.page));
   if (params.limit) searchParams.set("limit", String(params.limit));
   if (params.days) searchParams.set("days", String(params.days));
@@ -53,16 +68,76 @@ async function fetchInventoryLogs(params: {
   return res.json();
 }
 
-export function useInventoryLogs(params: {
-  productId?: string;
-  type?: string;
-  page?: number;
-  limit?: number;
-  days?: number;
-} = {}) {
+export function useInventoryLogs(params: InventoryLogsParams = {}) {
   return useQuery({
     queryKey: ["inventory-logs", params],
     queryFn: () => fetchInventoryLogs(params),
   });
 }
 
+// Lightweight, dedicated badge query — separate cache key so changing the
+// main filter doesn't refetch the badge.
+export function usePendingInventoryLogCount() {
+  return useQuery({
+    queryKey: ["inventory-logs", "pending-count"],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/inventory/logs?status=PENDING&limit=1&page=1`,
+      );
+      if (!res.ok) return 0;
+      const json = (await res.json()) as InventoryLogsResponse;
+      return json.pagination.pendingTotal ?? json.pagination.total ?? 0;
+    },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+}
+
+async function postJson(url: string, body?: unknown) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as {
+      message?: string;
+      code?: string;
+    };
+    const error = new Error(data.message || `Request failed (${res.status})`);
+    (error as Error & { status?: number; code?: string }).status = res.status;
+    (error as Error & { status?: number; code?: string }).code = data.code;
+    throw error;
+  }
+  return res.json();
+}
+
+function invalidateInventoryQueries(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["inventory-logs"] });
+  qc.invalidateQueries({ queryKey: ["products"] });
+}
+
+export function useApproveInventoryLog() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => postJson(`/api/inventory/${id}/approve`),
+    onSuccess: () => invalidateInventoryQueries(qc),
+  });
+}
+
+export function useRejectInventoryLog() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      postJson(`/api/inventory/${id}/reject`, { reason }),
+    onSuccess: () => invalidateInventoryQueries(qc),
+  });
+}
+
+export function useCancelInventoryLog() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => postJson(`/api/inventory/${id}/cancel`),
+    onSuccess: () => invalidateInventoryQueries(qc),
+  });
+}

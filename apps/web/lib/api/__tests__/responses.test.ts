@@ -119,17 +119,27 @@ describe("apiError", () => {
   });
 
   it("includes errors map when provided", async () => {
-    const res = apiError("Validation error", 422, { name: ["Required"] });
+    const res = apiError("Validation error", 422, {
+      errors: { name: ["Required"] },
+    });
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({
       message: "Validation error",
       errors: { name: ["Required"] },
     });
   });
+
+  it("includes code discriminator when provided", async () => {
+    const res = apiError("Not found", 404, { code: "NotFound" });
+    expect(await res.json()).toEqual({
+      message: "Not found",
+      code: "NotFound",
+    });
+  });
 });
 
 describe("apiValidationError", () => {
-  it("returns 422 with fieldErrors from Zod flatten()", async () => {
+  it("returns 422 with code=ValidationError and fieldErrors from Zod flatten()", async () => {
     const schema = z.object({ name: z.string().min(1), age: z.number() });
     const result = schema.safeParse({ name: "", age: "not-a-number" });
     expect(result.success).toBe(false);
@@ -139,6 +149,7 @@ describe("apiValidationError", () => {
     expect(res.status).toBe(422);
     const body = await res.json();
     expect(body.message).toBe("Validation error");
+    expect(body.code).toBe("ValidationError");
     expect(body.errors).toBeDefined();
     expect(body.errors.name).toBeDefined();
     expect(body.errors.age).toBeDefined();

@@ -26,8 +26,20 @@ export interface ListResponse<T> {
 
 export interface ErrorResponse {
   message: string;
+  code?: ApiErrorCode;
   errors?: Record<string, string[]>;
 }
+
+export type ApiErrorCode =
+  | "ValidationError"
+  | "NotFound"
+  | "Conflict"
+  | "Unauthorized"
+  | "Forbidden"
+  | "PayloadTooLarge"
+  | "UnsupportedMediaType"
+  | "ServiceUnavailable"
+  | "InternalError";
 
 export interface PaginationParams {
   page: number;
@@ -92,10 +104,14 @@ export function apiNoContent(): NextResponse {
 export function apiError(
   message: string,
   status: number,
-  errors?: Record<string, string[]>,
+  options?: {
+    code?: ApiErrorCode;
+    errors?: Record<string, string[]>;
+  },
 ): NextResponse<ErrorResponse> {
   const body: ErrorResponse = { message };
-  if (errors) body.errors = errors;
+  if (options?.code) body.code = options.code;
+  if (options?.errors) body.errors = options.errors;
   return NextResponse.json(body, { status });
 }
 
@@ -104,5 +120,8 @@ export function apiValidationError(
   message = "Validation error",
 ): NextResponse<ErrorResponse> {
   const flattened = zodError.flatten();
-  return apiError(message, 422, flattened.fieldErrors as Record<string, string[]>);
+  return apiError(message, 422, {
+    code: "ValidationError",
+    errors: flattened.fieldErrors as Record<string, string[]>,
+  });
 }

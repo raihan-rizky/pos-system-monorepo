@@ -7,7 +7,27 @@
       "Bash(pnpm --filter @pos/db exec prisma generate)",
       "Bash(pnpm lint *)",
       "Bash(pnpm tsc *)",
-      "Bash(pnpm exec *)"
+      "Bash(pnpm exec *)",
+      "Bash(pnpm --filter @pos/web type-check)",
+      "Bash(pnpm prisma *)",
+      "Bash(echo \"---EXIT $?\")",
+      "Bash(pnpm add *)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(pnpm --filter @pos/web test)",
+      "Bash(pnpm next *)",
+      "Bash(pnpm --filter web exec tsc --noEmit)",
+      "Bash(pnpm --filter @pos/db prisma generate)",
+      "Bash(pnpm --filter @pos/db generate)",
+      "Bash(pnpm --filter @pos/web exec vitest run features/transactions-draft/helpers/__tests__/draft-number.test.ts)",
+      "Bash(pnpm --filter @pos/web exec vitest run features/rbac/helpers/__tests__/rbac-core.test.ts)",
+      "Bash(pnpm --filter @pos/web exec vitest run)",
+      "Bash(npx prisma *)",
+      "Bash(pnpm --filter @pos/web exec vitest run app/api/transactions/draft/__tests__/route.test.ts --reporter=basic)",
+      "Bash(pnpm --filter @pos/web exec vitest run app/api/transactions/draft/__tests__/route.test.ts --reporter=verbose)",
+      "Bash(pnpm --filter @pos/web exec vitest run \"app/api/transactions/[id]/approve-draft/__tests__/route.test.ts\" --reporter=verbose)",
+      "Bash(pnpm --filter web exec next lint --dir \"app/\\(main\\)/dashboard\" --dir \"features/dashboard\" --dir \"app/api/dashboard\")",
+      "Bash(pnpm --filter @pos/web exec tsc --noEmit)",
+      "Bash(pnpm tsx -e ' *)"
     ]
   }
 }

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Modal, Button, Input } from "@pos/ui";
-import { useUpdateStock, Product } from "@/hooks/useProducts";
+import { useUpdateStock, Product, type InventoryReason } from "@/hooks/useProducts";
+import { useRole } from "@/components/providers/RoleProvider";
 import { getDefaultProductImage } from "@/lib/utils";
-import { PackagePlus, PackageMinus, Settings2 } from "lucide-react";
+import { PackagePlus, PackageMinus, Settings2, Info } from "lucide-react";
 
 interface StockUpdateModalProps {
   isOpen: boolean;
@@ -10,12 +11,37 @@ interface StockUpdateModalProps {
   product: Product;
 }
 
+const REASONS_BY_TYPE: Record<"IN" | "OUT" | "ADJUSTMENT", Array<{ value: InventoryReason; label: string }>> = {
+  IN: [
+    { value: "RESTOCK", label: "Pembelian / Restock" },
+    { value: "SALE_RETURN", label: "Retur Penjualan" },
+  ],
+  OUT: [
+    { value: "WASTE", label: "Waste / Rusak" },
+    { value: "USAGE", label: "Pemakaian Internal" },
+    { value: "SUPPLIER_RETURN", label: "Retur ke Supplier" },
+  ],
+  ADJUSTMENT: [
+    { value: "OPNAME", label: "Stock Opname" },
+    { value: "MANUAL_ADJUSTMENT", label: "Penyesuaian Manual" },
+  ],
+};
+
 export default function StockUpdateModal({ isOpen, onClose, product }: StockUpdateModalProps) {
   const updateStock = useUpdateStock();
+  const { role } = useRole();
+  const isOwner = role === "OWNER";
   const [type, setType] = useState<"IN" | "OUT" | "ADJUSTMENT">("IN");
+  const [reason, setReason] = useState<InventoryReason>("RESTOCK");
   const [quantity, setQuantity] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [submittedAsRequest, setSubmittedAsRequest] = useState(false);
+
+  const handleTypeChange = (next: "IN" | "OUT" | "ADJUSTMENT") => {
+    setType(next);
+    setReason(REASONS_BY_TYPE[next][0].value);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,12 +69,21 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
     }
 
     try {
-      await updateStock.mutateAsync({
+      const result = await updateStock.mutateAsync({
         productId: product.id,
         type,
+        reason,
         quantity: type === "ADJUSTMENT" ? finalQty : Math.abs(numQty),
         note,
       });
+      if (!isOwner && (result as { status?: string })?.status === "PENDING") {
+        setSubmittedAsRequest(true);
+        setTimeout(() => {
+          setSubmittedAsRequest(false);
+          onClose();
+        }, 1400);
+        return;
+      }
       onClose();
     } catch (err: any) {
       setError(err.message || "Failed to update stock");
@@ -58,8 +93,33 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
   const isProcessing = updateStock.isPending;
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="Update Inventory">
+    <Modal open={isOpen} onClose={onClose} title={isOwner ? "Update Inventory" : "Ajukan Perubahan Stok"}>
       <form onSubmit={handleSubmit} className="mt-4">
+        {submittedAsRequest && (
+          <div
+            role="status"
+            className="mb-4 flex items-start gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700"
+          >
+            <Info className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+            <div className="text-sm">
+              <p className="font-semibold">Permintaan dikirim</p>
+              <p className="text-emerald-700/80 text-xs mt-0.5">
+                Menunggu persetujuan owner. Stok akan berubah setelah disetujui.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!isOwner && !submittedAsRequest && (
+          <div className="mb-4 flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-800">
+            <Info className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+            <div className="text-xs leading-relaxed">
+              Perubahan stok akan dieksekusi setelah owner menyetujui. Permintaan
+              akan muncul di tab <strong>Stock Logs</strong>.
+            </div>
+          </div>
+        )}
+
         {/* Product Summary */}
         <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-50 border border-surface-200 mb-6">
           <div className="w-12 h-12 rounded-lg bg-white border border-surface-200 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
@@ -83,23 +143,23 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
         <div className="grid grid-cols-3 gap-3 mb-6">
           <button
             type="button"
-            onClick={() => setType("IN")}
+            onClick={() => handleTypeChange("IN")}
             className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              type === "IN" 
-                ? "border-emerald-500 bg-emerald-50 text-emerald-700" 
+              type === "IN"
+                ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                 : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
             }`}
           >
             <PackagePlus className="w-5 h-5 mb-1" />
             <span className="text-xs font-semibold uppercase tracking-wider">Stock In</span>
           </button>
-          
+
           <button
             type="button"
-            onClick={() => setType("OUT")}
+            onClick={() => handleTypeChange("OUT")}
             className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              type === "OUT" 
-                ? "border-amber-500 bg-amber-50 text-amber-700" 
+              type === "OUT"
+                ? "border-amber-500 bg-amber-50 text-amber-700"
                 : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
             }`}
           >
@@ -109,10 +169,10 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
 
           <button
             type="button"
-            onClick={() => setType("ADJUSTMENT")}
+            onClick={() => handleTypeChange("ADJUSTMENT")}
             className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              type === "ADJUSTMENT" 
-                ? "border-brand-500 bg-brand-50 text-brand-700" 
+              type === "ADJUSTMENT"
+                ? "border-brand-500 bg-brand-50 text-brand-700"
                 : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
             }`}
           >
@@ -122,6 +182,22 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
         </div>
 
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-1">Alasan</label>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value as InventoryReason)}
+              className="w-full px-3 py-2 bg-white border border-surface-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none"
+              required
+            >
+              {REASONS_BY_TYPE[type].map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <Input
             label={type === "ADJUSTMENT" ? `New Stock Level (${product.unit})` : `Quantity to ${type === "IN" ? "Add" : "Remove"} (${product.unit})`}
             type="number"
@@ -146,10 +222,12 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
 
         <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-surface-200">
           <Button type="button" variant="secondary" onClick={onClose} disabled={isProcessing}>
-            Cancel
+            {isOwner ? "Cancel" : "Batal"}
           </Button>
-          <Button type="submit" disabled={isProcessing}>
-            {isProcessing ? "Saving..." : "Confirm Update"}
+          <Button type="submit" disabled={isProcessing || submittedAsRequest}>
+            {isProcessing
+              ? isOwner ? "Saving..." : "Mengirim..."
+              : isOwner ? "Confirm Update" : "Submit Request"}
           </Button>
         </div>
       </form>

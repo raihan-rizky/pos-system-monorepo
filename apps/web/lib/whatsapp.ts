@@ -55,6 +55,7 @@ export interface WahaChat {
     body: string;
     hasMedia: boolean;
     type?: string;
+    pushName?: string | null;
     _data?: any;
   } | null;
   timestamp?: number;

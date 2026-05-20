@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -8,12 +8,12 @@ import { useRole } from "@/components/providers/RoleProvider";
 
 /* ─────────────────────────────────────────────
    SVG icon helpers (kept inline to avoid deps)
-───────────────────────────────────────────── */
+   ───────────────────────────────────────────── */
 const icons = {
   dashboard: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -30,8 +30,8 @@ const icons = {
   ),
   pos: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -53,8 +53,8 @@ const icons = {
   ),
   history: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -67,10 +67,27 @@ const icons = {
       <circle cx="12" cy="12" r="10" />
     </svg>
   ),
+  financial: (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 3v18h18" />
+      <path d="M7 15l4-4 3 3 5-7" />
+      <path d="M15 7h4v4" />
+    </svg>
+  ),
   product: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -87,8 +104,8 @@ const icons = {
   ),
   production: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -104,8 +121,8 @@ const icons = {
   ),
   customers: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -122,8 +139,8 @@ const icons = {
   ),
   salespersons: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -138,8 +155,8 @@ const icons = {
   ),
   wa: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -153,8 +170,8 @@ const icons = {
   ),
   shift: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -170,8 +187,8 @@ const icons = {
   // Group icons
   operations: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -186,8 +203,8 @@ const icons = {
   ),
   catalog: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -202,8 +219,8 @@ const icons = {
   ),
   crm: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -216,10 +233,62 @@ const icons = {
       <circle cx="12" cy="7" r="4" />
     </svg>
   ),
+  finance: (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 8h10" />
+      <path d="M7 12h4" />
+      <path d="M15 12h2" />
+      <path d="M15 16h2" />
+      <path d="M7 16h4" />
+    </svg>
+  ),
+  pemasukan: (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 19V5" />
+      <polyline points="6 11 12 5 18 11" />
+    </svg>
+  ),
+  pengeluaran: (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 5v14" />
+      <polyline points="6 13 12 19 18 13" />
+    </svg>
+  ),
   settings: (
     <svg
-      width="22"
-      height="22"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -237,7 +306,7 @@ const icons = {
 
 /* ─────────────────────────────────────────────
    Nav structure
-───────────────────────────────────────────── */
+   ───────────────────────────────────────────── */
 const navGroups = [
   {
     id: "operations",
@@ -256,6 +325,23 @@ const navGroups = [
     items: [
       { href: "/products", label: "Products", icon: icons.product },
       { href: "/production", label: "Production", icon: icons.production },
+    ],
+  },
+  {
+    id: "finance",
+    label: "Keuangan",
+    icon: icons.finance,
+    items: [
+      {
+        href: "/keuangan",
+        label: "Keuangan",
+        icon: icons.finance,
+      },
+      {
+        href: "/financial-report",
+        label: "Financial Report",
+        icon: icons.financial,
+      },
     ],
   },
   {
@@ -287,18 +373,20 @@ type NavEntry = (typeof navGroups)[number]["items"][number];
 
 /* ─────────────────────────────────────────────
    Reusable nav item link
-───────────────────────────────────────────── */
+   ───────────────────────────────────────────── */
 function NavItem({
   href,
   label,
   icon,
   isActive,
+  isCollapsed,
   onNavigate,
 }: {
   href: string;
   label: string;
   icon: React.ReactNode;
   isActive: boolean;
+  isCollapsed: boolean;
   onNavigate?: () => void;
 }) {
   const router = useRouter();
@@ -316,13 +404,17 @@ function NavItem({
       prefetch
       onMouseEnter={() => router.prefetch(href)}
       onClick={handleClick}
-      title={label}
+      title={isCollapsed ? label : undefined}
       aria-label={label}
       aria-current={isActive ? "page" : undefined}
       className={`
-        relative flex items-center justify-center
-        w-12 h-12 rounded-xl shrink-0 cursor-pointer
+        relative flex items-center shrink-0 cursor-pointer
         transition-all duration-200 group/nav
+        ${
+          isCollapsed
+            ? "justify-center w-12 h-12 rounded-xl"
+            : "justify-start w-full px-3.5 py-3 rounded-xl gap-3"
+        }
         ${
           isActive
             ? "bg-brand-600 text-white shadow-glow"
@@ -330,228 +422,129 @@ function NavItem({
         }
       `}
     >
-      {icon}
+      <div className="shrink-0 flex items-center justify-center">{icon}</div>
+      {!isCollapsed && (
+        <span className="text-sm font-semibold transition-all duration-200 whitespace-nowrap overflow-hidden text-ellipsis">
+          {label}
+        </span>
+      )}
       {/* Desktop tooltip */}
-      <span
-        className="
-        hidden md:block absolute left-full ml-3 px-2.5 py-1 rounded-lg text-xs font-medium
-        bg-surface-800 text-white whitespace-nowrap z-50
-        opacity-0 pointer-events-none group-hover/nav:opacity-100
-        transition-opacity duration-200 shadow-lg
-      "
-      >
-        {label}
-      </span>
-    </Link>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Mobile group button + radial fan-out children
-───────────────────────────────────────────── */
-function MobileMenuItem({
-  item,
-  isActive,
-  onClick,
-}: {
-  item: NavEntry;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    onClick();
-    if (typeof window !== "undefined" && !navigator.onLine) {
-      event.preventDefault();
-      window.location.assign(item.href);
-    }
-  };
-
-  return (
-    <Link
-      href={item.href}
-      onClick={handleClick}
-      aria-current={isActive ? "page" : undefined}
-      className={`
-        flex items-center gap-3 px-4 py-3 rounded-xl transition-colors
-        ${isActive ? "bg-brand-600 text-white shadow-glow" : "text-surface-300 hover:text-white hover:bg-surface-800"}
-      `}
-    >
-      <div className="shrink-0">{item.icon}</div>
-      <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
-    </Link>
-  );
-}
-
-function MobileGroup({
-  group,
-  pathname,
-  isOpen,
-  onToggle,
-  alignment,
-}: {
-  group: (typeof navGroups)[number];
-  pathname: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  alignment: "left" | "center" | "right";
-}) {
-  const hasActive = group.items.some((i) => pathname === i.href);
-
-  // Determine popup alignment styles
-  const alignmentStyles = 
-    alignment === "left" ? { left: "-10px" } :
-    alignment === "right" ? { right: "-10px" } :
-    { left: "50%", transform: "translateX(-50%)" };
-
-  return (
-    <div className="relative flex flex-col items-center">
-      {/* Child items — slide upward above the group button */}
-      <div
-        className={`
-          absolute bottom-full mb-3 flex flex-col items-stretch gap-1.5
-          transition-all duration-200 ease-out bg-surface-900 rounded-2xl p-2 shadow-2xl border border-surface-800
-          ${
-            isOpen
-              ? "opacity-100 translate-y-0 pointer-events-auto"
-              : "opacity-0 translate-y-3 pointer-events-none"
-          }
-        `}
-        style={{ 
-          transitionProperty: "opacity, transform",
-          minWidth: "160px",
-          ...alignmentStyles
-        }}
-      >
-        {group.items.map((item, idx) => {
-          const isActive = pathname === item.href;
-          return (
-            <div
-              key={item.href}
-              className="transition-all duration-200"
-              style={{
-                transitionDelay: isOpen
-                  ? `${idx * 40}ms`
-                  : `${(group.items.length - 1 - idx) * 30}ms`,
-                transitionProperty: "opacity, transform",
-                opacity: isOpen ? 1 : 0,
-                transform: isOpen
-                  ? "translateY(0)"
-                  : `translateY(${(group.items.length - idx) * 8}px)`,
-              }}
-            >
-              <MobileMenuItem item={item} isActive={isActive} onClick={onToggle} />
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Group trigger button */}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={group.label}
-        aria-expanded={isOpen}
-        className={`
-          relative flex flex-col items-center justify-center gap-1
-          w-16 h-14 rounded-xl shrink-0 cursor-pointer
-          transition-all duration-200
-          ${
-            hasActive && !isOpen
-              ? "text-brand-400"
-              : isOpen
-                ? "text-white"
-                : "text-surface-400 hover:text-white"
-          }
-        `}
-      >
-        {/* Backgrounds */}
-        {isOpen && (
-          <div className="absolute inset-0 bg-surface-700 rounded-xl" />
-        )}
-        {hasActive && !isOpen && (
-          <div className="absolute inset-0 bg-brand-600/20 ring-1 ring-brand-500/40 rounded-xl" />
-        )}
-
-        <div
-          className={`relative z-10 transition-transform duration-200 ${isOpen ? "rotate-45 scale-90 mb-1" : "rotate-0"}`}
+      {isCollapsed && (
+        <span
+          className="
+            hidden md:block absolute left-full ml-3 px-2.5 py-1 rounded-lg text-xs font-medium
+            bg-surface-800 text-white whitespace-nowrap z-50
+            opacity-0 pointer-events-none group-hover/nav:opacity-100
+            transition-opacity duration-200 shadow-lg
+          "
         >
-          {group.icon}
-        </div>
-        
-        {!isOpen && (
-          <span className="relative z-10 text-[10px] font-medium leading-none tracking-wide text-center">
-            {group.label}
-          </span>
-        )}
-
-        {/* Active dot */}
-        {hasActive && !isOpen && (
-          <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-brand-400 z-10" />
-        )}
-      </button>
-    </div>
+          {label}
+        </span>
+      )}
+    </Link>
   );
 }
 
 /* ─────────────────────────────────────────────
    Main Sidebar
-───────────────────────────────────────────── */
+   ───────────────────────────────────────────── */
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { canAccess } = useRole();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
+  // Sync state with localstorage safely to avoid SSR hydration issues
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebar_collapsed");
+    if (stored !== null) {
+      setIsCollapsed(stored === "true");
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar_collapsed", String(next));
+      return next;
+    });
+  };
 
   const toggle = (id: string) =>
     setOpenGroup((prev) => (prev === id ? null : id));
 
-  // Close open group when tapping backdrop area
   const closeAll = () => setOpenGroup(null);
 
-  const filteredNavGroups = navGroups.map(group => {
-    return {
-      ...group,
-      items: group.items.filter(item => canAccess(item.href))
-    };
-  }).filter(group => group.items.length > 0);
+  const filteredNavGroups = navGroups
+    .map((group) => {
+      return {
+        ...group,
+        items: group.items.filter((item) => canAccess(item.href)),
+      };
+    })
+    .filter((group) => group.items.length > 0);
+
+  const activeGroupObj = filteredNavGroups.find((g) => g.id === openGroup);
 
   return (
     <>
-      {/* Mobile backdrop (only when a group is open) */}
-      {openGroup && (
-        <div
-          className="fixed inset-0 z-[98] bg-black/40 md:hidden"
-          onClick={closeAll}
-          aria-hidden="true"
-        />
-      )}
+      {/* Mobile backdrop overlay (dark blur when a group sheet is open) */}
+      <div
+        className={`
+          fixed inset-0 z-[149] bg-black/65 backdrop-blur-xs transition-opacity duration-300 md:hidden
+          ${openGroup ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}
+        `}
+        onClick={closeAll}
+        aria-hidden="true"
+      />
 
+      {/* ── DESKTOP SIDEBAR ── */}
       <aside
-        className="
-        fixed bottom-0 left-0 w-full h-16
-        md:top-0 md:h-screen md:w-[72px]
-        bg-surface-900
-        flex flex-row md:flex-col
-        items-center
-        justify-between md:justify-start
-        md:py-4 px-3 md:px-0
-        z-[100]
-        border-t border-surface-800 md:border-t-0 md:border-r
-      "
+        className={`
+          hidden md:flex flex-col bg-surface-900 border-r border-surface-800 py-5 px-3 shrink-0 h-screen sticky top-0 transition-all duration-300 ease-in-out z-50
+          ${isCollapsed ? "w-[76px] items-center" : "w-[240px] items-stretch"}
+        `}
       >
-        {/* Logo — desktop only */}
-        <div className="hidden md:flex w-10 h-10 items-center justify-center mb-6 shrink-0">
-          <img src="/images/icon.png" alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
+        {/* Logo area */}
+        <div
+          className={`flex items-center mb-6 shrink-0 transition-all duration-200
+            ${isCollapsed ? "justify-center w-10 h-10" : "px-2.5 gap-3 w-full"}
+          `}
+        >
+          <img
+            src="/images/icon.png"
+            alt="Logo"
+            className="w-8 h-8 object-contain drop-shadow-md shrink-0"
+          />
+          {!isCollapsed && (
+            <div className="flex flex-col leading-none overflow-hidden">
+              <span className="text-sm font-extrabold tracking-wider text-white">
+                Toko Teladan
+              </span>
+              <span className="text-[10px] text-surface-400 font-semibold mt-0.5 whitespace-nowrap">
+                Smart Cashier
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* ── DESKTOP: flat grouped list ── */}
+        {/* Flat grouped navigation list */}
         <nav
-          className="hidden md:flex flex-col gap-4 items-center w-full"
+          className="flex flex-col gap-4 items-center w-full"
           aria-label="Main navigation"
         >
           {filteredNavGroups.map((group, gi) => (
             <React.Fragment key={group.id}>
-              <div className="flex flex-col gap-1.5 items-center">
+              <div className="flex flex-col gap-1.5 items-center w-full">
+                {!isCollapsed ? (
+                  <div className="w-full px-2.5 pt-2 pb-1 text-[10px] font-bold text-surface-500 uppercase tracking-widest text-left select-none">
+                    {group.label}
+                  </div>
+                ) : gi > 0 ? (
+                  <div className="w-8 h-px bg-surface-800 my-1 rounded-full" />
+                ) : null}
+
                 {group.items.map((item) => (
                   <NavItem
                     key={item.href}
@@ -559,38 +552,47 @@ export function Sidebar() {
                     label={item.label}
                     icon={item.icon}
                     isActive={pathname === item.href}
+                    isCollapsed={isCollapsed}
                   />
                 ))}
               </div>
-              {gi < filteredNavGroups.length - 1 && (
-                <div className="w-8 h-px bg-surface-800 rounded-full" />
-              )}
             </React.Fragment>
           ))}
         </nav>
 
-        {/* ── MOBILE: group icon row ── */}
-        <nav
-          className="flex md:hidden flex-row gap-1 items-center w-full justify-between"
-          aria-label="Main navigation"
-        >
-          {filteredNavGroups.map((group, index) => {
-            const alignment = index === 0 ? "left" : index === filteredNavGroups.length - 1 ? "right" : "center";
-            return (
-              <MobileGroup
-                key={group.id}
-                group={group}
-                pathname={pathname}
-                isOpen={openGroup === group.id}
-                onToggle={() => toggle(group.id)}
-                alignment={alignment}
-              />
-            );
-          })}
-        </nav>
+        {/* Collapsing arrow trigger */}
+        <div className="mt-auto w-full pt-4 border-t border-surface-850 flex flex-col gap-3">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className={`
+              w-full flex items-center transition-all duration-200 text-surface-400 hover:text-white hover:bg-surface-800 rounded-xl py-3 cursor-pointer
+              ${isCollapsed ? "justify-center px-0 h-10" : "px-3.5 gap-3"}
+            `}
+            title={isCollapsed ? "Tampilkan Label" : "Sembunyikan Label"}
+          >
+            <div
+              className={`transition-transform duration-300 ${isCollapsed ? "" : "rotate-180"}`}
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </div>
+            {!isCollapsed && (
+              <span className="text-sm font-semibold">Sembunyikan</span>
+            )}
+          </button>
 
-        {/* Bottom logout — desktop only */}
-        <div className="hidden md:flex mt-auto">
+          {/* Desktop logout */}
           <button
             type="button"
             id="sidebar-logout"
@@ -602,27 +604,173 @@ export function Sidebar() {
               router.push("/login");
               router.refresh();
             }}
-            className="w-10 h-10 rounded-full bg-surface-700 hover:bg-red-900/60 flex items-center
-              justify-center text-surface-300 hover:text-red-400 text-sm font-semibold
-              transition-colors cursor-pointer group/logout relative"
+            className={`
+              flex items-center transition-all duration-200 text-surface-400 hover:text-red-400 hover:bg-red-950/20 rounded-xl py-3 cursor-pointer
+              ${isCollapsed ? "justify-center w-10 h-10 bg-surface-800" : "px-3.5 gap-3 w-full"}
+            `}
           >
-            {/* Logout icon */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            {/* Tooltip */}
-            <span className="absolute left-full ml-3 px-2.5 py-1 rounded-lg text-xs font-medium
-              bg-surface-800 text-white whitespace-nowrap z-50
-              opacity-0 pointer-events-none group-hover/logout:opacity-100
-              transition-opacity duration-200 shadow-lg">
-              Keluar
-            </span>
+            {!isCollapsed && (
+              <span className="text-sm font-semibold">Keluar</span>
+            )}
           </button>
         </div>
       </aside>
+
+      {/* ── MOBILE BAR ── */}
+      <nav
+        className="flex md:hidden fixed bottom-0 left-0 w-full h-16 bg-surface-950/95 backdrop-blur-md border-t border-surface-850 items-center justify-around px-2 z-[100]"
+        aria-label="Mobile navigation"
+      >
+        {filteredNavGroups.map((group) => {
+          const hasActive = group.items.some((i) => pathname === i.href);
+          const isOpen = openGroup === group.id;
+          return (
+            <button
+              key={group.id}
+              onClick={() => toggle(group.id)}
+              className={`
+                flex flex-col items-center justify-center gap-1 w-16 h-14 rounded-xl relative cursor-pointer transition-all duration-200
+                ${
+                  hasActive && !isOpen
+                    ? "text-brand-400 font-semibold"
+                    : isOpen
+                      ? "text-white bg-surface-800/80 scale-95"
+                      : "text-surface-400 hover:text-white"
+                }
+              `}
+            >
+              {hasActive && !isOpen && (
+                <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-brand-400 z-10" />
+              )}
+              <div className="shrink-0">{group.icon}</div>
+              <span className="text-[9px] uppercase tracking-wider font-semibold leading-none">
+                {group.label}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* ── MOBILE BOTTOM SHEET DRAWER ── */}
+      <div
+        className={`
+          fixed bottom-0 left-0 w-full bg-surface-900 border-t border-surface-800 rounded-t-[2rem] z-[150] shadow-2xl transition-all duration-300 ease-out flex flex-col md:hidden
+          ${openGroup ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"}
+        `}
+        style={{ maxHeight: "80vh" }}
+      >
+        {/* Grabber Handle */}
+        <div
+          className="w-12 h-1.5 bg-surface-700 hover:bg-surface-650 rounded-full mx-auto my-3 cursor-pointer shrink-0"
+          onClick={closeAll}
+        />
+
+        {/* Active Group Header */}
+        {activeGroupObj && (
+          <div className="px-6 py-2 shrink-0 border-b border-surface-800 pb-3">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <span className="text-brand-400 shrink-0">
+                {activeGroupObj.icon}
+              </span>
+              {activeGroupObj.label}
+            </h3>
+            <p className="text-[11px] text-surface-400 mt-1 select-none">
+              {activeGroupObj.id === "operations" &&
+                "Kelola operasional kasir, dashboard, dan riwayat harian."}
+              {activeGroupObj.id === "catalog" &&
+                "Kelola inventaris produk dan papan status antrean produksi."}
+              {activeGroupObj.id === "finance" &&
+                "Pantau revenue, profit, metode pembayaran, piutang, dan shift kas."}
+              {activeGroupObj.id === "crm" &&
+                "Data relasi pelanggan tetap dan pencatatan agen pemasaran."}
+              {activeGroupObj.id === "utils" &&
+                "Fitur live chat whatsapp, status shift kasir, dan konfigurasi umum."}
+            </p>
+          </div>
+        )}
+
+        {/* Active Group Content (Grid List) */}
+        <div className="overflow-y-auto p-5 shrink-0 max-h-[50vh]">
+          <div className="grid grid-cols-2 gap-3">
+            {activeGroupObj?.items.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={closeAll}
+                  className={`
+                    flex flex-col items-center justify-center gap-3 p-4
+                    border rounded-2xl cursor-pointer transition-all duration-200 active:scale-95
+                    ${
+                      isActive
+                        ? "bg-brand-600/10 border-brand-500 text-brand-400 font-bold"
+                        : "bg-surface-800 border-surface-700/60 text-surface-300 hover:text-white"
+                    }
+                  `}
+                >
+                  <div
+                    className={`p-3 rounded-xl transition-colors ${isActive ? "bg-brand-600 text-white" : "bg-surface-700 text-surface-300"}`}
+                  >
+                    {item.icon}
+                  </div>
+                  <span className="text-xs font-bold leading-none">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Mobile Logout Button (Visible only inside Lainnya/utils group) */}
+        {openGroup === "utils" && (
+          <div className="px-5 pb-8 pt-2 shrink-0 border-t border-surface-850">
+            <button
+              type="button"
+              onClick={async () => {
+                closeAll();
+                const supabase = createClient();
+                await supabase.auth.signOut();
+                router.push("/login");
+                router.refresh();
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-950/20 hover:bg-red-900/30 active:bg-red-900/50 border border-red-900/40 text-red-400 text-sm font-bold rounded-2xl transition-all cursor-pointer"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              Keluar Akun
+            </button>
+          </div>
+        )}
+      </div>
     </>
   );
 }

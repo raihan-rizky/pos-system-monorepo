@@ -38,7 +38,9 @@ describe("buildInventoryLogRows", () => {
       {
         productId: "p1",
         type: "OUT",
+        reason: "SALE",
         quantity: 2,
+        unitCost: null,
         note: "Penjualan INV-20260519-0001",
         createdBy: "user-1",
         person: "Alice",
@@ -46,7 +48,9 @@ describe("buildInventoryLogRows", () => {
       {
         productId: "p2",
         type: "OUT",
+        reason: "SALE",
         quantity: 1,
+        unitCost: 1500,
         note: "Penjualan INV-20260519-0001",
         createdBy: "user-1",
         person: "Alice",

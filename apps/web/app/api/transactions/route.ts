@@ -14,6 +14,7 @@ import {
   buildCustomerUpdateArgs,
   buildInventoryLogRows,
 } from "@/features/pos-checkout/post-commit";
+import { fetchTransactionsAndCount } from "@/features/transaction-history/helpers/fetch-transactions";
 
 const log = getLogger("api:transactions");
 const transactionItemSchema = z.object({
@@ -118,33 +119,36 @@ export async function GET(request: Request) {
       where.AND = andConditions;
     }
 
-    // Get total count for pagination
-    const total = await db.transaction.count({ where });
-
-    const transactions = await db.transaction.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-      include: {
-        items: {
-          select: {
-            id: true,
-            productName: true,
-            size: true,
-            material: true,
-            quantity: true,
-            unitPrice: true,
-            subtotal: true,
+    // Run count + findMany in parallel — they're fully independent and the
+    // serial version paid full latency twice on every history poll.
+    const { items: transactions, total } = await fetchTransactionsAndCount({
+      count: () => db.transaction.count({ where }),
+      findMany: () =>
+        db.transaction.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+          include: {
+            items: {
+              select: {
+                id: true,
+                productName: true,
+                size: true,
+                material: true,
+                quantity: true,
+                unitPrice: true,
+                subtotal: true,
+              },
+            },
+            cashier: {
+              select: { name: true },
+            },
+            salesperson: {
+              select: { name: true },
+            },
           },
-        },
-        cashier: {
-          select: { name: true },
-        },
-        salesperson: {
-          select: { name: true },
-        },
-      },
+        }),
     });
 
     return apiList(transactions, buildPaginationMeta(total, page, limit));

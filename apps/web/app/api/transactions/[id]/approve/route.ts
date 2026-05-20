@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
+import { buildStockDecrementParams } from "@/features/pos-checkout/stock-decrement";
+import { buildCustomerUpdateArgs } from "@/features/pos-checkout/post-commit";
 
 const log = getLogger("api:transactions:id:approve");
 const approveTransactionSchema = z.object({
@@ -37,7 +39,7 @@ export async function POST(
     // Fetch the pending transaction
     const transaction = await db.transaction.findFirst({
       where: { id, storeId },
-      include: { items: true }
+      include: { items: true, salesperson: { select: { name: true } } }
     });
 
     if (!transaction) {
@@ -58,7 +60,9 @@ export async function POST(
     const finalAmountPaid = amountPaid > total ? total : amountPaid;
     const newStatus = isDP ? "DP" : "COMPLETED";
 
-    // Use a transaction block to update both transaction and customer stats
+    // Keep the interactive transaction focused on the state transition and
+    // stock mutation. Audit/customer side effects run after the response,
+    // matching the normal checkout path.
     const updatedTransaction = await db.$transaction(async (tx) => {
       // 1. Update the transaction
       const updateResult = await tx.transaction.updateMany({
@@ -76,52 +80,83 @@ export async function POST(
         throw new Error("TRANSACTION_NOT_PENDING");
       }
 
-      // 2. Deduct stock for each item since it wasn't done during the request phase
-      for (const item of transaction.items) {
-        const stockUpdate = await tx.product.updateMany({
-          where: {
-            id: item.productId,
-            storeId,
-            stock: { gte: item.quantity },
-          },
-          data: { stock: { decrement: item.quantity } },
-        });
+      // 2. Deduct stock in one round-trip since it wasn't done during the
+      // SALES request phase.
+      const { values, expectedRowCount } = buildStockDecrementParams(
+        transaction.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+        storeId,
+      );
 
-        if (stockUpdate.count !== 1) {
+      if (expectedRowCount > 0) {
+        const productIds = values.map(([productId]) => productId);
+        const quantities = values.map(([, quantity]) => quantity);
+        const updated = await tx.$queryRaw<Array<{ id: string }>>`
+          UPDATE pos_products AS p
+          SET stock = p.stock - v.qty
+          FROM unnest(${productIds}::text[], ${quantities}::float8[])
+            AS v(id, qty)
+          WHERE p.id = v.id
+            AND p."storeId" = ${storeId}
+            AND p.stock >= v.qty
+          RETURNING p.id
+        `;
+
+        if (updated.length !== expectedRowCount) {
           throw new Error("INSUFFICIENT_STOCK");
         }
-
-        // Log inventory change
-        await tx.inventoryLog.create({
-          data: {
-            productId: item.productId,
-            type: "OUT",
-            quantity: item.quantity,
-            note: `Approve Penjualan ${transaction.invoiceNumber}`,
-            createdBy: user.id,
-            person: user.name,
-          },
-        });
       }
 
-      // 3. Update customer metrics if needed
-      if (transaction.customerId) {
-        const debtIncrement = isDP ? total - finalAmountPaid : 0;
-        await tx.customer.update({
-          where: { id: transaction.customerId },
-          data: {
-            totalSpent: { increment: finalAmountPaid },
-            totalOrders: { increment: 1 },
-            totalDebt: debtIncrement > 0 ? { increment: debtIncrement } : undefined,
-            lastVisitAt: new Date(),
-          },
-        });
-      }
+      return {
+        ...transaction,
+        status: newStatus,
+        cashierId: user.id,
+        paymentMethod,
+        amountPaid: finalAmountPaid,
+        change,
+      };
+    },
+    {
+      maxWait: 5000,
+      timeout: 15000,
+    });
 
-      return tx.transaction.findUniqueOrThrow({
-        where: { id },
-        include: { items: true, salesperson: { select: { name: true } } },
-      });
+    const inventoryRows = transaction.items.map((item) => ({
+      productId: item.productId,
+      type: "OUT" as const,
+      reason: "SALE" as const,
+      quantity: item.quantity,
+      unitCost:
+        item.unitCost === null || item.unitCost === undefined
+          ? null
+          : Number(item.unitCost.toString()),
+      note: `Approve Penjualan ${transaction.invoiceNumber}`,
+      createdBy: user.id,
+      person: user.name ?? null,
+    }));
+    const customerArgs = buildCustomerUpdateArgs({
+      customerId: transaction.customerId || null,
+      isDP,
+      total,
+      amountPaid: finalAmountPaid,
+    });
+
+    after(async () => {
+      try {
+        await Promise.all([
+          inventoryRows.length > 0
+            ? db.inventoryLog.createMany({ data: inventoryRows })
+            : Promise.resolve(),
+          customerArgs ? db.customer.update(customerArgs) : Promise.resolve(),
+        ]);
+      } catch (sideEffectError) {
+        log.error(
+          `Post-approval side effects failed for ${transaction.invoiceNumber}:`,
+          sideEffectError,
+        );
+      }
     });
 
     return NextResponse.json(updatedTransaction, { status: 200 });

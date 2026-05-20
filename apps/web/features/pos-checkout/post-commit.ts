@@ -21,7 +21,9 @@ export interface CheckoutItem {
 export interface InventoryLogRow {
   productId: string;
   type: "OUT";
+  reason: "SALE";
   quantity: number;
+  unitCost: number | null;
   note: string;
   createdBy: string;
   person: string | null;
@@ -40,7 +42,9 @@ export function buildInventoryLogRows(
   return input.items.map((item) => ({
     productId: item.productId,
     type: "OUT" as const,
+    reason: "SALE" as const,
     quantity: item.quantity,
+    unitCost: item.costPrice ?? null,
     note: `Penjualan ${input.invoiceNumber}`,
     createdBy: input.userId,
     person: input.userName ?? null,

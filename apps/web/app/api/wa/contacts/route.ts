@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
+import { getWahaConfig, isWaConfigured, WahaChat } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
@@ -46,13 +46,14 @@ export async function GET() {
       throw new Error(`WAHA overview API error: ${res.statusText}`);
     }
 
-    const chats: any[] = await res.json();
+    const chats: WahaChat[] = await res.json();
 
     const contacts = chats
-      .filter((chat: any) => {
+      .filter((chat) => {
         // Fix logic penentuan ID string
         let idString =
-          chat.id?._serialized || (typeof chat.id === "string" ? chat.id : "");
+          (typeof chat.id === "object" && chat.id?._serialized) ||
+          (typeof chat.id === "string" ? chat.id : "");
         if (!idString) return false;
 
         if (idString.endsWith("@s.whatsapp.net")) {
@@ -63,9 +64,10 @@ export async function GET() {
           idString !== "0@c.us"
         );
       })
-      .map((chat: any) => {
+      .map((chat) => {
         let idString =
-          chat.id?._serialized || (typeof chat.id === "string" ? chat.id : "");
+          (typeof chat.id === "object" && chat.id?._serialized) ||
+          (typeof chat.id === "string" ? chat.id : "");
         if (idString.endsWith("@s.whatsapp.net")) {
           idString = idString.replace("@s.whatsapp.net", "@c.us");
         }

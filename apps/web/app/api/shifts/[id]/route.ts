@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
@@ -50,7 +50,7 @@ export async function PATCH(
       );
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.CashierShiftUpdateInput = {};
     if (openingBalance !== undefined) updateData.openingBalance = openingBalance;
     if (closingBalance !== undefined) updateData.closingBalance = closingBalance;
     if (note !== undefined) updateData.note = note;

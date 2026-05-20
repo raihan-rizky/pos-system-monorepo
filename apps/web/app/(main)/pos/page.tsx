@@ -36,6 +36,7 @@ import {
 } from "@/hooks/useProducts";
 import { useCart } from "@/hooks/useCart";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
+import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift } from "@/hooks/useShift";
 import { useRole } from "@/components/providers/RoleProvider";
@@ -150,6 +151,8 @@ export default function POSPage() {
   const { data: categories = [] } = useCategories();
   const cart = useCart();
   const createTransaction = useCreateTransaction();
+  const createDraft = useCreateDraft();
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   // Prefetch PaymentModal chunk as soon as the cart has items,
   // so the first "Checkout" click doesn't wait for network
@@ -259,6 +262,53 @@ export default function POSPage() {
               : "Transaksi gagal diproses. Periksa data pembayaran lalu coba lagi.",
         });
       }
+    }
+  };
+
+  const handleSaveDraft = async (data: {
+    discount: number;
+    note: string;
+    customerName: string;
+    customerId: string | null;
+    salesName: string;
+    salespersonId: string;
+    isJobOrder: boolean;
+    estimatedDoneAt: string | null;
+  }) => {
+    setDraftError(null);
+    try {
+      const draft = await createDraft.mutateAsync({
+        items: cart.items.map((item) => ({
+          productId: item.productId,
+          name: item.name,
+          size: item.size ?? null,
+          material: item.material ?? null,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        discount: data.discount,
+        note: data.note,
+        customerName: data.customerName,
+        customerId: data.customerId,
+        salesName: data.salesName,
+        salespersonId: data.salespersonId,
+        isJobOrder: data.isJobOrder,
+        estimatedDoneAt: data.estimatedDoneAt,
+      });
+      cart.clearCart();
+      setShowPayment(false);
+      setLastTransaction(draft);
+      setCheckoutNotice({
+        tone: "success",
+        message: `Faktur sementara ${draft.draftNumber ?? ""} berhasil disimpan. Setujui di Riwayat Transaksi untuk memproses stok.`,
+      });
+    } catch (error) {
+      log.error("Draft creation failed:", error);
+      setDraftError(
+        error instanceof Error
+          ? error.message
+          : "Gagal menyimpan faktur sementara",
+      );
     }
   };
 
@@ -540,11 +590,17 @@ export default function POSPage() {
       {showPayment && (
         <PaymentModal
           open={showPayment}
-          onClose={() => setShowPayment(false)}
+          onClose={() => {
+            setShowPayment(false);
+            setDraftError(null);
+          }}
           items={cart.items}
           subtotal={cart.subtotal}
           onConfirm={handleCheckout}
+          onSaveDraft={handleSaveDraft}
           isProcessing={createTransaction.isPending}
+          isSavingDraft={createDraft.isPending}
+          draftError={draftError}
         />
       )}
 

@@ -305,11 +305,25 @@ async function createSyncedTransaction({
         throw new Error("INSUFFICIENT_STOCK");
       }
 
+      const productIds = decision.items.map((item) => item.productId);
+      const productCosts = await tx.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, costPrice: true },
+      });
+      const costById = new Map(
+        productCosts.map((p) => [
+          p.id,
+          p.costPrice === null ? null : Number(p.costPrice.toString()),
+        ]),
+      );
+
       await tx.inventoryLog.createMany({
         data: decision.items.map((item) => ({
           productId: item.productId,
           type: "OUT",
+          reason: "SALE",
           quantity: item.quantity,
+          unitCost: costById.get(item.productId) ?? null,
           note: `Offline sync ${invoiceNumber}`,
           createdBy: user.id,
           person: user.name,

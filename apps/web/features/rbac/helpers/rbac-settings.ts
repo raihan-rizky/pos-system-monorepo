@@ -9,6 +9,13 @@ import {
 import type { EditablePermissionEntry, PermissionEntry } from "./rbac-core";
 import type { PermissionAction } from "./rbac-core";
 
+// Resources that may never be toggled via the settings UI — defense-in-depth
+// against a compromised non-OWNER attempting to grant themselves elevated
+// privileges. Defaults are still applied via buildDefaultRolePermissions.
+const LOCKED_RESOURCE_TARGETS: ReadonlySet<string> = new Set([
+  "inventory.approve",
+]);
+
 type RawPermissionPayload = {
   role?: unknown;
   scope?: unknown;
@@ -99,6 +106,10 @@ function parsePermissionEntry(raw: RawPermissionPayload): EditablePermissionEntr
 
   if (entry.scope === RESOURCE_SCOPE && !isResourceAction(entry.action)) {
     throw new Error("Invalid permission action");
+  }
+
+  if (entry.scope === RESOURCE_SCOPE && LOCKED_RESOURCE_TARGETS.has(entry.target)) {
+    throw new Error(`Resource "${entry.target}" is OWNER-locked`);
   }
 
   return entry as EditablePermissionEntry;

@@ -9,6 +9,23 @@ export function formatRupiah(amount: number | string): string {
   }).format(num);
 }
 
+// Compact Rupiah for chart axes / dense labels: "5jt", "500rb", "1,2M"
+export function formatRupiahCompact(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000_000_000) {
+    return `${sign}${(abs / 1_000_000_000).toFixed(1).replace(".", ",")}M`;
+  }
+  if (abs >= 1_000_000) {
+    return `${sign}${(abs / 1_000_000).toFixed(1).replace(".", ",")}jt`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${Math.round(abs / 1_000)}rb`;
+  }
+  return `${sign}${Math.round(abs)}`;
+}
+
 // Generate invoice number: INV-YYYYMMDD-XXXX
 export function generateInvoiceNumber(): string {
   const now = new Date();

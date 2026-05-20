@@ -70,6 +70,56 @@ export async function mockApis(page: Page) {
     if (path === "/api/transactions" && method === "POST") {
       return json(route, { ...transaction, id: "tx-new", invoiceNumber: "INV-20260509-0002" }, 201);
     }
+    if (path === "/api/transactions/draft" && method === "POST") {
+      return json(
+        route,
+        {
+          id: "draft-new",
+          invoiceNumber: null,
+          draftNumber: "DRAFT-20260520-0001",
+          status: "DRAFT",
+          subtotal: 100000,
+          discount: 0,
+          tax: 0,
+          total: 100000,
+          paymentMethod: "CASH",
+          amountPaid: 0,
+          change: 0,
+          customerName: "Pak Budi",
+          customerId: null,
+          salesName: null,
+          salespersonId: null,
+          salesperson: null,
+          note: null,
+          isJobOrder: false,
+          createdAt: new Date().toISOString(),
+          items: [
+            {
+              id: "draft-item-1",
+              productName: "Kertas A4",
+              size: null,
+              material: null,
+              quantity: 2,
+              unitPrice: 50000,
+              subtotal: 100000,
+            },
+          ],
+        },
+        201,
+      );
+    }
+    if (path.match(/^\/api\/transactions\/[^/]+\/approve-draft$/)) {
+      return json(route, {
+        ...transaction,
+        id: path.split("/")[3],
+        invoiceNumber: "INV-20260520-0099",
+        draftNumber: "DRAFT-20260520-0001",
+        status: "COMPLETED",
+      });
+    }
+    if (path.match(/^\/api\/transactions\/[^/]+\/cancel-draft$/)) {
+      return json(route, { id: path.split("/")[3], status: "VOIDED" });
+    }
     if (path.match(/^\/api\/transactions\/[^/]+$/)) return json(route, transaction);
     if (path.match(/^\/api\/transactions\/[^/]+\/(approve|reject)$/)) return json(route, transaction);
 
@@ -119,6 +169,181 @@ export async function mockApis(page: Page) {
 
     if (path === "/api/upload") return json(route, { url: "/images/icon.png" });
     if (path === "/api/push/subscriptions") return emptyOk(route);
+
+    if (path === "/api/finance/income/summary") {
+      return json(route, {
+        month: "2026-05",
+        monthlyTotal: 45_000_000,
+        transactionCount: 312,
+        daily: [
+          { date: "2026-05-19", total: 1_250_000, count: 8 },
+          { date: "2026-05-20", total: 2_100_000, count: 14 },
+        ],
+      });
+    }
+    if (path === "/api/finance/expenses/summary" && method === "GET") {
+      return json(route, {
+        month: "2026-05",
+        monthlyTotal: 850_000,
+        entryCount: 2,
+        byCategory: [
+          { category: "SUPPLIES", total: 500_000 },
+          { category: "BEVERAGES", total: 350_000 },
+        ],
+        daily: [
+          {
+            date: "2026-05-20",
+            total: 850_000,
+            byCategory: { SUPPLIES: 500_000, BEVERAGES: 350_000 },
+          },
+        ],
+        netCashFlow: { income: 45_000_000, expense: 850_000, net: 44_150_000 },
+      });
+    }
+    if (path === "/api/finance/expenses" && method === "POST") {
+      return json(
+        route,
+        {
+          data: {
+            id: "exp-new",
+            applicantName: "Pak Budi",
+            category: "SUPPLIES",
+            description: null,
+            amount: 100_000,
+            changeAmount: 0,
+            netAmount: 100_000,
+            occurredAt: "2026-05-20T00:00:00.000Z",
+            createdAt: new Date().toISOString(),
+            transactionId: null,
+            attachmentUrl: null,
+          },
+        },
+        201,
+      );
+    }
+    if (path === "/api/finance/expenses" && method === "GET") {
+      return json(route, {
+        data: [
+          {
+            id: "exp-1",
+            applicantName: "Pak Budi",
+            category: "SUPPLIES",
+            description: "Kertas A4",
+            amount: 500_000,
+            changeAmount: 0,
+            netAmount: 500_000,
+            occurredAt: "2026-05-20T01:00:00.000Z",
+            createdAt: "2026-05-20T01:00:00.000Z",
+            transactionId: null,
+            attachmentUrl: null,
+            recordedBy: { id: "e2e-user", name: "E2E Owner" },
+          },
+          {
+            id: "exp-2",
+            applicantName: "Sari",
+            category: "BEVERAGES",
+            description: null,
+            amount: 350_000,
+            changeAmount: 0,
+            netAmount: 350_000,
+            occurredAt: "2026-05-20T02:00:00.000Z",
+            createdAt: "2026-05-20T02:00:00.000Z",
+            transactionId: null,
+            attachmentUrl: null,
+            recordedBy: { id: "e2e-user", name: "E2E Owner" },
+          },
+        ],
+        pagination: {
+          total: 2,
+          page: 1,
+          limit: 50,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      });
+    }
+    if (path.match(/^\/api\/finance\/expenses\/[^/]+$/) && method === "DELETE") {
+      return json(route, {
+        data: { id: path.split("/").pop(), deletedAt: new Date().toISOString() },
+      });
+    }
+
+    if (path === "/api/finance/report" && method === "GET") {
+      return json(route, {
+        dateFrom: url.searchParams.get("dateFrom") || "2026-05-01",
+        dateTo: url.searchParams.get("dateTo") || "2026-05-20",
+        summary: {
+          transactionCount: 12,
+          revenue: 4_500_000,
+          collected: 4_200_000,
+          grossProfit: 1_500_000,
+          grossMargin: 0.333,
+          discount: 0,
+          outstandingDp: 300_000,
+          shiftDiscrepancy: 0,
+          missingCostLineCount: 0,
+          lossStokNet: 250_000,
+          lossStokUnclassifiedCount: 1,
+        },
+        paymentMethods: [
+          { method: "CASH", transactionCount: 8, revenue: 3_000_000, collected: 3_000_000 },
+          { method: "TRANSFER", transactionCount: 4, revenue: 1_500_000, collected: 1_200_000 },
+        ],
+        topProducts: [
+          { productId: "prod-1", productName: "Kertas A4", quantity: 20, revenue: 1_000_000, grossProfit: 400_000 },
+        ],
+        categories: [
+          { categoryName: "Alat Tulis", quantity: 30, revenue: 2_500_000, grossProfit: 800_000, transactionCount: 8 },
+        ],
+        salespersons: [
+          { name: "Budi", transactionCount: 6, revenue: 2_000_000, collected: 1_900_000, grossProfit: 700_000 },
+        ],
+        shifts: [],
+        lossStok: [
+          { reason: "WASTE", netValue: 200_000, netQuantity: 4, entryCount: 2 },
+          { reason: "OPNAME", netValue: 50_000, netQuantity: 1, entryCount: 1 },
+          { reason: "UNCLASSIFIED", netValue: 0, netQuantity: 1, entryCount: 1 },
+        ],
+      });
+    }
+
+    if (path === "/api/finance/report/journal" && method === "GET") {
+      const period = url.searchParams.get("period") || "daily";
+      return json(route, {
+        period,
+        from: "2026-05-20",
+        to: "2026-05-20",
+        rows: [
+          {
+            tanggal: "2026-05-20",
+            invoice: "INV-20260520-0001",
+            person: "Budi",
+            products: "Kertas A4",
+            categories: "Alat Tulis",
+            status: "Pemasukan",
+            amount: 100_000,
+            method: "CASH",
+          },
+          {
+            tanggal: "2026-05-20",
+            invoice: "EXP-exp-1",
+            person: "Pak Budi",
+            products: "Kertas A4",
+            categories: "Perlengkapan",
+            status: "Pengeluaran",
+            amount: -50_000,
+            method: "",
+          },
+        ],
+        footer: {
+          totalPemasukan: 100_000,
+          totalPengeluaran: -50_000,
+          grandTotal: 50_000,
+          byMethod: { CASH: 100_000, TRANSFER: 0, QRIS: 0, DEBIT: 0, CREDIT: 0 },
+        },
+      });
+    }
 
     return json(route, { message: `Unhandled E2E mock: ${method} ${path}` }, 501);
   });

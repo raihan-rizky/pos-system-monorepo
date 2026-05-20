@@ -35,6 +35,7 @@ export type RolePermissions = Record<
 
 export const PAGE_TARGETS = [
   "/dashboard",
+  "/financial-report",
   "/pos",
   "/history",
   "/production",
@@ -44,27 +45,34 @@ export const PAGE_TARGETS = [
   "/shift",
   "/wa",
   "/settings",
+  "/keuangan",
 ] as const;
 
 export const RESOURCE_TARGETS = [
   "transaction",
+  "financial-report",
   "transaction.request",
   "transaction.approve",
+  "transaction.draft",
   "production",
   "customer",
   "product",
   "inventory",
+  "inventory.approve",
   "shift",
   "salesperson",
   "settings",
   "whatsapp",
   "rbac",
+  "expense",
+  "income",
 ] as const;
 
 type LegacyAction = "read" | "write" | "delete";
 
 const LEGACY_PAGE_ACCESS: Record<string, Role[]> = {
   "/dashboard": ["OWNER", "ADMIN"],
+  "/financial-report": ["OWNER", "ADMIN"],
   "/pos": ["OWNER", "ADMIN", "CASHIER", "SALES"],
   "/history": ["OWNER", "ADMIN", "CASHIER", "SALES"],
   "/production": ["OWNER", "ADMIN", "CASHIER", "SALES"],
@@ -74,6 +82,7 @@ const LEGACY_PAGE_ACCESS: Record<string, Role[]> = {
   "/shift": ["OWNER", "ADMIN", "CASHIER"],
   "/wa": ["OWNER", "ADMIN"],
   "/settings": ["OWNER", "ADMIN"],
+  "/keuangan": ["OWNER", "ADMIN", "CASHIER"],
 };
 
 const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
@@ -81,6 +90,11 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
     read: ["OWNER", "ADMIN", "CASHIER", "SALES"],
     write: ["OWNER", "ADMIN", "CASHIER"],
     delete: ["OWNER", "ADMIN"],
+  },
+  "financial-report": {
+    read: ["OWNER", "ADMIN"],
+    write: [],
+    delete: [],
   },
   "transaction.request": {
     read: ["SALES"],
@@ -112,6 +126,11 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
     write: ["OWNER", "ADMIN"],
     delete: ["OWNER", "ADMIN"],
   },
+  "inventory.approve": {
+    read: ["OWNER"],
+    write: ["OWNER"],
+    delete: [],
+  },
   shift: {
     read: ["OWNER", "ADMIN", "CASHIER", "SALES"],
     write: ["OWNER", "ADMIN", "CASHIER"],
@@ -137,6 +156,30 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
     write: ["OWNER"],
     delete: ["OWNER"],
   },
+  expense: {
+    read: ["OWNER", "ADMIN", "CASHIER"],
+    write: ["OWNER", "ADMIN", "CASHIER"],
+    delete: ["OWNER", "ADMIN"],
+  },
+  income: {
+    read: ["OWNER", "ADMIN", "CASHIER"],
+    write: [],
+    delete: [],
+  },
+};
+
+// Granular per-action overrides for resources where legacy write=create+update
+// is too coarse. Entries here win over LEGACY_ACTION_ACCESS during defaults
+// build-out. SALES can create a draft but cannot approve or cancel one.
+const RESOURCE_GRANULAR_ACCESS: Partial<
+  Record<string, Record<ResourceAction, Role[]>>
+> = {
+  "transaction.draft": {
+    read: ["OWNER", "ADMIN", "CASHIER", "SALES"],
+    create: ["OWNER", "ADMIN", "CASHIER", "SALES"],
+    update: ["OWNER", "ADMIN", "CASHIER"],
+    delete: ["OWNER", "ADMIN", "CASHIER"],
+  },
 };
 
 export function buildDefaultRolePermissions(): RolePermissions {
@@ -148,6 +191,16 @@ export function buildDefaultRolePermissions(): RolePermissions {
     }
 
     for (const resource of RESOURCE_TARGETS) {
+      const granular = RESOURCE_GRANULAR_ACCESS[resource];
+      if (granular) {
+        permissions[role].resources[resource] = {
+          create: granular.create.includes(role),
+          read: granular.read.includes(role),
+          update: granular.update.includes(role),
+          delete: granular.delete.includes(role),
+        };
+        continue;
+      }
       permissions[role].resources[resource] = {
         create: LEGACY_ACTION_ACCESS[resource]?.write.includes(role) ?? false,
         read: LEGACY_ACTION_ACCESS[resource]?.read.includes(role) ?? false,

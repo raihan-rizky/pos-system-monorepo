@@ -43,13 +43,11 @@ apps/*/test-results/
 .vercel
 
 # sql
-disable_rls.sql
-enable_rls.sql
+sql-files/
 
 #test file
 scratch.js
 test_rls.js
 
 #MD Files
-production_audit_report.MD
-CLOSING_DEAL_NOTIFICATION_PLAN.md
+markdown-files/

@@ -3,10 +3,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CartItem } from "./useCart";
 import { decrementProductStockInCache } from "@/features/pos-checkout/products-cache-update";
+import { buildHistoryQueryOptions } from "@/features/transaction-history/helpers/query-options";
+import {
+  invalidateTransactionViews,
+  scheduleTransactionViewInvalidation,
+  updateTransactionInHistoryCaches,
+} from "@/features/transaction-history/helpers/invalidate";
 
 export interface Transaction {
   id: string;
-  invoiceNumber: string;
+  invoiceNumber: string | null;
+  draftNumber: string | null;
   subtotal: number;
   discount: number;
   tax: number;
@@ -19,7 +26,7 @@ export interface Transaction {
   salespersonId: string | null;
   salesperson?: { name: string } | null;
   note: string | null;
-  status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED
+  status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED, DRAFT
   createdAt: string;
   items: {
     id: string;
@@ -116,7 +123,7 @@ export function useTransactionHistory(params: TransactionHistoryParams) {
   return useQuery({
     queryKey: ["transaction-history", params],
     queryFn: () => fetchTransactionHistory(params),
-    placeholderData: (prev) => prev,
+    ...buildHistoryQueryOptions(),
   });
 }
 
@@ -192,8 +199,7 @@ export function useUpdateTransaction() {
   return useMutation({
     mutationFn: updateTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+      invalidateTransactionViews(queryClient);
     },
   });
 }
@@ -212,8 +218,59 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: deleteTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+      invalidateTransactionViews(queryClient);
+    },
+  });
+}
+
+export interface ApproveTransactionInput {
+  id: string;
+  paymentMethod: string;
+  amountPaid: number;
+}
+
+async function approveTransaction(input: ApproveTransactionInput): Promise<Transaction> {
+  const { id, ...body } = input;
+  const res = await fetch(`/api/transactions/${id}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || "Failed to approve");
+  }
+  return res.json();
+}
+
+export function useApproveTransaction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: approveTransaction,
+    onSuccess: (transaction) => {
+      updateTransactionInHistoryCaches(queryClient, transaction);
+      scheduleTransactionViewInvalidation(queryClient);
+    },
+  });
+}
+
+async function rejectTransaction(id: string): Promise<Transaction> {
+  const res = await fetch(`/api/transactions/${id}/reject`, { method: "POST" });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || "Failed to reject");
+  }
+  return res.json();
+}
+
+export function useRejectTransaction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: rejectTransaction,
+    onSuccess: () => {
+      invalidateTransactionViews(queryClient);
     },
   });
 }

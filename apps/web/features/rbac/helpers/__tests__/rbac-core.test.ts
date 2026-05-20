@@ -30,15 +30,38 @@ describe("RBAC permission matrix", () => {
     const defaults = buildDefaultRolePermissions();
 
     expect(canRoleAccessPage("ADMIN", "/products", defaults)).toBe(true);
+    expect(canRoleAccessPage("ADMIN", "/financial-report", defaults)).toBe(true);
     expect(canRoleAccessPage("CASHIER", "/products", defaults)).toBe(false);
+    expect(canRoleAccessPage("CASHIER", "/financial-report", defaults)).toBe(false);
+    expect(canRoleAccessPage("SALES", "/financial-report", defaults)).toBe(false);
     expect(canRoleAccessPage("SALES", "/pos", defaults)).toBe(true);
 
     expect(canRolePerformAction("ADMIN", "product", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "financial-report", "read", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "financial-report", "read", defaults)).toBe(false);
     expect(canRolePerformAction("CASHIER", "product", "update", defaults)).toBe(false);
     expect(canRolePerformAction("SALES", "customer", "create", defaults)).toBe(true);
     expect(canRolePerformAction("SALES", "customer", "delete", defaults)).toBe(false);
     expect(canRolePerformAction("ADMIN", "whatsapp", "read", defaults)).toBe(true);
     expect(canRolePerformAction("CASHIER", "whatsapp", "read", defaults)).toBe(false);
+  });
+
+  it("allows all four roles to create a draft transaction", () => {
+    const defaults = buildDefaultRolePermissions();
+    expect(canRolePerformAction("OWNER", "transaction.draft", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "transaction.draft", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "transaction.draft", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("SALES", "transaction.draft", "create", defaults)).toBe(true);
+  });
+
+  it("denies SALES from approving or cancelling drafts but allows CASHIER+", () => {
+    const defaults = buildDefaultRolePermissions();
+    expect(canRolePerformAction("SALES", "transaction.draft", "update", defaults)).toBe(false);
+    expect(canRolePerformAction("SALES", "transaction.draft", "delete", defaults)).toBe(false);
+    expect(canRolePerformAction("CASHIER", "transaction.draft", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "transaction.draft", "delete", defaults)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "transaction.draft", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("OWNER", "transaction.draft", "update", defaults)).toBe(true);
   });
 
   it("normalizes partial persisted permissions over defaults", () => {
@@ -55,5 +78,13 @@ describe("RBAC permission matrix", () => {
     );
     expect(canRolePerformAction("SALES", "product", "update", normalized)).toBe(true);
     expect(canRolePerformAction("OWNER", "rbac", "delete", normalized)).toBe(true);
+  });
+
+  it("restricts inventory.approve to OWNER by default", () => {
+    const defaults = buildDefaultRolePermissions();
+    expect(canRolePerformAction("OWNER", "inventory.approve", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "inventory.approve", "update", defaults)).toBe(false);
+    expect(canRolePerformAction("CASHIER", "inventory.approve", "update", defaults)).toBe(false);
+    expect(canRolePerformAction("SALES", "inventory.approve", "update", defaults)).toBe(false);
   });
 });

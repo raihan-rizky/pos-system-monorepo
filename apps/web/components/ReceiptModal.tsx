@@ -23,9 +23,19 @@ export function ReceiptModal({
   // When 4+ items, use compact sizing so everything fits in the 210mm × 110mm page
   const items = transaction?.items || [];
   const compact = items.length >= 4;
+  const isDraft = transaction?.status === "DRAFT";
+  const isPending = transaction?.status === "PENDING_APPROVAL";
+  const displayInvoice =
+    transaction?.invoiceNumber ?? transaction?.draftNumber ?? "";
+
+  const modalTitle = isDraft
+    ? "Faktur Sementara"
+    : isPending
+      ? "Menunggu Persetujuan"
+      : "Transaksi Berhasil";
 
   return (
-    <Modal open={open} onClose={onClose} title="Transaksi Berhasil" size="xl">
+    <Modal open={open} onClose={onClose} title={modalTitle} size="xl">
       <div className="space-y-6">
         <style
           dangerouslySetInnerHTML={{
@@ -33,7 +43,7 @@ export function ReceiptModal({
   @media print {
     /* Set ukuran kertas spesifik (210x110mm) */
     @page { 
-      size: 210mm 110mm; 
+      size: 215mm 165mm; 
       margin: 0; 
     }
     
@@ -60,8 +70,8 @@ export function ReceiptModal({
       position: absolute !important; /* Pake absolute biar nempel ke top-left kertas */
       left: 0 !important;
       top: 0 !important;
-      width: 210mm !important;
-      height: 110mm !important;
+      width: 215mm !important;
+      height: 165mm !important;
       margin: 0 !important;
       padding: ${compact ? "2mm 5mm" : "4mm 6mm"} !important;
       border: none !important;
@@ -91,8 +101,44 @@ export function ReceiptModal({
             id="print-receipt"
             className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[110mm] print:w-[210mm] print:h-[110mm] print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? "text-[9px]" : "text-xs"}`}
           >
+            {isDraft && (
+              <div
+                role="status"
+                aria-label="Faktur sementara, bukan bukti pembayaran"
+                className="mb-2 -mx-4 -mt-4 px-4 py-1.5 bg-amber-100 text-amber-900 border-b-2 border-amber-300 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider print:bg-amber-100 print:text-amber-900"
+                style={
+                  {
+                    printColorAdjust: "exact",
+                    WebkitPrintColorAdjust: "exact",
+                  } as React.CSSProperties
+                }
+              >
+                <span>FAKTUR SEMENTARA</span>
+                <span className="font-medium normal-case tracking-normal">
+                  Bukan bukti pembayaran
+                </span>
+              </div>
+            )}
+            {isPending && (
+              <div
+                role="status"
+                aria-label="Menunggu persetujuan, bukan bukti pembayaran"
+                className="mb-2 -mx-4 -mt-4 px-4 py-1.5 bg-blue-100 text-blue-900 border-b-2 border-blue-300 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider print:bg-blue-100 print:text-blue-900"
+                style={
+                  {
+                    printColorAdjust: "exact",
+                    WebkitPrintColorAdjust: "exact",
+                  } as React.CSSProperties
+                }
+              >
+                <span>MENUNGGU PERSETUJUAN</span>
+                <span className="font-medium normal-case tracking-normal">
+                  Bukan bukti pembayaran
+                </span>
+              </div>
+            )}
             {/* Header */}
-            <div className={`flex flex-col ${compact ? "mb-1" : "mb-2"}`}>
+            <div className={`flex flex-col b ${compact ? "mb-1" : "mb-2"}`}>
               <div className="flex items-baseline">
                 <h1
                   className={`leading-none font-serif font-extrabold text-[#003366] tracking-wider uppercase ${compact ? "text-[20px]" : "text-[28px]"}`}
@@ -139,7 +185,7 @@ export function ReceiptModal({
                   </span>
                   <span className="mr-4">:</span>
                   <span className="font-bold text-[#cc0000]">
-                    {transaction?.invoiceNumber}
+                    {displayInvoice}
                   </span>
                 </div>
                 <div className="flex">
@@ -182,9 +228,23 @@ export function ReceiptModal({
                   <span className={compact ? "w-20" : "w-24"}>Status</span>
                   <span className="mr-4">:</span>
                   <span
-                    className={`font-bold ${transaction?.status === "DP" ? "text-[#b45309]" : "text-[#047857]"}`}
+                    className={`font-bold ${
+                      isDraft
+                        ? "text-[#b45309]"
+                        : isPending
+                          ? "text-[#1d4ed8]"
+                          : transaction?.status === "DP"
+                            ? "text-[#b45309]"
+                            : "text-[#047857]"
+                    }`}
                   >
-                    {transaction?.status === "DP" ? "UANG MUKA (DP)" : "LUNAS"}
+                    {isDraft
+                      ? "BELUM DIBAYAR"
+                      : isPending
+                        ? "MENUNGGU PERSETUJUAN"
+                        : transaction?.status === "DP"
+                          ? "UANG MUKA (DP)"
+                          : "LUNAS"}
                   </span>
                 </div>
               </div>
@@ -197,46 +257,46 @@ export function ReceiptModal({
               const cellPad = compact ? "py-0.5 px-1.5" : "py-2 px-3";
               return (
                 <table
-                  className={`w-full border-collapse border border-black font-bold ${compact ? "text-[9px] mb-1" : "text-[11px] mb-2"} flex-grow-0`}
+                  className={`w-full border-collapse border border-black ${compact ? "text-[9px] mb-1" : "text-[11px] mb-2"} flex-grow-0`}
                 >
                   <thead>
                     <tr>
                       <th
-                        className={`border border-black ${cellPad} text-center w-10 font-bold text-black`}
+                        className={`border border-black ${cellPad} text-center w-10 font-extrabold text-black`}
                       >
                         No
                       </th>
                       <th
-                        className={`border border-black ${cellPad} text-center w-64 font-bold text-black`}
+                        className={`border border-black ${cellPad} text-center w-64 font-extrabold text-black`}
                       >
                         Item Name
                       </th>
                       {hasSize && (
                         <th
-                          className={`border border-black ${cellPad} text-center w-20 font-bold text-black`}
+                          className={`border border-black ${cellPad} text-center w-20 font-extrabold text-black`}
                         >
                           Size
                         </th>
                       )}
                       {hasMaterial && (
                         <th
-                          className={`border border-black ${cellPad} text-center w-32 font-bold text-black`}
+                          className={`border border-black ${cellPad} text-center w-32 font-extrabold text-black`}
                         >
                           Material
                         </th>
                       )}
                       <th
-                        className={`border border-black ${cellPad} text-center w-16 font-bold text-black`}
+                        className={`border border-black ${cellPad} text-center w-16 font-extrabold text-black`}
                       >
                         Qty
                       </th>
                       <th
-                        className={`border border-black ${cellPad} text-center w-28 font-bold text-black`}
+                        className={`border border-black ${cellPad} text-center w-28 font-extrabold text-black`}
                       >
                         Price Per Item
                       </th>
                       <th
-                        className={`border border-black ${cellPad} text-center w-32 font-bold text-black`}
+                        className={`border border-black ${cellPad} text-center w-32 font-extrabold text-black`}
                       >
                         Total
                       </th>
@@ -246,7 +306,7 @@ export function ReceiptModal({
                     {items.map((item, index) => (
                       <tr key={item.id}>
                         <td
-                          className={`border border-black ${cellPad} text-center`}
+                          className={`border font-300 border-black ${cellPad} text-center`}
                         >
                           {index + 1}
                         </td>

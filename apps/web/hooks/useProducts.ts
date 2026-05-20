@@ -289,9 +289,19 @@ export function useDeleteProduct() {
   });
 }
 
+export type InventoryReason =
+  | "RESTOCK"
+  | "SALE_RETURN"
+  | "WASTE"
+  | "USAGE"
+  | "SUPPLIER_RETURN"
+  | "OPNAME"
+  | "MANUAL_ADJUSTMENT";
+
 export interface UpdateStockInput {
   productId: string;
   type: "IN" | "OUT" | "ADJUSTMENT";
+  reason: InventoryReason;
   quantity: number;
   note?: string;
 }
@@ -317,6 +327,7 @@ export function useUpdateStock() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-logs"] });
     },
   });
 }

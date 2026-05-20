@@ -4,8 +4,31 @@ import React, { useMemo, useState } from "react";
 import { Modal, Button } from "@pos/ui";
 import { PackageMinus, PackagePlus, Settings2 } from "lucide-react";
 import type { Product } from "@/hooks/useProducts";
-import { useBulkStockCommit, useBulkStockPreview } from "../hooks/useBulkStock";
+import {
+  useBulkStockCommit,
+  useBulkStockPreview,
+  type BulkStockReason,
+} from "../hooks/useBulkStock";
 import { BatchResultPanel } from "@/features/batch-operations/components/BatchResultPanel";
+
+const REASONS_BY_TYPE: Record<
+  "IN" | "OUT" | "ADJUSTMENT",
+  Array<{ value: BulkStockReason; label: string }>
+> = {
+  IN: [
+    { value: "RESTOCK", label: "Pembelian / Restock" },
+    { value: "SALE_RETURN", label: "Retur Penjualan" },
+  ],
+  OUT: [
+    { value: "WASTE", label: "Waste / Rusak" },
+    { value: "USAGE", label: "Pemakaian Internal" },
+    { value: "SUPPLIER_RETURN", label: "Retur ke Supplier" },
+  ],
+  ADJUSTMENT: [
+    { value: "OPNAME", label: "Stock Opname" },
+    { value: "MANUAL_ADJUSTMENT", label: "Penyesuaian Manual" },
+  ],
+};
 
 export function BulkStockDrawer({
   open,
@@ -19,11 +42,12 @@ export function BulkStockDrawer({
   const preview = useBulkStockPreview();
   const commit = useBulkStockCommit();
   const [type, setType] = useState<"IN" | "OUT" | "ADJUSTMENT">("IN");
+  const [reason, setReason] = useState<BulkStockReason>("RESTOCK");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [note, setNote] = useState("");
 
   const productIds = useMemo(() => products.map((product) => product.id), [products]);
-  const input = { productIds, type, quantities, note };
+  const input = { productIds, type, reason, quantities, note };
   const hasQuantities = productIds.every((id) => (quantities[id] ?? 0) > 0);
   const canPreview = productIds.length > 0 && hasQuantities && note.trim().length > 0;
   const canCommit = Boolean(preview.data && preview.data.errors.length === 0);
@@ -32,6 +56,7 @@ export function BulkStockDrawer({
     preview.reset();
     commit.reset();
     setType("IN");
+    setReason("RESTOCK");
     setQuantities({});
     setNote("");
   };
@@ -39,6 +64,12 @@ export function BulkStockDrawer({
   const close = () => {
     reset();
     onClose();
+  };
+
+  const handleTypeChange = (next: "IN" | "OUT" | "ADJUSTMENT") => {
+    setType(next);
+    setReason(REASONS_BY_TYPE[next][0].value);
+    preview.reset();
   };
 
   const handlePreview = async () => {
@@ -71,10 +102,7 @@ export function BulkStockDrawer({
                 <button
                   key={value}
                   type="button"
-                  onClick={() => {
-                    setType(value);
-                    preview.reset();
-                  }}
+                  onClick={() => handleTypeChange(value)}
                   className={`min-h-11 rounded-xl border px-3 py-3 text-sm font-bold transition-all ${
                     type === value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                   }`}
@@ -83,6 +111,24 @@ export function BulkStockDrawer({
                   {label}
                 </button>
               ))}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-bold text-slate-700">Alasan</label>
+              <select
+                value={reason}
+                onChange={(event) => {
+                  setReason(event.target.value as BulkStockReason);
+                  preview.reset();
+                }}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
+              >
+                {REASONS_BY_TYPE[type].map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

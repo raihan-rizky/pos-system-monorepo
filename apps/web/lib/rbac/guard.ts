@@ -9,6 +9,7 @@ import type { Role } from "./permissions";
 import type { Action } from "./permissions";
 import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import { apiError } from "@/lib/api/responses";
 
 // Short-lived in-memory cache for POS user lookups (survives across requests in the same worker)
 const POS_USER_CACHE_TTL = 60_000; // 60 seconds
@@ -165,10 +166,9 @@ export async function getCurrentUser() {
  */
 export function handleAuthError(error: unknown) {
   if (error instanceof AuthError) {
-    return NextResponse.json(
-      { message: error.message },
-      { status: error.statusCode }
-    );
+    return apiError(error.message, error.statusCode, {
+      code: error.statusCode === 401 ? "Unauthorized" : "Forbidden",
+    });
   }
   return null;
 }

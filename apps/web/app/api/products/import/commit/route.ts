@@ -183,7 +183,9 @@ export async function POST(request: Request) {
                     data: {
                       productId: updated.id,
                       type: "ADJUSTMENT",
+                      reason: "MANUAL_ADJUSTMENT",
                       quantity: Math.abs(delta),
+                      unitCost: row.costPrice ?? null,
                       note: `Batch import update: ${row.name}`,
                       createdBy: user.id,
                     },
@@ -230,7 +232,9 @@ export async function POST(request: Request) {
                     data: {
                       productId: created.id,
                       type: row.stock < 0 ? "ADJUSTMENT" : "IN",
+                      reason: row.stock < 0 ? "MANUAL_ADJUSTMENT" : "RESTOCK",
                       quantity: Math.abs(row.stock),
+                      unitCost: row.costPrice ?? null,
                       note: `Batch import initial stock: ${row.name}`,
                       createdBy: user.id,
                     },
