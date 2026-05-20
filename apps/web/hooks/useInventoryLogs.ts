@@ -18,7 +18,7 @@ export interface InventoryLog {
     unit: string;
     stock: number;
     imageUrl: string | null;
-    category: { icon: string | null };
+    category: { name: string; icon: string | null };
   };
 }
 

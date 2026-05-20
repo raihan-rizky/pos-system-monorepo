@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           product: {
-            select: { id: true, name: true, sku: true, unit: true, stock: true, imageUrl: true, category: { select: { icon: true } } },
+            select: { id: true, name: true, sku: true, unit: true, stock: true, imageUrl: true, category: { select: { name: true, icon: true } } },
           },
         },
         orderBy: { createdAt: "desc" },
