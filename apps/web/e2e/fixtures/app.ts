@@ -58,14 +58,14 @@ export async function mockApis(page: Page) {
       return json(route, { data: activeShift });
     }
     if (path === "/api/shifts" && method === "GET") {
-      return json(route, { data: [activeShift, closedShift], total: 2, page: 1, totalPages: 1 });
+      return json(route, { data: [activeShift, closedShift], pagination: { total: 2, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     }
     if (path === "/api/shifts" && method === "POST") return json(route, activeShift, 201);
     if (path === "/api/shifts" && method === "PATCH") return json(route, closedShift);
     if (path === "/api/shifts/close") return json(route, closedShift);
 
     if (path === "/api/transactions" && method === "GET") {
-      return json(route, { data: [transaction, jobOrder], total: 2, page: 1, totalPages: 1 });
+      return json(route, { data: [transaction, jobOrder], pagination: { total: 2, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     }
     if (path === "/api/transactions" && method === "POST") {
       return json(route, { ...transaction, id: "tx-new", invoiceNumber: "INV-20260509-0002" }, 201);
@@ -74,7 +74,7 @@ export async function mockApis(page: Page) {
     if (path.match(/^\/api\/transactions\/[^/]+\/(approve|reject)$/)) return json(route, transaction);
 
     if (path === "/api/dashboard") return json(route, dashboard);
-    if (path === "/api/job-orders") return json(route, [currentJobOrder]);
+    if (path === "/api/job-orders") return json(route, { data: [currentJobOrder] });
     if (path === "/api/job-orders/job-1/status") {
       const body = JSON.parse(request.postData() || "{}") as { productionStatus?: typeof jobOrder.productionStatus };
       currentJobOrder = {
@@ -85,13 +85,13 @@ export async function mockApis(page: Page) {
     }
 
     if (path === "/api/customers" && method === "GET") {
-      return json(route, { data: customers, total: customers.length, page: 1, totalPages: 1 });
+      return json(route, { data: customers, pagination: { total: customers.length, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     }
     if (path === "/api/customers" && method === "POST") return json(route, { ...customers[0], id: "cust-new" }, 201);
     if (path.startsWith("/api/customers/") && path.endsWith("/pay-debt")) return json(route, { success: true, customer: { ...customers[0], totalDebt: 0 } });
     if (path.startsWith("/api/customers/")) return json(route, customers[0]);
 
-    if (path === "/api/salespersons" && method === "GET") return json(route, salespersons);
+    if (path === "/api/salespersons" && method === "GET") return json(route, { data: salespersons });
     if (path === "/api/salespersons" && method === "POST") return json(route, { ...salespersons[0], id: "sp-new" }, 201);
     if (path.startsWith("/api/salespersons/")) return json(route, salespersons[0]);
 
