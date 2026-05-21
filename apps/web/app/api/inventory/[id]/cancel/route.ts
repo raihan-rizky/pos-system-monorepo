@@ -28,7 +28,8 @@ export async function POST(
       if (log.status !== "PENDING") {
         throw new Error(`ALREADY_DECIDED:${log.status}`);
       }
-      if (log.createdBy !== user.id) {
+      const isOwner = user.role === "OWNER";
+      if (log.createdBy !== user.id && !isOwner) {
         throw new Error("FORBIDDEN_CANCEL");
       }
 
@@ -60,7 +61,7 @@ export async function POST(
         return apiError(
           `Permintaan sudah ${currentStatus === "APPROVED" ? "disetujui" : "ditolak"}`,
           409,
-          { code: "Conflict" },
+          { code: "Conflict", extra: { currentStatus } },
         );
       }
       if (error.message === "FORBIDDEN_CANCEL") {

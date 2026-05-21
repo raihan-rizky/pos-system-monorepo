@@ -50,6 +50,7 @@ function computeStockDelta(
 // OWNER → commits APPROVED row + updates product.stock atomically.
 // Non-OWNER → creates a PENDING request only; no stock change.
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   try {
     const user = await requirePermission("inventory", "update");
     const body = await request.json();
@@ -57,7 +58,24 @@ export async function POST(request: Request) {
     const storeId = user.storeId || "store-main";
     const isOwner = user.role === "OWNER";
 
+    logger.info("inventory.request.received", {
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
+      storeId,
+      productId: validatedData.productId,
+      type: validatedData.type,
+      reason: validatedData.reason,
+      quantity: validatedData.quantity,
+      ownerDirectCommit: isOwner,
+    });
+
     if (validatedData.quantity === 0) {
+      logger.warn("inventory.request.rejected.zero_quantity", {
+        actorId: user.id,
+        actorRole: user.role,
+        productId: validatedData.productId,
+      });
       return NextResponse.json(
         { message: "Quantity cannot be zero" },
         { status: 422 },
@@ -76,6 +94,12 @@ export async function POST(request: Request) {
       });
 
       if (!product) {
+        logger.warn("inventory.request.product_not_found", {
+          actorId: user.id,
+          actorRole: user.role,
+          storeId,
+          productId: validatedData.productId,
+        });
         throw new Error("PRODUCT_NOT_FOUND");
       }
 
@@ -103,28 +127,78 @@ export async function POST(request: Request) {
         },
       });
 
+      logger.info("inventory.request.log_created", {
+        logId: log.id,
+        status: log.status,
+        actorId: user.id,
+        actorName: user.name,
+        actorRole: user.role,
+        productId: validatedData.productId,
+        type: validatedData.type,
+        reason: validatedData.reason,
+        quantity: Math.abs(validatedData.quantity),
+        beforeStock: product.stock,
+        stockDelta,
+      });
+
       let updatedProduct = null;
       if (isOwner) {
         const newStock = product.stock + stockDelta;
         if (newStock < 0) {
+          logger.warn("inventory.request.rejected.negative_stock", {
+            logId: log.id,
+            actorId: user.id,
+            actorRole: user.role,
+            productId: validatedData.productId,
+            beforeStock: product.stock,
+            stockDelta,
+            requestedQuantity: Math.abs(validatedData.quantity),
+          });
           throw new Error("NEGATIVE_STOCK");
         }
         updatedProduct = await tx.product.update({
           where: { id: validatedData.productId },
           data: { stock: newStock },
         });
+        logger.info("inventory.request.stock_updated", {
+          logId: log.id,
+          actorId: user.id,
+          actorRole: user.role,
+          productId: validatedData.productId,
+          beforeStock: product.stock,
+          afterStock: newStock,
+          stockDelta,
+        });
       }
 
       return { log, updatedProduct, status: log.status };
     });
 
+    logger.info("inventory.request.completed", {
+      logId: result.log.id,
+      status: result.status,
+      actorId: user.id,
+      actorRole: user.role,
+      productId: validatedData.productId,
+      durationMs: Date.now() - startedAt,
+    });
+
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     const authErr = handleAuthError(error);
-    if (authErr) return authErr;
+    if (authErr) {
+      logger.warn("inventory.request.auth_failed", {
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      return authErr;
+    }
 
-    logger.error("inventory.record.failed", { error });
     if (error instanceof z.ZodError) {
+      logger.warn("inventory.request.validation_failed", {
+        durationMs: Date.now() - startedAt,
+        errors: error.flatten().fieldErrors,
+      });
       return NextResponse.json(
         { message: "Validation error", errors: error.flatten().fieldErrors },
         { status: 422 },
@@ -140,6 +214,10 @@ export async function POST(request: Request) {
       }
     }
 
+    logger.error("inventory.record.failed", {
+      error,
+      durationMs: Date.now() - startedAt,
+    });
     return NextResponse.json(
       { message: "Failed to record inventory log" },
       { status: 500 },

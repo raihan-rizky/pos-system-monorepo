@@ -104,57 +104,62 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Authenticated: resolve role
+  // Authenticated: resolve POS identity for the current Supabase user. Do not
+  // trust existing x-pos-* cookies: they can belong to a previous account in
+  // the same browser session.
   if (user) {
-    let role = request.cookies.get(ROLE_COOKIE)?.value as Role | undefined;
+    let role: Role | undefined;
 
-    if (!role || !isValidRole(role)) {
-      try {
-        const username = user.email?.split("@")[0];
-        const { data: posUser } = username
-          ? await supabase
-              .from("pos_users")
-              .select("id, name, role, isActive")
-              .eq("username", username)
-              .maybeSingle()
-          : { data: null };
+    try {
+      const username = user.email?.split("@")[0];
+      const { data: posUser } = username
+        ? await supabase
+            .from("pos_users")
+            .select("id, name, role, isActive")
+            .eq("username", username)
+            .maybeSingle()
+        : { data: null };
 
-        if (posUser && posUser.isActive) {
-          role = posUser.role as Role;
+      if (posUser && posUser.isActive && isValidRole(posUser.role)) {
+        role = posUser.role as Role;
 
-          const cookieOptions = {
-            path: "/",
-            httpOnly: false,
-            sameSite: "strict" as const,
-            secure: process.env.NODE_ENV === "production",
-            maxAge: 60 * 60 * 24,
-          };
-          supabaseResponse.cookies.set(ROLE_COOKIE, role, cookieOptions);
-          supabaseResponse.cookies.set(USER_ID_COOKIE, posUser.id, cookieOptions);
-          supabaseResponse.cookies.set(USER_NAME_COOKIE, posUser.name, cookieOptions);
-          log.info("role.resolved", { username, role });
-        } else {
-          log.warn("user.inactive_or_missing", { username, hasPosUser: Boolean(posUser) });
-          if (request.nextUrl.pathname.startsWith("/api/")) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-          }
-
-          if (request.nextUrl.pathname === "/login") {
-            await supabase.auth.signOut();
-            return supabaseResponse;
-          }
-
-          const url = request.nextUrl.clone();
-          url.pathname = "/login";
-          url.searchParams.set("error", "Account not found or deactivated");
-          return NextResponse.redirect(url);
-        }
-      } catch (error) {
+        const cookieOptions = {
+          path: "/",
+          httpOnly: false,
+          sameSite: "strict" as const,
+          secure: process.env.NODE_ENV === "production",
+          maxAge: 60 * 60 * 24,
+        };
+        request.cookies.set(ROLE_COOKIE, role);
+        request.cookies.set(USER_ID_COOKIE, posUser.id);
+        request.cookies.set(USER_NAME_COOKIE, posUser.name);
+        supabaseResponse.cookies.set(ROLE_COOKIE, role, cookieOptions);
+        supabaseResponse.cookies.set(USER_ID_COOKIE, posUser.id, cookieOptions);
+        supabaseResponse.cookies.set(USER_NAME_COOKIE, posUser.name, cookieOptions);
+        log.info("role.resolved", { username, role });
+      } else {
+        log.warn("user.inactive_or_missing", { username, hasPosUser: Boolean(posUser) });
         if (request.nextUrl.pathname.startsWith("/api/")) {
-          log.error("role.resolve.failed.api", { error, path: request.nextUrl.pathname });
-          return NextResponse.json({ error: "Unable to verify access" }, { status: 503 });
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
-        log.error("role.resolve.failed", { error, path: request.nextUrl.pathname });
+
+        if (request.nextUrl.pathname === "/login") {
+          await supabase.auth.signOut();
+          return supabaseResponse;
+        }
+
+        const url = request.nextUrl.clone();
+        url.pathname = "/login";
+        url.searchParams.set("error", "Account not found or deactivated");
+        return NextResponse.redirect(url);
+      }
+    } catch (error) {
+      if (request.nextUrl.pathname.startsWith("/api/")) {
+        log.error("role.resolve.failed.api", { error, path: request.nextUrl.pathname });
+        return NextResponse.json({ error: "Unable to verify access" }, { status: 503 });
+      }
+      log.error("role.resolve.failed", { error, path: request.nextUrl.pathname });
+      if (!role) {
         return supabaseResponse;
       }
     }

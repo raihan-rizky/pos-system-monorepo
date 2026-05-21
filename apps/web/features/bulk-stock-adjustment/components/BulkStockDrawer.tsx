@@ -39,6 +39,7 @@ export function BulkStockDrawer({
   onClose: () => void;
   products: Product[];
 }) {
+  // TODO(stock-approval): bulk path not yet gated by approval flow
   const preview = useBulkStockPreview();
   const commit = useBulkStockCommit();
   const [type, setType] = useState<"IN" | "OUT" | "ADJUSTMENT">("IN");

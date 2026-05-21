@@ -107,11 +107,13 @@ export function apiError(
   options?: {
     code?: ApiErrorCode;
     errors?: Record<string, string[]>;
+    extra?: Record<string, unknown>;
   },
 ): NextResponse<ErrorResponse> {
-  const body: ErrorResponse = { message };
+  const body: ErrorResponse & Record<string, unknown> = { message };
   if (options?.code) body.code = options.code;
   if (options?.errors) body.errors = options.errors;
+  if (options?.extra) Object.assign(body, options.extra);
   return NextResponse.json(body, { status });
 }
 

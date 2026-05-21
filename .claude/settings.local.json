@@ -33,7 +33,9 @@
       "PowerShell(Get-NetTCPConnection *)",
       "PowerShell(Select-String *)",
       "PowerShell(Set-Content *)",
-      "PowerShell(Get-Content *)"
+      "PowerShell(Get-Content *)",
+      "Bash(pnpm playwright *)",
+      "Bash(netstat -ano)"
     ]
   }
 }

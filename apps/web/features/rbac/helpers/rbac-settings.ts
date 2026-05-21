@@ -3,18 +3,12 @@ import {
   PAGE_SCOPE,
   RESOURCE_SCOPE,
   isEditableRole,
+  isOwnerLockedResource,
   isResourceAction,
   normalizePageTarget,
 } from "./rbac-core";
 import type { EditablePermissionEntry, PermissionEntry } from "./rbac-core";
 import type { PermissionAction } from "./rbac-core";
-
-// Resources that may never be toggled via the settings UI — defense-in-depth
-// against a compromised non-OWNER attempting to grant themselves elevated
-// privileges. Defaults are still applied via buildDefaultRolePermissions.
-const LOCKED_RESOURCE_TARGETS: ReadonlySet<string> = new Set([
-  "inventory.approve",
-]);
 
 type RawPermissionPayload = {
   role?: unknown;
@@ -44,7 +38,14 @@ export function parseRolePermissionPayload(payload: unknown): EditablePermission
     throw new Error("Permission payload must be an array");
   }
 
-  return payload.map(parsePermissionEntry);
+  const entries: EditablePermissionEntry[] = [];
+
+  for (const raw of payload) {
+    const entry = parsePermissionEntry(raw);
+    if (entry) entries.push(entry);
+  }
+
+  return entries;
 }
 
 export function buildRolePermissionUpserts(
@@ -66,7 +67,7 @@ export function buildRolePermissionUpserts(
   }));
 }
 
-function parsePermissionEntry(raw: RawPermissionPayload): EditablePermissionEntry {
+function parsePermissionEntry(raw: RawPermissionPayload): EditablePermissionEntry | null {
   if (raw.role === "OWNER") {
     throw new Error("OWNER permissions cannot be edited");
   }
@@ -108,9 +109,7 @@ function parsePermissionEntry(raw: RawPermissionPayload): EditablePermissionEntr
     throw new Error("Invalid permission action");
   }
 
-  if (entry.scope === RESOURCE_SCOPE && LOCKED_RESOURCE_TARGETS.has(entry.target)) {
-    throw new Error(`Resource "${entry.target}" is OWNER-locked`);
-  }
+  if (entry.scope === RESOURCE_SCOPE && isOwnerLockedResource(entry.target)) return null;
 
   return entry as EditablePermissionEntry;
 }

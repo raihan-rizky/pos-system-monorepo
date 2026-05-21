@@ -5,6 +5,9 @@ export const ACTIONS = ["create", "read", "update", "delete"] as const;
 export const PAGE_ACTION = "access" as const;
 export const PAGE_SCOPE = "page" as const;
 export const RESOURCE_SCOPE = "resource" as const;
+export const OWNER_LOCKED_RESOURCE_TARGETS: ReadonlySet<string> = new Set([
+  "inventory.approve",
+]);
 
 export type OwnerRole = typeof OWNER_ROLE;
 export type EditableRole = (typeof EDITABLE_ROLES)[number];
@@ -224,7 +227,11 @@ export function normalizeRolePermissions(entries: PermissionEntry[]): RolePermis
       continue;
     }
 
-    if (entry.scope === RESOURCE_SCOPE && isResourceAction(entry.action)) {
+    if (
+      entry.scope === RESOURCE_SCOPE &&
+      isResourceAction(entry.action) &&
+      !isOwnerLockedResource(entry.target)
+    ) {
       permissions[entry.role].resources[entry.target] ??= {
         create: false,
         read: false,
@@ -292,6 +299,10 @@ export function isValidRole(value: string): value is Role {
 
 export function isResourceAction(value: string): value is ResourceAction {
   return (ACTIONS as readonly string[]).includes(value);
+}
+
+export function isOwnerLockedResource(target: string): boolean {
+  return OWNER_LOCKED_RESOURCE_TARGETS.has(target);
 }
 
 export function normalizePageTarget(path: string): string {

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import { clearClientAuthState } from "@/lib/auth/pos-session";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,15 +25,23 @@ export default function LoginPage() {
     try {
       // Supabase requires an email, so we append a dummy domain to the username
       const email = username.includes("@") ? username : `${username}@pos.local`;
-      
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+
+      clearClientAuthState();
+      await fetch("/api/auth/clear-session", {
+        method: "POST",
+        cache: "no-store",
+      }).catch(() => undefined);
+      await supabase.auth.signOut().catch(() => undefined);
+      clearClientAuthState();
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (signInError) throw signInError;
 
-      router.push("/pos");
       router.refresh();
+      router.replace("/pos");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login gagal");
     } finally {

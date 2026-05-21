@@ -24,9 +24,18 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const startedAt = Date.now();
   try {
     const user = await requirePermission("inventory.approve", "update");
     const { id } = await context.params;
+
+    logger.info("inventory.approval.received", {
+      logId: id,
+      approverId: user.id,
+      approverName: user.name,
+      approverRole: user.role,
+      decision: "APPROVE",
+    });
 
     const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       const log = await tx.inventoryLog.findUnique({
@@ -37,13 +46,28 @@ export async function POST(
           type: true,
           quantity: true,
           status: true,
+          createdBy: true,
+          person: true,
         },
       });
 
       if (!log) {
+        logger.warn("inventory.approval.log_not_found", {
+          logId: id,
+          approverId: user.id,
+          approverRole: user.role,
+        });
         throw new Error("NOT_FOUND");
       }
       if (log.status !== "PENDING") {
+        logger.warn("inventory.approval.already_decided", {
+          logId: id,
+          currentStatus: log.status,
+          requesterId: log.createdBy,
+          requesterName: log.person,
+          approverId: user.id,
+          approverRole: user.role,
+        });
         throw new Error(`ALREADY_DECIDED:${log.status}`);
       }
 
@@ -51,11 +75,30 @@ export async function POST(
         where: { id: log.productId },
         select: { id: true, stock: true },
       });
-      if (!product) throw new Error("PRODUCT_NOT_FOUND");
+      if (!product) {
+        logger.warn("inventory.approval.product_not_found", {
+          logId: id,
+          productId: log.productId,
+          requesterId: log.createdBy,
+          approverId: user.id,
+        });
+        throw new Error("PRODUCT_NOT_FOUND");
+      }
 
       const delta = computeStockDelta(log.type, log.quantity);
       const newStock = product.stock + delta;
       if (newStock < 0) {
+        logger.warn("inventory.approval.rejected.negative_stock", {
+          logId: id,
+          productId: log.productId,
+          requesterId: log.createdBy,
+          requesterName: log.person,
+          approverId: user.id,
+          approverRole: user.role,
+          beforeStock: product.stock,
+          stockDelta: delta,
+          requestedQuantity: Math.abs(delta),
+        });
         throw new Error(
           `NEGATIVE_STOCK:${product.stock}:${Math.abs(delta)}`,
         );
@@ -77,13 +120,39 @@ export async function POST(
         }),
       ]);
 
+      logger.info("inventory.approval.stock_updated", {
+        logId: id,
+        productId: product.id,
+        requesterId: log.createdBy,
+        requesterName: log.person,
+        approverId: user.id,
+        approverName: user.name,
+        beforeStock: product.stock,
+        afterStock: newStock,
+        stockDelta: delta,
+      });
+
       return { log: updatedLog };
+    });
+
+    logger.info("inventory.approval.completed", {
+      logId: result.log.id,
+      status: result.log.status,
+      approverId: user.id,
+      approverRole: user.role,
+      durationMs: Date.now() - startedAt,
     });
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     const authErr = handleAuthError(error);
-    if (authErr) return authErr;
+    if (authErr) {
+      logger.warn("inventory.approval.auth_failed", {
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      return authErr;
+    }
 
     if (error instanceof Error) {
       if (error.message === "NOT_FOUND") {
@@ -94,7 +163,7 @@ export async function POST(
         return apiError(
           `Permintaan sudah ${currentStatus === "APPROVED" ? "disetujui" : "ditolak"}`,
           409,
-          { code: "Conflict" },
+          { code: "Conflict", extra: { currentStatus } },
         );
       }
       if (error.message === "PRODUCT_NOT_FOUND") {
@@ -102,15 +171,23 @@ export async function POST(
       }
       if (error.message.startsWith("NEGATIVE_STOCK:")) {
         const [, available, requested] = error.message.split(":");
+        const availableNum = Number(available);
+        const requestedNum = Number(requested);
         return apiError(
           `Stok tidak mencukupi (tersedia ${available}, diminta ${requested})`,
           422,
-          { code: "ValidationError" },
+          {
+            code: "ValidationError",
+            extra: { available: availableNum, requested: requestedNum },
+          },
         );
       }
     }
 
-    logger.error("inventory.approve.failed", { error });
+    logger.error("inventory.approve.failed", {
+      error,
+      durationMs: Date.now() - startedAt,
+    });
     return apiError("Failed to approve inventory request", 500, {
       code: "InternalError",
     });

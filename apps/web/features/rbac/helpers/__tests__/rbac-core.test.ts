@@ -87,4 +87,27 @@ describe("RBAC permission matrix", () => {
     expect(canRolePerformAction("CASHIER", "inventory.approve", "update", defaults)).toBe(false);
     expect(canRolePerformAction("SALES", "inventory.approve", "update", defaults)).toBe(false);
   });
+
+  it("ignores persisted editable-role grants for owner-locked inventory approval", () => {
+    const normalized = normalizeRolePermissions([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "inventory.approve",
+        action: "update",
+        allowed: true,
+      },
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "inventory",
+        action: "update",
+        allowed: true,
+      },
+    ]);
+
+    expect(canRolePerformAction("ADMIN", "inventory", "update", normalized)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "inventory.approve", "update", normalized)).toBe(false);
+    expect(canRolePerformAction("OWNER", "inventory.approve", "update", normalized)).toBe(true);
+  });
 });

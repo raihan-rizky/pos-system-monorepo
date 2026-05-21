@@ -31,6 +31,7 @@ import ProductTable from "@/components/inventory/ProductTable";
 import ProductFormModal from "@/components/inventory/ProductFormModal";
 import StockUpdateModal from "@/components/inventory/StockUpdateModal";
 import { useRole } from "@/components/providers/RoleProvider";
+import { usePendingInventoryLogCount } from "@/hooks/useInventoryLogs";
 import {
   shouldShowAction,
   shouldShowUpdateAction,
@@ -155,6 +156,7 @@ export default function ProductsPage() {
   // Default to grid on mobile, table on desktop. We'll manage this via state, but default "grid" is safer for initial mobile load.
   const [view, setView] = useState<"table" | "grid">("grid");
   const [activeTab, setActiveTab] = useState<PageTab>("products");
+  const { data: pendingCount = 0 } = usePendingInventoryLogCount();
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -402,6 +404,7 @@ export default function ProductsPage() {
               id: "logs" as PageTab,
               label: "Stock Logs",
               icon: <ClipboardList className="w-4 h-4" />,
+              badge: pendingCount > 0 ? pendingCount : undefined,
             },
           ].map((tab) => (
             <button
@@ -419,6 +422,14 @@ export default function ProductsPage() {
               <span className="relative z-10 flex items-center gap-2">
                 {tab.icon}
                 {tab.label}
+                {tab.badge !== undefined && (
+                  <span
+                    aria-label={`${tab.badge} permintaan menunggu persetujuan`}
+                    className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-black"
+                  >
+                    {tab.badge}
+                  </span>
+                )}
               </span>
             </button>
           ))}

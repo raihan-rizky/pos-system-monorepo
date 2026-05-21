@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useRole } from "@/components/providers/RoleProvider";
+import { usePendingInventoryLogCount } from "@/hooks/useInventoryLogs";
+import { clearClientAuthState } from "@/lib/auth/pos-session";
 
 /* ─────────────────────────────────────────────
    SVG icon helpers (kept inline to avoid deps)
@@ -381,6 +383,7 @@ function NavItem({
   isActive,
   isCollapsed,
   onNavigate,
+  badge,
 }: {
   href: string;
   label: string;
@@ -388,6 +391,7 @@ function NavItem({
   isActive: boolean;
   isCollapsed: boolean;
   onNavigate?: () => void;
+  badge?: number;
 }) {
   const router = useRouter();
   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -428,6 +432,21 @@ function NavItem({
           {label}
         </span>
       )}
+      {badge !== undefined && badge > 0 && (
+        !isCollapsed ? (
+          <span
+            aria-label={`${badge} permintaan menunggu persetujuan`}
+            className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-black"
+          >
+            {badge}
+          </span>
+        ) : (
+          <span
+            aria-label={`${badge} permintaan menunggu persetujuan`}
+            className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-surface-900"
+          />
+        )
+      )}
       {/* Desktop tooltip */}
       {isCollapsed && (
         <span
@@ -451,7 +470,9 @@ function NavItem({
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { canAccess } = useRole();
+  const { canAccess, role } = useRole();
+  const isOwner = role === "OWNER";
+  const { data: pendingInventoryCount = 0 } = usePendingInventoryLogCount();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
 
@@ -553,6 +574,11 @@ export function Sidebar() {
                     icon={item.icon}
                     isActive={pathname === item.href}
                     isCollapsed={isCollapsed}
+                    badge={
+                      isOwner && item.href === "/products"
+                        ? pendingInventoryCount
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -601,6 +627,8 @@ export function Sidebar() {
             onClick={async () => {
               const supabase = createClient();
               await supabase.auth.signOut();
+              await fetch("/api/auth/clear-session", { method: "POST" }).catch(() => undefined);
+              clearClientAuthState();
               router.push("/login");
               router.refresh();
             }}
@@ -747,6 +775,8 @@ export function Sidebar() {
                 closeAll();
                 const supabase = createClient();
                 await supabase.auth.signOut();
+                await fetch("/api/auth/clear-session", { method: "POST" }).catch(() => undefined);
+                clearClientAuthState();
                 router.push("/login");
                 router.refresh();
               }}

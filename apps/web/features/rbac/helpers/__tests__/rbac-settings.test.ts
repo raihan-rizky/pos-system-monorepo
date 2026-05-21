@@ -33,18 +33,62 @@ describe("RBAC settings persistence helpers", () => {
     expect(parsed).toHaveLength(5);
   });
 
-  it("rejects edits to OWNER-locked resources like inventory.approve", () => {
-    expect(() =>
-      parseRolePermissionPayload([
-        {
-          role: "ADMIN",
-          scope: "resource",
-          target: "inventory.approve",
-          action: "update",
-          allowed: true,
-        },
-      ]),
-    ).toThrow(/OWNER-locked/);
+  it("ignores OWNER-locked resources from the submitted settings matrix", () => {
+    const parsed = parseRolePermissionPayload([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "inventory.approve",
+        action: "update",
+        allowed: true,
+      },
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "product",
+        action: "read",
+        allowed: true,
+      },
+    ]);
+
+    expect(parsed).toEqual([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "product",
+        action: "read",
+        allowed: true,
+      },
+    ]);
+  });
+
+  it("does not build persistence upserts when a payload only contains OWNER-locked resources", () => {
+    const parsed = parseRolePermissionPayload([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "inventory.approve",
+        action: "read",
+        allowed: true,
+      },
+      {
+        role: "CASHIER",
+        scope: "resource",
+        target: "inventory.approve",
+        action: "update",
+        allowed: true,
+      },
+      {
+        role: "SALES",
+        scope: "resource",
+        target: "inventory.approve",
+        action: "delete",
+        allowed: true,
+      },
+    ]);
+
+    expect(parsed).toEqual([]);
+    expect(buildRolePermissionUpserts(parsed)).toEqual([]);
   });
 
   it("builds stable upsert inputs keyed by role, scope, target, and action", () => {

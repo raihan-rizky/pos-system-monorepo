@@ -1,128 +1,167 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { db } from "@pos/db";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "../route";
 
-// Mock the RBAC guard
+const requirePermissionMock = vi.hoisted(() => vi.fn());
+const handleAuthErrorMock = vi.hoisted(() => vi.fn());
+const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
+const inventoryLogCountMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/lib/rbac/guard", () => ({
-  requirePermission: vi.fn(async () => ({
-    id: "test-user-1",
-    name: "Test User",
-    storeId: "store-main",
-  })),
-  handleAuthError: vi.fn(() => null),
+  requirePermission: requirePermissionMock,
+  handleAuthError: handleAuthErrorMock,
 }));
 
-describe.skip("GET /api/inventory/logs - Person Field", () => {
-  let testProduct: any;
-  let testStore: any;
-  let testUser: any;
+vi.mock("@pos/db", () => ({
+  db: {
+    inventoryLog: {
+      findMany: inventoryLogFindManyMock,
+      count: inventoryLogCountMock,
+    },
+  },
+  Prisma: {},
+}));
 
-  beforeAll(async () => {
-    // Create test store
-    testStore = await db.store.create({
-      data: {
-        name: "Test Store",
-        address: "123 Test St",
-      },
+describe("GET /api/inventory/logs", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requirePermissionMock.mockResolvedValue({
+      id: "user-1",
+      name: "Admin User",
+      storeId: "store-main",
     });
-
-    // Create test user
-    testUser = await db.user.create({
-      data: {
-        username: "testuser",
-        name: "John Doe",
-        storeId: testStore.id,
-      },
-    });
-
-    // Create test category
-    const category = await db.category.create({
-      data: {
-        name: "Test Category",
-      },
-    });
-
-    // Create test product
-    testProduct = await db.product.create({
-      data: {
-        name: "Test Product",
-        sku: "TEST-001",
-        price: 10000,
-        storeId: testStore.id,
-        categoryId: category.id,
-      },
-    });
+    handleAuthErrorMock.mockReturnValue(null);
+    inventoryLogFindManyMock.mockResolvedValue([]);
+    inventoryLogCountMock.mockResolvedValue(0);
   });
 
-  afterAll(async () => {
-    // Cleanup
-    await db.inventoryLog.deleteMany({});
-    await db.product.deleteMany({});
-    await db.category.deleteMany({});
-    await db.user.deleteMany({});
-    await db.store.deleteMany({});
+  it("uses product read permission because stock logs are shown inside Products", async () => {
+    const request = new NextRequest("http://localhost/api/inventory/logs?page=1&limit=20");
+
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    expect(requirePermissionMock).toHaveBeenCalledWith("product", "read");
   });
 
-  it("should include person field in inventory logs", async () => {
-    // Create inventory log with person field
-    const log = await db.inventoryLog.create({
-      data: {
-        productId: testProduct.id,
+  it("returns the list response shape consumed by the Products Stock Logs tab", async () => {
+    inventoryLogFindManyMock.mockResolvedValue([
+      {
+        id: "log-1",
+        productId: "product-1",
         type: "IN",
-        quantity: 10,
-        note: "Stock in test",
-        createdBy: testUser.id,
-        person: testUser.name,
+        reason: "RESTOCK",
+        quantity: 5,
+        note: "Restock",
+        createdBy: "user-1",
+        person: "Admin User",
+        createdAt: new Date("2026-05-21T05:00:00.000Z"),
+        status: "APPROVED",
+        approvedBy: "user-1",
+        approverName: "Admin User",
+        decidedAt: new Date("2026-05-21T05:01:00.000Z"),
+        rejectionReason: null,
+        product: {
+          id: "product-1",
+          name: "Banner Flexi",
+          sku: "BNR-FLX",
+          unit: "meter",
+          stock: 12,
+          imageUrl: null,
+          category: { name: "Jasa Cetak", icon: null },
+        },
+      },
+    ]);
+    inventoryLogCountMock
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(0);
+
+    const request = new NextRequest("http://localhost/api/inventory/logs?page=1&limit=20");
+    const response = await GET(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      data: [
+        expect.objectContaining({
+          id: "log-1",
+          product: expect.objectContaining({ name: "Banner Flexi" }),
+          person: "Admin User",
+        }),
+      ],
+      pagination: {
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+        pendingTotal: 0,
       },
     });
-
-    expect(log.person).toBe("John Doe");
-    expect(log.createdBy).toBe(testUser.id);
   });
 
-  it("should return person field in API response", async () => {
-    // Create inventory log
-    await db.inventoryLog.create({
-      data: {
-        productId: testProduct.id,
-        type: "OUT",
-        quantity: 5,
-        note: "Stock out test",
-        createdBy: testUser.id,
-        person: testUser.name,
-      },
-    });
-
-    // Create mock request
+  it("filters pending logs and puts recent rows first for a single status filter", async () => {
     const request = new NextRequest(
-      new URL("http://localhost:3000/api/inventory/logs")
+      "http://localhost/api/inventory/logs?status=PENDING&type=OUT&page=2&limit=10",
     );
 
-    // Call API
-    const response = await GET(request);
-    const data = await response.json();
+    await GET(request);
 
-    // Verify person field is in response
-    expect(data.logs).toBeDefined();
-    expect(data.logs.length).toBeGreaterThan(0);
-    expect(data.logs[0]).toHaveProperty("person");
-    expect(data.logs[0].person).toBe("John Doe");
+    expect(inventoryLogFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          product: { storeId: "store-main" },
+          type: "OUT",
+          status: { in: ["PENDING"] },
+        }),
+        orderBy: [{ createdAt: "desc" }],
+        skip: 10,
+        take: 10,
+      }),
+    );
   });
 
-  it("should handle null person field gracefully", async () => {
-    // Create inventory log without person
-    const log = await db.inventoryLog.create({
-      data: {
-        productId: testProduct.id,
-        type: "ADJUSTMENT",
-        quantity: 2,
-        note: "Adjustment test",
-        createdBy: testUser.id,
-        person: null,
-      },
-    });
+  it("accepts a comma-separated status filter", async () => {
+    const request = new NextRequest(
+      "http://localhost/api/inventory/logs?status=APPROVED,REJECTED",
+    );
 
-    expect(log.person).toBeNull();
+    await GET(request);
+
+    expect(inventoryLogFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ["APPROVED", "REJECTED"] },
+        }),
+      }),
+    );
+  });
+
+  it("sorts PENDING rows above historical rows when no status filter is provided", async () => {
+    const request = new NextRequest("http://localhost/api/inventory/logs");
+
+    await GET(request);
+
+    expect(inventoryLogFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      }),
+    );
+    const findManyArgs = inventoryLogFindManyMock.mock.calls[0][0];
+    expect(findManyArgs.where.status).toBeUndefined();
+  });
+
+  it("returns pendingTotal in pagination meta so badge counts can be derived from any list response", async () => {
+    inventoryLogCountMock
+      .mockResolvedValueOnce(7) // total
+      .mockResolvedValueOnce(3); // pendingTotal
+
+    const request = new NextRequest("http://localhost/api/inventory/logs");
+    const response = await GET(request);
+    const body = await response.json();
+
+    expect(body.pagination.pendingTotal).toBe(3);
+    expect(body.pagination.total).toBe(7);
   });
 });

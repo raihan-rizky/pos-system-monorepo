@@ -22,19 +22,46 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const startedAt = Date.now();
   try {
     const user = await requirePermission("inventory.approve", "update");
     const { id } = await context.params;
     const body = await request.json();
     const { reason } = rejectSchema.parse(body);
 
+    logger.info("inventory.approval.received", {
+      logId: id,
+      approverId: user.id,
+      approverName: user.name,
+      approverRole: user.role,
+      decision: "REJECT",
+      rejectionReasonLength: reason.length,
+    });
+
     const result = await db.$transaction(async (tx) => {
       const log = await tx.inventoryLog.findUnique({
         where: { id },
-        select: { id: true, status: true },
+        select: { id: true, status: true, createdBy: true, person: true },
       });
-      if (!log) throw new Error("NOT_FOUND");
+      if (!log) {
+        logger.warn("inventory.approval.log_not_found", {
+          logId: id,
+          approverId: user.id,
+          approverRole: user.role,
+          decision: "REJECT",
+        });
+        throw new Error("NOT_FOUND");
+      }
       if (log.status !== "PENDING") {
+        logger.warn("inventory.approval.already_decided", {
+          logId: id,
+          currentStatus: log.status,
+          requesterId: log.createdBy,
+          requesterName: log.person,
+          approverId: user.id,
+          approverRole: user.role,
+          decision: "REJECT",
+        });
         throw new Error(`ALREADY_DECIDED:${log.status}`);
       }
 
@@ -49,15 +76,46 @@ export async function POST(
         },
       });
 
+      logger.info("inventory.approval.rejected", {
+        logId: id,
+        requesterId: log.createdBy,
+        requesterName: log.person,
+        approverId: user.id,
+        approverName: user.name,
+        status: updatedLog.status,
+        rejectionReasonLength: reason.length,
+      });
+
       return { log: updatedLog };
+    });
+
+    logger.info("inventory.approval.completed", {
+      logId: result.log.id,
+      status: result.log.status,
+      approverId: user.id,
+      approverRole: user.role,
+      decision: "REJECT",
+      durationMs: Date.now() - startedAt,
     });
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     const authErr = handleAuthError(error);
-    if (authErr) return authErr;
+    if (authErr) {
+      logger.warn("inventory.approval.auth_failed", {
+        decision: "REJECT",
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      return authErr;
+    }
 
     if (error instanceof z.ZodError) {
+      logger.warn("inventory.approval.validation_failed", {
+        decision: "REJECT",
+        durationMs: Date.now() - startedAt,
+        errors: error.flatten().fieldErrors,
+      });
       return apiValidationError(error);
     }
 
@@ -70,12 +128,15 @@ export async function POST(
         return apiError(
           `Permintaan sudah ${currentStatus === "APPROVED" ? "disetujui" : "ditolak"}`,
           409,
-          { code: "Conflict" },
+          { code: "Conflict", extra: { currentStatus } },
         );
       }
     }
 
-    logger.error("inventory.reject.failed", { error });
+    logger.error("inventory.reject.failed", {
+      error,
+      durationMs: Date.now() - startedAt,
+    });
     return apiError("Failed to reject inventory request", 500, {
       code: "InternalError",
     });

@@ -12,7 +12,7 @@ const VALID_STATUSES = new Set(["PENDING", "APPROVED", "REJECTED"]);
 // GET /api/inventory/logs - Fetch inventory logs with filters
 export async function GET(request: NextRequest) {
   try {
-    const user = await requirePermission("inventory", "read");
+    const user = await requirePermission("product", "read");
     const storeId = user.storeId || "store-main";
 
     const { searchParams } = new URL(request.url);
