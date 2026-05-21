@@ -1,10 +1,10 @@
 import { db } from "@pos/db";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import {
-  buildJournalRows,
-  buildJournalFooter,
-  buildJournalPeriodRange,
-  type JournalPeriod,
+  buildReportRows,
+  buildReportFooter,
+  buildReportPeriodRange,
+  type ReportPeriod,
 } from "@/features/financial-report/helpers/journal-core";
 import type { ExpenseCategory } from "@/features/keuangan/helpers/keuangan-core";
 import { getLogger } from "@/lib/logger";
@@ -14,14 +14,14 @@ import { NextResponse } from "next/server";
 const log = getLogger("api:finance:report:journal");
 export const dynamic = "force-dynamic";
 
-const VALID_PERIODS: ReadonlySet<JournalPeriod> = new Set([
+const VALID_PERIODS: ReadonlySet<ReportPeriod> = new Set([
   "daily",
   "weekly",
   "monthly",
 ]);
 
-function isPeriod(value: string | null): value is JournalPeriod {
-  return value !== null && VALID_PERIODS.has(value as JournalPeriod);
+function isPeriod(value: string | null): value is ReportPeriod {
+  return value !== null && VALID_PERIODS.has(value as ReportPeriod);
 }
 
 function toJakartaBounds(from: string, to: string) {
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
         { code: "ValidationError" },
       );
     }
-    const range = buildJournalPeriodRange(periodParam);
+    const range = buildReportPeriodRange(periodParam);
     const { start, end } = toJakartaBounds(range.from, range.to);
 
     const storeId = user.storeId || undefined;
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    const rows = buildJournalRows(
+    const rows = buildReportRows(
       sales.map((s) => ({
         id: s.id,
         invoiceNumber: s.invoiceNumber,
@@ -118,12 +118,12 @@ export async function GET(request: Request) {
       from: range.from,
       to: range.to,
       rows,
-      footer: buildJournalFooter(rows),
+      footer: buildReportFooter(rows),
     });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
-    log.error("Failed to build journal", error);
-    return apiError("Failed to build journal", 500, { code: "InternalError" });
+    log.error("Failed to build laporan", error);
+    return apiError("Failed to build laporan", 500, { code: "InternalError" });
   }
 }

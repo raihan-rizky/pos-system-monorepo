@@ -18,7 +18,7 @@ import {
   type FinancialReportPreset,
 } from "@/features/financial-report/helpers/report-core";
 import { useFinancialReport } from "@/features/financial-report/hooks/useFinancialReport";
-import { JournalExportMenu } from "@/features/financial-report/components/JournalExportMenu";
+import { ReportExportMenu } from "@/features/financial-report/components/ReportExportMenu";
 import { KpiCard } from "@/features/financial-report/components/KpiCard";
 import { PaymentBreakdownCard } from "@/features/financial-report/components/PaymentBreakdownCard";
 import { RankedListCard } from "@/features/financial-report/components/RankedListCard";
@@ -180,7 +180,7 @@ export default function FinancialReportPage() {
                   );
                 })}
               </div>
-              <JournalExportMenu />
+              <ReportExportMenu />
             </div>
           </div>
         </div>

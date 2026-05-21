@@ -1,15 +1,15 @@
 "use client";
 
 import {
-  JOURNAL_HEADER,
+  REPORT_HEADER,
   PAYMENT_METHODS,
-  buildJournalSheetData,
-  type JournalRow,
-  type JournalFooter,
-  type JournalPeriod,
+  buildReportSheetData,
+  type ReportRow,
+  type ReportFooter,
+  type ReportPeriod,
 } from "./journal-core";
 
-const PERIOD_LABEL_ID: Record<JournalPeriod, string> = {
+const PERIOD_LABEL_ID: Record<ReportPeriod, string> = {
   daily: "Harian",
   weekly: "Mingguan",
   monthly: "Bulanan",
@@ -28,11 +28,11 @@ function todayJakartaKey(): string {
   }).format(new Date());
 }
 
-function buildFilename(period: JournalPeriod, ext: "xlsx" | "pdf"): string {
+function buildFilename(period: ReportPeriod, ext: "xlsx" | "pdf"): string {
   return `laporan-keuangan-${period}-${todayJakartaKey()}.${ext}`;
 }
 
-function periodTitle(period: JournalPeriod, from: string, to: string): string {
+function periodTitle(period: ReportPeriod, from: string, to: string): string {
   if (from === to) return `Laporan ${PERIOD_LABEL_ID[period]} · ${from}`;
   return `Laporan ${PERIOD_LABEL_ID[period]} · ${from} – ${to}`;
 }
@@ -49,11 +49,11 @@ function triggerDownload(blob: Blob, filename: string): void {
 }
 
 export type ExportInput = {
-  period: JournalPeriod;
+  period: ReportPeriod;
   from: string;
   to: string;
-  rows: JournalRow[];
-  footer: JournalFooter;
+  rows: ReportRow[];
+  footer: ReportFooter;
 };
 
 // ── XLSX ──────────────────────────────────────────────────────────────────
@@ -82,9 +82,9 @@ function thinBorder() {
   };
 }
 
-export async function exportJournalXlsx(input: ExportInput): Promise<void> {
+export async function exportReportXlsx(input: ExportInput): Promise<void> {
   const XLSX = (await import("xlsx-js-style")) as typeof import("xlsx-js-style");
-  const sheetData = buildJournalSheetData(input.rows, input.footer);
+  const sheetData = buildReportSheetData(input.rows, input.footer);
   const titleRow: (string | number)[] = [
     periodTitle(input.period, input.from, input.to),
   ];
@@ -98,7 +98,7 @@ export async function exportJournalXlsx(input: ExportInput): Promise<void> {
   const aoa: (string | number)[][] = [titleRow, subtitleRow, [], ...sheetData];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-  const lastCol = JOURNAL_HEADER.length - 1;
+  const lastCol = REPORT_HEADER.length - 1;
   const colWidths = [14, 20, 24, 38, 26, 14, 18, 14].map((w) => ({ wch: w }));
   ws["!cols"] = colWidths;
 
@@ -257,7 +257,7 @@ export async function exportJournalXlsx(input: ExportInput): Promise<void> {
   ];
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Jurnal");
+  XLSX.utils.book_append_sheet(wb, ws, "Laporan");
   XLSX.writeFile(wb, buildFilename(input.period, "xlsx"));
 }
 
@@ -280,7 +280,7 @@ const PDF_COLOR = {
   cardGrand: [241, 245, 249] as [number, number, number],
 } as const;
 
-export async function exportJournalPdf(input: ExportInput): Promise<void> {
+export async function exportReportPdf(input: ExportInput): Promise<void> {
   const [{ default: jsPDF }, autoTableModule] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -384,7 +384,7 @@ export async function exportJournalPdf(input: ExportInput): Promise<void> {
   ]);
 
   autoTable(doc, {
-    head: [[...JOURNAL_HEADER]],
+    head: [[...REPORT_HEADER]],
     body,
     startY: tableTop,
     margin: { left: margin, right: margin, top: barH + 12, bottom: 32 },

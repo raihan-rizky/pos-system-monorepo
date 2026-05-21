@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { Button } from "@pos/ui";
 import {
-  exportJournalPdf,
-  exportJournalXlsx,
+  exportReportPdf,
+  exportReportXlsx,
   type ExportInput,
 } from "@/features/financial-report/helpers/journal-export";
-import type { JournalPeriod } from "@/features/financial-report/helpers/journal-core";
+import type { ReportPeriod } from "@/features/financial-report/helpers/journal-core";
 
 type ExportFormat = "xlsx" | "pdf";
 type Step = "closed" | "format" | "period";
@@ -17,7 +17,7 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string; hint: string }[] = [
   { value: "pdf", label: "PDF", hint: "Siap cetak / dibagikan" },
 ];
 
-const PERIOD_OPTIONS: { value: JournalPeriod; label: string; hint: string }[] = [
+const PERIOD_OPTIONS: { value: ReportPeriod; label: string; hint: string }[] = [
   { value: "daily", label: "Harian", hint: "Hari ini" },
   { value: "weekly", label: "Mingguan", hint: "7 hari terakhir" },
   { value: "monthly", label: "Bulanan", hint: "Bulan berjalan" },
@@ -47,7 +47,7 @@ const BackIcon = (
   </svg>
 );
 
-async function fetchJournalInput(period: JournalPeriod): Promise<ExportInput> {
+async function fetchReportInput(period: ReportPeriod): Promise<ExportInput> {
   const res = await fetch(`/api/finance/report/journal?period=${period}`, {
     cache: "no-store",
   });
@@ -58,7 +58,7 @@ async function fetchJournalInput(period: JournalPeriod): Promise<ExportInput> {
   return (await res.json()) as ExportInput;
 }
 
-export function JournalExportMenu(): ReactNode {
+export function ReportExportMenu(): ReactNode {
   const [step, setStep] = useState<Step>("closed");
   const [format, setFormat] = useState<ExportFormat | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,16 +94,16 @@ export function JournalExportMenu(): ReactNode {
   }, [step, close]);
 
   const handlePeriod = useCallback(
-    async (period: JournalPeriod) => {
+    async (period: ReportPeriod) => {
       if (!format || busy) return;
       setBusy(true);
       setError(null);
       try {
-        const input = await fetchJournalInput(period);
+        const input = await fetchReportInput(period);
         if (format === "xlsx") {
-          await exportJournalXlsx(input);
+          await exportReportXlsx(input);
         } else {
-          await exportJournalPdf(input);
+          await exportReportPdf(input);
         }
         close();
       } catch (err) {

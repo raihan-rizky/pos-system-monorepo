@@ -3,7 +3,7 @@ import {
 } from "@/features/keuangan/helpers/category-meta";
 import type { ExpenseCategory } from "@/features/keuangan/helpers/keuangan-core";
 
-export type JournalPeriod = "daily" | "weekly" | "monthly";
+export type ReportPeriod = "daily" | "weekly" | "monthly";
 
 export const PAYMENT_METHODS = [
   "CASH",
@@ -31,8 +31,8 @@ function shiftJakartaDateKey(dateKey: string, days: number): string {
   return jakartaDateKey(date);
 }
 
-export function buildJournalPeriodRange(
-  period: JournalPeriod,
+export function buildReportPeriodRange(
+  period: ReportPeriod,
   now: Date = new Date(),
 ): { from: string; to: string } {
   const today = jakartaDateKey(now);
@@ -52,7 +52,7 @@ function toNumber(value: Decimalish | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export type JournalSaleInput = {
+export type ReportSaleInput = {
   id: string;
   invoiceNumber: string | null;
   createdAt: Date;
@@ -67,7 +67,7 @@ export type JournalSaleInput = {
   }>;
 };
 
-export type JournalExpenseInput = {
+export type ReportExpenseInput = {
   id: string;
   occurredAt: Date;
   applicantName: string;
@@ -77,7 +77,7 @@ export type JournalExpenseInput = {
   changeAmount: Decimalish;
 };
 
-export type JournalRow = {
+export type ReportRow = {
   tanggal: string; // YYYY-MM-DD
   invoice: string;
   person: string;
@@ -100,7 +100,7 @@ function joinUnique(values: Array<string | null | undefined>): string {
   return out.join(", ");
 }
 
-function saleToRow(sale: JournalSaleInput): JournalRow {
+function saleToRow(sale: ReportSaleInput): ReportRow {
   const products = joinUnique(sale.items.map((i) => i.productName));
   const categories = joinUnique(
     sale.items.map((i) => i.product?.category?.name ?? null),
@@ -122,7 +122,7 @@ function saleToRow(sale: JournalSaleInput): JournalRow {
   };
 }
 
-function expenseToRow(expense: JournalExpenseInput): JournalRow {
+function expenseToRow(expense: ReportExpenseInput): ReportRow {
   const categoryLabel = CATEGORY_LABELS_ID[expense.category];
   const products = expense.description?.trim() || categoryLabel;
   const net = toNumber(expense.amount) - toNumber(expense.changeAmount);
@@ -138,11 +138,11 @@ function expenseToRow(expense: JournalExpenseInput): JournalRow {
   };
 }
 
-export function buildJournalRows(
-  sales: JournalSaleInput[],
-  expenses: JournalExpenseInput[],
-): JournalRow[] {
-  const rows: JournalRow[] = [
+export function buildReportRows(
+  sales: ReportSaleInput[],
+  expenses: ReportExpenseInput[],
+): ReportRow[] {
+  const rows: ReportRow[] = [
     ...sales.map(saleToRow),
     ...expenses.map(expenseToRow),
   ];
@@ -154,14 +154,14 @@ export function buildJournalRows(
   return rows;
 }
 
-export type JournalFooter = {
+export type ReportFooter = {
   totalPemasukan: number;
   totalPengeluaran: number;
   grandTotal: number;
   byMethod: Record<PaymentMethod, number>;
 };
 
-export function buildJournalFooter(rows: JournalRow[]): JournalFooter {
+export function buildReportFooter(rows: ReportRow[]): ReportFooter {
   const byMethod: Record<PaymentMethod, number> = {
     CASH: 0,
     TRANSFER: 0,
@@ -189,7 +189,7 @@ export function buildJournalFooter(rows: JournalRow[]): JournalFooter {
   };
 }
 
-export const JOURNAL_HEADER = [
+export const REPORT_HEADER = [
   "Tanggal",
   "No. Invoice",
   "Pemohon/Sales",
@@ -203,7 +203,7 @@ export const JOURNAL_HEADER = [
 export type SheetCell = string | number;
 export type SheetRow = SheetCell[];
 
-function rowToCells(row: JournalRow): SheetRow {
+function rowToCells(row: ReportRow): SheetRow {
   return [
     row.tanggal,
     row.invoice,
@@ -220,12 +220,12 @@ function pad(label: string, amount: number): SheetRow {
   return [label, "", "", "", "", "", amount, ""];
 }
 
-export function buildJournalSheetData(
-  rows: JournalRow[],
-  footer: JournalFooter,
+export function buildReportSheetData(
+  rows: ReportRow[],
+  footer: ReportFooter,
 ): SheetRow[] {
   const out: SheetRow[] = [];
-  out.push([...JOURNAL_HEADER]);
+  out.push([...REPORT_HEADER]);
   for (const r of rows) out.push(rowToCells(r));
   out.push([]);
   out.push(pad("Total Pemasukan", footer.totalPemasukan));

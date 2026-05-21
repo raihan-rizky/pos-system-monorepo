@@ -1,35 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildJournalRows,
-  buildJournalFooter,
-  buildJournalPeriodRange,
-  buildJournalSheetData,
-  type JournalSaleInput,
-  type JournalExpenseInput,
+  buildReportRows,
+  buildReportFooter,
+  buildReportPeriodRange,
+  buildReportSheetData,
+  type ReportSaleInput,
+  type ReportExpenseInput,
 } from "../journal-core";
 
-describe("buildJournalPeriodRange (Asia/Jakarta)", () => {
+describe("buildReportPeriodRange (Asia/Jakarta)", () => {
   it("returns today's range for 'daily'", () => {
     const now = new Date("2026-05-20T10:30:00.000Z");
-    const range = buildJournalPeriodRange("daily", now);
+    const range = buildReportPeriodRange("daily", now);
     expect(range).toEqual({ from: "2026-05-20", to: "2026-05-20" });
   });
 
   it("returns last 7 days inclusive for 'weekly'", () => {
     const now = new Date("2026-05-20T10:30:00.000Z");
-    const range = buildJournalPeriodRange("weekly", now);
+    const range = buildReportPeriodRange("weekly", now);
     expect(range).toEqual({ from: "2026-05-14", to: "2026-05-20" });
   });
 
   it("returns first-of-month to today for 'monthly'", () => {
     const now = new Date("2026-05-20T10:30:00.000Z");
-    const range = buildJournalPeriodRange("monthly", now);
+    const range = buildReportPeriodRange("monthly", now);
     expect(range).toEqual({ from: "2026-05-01", to: "2026-05-20" });
   });
 });
 
-describe("buildJournalRows", () => {
-  const sale: JournalSaleInput = {
+describe("buildReportRows", () => {
+  const sale: ReportSaleInput = {
     id: "tx1",
     invoiceNumber: "INV-001",
     createdAt: new Date("2026-05-20T01:00:00.000Z"), // 08:00 WIB
@@ -50,7 +50,7 @@ describe("buildJournalRows", () => {
     ],
   };
 
-  const expense: JournalExpenseInput = {
+  const expense: ReportExpenseInput = {
     id: "exp123",
     occurredAt: new Date("2026-05-20T02:00:00.000Z"),
     applicantName: "Pak Budi",
@@ -60,8 +60,8 @@ describe("buildJournalRows", () => {
     changeAmount: 12_500,
   };
 
-  it("converts a sale into one journal row with comma-separated products and categories", () => {
-    const rows = buildJournalRows([sale], []);
+  it("converts a sale into one report row with comma-separated products and categories", () => {
+    const rows = buildReportRows([sale], []);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       tanggal: "2026-05-20",
@@ -76,27 +76,27 @@ describe("buildJournalRows", () => {
   });
 
   it("dedupes categories on a sale row", () => {
-    const sameCategorySale: JournalSaleInput = {
+    const sameCategorySale: ReportSaleInput = {
       ...sale,
       items: [
         { productName: "A", product: { category: { name: "Cetak" } } },
         { productName: "B", product: { category: { name: "Cetak" } } },
       ],
     };
-    const rows = buildJournalRows([sameCategorySale], []);
+    const rows = buildReportRows([sameCategorySale], []);
     expect(rows[0]?.categories).toBe("Cetak");
   });
 
   it("falls back person name from salesName -> salesperson.name -> customerName", () => {
-    expect(buildJournalRows([{ ...sale, salesName: null }], [])[0]?.person).toBe("");
+    expect(buildReportRows([{ ...sale, salesName: null }], [])[0]?.person).toBe("");
     expect(
-      buildJournalRows(
+      buildReportRows(
         [{ ...sale, salesName: null, salesperson: { name: "Rina" } }],
         [],
       )[0]?.person,
     ).toBe("Rina");
     expect(
-      buildJournalRows(
+      buildReportRows(
         [
           {
             ...sale,
@@ -111,7 +111,7 @@ describe("buildJournalRows", () => {
   });
 
   it("converts an expense into a row with EXP- invoice, negative net amount, blank method", () => {
-    const rows = buildJournalRows([], [expense]);
+    const rows = buildReportRows([], [expense]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       tanggal: "2026-05-20",
@@ -126,7 +126,7 @@ describe("buildJournalRows", () => {
   });
 
   it("uses category label for products column when description is empty", () => {
-    const rows = buildJournalRows([], [{ ...expense, description: null }]);
+    const rows = buildReportRows([], [{ ...expense, description: null }]);
     expect(rows[0]?.products).toBe("Perlengkapan");
   });
 
@@ -138,7 +138,7 @@ describe("buildJournalRows", () => {
       ...expense,
       occurredAt: new Date("2026-05-20T01:00:00.000Z"),
     };
-    const rows = buildJournalRows([day2Sale, day1Sale], [day2Exp, day2ExpEarly]);
+    const rows = buildReportRows([day2Sale, day1Sale], [day2Exp, day2ExpEarly]);
     expect(rows.map((r) => `${r.tanggal}|${r.status}`)).toEqual([
       "2026-05-19|Pemasukan",
       "2026-05-20|Pemasukan",
@@ -148,7 +148,7 @@ describe("buildJournalRows", () => {
   });
 });
 
-describe("buildJournalFooter", () => {
+describe("buildReportFooter", () => {
   const rows = [
     {
       tanggal: "2026-05-20",
@@ -193,14 +193,14 @@ describe("buildJournalFooter", () => {
   ];
 
   it("computes 3-tier totals (pemasukan, pengeluaran, grand)", () => {
-    const f = buildJournalFooter(rows);
+    const f = buildReportFooter(rows);
     expect(f.totalPemasukan).toBe(350_000);
     expect(f.totalPengeluaran).toBe(-30_000);
     expect(f.grandTotal).toBe(320_000);
   });
 
   it("breaks down income by all 5 fixed payment methods, missing methods default to 0", () => {
-    const f = buildJournalFooter(rows);
+    const f = buildReportFooter(rows);
     expect(f.byMethod).toEqual({
       CASH: 150_000,
       TRANSFER: 200_000,
@@ -223,7 +223,7 @@ describe("buildJournalFooter", () => {
         method: "",
       },
     ];
-    const f = buildJournalFooter(onlyExpense);
+    const f = buildReportFooter(onlyExpense);
     expect(f.byMethod).toEqual({
       CASH: 0,
       TRANSFER: 0,
@@ -235,14 +235,14 @@ describe("buildJournalFooter", () => {
   });
 
   it("returns zeros for empty rows", () => {
-    const f = buildJournalFooter([]);
+    const f = buildReportFooter([]);
     expect(f.totalPemasukan).toBe(0);
     expect(f.totalPengeluaran).toBe(0);
     expect(f.grandTotal).toBe(0);
   });
 });
 
-describe("buildJournalSheetData", () => {
+describe("buildReportSheetData", () => {
   it("emits header, data rows, blank row, and footer rows in order", () => {
     const rows = [
       {
@@ -256,8 +256,8 @@ describe("buildJournalSheetData", () => {
         method: "CASH",
       },
     ];
-    const footer = buildJournalFooter(rows);
-    const sheet = buildJournalSheetData(rows, footer);
+    const footer = buildReportFooter(rows);
+    const sheet = buildReportSheetData(rows, footer);
 
     // header
     expect(sheet[0]).toEqual([
@@ -311,8 +311,8 @@ describe("buildJournalSheetData", () => {
         method: "CASH",
       },
     ];
-    const footer = buildJournalFooter(rows);
-    const sheet = buildJournalSheetData(rows, footer);
+    const footer = buildReportFooter(rows);
+    const sheet = buildReportSheetData(rows, footer);
 
     const totalPemasukanRow = sheet.find((r) => r[0] === "Total Pemasukan");
     expect(totalPemasukanRow?.[6]).toBe(100_000);

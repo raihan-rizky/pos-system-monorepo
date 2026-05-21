@@ -11,27 +11,37 @@ test("financial report page renders summary metrics from API", async ({
   ).toBeVisible();
   await expect(page.getByText("Rp 4.500.000")).toBeVisible(); // omzet
   await expect(page.getByText("Rp 4.200.000")).toBeVisible(); // collected
-  await expect(page.getByText("33.3%")).toBeVisible(); // margin
+  await expect(page.getByText("33.3%", { exact: true })).toBeVisible(); // margin
   await expect(page.getByText("Rp 300.000")).toBeVisible(); // outstanding DP
-  await expect(page.getByText("Rp 250.000")).toBeVisible(); // loss stok net
+  await expect(
+    page.getByRole("region", { name: "Ringkasan KPI" }).getByText("Rp 250.000"),
+  ).toBeVisible(); // loss stok net
 
   // Loss Stok breakdown rows
   await expect(page.getByText("Waste / Rusak")).toBeVisible();
   await expect(page.getByText("Tidak terklasifikasi")).toBeVisible();
 
   // Unclassified warning banner
-  await expect(
-    page.getByText(/belum ditandai alasannya/i),
-  ).toBeVisible();
+  await expect(page.getByText(/belum ditandai alasannya/i)).toBeVisible();
 
   // Payment method row
-  await expect(page.getByRole("cell", { name: "CASH" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "TRANSFER" })).toBeVisible();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "CASH" }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "TRANSFER" }).first(),
+  ).toBeVisible();
 
   // Top product / category / sales sections
-  await expect(page.getByRole("cell", { name: "Kertas A4" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Alat Tulis" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Budi" })).toBeVisible();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Kertas A4" }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Alat Tulis" }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Budi" }).first(),
+  ).toBeVisible();
 });
 
 test("KPI info tooltip opens on click and closes on Esc", async ({
@@ -86,7 +96,7 @@ test("export menu opens and walks format → period steps", async ({
   await expect(page.getByText("Pilih Format")).not.toBeVisible();
 });
 
-test("Excel export downloads xlsx file with daily journal data", async ({
+test("Excel export downloads xlsx file with daily laporan data", async ({
   appPage: page,
 }) => {
   await page.goto("/financial-report");
@@ -102,14 +112,14 @@ test("Excel export downloads xlsx file with daily journal data", async ({
   const download = await downloadPromise;
 
   expect(download.suggestedFilename()).toMatch(
-    /^jurnal-keuangan-daily-\d{4}-\d{2}-\d{2}\.xlsx$/,
+    /^laporan-keuangan-daily-\d{4}-\d{2}-\d{2}\.xlsx$/,
   );
 
   // Menu closes after successful export
   await expect(page.getByText("Pilih Format")).not.toBeVisible();
 });
 
-test("PDF export downloads pdf file with weekly journal data", async ({
+test("PDF export downloads pdf file with weekly laporan data", async ({
   appPage: page,
 }) => {
   await page.goto("/financial-report");
@@ -125,19 +135,19 @@ test("PDF export downloads pdf file with weekly journal data", async ({
   const download = await downloadPromise;
 
   expect(download.suggestedFilename()).toMatch(
-    /^jurnal-keuangan-weekly-\d{4}-\d{2}-\d{2}\.pdf$/,
+    /^laporan-keuangan-weekly-\d{4}-\d{2}-\d{2}\.pdf$/,
   );
 });
 
-test("export shows error message when journal API fails", async ({ page }) => {
+test("export shows error message when laporan API fails", async ({ page }) => {
   await authenticate(page, "OWNER");
   await mockApis(page);
-  // Override journal endpoint to fail — registered after mockApis so it wins.
+  // Override laporan endpoint to fail — registered after mockApis so it wins.
   await page.route("**/api/finance/report/journal**", async (route) => {
     await route.fulfill({
       status: 500,
       contentType: "application/json",
-      body: JSON.stringify({ message: "Gagal memuat jurnal" }),
+      body: JSON.stringify({ message: "Gagal memuat laporan" }),
     });
   });
 
@@ -150,7 +160,7 @@ test("export shows error message when journal API fails", async ({ page }) => {
   await page.getByRole("menuitem", { name: /Excel/ }).click();
   await page.getByRole("menuitem", { name: /Harian/ }).click();
 
-  await expect(page.getByText("Gagal memuat jurnal")).toBeVisible();
+  await expect(page.getByText("Gagal memuat laporan")).toBeVisible();
   // Menu stays open with period selector when there's an error
   await expect(page.getByText("Excel · Pilih Periode")).toBeVisible();
 });

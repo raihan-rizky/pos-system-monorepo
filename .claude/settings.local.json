@@ -27,7 +27,13 @@
       "Bash(pnpm --filter @pos/web exec vitest run \"app/api/transactions/[id]/approve-draft/__tests__/route.test.ts\" --reporter=verbose)",
       "Bash(pnpm --filter web exec next lint --dir \"app/\\(main\\)/dashboard\" --dir \"features/dashboard\" --dir \"app/api/dashboard\")",
       "Bash(pnpm --filter @pos/web exec tsc --noEmit)",
-      "Bash(pnpm tsx -e ' *)"
+      "Bash(pnpm tsx -e ' *)",
+      "Bash(git mv *)",
+      "Bash(npx tsc *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(Set-Content *)",
+      "PowerShell(Get-Content *)"
     ]
   }
 }

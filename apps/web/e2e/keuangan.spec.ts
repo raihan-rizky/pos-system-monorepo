@@ -12,11 +12,11 @@ test("keuangan dashboard shows net cash flow, pemasukan, and pengeluaran togethe
   await expect(page.getByText("Rp 44.150.000")).toBeVisible();
 
   // Pemasukan column
-  await expect(page.getByText("Rp 45.000.000")).toBeVisible();
-  await expect(page.getByText("312 transaksi")).toBeVisible();
+  await expect(page.getByText("Rp 45.000.000", { exact: true })).toBeVisible();
+  await expect(page.getByText("312 trx")).toBeVisible();
 
   // Pengeluaran column
-  await expect(page.getByText("Rp 850.000")).toBeVisible();
+  await expect(page.getByText("Rp 850.000", { exact: true })).toBeVisible();
   await expect(page.getByText("Pak Budi")).toBeVisible();
   await expect(page.getByText("Sari")).toBeVisible();
 
