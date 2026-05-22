@@ -16,7 +16,10 @@ test("cashier can add a product and open checkout", async ({ appPage: page }) =>
 test("offline status is visible when the browser is offline", async ({ appPage: page, context }) => {
   await page.goto("/pos");
   await context.setOffline(true);
-  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    window.dispatchEvent(new Event("offline"));
+  });
 
   await expect(page.getByRole("status").filter({ hasText: /Mode offline/i })).toBeVisible();
 
