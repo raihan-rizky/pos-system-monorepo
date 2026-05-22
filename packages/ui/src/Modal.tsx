@@ -18,6 +18,13 @@ const sizeClasses = {
   xl: "max-w-xl",
 };
 
+function titleToId(title: string) {
+  return `modal-${title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")}-title`;
+}
+
 export function Modal({
   open,
   onClose,
@@ -46,6 +53,8 @@ export function Modal({
 
   if (!open) return null;
 
+  const titleId = title ? titleToId(title) : undefined;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       {/* Backdrop */}
@@ -55,6 +64,9 @@ export function Modal({
       />
       {/* Modal */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className={`
           relative z-10 w-full ${sizeClasses[size]}
           bg-white rounded-2xl shadow-2xl max-h-[85%] flex flex-col translate-y-[-25px]
@@ -64,9 +76,11 @@ export function Modal({
       >
         {title && (
           <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 shrink-0">
-            <h2 className="text-lg font-bold text-surface-900">{title}</h2>
+            <h2 id={titleId} className="text-lg font-bold text-surface-900">{title}</h2>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Tutup modal"
               className="p-1.5 rounded-lg text-surface-400 hover:text-surface-600 hover:bg-surface-100 transition-colors"
             >
               <svg

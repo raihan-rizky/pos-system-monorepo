@@ -31,7 +31,7 @@ export interface PaginatedShifts {
   };
 }
 
-export function useActiveShift() {
+export function useActiveShift(initialData?: CashierShift | null) {
   return useQuery({
     queryKey: ["active-shift"],
     queryFn: async (): Promise<CashierShift | null> => {
@@ -52,6 +52,7 @@ export function useActiveShift() {
         throw error;
       }
     },
+    initialData,
     refetchOnWindowFocus: false,
   });
 }

@@ -55,7 +55,16 @@ export class StockApprovalPage {
   }
 
   async openStockLogsTab() {
-    await this.page.getByRole("button", { name: /Stock Logs/ }).click();
+    const logsPanel = this.page.getByRole("tablist", { name: "Filter status" });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await this.page.getByRole("button", { name: /^Stock Logs/ }).click();
+      const opened = await logsPanel
+        .waitFor({ state: "visible", timeout: 1500 })
+        .then(() => true)
+        .catch(() => false);
+      if (opened) return;
+    }
+    await expect(logsPanel).toBeVisible();
   }
 
   pendingChipBadge(): Locator {
@@ -67,7 +76,7 @@ export class StockApprovalPage {
   }
 
   rowByProductName(name: string): Locator {
-    return this.page.locator("tr", { hasText: name });
+    return this.page.getByRole("table").locator("tr", { hasText: name });
   }
 
   async approveRow(name: string) {
@@ -81,11 +90,11 @@ export class StockApprovalPage {
   }
 
   rejectComposerSubmit(): Locator {
-    return this.page.getByRole("button", { name: /Tolak Permintaan/ });
+    return this.page.getByRole("table").getByRole("button", { name: /Tolak Permintaan/ });
   }
 
   rejectComposerReason(): Locator {
-    return this.page.getByPlaceholder(/Misal: stok tidak mencukupi/);
+    return this.page.getByRole("table").getByPlaceholder(/Misal: stok tidak mencukupi/);
   }
 
   async cancelRow(name: string) {

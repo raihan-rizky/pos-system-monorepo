@@ -50,6 +50,7 @@ export interface UseProductsOptions {
   page?: number;
   limit?: number;
   inStockOnly?: boolean;
+  initialData?: ProductsResponse;
 }
 
 async function fetchProducts(
@@ -170,7 +171,7 @@ export function useProductsPage(
   categoryId?: string,
   options: UseProductsOptions = {},
 ) {
-  const { page = 1, limit = 100, inStockOnly = false } = options;
+  const { page = 1, limit = 100, inStockOnly = false, initialData } = options;
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
 
   return useQuery({
@@ -185,14 +186,19 @@ export function useProductsPage(
     ],
     queryFn: () =>
       fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly),
+    initialData:
+      debouncedSearch === "" && !categoryId && page === 1 && !inStockOnly
+        ? initialData
+        : undefined,
     placeholderData: keepPreviousData,
   });
 }
 
-export function useCategories() {
+export function useCategories(initialData?: Category[]) {
   return useQuery({
     queryKey: ["categories"],
     queryFn: fetchCategories,
+    initialData,
   });
 }
 

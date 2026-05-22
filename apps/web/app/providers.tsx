@@ -1,15 +1,78 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import { useAppPrefetch } from "@/hooks/usePrefetch";
-import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { RoleProvider } from "@/components/providers/RoleProvider";
-import { PwaStatusBanner } from "@/components/PwaStatusBanner";
-import { NotificationPermissionPrompt } from "@/components/NotificationPermissionPrompt";
-import { InAppPushNotifications } from "@/components/InAppPushNotifications";
 import type { Role } from "@/lib/rbac/permissions";
 import type { RolePermissions } from "@/features/rbac/helpers/rbac-core";
+
+const PwaStatusBanner = dynamic(
+  () => import("@/components/PwaStatusBanner").then((mod) => mod.PwaStatusBanner),
+  { ssr: false },
+);
+const InAppPushNotifications = dynamic(
+  () =>
+    import("@/components/InAppPushNotifications").then(
+      (mod) => mod.InAppPushNotifications,
+    ),
+  { ssr: false },
+);
+const NotificationPermissionPrompt = dynamic(
+  () =>
+    import("@/components/NotificationPermissionPrompt").then(
+      (mod) => mod.NotificationPermissionPrompt,
+    ),
+  { ssr: false },
+);
+const ServiceWorkerRegistration = dynamic(
+  () =>
+    import("@/components/ServiceWorkerRegistration").then(
+      (mod) => mod.ServiceWorkerRegistration,
+    ),
+  { ssr: false },
+);
+
+function useIdleReady(enabled: boolean) {
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setIsReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    const markReady = () => {
+      if (!cancelled) setIsReady(true);
+    };
+
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (
+        callback: () => void,
+        options?: { timeout?: number },
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(markReady, { timeout: 1500 });
+      return () => {
+        cancelled = true;
+        idleWindow.cancelIdleCallback?.(handle);
+      };
+    }
+
+    const handle = window.setTimeout(markReady, 1000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [enabled]);
+
+  return isReady;
+}
 
 function AppBootstrap({
   children,
@@ -20,6 +83,19 @@ function AppBootstrap({
 }) {
   useAppPrefetch(enabled);
   return <>{children}</>;
+}
+
+function DeferredAppServices({ enabled }: { enabled: boolean }) {
+  if (!enabled) return null;
+
+  return (
+    <>
+      <PwaStatusBanner />
+      <InAppPushNotifications />
+      <NotificationPermissionPrompt />
+      <ServiceWorkerRegistration />
+    </>
+  );
 }
 
 export function Providers({ 
@@ -35,6 +111,7 @@ export function Providers({
   userName: string | null;
   permissions: RolePermissions;
 }) {
+  const isIdleReady = useIdleReady(Boolean(role));
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -53,11 +130,8 @@ export function Providers({
   return (
     <QueryClientProvider client={queryClient}>
       <RoleProvider role={role} userId={userId} userName={userName} permissions={permissions}>
-        <PwaStatusBanner />
-        <AppBootstrap enabled={Boolean(role)}>{children}</AppBootstrap>
-        <InAppPushNotifications />
-        <NotificationPermissionPrompt />
-        <ServiceWorkerRegistration />
+        <AppBootstrap enabled={isIdleReady}>{children}</AppBootstrap>
+        <DeferredAppServices enabled={isIdleReady} />
       </RoleProvider>
     </QueryClientProvider>
   );

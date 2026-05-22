@@ -129,11 +129,10 @@ function PaymentBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-        isDP
-          ? "bg-orange-100 text-orange-700 border border-orange-200"
-          : "bg-emerald-100 text-emerald-700 border border-emerald-200"
-      }`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${isDP
+        ? "bg-orange-100 text-orange-700 border border-orange-200"
+        : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+        }`}
     >
       {isDP
         ? `DP • Sisa ${new Intl.NumberFormat("id-ID").format(remaining)}`
@@ -188,9 +187,8 @@ function KanbanCard({
       draggable={Boolean(onMoveForward)}
       onDragStart={onMoveForward ? handleDragStart : undefined}
       onDragEnd={handleDragEnd}
-      aria-label={`Job order ${order.invoiceNumber}${order.customerName ? ` for ${order.customerName}` : ""}${
-        isOverdue ? `, ${deadline.label}` : ""
-      }`}
+      aria-label={`Job order ${order.invoiceNumber}${order.customerName ? ` for ${order.customerName}` : ""}${isOverdue ? `, ${deadline.label}` : ""
+        }`}
       className={`relative bg-white border ${accentClass} rounded-xl p-4 shadow-sm hover:shadow-md
                  transition-all duration-200 ${onMoveForward ? "cursor-grab active:cursor-grabbing" : ""}
                  active:shadow-lg active:scale-[0.99] group
@@ -209,7 +207,7 @@ function KanbanCard({
           <p className="font-bold text-surface-900 text-sm truncate">
             {order.customerName || "Walk-in"}
           </p>
-          <div className="flex items-center justify-between gap-4 mt-1">
+          <div className="flex lg:flex-col lg:gap-1 items-center lg:items-start justify-between gap-4 mt-1">
             <p className="text-[11px] text-surface-500 flex items-center gap-1">
               <FileText className="w-3 h-3" aria-hidden="true" />
               {order.invoiceNumber}
@@ -261,11 +259,11 @@ function KanbanCard({
       </ul>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-3 border-t border-surface-100 mt-auto gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center lg:flex-col xl:items-end justify-between pt-3 border-t border-surface-100 mt-auto gap-3">
+        <div className="flex lg:flex-col xl:flex-row  items-center gap-2 min-w-0">
           {isOverdue ? (
             <AlertTriangle
-              className="w-3.5 h-3.5 text-red-500 shrink-0"
+              className="w-3.5 h-3.5   text-red-500 shrink-0"
               aria-hidden="true"
             />
           ) : null}
@@ -367,11 +365,10 @@ function KanbanColumn({
   return (
     <section
       aria-label={`${config.label} column`}
-      className={`flex flex-col w-full md:flex-1 md:min-w-0 rounded-2xl border transition-all duration-200 ${
-        isDragOver
-          ? "border-brand-400 bg-brand-50/30 shadow-lg ring-2 ring-brand-200/50"
-          : "border-surface-200/60 bg-white/60"
-      }`}
+      className={`flex flex-col w-full md:flex-1 md:min-w-0 rounded-2xl border transition-all duration-200 ${isDragOver
+        ? "border-brand-400 bg-brand-50/30 shadow-lg ring-2 ring-brand-200/50"
+        : "border-surface-200/60 bg-white/60"
+        }`}
       onDragOver={onDrop ? handleDragOver : undefined}
       onDragLeave={onDrop ? handleDragLeave : undefined}
       onDrop={onDrop ? handleDrop : undefined}
@@ -449,7 +446,7 @@ export default function KanbanBoard({
   }, [orders]);
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 lg:gap-5 pb-4 w-full">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 pb-4 w-full">
       {KANBAN_COLUMNS.map((col, idx) => (
         <KanbanColumn
           key={col.id}

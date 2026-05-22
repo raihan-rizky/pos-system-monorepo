@@ -43,19 +43,19 @@ export default function SettingsPage() {
         <div className="flex flex-col sm:flex-row gap-6">
 
           {/* Tab Pills */}
-          <nav className="flex sm:flex-col gap-1 sm:w-48 shrink-0">
+          <nav className="flex sm:flex-col gap-1 sm:w-48 shrink-0 overflow-x-scroll">
             {visibleTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold transition-all duration-150 cursor-pointer w-full text-left
+                className={`flex items-center gap-2.5 px-6 sm:px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold transition-all duration-150 cursor-pointer w-full text-left
                   ${activeTab === tab.id
                     ? "bg-white shadow border border-surface-200 text-brand-600"
                     : "text-surface-600 hover:bg-white/60 hover:text-surface-900"
                   }`}
               >
                 {tab.icon}
-                {tab.label}
+                <h1 className="sm:block hidden">{tab.label}</h1>
               </button>
             ))}
           </nav>

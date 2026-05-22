@@ -5,21 +5,56 @@ test("login shows a clear error for invalid credentials", async ({ page }) => {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/auth/v1/")) {
+
+      if (url.includes("/api/auth/clear-session")) {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      if (url.includes("/auth/v1/logout")) {
+        return new Response(null, { status: 204 });
+      }
+
+      if (url.includes("/auth/v1/token")) {
         return new Response(
-          JSON.stringify({ message: "Invalid login credentials" }),
+          JSON.stringify({
+            error: "invalid_grant",
+            error_description: "Invalid login credentials",
+            message: "Invalid login credentials",
+          }),
           { status: 400, headers: { "content-type": "application/json" } },
         );
       }
+
       return originalFetch(input, init);
     };
   });
 
+  await page.route("**/api/auth/clear-session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+
   await page.route("**/auth/v1/**", async (route) => {
+    const url = route.request().url();
+    if (url.includes("/auth/v1/logout")) {
+      await route.fulfill({ status: 204, body: "" });
+      return;
+    }
+
     await route.fulfill({
       status: 400,
       contentType: "application/json",
-      body: JSON.stringify({ error_description: "Invalid login credentials", message: "Invalid login credentials" }),
+      body: JSON.stringify({
+        error: "invalid_grant",
+        error_description: "Invalid login credentials",
+        message: "Invalid login credentials",
+      }),
     });
   });
 

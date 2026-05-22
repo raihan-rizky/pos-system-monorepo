@@ -151,8 +151,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
     test("sees a 409 conflict toast when a request was already decided by another OWNER", async ({
       page,
     }) => {
-      // Prime list with a PENDING row, then race-flip it to APPROVED before approve fires.
-      const store = await setupRole(page, "OWNER", {
+      await setupRole(page, "OWNER", {
         initialLogs: [PENDING_FROM_ADMIN],
       });
       const sa = new StockApprovalPage(page);
@@ -160,10 +159,17 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       await sa.gotoProducts();
       await sa.openStockLogsTab();
 
-      // Simulate "another OWNER decided first" by mutating the mock store
-      // BEFORE we click Approve. The 409 path is in the mock router.
-      const target = store.logs.find((l) => l.id === "log-pending-1");
-      if (target) target.status = "APPROVED";
+      await page.route("**/api/inventory/log-pending-1/approve", async (route) => {
+        if (route.request().method() !== "POST") return route.fallback();
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            message: "Permintaan sudah diputuskan",
+            currentStatus: "APPROVED",
+          }),
+        });
+      });
 
       await sa.approveRow("Kertas HVS A4");
       await expect(sa.conflictToast()).toBeVisible();
@@ -316,7 +322,9 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       await expect(firstStatusCell).toBeVisible();
 
       // Rejection reason renders below the note.
-      await expect(page.getByText(/Ditolak: Bukti rusak tidak ada/)).toBeVisible();
+      await expect(
+        page.getByRole("table").getByText("Ditolak: Bukti rusak tidak ada"),
+      ).toBeVisible();
 
       // OWNER's approver attribution appears on approved rows.
       await expect(page.getByText(/oleh Boss/).first()).toBeVisible();
@@ -346,7 +354,9 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       await filterRequest;
 
       // Only the rejected row remains visible; pending and approved gone.
-      await expect(page.getByText(/Ditolak: Bukti rusak tidak ada/)).toBeVisible();
+      await expect(
+        page.getByRole("table").getByText("Ditolak: Bukti rusak tidak ada"),
+      ).toBeVisible();
       await expect(
         page.locator("tbody tr").locator('span', { hasText: /^Pending$/ }),
       ).toHaveCount(0);
@@ -368,7 +378,10 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       );
 
       await expect(sa.sidebarProductsBadge()).toBeVisible();
-      await expect(sa.sidebarProductsBadge()).toContainText("1");
+      await expect(sa.sidebarProductsBadge()).toHaveAttribute(
+        "aria-label",
+        /1 permintaan menunggu persetujuan/,
+      );
     });
 
     test("badge hidden for OWNER when no pending requests exist", async ({

@@ -16,6 +16,37 @@ const ROLE_COOKIE = "x-pos-role";
 const USER_ID_COOKIE = "x-pos-user-id";
 const USER_NAME_COOKIE = "x-pos-user-name";
 
+function getPosIdentityCookieOptions() {
+  return {
+    path: "/",
+    httpOnly: false,
+    sameSite: "strict" as const,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24,
+  };
+}
+
+function setPosIdentityCookies(
+  response: NextResponse,
+  role: Role,
+  userId: string,
+  userName: string,
+) {
+  const cookieOptions = getPosIdentityCookieOptions();
+  response.cookies.set(ROLE_COOKIE, role, cookieOptions);
+  response.cookies.set(USER_ID_COOKIE, userId, cookieOptions);
+  response.cookies.set(USER_NAME_COOKIE, userName, cookieOptions);
+}
+
+function isProtectedPageRequest(pathname: string) {
+  return (
+    !pathname.startsWith("/api/") &&
+    pathname !== "/" &&
+    pathname !== "/login" &&
+    !pathname.startsWith("/auth")
+  );
+}
+
 export async function updateSession(request: NextRequest) {
   if (process.env.E2E_AUTH_BYPASS === "1") {
     const role = (request.cookies.get(ROLE_COOKIE)?.value || "OWNER") as Role;
@@ -122,21 +153,38 @@ export async function updateSession(request: NextRequest) {
 
       if (posUser && posUser.isActive && isValidRole(posUser.role)) {
         role = posUser.role as Role;
+        const hadFreshIdentityCookies =
+          request.cookies.get(ROLE_COOKIE)?.value === role &&
+          request.cookies.get(USER_ID_COOKIE)?.value === posUser.id;
 
-        const cookieOptions = {
-          path: "/",
-          httpOnly: false,
-          sameSite: "strict" as const,
-          secure: process.env.NODE_ENV === "production",
-          maxAge: 60 * 60 * 24,
-        };
         request.cookies.set(ROLE_COOKIE, role);
         request.cookies.set(USER_ID_COOKIE, posUser.id);
         request.cookies.set(USER_NAME_COOKIE, posUser.name);
-        supabaseResponse.cookies.set(ROLE_COOKIE, role, cookieOptions);
-        supabaseResponse.cookies.set(USER_ID_COOKIE, posUser.id, cookieOptions);
-        supabaseResponse.cookies.set(USER_NAME_COOKIE, posUser.name, cookieOptions);
+        setPosIdentityCookies(supabaseResponse, role, posUser.id, posUser.name);
         log.info("role.resolved", { username, role });
+
+        if (isProtectedPageRequest(request.nextUrl.pathname)) {
+          const canAccess = await canAccessPageWithConfiguredPermissions(
+            supabase,
+            role,
+            request.nextUrl.pathname,
+          );
+
+          if (!canAccess) {
+            log.info("page.access.denied", { role, path: request.nextUrl.pathname });
+            const url = request.nextUrl.clone();
+            url.pathname = DEFAULT_PAGE[role];
+            const redirectResponse = NextResponse.redirect(url);
+            setPosIdentityCookies(redirectResponse, role, posUser.id, posUser.name);
+            return redirectResponse;
+          }
+
+          if (!hadFreshIdentityCookies) {
+            const redirectResponse = NextResponse.redirect(request.nextUrl);
+            setPosIdentityCookies(redirectResponse, role, posUser.id, posUser.name);
+            return redirectResponse;
+          }
+        }
       } else {
         log.warn("user.inactive_or_missing", { username, hasPosUser: Boolean(posUser) });
         if (request.nextUrl.pathname.startsWith("/api/")) {
@@ -164,28 +212,6 @@ export async function updateSession(request: NextRequest) {
       }
     }
 
-    if (role && !request.nextUrl.pathname.startsWith("/api/")) {
-      const pathname = request.nextUrl.pathname;
-
-      if (
-        pathname !== "/" &&
-        pathname !== "/login" &&
-        !pathname.startsWith("/auth")
-      ) {
-        const canAccess = await canAccessPageWithConfiguredPermissions(
-          supabase,
-          role,
-          pathname,
-        );
-
-        if (!canAccess) {
-          log.info("page.access.denied", { role, path: pathname });
-          const url = request.nextUrl.clone();
-          url.pathname = DEFAULT_PAGE[role];
-          return NextResponse.redirect(url);
-        }
-      }
-    }
   }
 
   return supabaseResponse;

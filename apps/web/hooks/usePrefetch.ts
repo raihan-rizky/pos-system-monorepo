@@ -2,9 +2,16 @@
 
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
 
-async function fetchProducts() {
-  const res = await fetch("/api/products");
+const POS_PREFETCH_PAGE_SIZE = 24;
+
+async function fetchPosProductsPage() {
+  const params = new URLSearchParams({
+    page: "1",
+    limit: String(POS_PREFETCH_PAGE_SIZE),
+  });
+  const res = await fetch(`/api/products?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to prefetch products");
   return res.json();
 }
@@ -31,29 +38,41 @@ async function fetchActiveShift() {
  */
 export function useAppPrefetch(enabled = true) {
   const queryClient = useQueryClient();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!enabled) return;
+    const isPosPage = pathname === "/pos" || pathname.startsWith("/pos/");
 
-    // Small delay so the first page's own data load gets priority
+    // Run after the first page's own data load and hydration have priority.
     const timer = setTimeout(() => {
-      queryClient.prefetchQuery({
-        queryKey: ["products", "", ""],
-        queryFn: fetchProducts,
-        staleTime: 5 * 60 * 1000,
-      });
-      queryClient.prefetchQuery({
-        queryKey: ["categories"],
-        queryFn: fetchCategories,
-        staleTime: 5 * 60 * 1000,
-      });
-      queryClient.prefetchQuery({
-        queryKey: ["active-shift"],
-        queryFn: fetchActiveShift,
-        staleTime: 60 * 1000,
-      });
-    }, 500);
+      if (!isPosPage) {
+        queryClient.prefetchQuery({
+          queryKey: [
+            "products",
+            "page",
+            "",
+            "",
+            1,
+            POS_PREFETCH_PAGE_SIZE,
+            false,
+          ],
+          queryFn: fetchPosProductsPage,
+          staleTime: 5 * 60 * 1000,
+        });
+        queryClient.prefetchQuery({
+          queryKey: ["categories"],
+          queryFn: fetchCategories,
+          staleTime: 5 * 60 * 1000,
+        });
+        queryClient.prefetchQuery({
+          queryKey: ["active-shift"],
+          queryFn: fetchActiveShift,
+          staleTime: 60 * 1000,
+        });
+      }
+    }, 250);
 
     return () => clearTimeout(timer);
-  }, [enabled, queryClient]);
+  }, [enabled, pathname, queryClient]);
 }

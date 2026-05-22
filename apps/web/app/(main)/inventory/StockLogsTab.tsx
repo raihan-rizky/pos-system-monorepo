@@ -599,7 +599,7 @@ function RejectComposer({
           <button
             type="button"
             onClick={onSubmit}
-            disabled={isSubmitting || !reason.trim()}
+            disabled={isSubmitting}
             className="min-h-9 px-3 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Menolak…" : "Tolak Permintaan"}

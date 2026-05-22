@@ -49,4 +49,15 @@ describe("updateSession", () => {
     expect(response.cookies.get("x-pos-user-id")?.value).toBe("admin-1");
     expect(response.cookies.get("x-pos-user-name")?.value).toBe("Admin User");
   });
+
+  it("redirects page requests once when POS identity cookies are missing on first login", async () => {
+    const request = new NextRequest("http://localhost/pos");
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost/pos");
+    expect(response.cookies.get("x-pos-role")?.value).toBe("ADMIN");
+    expect(response.cookies.get("x-pos-user-id")?.value).toBe("admin-1");
+  });
 });

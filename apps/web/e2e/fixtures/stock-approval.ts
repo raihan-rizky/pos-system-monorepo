@@ -49,6 +49,16 @@ function pickIdFromUrl(url: string, suffix: string) {
   return match?.[1] ?? null;
 }
 
+function cloneStockLog(log: MockStockLog): MockStockLog {
+  return {
+    ...log,
+    product: {
+      ...log.product,
+      category: { ...log.product.category },
+    },
+  };
+}
+
 export async function setupStockApprovalRoutes(
   page: Page,
   options: {
@@ -62,7 +72,7 @@ export async function setupStockApprovalRoutes(
   const userName = options.currentUserName ?? "E2E User";
   const role = options.currentUserRole ?? "OWNER";
   const store: { logs: MockStockLog[] } = {
-    logs: [...(options.initialLogs ?? [])],
+    logs: (options.initialLogs ?? []).map(cloneStockLog),
   };
 
   await page.route("**/api/inventory/logs**", async (route) => {

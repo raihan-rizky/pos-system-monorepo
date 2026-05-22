@@ -57,21 +57,22 @@ export async function GET(request: Request) {
       ...(stockFilter ?? {}),
     };
 
-    const products = await db.product.findMany({
-      where: whereClause,
-      include: {
-        category: {
-          select: { id: true, name: true, icon: true, color: true },
+    const [products, total] = await Promise.all([
+      db.product.findMany({
+        where: whereClause,
+        include: {
+          category: {
+            select: { id: true, name: true, icon: true, color: true },
+          },
         },
-      },
-      orderBy: { name: "asc" },
-      skip,
-      take: limit,
-    });
-
-    const total = await db.product.count({
-      where: whereClause,
-    });
+        orderBy: { name: "asc" },
+        skip,
+        take: limit,
+      }),
+      db.product.count({
+        where: whereClause,
+      }),
+    ]);
 
     const res = apiList(products, buildPaginationMeta(total, page, limit));
     res.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");

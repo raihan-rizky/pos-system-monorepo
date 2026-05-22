@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { useUpdateStock, Product, type InventoryReason } from "@/hooks/useProducts";
 import { useRole } from "@/components/providers/RoleProvider";
@@ -30,6 +30,8 @@ const REASONS_BY_TYPE: Record<"IN" | "OUT" | "ADJUSTMENT", Array<{ value: Invent
 export default function StockUpdateModal({ isOpen, onClose, product }: StockUpdateModalProps) {
   const updateStock = useUpdateStock();
   const { role } = useRole();
+  const reasonId = useId();
+  const noteId = useId();
   const isOwner = role === "OWNER";
   const [type, setType] = useState<"IN" | "OUT" | "ADJUSTMENT">("IN");
   const [reason, setReason] = useState<InventoryReason>("RESTOCK");
@@ -183,8 +185,11 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-1">Alasan</label>
+            <label htmlFor={reasonId} className="block text-sm font-medium text-surface-700 mb-1">
+              Alasan
+            </label>
             <select
+              id={reasonId}
               value={reason}
               onChange={(e) => setReason(e.target.value as InventoryReason)}
               className="w-full px-3 py-2 bg-white border border-surface-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none"
@@ -209,8 +214,11 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
           />
 
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-1">Note (Optional)</label>
+            <label htmlFor={noteId} className="block text-sm font-medium text-surface-700 mb-1">
+              Note (Optional)
+            </label>
             <textarea
+              id={noteId}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder={type === "IN" ? "e.g., Supplier delivery" : type === "OUT" ? "e.g., Damaged item" : "Reason for adjustment"}
