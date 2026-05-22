@@ -15,9 +15,11 @@ test("cashier can add a product and open checkout", async ({ appPage: page }) =>
 
 test("offline status is visible when the browser is offline", async ({ appPage: page, context }) => {
   await page.goto("/pos");
+  await expect(page.getByText("Kertas HVS A4").first()).toBeVisible();
+
   await context.setOffline(true);
   await page.evaluate(() => {
-    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true });
     window.dispatchEvent(new Event("offline"));
   });
 
