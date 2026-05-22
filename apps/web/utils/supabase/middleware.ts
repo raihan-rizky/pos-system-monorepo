@@ -53,6 +53,10 @@ export async function updateSession(request: NextRequest) {
     const userId = request.cookies.get(USER_ID_COOKIE)?.value || "e2e-user";
     const userName = request.cookies.get(USER_NAME_COOKIE)?.value || "E2E Owner";
 
+    request.cookies.set(ROLE_COOKIE, role);
+    request.cookies.set(USER_ID_COOKIE, userId);
+    request.cookies.set(USER_NAME_COOKIE, userName);
+
     const response = NextResponse.next({ request });
     const cookieOptions = {
       path: "/",

@@ -2,11 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { useRouter } from "next/navigation";
 import { clearClientAuthState } from "@/lib/auth/pos-session";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,6 +20,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    let shouldResetLoading = true;
     try {
       // Supabase requires an email, so we append a dummy domain to the username
       const email = username.includes("@") ? username : `${username}@pos.local`;
@@ -40,12 +39,14 @@ export default function LoginPage() {
       });
       if (signInError) throw signInError;
 
-      router.refresh();
-      router.replace("/pos");
+      shouldResetLoading = false;
+      window.location.replace("/pos");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login gagal");
     } finally {
-      setLoading(false);
+      if (shouldResetLoading) {
+        setLoading(false);
+      }
     }
   };
 

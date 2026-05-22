@@ -7,6 +7,13 @@ const POS_PAGE_SIZE = 24;
 
 export async function loadPOSInitialData(): Promise<POSInitialData> {
   try {
+    if (process.env.E2E_AUTH_BYPASS === "1") {
+      return {
+        products: null,
+        categories: [],
+      };
+    }
+
     const user = await requirePermission("product", "read");
     const storeId = user.storeId || "store-main";
 
