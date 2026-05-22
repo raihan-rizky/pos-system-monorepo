@@ -642,7 +642,7 @@ function RowActions({
                 }}
                 className="w-full text-left px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 cursor-pointer focus:outline-none focus:bg-surface-50"
               >
-                Edit
+                Ubah
               </button>
             )}
             {canDelete && (

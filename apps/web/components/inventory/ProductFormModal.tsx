@@ -51,13 +51,13 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.message || "Upload failed");
+        throw new Error(data.message || "Upload gagal");
       }
 
       const { url } = await res.json();
       setFormData(prev => ({ ...prev, imageUrl: url }));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to upload image");
+      setError(err instanceof Error ? err.message : "Gagal upload gambar");
     } finally {
       setIsUploading(false);
     }
@@ -115,14 +115,14 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
       }
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan");
     }
   };
 
   const isProcessing = createProduct.isPending || updateProduct.isPending;
 
   return (
-    <Modal open={isOpen} onClose={onClose} title={productId ? "Edit Product" : "Add New Product"}>
+    <Modal open={isOpen} onClose={onClose} title={productId ? "Ubah Produk" : "Tambah Produk"}>
       <form onSubmit={handleSubmit} className="space-y-4 mt-4">
         {error && (
           <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm font-medium border border-red-100">
@@ -132,15 +132,15 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Product Name"
-            placeholder="e.g. Banner Flexi 280gsm"
+            label="Nama Produk"
+            placeholder="Contoh: Banner Flexi 280gsm"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
           />
           <Input
-            label="SKU / Item Code"
-            placeholder="e.g. BNR-FLX-280"
+            label="SKU / Kode Barang"
+            placeholder="Contoh: BNR-FLX-280"
             value={formData.sku}
             onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
             required
@@ -149,21 +149,21 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-1">Category</label>
+            <label className="block text-sm font-medium text-surface-700 mb-1">Kategori</label>
             <select
               value={formData.categoryId}
               onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
               className="w-full px-3 py-2 bg-white border border-surface-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none"
               required
             >
-              <option value="" disabled>Select Category</option>
+              <option value="" disabled>Pilih Kategori</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
           <Input
-            label="Selling Price (IDR)"
+            label="Harga Jual (IDR)"
             type="number"
             min="0"
             value={formData.price}
@@ -174,10 +174,10 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Cost Price (HPP)"
+            label="Harga Modal (HPP)"
             type="number"
             min="0"
-            placeholder="Optional"
+            placeholder="Opsional"
             value={formData.costPrice}
             onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
           />
@@ -189,7 +189,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             required
           />
           <Input
-            label="Current Stock"
+            label="Stok Saat Ini"
             type="number"
             min="0"
             value={formData.stock}
@@ -200,7 +200,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Min Stock Alert"
+            label="Peringatan Stok Minimum"
             type="number"
             min="0"
             value={formData.minStock}
@@ -208,8 +208,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             required
           />
           <Input
-            label="Size / Dimensions"
-            placeholder="Optional"
+            label="Ukuran / Dimensi"
+            placeholder="Opsional"
             value={formData.size}
             onChange={(e) => setFormData({ ...formData, size: e.target.value })}
           />
@@ -217,7 +217,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-2">Product Image</label>
+            <label className="block text-sm font-medium text-surface-700 mb-2">Gambar Produk</label>
             <div className="flex items-center gap-4">
               {formData.imageUrl ? (
                 <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-surface-200 shrink-0 shadow-sm">
@@ -244,14 +244,14 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
                     onChange={handleUpload}
                     disabled={isUploading}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    title="Upload Image"
+                    title="Upload Gambar"
                   />
                 </div>
               )}
               <div className="flex-1 text-xs text-surface-500 space-y-0.5">
-                <p className="font-semibold text-surface-700 text-sm">Upload Product Image</p>
-                <p>Upload a square image (JPG, PNG, WebP) up to 5MB.</p>
-                <p className="opacity-75">If skipped, the category icon will be used.</p>
+                <p className="font-semibold text-surface-700 text-sm">Upload Gambar Produk</p>
+                <p>Upload gambar kotak (JPG, PNG, WebP) maksimal 5 MB.</p>
+                <p className="opacity-75">Jika dilewati, ikon kategori akan digunakan.</p>
               </div>
             </div>
           </div>
@@ -259,10 +259,10 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         <div className="flex justify-end gap-3 pt-6 border-t border-surface-200">
           <Button type="button" variant="secondary" onClick={onClose} disabled={isProcessing}>
-            Cancel
+            Batal
           </Button>
           <Button type="submit" disabled={isProcessing}>
-            {isProcessing ? "Saving..." : "Save Product"}
+            {isProcessing ? "Menyimpan..." : "Simpan Produk"}
           </Button>
         </div>
       </form>

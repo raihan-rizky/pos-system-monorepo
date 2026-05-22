@@ -74,9 +74,9 @@ export default function NotificationsTab() {
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <h2 className="text-lg font-bold text-surface-900">Notifications</h2>
+        <h2 className="text-lg font-bold text-surface-900">Notifikasi</h2>
         <p className="mt-0.5 text-sm text-surface-500">
-          Manage browser push notifications for this device.
+          Kelola push notifications browser untuk perangkat ini.
         </p>
       </div>
 
@@ -114,7 +114,7 @@ export default function NotificationsTab() {
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
             <p className="text-xs font-medium text-amber-800">
-              Browser notification permission is blocked. Enable it from this site&apos;s browser settings, then return here.
+              Izin notifikasi browser diblokir. Aktifkan dari pengaturan browser untuk situs ini, lalu kembali ke sini.
             </p>
           </div>
         ) : null}
@@ -170,7 +170,7 @@ async function enablePushSubscription() {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to save push subscription: ${response.status}`);
+    throw new Error(`Gagal menyimpan push subscription: ${response.status}`);
   }
 }
 
@@ -190,7 +190,7 @@ async function disablePushSubscription() {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to disable push subscription: ${response.status}`);
+    throw new Error(`Gagal menonaktifkan push subscription: ${response.status}`);
   }
 }
 
@@ -216,10 +216,10 @@ function supportsPushNotifications() {
 
 function statusText(permission: PermissionState, subscribed: boolean) {
   if (permission === "unsupported") return "Browser ini tidak mendukung push notifications.";
-  if (permission === "denied") return "Permission blocked in browser settings.";
-  if (permission === "default") return "Permission has not been requested yet.";
-  if (subscribed) return "Permission granted and this device is subscribed.";
-  return "Permission granted, but this device is not subscribed.";
+  if (permission === "denied") return "Permission diblokir di pengaturan browser.";
+  if (permission === "default") return "Permission belum diminta.";
+  if (subscribed) return "Permission diberikan dan perangkat ini sudah subscribed.";
+  return "Permission diberikan, tetapi perangkat ini belum subscribed.";
 }
 
 function urlBase64ToUint8Array(base64String: string) {

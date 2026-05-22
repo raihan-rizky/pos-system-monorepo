@@ -25,12 +25,12 @@ export function BatchResultPanel({
       </div>
       {undo.data?.success === false && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-          Undo blocked for: {undo.data.blockedProducts.join(", ")}
+          Undo diblokir untuk: {undo.data.blockedProducts.join(", ")}
         </div>
       )}
       {undo.data?.success && (
         <div className="rounded-lg bg-white border border-emerald-100 p-3 text-sm text-emerald-700">
-          Undo completed. Reversal logs: {undo.data.reversalInventoryLogCount}
+          Undo selesai. Reversal logs: {undo.data.reversalInventoryLogCount}
         </div>
       )}
       <Button

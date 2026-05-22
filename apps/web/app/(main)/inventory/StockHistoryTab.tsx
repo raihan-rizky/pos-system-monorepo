@@ -45,12 +45,12 @@ function MiniBarChart({ data }: { data: { date: string; inQty: number; outQty: n
             <div
               className="flex-1 bg-emerald-400 rounded-t-md transition-all duration-500 min-h-[2px]"
               style={{ height: `${(d.inQty / maxVal) * 100}%` }}
-              title={`In: ${d.inQty}`}
+              title={`Masuk: ${d.inQty}`}
             />
             <div
               className="flex-1 bg-amber-400 rounded-t-md transition-all duration-500 min-h-[2px]"
               style={{ height: `${(d.outQty / maxVal) * 100}%` }}
-              title={`Out: ${d.outQty}`}
+              title={`Keluar: ${d.outQty}`}
             />
           </div>
           {/* Date label */}
@@ -83,7 +83,7 @@ function TopMovers({ logs }: { logs: InventoryLog[] }) {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Top Movers (60d)</h3>
+      <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Top Movers (60 hari)</h3>
       <div className="flex flex-col gap-2">
         {movers.map((m, i) => {
           const maxBar = Math.max(1, movers[0].totalMoves);
@@ -129,7 +129,7 @@ export default function StockHistoryTab() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
         <RefreshCw className="w-6 h-6 animate-spin text-blue-400" />
-        <p className="text-sm font-medium">Loading stock history…</p>
+        <p className="text-sm font-medium">Memuat riwayat stok...</p>
       </div>
     );
   }
@@ -137,7 +137,7 @@ export default function StockHistoryTab() {
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-red-400">
-        <p className="text-sm font-medium">Failed to load stock history</p>
+        <p className="text-sm font-medium">Gagal memuat riwayat stok</p>
       </div>
     );
   }
@@ -148,8 +148,8 @@ export default function StockHistoryTab() {
         <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
           <Archive className="w-8 h-8 text-slate-300" />
         </div>
-        <p className="font-bold text-slate-700">No stock history yet</p>
-        <p className="text-sm mt-1">Start recording inventory changes to see trends here.</p>
+        <p className="font-bold text-slate-700">Belum ada riwayat stok</p>
+        <p className="text-sm mt-1">Mulai catat perubahan inventaris untuk melihat tren di sini.</p>
       </div>
     );
   }
@@ -165,7 +165,7 @@ export default function StockHistoryTab() {
               <PackagePlus className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">Total In</p>
+              <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">Total Masuk</p>
               <p className="text-2xl font-black text-emerald-700 tabular-nums">+{totalIn}</p>
             </div>
           </div>
@@ -178,7 +178,7 @@ export default function StockHistoryTab() {
               <PackageMinus className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-amber-600/70 uppercase tracking-widest">Total Out</p>
+              <p className="text-[10px] font-black text-amber-600/70 uppercase tracking-widest">Total Keluar</p>
               <p className="text-2xl font-black text-amber-700 tabular-nums">−{totalOut}</p>
             </div>
           </div>
@@ -191,7 +191,7 @@ export default function StockHistoryTab() {
               <Settings2 className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-blue-600/70 uppercase tracking-widest">Adjustments</p>
+              <p className="text-[10px] font-black text-blue-600/70 uppercase tracking-widest">Penyesuaian</p>
               <p className="text-2xl font-black text-blue-700 tabular-nums">±{totalAdj}</p>
             </div>
           </div>
@@ -203,15 +203,15 @@ export default function StockHistoryTab() {
         <div className="bg-white/60 rounded-2xl border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-sm font-black text-slate-800">Daily Stock Movement</h3>
+              <h3 className="text-sm font-black text-slate-800">Pergerakan Stok Harian</h3>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-400 mr-1 align-middle" /> In
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400 mx-1 ml-3 align-middle" /> Out
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-400 mr-1 align-middle" /> Masuk
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400 mx-1 ml-3 align-middle" /> Keluar
               </p>
             </div>
             <div className="flex items-center gap-1.5 text-slate-400">
               <Activity className="w-4 h-4" />
-              <span className="text-xs font-bold">{dailyStats.length} days</span>
+              <span className="text-xs font-bold">{dailyStats.length} hari</span>
             </div>
           </div>
           <MiniBarChart data={dailyStats} />

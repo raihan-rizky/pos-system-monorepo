@@ -290,14 +290,13 @@ export default function ProductsPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
               </span>
-              LIVE INVENTORY
+              INVENTARIS LIVE
             </div>
             <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
-              Products Hub
+              Pusat Produk
             </h1>
             <p className="text-base text-slate-500 font-medium">
-              Manage your catalog, pricing, and monitor stock levels in
-              real-time.
+              Kelola katalog, harga, dan pantau stok secara real-time.
             </p>
           </div>
           {canCreateProducts && (
@@ -314,7 +313,7 @@ export default function ProductsPage() {
                 className="group relative flex items-center justify-center gap-2 px-6 py-3.5 w-full md:w-auto rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-[0_8px_20px_rgb(0,0,0,0.16)] hover:shadow-[0_12px_25px_rgb(0,0,0,0.25)] transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
               >
                 <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                <span>Add New Product</span>
+                <span>Tambah Produk</span>
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
               </button>
             </div>
@@ -324,25 +323,25 @@ export default function ProductsPage() {
         {/* -- Stats -- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-5">
           <StatCard
-            label="Total Products"
+            label="Total Produk"
             value={statsReady ? intFmt.format(totalProducts) : "-"}
             icon={<Package className="w-6 h-6 text-blue-600" />}
             accent="bg-blue-100"
             delay={0}
           />
           <StatCard
-            label="Low Stock Alerts"
+            label="Peringatan Stok Menipis"
             value={statsReady ? intFmt.format(lowStock) : "-"}
             sub={
               lowStock > 0 ? (
                 <>
                   <span className="w-2 h-2 rounded-full bg-red-500"></span>{" "}
-                  Action required
+                  Perlu dicek
                 </>
               ) : (
                 <>
                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>{" "}
-                  All levels healthy
+                  Semua stok aman
                 </>
               )
             }
@@ -355,18 +354,18 @@ export default function ProductsPage() {
             delay={100}
           />
           <StatCard
-            label="Negative Stock"
+            label="Stok Negatif"
             value={statsReady ? intFmt.format(negativeStock) : "-"}
             sub={
               negativeStock > 0 ? (
                 <>
                   <span className="w-2 h-2 rounded-full bg-rose-500"></span>{" "}
-                  Below zero — review
+                  Di bawah nol, perlu dicek
                 </>
               ) : (
                 <>
                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>{" "}
-                  No negative stock
+                  Tidak ada stok negatif
                 </>
               )
             }
@@ -379,7 +378,7 @@ export default function ProductsPage() {
             delay={150}
           />
           <StatCard
-            label="Inventory Value"
+            label="Nilai Inventaris"
             value={statsReady ? fmt(totalValue) : "-"}
             icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
             accent="bg-emerald-100"
@@ -392,12 +391,12 @@ export default function ProductsPage() {
           {[
             {
               id: "products" as PageTab,
-              label: "Products",
+              label: "Produk",
               icon: <Package className="w-4 h-4" />,
             },
             {
               id: "history" as PageTab,
-              label: "Stock History",
+              label: "Riwayat Stok",
               icon: <History className="w-4 h-4" />,
             },
             {
@@ -441,7 +440,7 @@ export default function ProductsPage() {
             <Suspense
               fallback={
                 <div className="flex items-center justify-center py-20 text-slate-400">
-                  <span className="text-sm">Loading...</span>
+                  <span className="text-sm">Memuat...</span>
                 </div>
               }
             >
@@ -460,7 +459,7 @@ export default function ProductsPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search by name, SKU, or barcode..."
+                  placeholder="Cari nama, SKU, atau barcode..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full pl-11 pr-4 py-3.5 bg-slate-50/50 hover:bg-slate-50 border border-slate-200/60 rounded-2xl text-sm font-medium placeholder:text-slate-400 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 focus:bg-white transition-all shadow-inner"
@@ -474,7 +473,7 @@ export default function ProductsPage() {
                   className={`flex items-center justify-center gap-2 px-4 py-3.5 border rounded-2xl text-sm font-bold transition-all ${showFilters || stockFilter !== "all" || sortBy !== "name" ? "bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20" : "bg-slate-50 hover:bg-slate-100 border-slate-200/60 text-slate-700"}`}
                 >
                   <SlidersHorizontal className="w-4 h-4" />
-                  <span className="hidden sm:inline">Filters</span>
+                  <span className="hidden sm:inline">Filter</span>
                   {(stockFilter !== "all" || sortBy !== "name") && (
                     <span className="w-2 h-2 rounded-full bg-blue-400 absolute -top-1 -right-1 border-2 border-white"></span>
                   )}
@@ -492,7 +491,7 @@ export default function ProductsPage() {
                         <div>
                           <div className="flex items-center justify-between mb-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              Stock Status
+                              Status Stok
                             </p>
                             {stockFilter !== "all" && (
                               <button
@@ -505,9 +504,9 @@ export default function ProductsPage() {
                           </div>
                           <div className="flex flex-col gap-1.5">
                             {[
-                              { id: "all", label: "All Items" },
-                              { id: "low", label: "Low Stock" },
-                              { id: "out", label: "Out of Stock" },
+                              { id: "all", label: "Semua Barang" },
+                              { id: "low", label: "Stok Menipis" },
+                              { id: "out", label: "Stok Habis" },
                             ].map((opt) => (
                               <button
                                 key={opt.id}
@@ -526,7 +525,7 @@ export default function ProductsPage() {
                         <div>
                           <div className="flex items-center justify-between mb-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              Sort By
+                              Urutkan
                             </p>
                             {sortBy !== "name" && (
                               <button
@@ -539,10 +538,10 @@ export default function ProductsPage() {
                           </div>
                           <div className="flex flex-col gap-1.5">
                             {[
-                              { id: "name", label: "Name (A-Z)" },
-                              { id: "price_asc", label: "Price (Low-High)" },
-                              { id: "price_desc", label: "Price (High-Low)" },
-                              { id: "stock_asc", label: "Stock (Low-High)" },
+                              { id: "name", label: "Nama (A-Z)" },
+                              { id: "price_asc", label: "Harga (Rendah-Tinggi)" },
+                              { id: "price_desc", label: "Harga (Tinggi-Rendah)" },
+                              { id: "stock_asc", label: "Stok (Rendah-Tinggi)" },
                             ].map((opt) => (
                               <button
                                 key={opt.id}
@@ -588,7 +587,7 @@ export default function ProductsPage() {
             {/* Category Scroller */}
             <div className="border-b border-slate-100/80 bg-slate-50/30">
               <HorizontalScroll
-                ariaLabel="Filter products by category"
+                ariaLabel="Filter produk berdasarkan kategori"
                 className="px-5 md:px-6 py-4 gap-3 snap-x snap-mandatory"
               >
                 <button
@@ -597,7 +596,7 @@ export default function ProductsPage() {
                   aria-pressed={categoryId === ""}
                   className={`snap-start shrink-0 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 cursor-pointer ${categoryId === "" ? "bg-slate-900 text-white shadow-md shadow-slate-900/20 scale-100" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 scale-95 hover:scale-100"}`}
                 >
-                  All Products{" "}
+                  Semua Produk{" "}
                   <span
                     className={`ml-1.5 px-2 py-0.5 rounded-md text-[10px] ${categoryId === "" ? "bg-white/20" : "bg-slate-100"}`}
                   >
@@ -663,11 +662,10 @@ export default function ProductsPage() {
                     <Search className="w-10 h-10 text-slate-300" />
                   </div>
                   <h3 className="text-lg font-bold text-slate-900">
-                    No products found
+                    Produk tidak ditemukan
                   </h3>
                   <p className="text-slate-500 text-center max-w-xs mt-1">
-                    Try adjusting your search or filters to find what you're
-                    looking for.
+                    Coba ubah pencarian atau filter untuk menemukan produk.
                   </p>
                   {(search || categoryId !== "" || stockFilter !== "all") && (
                     <button
@@ -678,7 +676,7 @@ export default function ProductsPage() {
                       }}
                       className="mt-6 text-sm font-bold text-blue-600 hover:text-blue-700"
                     >
-                      Clear all filters
+                      Hapus semua filter
                     </button>
                   )}
                 </div>
@@ -729,10 +727,10 @@ export default function ProductsPage() {
               </div>
               <div>
                 <p className="text-sm font-black text-slate-900">
-                  {selectedProductIds.size} selected
+                  {selectedProductIds.size} dipilih
                 </p>
                 <p className="text-xs text-slate-500">
-                  Apply stock changes in one batch.
+                  Terapkan perubahan stok dalam satu batch.
                 </p>
               </div>
             </div>
@@ -746,7 +744,7 @@ export default function ProductsPage() {
               <button
                 onClick={() => setSelectedProductIds(new Set())}
                 className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
-                aria-label="Clear selection"
+                aria-label="Hapus pilihan"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -821,10 +819,10 @@ function ProductGrid({
         <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center mb-6 shadow-inner">
           <Package className="w-10 h-10 text-slate-300" />
         </div>
-        <p className="text-xl font-black text-slate-700">No products found</p>
+        <p className="text-xl font-black text-slate-700">Produk tidak ditemukan</p>
         <p className="text-sm font-medium mt-2 max-w-md">
-          We couldn't find anything matching your current filters. Try adjusting
-          your search term or category.
+          Tidak ada produk yang cocok dengan filter saat ini. Coba ubah kata
+          pencarian atau kategori.
         </p>
       </div>
     );
@@ -848,7 +846,7 @@ function ProductGrid({
                 onClick={(event) => event.stopPropagation()}
                 onChange={() => onToggleProduct(p.id)}
                 className="absolute right-4 top-4 z-30 h-5 w-5 rounded border-slate-300"
-                aria-label={`Select ${p.name}`}
+                aria-label={`Pilih ${p.name}`}
               />
             )}
             {/* Hover Glow */}
@@ -871,7 +869,7 @@ function ProductGrid({
 
               {isLow && (
                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 border border-red-100 text-red-600 text-[11px] font-bold tracking-wide shadow-sm animate-pulse">
-                  <AlertTriangle className="w-3 h-3" /> LOW STOCK
+                  <AlertTriangle className="w-3 h-3" /> STOK MENIPIS
                 </span>
               )}
             </div>
@@ -898,7 +896,7 @@ function ProductGrid({
             <div className="flex items-end justify-between pt-4 mt-2 border-t border-slate-100 relative z-10">
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                  Price
+                  Harga
                 </p>
                 <p className="text-lg font-black text-slate-900 tracking-tight">
                   {fmt(p.price)}
@@ -906,7 +904,7 @@ function ProductGrid({
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                  In Stock
+                  Stok
                 </p>
                 <div
                   className={`inline-flex items-baseline gap-1 ${isLow ? "text-red-600" : "text-emerald-600"}`}
@@ -927,7 +925,7 @@ function ProductGrid({
                       onUpdateStock(p.id);
                     }}
                     className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg hover:bg-emerald-700 transition-colors"
-                    title="Update Stock"
+                    title="Ubah Stok"
                   >
                     <TrendingUp className="w-5 h-5" />
                   </button>
@@ -939,7 +937,7 @@ function ProductGrid({
                       onEdit(p.id);
                     }}
                     className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors"
-                    title="Edit Product"
+                    title="Ubah Produk"
                   >
                     <Edit2 className="w-5 h-5" />
                   </button>
@@ -972,7 +970,7 @@ function ProductsPager({
     return (
       <div className="flex items-center justify-center px-5 md:px-6 py-4 border-t border-slate-100/80 bg-white/40">
         <p className="text-xs font-bold text-slate-500">
-          Showing {intFmt.format(total)} of {intFmt.format(total)}
+          Menampilkan {intFmt.format(total)} dari {intFmt.format(total)}
         </p>
       </div>
     );
@@ -985,11 +983,11 @@ function ProductsPager({
 
   return (
     <nav
-      aria-label="Products pagination"
+      aria-label="Pagination produk"
       className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 md:px-6 py-4 border-t border-slate-100/80 bg-white/40"
     >
       <p className="text-xs font-bold text-slate-500" aria-live="polite">
-        Showing {intFmt.format(start)}–{intFmt.format(end)} of{" "}
+        Menampilkan {intFmt.format(start)}-{intFmt.format(end)} dari{" "}
         {intFmt.format(total)}
       </p>
       <div className="flex items-center gap-2">
@@ -997,18 +995,18 @@ function ProductsPager({
           type="button"
           onClick={() => canPrev && onPageChange(page - 1)}
           disabled={!canPrev}
-          aria-label="Previous page"
+          aria-label="Halaman sebelumnya"
           className="flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span className="hidden sm:inline">Prev</span>
+          <span className="hidden sm:inline">Sebelumnya</span>
         </button>
 
         <div
           className={`flex items-center gap-1.5 h-10 px-3 rounded-xl bg-slate-900 text-white text-xs font-black tracking-wide shadow-md shadow-slate-900/20 ${isFetching ? "opacity-80" : ""}`}
           aria-current="page"
         >
-          <span>Page</span>
+          <span>Halaman</span>
           <span className="tabular-nums">{intFmt.format(page)}</span>
           <span className="text-white/60">/</span>
           <span className="tabular-nums">{intFmt.format(totalPages)}</span>
@@ -1018,10 +1016,10 @@ function ProductsPager({
           type="button"
           onClick={() => canNext && onPageChange(page + 1)}
           disabled={!canNext}
-          aria-label="Next page"
+          aria-label="Halaman berikutnya"
           className="flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
         >
-          <span className="hidden sm:inline">Next</span>
+          <span className="hidden sm:inline">Berikutnya</span>
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>

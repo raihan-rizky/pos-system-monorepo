@@ -24,7 +24,7 @@ export function MethodSelector({
         <FileSpreadsheet className={`w-8 h-8 ${value === "file" ? "text-slate-900" : "text-slate-400"}`} />
         <div className="text-center">
           <div className="font-bold">Spreadsheet</div>
-          <div className="text-xs mt-1 opacity-80">Import from CSV or Excel</div>
+          <div className="text-xs mt-1 opacity-80">Import dari CSV atau Excel</div>
         </div>
       </button>
 
@@ -44,8 +44,8 @@ export function MethodSelector({
           </div>
         </div>
         <div className="text-center">
-          <div className="font-bold">Images</div>
-          <div className="text-xs mt-1 opacity-80">Extract from price lists</div>
+          <div className="font-bold">Gambar</div>
+          <div className="text-xs mt-1 opacity-80">Ekstrak dari daftar harga</div>
         </div>
       </button>
     </div>

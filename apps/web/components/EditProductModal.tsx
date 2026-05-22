@@ -114,7 +114,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
   if (!product) return null;
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Barang" size="lg">
+    <Modal open={open} onClose={onClose} title="Ubah Barang" size="lg">
       <div className="space-y-4">
         {/* Image Upload */}
         <div className="flex flex-col gap-1.5">

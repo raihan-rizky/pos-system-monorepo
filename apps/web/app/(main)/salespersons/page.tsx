@@ -167,8 +167,8 @@ export default function SalespersonsPage() {
       }
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
-        setErrorMessage(errorData.message || "Failed to save salesperson");
+        const errorData = await res.json().catch(() => ({ message: "Error tidak diketahui" }));
+      setErrorMessage(errorData.message || "Gagal menyimpan sales");
         return;
       }
 
@@ -180,7 +180,7 @@ export default function SalespersonsPage() {
       fetchSalespersons();
     } catch (error) {
       log.error("Error saving salesperson:", error);
-      setErrorMessage("Network error. Please try again.");
+      setErrorMessage("Jaringan bermasalah. Silakan coba lagi.");
     }
   };
 
@@ -319,7 +319,7 @@ export default function SalespersonsPage() {
               <input
                 id="salesperson-search"
                 type="text"
-                placeholder="Cari nama salesperson..."
+                placeholder="Cari nama sales..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
@@ -366,14 +366,14 @@ export default function SalespersonsPage() {
                 <p className="font-medium text-surface-600">
                   {searchQuery || filterStatus !== "all"
                     ? "Tidak ada sales yang cocok dengan filter."
-                    : "Belum ada salesperson. Mulai tambahkan tim sales Anda!"}
+                    : "Belum ada sales. Mulai tambahkan tim sales Anda!"}
                 </p>
                 {!searchQuery && filterStatus === "all" && canCreateSalespersons && (
                   <button
                     onClick={openAddModal}
                     className="mt-4 text-sm text-brand-600 hover:text-brand-700 font-semibold underline underline-offset-2 cursor-pointer"
                   >
-                    Tambah salesperson pertama
+                    Tambah sales pertama
                   </button>
                 )}
               </div>
@@ -466,7 +466,7 @@ export default function SalespersonsPage() {
                                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                 </svg>
-                                Edit
+                                Ubah
                               </button>
                             )}
                           </td>
@@ -499,10 +499,10 @@ export default function SalespersonsPage() {
             <div className="px-6 pt-6 pb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-surface-900">
-                  {editingId ? "Edit Salesperson" : "Tambah Salesperson"}
+                  {editingId ? "Ubah Sales" : "Tambah Sales"}
                 </h2>
                 <p className="text-xs text-surface-500 mt-0.5">
-                  {editingId ? "Perbarui informasi salesperson" : "Tambahkan anggota baru ke tim sales"}
+                  {editingId ? "Perbarui informasi sales" : "Tambahkan anggota baru ke tim sales"}
                 </p>
               </div>
               <button

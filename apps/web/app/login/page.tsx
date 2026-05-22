@@ -71,7 +71,7 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                Username
+                Nama Pengguna
               </label>
               <input
                 id="login-username"
@@ -88,7 +88,7 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                Password
+                Kata Sandi
               </label>
               <input
                 id="login-password"

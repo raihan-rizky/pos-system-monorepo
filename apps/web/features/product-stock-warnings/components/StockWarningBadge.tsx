@@ -37,7 +37,7 @@ export function StockWarningBadge({
         <Icon className={`w-4 h-4 ${iconColor}`} />
         {showLabel && (
           <span className={`text-xs font-bold ${isCritical ? "text-red-700" : "text-amber-700"}`}>
-            {isCritical ? "Minus Stock" : "Low Stock"}
+            {isCritical ? "Stok Minus" : "Stok Menipis"}
           </span>
         )}
       </button>

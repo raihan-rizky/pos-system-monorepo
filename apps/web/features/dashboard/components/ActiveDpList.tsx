@@ -76,7 +76,7 @@ function ActiveDpListInner<T extends ActiveDpTransaction>({
                   </p>
                 </div>
                 <p className="text-[11px] text-surface-500 truncate mt-0.5">
-                  {dp.customerName || "Customer"}
+                  {dp.customerName || "Pelanggan"}
                 </p>
                 <div className="mt-1.5 flex items-center gap-2">
                   <div

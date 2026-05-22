@@ -27,9 +27,9 @@ export function PwaStatusBanner() {
   }
 
   const message = !isOnline
-    ? `Offline mode: ${summary.pending} transaksi akan sync nanti`
+    ? `Mode offline: ${summary.pending} transaksi akan sync nanti`
     : isSyncing
-      ? `Syncing ${summary.pending} transaksi...`
+      ? `Sedang sync ${summary.pending} transaksi...`
       : error || summary.failed > 0
         ? `${summary.failed || 1} transaksi perlu perhatian`
         : updateAvailable
@@ -77,7 +77,7 @@ export function PwaStatusBanner() {
             }}
             className="rounded-md bg-surface-900 px-2.5 py-1 text-xs font-bold text-white"
           >
-            Refresh
+            Muat Ulang
           </button>
         )}
       </div>

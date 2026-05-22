@@ -226,7 +226,7 @@ export default function DashboardPage() {
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
             <SectionCard
-              title="Top Salesperson"
+              title="Sales Teratas"
               subtitle="Bulan berjalan"
               accent="brand"
               icon={<Trophy className="h-4 w-4" aria-hidden="true" />}
@@ -240,7 +240,7 @@ export default function DashboardPage() {
             </SectionCard>
 
             <SectionCard
-              title="Top Customer"
+              title="Top Pelanggan"
               subtitle="30 hari terakhir"
               accent="warning"
               icon={<Crown className="h-4 w-4" aria-hidden="true" />}

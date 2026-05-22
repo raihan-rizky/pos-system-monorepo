@@ -40,10 +40,10 @@ export function ConfirmDeliveryModal({
           <CheckCircle2 className="w-7 h-7 text-emerald-600" />
         </div>
         <h2 className="text-lg font-bold text-surface-900 mb-1">
-          Mark as Delivered?
+          Tandai Sudah Diserahkan?
         </h2>
         <p className="text-sm text-surface-500">
-          This job order will be moved off the production board.
+          Job order ini akan dipindahkan dari papan produksi.
         </p>
       </div>
 
@@ -56,12 +56,11 @@ export function ConfirmDeliveryModal({
         </div>
         <div className="flex items-center gap-2 text-sm text-surface-900 font-semibold">
           <User className="w-3.5 h-3.5 text-surface-400" aria-hidden="true" />
-          {order.customerName || "Walk-in customer"}
+          {order.customerName || "Pelanggan walk-in"}
         </div>
         <p className="text-xs text-surface-500">
           {order.items.length}{" "}
-          {order.items.length === 1 ? "product" : "products"} • {itemCount}{" "}
-          {itemCount === 1 ? "item" : "items"}
+          produk • {itemCount} item
         </p>
       </div>
 
@@ -76,11 +75,10 @@ export function ConfirmDeliveryModal({
           />
           <div className="text-left">
             <p className="text-xs font-semibold text-amber-800">
-              Outstanding balance: Rp {formattedRemaining}
+              Sisa tagihan: Rp {formattedRemaining}
             </p>
             <p className="text-[11px] text-amber-700 mt-0.5">
-              This DP order still has a remaining balance. Confirm pickup only
-              if payment has been settled.
+              Order DP ini masih memiliki sisa tagihan. Konfirmasi pengambilan hanya jika pembayaran sudah beres.
             </p>
           </div>
         </div>
@@ -96,7 +94,7 @@ export function ConfirmDeliveryModal({
                      disabled:opacity-60 disabled:cursor-not-allowed
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400/40"
         >
-          Cancel
+          Batal
         </button>
         <button
           type="button"
@@ -110,11 +108,11 @@ export function ConfirmDeliveryModal({
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
         >
           {isPending ? (
-            "Marking..."
+            "Menandai..."
           ) : (
             <>
               <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-              Confirm delivery
+              Konfirmasi Penyerahan
             </>
           )}
         </button>

@@ -30,7 +30,7 @@ export function getStockWarningInfo(stock: number, minStock: number, productName
   if (type === "minus") {
     return {
       type,
-      message: `${productName} has negative stock (${stock} units). This may indicate an inventory discrepancy that needs attention.`,
+      message: `${productName} stoknya minus (${stock} unit). Ini bisa menandakan selisih inventaris yang perlu dicek.`,
       severity: "critical",
     };
   }
@@ -38,7 +38,7 @@ export function getStockWarningInfo(stock: number, minStock: number, productName
   if (type === "low") {
     return {
       type,
-      message: `${productName} is below minimum stock level. Current: ${stock} units, Minimum: ${minStock} units.`,
+      message: `${productName} stoknya di bawah batas minimum. Saat ini: ${stock} unit, minimum: ${minStock} unit.`,
       severity: "warning",
     };
   }

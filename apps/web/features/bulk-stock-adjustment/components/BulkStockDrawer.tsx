@@ -88,7 +88,7 @@ export function BulkStockDrawer({
           <BatchResultPanel
             batchOperationId={commit.data.batchOperationId}
             summary={[
-              { label: "Products", value: commit.data.updatedProductCount },
+              { label: "Produk", value: commit.data.updatedProductCount },
               { label: "Stock Logs", value: commit.data.inventoryLogCount },
             ]}
           />
@@ -98,7 +98,7 @@ export function BulkStockDrawer({
               {([
                 ["IN", "Stock In", PackagePlus],
                 ["OUT", "Stock Out", PackageMinus],
-                ["ADJUSTMENT", "Set Exact", Settings2],
+                ["ADJUSTMENT", "Set Tepat", Settings2],
               ] as const).map(([value, label, Icon]) => (
                 <button
                   key={value}
@@ -133,7 +133,7 @@ export function BulkStockDrawer({
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-bold text-slate-700">Batch note</label>
+              <label className="mb-1 block text-sm font-bold text-slate-700">Catatan batch</label>
               <textarea
                 value={note}
                 onChange={(event) => {
@@ -142,7 +142,7 @@ export function BulkStockDrawer({
                 }}
                 rows={2}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                placeholder="Reason for this stock update"
+                placeholder="Alasan update stok ini"
               />
             </div>
 
@@ -150,11 +150,11 @@ export function BulkStockDrawer({
               <table className="min-w-[720px] w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50 text-left text-[11px] uppercase tracking-widest text-slate-500">
                   <tr>
-                    <th className="px-3 py-2">Product</th>
+                    <th className="px-3 py-2">Produk</th>
                     <th className="px-3 py-2">SKU</th>
-                    <th className="px-3 py-2 text-right">Current</th>
-                    <th className="px-3 py-2">Quantity</th>
-                    <th className="px-3 py-2 text-right">After</th>
+                    <th className="px-3 py-2 text-right">Saat Ini</th>
+                    <th className="px-3 py-2">Jumlah</th>
+                    <th className="px-3 py-2 text-right">Setelah</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -194,7 +194,7 @@ export function BulkStockDrawer({
 
             {preview.data && (
               <div className={`rounded-xl border p-3 text-sm ${preview.data.errors.length > 0 ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                {preview.data.errors.length > 0 ? preview.data.errors.join(" ") : `Preview ready for ${preview.data.rows.length} products.`}
+                {preview.data.errors.length > 0 ? preview.data.errors.join(" ") : `Preview siap untuk ${preview.data.rows.length} produk.`}
               </div>
             )}
             {(preview.error || commit.error) && (

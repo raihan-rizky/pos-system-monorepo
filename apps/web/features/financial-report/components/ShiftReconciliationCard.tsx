@@ -82,13 +82,13 @@ export const ShiftReconciliationCard: React.FC<ShiftReconciliationCardProps> =
                   scope="col"
                   className="px-5 py-3 text-right font-semibold text-surface-600"
                 >
-                  Expected
+                  Perkiraan
                 </th>
                 <th
                   scope="col"
                   className="px-5 py-3 text-right font-semibold text-surface-600"
                 >
-                  Closing
+                  Tutup
                 </th>
                 <th
                   scope="col"

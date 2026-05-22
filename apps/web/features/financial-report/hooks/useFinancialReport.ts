@@ -19,7 +19,7 @@ async function fetchFinancialReport(params: FinancialReportParams) {
     const error = (await response.json().catch(() => null)) as {
       message?: string;
     } | null;
-    throw new Error(error?.message || "Failed to load financial report");
+    throw new Error(error?.message || "Gagal memuat laporan keuangan");
   }
 
   return response.json() as Promise<FinancialReport>;

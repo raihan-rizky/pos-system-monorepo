@@ -191,7 +191,7 @@ export function ExpenseFormModal({
       open={open}
       onClose={onClose}
       size="lg"
-      title={mode === "edit" ? "Edit Pengeluaran" : "Tambah Pengeluaran"}
+      title={mode === "edit" ? "Ubah Pengeluaran" : "Tambah Pengeluaran"}
     >
       <div className="space-y-4">
         <FormField

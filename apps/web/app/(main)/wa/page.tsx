@@ -10,7 +10,7 @@ const log = getLogger("page:main:wa");
 const ReactMarkdown = dynamic(() => import("react-markdown"), {
   ssr: false,
   loading: () => (
-    <span className="text-xs text-surface-400 italic">Loading...</span>
+    <span className="text-xs text-surface-400 italic">Memuat...</span>
   ),
 });
 
@@ -86,7 +86,7 @@ function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
           <p className="text-surface-700 text-sm leading-relaxed">
             Sistem tidak dapat mengambil data WhatsApp. Pastikan integrasi
             WhatsApp (WAHA) sudah dikonfigurasi dengan benar di halaman{" "}
-            <strong>Settings</strong>.
+            <strong>Pengaturan</strong>.
           </p>
 
           <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex gap-3">
@@ -140,7 +140,7 @@ function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
-            Buka Settings
+            Buka Pengaturan
           </button>
         </div>
       </div>
@@ -232,7 +232,7 @@ const WahaImage = ({ mediaId }: { mediaId: string }) => {
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
           />
         </svg>
-        Loading media...
+        Memuat media...
       </div>
     );
 
@@ -505,7 +505,7 @@ export default function WACoexistencePage() {
                 WA Live Chat
               </h2>
               <p className="text-xs text-brand-600 font-bold mt-1 tracking-wider uppercase">
-                Bot Takeover Active
+                Bot Takeover Aktif
               </p>
             </div>
             <AiToggleButton
@@ -519,7 +519,7 @@ export default function WACoexistencePage() {
           <div className="flex-1 overflow-y-auto">
             {contactsLoading ? (
               <div className="p-8 flex justify-center text-sm font-medium text-surface-400">
-                Loading chats...
+                Memuat chat...
               </div>
             ) : contacts.length === 0 ? (
               <div className="p-8 flex justify-center text-sm text-surface-400">
@@ -634,7 +634,7 @@ export default function WACoexistencePage() {
                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
               </svg>
               <h2 className="text-xl font-bold text-surface-600">
-                POS WhatsApp Coexistence
+                Chat WhatsApp POS
               </h2>
               <p className="mt-2 text-sm text-surface-400 text-center max-w-sm">
                 Pilih pelanggan dari daftar di sebelah kiri untuk melihat
@@ -788,7 +788,7 @@ export default function WACoexistencePage() {
                             return (
                               <img
                                 src={msg.image_url}
-                                alt="Attachment"
+                                alt="Lampiran"
                                 loading="lazy"
                                 className="max-w-full max-h-[300px] object-contain rounded-xl mb-2 border border-black/10 bg-surface-100"
                               />

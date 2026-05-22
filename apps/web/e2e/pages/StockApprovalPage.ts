@@ -9,11 +9,11 @@ export class StockApprovalPage {
 
   async gotoProducts() {
     await this.page.goto("/products");
-    await expect(this.page.getByRole("heading", { name: "Products Hub" })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "Pusat Produk" })).toBeVisible();
   }
 
   async openStockUpdateForFirstProduct() {
-    const firstButton = this.page.getByTitle("Update Stock").first();
+    const firstButton = this.page.getByTitle("Ubah Stok").first();
     await firstButton.scrollIntoViewIfNeeded();
     await firstButton.click();
   }
@@ -26,15 +26,15 @@ export class StockApprovalPage {
     const modal = this.page.getByRole("dialog");
     if (opts.type === "IN") await modal.getByRole("button", { name: "Stock In" }).click();
     if (opts.type === "OUT") await modal.getByRole("button", { name: "Stock Out" }).click();
-    if (opts.type === "ADJUSTMENT") await modal.getByRole("button", { name: "Set Exact" }).click();
+    if (opts.type === "ADJUSTMENT") await modal.getByRole("button", { name: "Set Tepat" }).click();
 
-    const quantityField = modal.getByLabel(/Quantity to|New Stock Level/);
+    const quantityField = modal.getByLabel(/Jumlah untuk|Stok Baru/);
     await quantityField.fill(opts.quantity);
     if (opts.note) {
-      await modal.getByLabel("Note (Optional)").fill(opts.note);
+      await modal.getByLabel("Catatan (Opsional)").fill(opts.note);
     }
     await modal
-      .getByRole("button", { name: /Confirm Update|Submit Request/ })
+      .getByRole("button", { name: /Konfirmasi|Kirim Permintaan/ })
       .click();
   }
 
@@ -43,7 +43,7 @@ export class StockApprovalPage {
   }
 
   modalTitleForOwner(): Locator {
-    return this.page.getByRole("heading", { name: "Update Inventory" });
+    return this.page.getByRole("heading", { name: "Perbarui Inventaris" });
   }
 
   pendingNoticeStrip(): Locator {

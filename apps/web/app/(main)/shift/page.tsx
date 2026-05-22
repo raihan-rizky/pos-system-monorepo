@@ -37,7 +37,7 @@ export default function ShiftHistoryPage() {
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
           <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden shadow-sm">
             {isLoading ? (
-              <div className="p-8 flex justify-center text-surface-400 font-medium">Loading shift data...</div>
+              <div className="p-8 flex justify-center text-surface-400 font-medium">Memuat data shift...</div>
             ) : shifts.length === 0 ? (
               <div className="p-12 flex flex-col items-center justify-center text-surface-400">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mb-3 opacity-50">
@@ -92,7 +92,7 @@ export default function ShiftHistoryPage() {
                                   setEditOpen(true);
                                 }}
                                 className="p-2 rounded-lg text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
-                                title="Edit Shift"
+                                title="Ubah Shift"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
@@ -114,12 +114,12 @@ export default function ShiftHistoryPage() {
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page <= 1}
                       className="px-3 py-2 rounded-xl border border-surface-200 text-sm font-medium hover:bg-surface-50 disabled:opacity-40 transition-colors"
-                    >Prev</button>
+                    >Sebelumnya</button>
                     <button
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       disabled={page >= totalPages}
                       className="px-3 py-2 rounded-xl border border-surface-200 text-sm font-medium hover:bg-surface-50 disabled:opacity-40 transition-colors"
-                    >Next</button>
+                    >Berikutnya</button>
                   </div>
                 </div>
               </>

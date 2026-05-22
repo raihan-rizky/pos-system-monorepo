@@ -181,7 +181,7 @@ export function ReceiptModal({
               <div className={compact ? "space-y-0.5" : "space-y-2"}>
                 <div className="flex">
                   <span className={compact ? "w-24" : "w-32"}>
-                    Transaction ID
+                    ID Transaksi
                   </span>
                   <span className="mr-4">:</span>
                   <span className="font-bold text-[#cc0000]">
@@ -189,7 +189,7 @@ export function ReceiptModal({
                   </span>
                 </div>
                 <div className="flex">
-                  <span className={compact ? "w-24" : "w-32"}>Customer</span>
+                  <span className={compact ? "w-24" : "w-32"}>Pelanggan</span>
                   <span className="mr-4">:</span>
                   <span className="font-bold">
                     {transaction?.customerName || "Pelanggan Umum"}
@@ -207,7 +207,7 @@ export function ReceiptModal({
               </div>
               <div className={compact ? "space-y-0.5" : "space-y-2"}>
                 <div className="flex">
-                  <span className={compact ? "w-20" : "w-24"}>Date</span>
+                  <span className={compact ? "w-20" : "w-24"}>Tanggal</span>
                   <span className="mr-4">:</span>
                   <span>
                     {formatDate(
@@ -216,11 +216,11 @@ export function ReceiptModal({
                   </span>
                 </div>
                 <div className="flex">
-                  <span className={compact ? "w-20" : "w-24"}>Payment</span>
+                  <span className={compact ? "w-20" : "w-24"}>Pembayaran</span>
                   <span className="mr-4">:</span>
                   <span>
                     {transaction?.paymentMethod === "CASH"
-                      ? "Cash"
+                      ? "Tunai"
                       : transaction?.paymentMethod}
                   </span>
                 </div>
@@ -269,13 +269,13 @@ export function ReceiptModal({
                       <th
                         className={`border border-black ${cellPad} text-center w-64 font-extrabold text-black`}
                       >
-                        Item Name
+                        Nama Barang
                       </th>
                       {hasSize && (
                         <th
                           className={`border border-black ${cellPad} text-center w-20 font-extrabold text-black`}
                         >
-                          Size
+                          Ukuran
                         </th>
                       )}
                       {hasMaterial && (
@@ -293,7 +293,7 @@ export function ReceiptModal({
                       <th
                         className={`border border-black ${cellPad} text-center w-28 font-extrabold text-black`}
                       >
-                        Price Per Item
+                        Harga Satuan
                       </th>
                       <th
                         className={`border border-black ${cellPad} text-center w-32 font-extrabold text-black`}

@@ -12,10 +12,10 @@ import { useRole } from "@/components/providers/RoleProvider";
 type Tab = "store" | "whatsapp" | "rbac" | "notifications" | "offline";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
-  { id: "store", label: "Store Info", icon: <Store className="w-4 h-4" /> },
+  { id: "store", label: "Info Toko", icon: <Store className="w-4 h-4" /> },
   { id: "whatsapp", label: "WhatsApp", icon: <MessageCircle className="w-4 h-4" /> },
   { id: "rbac", label: "RBAC", icon: <ShieldCheck className="w-4 h-4" />, ownerOnly: true },
-  { id: "notifications", label: "Notifications", icon: <Bell className="w-4 h-4" /> },
+  { id: "notifications", label: "Notifikasi", icon: <Bell className="w-4 h-4" /> },
   { id: "offline", label: "Offline Sync", icon: <RefreshCw className="w-4 h-4" /> },
 ];
 
@@ -34,9 +34,9 @@ export default function SettingsPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center shadow-sm">
               <Settings className="w-5 h-5 text-white" />
             </div>
-            Settings
+            Pengaturan
           </h1>
-          <p className="text-sm text-surface-500 mt-1">Manage your store profile and integrations.</p>
+          <p className="text-sm text-surface-500 mt-1">Kelola profil toko dan integrasi yang dipakai.</p>
         </div>
 
         {/* Layout: sidebar tabs + content */}

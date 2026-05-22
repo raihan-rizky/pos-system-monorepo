@@ -104,7 +104,7 @@ export function NotificationPermissionPrompt() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save push subscription: ${response.status}`);
+        throw new Error(`Gagal menyimpan push subscription: ${response.status}`);
       }
 
       localStorage.setItem(STORAGE_KEY, "1");
@@ -140,7 +140,7 @@ export function NotificationPermissionPrompt() {
               disabled={isEnabling}
               className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-bold text-white"
             >
-              {isEnabling ? "Enabling..." : "Enable"}
+              {isEnabling ? "Mengaktifkan..." : "Aktifkan"}
             </button>
             <button
               type="button"
@@ -148,7 +148,7 @@ export function NotificationPermissionPrompt() {
               disabled={isEnabling}
               className="rounded-md border border-surface-200 px-3 py-1.5 text-xs font-bold text-surface-600"
             >
-              Later
+              Nanti
             </button>
           </div>
         </div>

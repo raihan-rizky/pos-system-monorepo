@@ -41,7 +41,7 @@ export default function StoreInfoTab() {
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.message || "Upload failed");
+        throw new Error(d.message || "Upload gagal");
       }
       const { url } = await res.json();
       setForm(prev => ({ ...prev, logoUrl: url }));
@@ -82,8 +82,8 @@ export default function StoreInfoTab() {
   return (
     <form onSubmit={handleSave} className="space-y-6 max-w-xl">
       <div>
-        <h2 className="text-lg font-bold text-surface-900">Store Information</h2>
-        <p className="text-sm text-surface-500 mt-0.5">Basic details shown on receipts and invoices.</p>
+        <h2 className="text-lg font-bold text-surface-900">Informasi Toko</h2>
+        <p className="text-sm text-surface-500 mt-0.5">Detail dasar yang tampil di struk dan invoice.</p>
       </div>
 
       {/* Logo */}
@@ -92,14 +92,14 @@ export default function StoreInfoTab() {
           htmlFor="store-logo"
           className="block text-sm font-semibold text-surface-700 mb-2"
         >
-          Store Logo
+          Logo Toko
         </label>
         <div className="flex items-center gap-4">
           {form.logoUrl ? (
             <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-surface-200 shadow-sm shrink-0">
               <img
                 src={form.logoUrl}
-                alt="Store logo"
+                alt="Logo toko"
                 className="w-full h-full object-cover"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).src = ""; }}
               />
@@ -130,8 +130,8 @@ export default function StoreInfoTab() {
             </div>
           )}
           <div className="text-xs text-surface-500 space-y-1">
-            <p className="font-semibold text-surface-700 text-sm">Upload Store Logo</p>
-            <p>Square image, JPG/PNG/WebP, up to 5 MB.</p>
+            <p className="font-semibold text-surface-700 text-sm">Upload Logo Toko</p>
+            <p>Gambar kotak, JPG/PNG/WebP, maksimal 5 MB.</p>
             {uploadError && <p className="text-red-600 font-medium">{uploadError}</p>}
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function StoreInfoTab() {
           htmlFor="store-name"
           className="block text-sm font-semibold text-surface-700 mb-1.5"
         >
-          Store Name
+          Nama Toko
         </label>
         <input
           id="store-name"
@@ -151,7 +151,7 @@ export default function StoreInfoTab() {
           value={form.name}
           onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
           disabled={!canUpdateSettings}
-          placeholder="e.g. Teladan Print & ATK"
+          placeholder="Contoh: Teladan Print & ATK"
           className="w-full px-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all"
         />
       </div>
@@ -162,7 +162,7 @@ export default function StoreInfoTab() {
           htmlFor="store-address"
           className="block text-sm font-semibold text-surface-700 mb-1.5"
         >
-          Address
+          Alamat
         </label>
         <textarea
           id="store-address"
@@ -181,7 +181,7 @@ export default function StoreInfoTab() {
           htmlFor="store-phone"
           className="block text-sm font-semibold text-surface-700 mb-1.5"
         >
-          Phone Number
+          Nomor Telepon
         </label>
         <input
           id="store-phone"
@@ -189,7 +189,7 @@ export default function StoreInfoTab() {
           value={form.phone}
           onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
           disabled={!canUpdateSettings}
-          placeholder="e.g. 0812-3456-7890"
+          placeholder="Contoh: 0812-3456-7890"
           className="w-full px-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all"
         />
       </div>
@@ -205,10 +205,10 @@ export default function StoreInfoTab() {
         className="flex items-center gap-2 px-5 py-2.5 min-h-[44px] rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 active:scale-95 disabled:opacity-60 cursor-pointer"
       >
         {updateStore.isPending
-          ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving…</>
+          ? <><RefreshCw className="w-4 h-4 animate-spin" /> Menyimpan...</>
           : saved
-            ? <><CheckCircle2 className="w-4 h-4" /> Saved!</>
-            : <><Save className="w-4 h-4" /> Save Changes</>
+            ? <><CheckCircle2 className="w-4 h-4" /> Tersimpan!</>
+            : <><Save className="w-4 h-4" /> Simpan Perubahan</>
         }
       </button>
       )}

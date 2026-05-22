@@ -28,7 +28,7 @@ export default function ProductTable({
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center py-20 gap-3 text-surface-400">
       <RefreshCw className="w-7 h-7 animate-spin text-brand-400" />
-      <p className="text-sm">Loading inventory…</p>
+      <p className="text-sm">Memuat inventaris...</p>
     </div>
   );
 
@@ -37,8 +37,8 @@ export default function ProductTable({
       <div className="w-14 h-14 mb-4 rounded-2xl bg-surface-100 flex items-center justify-center">
         <Archive className="w-7 h-7 text-surface-300" />
       </div>
-      <p className="font-semibold text-surface-700 mb-1">No products found</p>
-      <p className="text-sm text-surface-400">Add a new product or adjust your filters.</p>
+      <p className="font-semibold text-surface-700 mb-1">Produk tidak ditemukan</p>
+      <p className="text-sm text-surface-400">Tambah produk baru atau ubah filter.</p>
     </div>
   );
 
@@ -51,11 +51,11 @@ export default function ProductTable({
           <thead>
             <tr className="border-b border-surface-100">
               {onToggleProduct && <th className="py-3 pl-5 pr-0 w-10" />}
-              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest">Product</th>
-              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest">Category</th>
-              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest text-right">Price</th>
-              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest text-right">Stock</th>
-              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest text-right">Actions</th>
+              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest">Produk</th>
+              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest">Kategori</th>
+              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest text-right">Harga</th>
+              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest text-right">Stok</th>
+              <th className="py-3 px-5 text-[11px] font-semibold text-surface-400 uppercase tracking-widest text-right">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -70,7 +70,7 @@ export default function ProductTable({
                         checked={selectedProductIds.has(product.id)}
                         onChange={() => onToggleProduct(product.id)}
                         className="h-4 w-4 rounded border-slate-300"
-                        aria-label={`Select ${product.name}`}
+                        aria-label={`Pilih ${product.name}`}
                       />
                     </td>
                   )}
@@ -143,7 +143,7 @@ export default function ProductTable({
                         {canUpdateStock && (
                           <button
                             onClick={() => onUpdateStock(product.id)}
-                            title="Update Stock"
+                            title="Ubah Stok"
                             className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
                           >
                             <TrendingUp className="w-4 h-4" />
@@ -152,7 +152,7 @@ export default function ProductTable({
                         {canUpdateProduct && (
                           <button
                             onClick={() => onEdit(product.id)}
-                            title="Edit Product"
+                            title="Ubah Produk"
                             className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
                           >
                             <Edit2 className="w-4 h-4" />
@@ -184,7 +184,7 @@ export default function ProductTable({
                   checked={selectedProductIds.has(product.id)}
                   onChange={() => onToggleProduct(product.id)}
                   className="absolute right-4 top-4 z-10 h-5 w-5 rounded border-slate-300"
-                  aria-label={`Select ${product.name}`}
+                  aria-label={`Pilih ${product.name}`}
                 />
               )}
               <div className="flex gap-4">
@@ -222,7 +222,7 @@ export default function ProductTable({
                           <button
                             onClick={() => onUpdateStock(product.id)}
                             className="p-2.5 bg-slate-50 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 rounded-xl transition-all cursor-pointer"
-                            title="Update Stock"
+                            title="Ubah Stok"
                           >
                             <TrendingUp className="w-4 h-4" />
                           </button>
@@ -231,7 +231,7 @@ export default function ProductTable({
                           <button
                             onClick={() => onEdit(product.id)}
                             className="p-2.5 bg-slate-50 text-slate-500 hover:text-brand-600 hover:bg-brand-50 active:bg-brand-100 rounded-xl transition-all cursor-pointer"
-                            title="Edit Product"
+                            title="Ubah Produk"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -290,7 +290,7 @@ export default function ProductTable({
                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg shadow-sm ${
                          isOut ? "bg-red-600 text-white" : "bg-amber-500 text-white"
                        }`}>
-                         {isOut ? "HABIS" : "LOW"}
+                         {isOut ? "HABIS" : "MENIPIS"}
                        </span>
                     )}
                   </div>

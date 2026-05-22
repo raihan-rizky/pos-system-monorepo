@@ -18,7 +18,7 @@ test("offline status is visible when the browser is offline", async ({ appPage: 
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
 
-  await expect(page.getByRole("status").filter({ hasText: /Offline mode/i })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: /Mode offline/i })).toBeVisible();
 
   await context.setOffline(false);
 });

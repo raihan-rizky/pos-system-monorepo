@@ -127,7 +127,7 @@ export function ReportExportMenu(): ReactNode {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        Export
+        Ekspor
       </Button>
 
       {open && (
@@ -139,7 +139,7 @@ export function ReportExportMenu(): ReactNode {
             <>
               <div className="px-4 py-3 border-b border-surface-100">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-surface-500">
-                  Pilih Format
+                  Pilih format
                 </p>
               </div>
               <ul className="py-1">
@@ -184,7 +184,7 @@ export function ReportExportMenu(): ReactNode {
                   {BackIcon}
                 </button>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-surface-500">
-                  {format === "xlsx" ? "Excel · Pilih Periode" : "PDF · Pilih Periode"}
+                  {format === "xlsx" ? "Excel · Pilih periode" : "PDF · Pilih periode"}
                 </p>
               </div>
               <ul className="py-1">

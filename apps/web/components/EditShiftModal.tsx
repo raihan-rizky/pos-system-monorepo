@@ -44,7 +44,7 @@ export function EditShiftModal({ open, onClose, shift }: EditShiftModalProps) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Riwayat Shift">
+    <Modal open={open} onClose={onClose} title="Ubah Riwayat Shift">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-surface-700 mb-1">

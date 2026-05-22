@@ -317,7 +317,7 @@ const navGroups = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: icons.dashboard },
       { href: "/pos", label: "Kasir", icon: icons.pos },
-      { href: "/history", label: "History", icon: icons.history },
+      { href: "/history", label: "Riwayat", icon: icons.history },
     ],
   },
   {
@@ -325,8 +325,8 @@ const navGroups = [
     label: "Katalog",
     icon: icons.catalog,
     items: [
-      { href: "/products", label: "Products", icon: icons.product },
-      { href: "/production", label: "Production", icon: icons.production },
+      { href: "/products", label: "Produk", icon: icons.product },
+      { href: "/production", label: "Produksi", icon: icons.production },
     ],
   },
   {
@@ -341,7 +341,7 @@ const navGroups = [
       },
       {
         href: "/financial-report",
-        label: "Financial Report",
+        label: "Laporan Keuangan",
         icon: icons.financial,
       },
     ],
@@ -354,7 +354,7 @@ const navGroups = [
       { href: "/customers", label: "Pelanggan", icon: icons.customers },
       {
         href: "/salespersons",
-        label: "Salespersons",
+        label: "Sales",
         icon: icons.salespersons,
       },
     ],
@@ -366,7 +366,7 @@ const navGroups = [
     items: [
       { href: "/wa", label: "WA Chat", icon: icons.wa },
       { href: "/shift", label: "Shift Kasir", icon: icons.shift },
-      { href: "/settings", label: "Settings", icon: icons.settings },
+      { href: "/settings", label: "Pengaturan", icon: icons.settings },
     ],
   },
 ];
@@ -727,7 +727,7 @@ export function Sidebar() {
               {activeGroupObj.id === "crm" &&
                 "Data relasi pelanggan tetap dan pencatatan agen pemasaran."}
               {activeGroupObj.id === "utils" &&
-                "Fitur live chat whatsapp, status shift kasir, dan konfigurasi umum."}
+                "Fitur live chat WhatsApp, status shift kasir, dan konfigurasi umum."}
             </p>
           </div>
         )}

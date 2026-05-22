@@ -392,7 +392,7 @@ export default function FinancialReportPage() {
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <RankedListCard
-            title="Top Sales"
+            title="Sales Teratas"
             accent="success"
             rows={salesRows}
             loading={isLoading}

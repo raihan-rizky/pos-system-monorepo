@@ -148,11 +148,11 @@ export function ProductImportDrawer({
   }, [decisions, rows]);
 
   const commitStatus = useMemo(() => {
-    if (commit.error) return "Import failed before completion.";
-    if (commitProgress < 25) return "Validating selected rows.";
-    if (commitProgress < 55) return "Writing products and categories.";
-    if (commitProgress < 85) return "Recording stock movement logs.";
-    return "Finalizing batch audit record.";
+    if (commit.error) return "Import gagal sebelum selesai.";
+    if (commitProgress < 25) return "Memvalidasi baris yang dipilih.";
+    if (commitProgress < 55) return "Menyimpan produk dan kategori.";
+    if (commitProgress < 85) return "Mencatat stock movement logs.";
+    return "Menyelesaikan batch audit record.";
   }, [commit.error, commitProgress]);
 
   useEffect(() => {
@@ -330,14 +330,14 @@ export function ProductImportDrawer({
   const STEPS: { key: ImportStep; label: string; num: number }[] = method === "file" 
     ? [
         { key: "upload", label: "Upload", num: 1 },
-        { key: "mapping", label: "Map Columns", num: 2 },
+        { key: "mapping", label: "Mapping Kolom", num: 2 },
         { key: "preview", label: "Preview", num: 3 },
-        { key: "result", label: "Result", num: 4 },
+        { key: "result", label: "Hasil", num: 4 },
       ]
     : [
         { key: "upload", label: "Upload", num: 1 },
         { key: "preview", label: "Preview", num: 2 },
-        { key: "result", label: "Result", num: 3 },
+        { key: "result", label: "Hasil", num: 3 },
       ];
   const stepIndex = STEPS.findIndex((s) => s.key === step);
 
@@ -346,7 +346,7 @@ export function ProductImportDrawer({
       <Modal
         open={open}
         onClose={close}
-        title="Batch Product Import"
+        title="Batch Import Produk"
         size="xl"
       >
         <div className="space-y-5">
@@ -386,11 +386,11 @@ export function ProductImportDrawer({
             <BatchResultPanel
               batchOperationId={commit.data.batchOperationId}
               summary={[
-                { label: "Created", value: commit.data.createdProductCount },
-                { label: "Updated", value: commit.data.updatedProductCount },
-                { label: "Skipped", value: commit.data.skippedRowCount },
+                { label: "Dibuat", value: commit.data.createdProductCount },
+                { label: "Diupdate", value: commit.data.updatedProductCount },
+                { label: "Dilewati", value: commit.data.skippedRowCount },
                 {
-                  label: "Categories",
+                  label: "Kategori",
                   value: commit.data.createdCategoryCount,
                 },
                 { label: "Stock Logs", value: commit.data.inventoryLogCount },
@@ -406,7 +406,7 @@ export function ProductImportDrawer({
               {method === "file" ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <label className="block text-sm font-bold text-slate-700 mb-2">
-                    CSV or Excel file
+                    File CSV atau Excel
                   </label>
               <input
                 type="file"
@@ -415,8 +415,8 @@ export function ProductImportDrawer({
                 className="block w-full text-sm text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
               />
               <p className="mt-3 text-xs text-slate-500">
-                Required columns: {REQUIRED_IMPORT_COLUMNS.join(", ")}. Maximum
-                2000 rows.
+                Kolom wajib: {REQUIRED_IMPORT_COLUMNS.join(", ")}. Maksimal
+                2000 baris.
               </p>
               <Button
                 type="button"
@@ -426,7 +426,7 @@ export function ProductImportDrawer({
                 disabled={!file || headerLoading}
                 onClick={handleUpload}
               >
-                Continue
+                Lanjut
                   </Button>
                 </div>
               ) : (
@@ -442,10 +442,10 @@ export function ProductImportDrawer({
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-bold text-blue-900 flex items-center gap-2">
                           <LoaderCircle className="w-4 h-4 animate-spin" />
-                          {extractProgress.stage === "preprocessing" ? "Preprocessing Images..." : "Extracting Data..."}
+                          {extractProgress.stage === "preprocessing" ? "Memproses gambar..." : "Mengekstrak data..."}
                         </span>
                         <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded-md">
-                          {extractProgress.current} / {extractProgress.total} files processed
+                          {extractProgress.current} / {extractProgress.total} file diproses
                         </span>
                       </div>
                       <div className="h-2.5 bg-blue-100 rounded-full overflow-hidden border border-blue-200/50">
@@ -483,7 +483,7 @@ export function ProductImportDrawer({
             <div className="space-y-4">
               {(previewData.unknownColumns?.length ?? 0) > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Unknown columns ignored:{" "}
+                  Kolom tidak dikenal diabaikan:{" "}
                   {previewData.unknownColumns?.join(", ")}
                 </div>
               )}
@@ -498,15 +498,15 @@ export function ProductImportDrawer({
                     }
                     className="h-4 w-4"
                   />
-                  Create missing categories:{" "}
+                  Buat kategori yang belum ada:{" "}
                   {previewData.missingCategories?.join(", ")}
                 </label>
               )}
 
               {method === "image" && previewData.source && (
                 <div className="flex justify-between items-center bg-blue-50 text-blue-800 text-xs font-bold px-3 py-2 rounded-lg border border-blue-100">
-                  <span>AI Extraction complete via {previewData.source}</span>
-                  <span className="opacity-80">Check data carefully</span>
+                  <span>Ekstraksi AI selesai via {previewData.source}</span>
+                  <span className="opacity-80">Cek data dengan teliti</span>
                 </div>
               )}
 
@@ -525,13 +525,12 @@ export function ProductImportDrawer({
 
               {blockingErrors.length > 0 && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  Fix row errors before commit.
+                  Perbaiki error baris sebelum commit.
                 </div>
               )}
               {needsDecision.length > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Choose action for {needsDecision.length} duplicate/existing
-                  SKU rows.
+                  Pilih aksi untuk {needsDecision.length} baris SKU duplikat/yang sudah ada.
                 </div>
               )}
               {commit.error && (
@@ -570,7 +569,7 @@ export function ProductImportDrawer({
                     setCommitProgress(0);
                   }}
                 >
-                  Back
+                  Kembali
                 </Button>
                 <div className="flex gap-3">
                   <Button
@@ -579,7 +578,7 @@ export function ProductImportDrawer({
                     disabled={commit.isPending}
                     onClick={reset}
                   >
-                    Start Over
+                    Mulai Ulang
                   </Button>
                   <Button
                     type="button"
@@ -598,7 +597,7 @@ export function ProductImportDrawer({
           {step === "mapping" && preview.isPending && (
             <div className="flex items-center justify-center py-8 text-sm text-slate-500">
               <FileSpreadsheet className="w-5 h-5 mr-2 animate-spin" />
-              Analyzing file...
+              Menganalisis file...
             </div>
           )}
 
@@ -656,12 +655,12 @@ function PreviewFilterBar({
   onChange: (f: PreviewFilter) => void;
 }) {
   const filters: { id: PreviewFilter; label: string; count: number; color: string }[] = [
-    { id: "all", label: "All", count: counts.all, color: "bg-slate-100 text-slate-700" },
-    { id: "ready", label: "Ready", count: counts.ready, color: "bg-emerald-100 text-emerald-700" },
-    { id: "errors", label: "Errors", count: counts.errors, color: "bg-red-100 text-red-700" },
-    { id: "warnings", label: "Warnings", count: counts.warnings, color: "bg-amber-100 text-amber-700" },
-    { id: "duplicate", label: "Duplicate SKU", count: counts.duplicate, color: "bg-purple-100 text-purple-700" },
-    { id: "new-category", label: "New Category", count: counts.newCategory, color: "bg-blue-100 text-blue-700" },
+    { id: "all", label: "Semua", count: counts.all, color: "bg-slate-100 text-slate-700" },
+    { id: "ready", label: "Siap", count: counts.ready, color: "bg-emerald-100 text-emerald-700" },
+    { id: "errors", label: "Error", count: counts.errors, color: "bg-red-100 text-red-700" },
+    { id: "warnings", label: "Peringatan", count: counts.warnings, color: "bg-amber-100 text-amber-700" },
+    { id: "duplicate", label: "SKU Duplikat", count: counts.duplicate, color: "bg-purple-100 text-purple-700" },
+    { id: "new-category", label: "Kategori Baru", count: counts.newCategory, color: "bg-blue-100 text-blue-700" },
   ];
 
   return (
@@ -716,11 +715,11 @@ function CommitProgressPanel({
 }) {
   const boundedProgress = Math.min(100, Math.max(0, progress));
   const details = [
-    { label: "Rows", value: totalRows },
-    { label: "Create", value: created },
-    { label: "Update", value: updated },
-    { label: "Skip", value: skipped },
-    { label: "Categories", value: newCategories },
+    { label: "Baris", value: totalRows },
+    { label: "Buat", value: created },
+    { label: "Diperbarui", value: updated },
+    { label: "Lewati", value: skipped },
+    { label: "Kategori", value: newCategories },
     { label: "Stock logs", value: stockLogs },
   ];
 
@@ -753,7 +752,7 @@ function CommitProgressPanel({
                 isError ? "text-red-900" : "text-slate-900"
               }`}
             >
-              Committing import
+              Commit import
             </div>
             <div
               className={`mt-0.5 text-xs ${
@@ -782,7 +781,7 @@ function CommitProgressPanel({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={boundedProgress}
-        aria-label="Import commit progress"
+        aria-label="Progress commit import"
       >
         <div
           className={`h-full rounded-full transition-all duration-300 ${
@@ -827,15 +826,15 @@ function ImportPreviewTable({
       <table className="min-w-[900px] w-full text-left text-sm">
         <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase tracking-widest text-slate-500">
           <tr>
-            <th className="px-3 py-2">Row</th>
-            <th className="px-3 py-2">Product</th>
+            <th className="px-3 py-2">Baris</th>
+            <th className="px-3 py-2">Produk</th>
             <th className="px-3 py-2">SKU</th>
-            <th className="px-3 py-2">Category</th>
-            <th className="px-3 py-2 text-right">Cost Price</th>
-            <th className="px-3 py-2 text-right">Price</th>
-            <th className="px-3 py-2 text-right">Stock</th>
-            <th className="px-3 py-2 text-right">Min Stock</th>
-            <th className="px-3 py-2">Decision</th>
+            <th className="px-3 py-2">Kategori</th>
+            <th className="px-3 py-2 text-right">Harga Modal</th>
+            <th className="px-3 py-2 text-right">Harga</th>
+            <th className="px-3 py-2 text-right">Stok</th>
+            <th className="px-3 py-2 text-right">Stok Min.</th>
+            <th className="px-3 py-2">Keputusan</th>
             <th className="px-3 py-2">Status</th>
           </tr>
         </thead>
@@ -856,7 +855,7 @@ function ImportPreviewTable({
                   {row.category}
                   {row.missingCategory && (
                     <span className="ml-1 text-[10px] font-bold text-blue-600">
-                      NEW
+                      BARU
                     </span>
                   )}
                 </td>
@@ -871,12 +870,12 @@ function ImportPreviewTable({
                     {row.stock < 0 && (
                       <div 
                         className="group relative flex items-center justify-center cursor-help"
-                        aria-label="Negative stock warning"
+                        aria-label="Peringatan stok negatif"
                       >
                         <AlertTriangle className="w-4 h-4 text-amber-500" />
                         <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-max max-w-xs opacity-0 scale-95 invisible group-hover:opacity-100 group-hover:scale-100 group-hover:visible transition-all duration-200 z-50">
                           <div className="bg-slate-900 text-white text-xs font-medium rounded-lg py-1.5 px-3 shadow-xl">
-                            This stock is not supposed to be negative
+                            Stok seharusnya tidak negatif
                             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
                           </div>
                         </div>
@@ -902,9 +901,9 @@ function ImportPreviewTable({
                       }
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
                     >
-                      <option value="">Choose...</option>
-                      <option value="update">Update existing</option>
-                      <option value="skip">Skip row</option>
+                      <option value="">Pilih...</option>
+                      <option value="update">Perbarui yang sudah ada</option>
+                      <option value="skip">Lewati baris</option>
                     </select>
                   ) : row.duplicateInFile ? (
                     <select
@@ -919,12 +918,12 @@ function ImportPreviewTable({
                       }
                       className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none"
                     >
-                      <option value="">Choose...</option>
-                      <option value="create">Keep (Create)</option>
-                      <option value="skip">Skip row</option>
+                      <option value="">Pilih...</option>
+                      <option value="create">Tetap Buat</option>
+                      <option value="skip">Lewati baris</option>
                     </select>
                   ) : (
-                    <span className="text-emerald-700 font-bold">Create</span>
+                    <span className="text-emerald-700 font-bold">Buat</span>
                   )}
                 </td>
                 <td className="px-3 py-2">
@@ -935,7 +934,7 @@ function ImportPreviewTable({
                       {row.warnings.join(" ")}
                     </span>
                   ) : (
-                    <span className="text-emerald-700">Ready</span>
+                    <span className="text-emerald-700">Siap</span>
                   )}
                 </td>
               </tr>
@@ -947,7 +946,7 @@ function ImportPreviewTable({
                 colSpan={10}
                 className="px-3 py-8 text-center text-sm text-slate-400"
               >
-                No rows match the selected filter.
+                Tidak ada baris yang cocok dengan filter.
               </td>
             </tr>
           )}

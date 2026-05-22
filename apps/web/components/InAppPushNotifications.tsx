@@ -75,8 +75,8 @@ export function InAppPushNotifications() {
   }, [notification]);
 
   const actionLabel = useMemo(() => {
-    if (!notification?.url) return "Open";
-    return notification.url.startsWith("/wa") ? "Open chat" : "Open";
+    if (!notification?.url) return "Buka";
+    return notification.url.startsWith("/wa") ? "Buka chat" : "Buka";
   }, [notification?.url]);
 
   if (!notification) return null;
@@ -101,7 +101,7 @@ export function InAppPushNotifications() {
               type="button"
               onClick={() => setNotification(null)}
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-surface-400 hover:bg-surface-100 hover:text-surface-700"
-              aria-label="Dismiss notification"
+              aria-label="Tutup notifikasi"
             >
               <X className="h-4 w-4" />
             </button>

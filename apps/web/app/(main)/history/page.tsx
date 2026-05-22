@@ -107,7 +107,7 @@ function EditModal({
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-surface-100 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-surface-900">Edit Transaksi</h2>
+            <h2 className="text-lg font-bold text-surface-900">Ubah Transaksi</h2>
             <p className="text-xs text-surface-500 mt-0.5">{tx.invoiceNumber}</p>
           </div>
           <button
@@ -126,7 +126,7 @@ function EditModal({
           {/* Sales Person Selection */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 mb-1.5">
-              Sales Person
+              Sales
             </label>
             <select
               value={form.salespersonId}
@@ -450,7 +450,7 @@ function ApproveModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
-        <h2 className="text-lg font-bold text-surface-900">Approve Request</h2>
+        <h2 className="text-lg font-bold text-surface-900">Setujui Permintaan</h2>
         <p className="text-sm text-surface-500">Invoice: {tx.invoiceNumber} | Total: {formatRupiah(Number(tx.total))}</p>
         
         <div>
@@ -487,7 +487,7 @@ function ApproveModal({
         <div className="flex items-center gap-3 mt-4">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600 hover:bg-surface-50">Batal</button>
           <button onClick={handleApprove} disabled={approveTx.isPending} className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-            {approveTx.isPending ? "Proses..." : "Approve"}
+            {approveTx.isPending ? "Proses..." : "Setujui"}
           </button>
         </div>
       </div>
@@ -709,7 +709,7 @@ export default function HistoryPage() {
           <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden shadow-sm">
             {isLoading ? (
               <div className="p-8 flex items-center justify-center">
-                <p className="text-surface-400">Loading history data...</p>
+                <p className="text-surface-400">Memuat riwayat transaksi...</p>
               </div>
             ) : transactions.length === 0 ? (
               <div className="p-12 flex flex-col items-center justify-center text-surface-400">
@@ -806,7 +806,7 @@ export default function HistoryPage() {
                                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                         </svg>
-                                        Edit
+                                        Ubah
                                       </button>
                                     )}
                                     {canDeleteTransactions && (
@@ -838,7 +838,7 @@ export default function HistoryPage() {
                                           bg-surface-100 text-blue-600 hover:bg-blue-50 hover:text-blue-700 border border-transparent
                                           hover:border-blue-200 transition-all"
                                       >
-                                        Approve
+                                        Setujui
                                       </button>
                                     )}
                                     {canRejectTransactions && (
@@ -848,7 +848,7 @@ export default function HistoryPage() {
                                           bg-surface-100 text-red-500 hover:bg-red-50 hover:text-red-700 border border-transparent
                                           hover:border-red-200 transition-all"
                                       >
-                                        Reject
+                                        Tolak
                                       </button>
                                     )}
                                   </div>
@@ -899,7 +899,7 @@ export default function HistoryPage() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="15 18 9 12 15 6" />
                       </svg>
-                      Prev
+                      Sebelumnya
                     </button>
                     <span className="px-3 py-2 rounded-xl bg-brand-50 text-brand-700 text-sm font-bold min-w-[40px] text-center">
                       {page}
@@ -912,7 +912,7 @@ export default function HistoryPage() {
                       className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-surface-200 text-sm font-medium
                         text-surface-600 hover:bg-surface-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      Next
+                      Berikutnya
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="9 18 15 12 9 6" />
                       </svg>

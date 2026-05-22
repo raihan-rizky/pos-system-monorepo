@@ -78,10 +78,10 @@ function StatCard({
 // ─── Filter Pills ───────────────────────────────────────────────────────────────
 
 const FILTER_OPTIONS: ReadonlyArray<{ id: KanbanFilter; label: string }> = [
-  { id: "ALL", label: "All" },
-  { id: "PRINTING", label: "In Progress" },
-  { id: "READY_PICKUP", label: "Ready" },
-  { id: "OVERDUE", label: "Overdue" },
+  { id: "ALL", label: "Semua" },
+  { id: "PRINTING", label: "Sedang Diproses" },
+  { id: "READY_PICKUP", label: "Siap" },
+  { id: "OVERDUE", label: "Terlambat" },
 ];
 
 function FilterPills({
@@ -96,7 +96,7 @@ function FilterPills({
   return (
     <div
       role="tablist"
-      aria-label="Filter job orders"
+      aria-label="Filter job order"
       className="flex items-center gap-1.5 p-1 rounded-xl bg-surface-100/80 border border-surface-200 w-fit"
     >
       {FILTER_OPTIONS.map((opt) => {
@@ -140,12 +140,12 @@ function FilterPills({
 
 function formatRelative(from: number, to: number): string {
   const seconds = Math.max(0, Math.floor((to - from) / 1000));
-  if (seconds < 5) return "just now";
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 5) return "baru saja";
+  if (seconds < 60) return `${seconds}d lalu`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${minutes}m lalu`;
   const hours = Math.floor(minutes / 60);
-  return `${hours}h ago`;
+  return `${hours}j lalu`;
 }
 
 // ─── Main Page ──────────────────────────────────────────────────────────────────
@@ -238,8 +238,8 @@ export default function ProductionPage() {
 
   const lastUpdatedLabel =
     now !== null && dataUpdatedAt > 0
-      ? `Updated ${formatRelative(dataUpdatedAt, now)}`
-      : "Updated just now";
+      ? `Diperbarui ${formatRelative(dataUpdatedAt, now)}`
+      : "Diperbarui baru saja";
 
   return (
     <div className="flex-1 overflow-y-auto w-full">
@@ -254,10 +254,10 @@ export default function ProductionPage() {
               >
                 <Kanban className="w-5 h-5 text-white" />
               </span>
-              Production Board
+              Papan Produksi
             </h1>
             <p className="text-sm text-surface-500 mt-1">
-              Track job orders from receipt to delivery.
+              Pantau job order dari struk sampai diserahkan.
             </p>
           </div>
 
@@ -278,7 +278,7 @@ export default function ProductionPage() {
               type="button"
               onClick={() => refetch()}
               disabled={isFetching}
-              aria-label="Refresh job orders"
+              aria-label="Muat ulang job order"
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-surface-200 bg-white
                          text-xs font-semibold text-surface-700 hover:bg-surface-50 transition-colors
                          disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer min-h-[36px]
@@ -288,7 +288,7 @@ export default function ProductionPage() {
                 className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`}
                 aria-hidden="true"
               />
-              Refresh
+              Muat ulang
             </button>
           </div>
         </div>
@@ -296,7 +296,7 @@ export default function ProductionPage() {
         {/* Stats Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <StatCard
-            label="Active Jobs"
+            label="Job Aktif"
             value={isLoading ? "..." : stats.totalActive}
             icon={<ClipboardList className="w-5 h-5 text-brand-600" />}
             color="bg-brand-50"
@@ -305,7 +305,7 @@ export default function ProductionPage() {
             onClick={() => setFilter("ALL")}
           />
           <StatCard
-            label="In Progress"
+            label="Sedang Diproses"
             value={isLoading ? "..." : stats.inProgressCount}
             icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
             color="bg-blue-50"
@@ -314,7 +314,7 @@ export default function ProductionPage() {
             onClick={() => setFilter("PRINTING")}
           />
           <StatCard
-            label="Ready for Pickup"
+            label="Siap Diambil"
             value={isLoading ? "..." : stats.readyCount}
             icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
             color="bg-emerald-50"
@@ -323,7 +323,7 @@ export default function ProductionPage() {
             onClick={() => setFilter("READY_PICKUP")}
           />
           <StatCard
-            label="Overdue"
+            label="Terlambat"
             value={isLoading ? "..." : stats.overdueCount}
             icon={<Clock className="w-5 h-5 text-red-600" />}
             color="bg-red-50"
@@ -341,12 +341,12 @@ export default function ProductionPage() {
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400"
             />
             <label htmlFor="production-search" className="sr-only">
-              Search job orders
+              Cari job order
             </label>
             <input
               id="production-search"
               type="search"
-              placeholder="Search invoice, customer, product, or sales..."
+              placeholder="Cari invoice, pelanggan, produk, atau sales..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-surface-200 bg-white text-sm
@@ -357,7 +357,7 @@ export default function ProductionPage() {
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                aria-label="Clear search"
+                aria-label="Hapus pencarian"
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-400
                            hover:bg-surface-100 hover:text-surface-700 transition-colors cursor-pointer
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
@@ -385,7 +385,7 @@ export default function ProductionPage() {
               className="w-8 h-8 mb-4 animate-spin text-surface-300"
               aria-hidden="true"
             />
-            <p className="text-sm">Loading production board...</p>
+            <p className="text-sm">Memuat papan produksi...</p>
           </div>
         ) : isError ? (
           <Card className="flex flex-col items-center justify-center py-20 border-red-200 bg-red-50/30">
@@ -396,10 +396,10 @@ export default function ProductionPage() {
               />
             </div>
             <p className="text-surface-900 font-semibold mb-1">
-              Failed to load job orders
+              Gagal memuat job order
             </p>
             <p className="text-sm text-surface-500 mb-4">
-              Please check your database connection.
+              Cek koneksi database, lalu coba lagi.
             </p>
             <button
               type="button"
@@ -409,7 +409,7 @@ export default function ProductionPage() {
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
             >
               <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-              Try again
+              Coba lagi
             </button>
           </Card>
         ) : jobOrders.length === 0 ? (
@@ -424,11 +424,10 @@ export default function ProductionPage() {
               />
             </div>
             <p className="text-surface-900 font-semibold mb-1">
-              No active job orders
+              Belum ada job order aktif
             </p>
             <p className="text-sm text-surface-500">
-              Create a transaction with &quot;Job Order&quot; enabled from the
-              POS to see it here.
+              Buat transaksi dengan &quot;Job Order&quot; aktif dari POS untuk melihatnya di sini.
             </p>
           </Card>
         ) : visibleOrders.length === 0 ? (
@@ -443,10 +442,10 @@ export default function ProductionPage() {
               />
             </div>
             <p className="text-surface-900 font-semibold mb-1">
-              No matching job orders
+              Tidak ada job order yang cocok
             </p>
             <p className="text-sm text-surface-500 mb-4">
-              Try a different search term or clear your filters.
+              Coba kata pencarian lain atau hapus filter.
             </p>
             <button
               type="button"
@@ -458,7 +457,7 @@ export default function ProductionPage() {
                          text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
             >
-              Clear filters
+              Hapus filter
             </button>
           </Card>
         ) : (

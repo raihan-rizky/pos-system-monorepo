@@ -75,25 +75,25 @@ test("export menu opens and walks format → period steps", async ({
   ).toBeVisible();
 
   // Step 1: Open menu
-  await page.getByRole("button", { name: "Export" }).click();
-  await expect(page.getByText("Pilih Format")).toBeVisible();
+  await page.getByRole("button", { name: "Ekspor" }).click();
+  await expect(page.getByText("Pilih format")).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /Excel/ })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /^PDF/ })).toBeVisible();
 
   // Step 2: Pick format → period step appears with back button
   await page.getByRole("menuitem", { name: /Excel/ }).click();
-  await expect(page.getByText("Excel · Pilih Periode")).toBeVisible();
+  await expect(page.getByText("Excel · Pilih periode")).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /Harian/ })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /Mingguan/ })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /Bulanan/ })).toBeVisible();
 
   // Step 3: Back to format selection
   await page.getByRole("button", { name: "Kembali" }).click();
-  await expect(page.getByText("Pilih Format")).toBeVisible();
+  await expect(page.getByText("Pilih format")).toBeVisible();
 
   // Escape closes the menu
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Pilih Format")).not.toBeVisible();
+  await expect(page.getByText("Pilih format")).not.toBeVisible();
 });
 
 test("Excel export downloads xlsx file with daily laporan data", async ({
@@ -104,7 +104,7 @@ test("Excel export downloads xlsx file with daily laporan data", async ({
     page.getByRole("heading", { name: "Laporan Keuangan" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("button", { name: "Ekspor" }).click();
   await page.getByRole("menuitem", { name: /Excel/ }).click();
 
   const downloadPromise = page.waitForEvent("download");
@@ -116,7 +116,7 @@ test("Excel export downloads xlsx file with daily laporan data", async ({
   );
 
   // Menu closes after successful export
-  await expect(page.getByText("Pilih Format")).not.toBeVisible();
+  await expect(page.getByText("Pilih format")).not.toBeVisible();
 });
 
 test("PDF export downloads pdf file with weekly laporan data", async ({
@@ -127,7 +127,7 @@ test("PDF export downloads pdf file with weekly laporan data", async ({
     page.getByRole("heading", { name: "Laporan Keuangan" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("button", { name: "Ekspor" }).click();
   await page.getByRole("menuitem", { name: /^PDF/ }).click();
 
   const downloadPromise = page.waitForEvent("download");
@@ -156,13 +156,13 @@ test("export shows error message when laporan API fails", async ({ page }) => {
     page.getByRole("heading", { name: "Laporan Keuangan" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("button", { name: "Ekspor" }).click();
   await page.getByRole("menuitem", { name: /Excel/ }).click();
   await page.getByRole("menuitem", { name: /Harian/ }).click();
 
   await expect(page.getByText("Gagal memuat laporan")).toBeVisible();
   // Menu stays open with period selector when there's an error
-  await expect(page.getByText("Excel · Pilih Periode")).toBeVisible();
+  await expect(page.getByText("Excel · Pilih periode")).toBeVisible();
 });
 
 test("sales role cannot access financial report and is redirected", async ({

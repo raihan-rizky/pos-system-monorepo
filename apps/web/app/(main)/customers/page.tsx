@@ -224,7 +224,7 @@ function CustomerFormModal({ initial, onClose }: FormModalProps) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <h2 className="font-bold text-surface-900 text-lg">
-            {initial ? "Edit Pelanggan" : "Tambah Pelanggan"}
+            {initial ? "Ubah Pelanggan" : "Tambah Pelanggan"}
           </h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 text-surface-500 transition-colors">✕</button>
         </div>
@@ -446,7 +446,7 @@ export default function CustomersPage() {
                           {canUpdateCustomers && (
                             <button onClick={() => openEdit(c)}
                               className="px-3 py-1.5 rounded-lg bg-surface-100 text-surface-700 hover:bg-brand-50 hover:text-brand-700 text-xs font-medium transition-colors">
-                              Edit
+                              Ubah
                             </button>
                           )}
                           {canDeleteCustomers && (
@@ -472,11 +472,11 @@ export default function CustomersPage() {
                 <div className="flex gap-2">
                   <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
                     className="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium text-surface-600 disabled:opacity-40 hover:bg-surface-100 transition-colors">
-                    ← Prev
+                    Sebelumnya
                   </button>
                   <button disabled={page >= (data?.pagination.totalPages ?? 1)} onClick={() => setPage(p => p + 1)}
                     className="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium text-surface-600 disabled:opacity-40 hover:bg-surface-100 transition-colors">
-                    Next →
+                    Berikutnya
                   </button>
                 </div>
               </div>

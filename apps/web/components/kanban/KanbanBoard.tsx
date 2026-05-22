@@ -39,7 +39,7 @@ export const KANBAN_COLUMNS: KanbanColumnConfig[] = [
   },
   {
     id: "READY_PICKUP",
-    label: "Ready",
+    label: "Siap",
     icon: <PackageCheck className="w-4 h-4" aria-hidden="true" />,
     color: "bg-emerald-500",
     dotColor: "bg-emerald-400",
@@ -71,17 +71,17 @@ function getDeadlineState(estimatedDoneAt: string | null): {
   if (diffDays < 0) {
     return {
       level: "overdue",
-      label: `${Math.abs(diffDays)}d overdue`,
+      label: `Terlambat ${Math.abs(diffDays)} hari`,
       diffDays,
     };
   }
   if (diffDays === 0) {
-    return { level: "today", label: "Due today", diffDays };
+    return { level: "today", label: "Jatuh tempo hari ini", diffDays };
   }
   if (diffDays <= 2) {
-    return { level: "soon", label: `${diffDays}d left`, diffDays };
+    return { level: "soon", label: `${diffDays} hari lagi`, diffDays };
   }
-  return { level: "none", label: `${diffDays}d left`, diffDays };
+  return { level: "none", label: `${diffDays} hari lagi`, diffDays };
 }
 
 // ─── Deadline Badge ─────────────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ function KanbanCard({
         ))}
         {order.items.length > 3 ? (
           <li className="text-[10px] text-surface-400 italic">
-            +{order.items.length - 3} more items
+            +{order.items.length - 3} item lagi
           </li>
         ) : null}
       </ul>
@@ -277,12 +277,12 @@ function KanbanCard({
               e.stopPropagation();
               onMoveForward(order.id, nextColumn.id);
             }}
-            aria-label={`Move ${order.invoiceNumber} to ${nextColumn.label}`}
+            aria-label={`Pindahkan ${order.invoiceNumber} ke ${nextColumn.label}`}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold text-surface-600
                        hover:text-brand-600 hover:bg-brand-50 active:bg-brand-100 rounded-lg
                        transition-colors cursor-pointer min-h-[32px]
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
-            title={`Move to ${nextColumn.label}`}
+            title={`Pindahkan ke ${nextColumn.label}`}
           >
             {nextColumn.label}
             <ChevronRight className="w-3 h-3" aria-hidden="true" />
@@ -294,15 +294,15 @@ function KanbanCard({
               e.stopPropagation();
               onMoveForward(order.id, "DELIVERED");
             }}
-            aria-label={`Mark ${order.invoiceNumber} as delivered`}
+            aria-label={`Tandai ${order.invoiceNumber} sudah diserahkan`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-white
                        bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 shadow-sm hover:shadow-md
                        rounded-lg transition-colors cursor-pointer min-h-[32px]
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
-            title="Mark as Delivered"
+            title="Tandai Sudah Diserahkan"
           >
             <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-            DONE
+            SELESAI
           </button>
         ) : null}
       </div>
@@ -364,7 +364,7 @@ function KanbanColumn({
 
   return (
     <section
-      aria-label={`${config.label} column`}
+      aria-label={`Kolom ${config.label}`}
       className={`flex flex-col w-full md:flex-1 md:min-w-0 rounded-2xl border transition-all duration-200 ${isDragOver
         ? "border-brand-400 bg-brand-50/30 shadow-lg ring-2 ring-brand-200/50"
         : "border-surface-200/60 bg-white/60"
@@ -382,7 +382,7 @@ function KanbanColumn({
         </div>
         <h3 className="font-bold text-surface-900 text-sm">{config.label}</h3>
         <span
-          aria-label={`${orders.length} orders`}
+          aria-label={`${orders.length} order`}
           className="ml-auto flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-surface-100 text-surface-600 text-xs font-bold px-1.5"
         >
           {orders.length}
@@ -400,7 +400,7 @@ function KanbanColumn({
             >
               {config.icon}
             </div>
-            <p className="text-xs text-surface-400">Drop here</p>
+            <p className="text-xs text-surface-400">Drop di sini</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">

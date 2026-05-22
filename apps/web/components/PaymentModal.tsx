@@ -268,14 +268,14 @@ export function PaymentModal({
         {/* Salesperson Dropdown */}
         <div>
           <label className="text-sm font-medium text-surface-700 mb-2 block">
-            Salesperson (Opsional)
+            Sales (Opsional)
           </label>
           <select
             value={salespersonId}
             onChange={(e) => setSalespersonId(e.target.value)}
             className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
-            <option value="">-- Pilih Salesperson --</option>
+            <option value="">-- Pilih Sales --</option>
             {salespersons.map(sp => (
               <option key={sp.id} value={sp.id}>{sp.name}</option>
             ))}

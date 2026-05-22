@@ -115,10 +115,10 @@ export function ImageUploadStep({
         <div className="flex justify-between items-start mb-4">
           <div>
             <label className="block text-sm font-bold text-slate-700">
-              Upload Price List Images
+              Upload Gambar Daftar Harga
             </label>
             <p className="text-xs text-slate-500 mt-1">
-              Supports JPG, PNG, WebP. Better quality = better extraction.
+              Mendukung JPG, PNG, WebP. Kualitas lebih baik membuat ekstraksi lebih akurat.
             </p>
           </div>
           
@@ -128,7 +128,7 @@ export function ImageUploadStep({
             className={`p-2 rounded-lg transition-colors ${
               showOptions ? "bg-slate-200 text-slate-900" : "text-slate-400 hover:bg-slate-200"
             }`}
-            title="Image Adjustments"
+            title="Pengaturan Gambar"
           >
             <SlidersHorizontal className="w-4 h-4" />
           </button>
@@ -137,7 +137,7 @@ export function ImageUploadStep({
         {showOptions && (
           <div className="mb-6 p-4 bg-white rounded-lg border border-slate-200 space-y-4">
             <div className="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
-              Adjustments (Applies to all)
+              Pengaturan (berlaku untuk semua)
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -202,7 +202,7 @@ export function ImageUploadStep({
             >
               <ImageIcon className="w-6 h-6 text-slate-400" />
               <span className="text-sm font-medium text-slate-600">
-                Click to browse images
+                Klik untuk memilih gambar
               </span>
             </label>
           </div>
@@ -225,7 +225,7 @@ export function ImageUploadStep({
                         <div className="absolute inset-0 border-2 border-slate-200 rounded-full animate-ping opacity-20"></div>
                         <ImageIcon className="w-6 h-6 text-slate-300 animate-pulse relative z-10" />
                       </div>
-                      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Processing</span>
+                      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Memproses</span>
                     </div>
                   )}
                   {!isLoading && (
@@ -262,8 +262,8 @@ export function ImageUploadStep({
                     </svg>
                   </div>
                   <div className="text-center">
-                    <h3 className="text-sm font-bold text-slate-800">Extracting Data</h3>
-                    <p className="text-[11px] font-medium text-slate-500 mt-0.5">Analyzing with AI Vision...</p>
+                    <h3 className="text-sm font-bold text-slate-800">Mengekstrak Data</h3>
+                    <p className="text-[11px] font-medium text-slate-500 mt-0.5">Menganalisis dengan AI Vision...</p>
                   </div>
                 </div>
               </div>
@@ -283,7 +283,7 @@ export function ImageUploadStep({
               : "bg-slate-900 text-white hover:bg-slate-800 shadow-md hover:shadow-lg"
           }`}
         >
-          {isLoading ? "Extracting Data..." : isProcessing ? "Processing Images..." : "Extract Data with AI"}
+          {isLoading ? "Mengekstrak data..." : isProcessing ? "Memproses gambar..." : "Ekstrak Data dengan AI"}
         </Button>
       </div>
     </div>

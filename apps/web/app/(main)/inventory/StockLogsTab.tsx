@@ -38,7 +38,7 @@ type TypeStyle = {
 const typeConfig: Record<string, TypeStyle> = {
   IN:         { label: "Stock In",    icon: <PackagePlus  className="w-4 h-4" />, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" },
   OUT:        { label: "Stock Out",   icon: <PackageMinus className="w-4 h-4" />, color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-100" },
-  ADJUSTMENT: { label: "Adjustment",  icon: <Settings2    className="w-4 h-4" />, color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-100" },
+  ADJUSTMENT: { label: "Penyesuaian", icon: <Settings2    className="w-4 h-4" />, color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-100" },
 };
 
 const STATUS_FILTERS: Array<{ id: string; label: string; status?: string }> = [
@@ -62,12 +62,12 @@ function relativeTime(dateStr: string) {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diffM = Math.floor((now - then) / 60000);
-  if (diffM < 1) return "Just now";
-  if (diffM < 60) return `${diffM}m ago`;
+  if (diffM < 1) return "Baru saja";
+  if (diffM < 60) return `${diffM}m lalu`;
   const diffH = Math.floor(diffM / 60);
-  if (diffH < 24) return `${diffH}h ago`;
+  if (diffH < 24) return `${diffH}j lalu`;
   const diffD = Math.floor(diffH / 24);
-  if (diffD < 7) return `${diffD}d ago`;
+  if (diffD < 7) return `${diffD}h lalu`;
   return formatDate(dateStr);
 }
 
@@ -188,7 +188,7 @@ export default function StockLogsTab() {
               { id: "", label: "Semua tipe" },
               { id: "IN", label: "Stock In" },
               { id: "OUT", label: "Stock Out" },
-              { id: "ADJUSTMENT", label: "Adjust" },
+              { id: "ADJUSTMENT", label: "Penyesuaian" },
             ].map((f) => (
               <button
                 key={f.id}

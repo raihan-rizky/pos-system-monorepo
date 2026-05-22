@@ -29,9 +29,9 @@ export function ColumnMappingStep({
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-blue-800">
-        <p className="font-bold">Map your file columns to product fields.</p>
+        <p className="font-bold">Mapping kolom file ke field produk.</p>
         <p className="text-xs mt-1 text-blue-600">
-          We auto-detected some mappings. Adjust any incorrect ones below.
+          Beberapa mapping sudah terdeteksi otomatis. Sesuaikan jika ada yang salah.
         </p>
       </div>
 
@@ -39,9 +39,9 @@ export function ColumnMappingStep({
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase tracking-widest text-slate-500">
             <tr>
-              <th className="px-4 py-3 text-left">File Column</th>
+              <th className="px-4 py-3 text-left">Kolom File</th>
               <th className="px-4 py-3 text-center w-10">→</th>
-              <th className="px-4 py-3 text-left">Maps To</th>
+              <th className="px-4 py-3 text-left">Dipetakan Ke</th>
               <th className="px-4 py-3 text-center w-16">Status</th>
             </tr>
           </thead>
@@ -73,7 +73,7 @@ export function ColumnMappingStep({
                             : "border-emerald-200 bg-emerald-50 text-emerald-700"
                       }`}
                     >
-                      <option value="">— Ignore —</option>
+                      <option value="">- Abaikan -</option>
                       {IMPORT_COLUMNS.map((col) => (
                         <option
                           key={col}
@@ -106,17 +106,17 @@ export function ColumnMappingStep({
 
       {missingRequired.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <span className="font-bold">Required columns not mapped: </span>
+          <span className="font-bold">Kolom wajib belum dimapping: </span>
           {missingRequired.join(", ")}
         </div>
       )}
 
       <div className="flex items-center justify-between gap-3">
         <Button type="button" variant="secondary" onClick={onBack}>
-          Back
+          Kembali
         </Button>
         <Button type="button" disabled={missingRequired.length > 0} onClick={onConfirm}>
-          Continue to Preview
+          Lanjut ke Preview
         </Button>
       </div>
     </div>

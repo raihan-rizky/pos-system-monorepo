@@ -51,12 +51,12 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
 
     const numQty = Number(quantity);
     if (!numQty || numQty === 0) {
-      setError("Quantity must be greater than zero.");
+      setError("Jumlah harus lebih dari nol.");
       return;
     }
 
     if (type === "OUT" && numQty > product.stock) {
-      setError(`Cannot remove ${numQty}. Current stock is only ${product.stock}.`);
+      setError(`Tidak bisa mengurangi ${numQty}. Stok saat ini hanya ${product.stock}.`);
       return;
     }
 
@@ -65,7 +65,7 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
     if (type === "ADJUSTMENT") {
       finalQty = numQty - product.stock;
       if (finalQty === 0) {
-        setError("New stock is the same as current stock.");
+        setError("Stok baru sama dengan stok saat ini.");
         return;
       }
     }
@@ -88,14 +88,14 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
       }
       onClose();
     } catch (err: any) {
-      setError(err.message || "Failed to update stock");
+      setError(err.message || "Gagal update stok");
     }
   };
 
   const isProcessing = updateStock.isPending;
 
   return (
-    <Modal open={isOpen} onClose={onClose} title={isOwner ? "Update Inventory" : "Ajukan Perubahan Stok"}>
+    <Modal open={isOpen} onClose={onClose} title={isOwner ? "Perbarui Inventaris" : "Ajukan Perubahan Stok"}>
       <form onSubmit={handleSubmit} className="mt-4">
         {submittedAsRequest && (
           <div
@@ -130,7 +130,7 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
           <div>
             <h4 className="font-semibold text-surface-900">{product.name}</h4>
             <p className="text-sm text-surface-500">
-              Current Stock: <strong className="text-surface-900">{product.stock} {product.unit}</strong>
+              Stok Saat Ini: <strong className="text-surface-900">{product.stock} {product.unit}</strong>
             </p>
           </div>
         </div>
@@ -179,7 +179,7 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
             }`}
           >
             <Settings2 className="w-5 h-5 mb-1" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Set Exact</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Set Tepat</span>
           </button>
         </div>
 
@@ -204,7 +204,7 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
           </div>
 
           <Input
-            label={type === "ADJUSTMENT" ? `New Stock Level (${product.unit})` : `Quantity to ${type === "IN" ? "Add" : "Remove"} (${product.unit})`}
+            label={type === "ADJUSTMENT" ? `Stok Baru (${product.unit})` : `Jumlah untuk ${type === "IN" ? "Ditambah" : "Dikurangi"} (${product.unit})`}
             type="number"
             min="1"
             value={quantity}
@@ -215,13 +215,13 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
 
           <div>
             <label htmlFor={noteId} className="block text-sm font-medium text-surface-700 mb-1">
-              Note (Optional)
+              Catatan (Opsional)
             </label>
             <textarea
               id={noteId}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder={type === "IN" ? "e.g., Supplier delivery" : type === "OUT" ? "e.g., Damaged item" : "Reason for adjustment"}
+              placeholder={type === "IN" ? "Contoh: pengiriman supplier" : type === "OUT" ? "Contoh: barang rusak" : "Alasan penyesuaian"}
               rows={2}
               className="w-full px-3 py-2 bg-white border border-surface-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none resize-none"
             />
@@ -230,12 +230,12 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
 
         <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-surface-200">
           <Button type="button" variant="secondary" onClick={onClose} disabled={isProcessing}>
-            {isOwner ? "Cancel" : "Batal"}
+            Batal
           </Button>
           <Button type="submit" disabled={isProcessing || submittedAsRequest}>
             {isProcessing
-              ? isOwner ? "Saving..." : "Mengirim..."
-              : isOwner ? "Confirm Update" : "Submit Request"}
+              ? isOwner ? "Menyimpan..." : "Mengirim..."
+              : isOwner ? "Konfirmasi" : "Kirim Permintaan"}
           </Button>
         </div>
       </form>
