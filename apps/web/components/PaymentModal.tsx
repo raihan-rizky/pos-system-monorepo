@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
-import { useDebounce } from "@/hooks/useDebounce";
-import type { Customer } from "@/hooks/useCustomers";
+import { useCreateCustomer } from "@/hooks/useCustomers";
 import { useRole } from "@/components/providers/RoleProvider";
 import { useSalespersons } from "@/hooks/useSalespersons";
+import { CustomerCheckoutSelect } from "@/features/pos-checkout/components/CustomerCheckoutSelect";
+import {
+  resolveCheckoutCustomer,
+  type CheckoutCustomerSelection,
+} from "@/features/pos-checkout/customer-selection";
 
 
 
@@ -69,13 +73,10 @@ export function PaymentModal({
   const [discountInput, setDiscountInput] = useState(0);
   const [amountPaid, setAmountPaid] = useState(0);
   const [note, setNote] = useState("");
-  // Customer search
-  const [customerQuery, setCustomerQuery] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const comboRef = useRef<HTMLDivElement>(null);
-  const debouncedQuery = useDebounce(customerQuery, 300);
+  const [customerSelection, setCustomerSelection] =
+    useState<CheckoutCustomerSelection>({ kind: "general" });
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const createCustomer = useCreateCustomer();
   const [salespersonId, setSalespersonId] = useState("");
   const { data: salespersons = [] } = useSalespersons();
   const [isDP, setIsDP] = useState(false);
@@ -88,39 +89,10 @@ export function PaymentModal({
   useEffect(() => {
     if (!open) {
       // reset on close
-      setCustomerQuery("");
-      setSelectedCustomer(null);
-      setCustomerResults([]);
-      setShowDropdown(false);
+      setCustomerSelection({ kind: "general" });
+      setCustomerError(null);
     }
   }, [open]);
-
-  // Search customers when query changes
-  useEffect(() => {
-    if (!debouncedQuery || debouncedQuery.length < 2) {
-      setCustomerResults([]);
-      setShowDropdown(false);
-      return;
-    }
-    fetch(`/api/customers?search=${encodeURIComponent(debouncedQuery)}&limit=5`)
-      .then(r => r.json())
-      .then(d => {
-        setCustomerResults(d.data ?? []);
-        setShowDropdown(true);
-      })
-      .catch(() => {});
-  }, [debouncedQuery]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   const rawDiscount =
     discountMode === "PERCENT"
@@ -140,15 +112,33 @@ export function PaymentModal({
       ? amountPaid > 0 && amountPaid < total && total > 0
       : amountPaid >= total && total > 0;
 
-  const handleConfirm = () => {
+  const resolveCustomerForSubmit = async () => {
+    try {
+      setCustomerError(null);
+      return await resolveCheckoutCustomer(
+        customerSelection,
+        createCustomer.mutateAsync,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Gagal menyimpan pelanggan";
+      setCustomerError(message);
+      return null;
+    }
+  };
+
+  const handleConfirm = async () => {
     const selectedSales = salespersons.find(s => s.id === salespersonId);
+    const customer = await resolveCustomerForSubmit();
+    if (!customer) return;
+
     onConfirm({
       paymentMethod,
       amountPaid,
       discount,
       note,
-      customerName: selectedCustomer?.name || customerQuery || "Pelanggan Umum",
-      customerId: selectedCustomer?.id ?? null,
+      customerName: customer.customerName,
+      customerId: customer.customerId,
       salesName: selectedSales?.name || "",
       salespersonId,
       paymentStatus: isDP ? "DP" : "COMPLETED",
@@ -157,14 +147,17 @@ export function PaymentModal({
     });
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!onSaveDraft) return;
     const selectedSales = salespersons.find((s) => s.id === salespersonId);
+    const customer = await resolveCustomerForSubmit();
+    if (!customer) return;
+
     onSaveDraft({
       discount,
       note,
-      customerName: selectedCustomer?.name || customerQuery || "Pelanggan Umum",
-      customerId: selectedCustomer?.id ?? null,
+      customerName: customer.customerName,
+      customerId: customer.customerId,
       salesName: selectedSales?.name || "",
       salespersonId,
       isJobOrder,
@@ -172,7 +165,8 @@ export function PaymentModal({
     });
   };
 
-  const canSaveDraft = total > 0 && !isProcessing && !isSavingDraft;
+  const canSaveDraft =
+    total > 0 && !isProcessing && !isSavingDraft && !createCustomer.isPending;
 
   const handleExactAmount = () => {
     setAmountPaid(total);
@@ -195,75 +189,13 @@ export function PaymentModal({
           ))}
         </div>
 
-        {/* Customer Search Combobox */}
-        <div ref={comboRef} className="relative">
-          <label className="text-sm font-medium text-surface-700 mb-1.5 block">Pelanggan</label>
-          {selectedCustomer ? (
-            <div>
-              <div className="flex items-center justify-between px-3 py-2.5 border border-brand-300 bg-brand-50 rounded-xl">
-                <div>
-                  <p className="font-semibold text-brand-900 text-sm">{selectedCustomer.name}</p>
-                  {selectedCustomer.phone && <p className="text-xs text-brand-600">{selectedCustomer.phone}</p>}
-                </div>
-                <button
-                  onClick={() => { setSelectedCustomer(null); setCustomerQuery(""); }}
-                  className="text-brand-400 hover:text-brand-700 text-xs px-2 py-1 rounded transition-colors"
-                >
-                  Ganti
-                </button>
-              </div>
-              {/* Debt warning */}
-              {Number(selectedCustomer.totalDebt) > 0 && (
-                <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
-                  <span className="text-sm">⚠️</span>
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-red-700">Piutang belum lunas</p>
-                    <p className="text-sm font-extrabold text-red-800">{formatRupiah(Number(selectedCustomer.totalDebt))}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                value={customerQuery}
-                onChange={e => setCustomerQuery(e.target.value)}
-                onFocus={() => customerResults.length > 0 && setShowDropdown(true)}
-                placeholder="Cari nama atau HP, atau ketik walk-in…"
-                className="w-full px-3 py-2.5 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 bg-surface-50"
-              />
-              {showDropdown && customerResults.length > 0 && (
-                <div className="absolute z-50 top-full mt-1 w-full bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden">
-                  {customerResults.map(c => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onMouseDown={() => { setSelectedCustomer(c); setShowDropdown(false); }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-brand-50 transition-colors text-left"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-surface-900">{c.name}</p>
-                        <p className="text-xs text-surface-500">{c.phone ?? c.email ?? c.company ?? ""}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {Number(c.totalDebt) > 0 && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-700">
-                            Piutang
-                          </span>
-                        )}
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                          c.type === "VIP" ? "bg-amber-100 text-amber-700" :
-                          c.type === "CORPORATE" ? "bg-violet-100 text-violet-700" :
-                          "bg-slate-100 text-slate-600"
-                        }`}>{c.type}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <CustomerCheckoutSelect
+          value={customerSelection}
+          onChange={setCustomerSelection}
+          error={customerError}
+          disabled={createCustomer.isPending}
+          onClearError={() => setCustomerError(null)}
+        />
 
         {/* Salesperson Dropdown */}
         <div>
@@ -634,15 +566,15 @@ export function PaymentModal({
                 <circle cx="12" cy="14" r="3" />
                 <polyline points="12 11 12 14 14 14" />
               </svg>
-              {isSavingDraft ? "Menyimpan..." : "Faktur Sementara"}
+              {isSavingDraft || createCustomer.isPending ? "Menyimpan..." : "Faktur Sementara"}
             </button>
           )}
           <Button
             variant="accent"
             size="lg"
             onClick={handleConfirm}
-            disabled={!canPay}
-            loading={isProcessing}
+            disabled={!canPay || createCustomer.isPending}
+            loading={isProcessing || createCustomer.isPending}
             className="sm:flex-1"
           >
             {isProcessing

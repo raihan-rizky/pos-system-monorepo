@@ -414,15 +414,13 @@ function NavItem({
       className={`
         relative flex items-center shrink-0 cursor-pointer
         transition-all duration-200 group/nav
-        ${
-          isCollapsed
-            ? "justify-center w-12 h-12 rounded-xl"
-            : "justify-start w-full px-3.5 py-3 rounded-xl gap-3"
+        ${isCollapsed
+          ? "justify-center w-12 h-12 rounded-xl"
+          : "justify-start w-full px-3.5 py-3 rounded-xl gap-3"
         }
-        ${
-          isActive
-            ? "bg-brand-600 text-white shadow-glow"
-            : "text-surface-400 hover:text-white hover:bg-surface-800"
+        ${isActive
+          ? "bg-brand-600 text-white shadow-glow"
+          : "text-surface-400 hover:text-white hover:bg-surface-800"
         }
       `}
     >
@@ -523,7 +521,7 @@ export function Sidebar() {
       {/* ── DESKTOP SIDEBAR ── */}
       <aside
         className={`
-          hidden md:flex flex-col bg-surface-900 border-r border-surface-800 py-5 px-3 shrink-0 h-screen sticky top-0 transition-all duration-300 ease-in-out z-50
+          hidden md:flex flex-col bg-surface-900 border-r overflow-y-auto border-surface-800 py-5 px-3 shrink-0 h-screen sticky top-0 transition-all duration-300 ease-in-out z-50
           ${isCollapsed ? "w-[76px] items-center" : "w-[240px] items-stretch"}
         `}
       >
@@ -673,12 +671,11 @@ export function Sidebar() {
               onClick={() => toggle(group.id)}
               className={`
                 flex flex-col items-center justify-center gap-1 w-16 h-14 rounded-xl relative cursor-pointer transition-all duration-200
-                ${
-                  hasActive && !isOpen
-                    ? "text-brand-400 font-semibold"
-                    : isOpen
-                      ? "text-white bg-surface-800/80 scale-95"
-                      : "text-surface-400 hover:text-white"
+                ${hasActive && !isOpen
+                  ? "text-brand-400 font-semibold"
+                  : isOpen
+                    ? "text-white bg-surface-800/80 scale-95"
+                    : "text-surface-400 hover:text-white"
                 }
               `}
             >
@@ -745,10 +742,9 @@ export function Sidebar() {
                   className={`
                     flex flex-col items-center justify-center gap-3 p-4
                     border rounded-2xl cursor-pointer transition-all duration-200 active:scale-95
-                    ${
-                      isActive
-                        ? "bg-brand-600/10 border-brand-500 text-brand-400 font-bold"
-                        : "bg-surface-800 border-surface-700/60 text-surface-300 hover:text-white"
+                    ${isActive
+                      ? "bg-brand-600/10 border-brand-500 text-brand-400 font-bold"
+                      : "bg-surface-800 border-surface-700/60 text-surface-300 hover:text-white"
                     }
                   `}
                 >
