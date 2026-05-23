@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   Edit2,
   History,
+  BadgeDollarSign,
   ClipboardList,
   FileSpreadsheet,
   Boxes,
@@ -29,6 +30,7 @@ import {
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import ProductTable from "@/components/inventory/ProductTable";
 import ProductFormModal from "@/components/inventory/ProductFormModal";
+import PriceUpdateModal from "@/components/inventory/PriceUpdateModal";
 import StockUpdateModal from "@/components/inventory/StockUpdateModal";
 import { useRole } from "@/components/providers/RoleProvider";
 import { usePendingInventoryLogCount } from "@/hooks/useInventoryLogs";
@@ -41,6 +43,9 @@ const StockHistoryTab = lazy(
   () => import("@/app/(main)/inventory/StockHistoryTab"),
 );
 const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
+const ProductPriceLogsTab = lazy(
+  () => import("@/app/(main)/products/ProductPriceLogsTab"),
+);
 const ProductImportDrawer = lazy(() =>
   import("@/features/product-import/components/ProductImportDrawer").then(
     (mod) => ({ default: mod.ProductImportDrawer }),
@@ -52,7 +57,7 @@ const BulkStockDrawer = lazy(() =>
   ),
 );
 
-type PageTab = "products" | "history" | "logs";
+type PageTab = "products" | "prices" | "history" | "logs";
 
 function useFitText(value: string | number) {
   const ref = useRef<HTMLParagraphElement>(null);
@@ -147,10 +152,12 @@ function StatCard({
 }
 
 export default function ProductsPage() {
-  const { canPerform } = useRole();
+  const { canPerform, role } = useRole();
   const canCreateProducts = shouldShowAction("product", "create", canPerform);
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
   const canUpdateInventory = shouldShowUpdateAction("inventory", canPerform);
+  const canViewPriceHistory = role === "OWNER" || role === "ADMIN";
+  const canChangePrice = canViewPriceHistory;
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   // Default to grid on mobile, table on desktop. We'll manage this via state, but default "grid" is safer for initial mobile load.
@@ -169,6 +176,11 @@ export default function ProductsPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(
     new Set(),
   );
+  const [selectedPriceLogProductId, setSelectedPriceLogProductId] =
+    useState("");
+  const [priceUpdateProductId, setPriceUpdateProductId] = useState<
+    string | null
+  >(null);
 
   const [page, setPage] = useState(1);
 
@@ -269,6 +281,18 @@ export default function ProductsPage() {
   const closeStock = () => {
     setIsStockModalOpen(false);
     setStockUpdateProductId(null);
+  };
+  const openPriceHistory = (id: string) => {
+    if (!canViewPriceHistory) return;
+    setSelectedPriceLogProductId(id);
+    setActiveTab("prices");
+  };
+  const openPriceChange = (id: string) => {
+    if (!canChangePrice) return;
+    setPriceUpdateProductId(id);
+  };
+  const closePriceChange = () => {
+    setPriceUpdateProductId(null);
   };
   const toggleSelectedProduct = (id: string) => {
     setSelectedProductIds((current) => {
@@ -394,6 +418,15 @@ export default function ProductsPage() {
               label: "Produk",
               icon: <Package className="w-4 h-4" />,
             },
+            ...(canViewPriceHistory
+              ? [
+                  {
+                    id: "prices" as PageTab,
+                    label: "Riwayat Harga",
+                    icon: <History className="w-4 h-4" />,
+                  },
+                ]
+              : []),
             {
               id: "history" as PageTab,
               label: "Riwayat Stok",
@@ -446,6 +479,13 @@ export default function ProductsPage() {
             >
               {activeTab === "history" && <StockHistoryTab />}
               {activeTab === "logs" && <StockLogsTab />}
+              {activeTab === "prices" && canViewPriceHistory && (
+                <ProductPriceLogsTab
+                  products={products}
+                  selectedProductId={selectedPriceLogProductId}
+                  onSelectedProductChange={setSelectedPriceLogProductId}
+                />
+              )}
             </Suspense>
           </div>
         ) : (
@@ -631,8 +671,10 @@ export default function ProductsPage() {
                   isLoading={isLoading}
                   onEdit={openEdit}
                   onUpdateStock={openStock}
+                  onChangePrice={openPriceChange}
                   canUpdateProduct={canUpdateProducts}
                   canUpdateStock={canUpdateInventory}
+                  canChangePrice={canChangePrice}
                   selectedProductIds={selectedProductIds}
                   onToggleProduct={
                     canUpdateInventory ? toggleSelectedProduct : undefined
@@ -646,8 +688,10 @@ export default function ProductsPage() {
                   isLoading={isLoading}
                   onEdit={openEdit}
                   onUpdateStock={openStock}
+                  onChangePrice={openPriceChange}
                   canUpdateProduct={canUpdateProducts}
                   canUpdateStock={canUpdateInventory}
+                  canChangePrice={canChangePrice}
                   selectedProductIds={selectedProductIds}
                   onToggleProduct={
                     canUpdateInventory ? toggleSelectedProduct : undefined
@@ -717,6 +761,14 @@ export default function ProductsPage() {
           product={products.find((p) => p.id === stockUpdateProductId)!}
         />
       )}
+      {priceUpdateProductId && canChangePrice && (
+        <PriceUpdateModal
+          isOpen={Boolean(priceUpdateProductId)}
+          onClose={closePriceChange}
+          product={products.find((p) => p.id === priceUpdateProductId) ?? null}
+          onViewHistory={openPriceHistory}
+        />
+      )}
       {selectedProductIds.size > 0 &&
         activeTab === "products" &&
         canUpdateInventory && (
@@ -779,8 +831,10 @@ function ProductGrid({
   isLoading,
   onEdit,
   onUpdateStock,
+  onChangePrice,
   canUpdateProduct,
   canUpdateStock,
+  canChangePrice,
   selectedProductIds = new Set(),
   onToggleProduct,
 }: {
@@ -788,8 +842,10 @@ function ProductGrid({
   isLoading: boolean;
   onEdit: (id: string) => void;
   onUpdateStock: (id: string) => void;
+  onChangePrice: (id: string) => void;
   canUpdateProduct: boolean;
   canUpdateStock: boolean;
+  canChangePrice: boolean;
   selectedProductIds?: Set<string>;
   onToggleProduct?: (id: string) => void;
 }) {
@@ -915,16 +971,27 @@ function ProductGrid({
               </div>
             </div>
 
-            {/* Quick Actions Overlay */}
-            {(canUpdateStock || canUpdateProduct) && (
-              <div className="absolute bottom-4 right-4 flex gap-2 translate-y-10 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20">
+            {(canChangePrice || canUpdateStock || canUpdateProduct) && (
+              <div className="grid grid-cols-3 gap-2 relative z-10">
+                {canChangePrice && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChangePrice(p.id);
+                    }}
+                    className="flex h-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700 shadow-sm ring-1 ring-amber-100 transition-colors hover:bg-amber-100"
+                    title="Ubah Harga"
+                  >
+                    <BadgeDollarSign className="w-5 h-5" />
+                  </button>
+                )}
                 {canUpdateStock && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onUpdateStock(p.id);
                     }}
-                    className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg hover:bg-emerald-700 transition-colors"
+                    className="flex h-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 shadow-sm ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100"
                     title="Ubah Stok"
                   >
                     <TrendingUp className="w-5 h-5" />
@@ -936,7 +1003,7 @@ function ProductGrid({
                       e.stopPropagation();
                       onEdit(p.id);
                     }}
-                    className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors"
+                    className="flex h-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 transition-colors hover:bg-blue-100"
                     title="Ubah Produk"
                   >
                     <Edit2 className="w-5 h-5" />

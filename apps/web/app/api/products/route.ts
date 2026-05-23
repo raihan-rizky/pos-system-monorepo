@@ -8,6 +8,7 @@ import {
 } from "@/features/pos-search/pos-search";
 import { buildProductStockFilter } from "@/features/pos-search/pos-stock-filter";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
+import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 
 import { getLogger } from "@/lib/logger";
 
@@ -111,16 +112,37 @@ export async function POST(request: Request) {
       );
     }
 
-    const product = await db.product.create({
-      data: {
-        ...validatedData,
-        storeId: user.storeId || "store-main",
-      },
-      include: {
-        category: {
-          select: { id: true, name: true, icon: true, color: true },
+    const storeId = user.storeId || "store-main";
+    const product = await db.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          ...validatedData,
+          storeId,
         },
-      },
+        include: {
+          category: {
+            select: { id: true, name: true, icon: true, color: true },
+          },
+        },
+      });
+
+      const priceLogEntries = buildProductPriceLogEntries({
+        productId: created.id,
+        storeId,
+        before: null,
+        after: {
+          price: created.price,
+          costPrice: created.costPrice,
+        },
+        actor: user,
+        source: "MANUAL",
+      });
+
+      if (priceLogEntries.length > 0) {
+        await tx.productPriceLog.createMany({ data: priceLogEntries });
+      }
+
+      return created;
     });
 
     return NextResponse.json(product, { status: 201 });

@@ -9,8 +9,8 @@ interface CartSidebarProps {
   items: CartItem[];
   subtotal: number;
   totalItems: number;
-  onUpdateQuantity: (productId: string, quantity: number) => void;
-  onRemoveItem: (productId: string) => void;
+  onUpdateQuantity: (cartLineId: string, quantity: number) => void;
+  onRemoveItem: (cartLineId: string) => void;
   onClearCart: () => void;
   onCheckout: () => void;
   onClose?: () => void;
@@ -79,7 +79,7 @@ export function CartSidebar({
           <div className="space-y-2">
             {items.map((item) => (
               <div
-                key={item.productId}
+                key={item.cartLineId}
                 className="flex items-start gap-3 p-3 rounded-xl bg-surface-50 animate-slide-up"
               >
                 <div className="flex-1 min-w-0">
@@ -100,7 +100,7 @@ export function CartSidebar({
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <button
-                    onClick={() => onRemoveItem(item.productId)}
+                    onClick={() => onRemoveItem(item.cartLineId)}
                     className="p-0.5 text-surface-300 hover:text-danger-500 transition-colors"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -110,7 +110,7 @@ export function CartSidebar({
                   </button>
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => onUpdateQuantity(item.productId, item.quantity - 1)}
+                      onClick={() => onUpdateQuantity(item.cartLineId, item.quantity - 1)}
                       className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-surface-200 text-surface-600 hover:bg-surface-100 text-sm font-bold transition-colors"
                     >
                       −
@@ -119,8 +119,8 @@ export function CartSidebar({
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => onUpdateQuantity(item.productId, item.quantity + 1)}
-                      disabled={item.quantity >= item.stock}
+                      onClick={() => onUpdateQuantity(item.cartLineId, item.quantity + 1)}
+                      disabled={item.lineType === "PRODUCT" && item.quantity >= item.stock}
                       className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-surface-200 text-surface-600 hover:bg-surface-100 text-sm font-bold transition-colors disabled:opacity-40"
                     >
                       +

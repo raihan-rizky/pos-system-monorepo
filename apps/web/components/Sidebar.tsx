@@ -519,12 +519,11 @@ export function Sidebar() {
       />
 
       {/* ── DESKTOP SIDEBAR ── */}
-      <aside
-        className={`
-          hidden md:flex flex-col bg-surface-900 border-r overflow-y-auto border-surface-800 py-5 px-3 shrink-0 h-screen sticky top-0 transition-all duration-300 ease-in-out z-50
-          ${isCollapsed ? "w-[76px] items-center" : "w-[240px] items-stretch"}
-        `}
-      >
+      <aside className={`
+  hidden md:flex flex-col bg-surface-900 border-r overflow-y-auto border-surface-800 
+  py-5 px-3 shrink-0 h-full transition-all duration-300 ease-in-out z-50
+  ${isCollapsed ? "w-[76px] items-center" : "w-[240px] items-stretch"}
+`}>
         {/* Logo area */}
         <div
           className={`flex items-center mb-6 shrink-0 transition-all duration-200

@@ -40,6 +40,14 @@ const STATUSES = [
   { value: "REFUNDED", label: "↩️ Refund", color: "text-red-600" },
 ];
 
+const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
+  COMPLETED: ["DP", "VOIDED", "REFUNDED"],
+  DP: ["COMPLETED", "VOIDED"],
+  PENDING_APPROVAL: ["COMPLETED", "VOIDED"],
+  VOIDED: [],
+  REFUNDED: [],
+};
+
 function EditModal({
   tx,
   onClose,
@@ -58,6 +66,9 @@ function EditModal({
   });
 
   const [salespersons, setSalespersons] = useState<{ id: string; name: string }[]>([]);
+
+  const allowedTransitions = ALLOWED_STATUS_TRANSITIONS[tx.status] ?? [];
+  const allowedSet = new Set(allowedTransitions);
 
   React.useEffect(() => {
     fetch("/api/salespersons?activeOnly=true")
@@ -204,20 +215,31 @@ function EditModal({
             <label className="block text-xs font-semibold text-surface-600 mb-1.5">
               Status Pembayaran
             </label>
+            {allowedTransitions.length === 0 && (
+              <p className="text-xs text-surface-400 italic mb-2">
+                Status <strong>{tx.status}</strong> tidak dapat diubah
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2">
-              {STATUSES.map((s) => (
-                <button
-                  key={s.value}
-                  onClick={() => handleChange("status", s.value)}
-                  className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                    form.status === s.value
-                      ? "bg-surface-900 text-white border-surface-900 shadow-sm"
-                      : "bg-surface-50 text-surface-600 border-surface-200 hover:border-surface-400"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
+              {STATUSES.map((s) => {
+                const isAllowed = s.value === tx.status || allowedSet.has(s.value);
+                return (
+                  <button
+                    key={s.value}
+                    onClick={() => isAllowed && handleChange("status", s.value)}
+                    disabled={!isAllowed}
+                    className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                      form.status === s.value
+                        ? "bg-surface-900 text-white border-surface-900 shadow-sm"
+                        : isAllowed
+                          ? "bg-surface-50 text-surface-600 border-surface-200 hover:border-surface-400"
+                          : "bg-surface-50 text-surface-300 border-surface-100 opacity-40 cursor-not-allowed"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -293,8 +315,8 @@ function StatusBadge({ status }: { status: string }) {
   }
   if (status === "VOIDED") {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-surface-100 text-surface-500 border border-surface-200">
-        ❌ Void
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-500 border border-red-200 line-through decoration-red-400">
+        ❌ DIBATALKAN
       </span>
     );
   }
@@ -495,6 +517,85 @@ function ApproveModal({
   );
 }
 
+// ─── Void Confirm Modal ───────────────────────────────────────────────────────
+
+function VoidConfirmModal({
+  tx,
+  onClose,
+  onSuccess,
+}: {
+  tx: Transaction;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const updateTx = useUpdateTransaction();
+  const [error, setError] = useState("");
+
+  const handleVoid = async () => {
+    setError("");
+    try {
+      await updateTx.mutateAsync({ id: tx.id, status: "VOIDED" });
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || "Gagal membatalkan transaksi");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-600" />
+        <div className="px-6 pt-6 pb-5 text-center">
+          <div className="mx-auto mb-4 flex items-center justify-center w-14 h-14 rounded-full bg-red-100">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </div>
+
+          <h2 className="text-lg font-bold text-surface-900 mb-1">Batalkan Transaksi?</h2>
+          <p className="text-sm text-surface-500 mb-1">
+            Transaksi berikut akan dibatalkan (Void):
+          </p>
+          <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-bold bg-surface-100 text-surface-700 mb-4">
+            {tx.invoiceNumber}
+          </span>
+          <p className="text-xs text-red-500 font-medium">
+            ⚠️ Status akan berubah menjadi <strong>VOID</strong>. Transaksi ini tidak akan dihitung dalam pendapatan.
+          </p>
+
+          {error && (
+            <p className="mt-3 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-left">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="px-6 pb-6 flex items-center gap-3">
+          <button
+            onClick={onClose}
+            disabled={updateTx.isPending}
+            className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600
+              hover:bg-surface-50 transition-colors disabled:opacity-60"
+          >
+            Batal
+          </button>
+          <button
+            id="confirm-void-btn"
+            onClick={handleVoid}
+            disabled={updateTx.isPending}
+            className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold
+              hover:bg-red-700 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {updateTx.isPending ? "Membatalkan..." : "Ya, Batalkan"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Reject Modal ─────────────────────────────────────────────────────────────
 
 function RejectModal({
@@ -557,6 +658,7 @@ export default function HistoryPage() {
   const [approvingTransaction, setApprovingTransaction] = useState<Transaction | null>(null);
   const [rejectingTransaction, setRejectingTransaction] = useState<Transaction | null>(null);
   const [approvingDraft, setApprovingDraft] = useState<Transaction | null>(null);
+  const [voidingTransaction, setVoidingTransaction] = useState<Transaction | null>(null);
 
   const canApproveDrafts = canPerform("transaction.draft", "update");
 
@@ -753,35 +855,39 @@ export default function HistoryPage() {
                         const isRefunded = tx.status === "REFUNDED";
                         const isPending = tx.status === "PENDING_APPROVAL";
                         const isDraft = tx.status === "DRAFT";
+                        const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
                         const rowBg = isPending
                           ? "bg-blue-50/70 hover:bg-blue-50 animate-pending-row relative"
                           : isDraft
                             ? "bg-amber-50/40 hover:bg-amber-50"
                             : isDP
                               ? "bg-amber-50/60 hover:bg-amber-50"
-                              : isVoided || isRefunded
-                                ? "bg-surface-50/50 hover:bg-surface-50"
-                                : "hover:bg-surface-50";
+                              : isVoided
+                                ? "bg-red-50/40 opacity-70"
+                                : isRefunded
+                                  ? "bg-surface-50/50 hover:bg-surface-50"
+                                  : "hover:bg-surface-50";
+                        const textClass = isVoided ? "line-through text-surface-400" : "";
                         return (
                           <tr key={tx.id} className={`${rowBg} transition-colors`}>
-                            <td className="py-3.5 px-4 text-sm text-surface-900 whitespace-nowrap">
+                            <td className={`py-3.5 px-4 text-sm whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-900"}`}>
                               {formatDate(new Date(tx.createdAt))}
                             </td>
                             <td className="py-3.5 px-4">
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : "bg-surface-100 text-surface-700"}`}>
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : isVoided ? "bg-red-50 text-red-400 line-through" : "bg-surface-100 text-surface-700"}`}>
                                 {tx.invoiceNumber ?? tx.draftNumber ?? "—"}
                               </span>
                             </td>
-                            <td className="py-3.5 px-4 text-sm text-surface-700 font-medium whitespace-nowrap">
+                            <td className={`py-3.5 px-4 text-sm font-medium whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
                               {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
                             </td>
-                            <td className="py-3.5 px-4 text-sm text-surface-700 font-medium whitespace-nowrap">
+                            <td className={`py-3.5 px-4 text-sm font-medium whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
                               {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
                             </td>
-                            <td className="py-3.5 px-4 text-sm text-surface-600">
+                            <td className={`py-3.5 px-4 text-sm ${isVoided ? "text-surface-400 line-through" : "text-surface-600"}`}>
                               {tx.items.length} Barang
                             </td>
-                            <td className="py-3.5 px-4 text-sm font-bold text-brand-600 whitespace-nowrap">
+                            <td className={`py-3.5 px-4 text-sm font-bold whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-brand-600"}`}>
                               {formatRupiah(Number(tx.total))}
                             </td>
                             <td className="py-3.5 px-4">
@@ -864,15 +970,28 @@ export default function HistoryPage() {
                                     Setujui
                                   </button>
                                 )}
-                                {tx.status !== "DRAFT" && (
-                                  <Button
-                                    variant="secondary"
-                                    onClick={() => setSelectedTransaction(tx)}
-                                    className="!py-1.5 !px-3 text-sm h-auto"
+                                {!isSalesRole && canVoid && (
+                                  <button
+                                    id={`void-tx-${tx.id}`}
+                                    onClick={() => setVoidingTransaction(tx)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                      bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200
+                                      transition-all"
                                   >
-                                    Lihat Struk
-                                  </Button>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                    Void
+                                  </button>
                                 )}
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => setSelectedTransaction(tx)}
+                                  className="!py-1.5 !px-3 text-sm h-auto"
+                                >
+                                  Lihat Struk
+                                </Button>
                               </div>
                             </td>
                           </tr>
@@ -956,6 +1075,15 @@ export default function HistoryPage() {
           tx={approvingTransaction}
           onClose={() => setApprovingTransaction(null)}
           onSuccess={() => setApprovingTransaction(null)}
+        />
+      )}
+
+      {/* Void Confirm Modal */}
+      {voidingTransaction && canUpdateTransactions && (
+        <VoidConfirmModal
+          tx={voidingTransaction}
+          onClose={() => setVoidingTransaction(null)}
+          onSuccess={() => setVoidingTransaction(null)}
         />
       )}
 

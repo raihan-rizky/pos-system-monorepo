@@ -205,7 +205,7 @@ export function useCategories(initialData?: Category[]) {
 export interface CreateProductInput {
   name: string;
   sku: string;
-  costPrice?: number;
+  costPrice?: number | null;
   price: number;
   stock: number;
   unit: string;
@@ -235,6 +235,7 @@ export function useCreateProduct() {
     mutationFn: createProduct,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product-price-logs"] });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
@@ -243,6 +244,7 @@ export function useCreateProduct() {
 
 export interface UpdateProductInput extends Partial<CreateProductInput> {
   id: string;
+  priceChangeNote?: string;
 }
 
 async function updateProduct(input: UpdateProductInput): Promise<Product> {
@@ -266,6 +268,7 @@ export function useUpdateProduct() {
     mutationFn: updateProduct,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product-price-logs"] });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },

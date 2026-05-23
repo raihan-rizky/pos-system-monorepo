@@ -5,6 +5,7 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 import { getLogger } from "@/lib/logger";
+import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 
 const log = getLogger("api:products:id");
 const updateProductSchema = z.object({
@@ -22,6 +23,7 @@ const updateProductSchema = z.object({
   categoryId: z.string().optional(),
   imageUrl: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
+  priceChangeNote: z.string().optional().nullable(),
 });
 
 export async function PUT(
@@ -34,7 +36,7 @@ export async function PUT(
     const storeId = user.storeId || "store-main";
     const body = await request.json();
     
-    const validatedData = updateProductSchema.parse(body);
+    const { priceChangeNote, ...validatedData } = updateProductSchema.parse(body);
 
     if (validatedData.sku) {
       const existingProduct = await db.product.findFirst({
@@ -50,7 +52,7 @@ export async function PUT(
 
     const existingProduct = await db.product.findFirst({
       where: { id, storeId },
-      select: { id: true },
+      select: { id: true, price: true, costPrice: true },
     });
 
     if (!existingProduct) {
@@ -60,14 +62,38 @@ export async function PUT(
       );
     }
 
-    const product = await db.product.update({
-      where: { id: existingProduct.id },
-      data: validatedData,
-      include: {
-        category: {
-          select: { id: true, name: true, icon: true, color: true },
+    const product = await db.$transaction(async (tx) => {
+      const updated = await tx.product.update({
+        where: { id: existingProduct.id },
+        data: validatedData,
+        include: {
+          category: {
+            select: { id: true, name: true, icon: true, color: true },
+          },
         },
-      },
+      });
+
+      const priceLogEntries = buildProductPriceLogEntries({
+        productId: updated.id,
+        storeId,
+        before: {
+          price: existingProduct.price,
+          costPrice: existingProduct.costPrice,
+        },
+        after: {
+          price: updated.price,
+          costPrice: updated.costPrice,
+        },
+        actor: user,
+        source: "MANUAL",
+        note: priceChangeNote,
+      });
+
+      if (priceLogEntries.length > 0) {
+        await tx.productPriceLog.createMany({ data: priceLogEntries });
+      }
+
+      return updated;
     });
 
     return NextResponse.json(product);

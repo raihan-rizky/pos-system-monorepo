@@ -2,7 +2,9 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 
-export interface CartItem {
+export interface ProductCartItem {
+  cartLineId: string;
+  lineType: "PRODUCT";
   productId: string;
   name: string;
   price: number;
@@ -13,13 +15,48 @@ export interface CartItem {
   material?: string;
 }
 
+export interface PrintingServiceCartItem {
+  cartLineId: string;
+  lineType: "PRINTING_SERVICE";
+  printingServiceId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  unit: string;
+  size?: string;
+  material?: string;
+  serviceNote?: string;
+  needsMaterial: boolean;
+  rawMaterialProductId?: string | null;
+  rawMaterialQuantity?: number | null;
+  rawMaterialUnit?: string | null;
+}
+
+export type CartItem = ProductCartItem | PrintingServiceCartItem;
+
 const CART_STORAGE_KEY = "pos_cart_v1";
 
 function loadCartFromStorage(): CartItem[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = sessionStorage.getItem(CART_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as CartItem[]) : [];
+    const parsed = raw ? (JSON.parse(raw) as CartItem[]) : [];
+    return parsed.map((item) => {
+      if (item.lineType === "PRINTING_SERVICE") {
+        return {
+          ...item,
+          cartLineId: item.cartLineId || `PRINTING_SERVICE:${item.printingServiceId}:${Date.now()}`,
+        };
+      }
+      const product = item as ProductCartItem;
+      return {
+        ...product,
+        lineType: "PRODUCT",
+        cartLineId:
+          product.cartLineId ||
+          buildProductCartLineId(product.productId, product.size, product.material),
+      };
+    });
   } catch {
     return [];
   }
@@ -32,6 +69,14 @@ function saveCartToStorage(items: CartItem[]) {
   } catch {
     // Storage quota exceeded or private mode — fail silently
   }
+}
+
+function buildProductCartLineId(
+  productId: string,
+  size?: string,
+  material?: string,
+) {
+  return `PRODUCT:${productId}:${size || ""}:${material || ""}`;
 }
 
 export function useCart() {
@@ -52,11 +97,17 @@ export function useCart() {
   const addItem = useCallback(
     (product: { id: string; name: string; price: number; unit: string; stock: number; size?: string; material?: string }) => {
       setItems((prev) => {
-        const existing = prev.find((item) => item.productId === product.id);
+        const existing = prev.find(
+          (item) =>
+            item.lineType === "PRODUCT" &&
+            item.productId === product.id &&
+            item.size === product.size &&
+            item.material === product.material,
+        );
         if (existing) {
           if (existing.quantity >= product.stock) return prev;
           return prev.map((item) =>
-            item.productId === product.id
+            item.lineType === "PRODUCT" && item.productId === product.id && item.size === product.size && item.material === product.material
               ? { ...item, quantity: item.quantity + 1 }
               : item
           );
@@ -64,6 +115,8 @@ export function useCart() {
         return [
           ...prev,
           {
+            cartLineId: buildProductCartLineId(product.id, product.size, product.material),
+            lineType: "PRODUCT",
             productId: product.id,
             name: product.name,
             price: product.price,
@@ -79,19 +132,39 @@ export function useCart() {
     []
   );
 
-  const removeItem = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((item) => item.productId !== productId));
+  const addServiceItem = useCallback(
+    (service: Omit<PrintingServiceCartItem, "cartLineId" | "lineType">) => {
+      setItems((prev) => [
+        ...prev,
+        {
+          ...service,
+          cartLineId: `PRINTING_SERVICE:${service.printingServiceId}:${Date.now()}:${prev.length}`,
+          lineType: "PRINTING_SERVICE",
+        },
+      ]);
+    },
+    [],
+  );
+
+  const removeItem = useCallback((cartLineId: string) => {
+    setItems((prev) => prev.filter((item) => item.cartLineId !== cartLineId));
   }, []);
 
-  const updateQuantity = useCallback((productId: string, quantity: number) => {
+  const updateQuantity = useCallback((cartLineId: string, quantity: number) => {
     if (quantity <= 0) {
-      setItems((prev) => prev.filter((item) => item.productId !== productId));
+      setItems((prev) => prev.filter((item) => item.cartLineId !== cartLineId));
       return;
     }
     setItems((prev) =>
       prev.map((item) =>
-        item.productId === productId
-          ? { ...item, quantity: Math.min(quantity, item.stock) }
+        item.cartLineId === cartLineId
+          ? {
+              ...item,
+              quantity:
+                item.lineType === "PRODUCT"
+                  ? Math.min(quantity, item.stock)
+                  : quantity,
+            }
           : item
       )
     );
@@ -116,6 +189,7 @@ export function useCart() {
   return {
     items,
     addItem,
+    addServiceItem,
     removeItem,
     updateQuantity,
     clearCart,

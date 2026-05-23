@@ -13,18 +13,58 @@ import { buildStockDecrementParams } from "@/features/pos-checkout/stock-decreme
 import {
   buildCustomerUpdateArgs,
   buildInventoryLogRows,
+  buildServiceMaterialInventoryLogRows,
 } from "@/features/pos-checkout/post-commit";
 import { fetchTransactionsAndCount } from "@/features/transaction-history/helpers/fetch-transactions";
 
 const log = getLogger("api:transactions");
-const transactionItemSchema = z.object({
-  productId: z.string(),
-  name: z.string(),
+const productTransactionItemSchema = z.object({
+  lineType: z.literal("PRODUCT").optional().default("PRODUCT"),
+  productId: z.string().min(1),
+  name: z.string().optional(),
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
-  price: z.number().min(0),
-  quantity: z.number().min(1),
+  price: z.number().min(0).optional(),
+  quantity: z.number().int().min(1),
 });
+
+const printingServiceTransactionItemSchema = z
+  .object({
+    lineType: z.literal("PRINTING_SERVICE"),
+    printingServiceId: z.string().min(1),
+    name: z.string().optional(),
+    size: z.string().optional().nullable(),
+    material: z.string().optional().nullable(),
+    serviceNote: z.string().optional().nullable(),
+    price: z.number().min(0),
+    quantity: z.number().int().min(1),
+    needsMaterial: z.boolean().optional().default(false),
+    rawMaterialProductId: z.string().optional().nullable(),
+    rawMaterialQuantity: z.number().positive().optional().nullable(),
+  })
+  .superRefine((item, ctx) => {
+    if (!item.needsMaterial) return;
+
+    if (!item.rawMaterialProductId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rawMaterialProductId"],
+        message: "Raw material is required when service needs material",
+      });
+    }
+    if (!item.rawMaterialQuantity) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rawMaterialQuantity"],
+        message: "Raw material quantity is required when service needs material",
+      });
+    }
+  });
+
+const transactionItemSchema = z.union([
+  printingServiceTransactionItemSchema,
+  productTransactionItemSchema,
+]);
 
 const createTransactionSchema = z.object({
   items: z.array(transactionItemSchema).min(1, "Cart is empty"),
@@ -44,7 +84,8 @@ const createTransactionSchema = z.object({
 
 type DateTimeFilter = { gte?: Date; lt?: Date };
 type TxClient = Prisma.TransactionClient;
-type ServerTransactionItem = {
+type ServerProductTransactionItem = {
+  lineType: "PRODUCT";
   productId: string;
   name: string;
   size: string | null;
@@ -53,6 +94,23 @@ type ServerTransactionItem = {
   costPrice: number | null;
   quantity: number;
 };
+type ServerPrintingServiceTransactionItem = {
+  lineType: "PRINTING_SERVICE";
+  printingServiceId: string;
+  rawMaterialProductId: string | null;
+  name: string;
+  size: string | null;
+  material: string | null;
+  serviceNote: string | null;
+  price: number;
+  quantity: number;
+  rawMaterialQuantity: number | null;
+  rawMaterialUnit: string | null;
+  rawMaterialCostPrice: number | null;
+};
+type ServerTransactionItem =
+  | ServerProductTransactionItem
+  | ServerPrintingServiceTransactionItem;
 
 export const dynamic = 'force-dynamic';
 
@@ -133,9 +191,15 @@ export async function GET(request: Request) {
             items: {
               select: {
                 id: true,
+                productId: true,
+                printingServiceId: true,
+                rawMaterialProductId: true,
                 productName: true,
                 size: true,
                 material: true,
+                serviceNote: true,
+                rawMaterialQuantity: true,
+                rawMaterialUnit: true,
                 quantity: true,
                 unitPrice: true,
                 subtotal: true,
@@ -207,7 +271,25 @@ export async function POST(request: Request) {
     }
 
     // Parallel pre-validation: run independent lookups concurrently
-    const uniqueProductIds = [...new Set(items.map((item) => item.productId))];
+    const productLineItems = items.filter(
+      (item): item is z.infer<typeof productTransactionItemSchema> =>
+        item.lineType === "PRODUCT",
+    );
+    const serviceLineItems = items.filter(
+      (item): item is z.infer<typeof printingServiceTransactionItemSchema> =>
+        item.lineType === "PRINTING_SERVICE",
+    );
+    const uniqueProductIds = [
+      ...new Set([
+        ...productLineItems.map((item) => item.productId),
+        ...serviceLineItems
+          .map((item) => item.rawMaterialProductId)
+          .filter((id): id is string => Boolean(id)),
+      ]),
+    ];
+    const uniquePrintingServiceIds = [
+      ...new Set(serviceLineItems.map((item) => item.printingServiceId)),
+    ];
 
     // Compute the day window once so the daily-count query can join the
     // pre-validation parallel batch instead of running serially inside the
@@ -217,7 +299,13 @@ export async function POST(request: Request) {
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const [customerCheck, salespersonCheck, products, todayCount] = await Promise.all([
+    const [
+      customerCheck,
+      salespersonCheck,
+      products,
+      printingServices,
+      todayCount,
+    ] = await Promise.all([
       customerId
         ? db.customer.findFirst({
             where: { id: customerId, storeId },
@@ -241,10 +329,27 @@ export async function POST(request: Request) {
           name: true,
           price: true,
           costPrice: true,
+          stock: true,
+          unit: true,
           size: true,
           material: true,
         },
       }),
+      uniquePrintingServiceIds.length > 0
+        ? db.printingService.findMany({
+            where: {
+              id: { in: uniquePrintingServiceIds },
+              storeId,
+              isActive: true,
+            },
+            select: {
+              id: true,
+              name: true,
+              basePrice: true,
+              unit: true,
+            },
+          })
+        : Promise.resolve([]),
       db.transaction.count({
         where: { storeId, createdAt: { gte: dayStart } },
       }),
@@ -266,17 +371,56 @@ export async function POST(request: Request) {
       );
     }
 
+    const printingServiceById = new Map(
+      printingServices.map((service) => [service.id, service]),
+    );
+
+    if (printingServiceById.size !== uniquePrintingServiceIds.length) {
+      return NextResponse.json(
+        { message: "One or more printing services were not found" },
+        { status: 404 }
+      );
+    }
+
     const serverItems: ServerTransactionItem[] = items.map((item) => {
+      if (item.lineType === "PRINTING_SERVICE") {
+        const service = printingServiceById.get(item.printingServiceId);
+        if (!service) {
+          throw new Error("PRINTING_SERVICE_NOT_FOUND");
+        }
+        const rawMaterial = item.rawMaterialProductId
+          ? productById.get(item.rawMaterialProductId)
+          : null;
+
+        return {
+          lineType: "PRINTING_SERVICE",
+          printingServiceId: service.id,
+          rawMaterialProductId: rawMaterial?.id ?? null,
+          name: service.name,
+          size: item.size ?? null,
+          material: item.material ?? rawMaterial?.name ?? null,
+          serviceNote: item.serviceNote ?? null,
+          price: item.price,
+          quantity: item.quantity,
+          rawMaterialQuantity: item.rawMaterialQuantity ?? null,
+          rawMaterialUnit: rawMaterial?.unit ?? null,
+          rawMaterialCostPrice: rawMaterial?.costPrice
+            ? Number(rawMaterial.costPrice)
+            : null,
+        };
+      }
+
       const product = productById.get(item.productId);
       if (!product) {
         throw new Error("PRODUCT_NOT_FOUND");
       }
 
       return {
+        lineType: "PRODUCT",
         productId: product.id,
         name: product.name,
-        size: product.size ?? item.size ?? null,
-        material: product.material ?? item.material ?? null,
+        size: item.size ?? product.size ?? null,
+        material: item.material ?? product.material ?? null,
         price: Number(product.price),
         costPrice: product.costPrice ? Number(product.costPrice) : null,
         quantity: item.quantity,
@@ -353,17 +497,40 @@ export async function POST(request: Request) {
               estimatedDoneAt: estimatedDoneAt ? new Date(estimatedDoneAt) : null,
               items: {
                 create: serverItems.map(
-                  (item) => ({
-                    productId: item.productId,
-                    productName: item.name,
-                    size: item.size || null,
-                    material: item.material || null,
-                    quantity: item.quantity,
-                    unitPrice: item.price,
-                    unitCost: item.costPrice,
-                    discount: 0,
-                    subtotal: item.price * item.quantity,
-                  })
+                  (item) =>
+                    item.lineType === "PRINTING_SERVICE"
+                      ? {
+                          productId: null,
+                          printingServiceId: item.printingServiceId,
+                          rawMaterialProductId: item.rawMaterialProductId,
+                          productName: item.name,
+                          size: item.size || null,
+                          material: item.material || null,
+                          serviceNote: item.serviceNote,
+                          rawMaterialQuantity: item.rawMaterialQuantity,
+                          rawMaterialUnit: item.rawMaterialUnit,
+                          quantity: item.quantity,
+                          unitPrice: item.price,
+                          unitCost: item.rawMaterialCostPrice,
+                          discount: 0,
+                          subtotal: item.price * item.quantity,
+                        }
+                      : {
+                          productId: item.productId,
+                          printingServiceId: null,
+                          rawMaterialProductId: null,
+                          productName: item.name,
+                          size: item.size || null,
+                          material: item.material || null,
+                          serviceNote: null,
+                          rawMaterialQuantity: null,
+                          rawMaterialUnit: null,
+                          quantity: item.quantity,
+                          unitPrice: item.price,
+                          unitCost: item.costPrice,
+                          discount: 0,
+                          subtotal: item.price * item.quantity,
+                        }
                 ),
               },
             },
@@ -379,11 +546,28 @@ export async function POST(request: Request) {
             // round-trip instead of N sequential updateMany calls. The
             // RETURNING clause lets us count matched rows so we can detect
             // insufficient stock without an extra read.
+            const stockDecrementItems = serverItems.flatMap((item) => {
+              if (item.lineType === "PRINTING_SERVICE") {
+                if (!item.rawMaterialProductId || !item.rawMaterialQuantity) {
+                  return [];
+                }
+                return [
+                  {
+                    productId: item.rawMaterialProductId,
+                    quantity: item.rawMaterialQuantity,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  productId: item.productId,
+                  quantity: item.quantity,
+                },
+              ];
+            });
             const { values, expectedRowCount } = buildStockDecrementParams(
-              serverItems.map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity,
-              })),
+              stockDecrementItems,
               storeId,
             );
 
@@ -447,12 +631,28 @@ export async function POST(request: Request) {
     // additive bookkeeping that doesn't need to gate UI latency.
     if (transaction && !isSalesRequest) {
       const invoiceNumber = transaction.invoiceNumber as string;
-      const inventoryRows = buildInventoryLogRows({
-        items: serverItems,
+      const productInventoryRows = buildInventoryLogRows({
+        items: serverItems.filter(
+          (item): item is ServerProductTransactionItem =>
+            item.lineType === "PRODUCT",
+        ),
         invoiceNumber,
         userId: user.id,
         userName: user.name ?? null,
       });
+      const serviceMaterialInventoryRows = buildServiceMaterialInventoryLogRows({
+        items: serverItems.filter(
+          (item): item is ServerPrintingServiceTransactionItem =>
+            item.lineType === "PRINTING_SERVICE",
+        ),
+        invoiceNumber,
+        userId: user.id,
+        userName: user.name ?? null,
+      });
+      const inventoryRows = [
+        ...productInventoryRows,
+        ...serviceMaterialInventoryRows,
+      ];
       const customerArgs = buildCustomerUpdateArgs({
         customerId: customerId || null,
         isDP,

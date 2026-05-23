@@ -30,9 +30,15 @@ export interface Transaction {
   createdAt: string;
   items: {
     id: string;
+    productId?: string | null;
+    printingServiceId?: string | null;
+    rawMaterialProductId?: string | null;
     productName: string;
     size: string | null;
     material: string | null;
+    serviceNote?: string | null;
+    rawMaterialQuantity?: number | null;
+    rawMaterialUnit?: string | null;
     quantity: number;
     unitPrice: number;
     subtotal: number;
@@ -134,9 +140,17 @@ export function useCreateTransaction() {
     mutationFn: createTransaction,
     onSuccess: (_result, variables) => {
       // Optimistically decrement stock in the products cache to prevent grid flash
-      const itemMap = new Map(
-        variables.items.map((i) => [i.productId, i.quantity])
-      );
+      const itemMap = new Map<string, number>();
+      for (const item of variables.items) {
+        if (item.lineType === "PRODUCT") {
+          itemMap.set(item.productId, (itemMap.get(item.productId) ?? 0) + item.quantity);
+        } else if (item.rawMaterialProductId && item.rawMaterialQuantity) {
+          itemMap.set(
+            item.rawMaterialProductId,
+            (itemMap.get(item.rawMaterialProductId) ?? 0) + item.rawMaterialQuantity,
+          );
+        }
+      }
       queryClient.setQueriesData<unknown>(
         { queryKey: ["products"] },
         (old: unknown) => decrementProductStockInCache(old, itemMap)

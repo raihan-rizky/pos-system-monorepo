@@ -66,7 +66,11 @@ export async function POST(
           select: { productId: true, product: { select: { sku: true } } },
           distinct: ["productId"],
         });
-        blockedProducts.push(...usedProducts.map((item) => item.product.sku));
+        blockedProducts.push(
+          ...usedProducts
+            .map((item) => item.product?.sku)
+            .filter((sku): sku is string => Boolean(sku)),
+        );
       }
 
       if (blockedProducts.length > 0) {

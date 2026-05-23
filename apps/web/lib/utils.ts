@@ -65,10 +65,15 @@ export function getDefaultProductImage(categoryName?: string | null): string {
 
   const lowerName = categoryName.toLowerCase();
 
-  if (lowerName.includes("kertas")) return "/images/kertas_default.png";
-  if (lowerName.includes("tinta")) return "/images/tinta_default.png";
-  if (lowerName.includes("cartridge") || lowerName.includes("katrid")) return "/images/cartridge_default.png";
+  if (lowerName.includes("kertas") || lowerName.includes("plano") || lowerName.includes("fc")) return "/images/kertas_default.png";
+  if (lowerName.includes("tinta") || lowerName.includes("toner")) return "/images/tinta_default.png";
+  if (lowerName.includes("cartridge") || lowerName.includes("katrid") || lowerName.includes("catridge")) return "/images/cartridge_default.png";
   if (lowerName.includes("id card") || lowerName.includes("idcard")) return "/images/idcard_default.png";
+  if (lowerName.includes("cetak") || lowerName.includes("prnt") || lowerName.includes("jasa")) return "/images/print-warna.png";
+  if (lowerName.includes("banner") || lowerName.includes("baliho") || lowerName.includes("stiker") || lowerName.includes("stamp")) return "/images/all-banner.png";
+  if (lowerName.includes("fotocopy") || lowerName.includes("fc ")) return "/images/fotocopy.png";
+  if (lowerName.includes("laminat")) return "/images/laminating.png";
+  if (lowerName.includes("amplop")) return "/images/amplop-putih-polos.png";
 
   return "/images/atk_default.png";
 }

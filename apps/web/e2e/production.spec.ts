@@ -8,4 +8,5 @@ test("production board shows job cards and can move work forward", async ({ appP
 
   await page.getByRole("button", { name: "Siap" }).click();
   await expect(page.locator("span").filter({ hasText: "Siap" }).first()).toBeVisible();
+  await expect(page.getByText(/E2E Owner memindahkan Printing ke Siap/)).toBeVisible();
 });

@@ -63,6 +63,7 @@ export type ReportSaleInput = {
   total: Decimalish;
   items: Array<{
     productName: string;
+    subtotal?: Decimalish | null;
     product?: { category?: { name?: string | null } | null } | null;
   }>;
 };
@@ -161,6 +162,12 @@ export type ReportFooter = {
   byMethod: Record<PaymentMethod, number>;
 };
 
+export type ReportCategorySummary = {
+  categoryName: string;
+  transactionCount: number;
+  revenue: number;
+};
+
 export function buildReportFooter(rows: ReportRow[]): ReportFooter {
   const byMethod: Record<PaymentMethod, number> = {
     CASH: 0,
@@ -187,6 +194,40 @@ export function buildReportFooter(rows: ReportRow[]): ReportFooter {
     grandTotal: totalPemasukan + totalPengeluaran,
     byMethod,
   };
+}
+
+export function buildReportCategorySummary(
+  sales: ReportSaleInput[],
+): ReportCategorySummary[] {
+  const map = new Map<
+    string,
+    {
+      categoryName: string;
+      transactionIds: Set<string>;
+      revenue: number;
+    }
+  >();
+
+  for (const sale of sales) {
+    for (const item of sale.items) {
+      const categoryName = item.product?.category?.name?.trim() || "Tanpa kategori";
+      const bucket = map.get(categoryName) ?? {
+        categoryName,
+        transactionIds: new Set<string>(),
+        revenue: 0,
+      };
+      bucket.transactionIds.add(sale.id);
+      bucket.revenue += toNumber(item.subtotal);
+      map.set(categoryName, bucket);
+    }
+  }
+
+  return [...map.values()]
+    .map(({ transactionIds, ...bucket }) => ({
+      ...bucket,
+      transactionCount: transactionIds.size,
+    }))
+    .sort((a, b) => b.revenue - a.revenue || a.categoryName.localeCompare(b.categoryName));
 }
 
 export const REPORT_HEADER = [

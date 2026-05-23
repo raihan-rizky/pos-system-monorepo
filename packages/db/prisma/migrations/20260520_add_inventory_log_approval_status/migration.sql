@@ -1,13 +1,21 @@
--- CreateEnum
-CREATE TYPE "InventoryLogStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type
+        WHERE typname = 'InventoryLogStatus'
+    ) THEN
+        CREATE TYPE "InventoryLogStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+    END IF;
+END $$;
 
 -- AlterTable
 ALTER TABLE "pos_inventory_logs"
-    ADD COLUMN "status" "InventoryLogStatus" NOT NULL DEFAULT 'APPROVED',
-    ADD COLUMN "approvedBy" TEXT,
-    ADD COLUMN "approverName" TEXT,
-    ADD COLUMN "decidedAt" TIMESTAMP(3),
-    ADD COLUMN "rejectionReason" TEXT;
+    ADD COLUMN IF NOT EXISTS "status" "InventoryLogStatus" NOT NULL DEFAULT 'APPROVED',
+    ADD COLUMN IF NOT EXISTS "approvedBy" TEXT,
+    ADD COLUMN IF NOT EXISTS "approverName" TEXT,
+    ADD COLUMN IF NOT EXISTS "decidedAt" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
 
 -- Backfill: existing rows are committed changes, mark them as decided at creation time
 UPDATE "pos_inventory_logs"
@@ -17,4 +25,4 @@ SET "decidedAt" = "createdAt",
 WHERE "status" = 'APPROVED' AND "decidedAt" IS NULL;
 
 -- CreateIndex
-CREATE INDEX "pos_inventory_logs_status_createdAt_idx" ON "pos_inventory_logs"("status", "createdAt");
+CREATE INDEX IF NOT EXISTS "pos_inventory_logs_status_createdAt_idx" ON "pos_inventory_logs"("status", "createdAt");

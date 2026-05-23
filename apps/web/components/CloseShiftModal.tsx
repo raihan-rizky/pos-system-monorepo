@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Modal, Input, Button } from "@pos/ui";
 import { AlertCircle } from "lucide-react";
-import { useCloseShift, CashierShift } from "@/hooks/useShift";
+import { useCloseShift, useCloseShiftSummary, CashierShift } from "@/hooks/useShift";
 import { formatRupiah, formatDate } from "@/lib/utils";
 
 interface CloseShiftModalProps {
@@ -17,6 +17,11 @@ export function CloseShiftModal({ open, onClose, shift }: CloseShiftModalProps) 
   const [note, setNote] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { mutateAsync: closeShift, isPending } = useCloseShift();
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryError,
+  } = useCloseShiftSummary(shift?.id, open && !!shift && !shift.isLocalOnly);
 
   if (!shift || !open) return null;
 
@@ -27,12 +32,12 @@ export function CloseShiftModal({ open, onClose, shift }: CloseShiftModalProps) 
       setSubmitError("Pemasukan uang fisik wajib diisi.");
       return;
     }
-    
+
     try {
-      await closeShift({ 
-        shiftId: shift.id, 
-        closingBalance: Number(closingBalance), 
-        note: note || undefined 
+      await closeShift({
+        shiftId: shift.id,
+        closingBalance: Number(closingBalance),
+        note: note || undefined
       });
       // Sukses
       onClose();
@@ -46,10 +51,15 @@ export function CloseShiftModal({ open, onClose, shift }: CloseShiftModalProps) 
   };
 
   const currentClosing = closingBalance === "" ? 0 : Number(closingBalance);
-  // Expected = (ini dihitung ulang di backend, tapi kita bisa estimasi di FE jika kita tarikh transaction data,
-  // tapi lebih aman kita kasih tahu "Uang fisik di laci", discrepancy dihitung di API).
-  // Sebaiknya kasir blind-close: kasir hanya masukkan fisik, tidak tahu target uang (untuk menghindari kecurangan).
-  // Atau kita tampilkan saja modal awal.
+  const hasClosingInput = closingBalance !== "" && Number.isFinite(currentClosing);
+  const expectedBalance = summary?.expectedBalance ?? null;
+  const discrepancy =
+    hasClosingInput && expectedBalance !== null ? currentClosing - expectedBalance : null;
+  const hasDiscrepancy = discrepancy !== null && discrepancy !== 0;
+  const moneyOrLoading = (value: number | null) => {
+    if (value !== null) return formatRupiah(value);
+    return summaryLoading ? "Memuat..." : "-";
+  };
 
   return (
     <Modal open={open} onClose={onClose} title="Tutup Shift Kasir">
@@ -63,6 +73,18 @@ export function CloseShiftModal({ open, onClose, shift }: CloseShiftModalProps) 
           <div className="flex justify-between">
             <span className="text-surface-500">Modal Awal Laci:</span>
             <span className="font-semibold text-brand-600">{formatRupiah(shift.openingBalance)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-surface-500">Total transaksi CASH yang terinput:</span>
+            <span className="font-semibold text-surface-900">
+              {moneyOrLoading(summary?.totalCashTransactions ?? null)}
+            </span>
+          </div>
+          <div className="flex justify-between border-t border-surface-200 pt-2">
+            <span className="text-surface-500">Ekspektasi Uang Akhir di Laci:</span>
+            <span className="font-extrabold text-surface-900">
+              {moneyOrLoading(expectedBalance)}
+            </span>
           </div>
         </div>
       </div>
@@ -102,6 +124,50 @@ export function CloseShiftModal({ open, onClose, shift }: CloseShiftModalProps) 
             Diformat: {formatRupiah(currentClosing)}
           </p>
         </div>
+
+        <div className="rounded-xl border border-surface-200 bg-white px-4 py-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-surface-600">
+              Uang Kurang / Lebih
+            </span>
+            <span
+              className={`font-extrabold ${discrepancy === null
+                ? "text-surface-400"
+                : discrepancy === 0
+                  ? "text-success-600"
+                  : "text-danger-600"
+                }`}
+            >
+              {discrepancy === null
+                ? hasClosingInput
+                  ? "Memuat..."
+                  : "-"
+                : `${discrepancy > 0 ? "+" : ""}${formatRupiah(discrepancy)}`}
+            </span>
+          </div>
+        </div>
+
+        {summaryError && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Ringkasan transaksi CASH gagal dimuat. Sistem tetap akan menghitung ulang saat shift ditutup.</span>
+          </div>
+        )}
+
+        {hasDiscrepancy && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Ada selisih kas sebesar {formatRupiah(Math.abs(discrepancy))}. Periksa apakah ada transaksi yang belum dibuat invoice.
+            </span>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-surface-700 mb-1">

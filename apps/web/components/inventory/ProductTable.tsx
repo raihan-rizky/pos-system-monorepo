@@ -1,6 +1,6 @@
 import React from "react";
 import { Product } from "@/hooks/useProducts";
-import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw } from "lucide-react";
+import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw, BadgeDollarSign } from "lucide-react";
 import { StockWarningBadge } from "@/features/product-stock-warnings/components";
 import { getDefaultProductImage } from "@/lib/utils";
 
@@ -9,8 +9,10 @@ interface ProductTableProps {
   isLoading: boolean;
   onEdit: (id: string) => void;
   onUpdateStock: (id: string) => void;
+  onChangePrice?: (id: string) => void;
   canUpdateProduct: boolean;
   canUpdateStock: boolean;
+  canChangePrice?: boolean;
   selectedProductIds?: Set<string>;
   onToggleProduct?: (id: string) => void;
 }
@@ -20,8 +22,10 @@ export default function ProductTable({
   isLoading,
   onEdit,
   onUpdateStock,
+  onChangePrice,
   canUpdateProduct,
   canUpdateStock,
+  canChangePrice = false,
   selectedProductIds = new Set(),
   onToggleProduct,
 }: ProductTableProps) {
@@ -138,8 +142,17 @@ export default function ProductTable({
 
                   {/* Actions */}
                   <td className="py-3.5 px-5 align-middle text-right">
-                    {(canUpdateStock || canUpdateProduct) && (
-                      <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                    {(canUpdateStock || canUpdateProduct || canChangePrice) && (
+                      <div className="flex items-center justify-end gap-1.5">
+                        {canChangePrice && onChangePrice && (
+                          <button
+                            onClick={() => onChangePrice(product.id)}
+                            title="Ubah Harga"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          >
+                            <BadgeDollarSign className="w-4 h-4" />
+                          </button>
+                        )}
                         {canUpdateStock && (
                           <button
                             onClick={() => onUpdateStock(product.id)}
@@ -216,8 +229,17 @@ export default function ProductTable({
                         {product.sku}
                       </p>
                     </div>
-                    {(canUpdateStock || canUpdateProduct) && (
+                    {(canUpdateStock || canUpdateProduct || canChangePrice) && (
                       <div className="flex gap-1.5 shrink-0">
+                        {canChangePrice && onChangePrice && (
+                          <button
+                            onClick={() => onChangePrice(product.id)}
+                            className="p-2.5 bg-slate-50 text-slate-500 hover:text-amber-600 hover:bg-amber-50 active:bg-amber-100 rounded-xl transition-all cursor-pointer"
+                            title="Ubah Harga"
+                          >
+                            <BadgeDollarSign className="w-4 h-4" />
+                          </button>
+                        )}
                         {canUpdateStock && (
                           <button
                             onClick={() => onUpdateStock(product.id)}

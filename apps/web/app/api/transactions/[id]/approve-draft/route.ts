@@ -118,10 +118,11 @@ export async function POST(
             }
 
             const { values, expectedRowCount } = buildStockDecrementParams(
-              draft.items.map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity,
-              })),
+              draft.items.flatMap((item) =>
+                item.productId
+                  ? [{ productId: item.productId, quantity: item.quantity }]
+                  : [],
+              ),
               storeId,
             );
 
@@ -167,7 +168,7 @@ export async function POST(
     }
 
     const inventoryRows = draft.items.map((item) => ({
-      productId: item.productId,
+      productId: item.productId!,
       type: "OUT" as const,
       quantity: item.quantity,
       note: `Approve Draft ${draft.draftNumber} → ${updated!.invoiceNumber}`,

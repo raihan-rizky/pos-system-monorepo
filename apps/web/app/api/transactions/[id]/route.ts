@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
@@ -13,6 +14,9 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   VOIDED: [],
   REFUNDED: [],
 };
+
+/** Statuses that have side effects that must be reversed when voiding */
+const VOID_REVERSIBLE = new Set(["COMPLETED", "DP"]);
 
 const updateTransactionSchema = z.object({
   salesName: z.string().optional().nullable(),
@@ -117,11 +121,113 @@ export async function PATCH(
             quantity: true,
             unitPrice: true,
             subtotal: true,
+            productId: true,
+            unitCost: true,
           },
         },
         cashier: { select: { name: true } },
       },
     });
+
+    // ── Void reversal: restore stock, reverse inventory logs & customer analytics ──
+    if (status === "VOIDED" && VOID_REVERSIBLE.has(existingTransaction.status)) {
+      const voidedTx = await db.transaction.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          customerId: true,
+          total: true,
+          amountPaid: true,
+          status: true,
+          items: {
+            select: {
+              productId: true,
+              productName: true,
+              quantity: true,
+              unitCost: true,
+            },
+          },
+        },
+      });
+
+      if (voidedTx) {
+        after(async () => {
+          try {
+            const productItems = voidedTx.items.filter(
+              (item): item is typeof item & { productId: string } =>
+                item.productId !== null,
+            );
+
+            // 1. Restore stock for each product item
+            if (productItems.length > 0) {
+              const productIds = productItems.map((item) => item.productId);
+              const quantities = productItems.map((item) => item.quantity);
+
+              await db.$executeRaw`
+                UPDATE pos_products AS p
+                SET stock = p.stock + v.qty
+                FROM unnest(${productIds}::text[], ${quantities}::int[])
+                  AS v(id, qty)
+                WHERE p.id = v.id
+                  AND p."storeId" = ${storeId}
+              `;
+            }
+
+            // 2. Create void reversal inventory log entries (IN type, SALE_RETURN reason)
+            const voidInventoryRows = productItems.map((item) => ({
+              productId: item.productId,
+              type: "IN" as const,
+              reason: "SALE_RETURN" as const,
+              quantity: item.quantity,
+              unitCost: item.unitCost === null || item.unitCost === undefined
+                ? null
+                : Number(item.unitCost.toString()),
+              note: `Void transaksi ${voidedTx.invoiceNumber} - ${item.productName}`,
+              createdBy: user.id,
+              person: user.name ?? null,
+            }));
+
+            if (voidInventoryRows.length > 0) {
+              await db.inventoryLog.createMany({ data: voidInventoryRows });
+            }
+
+            // 3. Reverse customer analytics (guard against negative values)
+            if (voidedTx.customerId) {
+              const existingCustomer = await db.customer.findUnique({
+                where: { id: voidedTx.customerId },
+                select: { totalSpent: true, totalOrders: true, totalDebt: true },
+              });
+
+              if (existingCustomer) {
+                const total = Number(voidedTx.total);
+                const amountPaid = Math.min(Number(voidedTx.amountPaid), total);
+                const wasDp = existingTransaction.status === "DP";
+                const debtDecrement = wasDp
+                  ? Math.max(0, total - amountPaid)
+                  : 0;
+
+                await db.customer.update({
+                  where: { id: voidedTx.customerId },
+                  data: {
+                    totalSpent: Math.max(0, Number(existingCustomer.totalSpent) - amountPaid),
+                    totalOrders: Math.max(0, existingCustomer.totalOrders - 1),
+                    ...(debtDecrement > 0
+                      ? { totalDebt: Math.max(0, Number(existingCustomer.totalDebt) - debtDecrement) }
+                      : {}),
+                  },
+                });
+              }
+            }
+          } catch (sideEffectError) {
+            log.error(
+              `Void reversal side effects failed for ${voidedTx?.invoiceNumber}:`,
+              sideEffectError,
+            );
+          }
+        });
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (error: any) {

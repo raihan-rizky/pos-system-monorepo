@@ -40,12 +40,42 @@ export interface JobOrder {
   salesperson: { id: string; name: string } | null;
 }
 
+export interface ProductionActivityLog {
+  id: string;
+  transactionId: string;
+  storeId: string;
+  invoiceNumber: string | null;
+  customerName: string | null;
+  fromStatus: ProductionStatus | null;
+  toStatus: ProductionStatus;
+  actorId: string | null;
+  actorName: string;
+  actorRole: string;
+  createdAt: string;
+}
+
 // ─── Fetch ──────────────────────────────────────────────────────────────────────
 
 async function fetchJobOrders(): Promise<JobOrder[]> {
   const res = await fetch("/api/job-orders");
   if (!res.ok) throw new Error("Failed to fetch job orders");
   const json = (await res.json()) as { data: JobOrder[] };
+  return json.data;
+}
+
+async function fetchProductionActivity(limit = 20): Promise<ProductionActivityLog[]> {
+  const res = await fetch(`/api/job-orders/activity?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch production activity");
+  const json = (await res.json()) as { data: ProductionActivityLog[] };
+  return json.data;
+}
+
+async function fetchJobOrderActivity(
+  id: string,
+): Promise<ProductionActivityLog[]> {
+  const res = await fetch(`/api/job-orders/${id}/activity`);
+  if (!res.ok) throw new Error("Failed to fetch job order activity");
+  const json = (await res.json()) as { data: ProductionActivityLog[] };
   return json.data;
 }
 
@@ -56,6 +86,22 @@ export function useJobOrders() {
     queryKey: ["job-orders"],
     queryFn: fetchJobOrders,
     refetchInterval: 30_000, // Poll every 30s for real-time feel
+  });
+}
+
+export function useProductionActivity(limit = 20) {
+  return useQuery({
+    queryKey: ["production-activity", limit],
+    queryFn: () => fetchProductionActivity(limit),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useJobOrderActivity(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["job-order-activity", id],
+    queryFn: () => fetchJobOrderActivity(id),
+    enabled,
   });
 }
 
@@ -98,6 +144,12 @@ export function useMoveJobOrder() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["job-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["production-activity"] });
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["job-order-activity", variables.id],
+      });
     },
   });
 }

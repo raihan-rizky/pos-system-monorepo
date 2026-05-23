@@ -8,7 +8,6 @@ import { ShiftStatusBanner } from "@/components/ShiftStatusBanner";
 import { Pagination } from "@/components/Pagination";
 import { Input } from "@pos/ui";
 
-
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("page:main:pos");
@@ -29,6 +28,13 @@ const CloseShiftModal = dynamic(
     import("@/components/CloseShiftModal").then((mod) => mod.CloseShiftModal),
   { ssr: false },
 );
+const PrintingServicesTab = dynamic(
+  () =>
+    import("@/features/printing-services/components/PrintingServicesTab").then(
+      (mod) => mod.PrintingServicesTab,
+    ),
+  { ssr: false },
+);
 import { formatRupiah } from "@/lib/utils";
 import {
   useProductsPage,
@@ -36,13 +42,14 @@ import {
   type Category,
   type ProductsResponse,
 } from "@/hooks/useProducts";
-import { useCart } from "@/hooks/useCart";
+import { useCart, type ProductCartItem } from "@/hooks/useCart";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
 import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
 import { useRole } from "@/components/providers/RoleProvider";
 import { parseSearchQuery } from "@/features/pos-search/pos-search";
+import type { PrintingServiceOrderData } from "@/features/printing-services/components/PrintingServiceOrderModal";
 import {
   loadStockOnlyPreference,
   matchesStockFilter,
@@ -66,8 +73,6 @@ export default function POSClientPage({
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [page, setPage] = useState(1);
-  // Start with the SSR-safe baseline so the server and client first render
-  // agree. The persisted preference is hydrated below after mount.
   const [hideOutOfStock, setHideOutOfStock] = useState<boolean>(
     getInitialHideOutOfStock,
   );
@@ -75,6 +80,7 @@ export default function POSClientPage({
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showCloseShift, setShowCloseShift] = useState(false);
+  const [activeTab, setActiveTab] = useState<"products" | "services">("products");
   const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<{
     tone: "success" | "warning" | "danger";
@@ -88,12 +94,9 @@ export default function POSClientPage({
   const toggleHideOutOfStock = useCallback(() => {
     setHideOutOfStock((prev) => {
       const next = !prev;
-      // Persist outside the render cycle so the click feels instant.
       saveStockOnlyPreference(next);
       return next;
     });
-    // Reset to the first page so the user is not stranded on a page
-    // that no longer exists after the filter narrows the result set.
     setPage(1);
   }, []);
 
@@ -109,9 +112,6 @@ export default function POSClientPage({
     );
   }, []);
 
-  // Hydrate the persisted "hide out of stock" preference after mount so the
-  // first server/client render agrees on the SSR-safe default (false). React
-  // will only flip the toggle once we've safely accessed localStorage.
   useEffect(() => {
     const persisted = loadStockOnlyPreference();
     if (persisted) setHideOutOfStock(true);
@@ -129,9 +129,6 @@ export default function POSClientPage({
     inStockOnly: hideOutOfStock,
     initialData: initialData.products ?? undefined,
   });
-  // Apply the stock filter client-side too so toggling feels instant
-  // even before the server confirms (placeholderData keeps the prior
-  // page mounted while the new query is in flight).
   const visibleProducts = useMemo(
     () =>
       (productsQuery.data?.data ?? []).filter((p) =>
@@ -149,12 +146,44 @@ export default function POSClientPage({
   );
   const searchTokens = parseSearchQuery(search);
 
-  // Reset to page 1 whenever search query or category changes
+  const { data: categories = [] } = useCategories(initialData.categories);
+  const cart = useCart();
+
+
+  const handleProductClick = useCallback((product: any) => {
+    cart.addItem({
+      id: product.id,
+      name: product.name,
+      price: Number(product.price),
+      unit: product.unit,
+      stock: product.stock,
+    });
+  }, [cart]);
+
+  const handleAddPrintingService = useCallback(
+    (data: PrintingServiceOrderData) => {
+      cart.addServiceItem({
+        printingServiceId: data.service.id,
+        name: data.service.name,
+        price: data.price,
+        quantity: data.quantity,
+        unit: data.service.unit,
+        size: data.size,
+        material: data.materialName,
+        serviceNote: data.serviceNote,
+        needsMaterial: data.needsMaterial,
+        rawMaterialProductId: data.rawMaterialProductId ?? null,
+        rawMaterialQuantity: data.rawMaterialQuantity ?? null,
+        rawMaterialUnit: data.rawMaterialUnit ?? null,
+      });
+    },
+    [cart],
+  );
+
   useEffect(() => {
     setPage(1);
   }, [search, selectedCategory]);
 
-  // Clamp page if the result set shrinks below the current page
   useEffect(() => {
     if (
       pagination &&
@@ -165,25 +194,20 @@ export default function POSClientPage({
     }
   }, [pagination, page]);
 
-  const { data: categories = [] } = useCategories(initialData.categories);
-  const cart = useCart();
   const createTransaction = useCreateTransaction();
   const createDraft = useCreateDraft();
   const [draftError, setDraftError] = useState<string | null>(null);
 
-  // Prefetch PaymentModal chunk as soon as the cart has items,
-  // so the first "Checkout" click doesn't wait for network
   const hasItems = cart.totalItems > 0;
+  const hasServiceItems = cart.items.some(
+    (item) => item.lineType === "PRINTING_SERVICE",
+  );
   useEffect(() => {
     if (hasItems) {
       import("@/components/PaymentModal");
-      // Warm the ReceiptModal chunk too — the cashier will need it
-      // immediately after confirming, and we want the optimistic open
-      // below to render in the very next frame.
       import("@/components/ReceiptModal");
     }
   }, [hasItems]);
-
 
   const handleOpenPayment = () => {
     if (!activeShift) {
@@ -234,12 +258,23 @@ export default function POSClientPage({
         typeof window !== "undefined" &&
         (!navigator.onLine || error instanceof TypeError)
       ) {
+        if (hasServiceItems) {
+          setCheckoutNotice({
+            tone: "danger",
+            message:
+              "Transaksi layanan cetak membutuhkan koneksi agar pemakaian bahan bisa dicatat ke stok.",
+          });
+          return;
+        }
+        const offlineItems = cart.items.filter(
+          (item): item is ProductCartItem => item.lineType === "PRODUCT",
+        );
         try {
           const { createOfflineTransaction } = await import(
             "@/lib/offline/offline-db"
           );
           await createOfflineTransaction({
-            items: cart.items,
+            items: offlineItems,
             paymentMethod: data.paymentMethod as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER",
             amountPaid: data.amountPaid,
             discount: data.discount,
@@ -295,14 +330,16 @@ export default function POSClientPage({
     setDraftError(null);
     try {
       const draft = await createDraft.mutateAsync({
-        items: cart.items.map((item) => ({
-          productId: item.productId,
-          name: item.name,
-          size: item.size ?? null,
-          material: item.material ?? null,
-          price: item.price,
-          quantity: item.quantity,
-        })),
+        items: cart.items
+          .filter((item): item is ProductCartItem => item.lineType === "PRODUCT")
+          .map((item) => ({
+            productId: item.productId,
+            name: item.name,
+            size: item.size ?? null,
+            material: item.material ?? null,
+            price: item.price,
+            quantity: item.quantity,
+          })),
         discount: data.discount,
         note: data.note,
         customerName: data.customerName,
@@ -341,56 +378,92 @@ export default function POSClientPage({
 
       <div className="flex flex-1 overflow-hidden">
         {/* Products Area */}
-        <div className="flex-1 flex flex-col overflow-auto w-[100px]">
+        {/* ✅ FIX: Hapus w-[100px], ganti overflow-auto → overflow-hidden, tambah min-w-0 */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Top Bar */}
           <header className="flex items-center gap-2 md:gap-4 px-3 md:px-6 py-3 md:py-4 bg-white border-b border-surface-100">
-            <div className="flex-1">
-              <div className="relative">
-              <Input
-                placeholder="Cari produk, SKU, atau barcode..."
-                aria-label="Cari produk, SKU, atau barcode"
-                hint={
-                  searchTokens.length > 1
-                    ? `Mencocokkan semua kata: ${searchTokens.join(" + ")}`
-                    : undefined
-                }
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                icon={
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="M21 21l-4.35-4.35" />
-                  </svg>
-                }
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  aria-label="Hapus pencarian"
-                  className="absolute right-3 top-[18px] -translate-y-1/2 text-surface-400 hover:text-surface-600 transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+            <div className="flex rounded-xl border border-surface-200 bg-surface-50 p-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("products")}
+                className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${activeTab === "products"
+                  ? "bg-white text-brand-700 shadow-sm"
+                  : "text-surface-600 hover:text-surface-900"
+                  }`}
+              >
+                Produk
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("services")}
+                className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${activeTab === "services"
+                  ? "bg-white text-brand-700 shadow-sm"
+                  : "text-surface-600 hover:text-surface-900"
+                  }`}
+              >
+                Layanan
+              </button>
+            </div>
+            <div className="flex-1 min-w-0">
+              {activeTab === "products" ? (
+                <div className="relative">
+                  <Input
+                    placeholder="Cari produk, SKU, atau barcode..."
+                    aria-label="Cari produk, SKU, atau barcode"
+                    hint={
+                      searchTokens.length > 1
+                        ? `Mencocokkan semua kata: ${searchTokens.join(" + ")}`
+                        : undefined
+                    }
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    icon={
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="M21 21l-4.35-4.35" />
+                      </svg>
+                    }
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch("")}
+                      aria-label="Hapus pencarian"
+                      className="absolute right-3 top-[18px] -translate-y-1/2 text-surface-400 hover:text-surface-600 transition-colors"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="hidden text-sm font-medium text-surface-500 md:block">
+                  Kelola dan tambahkan layanan sesuai kebutuhan
+                </div>
               )}
-              </div>
             </div>
             <div className="flex items-center gap-2">
               {todayLabel && (
                 <div className="hidden md:block text-right">
-                  <p className="text-xs text-surface-400">
-                    {todayLabel}
-                  </p>
+                  <p className="text-xs text-surface-400">{todayLabel}</p>
                 </div>
               )}
             </div>
@@ -399,128 +472,124 @@ export default function POSClientPage({
           {checkoutNotice && (
             <div
               role="status"
-              className={`mx-3 mt-3 rounded-xl border px-4 py-3 text-sm font-medium md:mx-6 ${
-                checkoutNotice.tone === "success"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : checkoutNotice.tone === "danger"
-                    ? "border-danger-200 bg-danger-50 text-danger-700"
-                    : "border-warning-200 bg-warning-50 text-warning-900"
-              }`}
+              className={`mx-3 mt-3 rounded-xl border px-4 py-3 text-sm font-medium md:mx-6 ${checkoutNotice.tone === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : checkoutNotice.tone === "danger"
+                  ? "border-danger-200 bg-danger-50 text-danger-700"
+                  : "border-warning-200 bg-warning-50 text-warning-900"
+                }`}
             >
               {checkoutNotice.message}
             </div>
           )}
 
           {/* Category Filter */}
-          <HorizontalScroll className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100 flex items-center gap-2 flex-nowrap" showScrollIndicators={true}>
-            <button
-              type="button"
-              onClick={toggleHideOutOfStock}
-              role="switch"
-              aria-checked={hideOutOfStock}
-              aria-label="Sembunyikan produk stok habis"
-              title={
-                hideOutOfStock
-                  ? "Menampilkan produk tersedia saja"
-                  : "Tampilkan semua, termasuk stok habis"
-              }
-              className={`
+          {activeTab === "products" && (
+            <HorizontalScroll
+              className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100 flex items-center gap-2 flex-nowrap"
+              showScrollIndicators={true}
+            >
+              <button
+                type="button"
+                onClick={toggleHideOutOfStock}
+                role="switch"
+                aria-checked={hideOutOfStock}
+                aria-label="Sembunyikan produk stok habis"
+                title={
+                  hideOutOfStock
+                    ? "Menampilkan produk tersedia saja"
+                    : "Tampilkan semua, termasuk stok habis"
+                }
+                className={`
                 px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap flex-shrink-0
                 flex items-center gap-1.5
                 transition-colors duration-150 will-change-transform active:scale-[0.97]
-                ${
-                  hideOutOfStock
+                ${hideOutOfStock
                     ? "bg-emerald-600 text-white shadow-sm"
                     : "bg-surface-100 text-surface-600 hover:bg-surface-200"
-                }
+                  }
               `}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
               >
-                {hideOutOfStock ? (
-                  <polyline points="20 6 9 17 4 12" />
-                ) : (
-                  <>
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M8 12h8" />
-                  </>
-                )}
-              </svg>
-              <span>Stok tersedia</span>
-            </button>
-            <span
-              aria-hidden="true"
-              className="h-5 w-px bg-surface-200 mx-1 flex-shrink-0"
-            />
-            <button
-              onClick={() => setSelectedCategory("")}
-              className={`
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  {hideOutOfStock ? (
+                    <polyline points="20 6 9 17 4 12" />
+                  ) : (
+                    <>
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M8 12h8" />
+                    </>
+                  )}
+                </svg>
+                <span>Stok tersedia</span>
+              </button>
+              <span
+                aria-hidden="true"
+                className="h-5 w-px bg-surface-200 mx-1 flex-shrink-0"
+              />
+              <button
+                onClick={() => setSelectedCategory("")}
+                className={`
                 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0
                 transition-all duration-200
-                ${
-                  selectedCategory === ""
+                ${selectedCategory === ""
                     ? "bg-brand-600 text-white shadow-sm"
                     : "bg-surface-100 text-surface-600 hover:bg-surface-200"
-                }
+                  }
               `}
-            >
-              Semua
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() =>
-                  setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)
-                }
-                className={`
+              >
+                Semua
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() =>
+                    setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)
+                  }
+                  className={`
                   px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0
                   transition-all duration-200 flex items-center gap-1.5
-                  ${
-                    selectedCategory === cat.id
+                  ${selectedCategory === cat.id
                       ? "bg-brand-600 text-white shadow-sm"
                       : "bg-surface-100 text-surface-600 hover:bg-surface-200"
-                  }
+                    }
                 `}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.name}</span>
-                <span className="text-xs opacity-70">
-                  ({cat._count.products})
-                </span>
-              </button>
-            ))}
-          </HorizontalScroll>
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.name}</span>
+                  <span className="text-xs opacity-70">
+                    ({cat._count.products})
+                  </span>
+                </button>
+              ))}
+            </HorizontalScroll>
+          )}
 
           {/* Product Grid */}
-          <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4">
-            <ProductGrid
-              products={visibleProducts}
-              onAddToCart={(product) =>
-                cart.addItem({
-                  id: product.id,
-                  name: product.name,
-                  price: Number(product.price),
-                  unit: product.unit,
-                  stock: product.stock,
-                  size: product.size || undefined,
-                  material: product.material || undefined,
-                })
-              }
-              isLoading={productsLoading}
-            />
-          </div>
+          {activeTab === "products" ? (
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-6 py-3 md:py-4">
+              <ProductGrid
+                products={visibleProducts}
+                onAddToCart={handleProductClick}
+                isLoading={productsLoading}
+              />
+            </div>
+          ) : (
+            <PrintingServicesTab onAddToCart={handleAddPrintingService} />
+          )}
 
           {/* Pagination */}
-          {pagination && pagination.total > 0 && (
+          {activeTab === "products" && pagination && pagination.total > 0 && (
+            /* shrink-0 keeps pagination pinned at the bottom */
             <Pagination
               page={currentPage}
               totalPages={totalPages}
@@ -546,7 +615,7 @@ export default function POSClientPage({
         </div>
       </div>
 
-      {/* Mobile Cart FAB - visible on <lg when cart has items */}
+      {/* Mobile Cart FAB */}
       {!showPayment && cart.totalItems > 0 && (
         <button
           onClick={openCart}
@@ -576,15 +645,13 @@ export default function POSClientPage({
         </button>
       )}
 
-      {/* Mobile Cart Modal - slide-up overlay */}
+      {/* Mobile Cart Modal */}
       {isCartOpen && (
         <div className="lg:hidden fixed inset-0 z-[200] flex flex-col justify-end">
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 animate-fade-in"
             onClick={closeCart}
           />
-          {/* Cart panel */}
           <div className="relative bg-white rounded-t-3xl max-h-[85vh] flex flex-col animate-slide-up-full shadow-2xl">
             <CartSidebar
               items={cart.items}
@@ -607,14 +674,11 @@ export default function POSClientPage({
       {showPayment && (
         <PaymentModal
           open={showPayment}
-          onClose={() => {
-            setShowPayment(false);
-            setDraftError(null);
-          }}
+          onClose={() => setShowPayment(false)}
           items={cart.items}
           subtotal={cart.subtotal}
           onConfirm={handleCheckout}
-          onSaveDraft={handleSaveDraft}
+          onSaveDraft={hasServiceItems ? undefined : handleSaveDraft}
           isProcessing={createTransaction.isPending}
           isSavingDraft={createDraft.isPending}
           draftError={draftError}
@@ -641,14 +705,25 @@ export default function POSClientPage({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm mx-4 text-center shadow-xl">
             <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-amber-600"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Belum Ada Shift Aktif</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+              Belum Ada Shift Aktif
+            </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              Kasir belum membuka shift. Hubungi kasir untuk membuka shift terlebih dahulu agar Anda bisa melakukan transaksi.
+              Kasir belum membuka shift. Hubungi kasir untuk membuka shift
+              terlebih dahulu agar Anda bisa melakukan transaksi.
             </p>
             <button
               onClick={() => setShiftModalDismissed(true)}
@@ -669,9 +744,3 @@ export default function POSClientPage({
     </>
   );
 }
-
-
-
-
-
-

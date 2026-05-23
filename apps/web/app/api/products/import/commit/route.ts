@@ -7,6 +7,7 @@ import {
   MAX_PRODUCT_IMPORT_ROWS,
   importRowCommitSchema,
 } from "@/features/product-import/helpers/import-core";
+import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("api:products:import:commit");
@@ -116,6 +117,7 @@ export async function POST(request: Request) {
         let updatedProductCount = 0;
         let skippedRowCount = 0;
         let inventoryLogCount = 0;
+        let priceLogCount = 0;
 
         for (const row of rows) {
           const existing = existingBySku.get(row.sku);
@@ -175,6 +177,25 @@ export async function POST(request: Request) {
               },
             });
             updatedProductCount += 1;
+            const priceLogEntries = buildProductPriceLogEntries({
+              productId: updated.id,
+              storeId,
+              before: {
+                price: existing.price,
+                costPrice: existing.costPrice,
+              },
+              after: {
+                price: updated.price,
+                costPrice: updated.costPrice,
+              },
+              actor: user,
+              source: "IMPORT",
+              note: `Batch import update: ${row.name}`,
+            });
+            if (priceLogEntries.length > 0) {
+              await tx.productPriceLog.createMany({ data: priceLogEntries });
+              priceLogCount += priceLogEntries.length;
+            }
             const delta = row.stock - existing.stock;
             const log =
               delta === 0
@@ -225,6 +246,22 @@ export async function POST(request: Request) {
               },
             });
             createdProductCount += 1;
+            const priceLogEntries = buildProductPriceLogEntries({
+              productId: created.id,
+              storeId,
+              before: null,
+              after: {
+                price: created.price,
+                costPrice: created.costPrice,
+              },
+              actor: user,
+              source: "IMPORT",
+              note: `Batch import initial price: ${row.name}`,
+            });
+            if (priceLogEntries.length > 0) {
+              await tx.productPriceLog.createMany({ data: priceLogEntries });
+              priceLogCount += priceLogEntries.length;
+            }
             const log =
               row.stock === 0
                 ? null
@@ -266,6 +303,7 @@ export async function POST(request: Request) {
               skippedRowCount,
               createdCategoryCount: missingCategories.length,
               inventoryLogCount,
+              priceLogCount,
             },
           },
         });
@@ -276,6 +314,7 @@ export async function POST(request: Request) {
           skippedRowCount,
           createdCategoryCount: missingCategories.length,
           inventoryLogCount,
+          priceLogCount,
           batchOperationId: batch.id,
           undoAvailable: true,
         };

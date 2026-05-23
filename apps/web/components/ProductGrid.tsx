@@ -69,7 +69,6 @@ export function ProductGrid({
       {products.map((product, index) => {
         const isLowStock = product.stock <= 5;
         const isOutOfStock = product.stock <= 0;
-        // First 4 visible products are above the fold — mark as LCP priority
         const isPriority = index < 4;
 
         return (

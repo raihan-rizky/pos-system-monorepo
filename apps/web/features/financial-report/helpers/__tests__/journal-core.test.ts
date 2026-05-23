@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildReportRows,
   buildReportFooter,
+  buildReportCategorySummary,
   buildReportPeriodRange,
   buildReportSheetData,
   type ReportSaleInput,
@@ -41,10 +42,12 @@ describe("buildReportRows", () => {
     items: [
       {
         productName: "Banner",
+        subtotal: 150_000,
         product: { category: { name: "Cetak" } },
       },
       {
         productName: "Tinta",
+        subtotal: 100_000,
         product: { category: { name: "ATK" } },
       },
     ],
@@ -239,6 +242,77 @@ describe("buildReportFooter", () => {
     expect(f.totalPemasukan).toBe(0);
     expect(f.totalPengeluaran).toBe(0);
     expect(f.grandTotal).toBe(0);
+  });
+});
+
+describe("buildReportCategorySummary", () => {
+  it("summarizes revenue from existing product categories by item subtotal", () => {
+    const rows = buildReportCategorySummary([
+      {
+        id: "tx1",
+        invoiceNumber: "INV-001",
+        createdAt: new Date("2026-05-20T01:00:00.000Z"),
+        salesName: "Ari",
+        salesperson: null,
+        customerName: null,
+        paymentMethod: "CASH",
+        total: 250_000,
+        items: [
+          {
+            productName: "Banner",
+            subtotal: 150_000,
+            product: { category: { name: "Cetak" } },
+          },
+          {
+            productName: "Tinta",
+            subtotal: 100_000,
+            product: { category: { name: "ATK" } },
+          },
+        ],
+      },
+      {
+        id: "tx2",
+        invoiceNumber: "INV-002",
+        createdAt: new Date("2026-05-20T02:00:00.000Z"),
+        salesName: "Rina",
+        salesperson: null,
+        customerName: null,
+        paymentMethod: "QRIS",
+        total: 50_000,
+        items: [
+          {
+            productName: "Sticker",
+            subtotal: 50_000,
+            product: { category: { name: "Cetak" } },
+          },
+        ],
+      },
+    ]);
+
+    expect(rows).toEqual([
+      { categoryName: "Cetak", transactionCount: 2, revenue: 200_000 },
+      { categoryName: "ATK", transactionCount: 1, revenue: 100_000 },
+    ]);
+  });
+
+  it("falls back missing product category to Tanpa kategori", () => {
+    const rows = buildReportCategorySummary([
+      {
+        id: "tx1",
+        invoiceNumber: "INV-001",
+        createdAt: new Date("2026-05-20T01:00:00.000Z"),
+        salesName: "Ari",
+        salesperson: null,
+        customerName: null,
+        paymentMethod: "CASH",
+        total: 25_000,
+        items: [{ productName: "Custom", subtotal: 25_000, product: null }],
+      },
+    ]);
+
+    expect(rows).toEqual([
+      { categoryName: "Tanpa kategori", transactionCount: 1, revenue: 25_000 },
+    ]);
   });
 });
 

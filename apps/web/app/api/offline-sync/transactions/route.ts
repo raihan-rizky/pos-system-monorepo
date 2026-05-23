@@ -113,7 +113,7 @@ export async function POST(request: Request) {
         return {
           productId: product.id,
           name: product.name,
-          size: product.size ?? item.size ?? null,
+          size: item.size ?? product.size ?? null,
           material: product.material ?? item.material ?? null,
           price: Number(product.price),
           quantity: item.quantity,

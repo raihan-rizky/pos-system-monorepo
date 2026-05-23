@@ -3,6 +3,7 @@ import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import {
   buildReportRows,
   buildReportFooter,
+  buildReportCategorySummary,
   buildReportPeriodRange,
   type ReportPeriod,
 } from "@/features/financial-report/helpers/journal-core";
@@ -67,6 +68,7 @@ export async function GET(request: Request) {
           items: {
             select: {
               productName: true,
+              subtotal: true,
               product: { select: { category: { select: { name: true } } } },
             },
           },
@@ -90,18 +92,23 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    const rows = buildReportRows(
-      sales.map((s) => ({
-        id: s.id,
-        invoiceNumber: s.invoiceNumber,
-        createdAt: s.createdAt,
-        salesName: s.salesName,
-        salesperson: s.salesperson,
-        customerName: s.customerName,
-        paymentMethod: s.paymentMethod,
-        total: s.total.toString(),
-        items: s.items,
+    const saleInputs = sales.map((s) => ({
+      id: s.id,
+      invoiceNumber: s.invoiceNumber,
+      createdAt: s.createdAt,
+      salesName: s.salesName,
+      salesperson: s.salesperson,
+      customerName: s.customerName,
+      paymentMethod: s.paymentMethod,
+      total: s.total.toString(),
+      items: s.items.map((item) => ({
+        ...item,
+        subtotal: item.subtotal.toString(),
       })),
+    }));
+
+    const rows = buildReportRows(
+      saleInputs,
       expenses.map((e) => ({
         id: e.id,
         occurredAt: e.occurredAt,
@@ -119,6 +126,7 @@ export async function GET(request: Request) {
       to: range.to,
       rows,
       footer: buildReportFooter(rows),
+      categories: buildReportCategorySummary(saleInputs),
     });
   } catch (error) {
     const authErr = handleAuthError(error);

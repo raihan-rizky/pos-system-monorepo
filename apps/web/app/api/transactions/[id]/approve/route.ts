@@ -83,10 +83,14 @@ export async function POST(
       // 2. Deduct stock in one round-trip since it wasn't done during the
       // SALES request phase.
       const { values, expectedRowCount } = buildStockDecrementParams(
-        transaction.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-        })),
+        transaction.items
+          .filter((item): item is typeof item & { productId: string } =>
+            Boolean(item.productId),
+          )
+          .map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
         storeId,
       );
 
@@ -123,19 +127,23 @@ export async function POST(
       timeout: 15000,
     });
 
-    const inventoryRows = transaction.items.map((item) => ({
-      productId: item.productId,
-      type: "OUT" as const,
-      reason: "SALE" as const,
-      quantity: item.quantity,
-      unitCost:
-        item.unitCost === null || item.unitCost === undefined
-          ? null
-          : Number(item.unitCost.toString()),
-      note: `Approve Penjualan ${transaction.invoiceNumber}`,
-      createdBy: user.id,
-      person: user.name ?? null,
-    }));
+    const inventoryRows = transaction.items
+      .filter((item): item is typeof item & { productId: string } =>
+        Boolean(item.productId),
+      )
+      .map((item) => ({
+        productId: item.productId,
+        type: "OUT" as const,
+        reason: "SALE" as const,
+        quantity: item.quantity,
+        unitCost:
+          item.unitCost === null || item.unitCost === undefined
+            ? null
+            : Number(item.unitCost.toString()),
+        note: `Approve Penjualan ${transaction.invoiceNumber}`,
+        createdBy: user.id,
+        person: user.name ?? null,
+      }));
     const customerArgs = buildCustomerUpdateArgs({
       customerId: transaction.customerId || null,
       isDP,

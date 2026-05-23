@@ -9,6 +9,7 @@
  */
 
 export interface CheckoutItem {
+  lineType?: "PRODUCT";
   productId: string;
   name: string;
   size: string | null;
@@ -21,7 +22,7 @@ export interface CheckoutItem {
 export interface InventoryLogRow {
   productId: string;
   type: "OUT";
-  reason: "SALE";
+  reason: "SALE" | "USAGE";
   quantity: number;
   unitCost: number | null;
   note: string;
@@ -49,6 +50,51 @@ export function buildInventoryLogRows(
     createdBy: input.userId,
     person: input.userName ?? null,
   }));
+}
+
+export interface ServiceMaterialUsageItem {
+  lineType: "PRINTING_SERVICE";
+  rawMaterialProductId: string | null;
+  name: string;
+  material: string | null;
+  rawMaterialQuantity: number | null;
+  rawMaterialCostPrice: number | null;
+}
+
+export interface BuildServiceMaterialInventoryLogRowsInput {
+  items: ReadonlyArray<ServiceMaterialUsageItem>;
+  invoiceNumber: string;
+  userId: string;
+  userName: string | null;
+}
+
+export function buildServiceMaterialInventoryLogRows(
+  input: BuildServiceMaterialInventoryLogRowsInput,
+): InventoryLogRow[] {
+  return input.items.flatMap((item) => {
+    if (!item.rawMaterialProductId || !item.rawMaterialQuantity) {
+      return [];
+    }
+
+    return [
+      {
+        productId: item.rawMaterialProductId,
+        type: "OUT" as const,
+        reason: "USAGE" as const,
+        quantity: item.rawMaterialQuantity,
+        unitCost: item.rawMaterialCostPrice ?? null,
+        note: [
+          `Bahan layanan cetak ${item.name}`,
+          input.invoiceNumber,
+          item.material ? `Material: ${item.material}` : null,
+        ]
+          .filter(Boolean)
+          .join(" - "),
+        createdBy: input.userId,
+        person: input.userName ?? null,
+      },
+    ];
+  });
 }
 
 export interface CustomerUpdateArgs {

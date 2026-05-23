@@ -37,6 +37,7 @@ export async function authenticate(page: Page, role: Role = "OWNER") {
 export async function mockApis(page: Page) {
   let currentJobOrder = { ...jobOrder };
   let currentStoreSettings = { ...storeSettings };
+  let currentProductionActivity: Array<Record<string, unknown>> = [];
 
   await page.route("**/auth/v1/token**", async (route) => {
     await json(route, { error: "Invalid login credentials", msg: "Invalid login credentials" }, 400);
@@ -62,6 +63,16 @@ export async function mockApis(page: Page) {
     }
     if (path === "/api/shifts" && method === "POST") return json(route, activeShift, 201);
     if (path === "/api/shifts" && method === "PATCH") return json(route, closedShift);
+    if (path === "/api/shifts/close" && method === "GET") {
+      return json(route, {
+        data: {
+          shiftId: activeShift.id,
+          openingBalance: activeShift.openingBalance,
+          totalCashTransactions: transaction.total,
+          expectedBalance: activeShift.openingBalance + transaction.total,
+        },
+      });
+    }
     if (path === "/api/shifts/close") return json(route, closedShift);
 
     if (path === "/api/transactions" && method === "GET") {
@@ -125,12 +136,42 @@ export async function mockApis(page: Page) {
 
     if (path === "/api/dashboard") return json(route, dashboard);
     if (path === "/api/job-orders") return json(route, { data: [currentJobOrder] });
+    if (path === "/api/job-orders/activity") {
+      return json(route, { data: currentProductionActivity });
+    }
+    if (path.match(/^\/api\/job-orders\/[^/]+\/activity$/)) {
+      const jobId = path.split("/")[3];
+      return json(route, {
+        data: currentProductionActivity.filter(
+          (entry) => entry.transactionId === jobId,
+        ),
+      });
+    }
     if (path === "/api/job-orders/job-1/status") {
       const body = JSON.parse(request.postData() || "{}") as { productionStatus?: typeof jobOrder.productionStatus };
+      const fromStatus = currentJobOrder.productionStatus;
       currentJobOrder = {
         ...currentJobOrder,
         productionStatus: body.productionStatus || "PRINTING",
       };
+      if (fromStatus !== currentJobOrder.productionStatus) {
+        currentProductionActivity = [
+          {
+            id: `activity-${currentProductionActivity.length + 1}`,
+            transactionId: currentJobOrder.id,
+            storeId: "store-main",
+            invoiceNumber: currentJobOrder.invoiceNumber,
+            customerName: currentJobOrder.customerName,
+            fromStatus,
+            toStatus: currentJobOrder.productionStatus,
+            actorId: "e2e-user",
+            actorName: "E2E Owner",
+            actorRole: "OWNER",
+            createdAt: new Date().toISOString(),
+          },
+          ...currentProductionActivity,
+        ];
+      }
       return json(route, currentJobOrder);
     }
 
@@ -342,6 +383,9 @@ export async function mockApis(page: Page) {
           grandTotal: 50_000,
           byMethod: { CASH: 100_000, TRANSFER: 0, QRIS: 0, DEBIT: 0, CREDIT: 0 },
         },
+        categories: [
+          { categoryName: "Alat Tulis", transactionCount: 1, revenue: 100_000 },
+        ],
       });
     }
 

@@ -4,6 +4,7 @@ import {
   REPORT_HEADER,
   PAYMENT_METHODS,
   buildReportSheetData,
+  type ReportCategorySummary,
   type ReportRow,
   type ReportFooter,
   type ReportPeriod,
@@ -54,6 +55,7 @@ export type ExportInput = {
   to: string;
   rows: ReportRow[];
   footer: ReportFooter;
+  categories?: ReportCategorySummary[];
 };
 
 // ── XLSX ──────────────────────────────────────────────────────────────────
@@ -258,6 +260,52 @@ export async function exportReportXlsx(input: ExportInput): Promise<void> {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Laporan");
+  if (input.categories && input.categories.length > 0) {
+    const categorySheetData: (string | number)[][] = [
+      ["Kategori Produk", "Transaksi", "Revenue"],
+      ...input.categories.map((category) => [
+        category.categoryName,
+        category.transactionCount,
+        category.revenue,
+      ]),
+    ];
+    const categoryWs = XLSX.utils.aoa_to_sheet(categorySheetData);
+    categoryWs["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 18 }];
+
+    for (let c = 0; c <= 2; c++) {
+      const ref = XLSX.utils.encode_cell({ r: 0, c });
+      const cell = categoryWs[ref];
+      if (cell) {
+        cell.s = {
+          font: {
+            name: "Calibri",
+            sz: 11,
+            bold: true,
+            color: { rgb: COLOR.brandText },
+          },
+          fill: { patternType: "solid", fgColor: { rgb: COLOR.brand } },
+          alignment: { horizontal: c === 2 ? "right" : "left", vertical: "center" },
+          border: thinBorder(),
+        };
+      }
+    }
+
+    for (let r = 1; r <= input.categories.length; r++) {
+      for (let c = 0; c <= 2; c++) {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        const cell = categoryWs[ref];
+        if (!cell) continue;
+        cell.s = {
+          font: { name: "Calibri", sz: 10, color: { rgb: COLOR.titleText } },
+          alignment: { horizontal: c === 2 ? "right" : "left", vertical: "center" },
+          border: thinBorder(),
+          ...(c === 2 ? { numFmt: NUM_FMT } : {}),
+        };
+      }
+    }
+
+    XLSX.utils.book_append_sheet(wb, categoryWs, "Kategori Produk");
+  }
   XLSX.writeFile(wb, buildFilename(input.period, "xlsx"));
 }
 
@@ -481,6 +529,54 @@ export async function exportReportPdf(input: ExportInput): Promise<void> {
       1: { halign: "right", cellWidth: 160 },
     },
   });
+
+  // Category revenue breakdown
+  if (input.categories && input.categories.length > 0) {
+    const afterMethodY = (doc as DocWithAuto).lastAutoTable?.finalY ?? breakdownTop;
+    const categoryEstHeight = 24 + input.categories.length * 22;
+    const categoryTop =
+      afterMethodY + 18 + categoryEstHeight > pageHeight - 32 ? 52 : afterMethodY + 18;
+
+    if (categoryTop === 52) {
+      doc.addPage();
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...PDF_COLOR.text);
+    doc.text("Revenue per Kategori Produk", margin, categoryTop);
+
+    autoTable(doc, {
+      head: [["Kategori Produk", "Transaksi", "Revenue"]],
+      body: input.categories.map((category) => [
+        category.categoryName,
+        String(category.transactionCount),
+        formatRupiah(category.revenue),
+      ]),
+      startY: categoryTop + 6,
+      margin: { left: margin, right: margin, bottom: 32 },
+      theme: "grid",
+      tableWidth: 360,
+      styles: {
+        fontSize: 9,
+        cellPadding: 6,
+        lineColor: PDF_COLOR.border,
+        lineWidth: 0.4,
+        textColor: PDF_COLOR.text,
+      },
+      headStyles: {
+        fillColor: PDF_COLOR.footerBg,
+        textColor: PDF_COLOR.text,
+        fontStyle: "bold",
+        lineWidth: 0,
+      },
+      columnStyles: {
+        0: { cellWidth: 170, fontStyle: "bold" },
+        1: { halign: "right", cellWidth: 80 },
+        2: { halign: "right", cellWidth: 110 },
+      },
+    });
+  }
 
   // ── Page footer (page numbers + brand line) ────────────────────────────
   const totalPages = doc.getNumberOfPages();

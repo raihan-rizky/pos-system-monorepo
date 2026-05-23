@@ -31,6 +31,13 @@ export interface PaginatedShifts {
   };
 }
 
+export interface CloseShiftSummary {
+  shiftId: string;
+  openingBalance: number;
+  totalCashTransactions: number;
+  expectedBalance: number;
+}
+
 export function useActiveShift(initialData?: CashierShift | null) {
   return useQuery({
     queryKey: ["active-shift"],
@@ -105,6 +112,29 @@ export function useOpenShift() {
   });
 }
 
+export function useCloseShiftSummary(
+  shiftId: string | null | undefined,
+  enabled: boolean = true,
+) {
+  return useQuery({
+    queryKey: ["close-shift-summary", shiftId],
+    queryFn: async (): Promise<CloseShiftSummary> => {
+      if (!shiftId) throw new Error("Shift ID is required");
+      const params = new URLSearchParams({ shiftId });
+      const res = await fetch(`/api/shifts/close?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to fetch close shift summary");
+      }
+      const json = await res.json();
+      return json.data;
+    },
+    enabled: enabled && !!shiftId,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function useCloseShift() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -123,6 +153,7 @@ export function useCloseShift() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["active-shift"] });
       queryClient.invalidateQueries({ queryKey: ["shift-history"] });
+      queryClient.invalidateQueries({ queryKey: ["close-shift-summary"] });
     },
   });
 }

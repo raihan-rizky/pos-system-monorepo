@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { Upload, X, RefreshCw } from "lucide-react";
 import { useCreateProduct, useUpdateProduct, Product } from "@/hooks/useProducts";
-import { z } from "zod";
+import { buildProductFormPayload } from "@/lib/product-form/product-form-payload";
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -100,17 +100,11 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     setError(null);
 
     try {
-      const payload = {
-        ...formData,
-        price: Number(formData.price),
-        costPrice: formData.costPrice ? Number(formData.costPrice) : undefined,
-        minStock: Number(formData.minStock),
-        stock: Number(formData.stock),
-      };
-
       if (productId) {
+        const payload = buildProductFormPayload(formData, "edit");
         await updateProduct.mutateAsync({ id: productId, ...payload });
       } else {
+        const payload = buildProductFormPayload(formData, "create");
         await createProduct.mutateAsync(payload);
       }
       onClose();
@@ -147,7 +141,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">Kategori</label>
             <select
@@ -162,25 +156,29 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
               ))}
             </select>
           </div>
-          <Input
-            label="Harga Jual (IDR)"
-            type="number"
-            min="0"
-            value={formData.price}
-            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-            required
-          />
+          {!productId && (
+            <Input
+              label="Harga Jual (IDR)"
+              type="number"
+              min="0"
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              required
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Harga Modal (HPP)"
-            type="number"
-            min="0"
-            placeholder="Opsional"
-            value={formData.costPrice}
-            onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
-          />
+          {!productId && (
+            <Input
+              label="Harga Modal (HPP)"
+              type="number"
+              min="0"
+              placeholder="Opsional"
+              value={formData.costPrice}
+              onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+            />
+          )}
           <Input
             label="Unit"
             placeholder="pcs, rim, meter, box"

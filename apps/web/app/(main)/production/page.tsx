@@ -2,7 +2,14 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@pos/ui";
-import { useJobOrders, useMoveJobOrder, ProductionStatus, JobOrder } from "@/hooks/useJobOrders";
+import {
+  useJobOrders,
+  useMoveJobOrder,
+  useProductionActivity,
+  ProductionStatus,
+  JobOrder,
+  type ProductionActivityLog,
+} from "@/hooks/useJobOrders";
 import KanbanBoard, { KanbanFilter } from "@/components/kanban/KanbanBoard";
 import { ConfirmDeliveryModal } from "@/components/kanban/ConfirmDeliveryModal";
 import {
@@ -15,6 +22,7 @@ import {
   TrendingUp,
   Search,
   X,
+  Activity,
 } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
@@ -148,6 +156,81 @@ function formatRelative(from: number, to: number): string {
   return `${hours}j lalu`;
 }
 
+function productionStatusLabel(status: ProductionStatus | null): string {
+  if (status === "PRINTING") return "Printing";
+  if (status === "READY_PICKUP") return "Siap";
+  if (status === "DELIVERED") return "Selesai";
+  return "Baru";
+}
+
+function ProductionActivityFeed({
+  activity,
+  isLoading,
+  isError,
+}: {
+  activity: ProductionActivityLog[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  return (
+    <Card glass className="animate-fade-in">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-surface-900 text-white flex items-center justify-center shrink-0">
+            <Activity className="w-4 h-4" aria-hidden="true" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-surface-900">
+              Aktivitas Produksi
+            </h2>
+            <p className="text-xs text-surface-500 mt-0.5">
+              Perubahan status job order dalam 90 hari terakhir.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full md:max-w-3xl">
+          {isLoading ? (
+            <p className="text-xs text-surface-400 py-2">Memuat aktivitas...</p>
+          ) : isError ? (
+            <p className="text-xs text-red-500 py-2">Gagal memuat aktivitas.</p>
+          ) : activity.length === 0 ? (
+            <p className="text-xs text-surface-400 py-2">Belum ada aktivitas produksi.</p>
+          ) : (
+            <ol className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {activity.slice(0, 6).map((entry) => (
+                <li
+                  key={entry.id}
+                  className="rounded-lg border border-surface-100 bg-white/70 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[11px] font-bold text-surface-800 truncate">
+                      {entry.invoiceNumber || "Job order"}
+                    </span>
+                    <time className="text-[10px] text-surface-400 shrink-0">
+                      {formatRelative(
+                        new Date(entry.createdAt).getTime(),
+                        Date.now(),
+                      )}
+                    </time>
+                  </div>
+                  <p className="mt-1 text-xs text-surface-600">
+                    <span className="font-semibold text-surface-900">
+                      {entry.actorName}
+                    </span>{" "}
+                    memindahkan {productionStatusLabel(entry.fromStatus)} ke{" "}
+                    {productionStatusLabel(entry.toStatus)}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function ProductionPage() {
@@ -161,6 +244,11 @@ export default function ProductionPage() {
     refetch,
     dataUpdatedAt,
   } = useJobOrders();
+  const {
+    data: productionActivity = [],
+    isLoading: isActivityLoading,
+    isError: isActivityError,
+  } = useProductionActivity(20);
   const moveJobOrder = useMoveJobOrder();
 
   const [now, setNow] = useState<number | null>(null);
@@ -373,6 +461,12 @@ export default function ProductionPage() {
             overdueCount={stats.overdueCount}
           />
         </div>
+
+        <ProductionActivityFeed
+          activity={productionActivity}
+          isLoading={isActivityLoading}
+          isError={isActivityError}
+        />
 
         {/* Kanban Board */}
         {isLoading ? (

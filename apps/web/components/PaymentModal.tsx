@@ -80,7 +80,9 @@ export function PaymentModal({
   const [salespersonId, setSalespersonId] = useState("");
   const { data: salespersons = [] } = useSalespersons();
   const [isDP, setIsDP] = useState(false);
-  const [isJobOrder, setIsJobOrder] = useState(false);
+  const [isJobOrder, setIsJobOrder] = useState(() => {
+    return items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size);
+  });
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
   
   const { role } = useRole();
@@ -91,8 +93,11 @@ export function PaymentModal({
       // reset on close
       setCustomerSelection({ kind: "general" });
       setCustomerError(null);
+    } else {
+      // auto-set isJobOrder if opening with items that have material/size
+      setIsJobOrder(items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size));
     }
-  }, [open]);
+  }, [open, items]);
 
   const rawDiscount =
     discountMode === "PERCENT"
@@ -178,7 +183,7 @@ export function PaymentModal({
         {/* Order Summary */}
         <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[200px] overflow-y-auto">
           {items.map((item) => (
-            <div key={item.productId} className="flex justify-between text-sm">
+            <div key={item.cartLineId} className="flex justify-between text-sm">
               <span className="text-surface-600">
                 {item.name} × {item.quantity}
               </span>

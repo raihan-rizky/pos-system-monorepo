@@ -1,7 +1,7 @@
 import { test, expect } from "./fixtures/app";
 import { authenticate, mockApis } from "./fixtures/app";
 
-test("cashier can save a draft from the payment modal and see the receipt header band", async ({
+test("cashier can save a draft from the payment modal and see the receipt draft note", async ({
   appPage: page,
 }) => {
   await page.goto("/pos");
@@ -18,15 +18,16 @@ test("cashier can save a draft from the payment modal and see the receipt header
 
   await draftButton.click();
 
-  // Receipt opens in DRAFT mode with the header band
-  await expect(page.getByText(/^FAKTUR SEMENTARA$/)).toBeVisible();
-  await expect(page.getByText(/Bukan bukti pembayaran/i)).toBeVisible();
+  // Receipt opens in DRAFT mode with a small note below the table
+  await expect(page.getByText(/^FAKTUR SEMENTARA$/)).toHaveCount(0);
+  await expect(page.getByText(/Bukan bukti pembayaran/i)).toHaveCount(0);
+  await expect(page.getByText(/^Faktur sementara$/)).toBeVisible();
 
   // Draft number is shown in place of the invoice number
   await expect(page.getByText(/^DRAFT-\d{8}-\d{4}$/)).toBeVisible();
 
-  // Status reads "Belum Dibayar" instead of "LUNAS"
-  await expect(page.getByText("BELUM DIBAYAR")).toBeVisible();
+  // Status reads "Belum Lunas" instead of "LUNAS"
+  await expect(page.getByText("BELUM LUNAS")).toBeVisible();
 });
 
 test("draft button is disabled when cart is empty (subtotal is 0)", async ({

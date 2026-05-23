@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { JobOrder, ProductionStatus } from "@/hooks/useJobOrders";
+import { JobOrder, ProductionStatus, useJobOrderActivity } from "@/hooks/useJobOrders";
 import {
+  Activity,
   Clock,
   Printer,
   PackageCheck,
@@ -84,6 +85,22 @@ function getDeadlineState(estimatedDoneAt: string | null): {
   return { level: "none", label: `${diffDays} hari lagi`, diffDays };
 }
 
+function productionStatusLabel(status: ProductionStatus | null): string {
+  if (status === "PRINTING") return "Printing";
+  if (status === "READY_PICKUP") return "Siap";
+  if (status === "DELIVERED") return "Selesai";
+  return "Baru";
+}
+
+function formatActivityTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 // ─── Deadline Badge ─────────────────────────────────────────────────────────────
 
 function DeadlineBadge({
@@ -156,6 +173,12 @@ function KanbanCard({
   columnIndex,
   dimmed,
 }: KanbanCardProps) {
+  const [showActivity, setShowActivity] = React.useState(false);
+  const {
+    data: activity = [],
+    isLoading: isActivityLoading,
+    isError: isActivityError,
+  } = useJobOrderActivity(order.id, showActivity);
   const currentColumn = KANBAN_COLUMNS[columnIndex];
   const nextColumn = KANBAN_COLUMNS[columnIndex + 1];
   const deadline = getDeadlineState(order.estimatedDoneAt);
@@ -314,6 +337,54 @@ function KanbanCard({
           {order.salesperson.name}
         </div>
       )}
+
+      <div className="mt-3 border-t border-surface-100 pt-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowActivity((current) => !current);
+          }}
+          aria-expanded={showActivity}
+          className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-surface-500
+                     hover:text-brand-600 transition-colors cursor-pointer min-h-[28px]
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 rounded-md px-1"
+        >
+          <Activity className="w-3 h-3" aria-hidden="true" />
+          Aktivitas
+        </button>
+
+        {showActivity ? (
+          <div className="mt-2 rounded-lg bg-surface-50 border border-surface-100 p-2">
+            {isActivityLoading ? (
+              <p className="text-[10px] text-surface-400">Memuat aktivitas...</p>
+            ) : isActivityError ? (
+              <p className="text-[10px] text-red-500">Gagal memuat aktivitas.</p>
+            ) : activity.length === 0 ? (
+              <p className="text-[10px] text-surface-400">Belum ada aktivitas.</p>
+            ) : (
+              <ol className="space-y-2">
+                {activity.slice(0, 4).map((entry) => (
+                  <li key={entry.id} className="text-[10px] text-surface-600">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-surface-800 truncate">
+                        {entry.actorName}
+                      </span>
+                      <time className="text-surface-400 shrink-0">
+                        {formatActivityTimestamp(entry.createdAt)}
+                      </time>
+                    </div>
+                    <p className="mt-0.5">
+                      {productionStatusLabel(entry.fromStatus)} ke{" "}
+                      {productionStatusLabel(entry.toStatus)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        ) : null}
+      </div>
     </article>
   );
 }
