@@ -141,7 +141,7 @@ describe("POST /api/inventory", () => {
         featureKey: "inventoryRequests",
         payload: expect.objectContaining({
           title: "Permintaan stok baru",
-          url: "/inventory?tab=stock-logs",
+          url: "/products?tab=logs",
           tag: "inventory-request:log-1",
         }),
       }),

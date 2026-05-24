@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   useProductsPage,
   useCategories,
@@ -151,7 +152,7 @@ function StatCard({
   );
 }
 
-export default function ProductsPage() {
+function ProductsContent() {
   const { canPerform, role } = useRole();
   const canCreateProducts = shouldShowAction("product", "create", canPerform);
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
@@ -162,7 +163,21 @@ export default function ProductsPage() {
   const [categoryId, setCategoryId] = useState("");
   // Default to grid on mobile, table on desktop. We'll manage this via state, but default "grid" is safer for initial mobile load.
   const [view, setView] = useState<"table" | "grid">("grid");
-  const [activeTab, setActiveTab] = useState<PageTab>("products");
+
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab = (tabParam && ["products", "prices", "history", "logs"].includes(tabParam) 
+    ? tabParam 
+    : "products") as PageTab;
+  const [activeTab, setActiveTab] = useState<PageTab>(initialTab);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && ["products", "prices", "history", "logs"].includes(tab)) {
+      setActiveTab(tab as PageTab);
+    }
+  }, [searchParams]);
+
   const { data: pendingCount = 0 } = usePendingInventoryLogCount();
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -1091,5 +1106,17 @@ function ProductsPager({
         </button>
       </div>
     </nav>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <span className="text-sm text-slate-400 font-medium">Memuat halaman...</span>
+      </div>
+    }>
+      <ProductsContent />
+    </Suspense>
   );
 }

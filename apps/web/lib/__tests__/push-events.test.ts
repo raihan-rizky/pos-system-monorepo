@@ -43,7 +43,7 @@ describe("sendRolePushEvent", () => {
       payload: {
         title: "Permintaan stok baru",
         body: "Ada membuat permintaan stok OUT sebanyak 5 item.",
-        url: "/inventory?tab=stock-logs",
+        url: "/products?tab=logs",
         tag: "inventory-request:log-1",
       },
     });
