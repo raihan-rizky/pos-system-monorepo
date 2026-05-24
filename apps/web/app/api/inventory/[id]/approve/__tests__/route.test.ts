@@ -14,6 +14,14 @@ vi.mock("@/lib/rbac/guard", () => ({
   handleAuthError: handleAuthErrorMock,
 }));
 
+vi.mock("@/lib/logger", () => ({
+  getLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
+
 vi.mock("@pos/db", () => ({
   db: {
     $transaction: dbTransactionMock,

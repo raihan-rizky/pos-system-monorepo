@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
+import { sendRolePushEvent } from "@/lib/push-events";
 
 const logger = getLogger("api:inventory");
 
@@ -182,6 +183,36 @@ export async function POST(request: Request) {
       productId: validatedData.productId,
       durationMs: Date.now() - startedAt,
     });
+
+    if (
+      result.status === "PENDING" &&
+      (validatedData.type === "IN" || validatedData.type === "OUT")
+    ) {
+      after(async () => {
+        try {
+          await sendRolePushEvent({
+            eventName: "inventory-request-created",
+            storeId,
+            roles: ["OWNER", "ADMIN"],
+            featureKey: "inventoryRequests",
+            payload: {
+              title: "Permintaan stok baru",
+              body: `${user.name || "User"} membuat permintaan stok ${validatedData.type} sebanyak ${Math.abs(validatedData.quantity)} item.`,
+              url: "/inventory?tab=stock-logs",
+              tag: `inventory-request:${result.log.id}`,
+            },
+          });
+        } catch (error) {
+          logger.error("inventory.request.notification_failed", {
+            error,
+            logId: result.log.id,
+            actorId: user.id,
+            actorRole: user.role,
+            storeId,
+          });
+        }
+      });
+    }
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

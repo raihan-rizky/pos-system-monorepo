@@ -1,16 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "../route";
 
+const afterMock = vi.hoisted(() => vi.fn());
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const productFindFirstMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const sendRolePushEventMock = vi.hoisted(() => vi.fn());
+
+vi.mock("next/server", async () => {
+  const actual = await vi.importActual<typeof import("next/server")>("next/server");
+  return { ...actual, after: afterMock };
+});
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
+}));
+
+vi.mock("@/lib/push-events", () => ({
+  sendRolePushEvent: sendRolePushEventMock,
 }));
 
 vi.mock("@pos/db", () => ({
@@ -33,6 +44,15 @@ function call(body: unknown) {
 describe("POST /api/inventory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    afterMock.mockImplementation((callback: () => void | Promise<void>) => callback());
+    sendRolePushEventMock.mockResolvedValue({
+      activeCandidates: 1,
+      recipients: 1,
+      attempted: 1,
+      sent: 1,
+      failed: 0,
+      deactivated: 0,
+    });
     handleAuthErrorMock.mockReturnValue(null);
     productFindFirstMock.mockResolvedValue({ stock: 20, costPrice: null });
     inventoryLogCreateMock.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
@@ -84,6 +104,7 @@ describe("POST /api/inventory", () => {
     expect(productUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: { stock: 25 } }),
     );
+    expect(sendRolePushEventMock).not.toHaveBeenCalled();
   });
 
   it("creates a PENDING log and does NOT update stock when the user is ADMIN", async () => {
@@ -112,5 +133,35 @@ describe("POST /api/inventory", () => {
       }),
     );
     expect(productUpdateMock).not.toHaveBeenCalled();
+    expect(sendRolePushEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "inventory-request-created",
+        storeId: "store-main",
+        roles: ["OWNER", "ADMIN"],
+        featureKey: "inventoryRequests",
+        payload: expect.objectContaining({
+          title: "Permintaan stok baru",
+          url: "/inventory?tab=stock-logs",
+          tag: "inventory-request:log-1",
+        }),
+      }),
+    );
+  });
+
+  it("keeps the inventory request successful when push notification fails", async () => {
+    sendRolePushEventMock.mockRejectedValueOnce(new Error("Missing VAPID"));
+    requirePermissionMock.mockResolvedValue({
+      id: "admin-1",
+      name: "Ada",
+      role: "ADMIN",
+      storeId: "store-main",
+    });
+
+    const response = await call(validBody);
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.status).toBe("PENDING");
+    expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
   });
 });

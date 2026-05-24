@@ -29,6 +29,7 @@ export async function GET() {
           },
         },
         salesperson: { select: { id: true, name: true } },
+        customer: { select: { phone: true } },
       },
       orderBy: { createdAt: "desc" },
     });

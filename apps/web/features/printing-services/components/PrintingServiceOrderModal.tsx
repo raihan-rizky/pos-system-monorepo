@@ -75,7 +75,7 @@ export function PrintingServiceOrderModal({
   const selectedMaterialStock = selectedMaterial?.stock ?? 0;
   const generatedSize =
     dimensionArea > 0
-      ? `${width} ${dimensionUnit} x ${length} ${dimensionUnit} = ${dimensionArea.toLocaleString("id-ID")} ${dimensionUnit}\u00B2`
+      ? `${width} ${dimensionUnit} x ${length} ${dimensionUnit}`
       : undefined;
   const canConfirm =
     Boolean(service) &&

@@ -74,7 +74,7 @@ export default async function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <head />
-      <body className="antialiased">
+      <body className="antialiased" suppressHydrationWarning>
         <Providers role={role} userId={userId} userName={userName} permissions={permissions}>
           {children}
         </Providers>

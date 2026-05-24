@@ -50,7 +50,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER === '1'
     ? undefined
     : {
-        command: 'pnpm dev',
+        command: 'node ./node_modules/next/dist/bin/next dev --port 3002',
         url: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3002',
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,

@@ -21,6 +21,7 @@ const jobOrderInclude = {
     },
   },
   salesperson: { select: { id: true, name: true } },
+  customer: { select: { phone: true } },
 };
 
 export async function PATCH(

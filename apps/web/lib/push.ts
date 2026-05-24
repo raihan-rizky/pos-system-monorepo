@@ -4,14 +4,14 @@ import { db, type PushSubscription } from "@pos/db";
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("lib:push");
-type PushPayload = {
+export type PushPayload = {
   title: string;
   body: string;
   url: string;
   tag?: string;
 };
 
-type PushResult = {
+export type PushResult = {
   attempted: number;
   sent: number;
   failed: number;

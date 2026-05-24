@@ -29,6 +29,24 @@ export function isWaConfigured(): boolean {
   return !!process.env.WAHA_BASE_URL;
 }
 
+export function normalizeWahaChatId(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes("@")) return trimmed;
+
+  let digits = trimmed.replace(/\D/g, "");
+  if (!digits) return null;
+
+  if (digits.startsWith("0")) {
+    digits = `62${digits.slice(1)}`;
+  } else if (digits.startsWith("8")) {
+    digits = `62${digits}`;
+  }
+
+  if (digits.length < 8) return null;
+  return `${digits}@c.us`;
+}
+
 function getHeaders(apiKey?: string): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -150,8 +168,10 @@ export async function sendWaTextMessage(
   const { baseUrl, apiKey, session } = getWahaConfig();
   const url = `${baseUrl}/api/sendText`;
 
-  // Ensure proper chatId format
-  const chatId = to.includes("@") ? to : `${to}@c.us`;
+  const chatId = normalizeWahaChatId(to);
+  if (!chatId) {
+    throw new Error("Invalid WhatsApp phone number");
+  }
 
   const payload = {
     session,

@@ -14,7 +14,7 @@ const updateCustomerSchema = z.object({
   email: z.string().email().optional().nullable().or(z.literal("")),
   company: z.string().max(100).optional().nullable(),
   address: z.string().max(300).optional().nullable(),
-  type: z.enum(["REGULAR", "VIP", "CORPORATE"]).optional(),
+  type: z.enum(["UMUM", "AGEN"]).optional(),
   notes: z.string().max(500).optional().nullable(),
 });
 

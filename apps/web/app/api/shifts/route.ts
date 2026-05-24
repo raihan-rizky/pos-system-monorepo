@@ -9,18 +9,21 @@ import { getLogger } from "@/lib/logger";
 const log = getLogger("api:shifts");
 export const dynamic = "force-dynamic";
 
+const ALLOWED_SORT_FIELDS = ["openedAt", "closedAt", "openingBalance", "closingBalance", "expectedBalance", "discrepancy"] as const;
+type SortField = (typeof ALLOWED_SORT_FIELDS)[number];
+
 // GET /api/shifts
 // ?active=true -> Get current active shift
-// else -> Get shift history
+// ?sortBy=openedAt&sortOrder=desc -> Get shift history with sorting
+// else -> Get shift history (default sort: openedAt desc)
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("shift", "read");
     const { searchParams } = new URL(request.url);
     const active = searchParams.get("active") === "true";
     const storeId = user.storeId || "store-main";
-    
+
     if (active) {
-      // Find ANY open shift in the store â€” shifts are shared across all roles
       const shift = await db.cashierShift.findFirst({
         where: {
           storeId,
@@ -40,11 +43,16 @@ export async function GET(request: Request) {
       maxLimit: 100,
     });
 
-    // Pagination
+    const rawSortBy = searchParams.get("sortBy") ?? "openedAt";
+    const sortBy: SortField = (ALLOWED_SORT_FIELDS as readonly string[]).includes(rawSortBy)
+      ? (rawSortBy as SortField)
+      : "openedAt";
+    const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+
     const total = await db.cashierShift.count({ where: { storeId } });
     const shifts = await db.cashierShift.findMany({
       where: { storeId },
-      orderBy: { openedAt: "desc" },
+      orderBy: { [sortBy]: sortOrder },
       skip,
       take: limit,
       include: {
@@ -54,7 +62,28 @@ export async function GET(request: Request) {
       },
     });
 
-    return apiList(shifts, buildPaginationMeta(total, page, limit));
+    // Compute expectedBalance for OPEN shifts (modal + cash transactions within shift period)
+    const openShift = shifts.find((s) => s.status === "OPEN" && s.expectedBalance === null);
+    let enrichedShifts = shifts as (typeof shifts[number] & { expectedBalance: bigint | number | null })[];
+    if (openShift) {
+      const cashAgg = await db.transaction.aggregate({
+        where: {
+          storeId,
+          paymentMethod: "CASH",
+          status: { notIn: ["VOIDED", "REFUNDED"] },
+          createdAt: { gte: openShift.openedAt },
+        },
+        _sum: { total: true },
+      });
+      const totalCash = Number(cashAgg._sum.total || 0);
+      enrichedShifts = shifts.map((s) =>
+        s.id === openShift.id
+          ? { ...s, expectedBalance: Number(s.openingBalance) + totalCash }
+          : s,
+      );
+    }
+
+    return apiList(enrichedShifts, buildPaginationMeta(total, page, limit));
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
@@ -63,7 +92,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "Failed to fetch shifts" }, { status: 500 });
   }
 }
-
 
 
 const openShiftSchema = z.object({
@@ -82,7 +110,7 @@ export async function POST(request: Request) {
     if (!validatedData.success) {
       return NextResponse.json(
         { message: "Validation error", errors: validatedData.error.flatten().fieldErrors },
-        { status: 422 }
+        { status: 422 },
       );
     }
 

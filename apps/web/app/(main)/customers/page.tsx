@@ -18,13 +18,12 @@ import { shouldShowAction, shouldShowDeleteAction, shouldShowUpdateAction } from
 // ─── Type Badge ───────────────────────────────────────────────────────────────
 
 const TYPE_CONFIG: Record<CustomerType, { label: string; cls: string }> = {
-  REGULAR: { label: "Regular", cls: "bg-slate-100 text-slate-600" },
-  VIP: { label: "VIP", cls: "bg-amber-100 text-amber-700" },
-  CORPORATE: { label: "Corporate", cls: "bg-violet-100 text-violet-700" },
+  UMUM: { label: "UMUM", cls: "bg-slate-100 text-slate-600" },
+  AGEN: { label: "AGEN", cls: "bg-emerald-100 text-emerald-700" },
 };
 
 function TypeBadge({ type }: { type: CustomerType }) {
-  const { label, cls } = TYPE_CONFIG[type] ?? TYPE_CONFIG.REGULAR;
+  const { label, cls } = TYPE_CONFIG[type] ?? TYPE_CONFIG.UMUM;
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold ${cls}`}>
       {label}
@@ -196,7 +195,7 @@ function CustomerFormModal({ initial, onClose }: FormModalProps) {
     email: initial?.email ?? "",
     company: initial?.company ?? "",
     address: initial?.address ?? "",
-    type: initial?.type ?? "REGULAR",
+    type: initial?.type ?? "UMUM",
     notes: initial?.notes ?? "",
   });
   const [error, setError] = useState("");
@@ -265,8 +264,8 @@ function CustomerFormModal({ initial, onClose }: FormModalProps) {
           {/* Type */}
           <div>
             <label className="text-sm font-medium text-surface-700 block mb-2">Tipe Pelanggan</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(["REGULAR", "VIP", "CORPORATE"] as CustomerType[]).map(t => (
+            <div className="grid grid-cols-2 gap-2">
+              {(["UMUM", "AGEN"] as CustomerType[]).map(t => (
                 <button key={t} type="button" onClick={() => set("type", t)}
                   className={`py-2 rounded-lg border text-xs font-semibold transition-all ${form.type === t ? "border-brand-500 bg-brand-50 text-brand-700" : "border-surface-200 text-surface-600 hover:border-surface-300"}`}>
                   {TYPE_CONFIG[t].label}
@@ -386,9 +385,8 @@ export default function CustomersPage() {
         <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value as CustomerType | ""); setPage(1); }}
           className="px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 bg-surface-50">
           <option value="">Semua Tipe</option>
-          <option value="REGULAR">Regular</option>
-          <option value="VIP">VIP</option>
-          <option value="CORPORATE">Corporate</option>
+          <option value="UMUM">UMUM</option>
+          <option value="AGEN">AGEN</option>
         </select>
       </div>
 

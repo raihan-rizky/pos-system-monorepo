@@ -151,7 +151,9 @@ function defaultFeaturesForRole(role: string) {
   if (role === "OWNER" || role === "ADMIN") {
     return {
       syncFailures: true,
+      inventoryRequests: true,
       pendingApprovals: true,
+      pendingTransactions: true,
       productionStatus: true,
       whatsapp: true,
       closingDeals: true,
@@ -163,6 +165,7 @@ function defaultFeaturesForRole(role: string) {
     return {
       syncFailures: true,
       checkoutIssues: true,
+      pendingTransactions: true,
       paymentUpdates: true,
       orders: true,
     };

@@ -122,7 +122,7 @@ export const customers = [
     email: "budi@example.test",
     company: "CV Budi",
     address: "Jl. E2E",
-    type: "VIP",
+    type: "AGEN",
     notes: "Test customer",
     totalSpent: 55000,
     totalOrders: 1,

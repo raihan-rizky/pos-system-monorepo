@@ -39,7 +39,7 @@ describe("resolveCheckoutCustomer", () => {
     expect(createCustomer).not.toHaveBeenCalled();
   });
 
-  it("creates a regular customer from manual checkout entry before resolving", async () => {
+  it("creates an UMUM customer from manual checkout entry before resolving", async () => {
     const createCustomer = vi.fn().mockResolvedValue({
       id: "customer-new",
       name: "Budi",
@@ -57,7 +57,7 @@ describe("resolveCheckoutCustomer", () => {
     expect(createCustomer).toHaveBeenCalledWith({
       name: "Budi",
       phone: "08123456789",
-      type: "REGULAR",
+      type: "UMUM",
     });
   });
 

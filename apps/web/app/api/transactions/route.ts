@@ -9,6 +9,7 @@ import { z } from "zod";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 
 import { getLogger } from "@/lib/logger";
+import { sendRolePushEvent } from "@/lib/push-events";
 import { buildStockDecrementParams } from "@/features/pos-checkout/stock-decrement";
 import {
   buildCustomerUpdateArgs,
@@ -679,6 +680,32 @@ export async function POST(request: Request) {
       });
     }
 
+    if (transaction && isSalesRequest && transaction.status === "PENDING_APPROVAL") {
+      after(async () => {
+        try {
+          await sendRolePushEvent({
+            eventName: "pending-transaction-created",
+            storeId,
+            roles: ["CASHIER", "OWNER", "ADMIN"],
+            featureKey: "pendingTransactions",
+            payload: {
+              title: "Transaksi menunggu approval",
+              body: `${user.name || salesName || "Sales"} membuat transaksi ${formatRupiah(total)}.`,
+              url: "/history",
+              tag: `pending-transaction:${transaction.id}`,
+            },
+          });
+        } catch (notificationError) {
+          log.error("pending_transaction.notification_failed", {
+            error: notificationError,
+            transactionId: transaction.id,
+            requestedById: user.id,
+            storeId,
+          });
+        }
+      });
+    }
+
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {
     const authErr = handleAuthError(error);
@@ -699,4 +726,11 @@ export async function POST(request: Request) {
   }
 }
 
+function formatRupiah(amount: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
 

@@ -29,6 +29,10 @@ function getReceiptStatusLabel(status: string): { label: string; color: string }
   }
 }
 
+function formatReceiptSize(size?: string | null) {
+  return size?.split(" = ")[0] ?? "";
+}
+
 export function ReceiptModal({
   open,
   onClose,
@@ -71,8 +75,6 @@ export function ReceiptModal({
           ? "Menunggu Persetujuan"
           : "Transaksi Berhasil";
 
-  const printStyleId = "receipt-print-styles";
-
   return (
     <Modal open={open} onClose={onClose} title={modalTitle} size="xl">
       <div className="space-y-6">
@@ -85,12 +87,9 @@ export function ReceiptModal({
                   margin: 0;
                 }
 
-                body > *:not(#${printStyleId} ~ *) {
-                  display: none !important;
-                }
-
                 body * {
                   visibility: hidden;
+                  transform: none !important;
                 }
 
                 #print-receipt {
@@ -102,11 +101,12 @@ export function ReceiptModal({
                 }
 
                 #print-receipt {
-                  position: absolute !important;
-                  left: 0 !important;
-                  top: 0 !important;
+                  position: fixed !important;
+                  left: 50% !important;
+                  top: 50% !important;
                   width: 215mm !important;
                   height: 165mm !important;
+                  max-height: 165mm !important;
                   margin: 0 !important;
                   padding: ${compact ? "2mm 5mm" : "4mm 6mm"} !important;
                   border: none !important;
@@ -115,8 +115,11 @@ export function ReceiptModal({
                   display: flex;
                   flex-direction: column;
                   box-sizing: border-box;
+                  transform: translate(-50%, -50%) scale(0.96) !important;
+                  transform-origin: center center !important;
                   page-break-after: avoid;
                   page-break-before: avoid;
+                  page-break-inside: avoid;
                 }
 
                 .print\\:hidden {
@@ -318,11 +321,11 @@ export function ReceiptModal({
 
             {/* Table — with size/material columns */}
             {(() => {
-              const hasSize = items.some((item) => item.size);
-              const hasMaterial = items.some((item) => item.material);
-              const hasRawMaterial = items.some(
-                (item) => item.rawMaterialProductId || item.rawMaterialQuantity,
-              );
+              const serviceItems = items.filter((item) => item.printingServiceId);
+              const hasServiceItems = serviceItems.length > 0;
+              const hasSize = hasServiceItems;
+              const hasMaterial = hasServiceItems;
+              const hasRawMaterial = hasServiceItems;
               const cellPad = compact ? "py-0.5 px-1.5" : "py-2 px-3";
               return (
                 <table
@@ -393,7 +396,7 @@ export function ReceiptModal({
                           <td
                             className={`border border-black ${cellPad} text-center`}
                           >
-                            {item.size || ""}
+                            {formatReceiptSize(item.size)}
                           </td>
                         )}
                         {hasMaterial && (
@@ -506,9 +509,9 @@ export function ReceiptModal({
                         Rp{" "}
                         {transaction.status === "DP"
                           ? (
-                              Number(transaction.total) -
-                              Number(transaction.amountPaid)
-                            ).toLocaleString("id-ID")
+                            Number(transaction.total) -
+                            Number(transaction.amountPaid)
+                          ).toLocaleString("id-ID")
                           : Number(transaction.change).toLocaleString("id-ID")}
                       </div>
                     </div>

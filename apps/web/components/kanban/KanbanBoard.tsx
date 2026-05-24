@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertTriangle,
+  MessageCircle,
 } from "lucide-react";
 
 // ─── Column Configuration ───────────────────────────────────────────────────────
@@ -92,6 +93,12 @@ function productionStatusLabel(status: ProductionStatus | null): string {
   return "Baru";
 }
 
+function isPickupWhatsappActivity(entry: {
+  eventType?: string;
+}) {
+  return entry.eventType === "PICKUP_WHATSAPP_SENT";
+}
+
 function formatActivityTimestamp(value: string): string {
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
@@ -163,6 +170,8 @@ function PaymentBadge({
 interface KanbanCardProps {
   order: JobOrder;
   onMoveForward?: (id: string, nextStatus: ProductionStatus) => void;
+  onSendPickupNotification?: (id: string) => void;
+  pickupNotificationPendingId?: string | null;
   columnIndex: number;
   dimmed?: boolean;
 }
@@ -170,6 +179,8 @@ interface KanbanCardProps {
 function KanbanCard({
   order,
   onMoveForward,
+  onSendPickupNotification,
+  pickupNotificationPendingId,
   columnIndex,
   dimmed,
 }: KanbanCardProps) {
@@ -184,6 +195,11 @@ function KanbanCard({
   const deadline = getDeadlineState(order.estimatedDoneAt);
   const isOverdue = deadline.level === "overdue";
   const isUrgent = deadline.level === "today" || deadline.level === "soon";
+  const canNotifyPickup =
+    order.productionStatus === "READY_PICKUP" && Boolean(onSendPickupNotification);
+  const hasWhatsappNumber = Boolean(order.customer?.phone);
+  const isSendingPickupNotification =
+    pickupNotificationPendingId === order.id;
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", order.id);
@@ -311,22 +327,50 @@ function KanbanCard({
             <ChevronRight className="w-3 h-3" aria-hidden="true" />
           </button>
         ) : onMoveForward ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMoveForward(order.id, "DELIVERED");
-            }}
-            aria-label={`Tandai ${order.invoiceNumber} sudah diserahkan`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-white
-                       bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 shadow-sm hover:shadow-md
-                       rounded-lg transition-colors cursor-pointer min-h-[32px]
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
-            title="Tandai Sudah Diserahkan"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-            SELESAI
-          </button>
+          <div className="flex items-center gap-1.5">
+            {canNotifyPickup ? (
+              <button
+                type="button"
+                disabled={!hasWhatsappNumber || isSendingPickupNotification}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!hasWhatsappNumber || isSendingPickupNotification) return;
+                  onSendPickupNotification?.(order.id);
+                }}
+                aria-label={
+                  hasWhatsappNumber
+                    ? `Kirim broadcast WhatsApp untuk ${order.invoiceNumber}`
+                    : `No WhatsApp number untuk ${order.invoiceNumber}`
+                }
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-surface-200 disabled:bg-surface-50 disabled:text-surface-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                title={
+                  hasWhatsappNumber
+                    ? isSendingPickupNotification
+                      ? "Mengirim..."
+                      : "Kirim broadcast WhatsApp"
+                    : "No WhatsApp number"
+                }
+              >
+                <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveForward(order.id, "DELIVERED");
+              }}
+              aria-label={`Tandai ${order.invoiceNumber} sudah diserahkan`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-white
+                         bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 shadow-sm hover:shadow-md
+                         rounded-lg transition-colors cursor-pointer min-h-[32px]
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+              title="Tandai Sudah Diserahkan"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+              SELESAI
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -375,8 +419,9 @@ function KanbanCard({
                       </time>
                     </div>
                     <p className="mt-0.5">
-                      {productionStatusLabel(entry.fromStatus)} ke{" "}
-                      {productionStatusLabel(entry.toStatus)}
+                      {isPickupWhatsappActivity(entry)
+                        ? "Notifikasi WhatsApp pickup terkirim"
+                        : `${productionStatusLabel(entry.fromStatus)} ke ${productionStatusLabel(entry.toStatus)}`}
                     </p>
                   </li>
                 ))}
@@ -397,6 +442,8 @@ interface KanbanColumnProps {
   columnIndex: number;
   filter: KanbanFilter;
   onMoveForward?: (id: string, nextStatus: ProductionStatus) => void;
+  onSendPickupNotification?: (id: string) => void;
+  pickupNotificationPendingId?: string | null;
   onDrop?: (orderId: string, targetStatus: ProductionStatus) => void;
 }
 
@@ -406,6 +453,8 @@ function KanbanColumn({
   columnIndex,
   filter,
   onMoveForward,
+  onSendPickupNotification,
+  pickupNotificationPendingId,
   onDrop,
 }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = React.useState(false);
@@ -480,6 +529,8 @@ function KanbanColumn({
                 key={order.id}
                 order={order}
                 onMoveForward={onMoveForward}
+                onSendPickupNotification={onSendPickupNotification}
+                pickupNotificationPendingId={pickupNotificationPendingId}
                 columnIndex={columnIndex}
                 dimmed={isCardDimmed(order)}
               />
@@ -497,6 +548,8 @@ interface KanbanBoardProps {
   orders: JobOrder[];
   filter?: KanbanFilter;
   onMoveForward?: (id: string, nextStatus: ProductionStatus) => void;
+  onSendPickupNotification?: (id: string) => void;
+  pickupNotificationPendingId?: string | null;
   onDrop?: (orderId: string, targetStatus: ProductionStatus) => void;
 }
 
@@ -504,6 +557,8 @@ export default function KanbanBoard({
   orders,
   filter = "ALL",
   onMoveForward,
+  onSendPickupNotification,
+  pickupNotificationPendingId,
   onDrop,
 }: KanbanBoardProps) {
   const ordersByColumn = useMemo(() => {
@@ -526,6 +581,8 @@ export default function KanbanBoard({
           columnIndex={idx}
           filter={filter}
           onMoveForward={onMoveForward}
+          onSendPickupNotification={onSendPickupNotification}
+          pickupNotificationPendingId={pickupNotificationPendingId}
           onDrop={onDrop}
         />
       ))}

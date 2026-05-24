@@ -53,7 +53,7 @@ export async function resolveCheckoutCustomer(
   const customer = await createCustomer({
     name,
     phone: phone || undefined,
-    type: "REGULAR",
+    type: "UMUM",
   });
 
   return {

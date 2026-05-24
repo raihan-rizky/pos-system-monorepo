@@ -90,6 +90,11 @@ enum ProductionStatus {
   DELIVERED
 }
 
+enum ProductionActivityEventType {
+  STATUS_CHANGE
+  PICKUP_WHATSAPP_SENT
+}
+
 enum ExpenseCategory {
   SUPPLIES
   UTILITIES
@@ -103,9 +108,8 @@ enum ExpenseCategory {
 }
 
 enum CustomerType {
-  REGULAR
-  VIP
-  CORPORATE
+  UMUM
+  AGEN
 }
 
 // ============================================================
@@ -282,11 +286,14 @@ model ProductionActivityLog {
   actor         User?            @relation("production_activity_actor", fields: [actorId], references: [id])
   actorName     String
   actorRole     Role
+  eventType     ProductionActivityEventType @default(STATUS_CHANGE)
+  note          String?
   createdAt     DateTime         @default(now())
 
   @@index([storeId, createdAt])
   @@index([transactionId, createdAt])
   @@index([actorId, createdAt])
+  @@index([eventType, createdAt])
   @@index([fromStatus, toStatus, createdAt])
   @@map("pos_production_activity_logs")
 }
@@ -298,7 +305,7 @@ model Customer {
   email        String?
   company      String?
   address      String?
-  type         CustomerType  @default(REGULAR)
+  type         CustomerType  @default(UMUM)
   notes        String?       // Free-text notes (allergies, preferences, etc.)
 
   // Analytics — updated atomically on every transaction

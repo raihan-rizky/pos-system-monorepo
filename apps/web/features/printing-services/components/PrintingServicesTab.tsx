@@ -75,7 +75,7 @@ export function PrintingServicesTab({ onAddToCart }: PrintingServicesTabProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3 md:px-6">
+      <div className="flex-1 overflow-y-auto px-3 pb-24 md:px-6">
         {servicesQuery.isLoading ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (

@@ -31,6 +31,13 @@ export interface PaginatedShifts {
   };
 }
 
+export interface ShiftSummary {
+  totalShifts: number;
+  openShifts: number;
+  totalDiscrepancy: number;
+  avgDurationMinutes: number | null;
+}
+
 export interface CloseShiftSummary {
   shiftId: string;
   openingBalance: number;
@@ -64,11 +71,22 @@ export function useActiveShift(initialData?: CashierShift | null) {
   });
 }
 
-export function useShiftHistory(page: number = 1, limit: number = 10) {
+export function useShiftHistory(
+  page: number = 1,
+  limit: number = 10,
+  sortBy: string = "openedAt",
+  sortOrder: "asc" | "desc" = "desc",
+) {
   return useQuery({
-    queryKey: ["shift-history", page, limit],
+    queryKey: ["shift-history", page, limit, sortBy, sortOrder],
     queryFn: async (): Promise<PaginatedShifts> => {
-      const res = await fetch(`/api/shifts?page=${page}&limit=${limit}`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        sortBy,
+        sortOrder,
+      });
+      const res = await fetch(`/api/shifts?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch shift history");
       return res.json();
     },
@@ -108,6 +126,7 @@ export function useOpenShift() {
       queryClient.setQueryData(["active-shift"], shift);
       queryClient.invalidateQueries({ queryKey: ["active-shift"] });
       queryClient.invalidateQueries({ queryKey: ["shift-history"] });
+      queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
     },
   });
 }
@@ -154,6 +173,7 @@ export function useCloseShift() {
       queryClient.invalidateQueries({ queryKey: ["active-shift"] });
       queryClient.invalidateQueries({ queryKey: ["shift-history"] });
       queryClient.invalidateQueries({ queryKey: ["close-shift-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
     },
   });
 }
@@ -177,6 +197,20 @@ export function useUpdateShift() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["active-shift"] });
       queryClient.invalidateQueries({ queryKey: ["shift-history"] });
+      queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
     },
+  });
+}
+
+export function useShiftSummary() {
+  return useQuery({
+    queryKey: ["shift-summary"],
+    queryFn: async (): Promise<ShiftSummary> => {
+      const res = await fetch("/api/shifts/summary");
+      if (!res.ok) throw new Error("Failed to fetch shift summary");
+      const json = await res.json();
+      return json.data;
+    },
+    staleTime: 30_000,
   });
 }

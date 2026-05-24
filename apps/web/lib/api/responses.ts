@@ -39,6 +39,7 @@ export type ApiErrorCode =
   | "PayloadTooLarge"
   | "UnsupportedMediaType"
   | "ServiceUnavailable"
+  | "BadGateway"
   | "InternalError";
 
 export interface PaginationParams {

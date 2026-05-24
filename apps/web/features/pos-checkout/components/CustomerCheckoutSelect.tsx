@@ -19,15 +19,13 @@ interface CustomerCheckoutSelectProps {
 }
 
 const TYPE_LABELS: Record<Customer["type"], string> = {
-  REGULAR: "Regular",
-  VIP: "VIP",
-  CORPORATE: "Corporate",
+  UMUM: "UMUM",
+  AGEN: "AGEN",
 };
 
 const TYPE_CLASSES: Record<Customer["type"], string> = {
-  REGULAR: "bg-slate-100 text-slate-700",
-  VIP: "bg-amber-100 text-amber-800",
-  CORPORATE: "bg-violet-100 text-violet-800",
+  UMUM: "bg-slate-100 text-slate-700",
+  AGEN: "bg-emerald-100 text-emerald-800",
 };
 
 function ChevronIcon({ open }: { open: boolean }) {

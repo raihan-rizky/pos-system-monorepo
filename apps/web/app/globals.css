@@ -421,17 +421,19 @@ input[type="number"] {
 @media print {
   body * {
     visibility: hidden;
+    transform: none !important;
   }
   #print-receipt,
   #print-receipt * {
     visibility: visible;
   }
   #print-receipt {
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: fixed;
+    left: 50%;
+    top: 50%;
     margin: 0;
-    padding: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+    transform-origin: center center;
   }
 
   /* Hide any potential modal overlays/backgrounds */

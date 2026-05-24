@@ -53,4 +53,4 @@ test_rls.js
 markdown-files/
 
 #claude
-.claude/*
+.claude

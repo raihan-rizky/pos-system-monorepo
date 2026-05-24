@@ -15,6 +15,7 @@ const queryRawMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const sendRolePushEventMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/server", async () => {
   const actual = await vi.importActual<typeof import("next/server")>("next/server");
@@ -40,6 +41,10 @@ vi.mock("@/features/rbac/helpers/rbac-core", () => ({
 
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({
   getGlobalRolePermissions: getGlobalRolePermissionsMock,
+}));
+
+vi.mock("@/lib/push-events", () => ({
+  sendRolePushEvent: sendRolePushEventMock,
 }));
 
 vi.mock("@pos/db", () => ({
@@ -115,6 +120,14 @@ describe("POST /api/transactions printing service items", () => {
     queryRawMock.mockResolvedValue([{ id: "material-1" }]);
     inventoryLogCreateManyMock.mockResolvedValue({ count: 1 });
     customerUpdateMock.mockResolvedValue({});
+    sendRolePushEventMock.mockResolvedValue({
+      activeCandidates: 1,
+      recipients: 1,
+      attempted: 1,
+      sent: 1,
+      failed: 0,
+      deactivated: 0,
+    });
     dbTransactionMock.mockImplementation(async (callback: any) =>
       callback({
         transaction: { create: transactionCreateMock },
@@ -180,6 +193,7 @@ describe("POST /api/transactions printing service items", () => {
       }),
     );
     expect(queryRawMock).toHaveBeenCalledTimes(1);
+    expect(sendRolePushEventMock).not.toHaveBeenCalled();
     expect(inventoryLogCreateManyMock).toHaveBeenCalledWith({
       data: [
         expect.objectContaining({
@@ -192,5 +206,101 @@ describe("POST /api/transactions printing service items", () => {
         }),
       ],
     });
+  });
+
+  it("notifies cashiers, owners, and admins when sales creates a pending transaction", async () => {
+    requireRoleMock.mockResolvedValue({
+      id: "sales-1",
+      role: "SALES",
+      storeId: "store-main",
+      name: "Sales One",
+    });
+    transactionCreateMock.mockResolvedValue({
+      id: "txn-sales-1",
+      invoiceNumber: "INV-20260523-0002",
+      status: "PENDING_APPROVAL",
+      items: [],
+      salesperson: null,
+    });
+
+    const { POST } = await import("../route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              productId: "material-1",
+              quantity: 1,
+            },
+          ],
+          paymentMethod: "CASH",
+          amountPaid: 0,
+          discount: 0,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          cashierId: null,
+          requestedById: "sales-1",
+          status: "PENDING_APPROVAL",
+        }),
+      }),
+    );
+    expect(sendRolePushEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "pending-transaction-created",
+        storeId: "store-main",
+        roles: ["CASHIER", "OWNER", "ADMIN"],
+        featureKey: "pendingTransactions",
+        payload: expect.objectContaining({
+          title: "Transaksi menunggu approval",
+          url: "/history",
+          tag: "pending-transaction:txn-sales-1",
+        }),
+      }),
+    );
+  });
+
+  it("keeps the sales transaction successful when push notification fails", async () => {
+    sendRolePushEventMock.mockRejectedValueOnce(new Error("Missing VAPID"));
+    requireRoleMock.mockResolvedValue({
+      id: "sales-1",
+      role: "SALES",
+      storeId: "store-main",
+      name: "Sales One",
+    });
+    transactionCreateMock.mockResolvedValue({
+      id: "txn-sales-1",
+      invoiceNumber: "INV-20260523-0002",
+      status: "PENDING_APPROVAL",
+      items: [],
+      salesperson: null,
+    });
+
+    const { POST } = await import("../route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              productId: "material-1",
+              quantity: 1,
+            },
+          ],
+          paymentMethod: "CASH",
+          amountPaid: 0,
+          discount: 0,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
   });
 });

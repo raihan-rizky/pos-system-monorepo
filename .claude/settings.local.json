@@ -36,7 +36,13 @@
       "PowerShell(Get-Content *)",
       "Bash(pnpm playwright *)",
       "Bash(netstat -ano)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(Get-ChildItem \"D:\\\\main_project\\\\pos-system-monorepo\\\\apps\\\\web\\\\components\" -Name)",
+      "Bash(Select-Object -First 30)",
+      "Read(//c/Users/Unknown/.claude/skills/ui-ux-pro-max/**)",
+      "Bash(python scripts/search.py \"POS retail dashboard data-table\" --design-system -p \"POS Shift Management\")",
+      "Bash(python scripts/search.py \"dashboard data-table\" --domain style -n 5)",
+      "Bash(python scripts/search.py \"dashboard data-table\" --domain ux -n 5)"
     ]
   }
 }

@@ -1,9 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, BellOff, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  CheckCircle2,
+  Loader2,
+  ShieldAlert,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 
 import { getLogger } from "@/lib/logger";
+import {
+  isNotificationSoundEnabled,
+  playNotificationSound,
+  setNotificationSoundEnabled,
+} from "@/lib/notification-sound";
 
 const log = getLogger("ui:settings:NotificationsTab");
 type PermissionState = NotificationPermission | "unsupported";
@@ -15,10 +28,13 @@ export default function NotificationsTab() {
   const [permission, setPermission] = useState<PermissionState>("default");
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [isSoundBusy, setIsSoundBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshState();
+    setSoundEnabled(isNotificationSoundEnabled());
   }, []);
 
   const enabled = permission === "granted" && isSubscribed;
@@ -47,6 +63,32 @@ export default function NotificationsTab() {
       await refreshState();
     } finally {
       setIsBusy(false);
+    }
+  };
+
+  const handleSoundToggle = async () => {
+    setIsSoundBusy(true);
+    setMessage(null);
+
+    try {
+      if (soundEnabled) {
+        setNotificationSoundEnabled(false);
+        setSoundEnabled(false);
+        setMessage("Suara notifikasi dinonaktifkan.");
+        return;
+      }
+
+      await playNotificationSound();
+      setNotificationSoundEnabled(true);
+      setSoundEnabled(true);
+      setMessage("Suara notifikasi aktif.");
+    } catch (error) {
+      log.error("[push-settings] Failed to play notification sound", error);
+      setNotificationSoundEnabled(false);
+      setSoundEnabled(false);
+      setMessage("Browser memblokir suara. Klik halaman ini lalu coba lagi.");
+    } finally {
+      setIsSoundBusy(false);
     }
   };
 
@@ -108,6 +150,39 @@ export default function NotificationsTab() {
               {isBusy ? <Loader2 className="h-3 w-3 animate-spin text-surface-500" /> : null}
             </span>
           </button>
+        </div>
+
+        <div className="mt-5 border-t border-surface-100 pt-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${soundEnabled ? "bg-brand-50 text-brand-600" : "bg-surface-100 text-surface-500"}`}>
+                {soundEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-surface-900">Suara notifikasi</p>
+                <p className="mt-1 text-xs font-medium text-surface-500">
+                  {soundEnabled
+                    ? "Suara aktif untuk notifikasi di tab yang sedang terbuka."
+                    : "Suara nonaktif."}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={soundEnabled}
+              onClick={() => void handleSoundToggle()}
+              disabled={isSoundBusy}
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${soundEnabled ? "bg-brand-600" : "bg-surface-300"}`}
+            >
+              <span
+                className={`absolute top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${soundEnabled ? "translate-x-6" : "translate-x-1"}`}
+              >
+                {isSoundBusy ? <Loader2 className="h-3 w-3 animate-spin text-surface-500" /> : null}
+              </span>
+            </button>
+          </div>
         </div>
 
         {blocked ? (

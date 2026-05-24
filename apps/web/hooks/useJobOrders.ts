@@ -38,6 +38,7 @@ export interface JobOrder {
   createdAt: string;
   items: JobOrderItem[];
   salesperson: { id: string; name: string } | null;
+  customer: { phone: string | null } | null;
 }
 
 export interface ProductionActivityLog {
@@ -51,7 +52,21 @@ export interface ProductionActivityLog {
   actorId: string | null;
   actorName: string;
   actorRole: string;
+  eventType?: "STATUS_CHANGE" | "PICKUP_WHATSAPP_SENT";
+  note?: string | null;
   createdAt: string;
+}
+
+export interface PickupNotificationResponse {
+  data: {
+    id: string;
+    jobOrderId: string;
+    channel: "WHATSAPP";
+    eventType: "PICKUP_WHATSAPP_SENT";
+    recipient: string;
+    message: string;
+    createdAt: string;
+  };
 }
 
 // ─── Fetch ──────────────────────────────────────────────────────────────────────
@@ -150,6 +165,31 @@ export function useMoveJobOrder() {
       queryClient.invalidateQueries({
         queryKey: ["job-order-activity", variables.id],
       });
+    },
+  });
+}
+
+export function useSendPickupNotification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<PickupNotificationResponse> => {
+      const res = await fetch(`/api/job-orders/${id}/pickup-notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null) as { message?: string } | null;
+        throw new Error(body?.message || "Failed to send pickup notification");
+      }
+
+      return res.json();
+    },
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["production-activity"] });
+      queryClient.invalidateQueries({ queryKey: ["job-order-activity", id] });
     },
   });
 }

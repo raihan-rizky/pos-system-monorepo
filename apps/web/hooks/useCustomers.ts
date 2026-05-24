@@ -9,7 +9,7 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type CustomerType = "REGULAR" | "VIP" | "CORPORATE";
+export type CustomerType = "UMUM" | "AGEN";
 
 export interface Customer {
   id: string;

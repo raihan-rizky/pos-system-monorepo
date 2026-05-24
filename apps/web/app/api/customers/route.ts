@@ -18,7 +18,7 @@ const createCustomerSchema = z.object({
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   company: z.string().max(100).optional(),
   address: z.string().max(300).optional(),
-  type: z.enum(["REGULAR", "VIP", "CORPORATE"]).default("REGULAR"),
+  type: z.enum(["UMUM", "AGEN"]).default("UMUM"),
   notes: z.string().max(500).optional(),
 });
 
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       ];
     }
 
-    if (type && ["REGULAR", "VIP", "CORPORATE"].includes(type)) {
+    if (type && ["UMUM", "AGEN"].includes(type)) {
       where.type = type;
     }
 
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
         email: email || null,
         company: company || null,
         address: address || null,
-        type: type ?? "REGULAR",
+        type: type ?? "UMUM",
         notes: notes || null,
         storeId,
       },

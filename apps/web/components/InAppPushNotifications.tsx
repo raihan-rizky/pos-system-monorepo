@@ -4,6 +4,10 @@ import { Bell, ExternalLink, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { getLogger } from "@/lib/logger";
+import {
+  isNotificationSoundEnabled,
+  playNotificationSound,
+} from "@/lib/notification-sound";
 
 const log = getLogger("ui:InAppPushNotifications");
 type PushPayload = {
@@ -57,6 +61,12 @@ export function InAppPushNotifications() {
         body: payload.body || DEFAULT_NOTIFICATION.body,
         url: payload.url || DEFAULT_NOTIFICATION.url,
       });
+
+      if (isNotificationSoundEnabled()) {
+        void playNotificationSound().catch((error) => {
+          log.warn("[push][client] Notification sound failed", { error });
+        });
+      }
     };
 
     navigator.serviceWorker.addEventListener("message", onMessage);
