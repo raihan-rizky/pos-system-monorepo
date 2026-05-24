@@ -35,7 +35,8 @@
       "PowerShell(Set-Content *)",
       "PowerShell(Get-Content *)",
       "Bash(pnpm playwright *)",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(git push *)"
     ]
   }
 }

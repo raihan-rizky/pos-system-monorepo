@@ -51,3 +51,6 @@ test_rls.js
 
 #MD Files
 markdown-files/
+
+#claude
+.claude/*
