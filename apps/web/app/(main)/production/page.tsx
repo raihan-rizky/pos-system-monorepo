@@ -12,6 +12,7 @@ import {
   type ProductionActivityLog,
 } from "@/hooks/useJobOrders";
 import KanbanBoard, { KanbanFilter } from "@/components/kanban/KanbanBoard";
+import { ConfirmPickupBroadcastModal } from "@/components/kanban/ConfirmPickupBroadcastModal";
 import { ConfirmDeliveryModal } from "@/components/kanban/ConfirmDeliveryModal";
 import {
   Activity,
@@ -692,6 +693,8 @@ export default function ProductionPage() {
   const [activitySearch, setActivitySearch] = useState("");
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("ALL");
   const [pendingDelivery, setPendingDelivery] = useState<JobOrder | null>(null);
+  const [pendingPickupBroadcast, setPendingPickupBroadcast] =
+    useState<JobOrder | null>(null);
 
   useEffect(() => {
     setNow(Date.now());
@@ -785,10 +788,10 @@ export default function ProductionPage() {
     );
   };
 
-  const handleSendPickupNotification = (orderId: string) => {
-    if (!canUpdateProduction) return;
+  const sendPickupBroadcast = (orderId: string, closeConfirmation = false) => {
     sendPickupNotification.mutate(orderId, {
       onSuccess: () => {
+        if (closeConfirmation) setPendingPickupBroadcast(null);
         refetchActivity();
       },
       onError: (error) => {
@@ -799,6 +802,21 @@ export default function ProductionPage() {
         );
       },
     });
+  };
+
+  const handleSendPickupNotification = (orderId: string) => {
+    if (!canUpdateProduction) return;
+    const order = jobOrders.find((item) => item.id === orderId);
+    if (order?.hasPickupWhatsappNotification) {
+      setPendingPickupBroadcast(order);
+      return;
+    }
+    sendPickupBroadcast(orderId);
+  };
+
+  const handleConfirmPickupBroadcast = (orderId: string) => {
+    if (!canUpdateProduction) return;
+    sendPickupBroadcast(orderId, true);
   };
 
   const lastUpdatedLabel =
@@ -1042,6 +1060,16 @@ export default function ProductionPage() {
         onConfirm={handleConfirmDelivery}
         onClose={() =>
           moveJobOrder.isPending ? undefined : setPendingDelivery(null)
+        }
+      />
+      <ConfirmPickupBroadcastModal
+        order={pendingPickupBroadcast}
+        isPending={sendPickupNotification.isPending}
+        onConfirm={handleConfirmPickupBroadcast}
+        onClose={() =>
+          sendPickupNotification.isPending
+            ? undefined
+            : setPendingPickupBroadcast(null)
         }
       />
     </div>

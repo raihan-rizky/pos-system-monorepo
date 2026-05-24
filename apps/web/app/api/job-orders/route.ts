@@ -34,7 +34,25 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return apiCollection(jobOrders);
+    const notifiedActivity = await db.productionActivityLog.findMany({
+      where: {
+        storeId,
+        transactionId: { in: jobOrders.map((jobOrder) => jobOrder.id) },
+        eventType: "PICKUP_WHATSAPP_SENT",
+      },
+      select: { transactionId: true },
+      distinct: ["transactionId"],
+    });
+    const notifiedTransactionIds = new Set(
+      notifiedActivity.map((activity) => activity.transactionId),
+    );
+
+    return apiCollection(
+      jobOrders.map((jobOrder) => ({
+        ...jobOrder,
+        hasPickupWhatsappNotification: notifiedTransactionIds.has(jobOrder.id),
+      })),
+    );
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

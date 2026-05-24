@@ -39,6 +39,7 @@ export interface JobOrder {
   items: JobOrderItem[];
   salesperson: { id: string; name: string } | null;
   customer: { phone: string | null } | null;
+  hasPickupWhatsappNotification?: boolean;
 }
 
 export interface ProductionActivityLog {
@@ -188,6 +189,14 @@ export function useSendPickupNotification() {
       return res.json();
     },
     onSuccess: (_data, id) => {
+      queryClient.setQueryData<JobOrder[]>(["job-orders"], (old = []) =>
+        old.map((order) =>
+          order.id === id
+            ? { ...order, hasPickupWhatsappNotification: true }
+            : order,
+        ),
+      );
+      queryClient.invalidateQueries({ queryKey: ["job-orders"] });
       queryClient.invalidateQueries({ queryKey: ["production-activity"] });
       queryClient.invalidateQueries({ queryKey: ["job-order-activity", id] });
     },
