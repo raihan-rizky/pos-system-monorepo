@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db, Role } from "@pos/db";
+import { randomUUID } from "node:crypto";
+import { db } from "@pos/db";
 import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("api:push:subscriptions");
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const subscriptionSchema = z.object({
   endpoint: z.string().url(),
@@ -50,27 +52,47 @@ export async function POST(request: Request) {
       featureKeys: parsed.data.features ? Object.keys(parsed.data.features) : [],
     });
 
-    const subscription = await db.pushSubscription.upsert({
-      where: { endpoint: parsed.data.endpoint },
-      update: {
-        userId: user.id,
-        role: user.role as Role,
-        storeId: user.storeId || null,
-        auth: parsed.data.keys?.auth || null,
-        p256dh: parsed.data.keys?.p256dh || null,
-        features: parsed.data.features || defaultFeaturesForRole(user.role),
-        isActive: true,
-      },
-      create: {
-        endpoint: parsed.data.endpoint,
-        userId: user.id,
-        role: user.role as Role,
-        storeId: user.storeId || null,
-        auth: parsed.data.keys?.auth || null,
-        p256dh: parsed.data.keys?.p256dh || null,
-        features: parsed.data.features || defaultFeaturesForRole(user.role),
-      },
-    });
+    const features = getSubscriptionFeatures(parsed.data.features, user.role);
+    const [subscription] = await db.$queryRaw<
+      Array<{ id: string; isActive: boolean }>
+    >`
+      INSERT INTO "pos_push_subscriptions" (
+        "id",
+        "endpoint",
+        "userId",
+        "role",
+        "storeId",
+        "auth",
+        "p256dh",
+        "features",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      )
+      VALUES (
+        ${`push_${randomUUID()}`},
+        ${parsed.data.endpoint},
+        ${user.id},
+        ${user.role}::"Role",
+        ${user.storeId || null},
+        ${parsed.data.keys?.auth || null},
+        ${parsed.data.keys?.p256dh || null},
+        ${JSON.stringify(features)}::jsonb,
+        true,
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT ("endpoint") DO UPDATE SET
+        "userId" = EXCLUDED."userId",
+        "role" = EXCLUDED."role",
+        "storeId" = EXCLUDED."storeId",
+        "auth" = EXCLUDED."auth",
+        "p256dh" = EXCLUDED."p256dh",
+        "features" = EXCLUDED."features",
+        "isActive" = true,
+        "updatedAt" = NOW()
+      RETURNING "id", "isActive"
+    `;
 
     log.info("[POST /api/push/subscriptions] Subscription saved", {
       subscriptionId: subscription.id,
@@ -114,24 +136,21 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const result = await db.pushSubscription.updateMany({
-      where: {
-        endpoint: parsed.data.endpoint,
-        userId: user.id,
-      },
-      data: {
-        isActive: false,
-      },
-    });
+    const result = await db.$executeRaw`
+      UPDATE "pos_push_subscriptions"
+      SET "isActive" = false, "updatedAt" = NOW()
+      WHERE "endpoint" = ${parsed.data.endpoint}
+        AND "userId" = ${user.id}
+    `;
 
     log.info("[DELETE /api/push/subscriptions] Subscription disabled", {
       userId: user.id,
       role: user.role,
       endpoint: describeEndpoint(parsed.data.endpoint),
-      updated: result.count,
+      updated: result,
     });
 
-    return NextResponse.json({ success: true, disabled: result.count });
+    return NextResponse.json({ success: true, disabled: result });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) {
@@ -145,6 +164,15 @@ export async function DELETE(request: Request) {
       { status: 500 },
     );
   }
+}
+
+function getSubscriptionFeatures(
+  features: Record<string, boolean> | undefined,
+  role: string,
+) {
+  return features && Object.keys(features).length > 0
+    ? features
+    : defaultFeaturesForRole(role);
 }
 
 function defaultFeaturesForRole(role: string) {
