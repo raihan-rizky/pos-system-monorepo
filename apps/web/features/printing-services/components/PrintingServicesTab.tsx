@@ -54,7 +54,7 @@ export function PrintingServicesTab({ onAddToCart }: PrintingServicesTabProps) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-col gap-3 bg-white border-b border-surface-100 px-3 py-3 md:flex-row md:items-center md:px-6">
         <div className="flex-1">
           <Input
@@ -75,7 +75,7 @@ export function PrintingServicesTab({ onAddToCart }: PrintingServicesTabProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 pb-24 md:px-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-24 scroll-pb-24 md:px-6 md:pb-24 md:scroll-pb-24">
         {servicesQuery.isLoading ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (

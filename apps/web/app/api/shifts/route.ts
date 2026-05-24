@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
@@ -11,6 +11,27 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED_SORT_FIELDS = ["openedAt", "closedAt", "openingBalance", "closingBalance", "expectedBalance", "discrepancy"] as const;
 type SortField = (typeof ALLOWED_SORT_FIELDS)[number];
+type ShiftWithCashier = Prisma.CashierShiftGetPayload<{
+  include: { cashier: { select: { name: true } } };
+}>;
+
+function serializeShift(
+  shift: ShiftWithCashier,
+  overrides: { expectedBalance?: number } = {},
+) {
+  return {
+    ...shift,
+    openingBalance: Number(shift.openingBalance),
+    closingBalance:
+      shift.closingBalance === null ? null : Number(shift.closingBalance),
+    expectedBalance:
+      overrides.expectedBalance ??
+      (shift.expectedBalance === null ? null : Number(shift.expectedBalance)),
+    discrepancy: shift.discrepancy === null ? null : Number(shift.discrepancy),
+    openedAt: shift.openedAt.toISOString(),
+    closedAt: shift.closedAt?.toISOString() ?? null,
+  };
+}
 
 // GET /api/shifts
 // ?active=true -> Get current active shift
@@ -35,7 +56,7 @@ export async function GET(request: Request) {
           },
         },
       });
-      return NextResponse.json({ data: shift });
+      return NextResponse.json({ data: shift ? serializeShift(shift) : null });
     }
 
     const { page, limit, skip } = parsePagination(searchParams, {
@@ -64,7 +85,7 @@ export async function GET(request: Request) {
 
     // Compute expectedBalance for OPEN shifts (modal + cash transactions within shift period)
     const openShift = shifts.find((s) => s.status === "OPEN" && s.expectedBalance === null);
-    let enrichedShifts = shifts as (typeof shifts[number] & { expectedBalance: bigint | number | null })[];
+    let computedExpectedBalance: number | null = null;
     if (openShift) {
       const cashAgg = await db.transaction.aggregate({
         where: {
@@ -76,14 +97,16 @@ export async function GET(request: Request) {
         _sum: { total: true },
       });
       const totalCash = Number(cashAgg._sum.total || 0);
-      enrichedShifts = shifts.map((s) =>
-        s.id === openShift.id
-          ? { ...s, expectedBalance: Number(s.openingBalance) + totalCash }
-          : s,
-      );
+      computedExpectedBalance = Number(openShift.openingBalance) + totalCash;
     }
 
-    return apiList(enrichedShifts, buildPaginationMeta(total, page, limit));
+    const serializedShifts = shifts.map((shift) =>
+      shift.id === openShift?.id && computedExpectedBalance !== null
+        ? serializeShift(shift, { expectedBalance: computedExpectedBalance })
+        : serializeShift(shift),
+    );
+
+    return apiList(serializedShifts, buildPaginationMeta(total, page, limit));
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

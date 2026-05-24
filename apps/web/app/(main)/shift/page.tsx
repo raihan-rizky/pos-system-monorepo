@@ -51,6 +51,7 @@ function ActiveShiftPanel({
   const { data: summary } = useCloseShiftSummary(shift.id, !shift.isLocalOnly);
   const totalCash = summary?.totalCashTransactions ?? null;
   const expectedBalance = summary?.expectedBalance ?? null;
+  const uptime = useUptime(shift.openedAt);
 
   return (
     <SectionCard
@@ -88,7 +89,7 @@ function ActiveShiftPanel({
         />
         <StatTile
           label="Durasi"
-          value={<UptimeClock openedAt={shift.openedAt} />}
+          value={uptime}
           tone="warning"
           icon={<Clock className="h-4 w-4" />}
         />
@@ -97,7 +98,7 @@ function ActiveShiftPanel({
   );
 }
 
-function UptimeClock({ openedAt }: { openedAt: string }) {
+function useUptime(openedAt: string): string {
   const [uptime, setUptime] = useState<string>("");
 
   React.useEffect(() => {
@@ -121,7 +122,7 @@ function UptimeClock({ openedAt }: { openedAt: string }) {
     return () => clearInterval(interval);
   }, [openedAt]);
 
-  return <span>{uptime}</span>;
+  return uptime;
 }
 
 function NoActiveShiftPanel({ onOpenShift }: { onOpenShift: () => void }) {
