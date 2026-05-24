@@ -78,6 +78,17 @@ export async function POST(request: Request) {
       storeId: event.storeId,
     });
 
+    if (closingDealSubscriptions.length === 0) {
+      return NextResponse.json({
+        success: true,
+        recipients: 0,
+        attempted: 0,
+        sent: 0,
+        failed: 0,
+        deactivated: 0,
+      });
+    }
+
     const customer = event.customerName || event.chatId || "Customer";
     const amount = event.amount ? ` senilai ${formatRupiah(event.amount)}` : "";
     const body = event.message || `${customer} closing deal${amount}.`;

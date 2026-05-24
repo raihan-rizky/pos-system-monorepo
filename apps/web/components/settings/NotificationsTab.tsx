@@ -17,15 +17,19 @@ import {
   playNotificationSound,
   setNotificationSoundEnabled,
 } from "@/lib/notification-sound";
+import {
+  disablePushSubscription,
+  enablePushSubscription,
+  getPushSubscriptionState,
+  type PushPermissionState,
+} from "@/lib/push-subscription";
 
 const log = getLogger("ui:settings:NotificationsTab");
-type PermissionState = NotificationPermission | "unsupported";
 
-const DEV_SW_PATH = "/sw.js";
 const STORAGE_KEY = "pos_push_prompt_seen_v1";
 
 export default function NotificationsTab() {
-  const [permission, setPermission] = useState<PermissionState>("default");
+  const [permission, setPermission] = useState<PushPermissionState>("default");
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -95,22 +99,9 @@ export default function NotificationsTab() {
   async function refreshState() {
     if (typeof window === "undefined") return;
 
-    if (!supportsPushNotifications()) {
-      setPermission("unsupported");
-      setIsSubscribed(false);
-      return;
-    }
-
-    setPermission(Notification.permission);
-
-    if (!window.isSecureContext || Notification.permission !== "granted") {
-      setIsSubscribed(false);
-      return;
-    }
-
-    const registration = await navigator.serviceWorker.getRegistration("/");
-    const subscription = await registration?.pushManager.getSubscription();
-    setIsSubscribed(Boolean(subscription));
+    const state = await getPushSubscriptionState();
+    setPermission(state.permission);
+    setIsSubscribed(state.isSubscribed);
   }
 
   return (
@@ -205,101 +196,10 @@ export default function NotificationsTab() {
   );
 }
 
-async function enablePushSubscription() {
-  if (!supportsPushNotifications()) {
-    throw new Error("Browser ini tidak mendukung push notifications.");
-  }
-
-  if (!window.isSecureContext) {
-    throw new Error("Notifikasi browser hanya bisa aktif di HTTPS atau localhost.");
-  }
-
-  const permission = await Notification.requestPermission();
-  log.info("[push-settings] Browser permission result", { permission });
-
-  if (permission !== "granted") {
-    throw new Error(
-      permission === "denied"
-        ? "Izin notifikasi diblokir. Aktifkan lagi dari site settings browser."
-        : "Browser belum memberikan izin notifikasi.",
-    );
-  }
-
-  const applicationServerKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  if (!applicationServerKey) {
-    throw new Error("VAPID public key belum dikonfigurasi.");
-  }
-
-  const registration = await getServiceWorkerRegistration();
-  const subscription =
-    (await registration.pushManager.getSubscription()) ||
-    (await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(applicationServerKey),
-    }));
-
-  const response = await fetch("/api/push/subscriptions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(subscription.toJSON()),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gagal menyimpan push subscription: ${response.status}`);
-  }
-}
-
-async function disablePushSubscription() {
-  const registration = await navigator.serviceWorker.getRegistration("/");
-  const subscription = await registration?.pushManager.getSubscription();
-
-  if (!subscription) return;
-
-  const endpoint = subscription.endpoint;
-  await subscription.unsubscribe();
-
-  const response = await fetch("/api/push/subscriptions", {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ endpoint }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gagal menonaktifkan push subscription: ${response.status}`);
-  }
-}
-
-async function getServiceWorkerRegistration() {
-  const existing = await navigator.serviceWorker.getRegistration("/");
-  if (existing) return existing;
-
-  const registration = await navigator.serviceWorker.register(DEV_SW_PATH, {
-    scope: "/",
-  });
-  await navigator.serviceWorker.ready;
-  return registration;
-}
-
-function supportsPushNotifications() {
-  return (
-    typeof window !== "undefined" &&
-    "Notification" in window &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window
-  );
-}
-
-function statusText(permission: PermissionState, subscribed: boolean) {
+function statusText(permission: PushPermissionState, subscribed: boolean) {
   if (permission === "unsupported") return "Browser ini tidak mendukung push notifications.";
   if (permission === "denied") return "Permission diblokir di pengaturan browser.";
   if (permission === "default") return "Permission belum diminta.";
   if (subscribed) return "Permission diberikan dan perangkat ini sudah subscribed.";
   return "Permission diberikan, tetapi perangkat ini belum subscribed.";
-}
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }

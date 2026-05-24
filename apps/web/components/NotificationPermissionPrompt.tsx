@@ -4,12 +4,16 @@ import { Bell } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useRole } from "@/components/providers/RoleProvider";
+import {
+  enablePushSubscription,
+  ensurePushSubscriptionSaved,
+  supportsPushNotifications,
+} from "@/lib/push-subscription";
 
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("ui:NotificationPermissionPrompt");
 const STORAGE_KEY = "pos_push_prompt_seen_v1";
-const DEV_SW_PATH = "/sw.js";
 
 export function NotificationPermissionPrompt() {
   const { role } = useRole();
@@ -20,12 +24,8 @@ export function NotificationPermissionPrompt() {
 
   useEffect(() => {
     if (!role || typeof window === "undefined") return;
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+    if (!supportsPushNotifications()) {
       log.info("[push-permission] Browser does not support notifications or service workers");
-      return;
-    }
-    if (!("PushManager" in window)) {
-      log.info("[push-permission] Browser does not support PushManager");
       return;
     }
     if (!window.isSecureContext) {
@@ -35,7 +35,20 @@ export function NotificationPermissionPrompt() {
 
     const isWaPage = pathname === "/wa" || pathname.startsWith("/wa/");
     if (Notification.permission === "granted") {
-      setVisible(false);
+      void ensurePushSubscriptionSaved()
+        .then(() => {
+          localStorage.setItem(STORAGE_KEY, "1");
+          setVisible(false);
+        })
+        .catch((error) => {
+          log.error("[push-permission] Failed to sync existing push permission", error);
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "Gagal menyinkronkan subscription notifikasi.",
+          );
+          setVisible(true);
+        });
       return;
     }
 
@@ -71,41 +84,7 @@ export function NotificationPermissionPrompt() {
         return;
       }
 
-      const permission = await Notification.requestPermission();
-      log.info("[push-permission] Browser permission result", { permission });
-
-      if (permission !== "granted") {
-        setMessage(
-          permission === "denied"
-            ? "Izin notifikasi diblokir. Aktifkan lagi dari site settings browser."
-            : "Browser belum memberikan izin notifikasi.",
-        );
-        return;
-      }
-
-      const applicationServerKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!applicationServerKey) {
-        setMessage("VAPID public key belum dikonfigurasi.");
-        return;
-      }
-
-      const registration = await getServiceWorkerRegistration();
-      const subscription =
-        (await registration.pushManager.getSubscription()) ||
-        (await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(applicationServerKey),
-        }));
-
-      const response = await fetch("/api/push/subscriptions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(subscription.toJSON()),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Gagal menyimpan push subscription: ${response.status}`);
-      }
+      await enablePushSubscription();
 
       localStorage.setItem(STORAGE_KEY, "1");
       setVisible(false);
@@ -155,22 +134,4 @@ export function NotificationPermissionPrompt() {
       </div>
     </div>
   );
-}
-
-async function getServiceWorkerRegistration() {
-  const existing = await navigator.serviceWorker.getRegistration("/");
-  if (existing) return existing;
-
-  const registration = await navigator.serviceWorker.register(DEV_SW_PATH, {
-    scope: "/",
-  });
-  await navigator.serviceWorker.ready;
-  return registration;
-}
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
