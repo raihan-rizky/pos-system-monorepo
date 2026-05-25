@@ -396,14 +396,14 @@ export function ReceiptModal({
                           <td
                             className={`border border-black ${cellPad} text-center`}
                           >
-                            {formatReceiptSize(item.size)}
+                            {formatReceiptSize(item.size) || "-"}
                           </td>
                         )}
                         {hasMaterial && (
                           <td
                             className={`border border-black ${cellPad} text-center`}
                           >
-                            {item.material || ""}
+                            {item.material || "-"}
                           </td>
                         )}
                         {hasRawMaterial && (
@@ -412,7 +412,7 @@ export function ReceiptModal({
                           >
                             {item.rawMaterialQuantity
                               ? `${Number(item.rawMaterialQuantity).toLocaleString("id-ID")} ${item.rawMaterialUnit || ""}`
-                              : ""}
+                              : "-"}
                           </td>
                         )}
                         <td
