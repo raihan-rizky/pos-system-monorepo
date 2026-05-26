@@ -111,7 +111,7 @@ export function ReceiptModal({
                   padding: ${compact ? "2mm 5mm" : "4mm 6mm"} !important;
                   border: none !important;
                   box-shadow: none !important;
-                  overflow: hidden;
+                  overflow: hidden !important;
                   display: flex;
                   flex-direction: column;
                   box-sizing: border-box;
@@ -129,6 +129,8 @@ export function ReceiptModal({
                 body {
                   margin: 0;
                   padding: 0;
+              height: 0 !important;
+              overflow: hidden !important;
                   -webkit-print-color-adjust: exact !important;
                   print-color-adjust: exact !important;
                 }
