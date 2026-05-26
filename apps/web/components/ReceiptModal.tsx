@@ -83,7 +83,7 @@ export function ReceiptModal({
             __html: `
               @media print {
                 @page {
-                  size: 215mm 165mm;
+                  size: 210mm 165mm;
                   margin: 0;
                 }
 
@@ -104,7 +104,7 @@ export function ReceiptModal({
                   position: fixed !important;
                   left: 50% !important;
                   top: 50% !important;
-                  width: 215mm !important;
+                  width: 210mm !important;
                   height: 165mm !important;
                   max-height: 165mm !important;
                   margin: 0 !important;
@@ -139,7 +139,7 @@ export function ReceiptModal({
         <div className="w-full overflow-x-auto pb-4">
           <div
             id="print-receipt"
-            className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[110mm] print:w-[210mm] print:h-[110mm] print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? "text-[9px]" : "text-xs"} ${isCancelled ? "opacity-80" : ""}`}
+            className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[165mm] print:w-[210mm] print:h-[165mm] print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? "text-[9px]" : "text-xs"} ${isCancelled ? "opacity-80" : ""}`}
           >
             {/* DRAFT Banner */}
             {isDraft && (
