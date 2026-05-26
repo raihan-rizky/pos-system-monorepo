@@ -44,7 +44,8 @@ export function ReceiptModal({
   };
 
   const items = transaction?.items || [];
-  const compact = items.length >= 4;
+  const MIN_TABLE_ROWS = 5;
+  const compact = items.length > MIN_TABLE_ROWS;
   const isDraft = transaction?.status === "DRAFT";
   const isPending = transaction?.status === "PENDING_APPROVAL";
   const isVoided = transaction?.status === "VOIDED";
@@ -83,7 +84,7 @@ export function ReceiptModal({
             __html: `
               @media print {
                 @page {
-                  size: 210mm 165mm;
+                  size: 210mm auto;
                   margin: 0;
                 }
 
@@ -105,13 +106,13 @@ export function ReceiptModal({
                   left: 50% !important;
                   top: 50% !important;
                   width: 210mm !important;
-                  height: 165mm !important;
-                  max-height: 165mm !important;
+                  height: auto !important;
+                  max-height: none !important;
                   margin: 0 !important;
                   padding: ${compact ? "2mm 5mm" : "4mm 6mm"} !important;
                   border: none !important;
                   box-shadow: none !important;
-                  overflow: hidden !important;
+                  overflow: visible !important;
                   display: flex;
                   flex-direction: column;
                   box-sizing: border-box;
@@ -141,7 +142,7 @@ export function ReceiptModal({
         <div className="w-full overflow-x-auto pb-4">
           <div
             id="print-receipt"
-            className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[165mm] print:w-[210mm] print:h-[165mm] print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? "text-[9px]" : "text-xs"} ${isCancelled ? "opacity-80" : ""}`}
+            className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[148mm] print:w-[210mm] print:h-auto print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? "text-[9px]" : "text-xs"} ${isCancelled ? "opacity-80" : ""}`}
           >
             {/* DRAFT Banner */}
             {isDraft && (
@@ -434,7 +435,58 @@ export function ReceiptModal({
                         </td>
                       </tr>
                     ))}
-                  </tbody>
+{items.length < MIN_TABLE_ROWS &&
+                    Array.from({ length: MIN_TABLE_ROWS - items.length }).map((_, i) => (
+                      <tr key={`empty-${i}`}>
+                        <td
+                          className={`border border-black ${cellPad} text-center`}
+                        >
+                          {items.length + i + 1}
+                        </td>
+                        <td
+                          className={`border border-black ${cellPad}`}
+                        >
+                          &nbsp;
+                        </td>
+                        {hasSize && (
+                          <td
+                            className={`border border-black ${cellPad} text-center`}
+                          >
+                            &nbsp;
+                          </td>
+                        )}
+                        {hasMaterial && (
+                          <td
+                            className={`border border-black ${cellPad} text-center`}
+                          >
+                            &nbsp;
+                          </td>
+                        )}
+                        {hasRawMaterial && (
+                          <td
+                            className={`border border-black ${cellPad} text-center`}
+                          >
+                            &nbsp;
+                          </td>
+                        )}
+                        <td
+                          className={`border border-black ${cellPad} text-center`}
+                        >
+                          &nbsp;
+                        </td>
+                        <td
+                          className={`border border-black ${cellPad} text-right`}
+                        >
+                          &nbsp;
+                        </td>
+                        <td
+                          className={`border border-black ${cellPad} text-right`}
+                        >
+                          &nbsp;
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
                 </table>
               );
             })()}
