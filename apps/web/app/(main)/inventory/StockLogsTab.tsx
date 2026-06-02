@@ -336,9 +336,9 @@ export default function StockLogsTab() {
                           <p className="text-xs text-slate-700 font-medium truncate max-w-[120px]">{log.person || "—"}</p>
                         </td>
                         <td className="py-3 px-3 align-middle">
-                          <p className="text-sm text-slate-500 max-w-[250px] whitespace-normal break-words">{log.note || "—"}</p>
+                          <p className="text-sm text-slate-500 max-w-[200px] truncate">{log.note || "—"}</p>
                           {isRejected && log.rejectionReason && (
-                            <p className="text-[11px] text-red-600 mt-0.5 max-w-[250px] whitespace-normal break-words">
+                            <p className="text-[11px] text-red-600 mt-0.5 truncate max-w-[200px]">
                               Ditolak: {log.rejectionReason}
                             </p>
                           )}
@@ -427,9 +427,9 @@ export default function StockLogsTab() {
                     {log.status === "APPROVED" && log.approverName && (
                       <p className="text-[11px] text-emerald-600">Disetujui {log.approverName}</p>
                     )}
-                    {log.note && <p className="text-xs text-slate-500 whitespace-normal break-words">{log.note}</p>}
+                    {log.note && <p className="text-xs text-slate-500 truncate">{log.note}</p>}
                     {isRejected && log.rejectionReason && (
-                      <p className="text-[11px] text-red-600 whitespace-normal break-words">Ditolak: {log.rejectionReason}</p>
+                      <p className="text-[11px] text-red-600">Ditolak: {log.rejectionReason}</p>
                     )}
                   </div>
 
