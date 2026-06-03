@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DraftReceiptModal } from "./DraftReceiptModal";
+import { InvoicePrintModal } from "./InvoicePrintModal";
 import { Modal, Button } from "@pos/ui";
 import { formatDate } from "@/lib/utils";
 import type { Transaction } from "@/hooks/useTransactions";
@@ -10,9 +11,8 @@ import { StatusBanner } from "./StatusBanner";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import "./receipt-print.css";
 
-// ── Fix #5: configurable compact threshold ──────────────────────────
-/** Number of line-items at which the receipt switches to compact layout. */
-const COMPACT_ITEM_THRESHOLD = 4;
+/** Default page height in px (165mm ≈ 623px at 96dpi). */
+const DEFAULT_PAGE_H_PX = 623;
 
 // ── Fix #10: inline styles instead of dynamic Tailwind classes ──────
 /** Status → style mapping (purge-safe: no dynamic class generation). */
@@ -47,13 +47,12 @@ export function ReceiptModal({
   draftPrintDivision,
 }: ReceiptModalProps) {
   const { data: storeSettings } = useStoreSettings();
-  const handlePrint = () => {
-    window.print();
-  };
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentScale, setContentScale] = useState(1);
 
   const items = transaction?.items || [];
-  // ── Fix #5: use named constant ─────────────────────────────────
-  const compact = items.length >= COMPACT_ITEM_THRESHOLD;
   const isDraft = transaction?.status === "DRAFT";
 
   const isPending = transaction?.status === "PENDING_APPROVAL";
@@ -76,6 +75,30 @@ export function ReceiptModal({
       isLast: i === words.length - 1,
     }));
   }, [storeName]);
+
+  // ── Dynamic scaling: measure content and shrink to fit one page ──
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+
+    // Reset scale to 1 so we can measure the natural height
+    setContentScale(1);
+
+    // Use rAF to ensure the DOM has rendered at scale=1 before measuring
+    requestAnimationFrame(() => {
+      const containerH = container.clientHeight;
+      const contentH = content.scrollHeight;
+
+      if (contentH > containerH && containerH > 0) {
+        // Shrink to fit, with a small safety margin (0.98)
+        const scale = Math.max((containerH / contentH) * 0.98, 0.45);
+        setContentScale(scale);
+      } else {
+        setContentScale(1);
+      }
+    });
+  }, [items, open, transaction]);
 
   // ── DRAFT transactions: render the A4 formal invoice directly ──
   if (isDraft) {
@@ -111,42 +134,49 @@ export function ReceiptModal({
         {/* ── Fix #1 & #2: print CSS is now a static import ─────── */}
         <div className="w-full overflow-x-auto pb-4">
           <div
+            ref={containerRef}
             id="print-receipt"
-            className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[165mm] print:w-[210mm] print:h-[165mm] print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? "receipt-compact text-[9px]" : "text-xs"} ${isCancelled ? "opacity-80" : ""}`}
+            className={`bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[165mm] print:w-[210mm] print:h-[165mm] print:-mt-4 box-border border border-surface-200 print:border-none shadow-sm print:shadow-none overflow-hidden text-xs ${isCancelled ? "opacity-80" : ""}`}
           >
-            {/* Fix #9: min-h-[165mm] now matches @page 165mm */}
-            {/* Fix #3: single data-driven StatusBanner */}
-            <StatusBanner status={transaction?.status ?? ""} />
-
-            {/* Header — dynamic store info */}
-            <div className={`flex flex-col ${compact ? "mb-1" : "mb-2"}`}>
-              <div className="flex items-baseline">
-                <h1
-                  className={`leading-none font-serif font-extrabold text-[#003366] tracking-wider uppercase ${compact ? "text-[20px]" : "text-[28px]"} ${isCancelled ? "line-through opacity-50" : ""}`}
-                >
-                  {nameParts.map((part, i) => (
-                    <React.Fragment key={i}>
-                      <span
-                        className={compact ? "text-[26px]" : "text-[36px]"}
-                      >
-                        {part.first}
-                      </span>
-                      {part.rest}
-                      {!part.isLast && " "}
-                    </React.Fragment>
-                  ))}
-                </h1>
-              </div>
-              <p
-                className={`text-black ${compact ? "text-[9px] mt-0.5" : "text-[11px] mt-1"}`}
-              >
-                {storeAddress} | Telp: {storePhone}
-              </p>
-            </div>
-
             <div
-              className={`w-full ${compact ? "mb-1.5" : "mb-3"}`}
-              style={
+              ref={contentRef}
+              className="p-4 print:p-4 print:pt-6 flex flex-col origin-top-left w-full"
+              style={{
+                transform: `scale(${contentScale})`,
+                /* Scale shrinks rendered size; expand width to compensate
+                   so content still fills the page width. */
+                width: `${100 / contentScale}%`,
+                minHeight: `${100 / contentScale}%`,
+              }}
+            >
+              {/* Fix #3: single data-driven StatusBanner */}
+              <StatusBanner status={transaction?.status ?? ""} />
+
+              {/* Header — dynamic store info */}
+              <div className="flex flex-col mb-2">
+                <div className="flex items-baseline">
+                  <h1
+                    className={`leading-none font-serif font-extrabold text-[#003366] tracking-wider uppercase text-[28px] ${isCancelled ? "line-through opacity-50" : ""}`}
+                  >
+                    {nameParts.map((part, i) => (
+                      <React.Fragment key={i}>
+                        <span className="text-[36px]">
+                          {part.first}
+                        </span>
+                        {part.rest}
+                        {!part.isLast && " "}
+                      </React.Fragment>
+                    ))}
+                  </h1>
+                </div>
+                <p className="text-black text-[11px] mt-1">
+                  {storeAddress} | Telp: {storePhone}
+                </p>
+              </div>
+
+              <div
+                className="w-full mb-3"
+                style={
                 {
                   borderTop: isVoided
                     ? "2.5px dashed #94a3b8"
@@ -157,288 +187,214 @@ export function ReceiptModal({
                   WebkitPrintColorAdjust: "exact",
                 } as React.CSSProperties
               }
-            />
+              />
 
-            {/* Info */}
-            <div
-              className={`grid grid-cols-2 gap-4 ${compact ? "mb-1.5 text-[10px]" : "mb-3 text-[12px]"}`}
-            >
-              <div className={compact ? "space-y-0.5" : "space-y-2"}>
-                <div className="flex">
-                  <span className={compact ? "w-24" : "w-32"}>
-                    ID Transaksi
-                  </span>
-                  <span className="mr-4">:</span>
-                  <span className="font-bold text-[#cc0000]">
-                    {displayInvoice}
-                  </span>
-                </div>
-                <div className="flex">
-                  <span className={compact ? "w-24" : "w-32"}>Pelanggan</span>
-                  <span className="mr-4">:</span>
-                  <span className="font-bold">
-                    {transaction?.customerName || "Pelanggan Umum"}
-                  </span>
-                </div>
-                <div className="flex">
-                  <span className={compact ? "w-24" : "w-32"}>Sales</span>
-                  <span className="mr-4">:</span>
-                  <span className="font-bold">
-                    {transaction?.salesName ||
-                      transaction?.salesperson?.name ||
-                      "-"}
-                  </span>
-                </div>
-              </div>
-              <div className={compact ? "space-y-0.5" : "space-y-2"}>
-                <div className="flex">
-                  <span className={compact ? "w-20" : "w-24"}>Tanggal</span>
-                  <span className="mr-4">:</span>
-                  <span>
-                    {formatDate(
-                      transaction?.createdAt || new Date().toISOString(),
-                    )}
-                  </span>
-                </div>
-                <div className="flex">
-                  <span className={compact ? "w-20" : "w-24"}>Pembayaran</span>
-                  <span className="mr-4">:</span>
-                  <span>
-                    {transaction?.paymentMethod === "CASH"
-                      ? "Tunai"
-                      : transaction?.paymentMethod}
-                  </span>
-                </div>
-                <div className="flex">
-                  <span className={compact ? "w-20" : "w-24"}>Status</span>
-                  <span className="mr-4">:</span>
-                  {/* ── Fix #10: inline style, not dynamic Tailwind class ── */}
-                  <span className="font-bold" style={{ color: statusInfo.color }}>
-                    {statusInfo.label}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Table — with size/material columns */}
-            {(() => {
-              const serviceItems = items.filter((item) => item.printingServiceId);
-              const hasServiceItems = serviceItems.length > 0;
-              const hasSize = hasServiceItems;
-              const hasMaterial = hasServiceItems;
-              const hasRawMaterial = hasServiceItems;
-              const cellPad = compact ? "py-0.5 px-1.5" : "py-2 px-3";
-              return (
-                <table
-                  className={`w-full border-collapse border border-black ${compact ? "text-[9px] mb-1" : "text-[11px] mb-2"} flex-grow-0 ${isCancelled ? "line-through opacity-60" : ""}`}
-                >
-                  <thead>
-                    <tr>
-                      <th
-                        className={`border border-black ${cellPad} text-center w-10 font-extrabold text-black`}
-                      >
-                        No
-                      </th>
-                      <th
-                        className={`border border-black ${cellPad} text-center w-64 font-extrabold text-black`}
-                      >
-                        Nama Barang
-                      </th>
-                      {hasSize && (
-                        <th
-                          className={`border border-black ${cellPad} text-center w-20 font-extrabold text-black`}
-                        >
-                          Ukuran
-                        </th>
-                      )}
-                      {hasMaterial && (
-                        <th
-                          className={`border border-black ${cellPad} text-center w-32 font-extrabold text-black`}
-                        >
-                          Material
-                        </th>
-                      )}
-                      {hasRawMaterial && (
-                        <th
-                          className={`border border-black ${cellPad} text-center w-32 font-extrabold text-black`}
-                        >
-                          Bahan Dipakai
-                        </th>
-                      )}
-                      <th
-                        className={`border border-black ${cellPad} text-center w-16 font-extrabold text-black`}
-                      >
-                        Qty
-                      </th>
-                      <th
-                        className={`border border-black ${cellPad} text-center w-28 font-extrabold text-black`}
-                      >
-                        Harga Satuan
-                      </th>
-                      <th
-                        className={`border border-black ${cellPad} text-center w-32 font-extrabold text-black`}
-                      >
-                        Total
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* ── Fix #6: fallback key when item.id may be undefined ── */}
-                    {items.map((item, index) => (
-                      <tr key={item.id ?? `item-${index}`}>
-                        <td
-                          className={`border border-black ${cellPad} text-center`}
-                        >
-                          {index + 1}
-                        </td>
-                        <td className={`border border-black ${cellPad}`}>
-                          {item.productName}
-                        </td>
-                        {hasSize && (
-                          <td
-                            className={`border border-black ${cellPad} text-center`}
-                          >
-                            {formatReceiptSize(item.size) || "-"}
-                          </td>
-                        )}
-                        {hasMaterial && (
-                          <td
-                            className={`border border-black ${cellPad} text-center`}
-                          >
-                            {item.material || "-"}
-                          </td>
-                        )}
-                        {hasRawMaterial && (
-                          <td
-                            className={`border border-black ${cellPad} text-center`}
-                          >
-                            {item.rawMaterialQuantity
-                              ? `${Number(item.rawMaterialQuantity).toLocaleString("id-ID")} ${item.rawMaterialUnit || ""}`
-                              : "-"}
-                          </td>
-                        )}
-                        <td
-                          className={`border border-black ${cellPad} text-center`}
-                        >
-                          {item.quantity}
-                        </td>
-                        <td
-                          className={`border border-black ${cellPad} text-right`}
-                        >
-                          {Number(item.unitPrice).toLocaleString("id-ID")}
-                        </td>
-                        <td
-                          className={`border border-black ${cellPad} text-right`}
-                        >
-                          {Number(item.subtotal).toLocaleString("id-ID")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              );
-            })()}
-
-            {/* Notes + Totals */}
-            <div
-              className={`flex justify-between mt-auto ${compact ? "text-[10px]" : "text-[12px]"}`}
-            >
-              <div className="flex-1">
-                {isCancelled && (
-                  <div className={compact ? "text-[10px]" : "text-[12px]"}>
-                    <span className="font-bold">
-                      {isVoided ? "Dibatalkan" : "Direfund"}:{" "}
+              {/* Info */}
+              <div className="grid grid-cols-2 gap-4 mb-3 text-[12px]">
+                <div className="space-y-2">
+                  <div className="flex">
+                    <span className="w-32">
+                      ID Transaksi
                     </span>
-                    <span>Invoice ini tidak sah sebagai bukti pembayaran.</span>
+                    <span className="mr-4">:</span>
+                    <span className="font-bold text-[#cc0000]">
+                      {displayInvoice}
+                    </span>
                   </div>
-                )}
-                {!isCancelled && isDraft && (
-                  <div className={compact ? "text-[10px]" : "text-[12px]"}>
-                    <span className="font-bold">Catatan: </span>
-                    <span>Faktur sementara</span>
+                  <div className="flex">
+                    <span className="w-32">Pelanggan</span>
+                    <span className="mr-4">:</span>
+                    <span className="font-bold">
+                      {transaction?.customerName || "Pelanggan Umum"}
+                    </span>
                   </div>
-                )}
-                {!isCancelled && transaction.note && (
-                  <div className={compact ? "text-[10px]" : "text-[12px]"}>
-                    <span className="font-bold">Catatan: </span>
-                    <span>{transaction.note}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col items-end">
-                <div className={`flex ${compact ? "w-[300px]" : "w-[350px]"}`}>
-                  <div
-                    className={`flex-1 flex items-center justify-end font-bold pr-4 ${compact ? "py-0.5" : "py-2"} ${isCancelled ? "line-through opacity-50" : ""}`}
-                  >
-                    GRAND TOTAL
-                  </div>
-                  <div
-                    className={`border border-black bg-[#e5e7eb] ${compact ? "py-0.5 px-3" : "py-2 px-4"} font-bold text-center ${compact ? "w-[150px]" : "w-[180px]"} ${isCancelled ? "line-through opacity-50" : ""}`}
-                    style={
-                      {
-                        printColorAdjust: "exact",
-                        WebkitPrintColorAdjust: "exact",
-                      } as React.CSSProperties
-                    }
-                  >
-                    Rp {Number(transaction.total).toLocaleString("id-ID")}
+                  <div className="flex">
+                    <span className="w-32">Sales</span>
+                    <span className="mr-4">:</span>
+                    <span className="font-bold">
+                      {transaction?.salesName ||
+                        transaction?.salesperson?.name ||
+                        "-"}
+                    </span>
                   </div>
                 </div>
-                {!isCancelled && (
-                  <>
-                    <div className={`flex ${compact ? "w-[300px]" : "w-[350px]"}`}>
-                      <div
-                        className={`flex-1 flex items-center justify-end font-bold pr-4 ${compact ? "py-0.5" : "py-2"}`}
-                      >
-                        {transaction.status === "DP" ? "UANG MUKA" : "TUNAI"}
-                      </div>
-                      <div
-                        className={`border-l border-r border-b border-black ${compact ? "py-0.5 px-3" : "py-2 px-4"} font-bold text-center ${compact ? "w-[150px]" : "w-[180px]"}`}
-                      >
-                        Rp{" "}
-                        {Number(transaction.amountPaid).toLocaleString("id-ID")}
-                      </div>
+                <div className="space-y-2">
+                  <div className="flex">
+                    <span className="w-24">Tanggal</span>
+                    <span className="mr-4">:</span>
+                    <span>
+                      {formatDate(
+                        transaction?.createdAt || new Date().toISOString(),
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex">
+                    <span className="w-24">Pembayaran</span>
+                    <span className="mr-4">:</span>
+                    <span>
+                      {transaction?.paymentMethod === "CASH"
+                        ? "Tunai"
+                        : transaction?.paymentMethod}
+                    </span>
+                  </div>
+                  <div className="flex">
+                    <span className="w-24">Status</span>
+                    <span className="mr-4">:</span>
+                    {/* ── Fix #10: inline style, not dynamic Tailwind class ── */}
+                    <span className="font-bold" style={{ color: statusInfo.color }}>
+                      {statusInfo.label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              {(() => {
+                const serviceItems = items.filter((item) => item.printingServiceId);
+                const hasSize = serviceItems.length > 0;
+                const cellPad = "py-2 px-3";
+                const MIN_ROWS = 5;
+                const emptyRowCount = Math.max(0, MIN_ROWS - items.length);
+                return (
+                  <table
+                    className={`w-full border-collapse border border-black text-[11px] mb-2 flex-grow-0 ${isCancelled ? "line-through opacity-60" : ""}`}
+                  >
+                    <thead>
+                      <tr>
+                        <th className={`border border-black ${cellPad} text-center w-10 font-extrabold text-black`}>No</th>
+                        <th className={`border border-black ${cellPad} text-center w-64 font-extrabold text-black`}>Nama Barang</th>
+                        {hasSize && (
+                          <th className={`border border-black ${cellPad} text-center w-20 font-extrabold text-black`}>Ukuran</th>
+                        )}
+                        <th className={`border border-black ${cellPad} text-center w-16 font-extrabold text-black`}>Qty</th>
+                        <th className={`border border-black ${cellPad} text-center w-28 font-extrabold text-black`}>Harga Satuan</th>
+                        <th className={`border border-black ${cellPad} text-center w-32 font-extrabold text-black`}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item, index) => (
+                        <tr key={item.id ?? `item-${index}`}>
+                          <td className={`border border-black ${cellPad} text-center`}>{index + 1}</td>
+                          <td className={`border border-black ${cellPad}`}>{item.productName}</td>
+                          {hasSize && (
+                            <td className={`border border-black ${cellPad} text-center`}>{formatReceiptSize(item.size) || "-"}</td>
+                          )}
+                          <td className={`border border-black ${cellPad} text-center`}>{item.quantity}</td>
+                          <td className={`border border-black ${cellPad} text-right`}>{Number(item.unitPrice).toLocaleString("id-ID")}</td>
+                          <td className={`border border-black ${cellPad} text-right`}>{Number(item.subtotal).toLocaleString("id-ID")}</td>
+                        </tr>
+                      ))}
+                      {/* Empty filler rows to maintain minimum 5 rows */}
+                      {Array.from({ length: emptyRowCount }).map((_, i) => (
+                        <tr key={`empty-${i}`}>
+                          <td className={`border border-black ${cellPad} text-center`}>&nbsp;</td>
+                          <td className={`border border-black ${cellPad}`}>&nbsp;</td>
+                          {hasSize && (
+                            <td className={`border border-black ${cellPad}`}>&nbsp;</td>
+                          )}
+                          <td className={`border border-black ${cellPad}`}>&nbsp;</td>
+                          <td className={`border border-black ${cellPad}`}>&nbsp;</td>
+                          <td className={`border border-black ${cellPad}`}>&nbsp;</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
+
+              {/* Notes + Totals */}
+              <div
+                className="flex justify-between mt-auto text-[12px]"
+              >
+                <div className="flex-1">
+                  {isCancelled && (
+                    <div className="text-[12px]">
+                      <span className="font-bold">
+                        {isVoided ? "Dibatalkan" : "Direfund"}:{" "}
+                      </span>
+                      <span>Invoice ini tidak sah sebagai bukti pembayaran.</span>
                     </div>
-                    <div className={`flex ${compact ? "w-[300px]" : "w-[350px]"}`}>
-                      <div
-                        className={`flex-1 flex items-center justify-end font-bold pr-4 ${compact ? "py-0.5" : "py-2"}`}
-                      >
-                        {transaction.status === "DP" ? "SISA" : "KEMBALI"}
-                      </div>
-                      <div
-                        className={`border-l border-r border-b border-black ${compact ? "py-0.5 px-3" : "py-2 px-4"} font-bold text-center ${compact ? "w-[150px]" : "w-[180px]"}`}
-                        style={
-                          transaction.status === "DP"
-                            ? { color: "#b45309" }
-                            : undefined
-                        }
-                      >
-                        Rp{" "}
-                        {transaction.status === "DP"
-                          ? (
-                            Number(transaction.total) -
-                            Number(transaction.amountPaid)
-                          ).toLocaleString("id-ID")
-                          : Number(transaction.change).toLocaleString("id-ID")}
-                      </div>
+                  )}
+                  {!isCancelled && isDraft && (
+                    <div className="text-[12px]">
+                      <span className="font-bold">Catatan: </span>
+                      <span>Faktur sementara</span>
                     </div>
-                  </>
-                )}
-                {isCancelled && (
-                  <div className={`flex ${compact ? "w-[300px]" : "w-[350px]"}`}>
+                  )}
+                  {!isCancelled && transaction.note && (
+                    <div className="text-[12px]">
+                      <span className="font-bold">Catatan: </span>
+                      <span>{transaction.note}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col items-end">
+                  <div className="flex w-[350px]">
                     <div
-                      className={`flex-1 flex items-center justify-end font-bold pr-4 ${compact ? "py-0.5" : "py-2"}`}
+                      className={`flex-1 flex items-center justify-end font-bold pr-4 py-2 ${isCancelled ? "line-through opacity-50" : ""}`}
                     >
-                      {isVoided ? "DIBATALKAN" : "DIREFUND"}
+                      GRAND TOTAL
                     </div>
                     <div
-                      className={`border-l border-r border-b border-black ${compact ? "py-0.5 px-3" : "py-2 px-4"} font-bold text-center ${compact ? "w-[150px]" : "w-[180px]"}`}
-                      style={{ color: isVoided ? "#64748b" : "#dc2626" }}
+                      className={`border border-black bg-[#e5e7eb] py-2 px-4 font-bold text-center w-[180px] ${isCancelled ? "line-through opacity-50" : ""}`}
+                      style={
+                        {
+                          printColorAdjust: "exact",
+                          WebkitPrintColorAdjust: "exact",
+                        } as React.CSSProperties
+                      }
                     >
-                      Rp 0
+                      Rp {Number(transaction.total).toLocaleString("id-ID")}
                     </div>
                   </div>
-                )}
+                  {!isCancelled && (
+                    <>
+                      <div className="flex w-[350px]">
+                        <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2">
+                          {transaction.status === "DP" ? "UANG MUKA" : "TUNAI"}
+                        </div>
+                        <div className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]">
+                          Rp{" "}
+                          {Number(transaction.amountPaid).toLocaleString("id-ID")}
+                        </div>
+                      </div>
+                      <div className="flex w-[350px]">
+                        <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2">
+                          {transaction.status === "DP" ? "SISA" : "KEMBALI"}
+                        </div>
+                        <div
+                          className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]"
+                          style={
+                            transaction.status === "DP"
+                              ? { color: "#b45309" }
+                              : undefined
+                          }
+                        >
+                          Rp{" "}
+                          {transaction.status === "DP"
+                            ? (
+                              Number(transaction.total) -
+                              Number(transaction.amountPaid)
+                            ).toLocaleString("id-ID")
+                            : Number(transaction.change).toLocaleString("id-ID")}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {isCancelled && (
+                    <div className="flex w-[350px]">
+                      <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2">
+                        {isVoided ? "DIBATALKAN" : "DIREFUND"}
+                      </div>
+                      <div
+                        className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]"
+                        style={{ color: isVoided ? "#64748b" : "#dc2626" }}
+                      >
+                        Rp 0
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -458,13 +414,19 @@ export function ReceiptModal({
             <Button
               variant="accent"
               size="lg"
-              onClick={handlePrint}
+              onClick={() => setShowPrintModal(true)}
               className="flex-1"
             >
               Cetak Invoice
             </Button>
           )}
         </div>
+
+        {/* Print size selector modal */}
+        <InvoicePrintModal
+          open={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+        />
       </div>
     </Modal>
   );

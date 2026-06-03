@@ -4,11 +4,13 @@
  * Uses the `.receipt-compact` class toggle for compact padding,
  * instead of dangerouslySetInnerHTML with interpolated values.
  *
- * Page size: 215mm × 165mm (landscape half-A4, matching the screen preview).
+ * Page size is injected dynamically by InvoicePrintModal via a
+ * <style> element. Defaults to 215mm × 165mm if no override.
  */
 
 @media print {
   @page {
+    /* Default size — overridden dynamically by InvoicePrintModal */
     size: 215mm 165mm;
     margin: 0;
   }
@@ -29,9 +31,9 @@
     position: fixed !important;
     left: 50% !important;
     top: 50% !important;
-    width: 215mm !important;
-    height: 165mm !important;
-    max-height: 165mm !important;
+    width: var(--page-w, 215mm) !important;
+    height: var(--page-h, 165mm) !important;
+    max-height: var(--page-h, 165mm) !important;
     margin: 0 !important;
     padding: 4mm 6mm !important;
     border: none !important;
@@ -53,10 +55,7 @@
     page-break-inside: avoid;
   }
 
-  /* Compact variant: tighter padding for 4+ line-item receipts */
-  #print-receipt.receipt-compact {
-    padding: 2mm 5mm !important;
-  }
+
 
   body {
     margin: 0;
