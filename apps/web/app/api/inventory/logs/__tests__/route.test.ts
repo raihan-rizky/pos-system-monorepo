@@ -6,6 +6,7 @@ const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogCountMock = vi.hoisted(() => vi.fn());
+const batchOperationItemFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -17,6 +18,9 @@ vi.mock("@pos/db", () => ({
     inventoryLog: {
       findMany: inventoryLogFindManyMock,
       count: inventoryLogCountMock,
+    },
+    batchOperationItem: {
+      findMany: batchOperationItemFindManyMock,
     },
   },
   Prisma: {},
@@ -33,6 +37,7 @@ describe("GET /api/inventory/logs", () => {
     handleAuthErrorMock.mockReturnValue(null);
     inventoryLogFindManyMock.mockResolvedValue([]);
     inventoryLogCountMock.mockResolvedValue(0);
+    batchOperationItemFindManyMock.mockResolvedValue([]);
   });
 
   it("uses product read permission because stock logs are shown inside Products", async () => {

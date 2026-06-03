@@ -183,9 +183,19 @@ export async function updateSession(request: NextRequest) {
             return redirectResponse;
           }
 
-          // Identity cookies are already set on supabaseResponse (line 167).
-          // No self-redirect needed — the browser will pick them up on the
-          // next navigation. Redirecting to the same URL caused ERR_TOO_MANY_REDIRECTS.
+          if (!hadFreshIdentityCookies) {
+            const redirectResponse = NextResponse.redirect(request.nextUrl);
+            setPosIdentityCookies(
+              redirectResponse,
+              role,
+              posUser.id,
+              posUser.name,
+            );
+            return redirectResponse;
+          }
+
+          // Cookies are already fresh on this request, so no redirect is
+          // needed. Missing or stale cookies are handled once above.
         }
       } else {
         log.warn("user.inactive_or_missing", { username, hasPosUser: Boolean(posUser) });
