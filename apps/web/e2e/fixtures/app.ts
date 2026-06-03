@@ -76,7 +76,11 @@ export async function mockApis(page: Page) {
     if (path === "/api/shifts/close") return json(route, closedShift);
 
     if (path === "/api/transactions" && method === "GET") {
-      return json(route, { data: [transaction, jobOrder], pagination: { total: 2, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
+      const salespersonId = url.searchParams.get("salespersonId");
+      const transactionRows = [transaction, jobOrder].filter((row) =>
+        salespersonId ? row.salespersonId === salespersonId : true,
+      );
+      return json(route, { data: transactionRows, pagination: { total: transactionRows.length, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     }
     if (path === "/api/transactions" && method === "POST") {
       return json(route, { ...transaction, id: "tx-new", invoiceNumber: "INV-20260509-0002" }, 201);
@@ -131,6 +135,16 @@ export async function mockApis(page: Page) {
     if (path.match(/^\/api\/transactions\/[^/]+\/cancel-draft$/)) {
       return json(route, { id: path.split("/")[3], status: "VOIDED" });
     }
+    if (path.match(/^\/api\/transactions\/[^/]+\/pay-debt$/)) {
+      return json(route, {
+        success: true,
+        transaction: {
+          id: path.split("/")[3],
+          amountPaid: jobOrder.total,
+          status: "COMPLETED",
+        },
+      });
+    }
     if (path.match(/^\/api\/transactions\/[^/]+$/)) return json(route, transaction);
     if (path.match(/^\/api\/transactions\/[^/]+\/(approve|reject)$/)) return json(route, transaction);
 
@@ -179,6 +193,7 @@ export async function mockApis(page: Page) {
       return json(route, { data: customers, pagination: { total: customers.length, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     }
     if (path === "/api/customers" && method === "POST") return json(route, { ...customers[0], id: "cust-new" }, 201);
+    if (path.startsWith("/api/customers/") && path.endsWith("/dp-transactions")) return json(route, [jobOrder]);
     if (path.startsWith("/api/customers/") && path.endsWith("/pay-debt")) return json(route, { success: true, customer: { ...customers[0], totalDebt: 0 } });
     if (path.startsWith("/api/customers/")) return json(route, customers[0]);
 

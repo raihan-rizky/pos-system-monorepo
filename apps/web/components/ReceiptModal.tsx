@@ -56,6 +56,12 @@ export function ReceiptModal({
   const isDraft = transaction?.status === "DRAFT";
 
   const isPending = transaction?.status === "PENDING_APPROVAL";
+  const printStatus =
+    isPending && Number(transaction?.amountPaid ?? 0) > 0
+      ? Number(transaction?.amountPaid ?? 0) < Number(transaction?.total ?? 0)
+        ? "DP"
+        : "COMPLETED"
+      : transaction?.status;
   const isVoided = transaction?.status === "VOIDED";
   const isRefunded = transaction?.status === "REFUNDED";
   const isCancelled = isVoided || isRefunded;
@@ -116,7 +122,7 @@ export function ReceiptModal({
   const storePhone = storeSettings?.phone || "0254 393022";
 
   // ── Fix #10: returns inline color, not a Tailwind class ───────
-  const statusInfo = getReceiptStatusStyle(transaction?.status ?? "COMPLETED");
+  const statusInfo = getReceiptStatusStyle(printStatus ?? "COMPLETED");
 
   const modalTitle = isVoided
     ? "Invoice Dibatalkan"
@@ -124,12 +130,10 @@ export function ReceiptModal({
       ? "Invoice Direfund"
       : isDraft
         ? "Faktur Sementara"
-        : isPending
-          ? "Menunggu Persetujuan"
-          : "Transaksi Berhasil";
+        : "Transaksi Berhasil";
 
   return (
-    <Modal open={open} onClose={onClose} title={modalTitle} size="xl">
+    <Modal open={open} onClose={onClose} title={modalTitle} size="5xl">
       <div className="space-y-6">
         {/* ── Fix #1 & #2: print CSS is now a static import ─────── */}
         <div className="w-full overflow-x-auto pb-4">
@@ -150,7 +154,7 @@ export function ReceiptModal({
               }}
             >
               {/* Fix #3: single data-driven StatusBanner */}
-              <StatusBanner status={transaction?.status ?? ""} />
+              <StatusBanner status={printStatus ?? ""} />
 
               {/* Header — dynamic store info */}
               <div className="flex flex-col mb-2">
@@ -351,7 +355,7 @@ export function ReceiptModal({
                     <>
                       <div className="flex w-[350px]">
                         <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2">
-                          {transaction.status === "DP" ? "UANG MUKA" : "TUNAI"}
+                          {printStatus === "DP" ? "UANG MUKA" : "TUNAI"}
                         </div>
                         <div className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]">
                           Rp{" "}
@@ -365,13 +369,13 @@ export function ReceiptModal({
                         <div
                           className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]"
                           style={
-                            transaction.status === "DP"
+                            printStatus === "DP"
                               ? { color: "#b45309" }
                               : undefined
                           }
                         >
                           Rp{" "}
-                          {transaction.status === "DP"
+                          {printStatus === "DP"
                             ? (
                               Number(transaction.total) -
                               Number(transaction.amountPaid)

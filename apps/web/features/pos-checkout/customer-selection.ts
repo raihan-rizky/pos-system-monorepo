@@ -9,6 +9,7 @@ export type CheckoutCustomerSelection =
       customer: {
         id: string;
         name: string;
+        type?: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH";
       };
     }
   | {
@@ -20,6 +21,7 @@ export type CheckoutCustomerSelection =
 export interface ResolvedCheckoutCustomer {
   customerName: string;
   customerId: string | null;
+  customerType: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH";
 }
 
 type CreateCustomerForCheckout = (
@@ -34,6 +36,7 @@ export async function resolveCheckoutCustomer(
     return {
       customerName: GENERAL_CUSTOMER_NAME,
       customerId: null,
+      customerType: "UMUM",
     };
   }
 
@@ -41,6 +44,7 @@ export async function resolveCheckoutCustomer(
     return {
       customerName: selection.customer.name,
       customerId: selection.customer.id,
+      customerType: selection.customer.type ?? "UMUM",
     };
   }
 
@@ -59,5 +63,6 @@ export async function resolveCheckoutCustomer(
   return {
     customerName: customer.name,
     customerId: customer.id,
+    customerType: "UMUM",
   };
 }

@@ -47,6 +47,11 @@ const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
 const ProductPriceLogsTab = lazy(
   () => import("@/app/(main)/products/ProductPriceLogsTab"),
 );
+const CustomerCategoryPricingRulesTab = lazy(() =>
+  import("@/features/customer-category-pricing/components/CustomerCategoryPricingRulesTab").then(
+    (mod) => ({ default: mod.CustomerCategoryPricingRulesTab }),
+  ),
+);
 const ProductImportDrawer = lazy(() =>
   import("@/features/product-import/components/ProductImportDrawer").then(
     (mod) => ({ default: mod.ProductImportDrawer }),
@@ -58,7 +63,7 @@ const BulkStockDrawer = lazy(() =>
   ),
 );
 
-type PageTab = "products" | "prices" | "history" | "logs";
+type PageTab = "products" | "prices" | "special-prices" | "history" | "logs";
 
 function useFitText(value: string | number) {
   const ref = useRef<HTMLParagraphElement>(null);
@@ -158,6 +163,7 @@ function ProductsContent() {
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
   const canUpdateInventory = shouldShowUpdateAction("inventory", canPerform);
   const canViewPriceHistory = role === "OWNER" || role === "ADMIN";
+  const canManageSpecialPrices = role === "OWNER";
   const canChangePrice = canViewPriceHistory;
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -166,14 +172,14 @@ function ProductsContent() {
 
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab = (tabParam && ["products", "prices", "history", "logs"].includes(tabParam) 
+  const initialTab = (tabParam && ["products", "prices", "special-prices", "history", "logs"].includes(tabParam)
     ? tabParam 
     : "products") as PageTab;
   const [activeTab, setActiveTab] = useState<PageTab>(initialTab);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab && ["products", "prices", "history", "logs"].includes(tab)) {
+    if (tab && ["products", "prices", "special-prices", "history", "logs"].includes(tab)) {
       setActiveTab(tab as PageTab);
     }
   }, [searchParams]);
@@ -198,10 +204,19 @@ function ProductsContent() {
   >(null);
 
   const [page, setPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
+  const [stockFilter, setStockFilter] = useState<"all" | "low" | "out" | "negative">("all");
+  const [sortBy, setSortBy] = useState<
+    "name" | "price_asc" | "price_desc" | "stock_asc"
+  >("name");
 
   const productsQuery = useProductsPage(search, categoryId, {
     page,
     limit: PRODUCTS_PER_PAGE,
+    stockStatus:
+      stockFilter === "negative" || stockFilter === "out"
+        ? stockFilter
+        : undefined,
   });
   const productsData = productsQuery.data;
   const isLoading = productsQuery.isLoading;
@@ -223,10 +238,10 @@ function ProductsContent() {
     totalPages,
   );
 
-  // Reset to page 1 whenever search or category filter changes
+  // Reset to page 1 whenever search, category, or stock filter changes
   useEffect(() => {
     setPage(1);
-  }, [search, categoryId]);
+  }, [search, categoryId, stockFilter]);
 
   // Clamp page when result set shrinks (e.g. category change reduces total pages)
   useEffect(() => {
@@ -239,20 +254,12 @@ function ProductsContent() {
     }
   }, [pagination, page]);
 
-  const [showFilters, setShowFilters] = useState(false);
-  const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
-  const [sortBy, setSortBy] = useState<
-    "name" | "price_asc" | "price_desc" | "stock_asc"
-  >("name");
-
   const processedProducts = React.useMemo(() => {
     let result = [...products];
 
     // Status Filter
     if (stockFilter === "low") {
       result = result.filter((p) => p.stock <= p.minStock && p.stock > 0);
-    } else if (stockFilter === "out") {
-      result = result.filter((p) => p.stock <= 0);
     }
 
     // Sort
@@ -323,7 +330,7 @@ function ProductsContent() {
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-purple-50/50 min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 space-y-8">
+      <div className="max-w-[96rem] mx-auto px-4 sm:px-6 lg:px-4 xl:px-6 pt-8 pb-24 space-y-8">
         {/* -- Header -- */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-1">
@@ -445,6 +452,15 @@ function ProductsContent() {
                   },
                 ]
               : []),
+            ...(canManageSpecialPrices
+              ? [
+                  {
+                    id: "special-prices" as PageTab,
+                    label: "Harga Khusus",
+                    icon: <BadgeDollarSign className="w-4 h-4" />,
+                  },
+                ]
+              : []),
             {
               id: "history" as PageTab,
               label: "Riwayat Stok",
@@ -503,6 +519,9 @@ function ProductsContent() {
                   selectedProductId={selectedPriceLogProductId}
                   onSelectedProductChange={setSelectedPriceLogProductId}
                 />
+              )}
+              {activeTab === "special-prices" && canManageSpecialPrices && (
+                <CustomerCategoryPricingRulesTab />
               )}
             </Suspense>
           </div>
@@ -565,6 +584,7 @@ function ProductsContent() {
                               { id: "all", label: "Semua Barang" },
                               { id: "low", label: "Stok Menipis" },
                               { id: "out", label: "Stok Habis" },
+                              { id: "negative", label: "Stok Negatif" },
                             ].map((opt) => (
                               <button
                                 key={opt.id}

@@ -1,85 +1,158 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
+import {
+  Activity,
+  AlertCircle,
+  ChevronDown,
+  CheckCircle2,
+  Edit3,
+  Plus,
+  ReceiptText,
+  Search,
+  Sparkles,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import { Card } from "@pos/ui";
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
-
+import {
+  createSalesperson,
+  listSalespersonTransactions,
+  listSalespersons,
+  updateSalesperson,
+  type Salesperson,
+  type SalespersonTransaction,
+} from "@/features/salespersons/api/salespersons-api";
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("page:main:salespersons");
-interface Salesperson {
-  id: string;
-  name: string;
-  isActive: boolean;
-  storeId: string;
-  createdAt: string;
-  _count?: {
-    transactions: number;
-  };
+
+type FilterStatus = "all" | "active" | "inactive";
+
+interface TransactionLoadState {
+  error: string | null;
+  items: SalespersonTransaction[];
+  loading: boolean;
 }
 
-// ─── Status Toggle ─────────────────────────────────────────────────────────────
+interface StatusToggleProps {
+  checked: boolean;
+  disabled?: boolean;
+  id: string;
+  onChange: () => void;
+}
+
+interface StatCardProps {
+  icon: React.ReactNode;
+  label: string;
+  tone: "blue" | "green" | "orange" | "purple";
+  value: string | number;
+}
+
+const filterLabels: Record<FilterStatus, string> = {
+  all: "Semua",
+  active: "Aktif",
+  inactive: "Nonaktif",
+};
+
+const statToneClasses: Record<StatCardProps["tone"], string> = {
+  blue: "bg-blue-50 text-blue-700 ring-blue-100",
+  green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+  orange: "bg-orange-50 text-orange-700 ring-orange-100",
+  purple: "bg-violet-50 text-violet-700 ring-violet-100",
+};
+
+function formatNumber(value: number): string {
+  return value.toLocaleString("id-ID");
+}
+
+function getInitial(name: string): string {
+  return name.trim().charAt(0).toUpperCase() || "S";
+}
+
+function getErrorText(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatStatus(status: string): string {
+  const labels: Record<string, string> = {
+    COMPLETED: "Lunas",
+    DP: "DP",
+    PENDING_APPROVAL: "Menunggu approval",
+    VOIDED: "Dibatalkan",
+    REFUNDED: "Refund",
+    DRAFT: "Draft",
+  };
+
+  return labels[status] ?? status;
+}
 
 function StatusToggle({
   checked,
-  onChange,
+  disabled = false,
   id,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  id: string;
-}) {
+  onChange,
+}: StatusToggleProps) {
   return (
     <button
       id={id}
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={onChange}
-      className={`
-        relative inline-flex h-6 w-11 items-center rounded-full
-        transition-colors duration-200 cursor-pointer
-        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-2
-        ${checked ? "bg-emerald-500" : "bg-surface-300"}
-      `}
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-2 ${
+        checked ? "bg-emerald-500" : "bg-surface-300"
+      } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
     >
       <span
-        className={`
-          inline-block h-4 w-4 rounded-full bg-white shadow-sm
-          transition-transform duration-200
-          ${checked ? "translate-x-6" : "translate-x-1"}
-        `}
+        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          checked ? "translate-x-6" : "translate-x-1"
+        }`}
       />
     </button>
   );
 }
 
-// ─── Stat Card ──────────────────────────────────────────────────────────────────
-
-function StatCard({
-  label,
-  value,
-  icon,
-  color,
-  delay,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-  delay?: string;
-}) {
+function StatCard({ icon, label, tone, value }: StatCardProps) {
   return (
-    <Card glass className="animate-fade-in" style={delay ? { animationDelay: delay } : undefined}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium text-surface-400 uppercase tracking-wider">
+    <Card className="min-h-[104px] rounded-xl border border-surface-200 bg-white p-4 shadow-sm">
+      <div className="flex h-full items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase text-surface-500">
             {label}
           </p>
-          <p className="text-2xl font-extrabold text-surface-900 mt-2">{value}</p>
+          <p className="mt-2 truncate text-2xl font-extrabold text-surface-950">
+            {value}
+          </p>
         </div>
-        <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center`}>
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ${statToneClasses[tone]}`}
+        >
           {icon}
         </div>
       </div>
@@ -87,12 +160,11 @@ function StatCard({
   );
 }
 
-// ─── Main Page ──────────────────────────────────────────────────────────────────
-
 export default function SalespersonsPage() {
   const { canPerform } = useRole();
   const canCreateSalespersons = shouldShowAction("salesperson", "create", canPerform);
   const canUpdateSalespersons = shouldShowUpdateAction("salesperson", canPerform);
+
   const [salespersons, setSalespersons] = useState<Salesperson[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -100,429 +172,764 @@ export default function SalespersonsPage() {
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
+  const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [expandedSalespersonId, setExpandedSalespersonId] = useState<string | null>(null);
+  const [transactionsBySalesperson, setTransactionsBySalesperson] = useState<
+    Record<string, TransactionLoadState | undefined>
+  >({});
 
-  const fetchSalespersons = useCallback(async () => {
+  const fetchSalespersons = useCallback(async (signal?: AbortSignal): Promise<void> => {
     setLoading(true);
+    setPageError(null);
+
     try {
-      const res = await fetch("/api/salespersons?storeId=store-main");
-      if (res.ok) {
-        const json = await res.json();
-        setSalespersons(json.data ?? []);
-      }
+      const nextSalespersons = await listSalespersons(signal);
+      setSalespersons(nextSalespersons);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+
       log.error("Error fetching salespersons:", error);
+      setPageError("Gagal memuat data sales. Coba muat ulang halaman.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchSalespersons();
+    const controller = new AbortController();
+    void fetchSalespersons(controller.signal);
+    return () => controller.abort();
   }, [fetchSalespersons]);
 
-  // ─── Derived data ───────────────────────────────────────────────────────────
   const totalSales = salespersons.length;
-  const activeSales = salespersons.filter((s) => s.isActive).length;
-  const totalTransactions = salespersons.reduce(
-    (sum: number, s) => sum + (s._count?.transactions || 0),
-    0
+  const activeSales = useMemo(
+    () => salespersons.filter((salesperson) => salesperson.isActive).length,
+    [salespersons]
   );
-  const topPerformer = salespersons.reduce(
-    (top: Salesperson | undefined, s) => ((s._count?.transactions || 0) > (top?._count?.transactions || 0) ? s : top),
-    salespersons[0]
+  const inactiveSales = totalSales - activeSales;
+  const totalTransactions = useMemo(
+    () =>
+      salespersons.reduce(
+        (sum, salesperson) => sum + (salesperson._count?.transactions ?? 0),
+        0
+      ),
+    [salespersons]
+  );
+  const topPerformer = useMemo(
+    () =>
+      salespersons.reduce<Salesperson | undefined>((top, salesperson) => {
+        const currentTotal = salesperson._count?.transactions ?? 0;
+        const topTotal = top?._count?.transactions ?? -1;
+        return currentTotal > topTotal ? salesperson : top;
+      }, undefined),
+    [salespersons]
+  );
+  const filteredSalespersons = useMemo(
+    () =>
+      salespersons.filter((salesperson) => {
+        const matchesSearch = salesperson.name
+          .toLowerCase()
+          .includes(searchQuery.trim().toLowerCase());
+        const matchesStatus =
+          filterStatus === "all" ||
+          (filterStatus === "active" && salesperson.isActive) ||
+          (filterStatus === "inactive" && !salesperson.isActive);
+
+        return matchesSearch && matchesStatus;
+      }),
+    [filterStatus, salespersons, searchQuery]
   );
 
-  const filteredSalespersons = salespersons.filter((sp) => {
-    const matchesSearch = sp.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus =
-      filterStatus === "all" ||
-      (filterStatus === "active" && sp.isActive) ||
-      (filterStatus === "inactive" && !sp.isActive);
-    return matchesSearch && matchesStatus;
-  });
-
-  // ─── Handlers ───────────────────────────────────────────────────────────────
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-
-    try {
-      let res: Response;
-      if (editingId) {
-        res = await fetch(`/api/salespersons/${editingId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), isActive }),
-        });
-      } else {
-        res = await fetch("/api/salespersons", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), storeId: "store-main", isActive }),
-        });
-      }
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ message: "Error tidak diketahui" }));
-      setErrorMessage(errorData.message || "Gagal menyimpan sales");
-        return;
-      }
-
-      setIsModalOpen(false);
-      setName("");
-      setIsActive(true);
-      setEditingId(null);
-      setErrorMessage(null);
-      fetchSalespersons();
-    } catch (error) {
-      log.error("Error saving salesperson:", error);
-      setErrorMessage("Jaringan bermasalah. Silakan coba lagi.");
-    }
-  };
-
-  const handleQuickToggle = async (sp: Salesperson) => {
-    if (!canUpdateSalespersons) return;
-    setTogglingId(sp.id);
-    try {
-      const res = await fetch(`/api/salespersons/${sp.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !sp.isActive }),
-      });
-      if (res.ok) {
-        fetchSalespersons();
-      }
-    } catch (error) {
-      log.error("Error toggling status:", error);
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
-  const openEditModal = (sp: Salesperson) => {
-    if (!canUpdateSalespersons) return;
-    setEditingId(sp.id);
-    setName(sp.name);
-    setIsActive(sp.isActive);
+  const resetModal = useCallback((): void => {
+    setIsModalOpen(false);
+    setEditingId(null);
+    setName("");
+    setIsActive(true);
     setErrorMessage(null);
-    setIsModalOpen(true);
-  };
+    setSaving(false);
+  }, []);
 
-  const openAddModal = () => {
+  const handleSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+      event.preventDefault();
+      const trimmedName = name.trim();
+      if (!trimmedName || saving) return;
+
+      setSaving(true);
+      setErrorMessage(null);
+
+      try {
+        if (editingId) {
+          await updateSalesperson(editingId, {
+            name: trimmedName,
+            isActive,
+          });
+        } else {
+          await createSalesperson({
+            name: trimmedName,
+            isActive,
+          });
+        }
+
+        resetModal();
+        await fetchSalespersons();
+      } catch (error) {
+        log.error("Error saving salesperson:", error);
+        setErrorMessage(getErrorText(error, "Gagal menyimpan sales"));
+        setSaving(false);
+      }
+    },
+    [editingId, fetchSalespersons, isActive, name, resetModal, saving]
+  );
+
+  const handleQuickToggle = useCallback(
+    async (salesperson: Salesperson): Promise<void> => {
+      if (!canUpdateSalespersons || togglingId) return;
+
+      setTogglingId(salesperson.id);
+      setPageError(null);
+
+      try {
+        await updateSalesperson(salesperson.id, {
+          isActive: !salesperson.isActive,
+        });
+        setSalespersons((current) =>
+          current.map((item) =>
+            item.id === salesperson.id
+              ? { ...item, isActive: !salesperson.isActive }
+              : item
+          )
+        );
+      } catch (error) {
+        log.error("Error toggling status:", error);
+        setPageError(getErrorText(error, "Gagal mengubah status sales"));
+      } finally {
+        setTogglingId(null);
+      }
+    },
+    [canUpdateSalespersons, togglingId]
+  );
+
+  const openEditModal = useCallback(
+    (salesperson: Salesperson): void => {
+      if (!canUpdateSalespersons) return;
+      setEditingId(salesperson.id);
+      setName(salesperson.name);
+      setIsActive(salesperson.isActive);
+      setErrorMessage(null);
+      setIsModalOpen(true);
+    },
+    [canUpdateSalespersons]
+  );
+
+  const openAddModal = useCallback((): void => {
     if (!canCreateSalespersons) return;
     setEditingId(null);
     setName("");
     setIsActive(true);
     setErrorMessage(null);
     setIsModalOpen(true);
-  };
+  }, [canCreateSalespersons]);
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  const loadTransactionsForSalesperson = useCallback(
+    async (salespersonId: string): Promise<void> => {
+      const currentState = transactionsBySalesperson[salespersonId];
+      if (currentState?.loading || (currentState?.items.length ?? 0) > 0) return;
+
+      setTransactionsBySalesperson((current) => ({
+        ...current,
+        [salespersonId]: {
+          error: null,
+          items: current[salespersonId]?.items ?? [],
+          loading: true,
+        },
+      }));
+
+      try {
+        const transactions = await listSalespersonTransactions(salespersonId);
+        setTransactionsBySalesperson((current) => ({
+          ...current,
+          [salespersonId]: {
+            error: null,
+            items: transactions,
+            loading: false,
+          },
+        }));
+      } catch (error) {
+        log.error("Error fetching salesperson transactions:", error);
+        setTransactionsBySalesperson((current) => ({
+          ...current,
+          [salespersonId]: {
+            error: getErrorText(error, "Gagal memuat transaksi sales"),
+            items: current[salespersonId]?.items ?? [],
+            loading: false,
+          },
+        }));
+      }
+    },
+    [transactionsBySalesperson]
+  );
+
+  const toggleSalespersonTransactions = useCallback(
+    (salespersonId: string): void => {
+      setExpandedSalespersonId((current) => {
+        if (current === salespersonId) return null;
+        void loadTransactionsForSalesperson(salespersonId);
+        return salespersonId;
+      });
+    },
+    [loadTransactionsForSalesperson]
+  );
+
+  const renderTransactionPanel = useCallback(
+    (salesperson: Salesperson): React.ReactNode => {
+      const state = transactionsBySalesperson[salesperson.id];
+
+      return (
+        <div className="rounded-xl border border-surface-200 bg-surface-50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-extrabold text-surface-950">
+                Transaksi {salesperson.name}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-surface-500">
+                Menampilkan maksimal 20 transaksi terbaru
+              </p>
+            </div>
+            <ReceiptText className="h-5 w-5 shrink-0 text-brand-600" aria-hidden="true" />
+          </div>
+
+          {state?.loading ? (
+            <div className="mt-3 space-y-2">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-12 rounded-lg bg-white animate-pulse"
+                />
+              ))}
+            </div>
+          ) : state?.error ? (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+              {state.error}
+            </div>
+          ) : state?.items.length ? (
+            <div className="mt-3 divide-y divide-surface-200 overflow-hidden rounded-lg border border-surface-200 bg-white">
+              {state.items.map((transaction) => (
+                <div
+                  key={transaction.id}
+                  className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-extrabold text-surface-950">
+                        {transaction.invoiceNumber ?? transaction.draftNumber ?? transaction.id}
+                      </p>
+                      <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[11px] font-bold text-surface-600">
+                        {formatStatus(transaction.status)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-surface-500">
+                      {transaction.customerName || "Pelanggan Umum"} · {formatDateTime(transaction.createdAt)}
+                    </p>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-sm font-extrabold text-surface-950">
+                      {formatCurrency(Number(transaction.total))}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-surface-500">
+                      {transaction.paymentMethod}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 rounded-lg border border-dashed border-surface-300 bg-white p-4 text-sm font-semibold text-surface-500">
+              Belum ada transaksi untuk sales ini.
+            </div>
+          )}
+        </div>
+      );
+    },
+    [transactionsBySalesperson]
+  );
 
   return (
     <>
-      <main className="flex-1 overflow-y-auto">
-        {/* Header */}
-        <header className="px-4 md:px-8 pt-6 md:pt-8 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-extrabold text-surface-900">
-              Tim Sales
-            </h1>
-            <p className="text-sm text-surface-400 mt-1">
-              Kelola tim penjualan dan pantau performa mereka
-            </p>
-          </div>
-          {canCreateSalespersons && (
-            <button
-              id="add-salesperson-btn"
-              onClick={openAddModal}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-semibold text-sm shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-95"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Tambah Sales
-            </button>
-          )}
-        </header>
+      <main className="flex-1 overflow-y-auto bg-surface-50/40">
+        <div className="mx-auto w-full max-w-7xl px-4 pb-24 pt-5 sm:px-6 md:px-8 md:pb-10 md:pt-8">
+          <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                Manajemen sales
+              </div>
+              <h1 className="mt-3 text-2xl font-extrabold text-surface-950 sm:text-3xl">
+                Tim Sales
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-surface-500">
+                Kelola anggota sales yang muncul saat checkout dan pantau kontribusi transaksi mereka.
+              </p>
+            </div>
 
-        <div className="px-4 md:px-8 pb-24 md:pb-8 space-y-6">
-          {/* Stats Row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              label="Total Sales"
-              value={loading ? "..." : totalSales}
-              color="bg-brand-50"
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0c98e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              }
-            />
-            <StatCard
-              label="Aktif"
-              value={loading ? "..." : activeSales}
-              color="bg-emerald-50"
-              delay="0.05s"
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                  <polyline points="22 4 12 14.01 9 11.01" />
-                </svg>
-              }
-            />
-            <StatCard
-              label="Total Transaksi"
-              value={loading ? "..." : totalTransactions}
-              color="bg-accent-50"
-              delay="0.1s"
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97d12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                  <line x1="1" y1="10" x2="23" y2="10" />
-                </svg>
-              }
-            />
-            <StatCard
-              label="Top Performer"
-              value={loading ? "..." : topPerformer?.name || "—"}
-              color="bg-purple-50"
-              delay="0.15s"
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-              }
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Search */}
-            <div className="relative flex-1">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none"
-                width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2"
+            {canCreateSalespersons && (
+              <button
+                id="add-salesperson-btn"
+                onClick={openAddModal}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-2 active:scale-[0.98]"
               >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                id="salesperson-search"
-                type="text"
-                placeholder="Cari nama sales..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
-              />
-            </div>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Tambah Sales
+              </button>
+            )}
+          </section>
 
-            {/* Status Filter */}
-            <div className="flex items-center gap-1 bg-surface-100 rounded-xl p-1">
-              {(["all", "active", "inactive"] as const).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilterStatus(status)}
-                  className={`
-                    px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer
-                    ${filterStatus === status
-                      ? "bg-white text-surface-900 shadow-sm"
-                      : "text-surface-500 hover:text-surface-700"
-                    }
-                  `}
-                >
-                  {status === "all" ? "Semua" : status === "active" ? "Aktif" : "Nonaktif"}
-                </button>
-              ))}
-            </div>
-          </div>
+          <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard
+              icon={<Users className="h-5 w-5" aria-hidden="true" />}
+              label="Total Sales"
+              tone="blue"
+              value={loading ? "..." : formatNumber(totalSales)}
+            />
+            <StatCard
+              icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+              label="Aktif"
+              tone="green"
+              value={loading ? "..." : formatNumber(activeSales)}
+            />
+            <StatCard
+              icon={<Activity className="h-5 w-5" aria-hidden="true" />}
+              label="Transaksi"
+              tone="orange"
+              value={loading ? "..." : formatNumber(totalTransactions)}
+            />
+            <StatCard
+              icon={<UserRound className="h-5 w-5" aria-hidden="true" />}
+              label="Top Performer"
+              tone="purple"
+              value={loading ? "..." : topPerformer?.name ?? "-"}
+            />
+          </section>
 
-          {/* Table */}
-          <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden shadow-sm">
-            {loading ? (
-              <div className="p-6 space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-14 bg-surface-100 rounded-xl animate-pulse" />
+          <section className="mt-5 rounded-xl border border-surface-200 bg-white p-3 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative flex-1">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400"
+                  aria-hidden="true"
+                />
+                <input
+                  id="salesperson-search"
+                  type="text"
+                  placeholder="Cari nama sales..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-surface-200 bg-surface-50 pl-10 pr-4 text-sm text-surface-900 transition placeholder:text-surface-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 rounded-lg bg-surface-100 p-1 sm:flex sm:w-auto">
+                {(["all", "active", "inactive"] as const).map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setFilterStatus(status)}
+                    className={`h-9 rounded-md px-3 text-xs font-bold transition ${
+                      filterStatus === status
+                        ? "bg-white text-surface-950 shadow-sm"
+                        : "text-surface-500 hover:text-surface-800"
+                    }`}
+                  >
+                    {filterLabels[status]}
+                  </button>
                 ))}
               </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-surface-500">
+              <span>{formatNumber(filteredSalespersons.length)} ditampilkan</span>
+              <span className="h-1 w-1 rounded-full bg-surface-300" />
+              <span>{formatNumber(activeSales)} aktif</span>
+              <span className="h-1 w-1 rounded-full bg-surface-300" />
+              <span>{formatNumber(inactiveSales)} nonaktif</span>
+            </div>
+          </section>
+
+          {pageError && (
+            <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-bold">Data belum sinkron</p>
+                <p className="mt-1">{pageError}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void fetchSalespersons()}
+                className="ml-auto shrink-0 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+              >
+                Muat ulang
+              </button>
+            </div>
+          )}
+
+          <section className="mt-5 overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm">
+            {loading ? (
+              <div className="p-4">
+                <div className="grid gap-3 md:hidden">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-28 rounded-xl bg-surface-100 animate-pulse"
+                    />
+                  ))}
+                </div>
+                <div className="hidden space-y-3 md:block">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-14 rounded-lg bg-surface-100 animate-pulse"
+                    />
+                  ))}
+                </div>
+              </div>
             ) : filteredSalespersons.length === 0 ? (
-              <div className="p-12 flex flex-col items-center justify-center text-surface-400">
-                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mb-4 opacity-40">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-                <p className="font-medium text-surface-600">
+              <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-12 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-surface-100 text-surface-400">
+                  <Users className="h-7 w-7" aria-hidden="true" />
+                </div>
+                <p className="mt-4 text-base font-bold text-surface-900">
                   {searchQuery || filterStatus !== "all"
-                    ? "Tidak ada sales yang cocok dengan filter."
-                    : "Belum ada sales. Mulai tambahkan tim sales Anda!"}
+                    ? "Tidak ada sales yang cocok"
+                    : "Belum ada sales"}
+                </p>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-surface-500">
+                  {searchQuery || filterStatus !== "all"
+                    ? "Ubah kata kunci atau filter status untuk melihat anggota lain."
+                    : "Tambahkan sales pertama agar bisa dipilih saat transaksi POS."}
                 </p>
                 {!searchQuery && filterStatus === "all" && canCreateSalespersons && (
                   <button
+                    type="button"
                     onClick={openAddModal}
-                    className="mt-4 text-sm text-brand-600 hover:text-brand-700 font-semibold underline underline-offset-2 cursor-pointer"
+                    className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
                   >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
                     Tambah sales pertama
                   </button>
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-surface-50 border-b border-surface-200">
-                      <th className="py-4 px-5 font-semibold text-xs text-surface-500 uppercase tracking-wider">Nama</th>
-                      <th className="py-4 px-5 font-semibold text-xs text-surface-500 uppercase tracking-wider">Status</th>
-                      <th className="py-4 px-5 font-semibold text-xs text-surface-500 uppercase tracking-wider">Transaksi</th>
-                      <th className="py-4 px-5 font-semibold text-xs text-surface-500 uppercase tracking-wider text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-surface-100">
-                    {filteredSalespersons.map((sp, i) => {
-                      const txCount = sp._count?.transactions || 0;
-                      return (
-                        <tr
-                          key={sp.id}
-                          className="hover:bg-surface-50 transition-colors duration-150"
-                          style={{ animationDelay: `${i * 30}ms` }}
-                        >
-                          {/* Name + Avatar */}
-                          <td className="py-4 px-5">
-                            <div className="flex items-center gap-3">
-                              <div className={`
-                                w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0
-                                ${sp.isActive
-                                  ? "bg-brand-50 text-brand-600"
-                                  : "bg-surface-100 text-surface-400"
-                                }
-                              `}>
-                                {sp.name.charAt(0).toUpperCase()}
-                              </div>
-                              <span className="font-semibold text-sm text-surface-900">{sp.name}</span>
-                            </div>
-                          </td>
+              <>
+                <div className="grid gap-3 p-3 md:hidden">
+                  {filteredSalespersons.map((salesperson) => {
+                    const transactionCount = salesperson._count?.transactions ?? 0;
+                    const share =
+                      totalTransactions > 0
+                        ? Math.min(100, (transactionCount / totalTransactions) * 100)
+                        : 0;
 
-                          {/* Status Toggle */}
-                          <td className="py-4 px-5">
-                            <div className="flex items-center gap-2.5">
-                              {canUpdateSalespersons ? (
-                                <StatusToggle
-                                  id={`toggle-${sp.id}`}
-                                  checked={sp.isActive}
-                                  onChange={() => handleQuickToggle(sp)}
-                                />
-                              ) : (
-                                <span
-                                  className={`inline-flex h-6 min-w-11 items-center justify-center rounded-full px-2 text-[10px] font-bold ${sp.isActive ? "bg-emerald-100 text-emerald-700" : "bg-surface-100 text-surface-500"}`}
+                    return (
+                      <article
+                        key={salesperson.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expandedSalespersonId === salesperson.id}
+                        onClick={() => toggleSalespersonTransactions(salesperson.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            toggleSalespersonTransactions(salesperson.id);
+                          }
+                        }}
+                        className="rounded-xl border border-surface-200 bg-white p-4 text-left shadow-sm transition hover:border-brand-200 hover:bg-brand-50/20 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-base font-extrabold ${
+                              salesperson.isActive
+                                ? "bg-brand-50 text-brand-700"
+                                : "bg-surface-100 text-surface-400"
+                            }`}
+                          >
+                            {getInitial(salesperson.name)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-extrabold text-surface-950">
+                              {salesperson.name}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-surface-500">
+                              {formatNumber(transactionCount)} transaksi
+                            </p>
+                          </div>
+                          {canUpdateSalespersons && (
+                            <button
+                              id={`edit-sp-mobile-${salesperson.id}`}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openEditModal(salesperson);
+                              }}
+                              className="rounded-lg border border-surface-200 p-2 text-surface-500 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                              aria-label={`Ubah ${salesperson.name}`}
+                            >
+                              <Edit3 className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3">
+                          <div>
+                            <p
+                              className={`text-xs font-bold ${
+                                salesperson.isActive
+                                  ? "text-emerald-700"
+                                  : "text-surface-500"
+                              }`}
+                            >
+                              {togglingId === salesperson.id
+                                ? "Menyimpan..."
+                                : salesperson.isActive
+                                  ? "Aktif di checkout"
+                                  : "Tidak tampil di checkout"}
+                            </p>
+                            <div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-surface-100">
+                              <div
+                                className="h-full rounded-full bg-brand-500 transition-all"
+                                style={{ width: `${share}%` }}
+                              />
+                            </div>
+                          </div>
+                          {canUpdateSalespersons ? (
+                            <span onClick={(event) => event.stopPropagation()}>
+                              <StatusToggle
+                                id={`toggle-mobile-${salesperson.id}`}
+                                checked={salesperson.isActive}
+                                disabled={togglingId === salesperson.id}
+                                onChange={() => void handleQuickToggle(salesperson)}
+                              />
+                            </span>
+                          ) : (
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                                salesperson.isActive
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-surface-100 text-surface-500"
+                              }`}
+                            >
+                              {salesperson.isActive ? "Aktif" : "Nonaktif"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-4 flex items-center justify-between border-t border-surface-100 pt-3 text-xs font-bold text-brand-700">
+                          <span>Lihat transaksi</span>
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${
+                              expandedSalespersonId === salesperson.id
+                                ? "rotate-180"
+                                : ""
+                            }`}
+                            aria-hidden="true"
+                          />
+                        </div>
+                        {expandedSalespersonId === salesperson.id && (
+                          <div className="mt-3">
+                            {renderTransactionPanel(salesperson)}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[720px] border-collapse text-left">
+                    <thead>
+                      <tr className="border-b border-surface-200 bg-surface-50">
+                        <th className="px-5 py-4 text-xs font-bold uppercase text-surface-500">
+                          Nama
+                        </th>
+                        <th className="px-5 py-4 text-xs font-bold uppercase text-surface-500">
+                          Status
+                        </th>
+                        <th className="px-5 py-4 text-xs font-bold uppercase text-surface-500">
+                          Transaksi
+                        </th>
+                        <th className="px-5 py-4 text-right text-xs font-bold uppercase text-surface-500">
+                          Aksi
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-100">
+                      {filteredSalespersons.map((salesperson) => {
+                        const transactionCount = salesperson._count?.transactions ?? 0;
+                        const share =
+                          totalTransactions > 0
+                            ? Math.min(100, (transactionCount / totalTransactions) * 100)
+                            : 0;
+
+                        return (
+                          <React.Fragment key={salesperson.id}>
+                            <tr
+                              aria-expanded={expandedSalespersonId === salesperson.id}
+                              className="cursor-pointer transition hover:bg-surface-50"
+                              onClick={() => toggleSalespersonTransactions(salesperson.id)}
+                            >
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold ${
+                                    salesperson.isActive
+                                      ? "bg-brand-50 text-brand-700"
+                                      : "bg-surface-100 text-surface-400"
+                                  }`}
                                 >
-                                  {sp.isActive ? "ON" : "OFF"}
+                                  {getInitial(salesperson.name)}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-extrabold text-surface-950">
+                                    {salesperson.name}
+                                  </p>
+                                  <p className="text-xs font-semibold text-surface-400">
+                                    ID {salesperson.id.slice(0, 8)}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                {canUpdateSalespersons ? (
+                                  <span onClick={(event) => event.stopPropagation()}>
+                                    <StatusToggle
+                                      id={`toggle-${salesperson.id}`}
+                                      checked={salesperson.isActive}
+                                      disabled={togglingId === salesperson.id}
+                                      onChange={() => void handleQuickToggle(salesperson)}
+                                    />
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`rounded-full px-3 py-1 text-xs font-bold ${
+                                      salesperson.isActive
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : "bg-surface-100 text-surface-500"
+                                    }`}
+                                  >
+                                    {salesperson.isActive ? "Aktif" : "Nonaktif"}
+                                  </span>
+                                )}
+                                <span
+                                  className={`text-xs font-bold ${
+                                    salesperson.isActive
+                                      ? "text-emerald-700"
+                                      : "text-surface-500"
+                                  }`}
+                                >
+                                  {togglingId === salesperson.id
+                                    ? "Menyimpan..."
+                                    : salesperson.isActive
+                                      ? "Aktif"
+                                      : "Nonaktif"}
                                 </span>
-                              )}
-                              <span className={`text-xs font-semibold ${sp.isActive ? "text-emerald-600" : "text-surface-400"}`}>
-                                {togglingId === sp.id ? "..." : sp.isActive ? "Aktif" : "Nonaktif"}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Transactions */}
-                          <td className="py-4 px-5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-surface-900">{txCount}</span>
-                              {txCount > 0 && (
-                                <div className="flex-1 max-w-[80px] h-1.5 bg-surface-100 rounded-full overflow-hidden">
+                              </div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex max-w-xs items-center gap-3">
+                                <span className="w-12 text-sm font-extrabold text-surface-950">
+                                  {formatNumber(transactionCount)}
+                                </span>
+                                <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-100">
                                   <div
-                                    className="h-full bg-brand-500 rounded-full transition-all duration-500"
-                                    style={{
-                                      width: `${Math.min(100, (txCount / Math.max(totalTransactions, 1)) * 100)}%`,
-                                    }}
+                                    className="h-full rounded-full bg-brand-500 transition-all"
+                                    style={{ width: `${share}%` }}
                                   />
                                 </div>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-4 px-5 text-right">
-                            {canUpdateSalespersons && (
-                              <button
-                                id={`edit-sp-${sp.id}`}
-                                onClick={() => openEditModal(sp)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                  bg-surface-100 text-surface-600 hover:bg-brand-50 hover:text-brand-700 border border-transparent
-                                  hover:border-brand-200 transition-all duration-200 cursor-pointer"
-                              >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                </svg>
-                                Ubah
-                              </button>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <ChevronDown
+                                  className={`h-4 w-4 text-surface-400 transition-transform ${
+                                    expandedSalespersonId === salesperson.id
+                                      ? "rotate-180"
+                                      : ""
+                                  }`}
+                                  aria-hidden="true"
+                                />
+                                {canUpdateSalespersons && (
+                                  <button
+                                    id={`edit-sp-${salesperson.id}`}
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openEditModal(salesperson);
+                                    }}
+                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-surface-200 bg-white px-3 text-xs font-bold text-surface-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                                  >
+                                    <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+                                    Ubah
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            </tr>
+                            {expandedSalespersonId === salesperson.id && (
+                              <tr>
+                                <td className="bg-surface-50 px-5 py-4" colSpan={4}>
+                                  {renderTransactionPanel(salesperson)}
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
-          </div>
+          </section>
         </div>
       </main>
 
-      {/* ─── Add/Edit Modal ────────────────────────────────────────────────────── */}
       {isModalOpen && (editingId ? canUpdateSalespersons : canCreateSalespersons) && (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-          onClick={(e) => e.target === e.currentTarget && setIsModalOpen(false)}
+          className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4"
+          onClick={(event) => event.target === event.currentTarget && resetModal()}
         >
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-
-          {/* Panel */}
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Brand accent bar */}
-            <div className="h-1 w-full bg-gradient-to-r from-brand-500 to-accent-500" />
-
-            {/* Header */}
-            <div className="px-6 pt-6 pb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-surface-900">
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" />
+          <div className="relative w-full rounded-t-2xl bg-white shadow-2xl sm:max-w-md sm:rounded-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-surface-100 px-5 py-4">
+              <div className="min-w-0">
+                <h2 className="text-lg font-extrabold text-surface-950">
                   {editingId ? "Ubah Sales" : "Tambah Sales"}
                 </h2>
-                <p className="text-xs text-surface-500 mt-0.5">
-                  {editingId ? "Perbarui informasi sales" : "Tambahkan anggota baru ke tim sales"}
+                <p className="mt-1 text-sm leading-5 text-surface-500">
+                  {editingId
+                    ? "Perbarui nama dan status tampil di checkout."
+                    : "Buat anggota sales baru untuk pilihan transaksi POS."}
                 </p>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-2 rounded-xl hover:bg-surface-100 transition-colors text-surface-400 hover:text-surface-700 cursor-pointer"
+                type="button"
+                onClick={resetModal}
+                className="rounded-lg p-2 text-surface-400 transition hover:bg-surface-100 hover:text-surface-700"
                 aria-label="Tutup modal"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
 
-            {/* Body */}
             <form onSubmit={handleSubmit}>
-              <div className="px-6 pb-5 space-y-4">
-                {/* Name */}
+              <div className="space-y-4 px-5 py-5">
                 <div>
-                  <label htmlFor="sp-name" className="block text-xs font-semibold text-surface-600 mb-1.5">
+                  <label
+                    htmlFor="sp-name"
+                    className="block text-sm font-bold text-surface-700"
+                  >
                     Nama Lengkap
                   </label>
                   <input
@@ -531,60 +938,60 @@ export default function SalespersonsPage() {
                     required
                     maxLength={100}
                     value={name}
-                    onChange={(e) => { setName(e.target.value); setErrorMessage(null); }}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                      focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all
-                      placeholder:text-surface-400"
+                    onChange={(event) => {
+                      setName(event.target.value);
+                      setErrorMessage(null);
+                    }}
+                    className="mt-2 h-11 w-full rounded-lg border border-surface-200 bg-surface-50 px-3 text-sm text-surface-950 transition placeholder:text-surface-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                     placeholder="Contoh: Ahmad Rafi"
                   />
                 </div>
 
-                {/* Status Toggle */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-surface-50 border border-surface-200">
-                  <div>
-                    <p className="text-sm font-semibold text-surface-900">
-                      {isActive ? "Status: Aktif" : "Status: Nonaktif"}
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-surface-200 bg-surface-50 p-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-extrabold text-surface-950">
+                      {isActive ? "Aktif di checkout" : "Nonaktif"}
                     </p>
-                    <p className="text-xs text-surface-500 mt-0.5">
-                      {isActive ? "Tampil di dropdown POS saat checkout" : "Tersembunyi dari dropdown POS"}
+                    <p className="mt-1 text-xs leading-5 text-surface-500">
+                      {isActive
+                        ? "Sales bisa dipilih saat transaksi POS."
+                        : "Sales disimpan, tetapi tidak tampil di POS."}
                     </p>
                   </div>
                   <StatusToggle
                     id="modal-status-toggle"
                     checked={isActive}
-                    onChange={() => setIsActive(!isActive)}
+                    onChange={() => setIsActive((current) => !current)}
                   />
                 </div>
 
-                {/* Error Message */}
                 {errorMessage && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium flex items-start gap-2">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 mt-0.5">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="15" y1="9" x2="9" y2="15" />
-                      <line x1="9" y1="9" x2="15" y2="15" />
-                    </svg>
-                    {errorMessage}
+                  <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <p className="font-semibold">{errorMessage}</p>
                   </div>
                 )}
               </div>
 
-              {/* Footer */}
-              <div className="px-6 pb-6 flex items-center gap-3">
+              <div className="flex items-center gap-3 border-t border-surface-100 px-5 pb-5 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600
-                    hover:bg-surface-50 transition-colors cursor-pointer"
+                  onClick={resetModal}
+                  disabled={saving}
+                  className="h-11 flex-1 rounded-xl border border-surface-200 bg-white text-sm font-bold text-surface-700 transition hover:bg-surface-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold
-                    hover:bg-brand-700 transition-colors cursor-pointer active:scale-95"
+                  disabled={saving || !name.trim()}
+                  className="h-11 flex-1 rounded-xl bg-brand-600 text-sm font-bold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-surface-300"
                 >
-                  {editingId ? "Simpan Perubahan" : "Tambah Sales"}
+                  {saving
+                    ? "Menyimpan..."
+                    : editingId
+                      ? "Simpan Perubahan"
+                      : "Tambah Sales"}
                 </button>
               </div>
             </form>

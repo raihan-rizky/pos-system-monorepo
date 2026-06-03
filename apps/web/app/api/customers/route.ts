@@ -53,6 +53,11 @@ export async function GET(request: Request) {
       where.type = type;
     }
 
+    const hasDebt = searchParams.get("hasDebt") === "true";
+    if (hasDebt) {
+      where.totalDebt = { gt: 0 };
+    }
+
     const [total, customers] = await db.$transaction([
       db.customer.count({ where }),
       db.customer.findMany({

@@ -1,6 +1,7 @@
 export const STOCK_ONLY_STORAGE_KEY = "pos:hide-out-of-stock";
 
 export type ProductStockOnly = { stock?: number | null };
+export type ProductStockStatusFilter = "all" | "out" | "negative";
 
 /**
  * Returns a Prisma `where` fragment that drops products with stock <= 0,
@@ -11,6 +12,14 @@ export function buildProductStockFilter(
   inStockOnly: boolean,
 ): { stock: { gt: 0 } } | undefined {
   return inStockOnly ? { stock: { gt: 0 } } : undefined;
+}
+
+export function buildProductStockStatusFilter(
+  status?: ProductStockStatusFilter | null,
+): { stock: { equals: 0 } } | { stock: { lt: 0 } } | undefined {
+  if (status === "out") return { stock: { equals: 0 } };
+  if (status === "negative") return { stock: { lt: 0 } };
+  return undefined;
 }
 
 /**

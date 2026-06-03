@@ -6,7 +6,11 @@ import {
   parseSearchQuery,
   buildProductSearchOR,
 } from "@/features/pos-search/pos-search";
-import { buildProductStockFilter } from "@/features/pos-search/pos-stock-filter";
+import {
+  buildProductStockFilter,
+  buildProductStockStatusFilter,
+  type ProductStockStatusFilter,
+} from "@/features/pos-search/pos-stock-filter";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 
@@ -45,10 +49,13 @@ export async function GET(request: Request) {
       maxLimit: 200,
     });
     const inStockOnly = searchParams.get("inStockOnly") === "true";
+    const stockStatus = searchParams.get("stockStatus") as ProductStockStatusFilter | null;
 
     const tokens = parseSearchQuery(search);
     const searchWhere = buildProductSearchOR(tokens);
-    const stockFilter = buildProductStockFilter(inStockOnly);
+    const stockFilter =
+      buildProductStockStatusFilter(stockStatus) ??
+      buildProductStockFilter(inStockOnly);
 
     const whereClause: Prisma.ProductWhereInput = {
       storeId,

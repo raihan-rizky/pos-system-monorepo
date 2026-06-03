@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildProductStockFilter,
+  buildProductStockStatusFilter,
   matchesStockFilter,
   loadStockOnlyPreference,
   saveStockOnlyPreference,
@@ -14,6 +15,22 @@ describe("buildProductStockFilter", () => {
 
   it("emits a Prisma fragment requiring stock greater than zero", () => {
     expect(buildProductStockFilter(true)).toEqual({ stock: { gt: 0 } });
+  });
+});
+
+describe("buildProductStockStatusFilter", () => {
+  it("returns undefined for all products", () => {
+    expect(buildProductStockStatusFilter("all")).toBeUndefined();
+    expect(buildProductStockStatusFilter(undefined)).toBeUndefined();
+  });
+
+  it("builds precise server-side filters for stock status", () => {
+    expect(buildProductStockStatusFilter("negative")).toEqual({
+      stock: { lt: 0 },
+    });
+    expect(buildProductStockStatusFilter("out")).toEqual({
+      stock: { equals: 0 },
+    });
   });
 });
 

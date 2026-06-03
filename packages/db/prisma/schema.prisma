@@ -115,6 +115,11 @@ enum CustomerType {
   PEMERINTAH
 }
 
+enum CategoryCustomerPricingMode {
+  FLAT_DISCOUNT
+  PERCENT_DISCOUNT
+}
+
 // ============================================================
 // MODELS
 // ============================================================
@@ -136,6 +141,8 @@ model User {
   batchOperations       BatchOperation[] @relation("created_batch_operations")
   undoneBatchOperations BatchOperation[] @relation("undone_batch_operations")
   recordedExpenses      Expense[]     @relation("recorded_expenses")
+  createdCategoryCustomerPricingRules CategoryCustomerPricingRule[] @relation("created_category_customer_pricing_rules")
+  updatedCategoryCustomerPricingRules CategoryCustomerPricingRule[] @relation("updated_category_customer_pricing_rules")
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
@@ -157,6 +164,7 @@ model Store {
   customers    Customer[]
   batchOperations BatchOperation[]
   priceLogs    ProductPriceLog[]
+  customerCategoryPricingRules CategoryCustomerPricingRule[]
   productionActivityLogs ProductionActivityLog[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -171,6 +179,7 @@ model Category {
   color    String?   // Hex color for category badge
   order    Int       @default(0)
   products Product[]
+  customerCategoryPricingRules CategoryCustomerPricingRule[]
 
   @@map("pos_categories")
 }
@@ -366,11 +375,20 @@ model TransactionItem {
   unitCost      Decimal?    @db.Decimal(12, 2)
   discount      Decimal     @default(0) @db.Decimal(12, 2)
   subtotal      Decimal     @db.Decimal(12, 2)
+  pricingRuleId String?
+  pricingCustomerType CustomerType?
+  pricingCategoryId String?
+  pricingCategoryName String?
+  pricingMode CategoryCustomerPricingMode?
+  pricingValue Decimal? @db.Decimal(12, 2)
+  originalUnitPrice Decimal? @db.Decimal(12, 2)
+  appliedUnitPrice Decimal? @db.Decimal(12, 2)
 
   @@index([transactionId])
   @@index([productId])
   @@index([printingServiceId])
   @@index([rawMaterialProductId])
+  @@index([pricingRuleId])
   @@map("pos_transaction_items")
 }
 
@@ -425,6 +443,29 @@ model ProductPriceLog {
   @@index([productId, createdAt])
   @@index([storeId, field, createdAt])
   @@map("pos_product_price_logs")
+}
+
+model CategoryCustomerPricingRule {
+  id           String                      @id @default(cuid())
+  storeId      String
+  store        Store                       @relation(fields: [storeId], references: [id])
+  categoryId   String
+  category     Category                    @relation(fields: [categoryId], references: [id])
+  customerType CustomerType
+  mode         CategoryCustomerPricingMode
+  value        Decimal                     @db.Decimal(12, 2)
+  isActive     Boolean                     @default(true)
+  createdBy    String?
+  createdByUser User?                      @relation("created_category_customer_pricing_rules", fields: [createdBy], references: [id])
+  updatedBy    String?
+  updatedByUser User?                      @relation("updated_category_customer_pricing_rules", fields: [updatedBy], references: [id])
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
+
+  @@index([storeId, isActive])
+  @@index([storeId, customerType, categoryId])
+  @@index([categoryId])
+  @@map("pos_category_customer_pricing_rules")
 }
 
 enum ProductPriceLogField {

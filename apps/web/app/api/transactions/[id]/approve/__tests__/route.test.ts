@@ -58,6 +58,9 @@ describe("POST /api/transactions/[id]/approve", () => {
       storeId: "store-main",
       status: "PENDING_APPROVAL",
       total: 50000,
+      paymentMethod: "TRANSFER",
+      amountPaid: 50000,
+      change: 0,
       customerId: "customer-1",
       items: [
         { productId: "product-1", quantity: 2 },
@@ -116,5 +119,61 @@ describe("POST /api/transactions/[id]/approve", () => {
     expect(transactionFindUniqueOrThrowMock).not.toHaveBeenCalled();
     expect(productUpdateManyMock).not.toHaveBeenCalled();
     expect(inventoryLogCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("approves a pending transaction without re-entering payment fields", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL" },
+      data: expect.objectContaining({
+        status: "COMPLETED",
+        cashierId: "cashier-1",
+        paymentMethod: "TRANSFER",
+        amountPaid: 50000,
+        change: 0,
+      }),
+    });
+  });
+
+  it("preserves stored overpayment and change when approving", async () => {
+    transactionFindFirstMock.mockResolvedValueOnce({
+      id: "tx-1",
+      invoiceNumber: "INV-20260520-0001",
+      storeId: "store-main",
+      status: "PENDING_APPROVAL",
+      total: 50000,
+      paymentMethod: "CASH",
+      amountPaid: 60000,
+      change: 10000,
+      customerId: "customer-1",
+      items: [{ productId: "product-1", quantity: 1 }],
+    });
+    queryRawMock.mockResolvedValueOnce([{ id: "product-1" }]);
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL" },
+      data: expect.objectContaining({
+        status: "COMPLETED",
+        amountPaid: 60000,
+        change: 10000,
+      }),
+    });
   });
 });

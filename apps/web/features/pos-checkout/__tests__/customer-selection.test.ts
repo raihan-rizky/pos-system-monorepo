@@ -14,6 +14,7 @@ describe("resolveCheckoutCustomer", () => {
     ).resolves.toEqual({
       customerName: GENERAL_CUSTOMER_NAME,
       customerId: null,
+      customerType: "UMUM",
     });
     expect(createCustomer).not.toHaveBeenCalled();
   });
@@ -28,6 +29,7 @@ describe("resolveCheckoutCustomer", () => {
           customer: {
             id: "customer-1",
             name: "PT Maju",
+            type: "AGEN",
           },
         },
         createCustomer,
@@ -35,6 +37,7 @@ describe("resolveCheckoutCustomer", () => {
     ).resolves.toEqual({
       customerName: "PT Maju",
       customerId: "customer-1",
+      customerType: "AGEN",
     });
     expect(createCustomer).not.toHaveBeenCalled();
   });
@@ -53,6 +56,7 @@ describe("resolveCheckoutCustomer", () => {
     await expect(resolveCheckoutCustomer(selection, createCustomer)).resolves.toEqual({
       customerName: "Budi",
       customerId: "customer-new",
+      customerType: "UMUM",
     });
     expect(createCustomer).toHaveBeenCalledWith({
       name: "Budi",

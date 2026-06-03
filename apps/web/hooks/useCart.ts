@@ -8,12 +8,25 @@ export interface ProductCartItem {
   productId: string;
   name: string;
   price: number;
+  catalogPrice: number;
   costPrice?: number | null;
   quantity: number;
   unit: string;
   stock: number;
+  categoryId: string;
+  categoryName: string;
   size?: string;
   material?: string;
+  appliedPricing?: {
+    ruleId: string;
+    customerType: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH";
+    categoryId: string;
+    categoryName: string | null;
+    mode: "FLAT_DISCOUNT" | "PERCENT_DISCOUNT";
+    value: number;
+    originalUnitPrice: number;
+    appliedUnitPrice: number;
+  } | null;
 }
 
 export interface PrintingServiceCartItem {
@@ -53,6 +66,9 @@ function loadCartFromStorage(): CartItem[] {
       return {
         ...product,
         lineType: "PRODUCT",
+        catalogPrice: product.catalogPrice ?? product.price,
+        categoryId: product.categoryId ?? "",
+        categoryName: product.categoryName ?? "",
         cartLineId:
           product.cartLineId ||
           buildProductCartLineId(product.productId, product.size, product.material),
@@ -96,7 +112,7 @@ export function useCart() {
   }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; price: number; costPrice?: number | null; unit: string; stock: number; size?: string; material?: string }) => {
+    (product: { id: string; name: string; price: number; costPrice?: number | null; unit: string; stock: number; categoryId: string; categoryName: string; size?: string; material?: string }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -120,12 +136,16 @@ export function useCart() {
             productId: product.id,
             name: product.name,
             price: product.price,
+            catalogPrice: product.price,
             costPrice: product.costPrice ?? null,
             quantity: 1,
             unit: product.unit,
             stock: product.stock,
+            categoryId: product.categoryId,
+            categoryName: product.categoryName,
             size: product.size,
             material: product.material,
+            appliedPricing: null,
           },
         ];
       });

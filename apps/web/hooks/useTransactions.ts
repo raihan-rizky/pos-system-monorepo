@@ -9,6 +9,7 @@ import {
   scheduleTransactionViewInvalidation,
   updateTransactionInHistoryCaches,
 } from "@/features/transaction-history/helpers/invalidate";
+import { buildTransactionHistorySearchParams } from "@/features/transaction-history/helpers/history-params";
 
 export interface Transaction {
   id: string;
@@ -41,6 +42,14 @@ export interface Transaction {
     rawMaterialUnit?: string | null;
     quantity: number;
     unitPrice: number;
+    pricingRuleId?: string | null;
+    pricingCustomerType?: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH" | null;
+    pricingCategoryId?: string | null;
+    pricingCategoryName?: string | null;
+    pricingMode?: "FLAT_DISCOUNT" | "PERCENT_DISCOUNT" | null;
+    pricingValue?: number | null;
+    originalUnitPrice?: number | null;
+    appliedUnitPrice?: number | null;
     subtotal: number;
     product?: { unit: string } | null;
     printingService?: { unit: string } | null;
@@ -64,6 +73,7 @@ export interface TransactionHistoryParams {
   dateFrom?: string;
   dateTo?: string;
   categoryId?: string;
+  status?: string;
   page?: number;
 }
 
@@ -92,13 +102,7 @@ async function fetchTransactions(): Promise<Transaction[]> {
 async function fetchTransactionHistory(
   params: TransactionHistoryParams
 ): Promise<PaginatedTransactions> {
-  const searchParams = new URLSearchParams();
-  if (params.search) searchParams.set("search", params.search);
-  if (params.dateFrom) searchParams.set("dateFrom", params.dateFrom);
-  if (params.dateTo) searchParams.set("dateTo", params.dateTo);
-  if (params.categoryId) searchParams.set("categoryId", params.categoryId);
-  searchParams.set("page", String(params.page || 1));
-  searchParams.set("limit", "10");
+  const searchParams = buildTransactionHistorySearchParams(params);
 
   const res = await fetch(`/api/transactions?${searchParams.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch transactions");
@@ -241,8 +245,8 @@ export function useDeleteTransaction() {
 
 export interface ApproveTransactionInput {
   id: string;
-  paymentMethod: string;
-  amountPaid: number;
+  paymentMethod?: string;
+  amountPaid?: number;
 }
 
 async function approveTransaction(input: ApproveTransactionInput): Promise<Transaction> {

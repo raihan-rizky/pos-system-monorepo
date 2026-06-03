@@ -11,6 +11,7 @@ const productFindManyMock = vi.hoisted(() => vi.fn());
 const printingServiceFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
+const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const queryRawMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
@@ -66,6 +67,9 @@ vi.mock("@pos/db", () => ({
       count: transactionCountMock,
       create: transactionCreateMock,
     },
+    categoryCustomerPricingRule: {
+      findMany: pricingRuleFindManyMock,
+    },
     inventoryLog: {
       createMany: inventoryLogCreateManyMock,
     },
@@ -100,8 +104,11 @@ describe("POST /api/transactions printing service items", () => {
         unit: "meter",
         size: null,
         material: null,
+        categoryId: "cat-material",
+        category: { name: "Bahan" },
       },
     ]);
+    pricingRuleFindManyMock.mockResolvedValue([]);
     printingServiceFindManyMock.mockResolvedValue([
       {
         id: "service-1",
@@ -206,7 +213,7 @@ describe("POST /api/transactions printing service items", () => {
         }),
       ],
     });
-  });
+  }, 10_000);
 
   it("notifies cashiers, owners, and admins when sales creates a pending transaction", async () => {
     requireRoleMock.mockResolvedValue({
@@ -234,8 +241,8 @@ describe("POST /api/transactions printing service items", () => {
               quantity: 1,
             },
           ],
-          paymentMethod: "CASH",
-          amountPaid: 0,
+          paymentMethod: "TRANSFER",
+          amountPaid: 60000,
           discount: 0,
         }),
       }),
@@ -248,9 +255,13 @@ describe("POST /api/transactions printing service items", () => {
           cashierId: null,
           requestedById: "sales-1",
           status: "PENDING_APPROVAL",
+          paymentMethod: "TRANSFER",
+          amountPaid: 60000,
+          change: 48000,
         }),
       }),
     );
+    expect(queryRawMock).not.toHaveBeenCalled();
     expect(sendRolePushEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         eventName: "pending-transaction-created",

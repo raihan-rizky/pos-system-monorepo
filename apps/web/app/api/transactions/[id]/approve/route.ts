@@ -9,8 +9,8 @@ import { buildCustomerUpdateArgs } from "@/features/pos-checkout/post-commit";
 
 const log = getLogger("api:transactions:id:approve");
 const approveTransactionSchema = z.object({
-  paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
-  amountPaid: z.number().min(0),
+  paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional(),
+  amountPaid: z.number().min(0).optional(),
 });
 
 export const dynamic = "force-dynamic";
@@ -34,8 +34,6 @@ export async function POST(
       );
     }
 
-    const { paymentMethod, amountPaid } = parsed.data;
-
     // Fetch the pending transaction
     const transaction = await db.transaction.findFirst({
       where: { id, storeId },
@@ -51,13 +49,20 @@ export async function POST(
     }
 
     const total = Number(transaction.total);
+    const paymentMethod = transaction.paymentMethod as
+      | "CASH"
+      | "DEBIT"
+      | "CREDIT"
+      | "QRIS"
+      | "TRANSFER";
+    const amountPaid = Number(transaction.amountPaid);
     const isDP = amountPaid > 0 && amountPaid < total;
     if (amountPaid === 0) {
       return NextResponse.json({ message: "Pembayaran harus lebih dari 0" }, { status: 422 });
     }
 
     const change = amountPaid > total ? amountPaid - total : 0;
-    const finalAmountPaid = amountPaid > total ? total : amountPaid;
+    const finalAmountPaid = amountPaid;
     const newStatus = isDP ? "DP" : "COMPLETED";
 
     // Keep the interactive transaction focused on the state transition and

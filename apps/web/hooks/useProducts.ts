@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "./useDebounce";
+import type { ProductStockStatusFilter } from "@/features/pos-search/pos-stock-filter";
 
 export interface Product {
   id: string;
@@ -50,6 +51,7 @@ export interface UseProductsOptions {
   page?: number;
   limit?: number;
   inStockOnly?: boolean;
+  stockStatus?: ProductStockStatusFilter;
   initialData?: ProductsResponse;
 }
 
@@ -59,6 +61,7 @@ async function fetchProducts(
   page = 1,
   limit = 100,
   inStockOnly = false,
+  stockStatus?: ProductStockStatusFilter,
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
@@ -66,6 +69,9 @@ async function fetchProducts(
   params.set("page", String(page));
   params.set("limit", String(limit));
   if (inStockOnly) params.set("inStockOnly", "true");
+  if (stockStatus && stockStatus !== "all") {
+    params.set("stockStatus", stockStatus);
+  }
 
   const res = await fetch(`/api/products?${params.toString()}`);
   if (!res.ok) {
@@ -115,7 +121,7 @@ export function useProducts(
   categoryId?: string,
   options: UseProductsOptions = {},
 ) {
-  const { page = 1, limit = 100, inStockOnly = false } = options;
+  const { page = 1, limit = 100, inStockOnly = false, stockStatus } = options;
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
 
   return useQuery({
@@ -126,9 +132,10 @@ export function useProducts(
       page,
       limit,
       inStockOnly,
+      stockStatus,
     ],
     queryFn: () =>
-      fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly),
+      fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly, stockStatus),
     select: (data) => data.data,
     placeholderData: keepPreviousData,
   });
@@ -171,7 +178,7 @@ export function useProductsPage(
   categoryId?: string,
   options: UseProductsOptions = {},
 ) {
-  const { page = 1, limit = 100, inStockOnly = false, initialData } = options;
+  const { page = 1, limit = 100, inStockOnly = false, stockStatus, initialData } = options;
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
 
   return useQuery({
@@ -183,11 +190,12 @@ export function useProductsPage(
       page,
       limit,
       inStockOnly,
+      stockStatus,
     ],
     queryFn: () =>
-      fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly),
+      fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly, stockStatus),
     initialData:
-      debouncedSearch === "" && !categoryId && page === 1 && !inStockOnly
+      debouncedSearch === "" && !categoryId && page === 1 && !inStockOnly && !stockStatus
         ? initialData
         : undefined,
     placeholderData: keepPreviousData,

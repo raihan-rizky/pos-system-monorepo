@@ -41,6 +41,16 @@ const STATUSES = [
   { value: "REFUNDED", label: "↩️ Refund", color: "text-red-600" },
 ];
 
+const STATUS_FILTERS = [
+  { value: "", label: "Semua Status" },
+  { value: "COMPLETED", label: "Lunas" },
+  { value: "PENDING_APPROVAL", label: "Pending" },
+  { value: "DP", label: "DP" },
+  { value: "DRAFT", label: "Sementara" },
+  { value: "VOIDED", label: "Void" },
+  { value: "REFUNDED", label: "Refund" },
+];
+
 const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   COMPLETED: ["DP", "VOIDED", "REFUNDED"],
   DP: ["COMPLETED", "VOIDED"],
@@ -353,6 +363,10 @@ function PaymentBadge({ method }: { method: string }) {
   );
 }
 
+function appliedPricingCount(tx: Transaction) {
+  return tx.items.filter((item) => item.pricingRuleId).length;
+}
+
 // ─── Delete Confirm Modal ─────────────────────────────────────────────────────
 
 function DeleteConfirmModal({
@@ -456,14 +470,15 @@ function ApproveModal({
   onSuccess: () => void;
 }) {
   const approveTx = useApproveTransaction();
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [amountPaid, setAmountPaid] = useState(Number(tx.total));
   const [error, setError] = useState("");
+  const amountPaid = Number(tx.amountPaid);
+  const total = Number(tx.total);
+  const approvalStatus = amountPaid > 0 && amountPaid < total ? "DP" : "Lunas";
 
   const handleApprove = async () => {
     setError("");
     try {
-      await approveTx.mutateAsync({ id: tx.id, paymentMethod, amountPaid });
+      await approveTx.mutateAsync({ id: tx.id });
       onSuccess();
     } catch (err: any) {
       setError(err.message);
@@ -474,35 +489,45 @@ function ApproveModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
         <h2 className="text-lg font-bold text-surface-900">Setujui Permintaan</h2>
-        <p className="text-sm text-surface-500">Invoice: {tx.invoiceNumber} | Total: {formatRupiah(Number(tx.total))}</p>
-        
-        <div>
-          <label className="block text-xs font-semibold text-surface-600 mb-1.5">Metode Pembayaran</label>
-          <div className="grid grid-cols-3 gap-2">
-            {PAYMENT_METHODS.map((pm) => (
-              <button
-                key={pm}
-                onClick={() => setPaymentMethod(pm)}
-                className={`py-2 rounded-xl text-xs font-bold border transition-all ${
-                  paymentMethod === pm
-                    ? "bg-brand-600 text-white border-brand-600"
-                    : "bg-surface-50 text-surface-600 border-surface-200"
-                }`}
-              >
-                {pm}
-              </button>
-            ))}
-          </div>
-        </div>
+        <p className="text-sm text-surface-500">
+          Cocokkan invoice cetak dari sales dengan transaksi pending ini.
+        </p>
 
-        <div>
-          <label className="block text-xs font-semibold text-surface-600 mb-1.5">Jumlah Bayar</label>
-          <input
-            type="number"
-            value={amountPaid || ""}
-            onChange={(e) => setAmountPaid(Number(e.target.value))}
-            className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
+        <div className="rounded-xl border border-surface-200 bg-surface-50 p-4 text-sm">
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-surface-500">Invoice</span>
+            <span className="font-bold text-surface-900">{tx.invoiceNumber}</span>
+          </div>
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-surface-500">Pelanggan</span>
+            <span className="font-semibold text-surface-900">
+              {tx.customerName || "Pelanggan Umum"}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-surface-500">Total</span>
+            <span className="font-bold text-brand-700">{formatRupiah(total)}</span>
+          </div>
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-surface-500">Metode</span>
+            <span className="font-semibold text-surface-900">{tx.paymentMethod}</span>
+          </div>
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-surface-500">Dibayar</span>
+            <span className="font-bold text-surface-900">
+              {formatRupiah(amountPaid)}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-surface-500">Status setelah setujui</span>
+            <span className="font-bold text-surface-900">{approvalStatus}</span>
+          </div>
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-surface-500">Item</span>
+            <span className="font-semibold text-surface-900">
+              {tx.items.length} barang
+            </span>
+          </div>
         </div>
 
         {error && <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>}
@@ -669,6 +694,7 @@ export default function HistoryPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
 
   // Debounce search
@@ -689,6 +715,7 @@ export default function HistoryPage() {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     categoryId: categoryId || undefined,
+    status: statusFilter || undefined,
     page,
   });
 
@@ -696,7 +723,8 @@ export default function HistoryPage() {
   const total = result?.pagination.total ?? 0;
   const totalPages = result?.pagination.totalPages ?? 1;
 
-  const hasActiveFilters = debouncedSearch || dateFrom || dateTo || categoryId;
+  const hasActiveFilters =
+    debouncedSearch || dateFrom || dateTo || categoryId || statusFilter;
 
   const resetFilters = () => {
     setSearchInput("");
@@ -704,6 +732,7 @@ export default function HistoryPage() {
     setDateFrom("");
     setDateTo("");
     setCategoryId("");
+    setStatusFilter("");
     setPage(1);
   };
 
@@ -762,6 +791,22 @@ export default function HistoryPage() {
               <option value="">Semua Kategori</option>
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+
+            {/* Status Dropdown */}
+            <select
+              id="history-status-filter"
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              className="px-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all
+                min-w-[160px]"
+            >
+              {STATUS_FILTERS.map((status) => (
+                <option key={status.value || "all"} value={status.value}>
+                  {status.label}
+                </option>
               ))}
             </select>
           </div>
@@ -871,7 +916,19 @@ export default function HistoryPage() {
                                   : "hover:bg-surface-50";
                         const textClass = isVoided ? "line-through text-surface-400" : "";
                         return (
-                          <tr key={tx.id} className={`${rowBg} transition-colors`}>
+                          <tr
+                            key={tx.id}
+                            className={`${rowBg} transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400`}
+                            tabIndex={0}
+                            role="button"
+                            onClick={() => setSelectedTransaction(tx)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setSelectedTransaction(tx);
+                              }
+                            }}
+                          >
                             <td className={`py-3.5 px-4 text-sm whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-900"}`}>
                               {formatDate(new Date(tx.createdAt))}
                             </td>
@@ -887,7 +944,12 @@ export default function HistoryPage() {
                               {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
                             </td>
                             <td className={`py-3.5 px-4 text-sm ${isVoided ? "text-surface-400 line-through" : "text-surface-600"}`}>
-                              {tx.items.length} Barang
+                              <div>{tx.items.length} Barang</div>
+                              {appliedPricingCount(tx) > 0 && (
+                                <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                                  Harga khusus {appliedPricingCount(tx)} item
+                                </div>
+                              )}
                             </td>
                             <td className={`py-3.5 px-4 text-sm font-bold whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-brand-600"}`}>
                               {formatRupiah(Number(tx.total))}
@@ -898,7 +960,10 @@ export default function HistoryPage() {
                             <td className="py-3.5 px-4">
                               <StatusBadge status={tx.status} />
                             </td>
-                            <td className="py-3.5 px-4 text-right">
+                            <td
+                              className="py-3.5 px-4 text-right"
+                              onClick={(event) => event.stopPropagation()}
+                            >
                               <div className="flex items-center justify-end gap-2">
                                 {!isSalesRole && (
                                   <>
@@ -1018,7 +1083,19 @@ export default function HistoryPage() {
                       : "bg-white border-surface-200 shadow-sm";
 
                     return (
-                      <div key={tx.id} className={`flex flex-col p-4 rounded-2xl border ${cardBg}`}>
+                      <div
+                        key={tx.id}
+                        className={`flex flex-col p-4 rounded-2xl border ${cardBg} cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400`}
+                        tabIndex={0}
+                        role="button"
+                        onClick={() => setSelectedTransaction(tx)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedTransaction(tx);
+                          }
+                        }}
+                      >
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
@@ -1053,7 +1130,10 @@ export default function HistoryPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-surface-100">
+                        <div
+                          className="flex flex-wrap gap-2 pt-3 border-t border-surface-100"
+                          onClick={(event) => event.stopPropagation()}
+                        >
                           <Button
                             variant="secondary"
                             onClick={() => setSelectedTransaction(tx)}

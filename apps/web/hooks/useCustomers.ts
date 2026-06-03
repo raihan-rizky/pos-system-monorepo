@@ -60,6 +60,7 @@ export interface PaginatedCustomers {
 export interface CustomerListParams {
   search?: string;
   type?: CustomerType | "";
+  hasDebt?: boolean;
   page?: number;
   limit?: number;
 }
@@ -84,6 +85,7 @@ async function fetchCustomers(
   const sp = new URLSearchParams();
   if (params.search) sp.set("search", params.search);
   if (params.type) sp.set("type", params.type);
+  if (params.hasDebt) sp.set("hasDebt", "true");
   sp.set("page", String(params.page ?? 1));
   sp.set("limit", String(params.limit ?? 20));
 
@@ -138,6 +140,12 @@ async function deleteCustomer(id: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete customer");
 }
 
+async function fetchCustomerDpTransactions(id: string) {
+  const res = await fetch(`/api/customers/${id}/dp-transactions`);
+  if (!res.ok) throw new Error("Failed to fetch DP transactions");
+  return res.json();
+}
+
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
 export function useCustomers(params: CustomerListParams = {}) {
@@ -155,6 +163,15 @@ export function useCustomerDetail(id: string | null) {
     queryFn: () => fetchCustomerDetail(id!),
     enabled: Boolean(id),
     staleTime: 30_000,
+  });
+}
+
+export function useCustomerDpTransactions(id: string | null) {
+  return useQuery({
+    queryKey: ["customers", id, "dp-transactions"],
+    queryFn: () => fetchCustomerDpTransactions(id!),
+    enabled: Boolean(id),
+    staleTime: 10_000,
   });
 }
 
@@ -225,6 +242,47 @@ export function usePayDebt() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["customers"] });
       qc.invalidateQueries({ queryKey: ["customers", variables.customerId] });
+    },
+  });
+}
+
+export interface PayTransactionDebtInput {
+  transactionId: string;
+  customerId?: string;
+  amount: number;
+  paymentMethod?: string;
+  note?: string;
+}
+
+async function payTransactionDebt(input: PayTransactionDebtInput) {
+  const { transactionId, customerId: _customerId, ...body } = input;
+  const res = await fetch(`/api/transactions/${transactionId}/pay-debt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw Object.assign(new Error(err.message ?? "Failed to pay transaction debt"), {
+      status: res.status,
+      data: err,
+    });
+  }
+  return res.json();
+}
+
+export function usePayTransactionDebt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payTransactionDebt,
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      if (variables.customerId) {
+        qc.invalidateQueries({ queryKey: ["customers", variables.customerId] });
+        qc.invalidateQueries({ queryKey: ["customers", variables.customerId, "dp-transactions"] });
+      }
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }

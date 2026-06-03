@@ -32,9 +32,10 @@ import {
   type CustomerType,
   useCreateCustomer,
   useCustomerDetail,
+  useCustomerDpTransactions,
   useCustomers,
   useDeleteCustomer,
-  usePayDebt,
+  usePayTransactionDebt,
   useUpdateCustomer,
 } from "@/hooks/useCustomers";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -45,6 +46,11 @@ import {
   shouldShowUpdateAction,
 } from "@/features/rbac/helpers/rbac-ui";
 import { CUSTOMER_TYPES, CUSTOMER_TYPE_LABELS } from "@/lib/customers";
+import {
+  getDebtQuickPaymentAmount,
+  getTransactionDebtRemaining,
+  isValidDebtPayment,
+} from "@/features/customer-debt/helpers/debt-payment";
 
 const CustomerImportDrawer = lazy(() =>
   import("@/features/customer-import/components/CustomerImportDrawer").then(
@@ -235,38 +241,83 @@ interface PayDebtModalProps {
   onClose: () => void;
 }
 
+type DpTransaction = {
+  id: string;
+  invoiceNumber: string | null;
+  total: number;
+  amountPaid: number;
+  paymentMethod: string;
+  status: string;
+  createdAt: string;
+  items: { productName: string; quantity: number; subtotal: number }[];
+};
+
 function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
-  const payDebt = usePayDebt();
-  const [amount, setAmount] = useState(0);
+  const dpTransactionsQuery = useCustomerDpTransactions(customer.id);
+  const payTransactionDebt = usePayTransactionDebt();
+  const [amountByTransaction, setAmountByTransaction] = useState<Record<string, number>>({});
   const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [note, setNote] = useState("");
+  const [noteByTransaction, setNoteByTransaction] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
+  const [payingTransactionId, setPayingTransactionId] = useState<string | null>(null);
 
-  const debt = Number(customer.totalDebt);
-  const canPay = amount > 0 && amount <= debt;
+  const dpTransactions = (dpTransactionsQuery.data ?? []) as DpTransaction[];
+  const debt = dpTransactionsQuery.data
+    ? dpTransactions.reduce(
+      (sum, transaction) => sum + getTransactionDebtRemaining(transaction),
+      0,
+    )
+    : Number(customer.totalDebt);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const updateAmount = useCallback((transactionId: string, amount: number) => {
+    setAmountByTransaction((current) => ({
+      ...current,
+      [transactionId]: amount,
+    }));
+  }, []);
+
+  const updateNote = useCallback((transactionId: string, note: string) => {
+    setNoteByTransaction((current) => ({
+      ...current,
+      [transactionId]: note,
+    }));
+  }, []);
+
+  const handleSubmit = async (transaction: DpTransaction) => {
     setError("");
 
+    const remaining = getTransactionDebtRemaining(transaction);
+    const amount = Number(amountByTransaction[transaction.id] ?? 0);
+
+    if (!isValidDebtPayment({ amount, remaining })) {
+      setError("Jumlah pembayaran harus lebih dari 0 dan tidak melebihi sisa piutang.");
+      return;
+    }
+
     try {
-      await payDebt.mutateAsync({
+      setPayingTransactionId(transaction.id);
+      await payTransactionDebt.mutateAsync({
+        transactionId: transaction.id,
         customerId: customer.id,
         amount,
         paymentMethod,
-        note: note || undefined,
+        note: noteByTransaction[transaction.id] || undefined,
       });
-      onClose();
+      updateAmount(transaction.id, 0);
+      updateNote(transaction.id, "");
+      await dpTransactionsQuery.refetch();
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Gagal memproses pembayaran",
       );
+    } finally {
+      setPayingTransactionId(null);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-2 backdrop-blur-sm sm:p-4">
-      <div className="max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-[28px] border border-white/70 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+      <div className="max-h-[calc(100dvh-1rem)] w-full max-w-4xl overflow-y-auto rounded-[28px] border border-white/70 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-red-600">
@@ -285,13 +336,16 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 p-6">
+        <div className="space-y-5 p-4 sm:p-6">
           <div className="rounded-3xl border border-red-200 bg-gradient-to-br from-red-50 via-white to-amber-50 p-5">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-red-600">
-              Sisa Piutang
+              Total Piutang Pelanggan
             </p>
             <p className="mt-2 break-words text-2xl font-black text-red-800 sm:text-3xl">
               {formatCurrency(debt)}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-red-700/80">
+              Pilih transaksi DP di bawah untuk mencatat pembayaran per invoice.
             </p>
           </div>
 
@@ -300,40 +354,6 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
               {error}
             </div>
           ) : null}
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
-              Jumlah Pembayaran
-            </label>
-            <input
-              type="number"
-              required
-              min={1}
-              max={debt}
-              value={amount || ""}
-              onChange={(event) => setAmount(Number(event.target.value) || 0)}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
-              placeholder="0"
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setAmount(debt)}
-                className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100"
-              >
-                Bayar penuh
-              </button>
-              {debt > 100000 ? (
-                <button
-                  type="button"
-                  onClick={() => setAmount(Math.round(debt / 2))}
-                  className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100"
-                >
-                  Bayar 50%
-                </button>
-              ) : null}
-            </div>
-          </div>
 
           <div>
             <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -356,33 +376,156 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
             </div>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
-              Catatan
-            </label>
-            <input
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Opsional"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
-            />
-          </div>
-
-          {amount > 0 && canPay ? (
-            <div
-              className={`rounded-2xl px-4 py-3 ${amount >= debt
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-amber-50 text-amber-700"
-                }`}
-            >
-              <p className="text-xs font-bold uppercase tracking-[0.16em]">
-                {amount >= debt ? "Lunas" : "Sisa setelah bayar"}
-              </p>
-              <p className="mt-1 text-xl font-black">
-                {formatCurrency(debt - amount)}
+          {dpTransactionsQuery.isLoading ? (
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-8 text-center">
+              <RefreshCcw className="mx-auto h-5 w-5 animate-spin text-slate-400" />
+              <p className="mt-3 text-sm font-bold text-slate-700">
+                Memuat transaksi DP...
               </p>
             </div>
-          ) : null}
+          ) : dpTransactions.length > 0 ? (
+            <div className="space-y-3">
+              {dpTransactions.map((transaction) => {
+                const remaining = getTransactionDebtRemaining(transaction);
+                const amount = Number(amountByTransaction[transaction.id] ?? 0);
+                const canPay = isValidDebtPayment({ amount, remaining });
+                const isFullPayment = amount >= remaining && remaining > 0;
+                const isPaying = payingTransactionId === transaction.id;
+
+                return (
+                  <div
+                    key={transaction.id}
+                    className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-black text-slate-900">
+                          {transaction.invoiceNumber || transaction.id}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          {formatDateTime(transaction.createdAt)} - {transaction.paymentMethod}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {transaction.items.slice(0, 3).map((item) => (
+                            <span
+                              key={`${transaction.id}-${item.productName}`}
+                              className="inline-flex max-w-full rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"
+                            >
+                              <span className="truncate">
+                                {item.productName} x{item.quantity}
+                              </span>
+                            </span>
+                          ))}
+                          {transaction.items.length > 3 ? (
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                              +{transaction.items.length - 3} item lain
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="grid min-w-0 grid-cols-3 gap-2 text-left lg:w-[360px]">
+                        <DetailMetricCard
+                          label="Total"
+                          value={formatCurrency(Number(transaction.total))}
+                        />
+                        <DetailMetricCard
+                          label="Dibayar"
+                          value={formatCurrency(Number(transaction.amountPaid))}
+                          tone="sky"
+                        />
+                        <DetailMetricCard
+                          label="Sisa"
+                          value={formatCurrency(remaining)}
+                          tone="amber"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold text-slate-700">
+                          Jumlah pembayaran
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={remaining}
+                          value={amount || ""}
+                          onChange={(event) =>
+                            updateAmount(transaction.id, Number(event.target.value) || 0)
+                          }
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+                          placeholder="0"
+                        />
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateAmount(
+                                transaction.id,
+                                getDebtQuickPaymentAmount(remaining, "half"),
+                              )
+                            }
+                            className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100"
+                          >
+                            Bayar 50%
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateAmount(
+                                transaction.id,
+                                getDebtQuickPaymentAmount(remaining, "full"),
+                              )
+                            }
+                            className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100"
+                          >
+                            Bayar penuh
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold text-slate-700">
+                          Catatan
+                        </label>
+                        <input
+                          value={noteByTransaction[transaction.id] ?? ""}
+                          onChange={(event) => updateNote(transaction.id, event.target.value)}
+                          placeholder="Opsional"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSubmit(transaction)}
+                        disabled={!canPay || payTransactionDebt.isPending}
+                        className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isPaying
+                          ? "Memproses..."
+                          : isFullPayment
+                            ? "Bayar & Lunaskan"
+                            : "Bayar Piutang"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-10 text-center">
+              <Wallet className="mx-auto h-6 w-6 text-slate-400" />
+              <p className="mt-3 text-sm font-bold text-slate-900">
+                Tidak ada transaksi DP aktif
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Semua piutang transaksi pelanggan ini sudah lunas.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 pt-1 sm:flex-row">
             <button
@@ -390,17 +533,10 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
               onClick={onClose}
               className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={!canPay || payDebt.isPending}
-              className="flex-1 rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {payDebt.isPending ? "Memproses..." : "Konfirmasi Bayar"}
+              Tutup
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
@@ -1058,6 +1194,7 @@ export default function CustomersPage() {
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<CustomerType | "">("");
+  const [hasDebtFilter, setHasDebtFilter] = useState(false);
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -1074,6 +1211,7 @@ export default function CustomersPage() {
   const { data, isLoading, isFetching } = useCustomers({
     search: debouncedSearch,
     type: typeFilter,
+    hasDebt: hasDebtFilter,
     page,
     limit: 20,
   });
@@ -1135,6 +1273,13 @@ export default function CustomersPage() {
     });
   }, []);
 
+  const handleDebtFilterToggle = useCallback(() => {
+    startTransition(() => {
+      setHasDebtFilter((prev) => !prev);
+      setPage(1);
+    });
+  }, []);
+
   const handlePageChange = useCallback(
     (nextPage: number) => {
       startTransition(() => {
@@ -1172,7 +1317,7 @@ export default function CustomersPage() {
     [canDeleteCustomers, deleteCustomer],
   );
 
-  const hasActiveFilters = search.trim().length > 0 || typeFilter !== "";
+  const hasActiveFilters = search.trim().length > 0 || typeFilter !== "" || hasDebtFilter;
 
   return (
     <div className="min-h-full overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_24%),linear-gradient(180deg,_#fffdf8_0%,_#f8fafc_34%,_#f8fafc_100%)]">
@@ -1288,6 +1433,18 @@ export default function CustomersPage() {
                   {CUSTOMER_TYPE_LABELS[type]}
                 </button>
               ))}
+              <div className="mx-1 h-8 w-px self-center bg-slate-200" />
+              <button
+                type="button"
+                onClick={handleDebtFilterToggle}
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold transition ${hasDebtFilter
+                  ? "bg-red-600 text-white"
+                  : "bg-red-50 text-red-700 hover:bg-red-100"
+                  }`}
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                Ada Piutang
+              </button>
             </div>
           </div>
 

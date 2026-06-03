@@ -17,6 +17,13 @@ import {
   buildServiceMaterialInventoryLogRows,
 } from "@/features/pos-checkout/post-commit";
 import { fetchTransactionsAndCount } from "@/features/transaction-history/helpers/fetch-transactions";
+import {
+  priceProductForCustomerType,
+  resolveCustomPricedLine,
+  type AppliedCategoryPricing,
+  type CategoryPricingRule,
+  type CustomerType,
+} from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 const log = getLogger("api:transactions");
 const productTransactionItemSchema = z.object({
@@ -92,8 +99,10 @@ type ServerProductTransactionItem = {
   size: string | null;
   material: string | null;
   price: number;
+  originalPrice: number;
   costPrice: number | null;
   quantity: number;
+  appliedPricing: AppliedCategoryPricing | null;
 };
 type ServerPrintingServiceTransactionItem = {
   lineType: "PRINTING_SERVICE";
@@ -126,6 +135,8 @@ export async function GET(request: Request) {
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const categoryId = searchParams.get("categoryId");
+    const status = searchParams.get("status");
+    const salespersonId = searchParams.get("salespersonId");
     const { page, limit, skip } = parsePagination(searchParams, {
       defaultLimit: 10,
       maxLimit: 100,
@@ -174,6 +185,16 @@ export async function GET(request: Request) {
       });
     }
 
+    // Status filter
+    if (status) {
+      andConditions.push({ status: status as Prisma.EnumTransactionStatusFilter["equals"] });
+    }
+
+    // Salesperson filter
+    if (salespersonId) {
+      andConditions.push({ salespersonId });
+    }
+
     if (andConditions.length > 0) {
       where.AND = andConditions;
     }
@@ -203,6 +224,14 @@ export async function GET(request: Request) {
                 rawMaterialUnit: true,
                 quantity: true,
                 unitPrice: true,
+                pricingRuleId: true,
+                pricingCustomerType: true,
+                pricingCategoryId: true,
+                pricingCategoryName: true,
+                pricingMode: true,
+                pricingValue: true,
+                originalUnitPrice: true,
+                appliedUnitPrice: true,
                 subtotal: true,
                 product: { select: { unit: true } },
                 printingService: { select: { unit: true } },
@@ -312,7 +341,7 @@ export async function POST(request: Request) {
       customerId
         ? db.customer.findFirst({
             where: { id: customerId, storeId },
-            select: { id: true },
+            select: { id: true, type: true },
           })
         : Promise.resolve(true), // no customer to validate
       salespersonId
@@ -336,6 +365,8 @@ export async function POST(request: Request) {
           unit: true,
           size: true,
           material: true,
+          categoryId: true,
+          category: { select: { name: true } },
         },
       }),
       uniquePrintingServiceIds.length > 0
@@ -385,6 +416,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const checkoutCustomerType: CustomerType =
+      customerId && customerCheck && customerCheck !== true
+        ? (customerCheck.type as CustomerType)
+        : "UMUM";
+    const pricingRules = (await db.categoryCustomerPricingRule.findMany({
+      where: { storeId, isActive: true },
+      include: { category: { select: { name: true } } },
+    })).map((rule) => ({
+      id: rule.id,
+      categoryId: rule.categoryId,
+      categoryName: rule.category.name,
+      customerType: rule.customerType as CustomerType,
+      mode: rule.mode,
+      value: Number(rule.value),
+      isActive: rule.isActive,
+    })) satisfies CategoryPricingRule[];
+
     const serverItems: ServerTransactionItem[] = items.map((item) => {
       if (item.lineType === "PRINTING_SERVICE") {
         const service = printingServiceById.get(item.printingServiceId);
@@ -424,7 +472,28 @@ export async function POST(request: Request) {
         name: product.name,
         size: item.size ?? product.size ?? null,
         material: item.material ?? product.material ?? null,
-        price: Number(product.price),
+        ...(() => {
+          const priced = priceProductForCustomerType(
+            {
+              categoryId: product.categoryId,
+              categoryName: product.category.name,
+              price: Number(product.price),
+            },
+            checkoutCustomerType,
+            pricingRules,
+          );
+          const resolved = resolveCustomPricedLine({
+            pricedLine: priced,
+            submittedPrice: item.price,
+            role: user.role,
+            customerType: checkoutCustomerType,
+          });
+          return {
+            price: resolved.unitPrice,
+            originalPrice: Number(product.price),
+            appliedPricing: resolved.appliedPricing,
+          };
+        })(),
         costPrice: product.costPrice ? Number(product.costPrice) : null,
         quantity: item.quantity,
       };
@@ -441,12 +510,11 @@ export async function POST(request: Request) {
     const isSalesRequest = user.role === "SALES";
 
     // Wait, SALES role doesn't handle payment
-    let amountPaidComputed = amountPaid;
+    const amountPaidComputed = amountPaid;
     let changeComputed = 0;
     
     if (isSalesRequest) {
-      amountPaidComputed = 0;
-      changeComputed = 0;
+      changeComputed = isDP ? 0 : amountPaid - total;
     } else {
       changeComputed = isDP ? 0 : amountPaid - total;
 
@@ -533,6 +601,14 @@ export async function POST(request: Request) {
                           unitCost: item.costPrice,
                           discount: 0,
                           subtotal: item.price * item.quantity,
+                          pricingRuleId: item.appliedPricing?.ruleId ?? null,
+                          pricingCustomerType: item.appliedPricing?.customerType ?? null,
+                          pricingCategoryId: item.appliedPricing?.categoryId ?? null,
+                          pricingCategoryName: item.appliedPricing?.categoryName ?? null,
+                          pricingMode: item.appliedPricing?.mode ?? null,
+                          pricingValue: item.appliedPricing?.value ?? null,
+                          originalUnitPrice: item.appliedPricing?.originalUnitPrice ?? item.originalPrice,
+                          appliedUnitPrice: item.appliedPricing?.appliedUnitPrice ?? item.price,
                         }
                 ),
               },
@@ -552,6 +628,14 @@ export async function POST(request: Request) {
                   rawMaterialUnit: true,
                   quantity: true,
                   unitPrice: true,
+                  pricingRuleId: true,
+                  pricingCustomerType: true,
+                  pricingCategoryId: true,
+                  pricingCategoryName: true,
+                  pricingMode: true,
+                  pricingValue: true,
+                  originalUnitPrice: true,
+                  appliedUnitPrice: true,
                   subtotal: true,
                   product: { select: { unit: true } },
                   printingService: { select: { unit: true } },

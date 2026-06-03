@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins } from "lucide-react";
+import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins, RotateCcw } from "lucide-react";
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
@@ -13,6 +13,16 @@ import {
   resolveCheckoutCustomer,
   type CheckoutCustomerSelection,
 } from "@/features/pos-checkout/customer-selection";
+import { useCustomerCategoryPricingRules } from "@/hooks/useCustomerCategoryPricingRules";
+import {
+  formatPricingRuleLabel,
+  calculateCustomPriceMargin,
+  canEditCustomPriceForCustomer,
+  priceProductForCustomerType,
+  resolveCustomPricedLine,
+  type CategoryPricingRule,
+  type CustomerType,
+} from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 
 
@@ -33,6 +43,7 @@ interface PaymentModalProps {
     paymentStatus: string;
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
+    items: CartItem[];
   }) => void;
   onSaveDraft?: (data: {
     discount: number;
@@ -43,6 +54,7 @@ interface PaymentModalProps {
     salespersonId: string;
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
+    items: CartItem[];
   }) => void;
   isProcessing?: boolean;
   isSavingDraft?: boolean;
@@ -76,8 +88,10 @@ export function PaymentModal({
   const [note, setNote] = useState("");
   const [customerSelection, setCustomerSelection] =
     useState<CheckoutCustomerSelection>({ kind: "general" });
+  const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   const [customerError, setCustomerError] = useState<string | null>(null);
   const createCustomer = useCreateCustomer();
+  const pricingRulesQuery = useCustomerCategoryPricingRules({ activeOnly: true });
   const [salespersonId, setSalespersonId] = useState("");
   const { data: salespersons = [] } = useSalespersons();
   const [isDP, setIsDP] = useState(false);
@@ -88,11 +102,61 @@ export function PaymentModal({
   
   const { role } = useRole();
   const isSalesRole = role === "SALES";
+  const selectedCustomerType: CustomerType =
+    customerSelection.kind === "existing"
+      ? customerSelection.customer.type ?? "UMUM"
+      : "UMUM";
+  const canEditCustomPrices = canEditCustomPriceForCustomer(
+    role,
+    selectedCustomerType,
+  );
+  const activePricingRules: CategoryPricingRule[] = (pricingRulesQuery.data ?? []).map((rule) => ({
+    id: rule.id,
+    categoryId: rule.categoryId,
+    categoryName: rule.category.name,
+    customerType: rule.customerType,
+    mode: rule.mode,
+    value: Number(rule.value),
+    isActive: rule.isActive,
+  }));
+  const pricedItems = items.map((item): CartItem => {
+    if (item.lineType !== "PRODUCT" || !item.categoryId) return item;
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: item.categoryId,
+        categoryName: item.categoryName,
+        price: item.catalogPrice ?? item.price,
+      },
+      selectedCustomerType,
+      activePricingRules,
+    );
+    const resolved = resolveCustomPricedLine({
+      pricedLine: priced,
+      submittedPrice: manualPrices[item.cartLineId],
+      role,
+      customerType: selectedCustomerType,
+    });
+    return {
+      ...item,
+      price: resolved.unitPrice,
+      appliedPricing: resolved.appliedPricing,
+    };
+  });
+  const pricedSubtotal = pricedItems.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
+  const affectedItems = pricedItems.filter(
+    (item) =>
+      item.lineType === "PRODUCT" &&
+      (item.catalogPrice ?? item.price) !== item.price,
+  );
 
   useEffect(() => {
     if (!open) {
       // reset on close
       setCustomerSelection({ kind: "general" });
+      setManualPrices({});
       setCustomerError(null);
     } else {
       // auto-set isJobOrder if opening with items that have material/size
@@ -100,23 +164,33 @@ export function PaymentModal({
     }
   }, [open, items]);
 
+  useEffect(() => {
+    if (canEditCustomPrices) return;
+    setManualPrices({});
+  }, [canEditCustomPrices, selectedCustomerType]);
+
   const rawDiscount =
     discountMode === "PERCENT"
-      ? Math.round(subtotal * (Math.min(Math.max(discountInput, 0), 100) / 100))
+      ? Math.round(pricedSubtotal * (Math.min(Math.max(discountInput, 0), 100) / 100))
       : Math.max(discountInput, 0);
-  const discount = Math.min(rawDiscount, subtotal);
-  const isClamped = rawDiscount > subtotal;
-  const total = subtotal - discount;
+  const discount = Math.min(rawDiscount, pricedSubtotal);
+  const isClamped = rawDiscount > pricedSubtotal;
+  const total = pricedSubtotal - discount;
   const change = amountPaid - total;
   const remaining = total - amountPaid;
 
   // Full payment: must pay >= total. DP: must pay > 0 and < total.
   // SALES role just submits the request, no payment required yet.
-  const canPay = isSalesRole 
-    ? total > 0
-    : isDP
-      ? amountPaid > 0 && amountPaid < total && total > 0
-      : amountPaid >= total && total > 0;
+  const hasInvalidManualPrice = pricedItems.some(
+    (item) =>
+      item.lineType === "PRODUCT" &&
+      manualPrices[item.cartLineId] != null &&
+      manualPrices[item.cartLineId] < 0,
+  );
+
+  const canPay = isDP
+    ? amountPaid > 0 && amountPaid < total && total > 0 && !hasInvalidManualPrice
+    : amountPaid >= total && total > 0 && !hasInvalidManualPrice;
 
   const resolveCustomerForSubmit = async () => {
     try {
@@ -150,6 +224,7 @@ export function PaymentModal({
       paymentStatus: isDP ? "DP" : "COMPLETED",
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
+      items: pricedItems,
     });
   };
 
@@ -168,14 +243,34 @@ export function PaymentModal({
       salespersonId,
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
+      items: pricedItems,
     });
   };
 
   const canSaveDraft =
-    total > 0 && !isProcessing && !isSavingDraft && !createCustomer.isPending;
+    total > 0 &&
+    !hasInvalidManualPrice &&
+    !isProcessing &&
+    !isSavingDraft &&
+    !createCustomer.isPending;
 
   const handleExactAmount = () => {
     setAmountPaid(total);
+  };
+
+  const updateManualPrice = (cartLineId: string, value: number) => {
+    setManualPrices((current) => ({
+      ...current,
+      [cartLineId]: value,
+    }));
+  };
+
+  const resetManualPrice = (cartLineId: string) => {
+    setManualPrices((current) => {
+      const next = { ...current };
+      delete next[cartLineId];
+      return next;
+    });
   };
 
   return (
@@ -183,14 +278,154 @@ export function PaymentModal({
       <div className="space-y-5 px-1 py-1">
         {/* Order Summary */}
         <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[200px] overflow-y-auto">
-          {items.map((item) => (
-            <div key={item.cartLineId} className="flex justify-between text-sm">
+          {pricingRulesQuery.isError && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              Aturan harga khusus gagal dimuat. Checkout memakai harga katalog.
+            </div>
+          )}
+          {affectedItems.length > 0 && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+              Harga {selectedCustomerType} diterapkan untuk {affectedItems.length} item.
+            </div>
+          )}
+          {pricedItems.map((item) => (
+            <div key={item.cartLineId} className="rounded-lg bg-white/50 p-2 text-sm">
+              <div className="flex justify-between gap-3">
               <span className="text-surface-600">
                 {item.name} × {item.quantity}
               </span>
               <span className="font-medium text-surface-900">
                 {formatRupiah(item.price * item.quantity)}
               </span>
+              </div>
+              {item.lineType === "PRODUCT" && canEditCustomPrices && (
+                <div className="mt-2 space-y-1.5">
+                  {(() => {
+                    const catalogPrice = item.catalogPrice ?? item.price;
+                    const margin = calculateCustomPriceMargin({
+                      costPrice: item.costPrice,
+                      catalogPrice,
+                      customPrice: item.price,
+                    });
+                    const inputId = `custom-price-${item.cartLineId}`;
+                    const warningId = `custom-price-warning-${item.cartLineId}`;
+                    const hasManualPrice = manualPrices[item.cartLineId] != null;
+                    const isNegativeManualPrice =
+                      hasManualPrice && manualPrices[item.cartLineId] < 0;
+                    const warningText = isNegativeManualPrice
+                      ? "Harga khusus tidak boleh negatif."
+                      : margin.isBelowCost
+                        ? "Harga khusus di bawah HPP."
+                        : null;
+
+                    return (
+                      <>
+                        <label
+                          htmlFor={inputId}
+                          className="text-[11px] font-semibold uppercase tracking-wide text-surface-500"
+                        >
+                          Harga khusus
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            id={inputId}
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            value={manualPrices[item.cartLineId] ?? item.price}
+                            onChange={(event) =>
+                              updateManualPrice(
+                                item.cartLineId,
+                                Number(event.target.value) || 0,
+                              )
+                            }
+                            aria-describedby={warningText ? warningId : undefined}
+                            aria-label={`Harga khusus untuk ${item.name}`}
+                            className="min-w-0 flex-1 rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm font-semibold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => resetManualPrice(item.cartLineId)}
+                            disabled={!hasManualPrice}
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-surface-200 text-surface-600 hover:bg-surface-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={`Reset harga khusus untuk ${item.name}`}
+                            title="Reset"
+                          >
+                            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                        {warningText && (
+                          <p
+                            id={warningId}
+                            className={`text-[11px] font-semibold ${
+                              isNegativeManualPrice ? "text-red-700" : "text-amber-700"
+                            }`}
+                          >
+                            {warningText}
+                          </p>
+                        )}
+                        {hasManualPrice && (
+                          <div className="text-[11px] font-semibold text-brand-700">
+                            Harga manual
+                          </div>
+                        )}
+                        {margin.isChanged && (
+                          <div className="rounded-lg border border-surface-200 bg-white p-2 text-[11px] text-surface-600">
+                            <div className="mb-1 flex justify-between gap-2">
+                              <span className="font-semibold text-surface-700">HPP</span>
+                              <span className="font-semibold">
+                                {margin.hasCostPrice
+                                  ? formatRupiah(item.costPrice ?? 0)
+                                  : "Tidak tersedia"}
+                              </span>
+                            </div>
+                            {margin.hasCostPrice ? (
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <div className="rounded-md bg-surface-50 p-2">
+                                  <div className="font-semibold text-surface-700">
+                                    Harga saat ini
+                                  </div>
+                                  <div>{formatRupiah(catalogPrice)}</div>
+                                  <div>
+                                    Profit {formatRupiah(margin.currentProfit ?? 0)} (
+                                    {margin.currentMarginPercent}%)
+                                  </div>
+                                </div>
+                                <div className="rounded-md bg-brand-50 p-2 text-brand-900">
+                                  <div className="font-semibold">Harga khusus</div>
+                                  <div>{formatRupiah(item.price)}</div>
+                                  <div>
+                                    Profit {formatRupiah(margin.customProfit ?? 0)} (
+                                    {margin.customMarginPercent}%)
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <p>Margin tidak tersedia karena HPP belum diisi.</p>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+              {item.lineType === "PRODUCT" && item.appliedPricing && (
+                <div className="mt-1 text-[11px] text-surface-500">
+                  <span className="font-semibold text-emerald-700">
+                    {formatPricingRuleLabel({
+                      customerType: item.appliedPricing.customerType,
+                      mode: item.appliedPricing.mode,
+                      value: item.appliedPricing.value,
+                    })}
+                  </span>
+                  <span>
+                    {" "}
+                    {formatRupiah(item.appliedPricing.originalUnitPrice)} menjadi{" "}
+                    {formatRupiah(item.appliedPricing.appliedUnitPrice)}
+                  </span>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -221,7 +456,6 @@ export function PaymentModal({
         </div>
 
         {/* Payment Method */}
-        {!isSalesRole && (
         <div>
           <label className="text-sm font-medium text-surface-700 mb-2 block">
             Metode Pembayaran
@@ -246,10 +480,8 @@ export function PaymentModal({
             ))}
           </div>
         </div>
-        )}
 
         {/* DP Toggle */}
-        {!isSalesRole && (
         <div>
           <label className="text-sm font-medium text-surface-700 mb-2 block">
             Tipe Pembayaran
@@ -285,7 +517,6 @@ export function PaymentModal({
             </button>
           </div>
         </div>
-        )}
 
         {/* Job Order Toggle */}
         <div>
@@ -399,7 +630,7 @@ export function PaymentModal({
           )}
           {isClamped && (
             <p className="text-xs text-amber-600 mt-1.5">
-              Diskon dipotong sampai subtotal ({formatRupiah(subtotal)})
+              Diskon dipotong sampai subtotal ({formatRupiah(pricedSubtotal)})
             </p>
           )}
         </div>
@@ -408,7 +639,7 @@ export function PaymentModal({
         <div className={`rounded-xl p-4 text-white ${isDP ? 'bg-gradient-to-r from-amber-500 to-amber-600' : 'bg-gradient-to-r from-brand-600 to-brand-700'}`}>
           <div className="flex justify-between text-sm opacity-80">
             <span>Subtotal</span>
-            <span>{formatRupiah(subtotal)}</span>
+            <span>{formatRupiah(pricedSubtotal)}</span>
           </div>
           {discount > 0 && (
             <div className="flex justify-between text-sm opacity-80 mt-1">
@@ -430,7 +661,6 @@ export function PaymentModal({
         </div>
 
         {/* Amount Paid */}
-        {!isSalesRole && (
         <div>
           <Input
             label={isDP ? "Jumlah DP / Uang Muka (Rp)" : "Jumlah Bayar (Rp)"}
@@ -481,7 +711,6 @@ export function PaymentModal({
             ))}
           </div>
         </div>
-        )}
 
         {/* Change / Remaining */}
         {amountPaid > 0 && (

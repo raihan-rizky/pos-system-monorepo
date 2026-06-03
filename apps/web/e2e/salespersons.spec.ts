@@ -8,6 +8,9 @@ test("salesperson management can filter and open create/edit flows", async ({ ap
 
   await page.getByPlaceholder("Cari nama sales...").fill("Rina");
   await expect(page.getByText("Rina Sales").first()).toBeVisible();
+  await page.locator("tbody tr").filter({ hasText: "Rina Sales" }).first().click();
+  await expect(page.getByRole("table").getByText("Transaksi Rina Sales")).toBeVisible();
+  await expect(page.getByRole("table").getByText("INV-20260509-0001")).toBeVisible();
 
   await page.getByRole("button", { name: "Tambah Sales" }).click();
   await expect(page.getByRole("heading", { name: "Tambah Sales" })).toBeVisible();

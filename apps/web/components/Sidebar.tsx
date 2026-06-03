@@ -470,6 +470,9 @@ export function Sidebar() {
   const router = useRouter();
   const { canAccess, role } = useRole();
   const isOwner = role === "OWNER";
+  const roleLabel = role
+    ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
+    : "User";
   const { data: pendingInventoryCount = 0 } = usePendingInventoryLogCount();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
@@ -542,6 +545,9 @@ export function Sidebar() {
               </span>
               <span className="text-[10px] text-surface-400 font-semibold mt-0.5 whitespace-nowrap">
                 Smart Cashier
+              </span>
+              <span className="text-[11px] text-brand-300 font-bold mt-2 whitespace-nowrap">
+                Welcome {roleLabel}!
               </span>
             </div>
           )}
@@ -707,6 +713,9 @@ export function Sidebar() {
         {/* Active Group Header */}
         {activeGroupObj && (
           <div className="px-6 py-2 shrink-0 border-b border-surface-800 pb-3">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-brand-300 mb-2">
+              Welcome {roleLabel}!
+            </p>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span className="text-brand-400 shrink-0">
                 {activeGroupObj.icon}

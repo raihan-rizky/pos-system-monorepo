@@ -185,6 +185,8 @@ export default function POSClientPage({
       costPrice: product.costPrice,
       unit: product.unit,
       stock: product.stock,
+      categoryId: product.category.id,
+      categoryName: product.category.name,
     });
   }, [cart]);
 
@@ -290,15 +292,16 @@ export default function POSClientPage({
     paymentStatus: string;
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
+    items: typeof cart.items;
   }) => {
     try {
+      const { items: pricedItems, ...transactionData } = data;
       const result = await createTransaction.mutateAsync({
-        items: cart.items,
-        ...data,
+        items: pricedItems,
+        ...transactionData,
       });
-      if (result.status !== "PENDING_APPROVAL") {
-        setLastTransaction(result);
-      } else {
+      setLastTransaction(result);
+      if (result.status === "PENDING_APPROVAL") {
         setCheckoutNotice({
           tone: "success",
           message:
@@ -321,7 +324,7 @@ export default function POSClientPage({
           });
           return;
         }
-        const offlineItems = cart.items.filter(
+        const offlinePricedItems = data.items.filter(
           (item): item is ProductCartItem => item.lineType === "PRODUCT",
         );
         try {
@@ -329,7 +332,7 @@ export default function POSClientPage({
             "@/lib/offline/offline-db"
           );
           await createOfflineTransaction({
-            items: offlineItems,
+            items: offlinePricedItems,
             paymentMethod: data.paymentMethod as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER",
             amountPaid: data.amountPaid,
             discount: data.discount,
@@ -341,8 +344,17 @@ export default function POSClientPage({
             paymentStatus: data.paymentStatus,
             isJobOrder: data.isJobOrder,
             estimatedDoneAt: data.estimatedDoneAt,
-            originalSubtotal: cart.subtotal,
-            originalTotal: Math.max(0, cart.subtotal - data.discount),
+            originalSubtotal: offlinePricedItems.reduce(
+              (sum, item) => sum + item.price * item.quantity,
+              0,
+            ),
+            originalTotal: Math.max(
+              0,
+              offlinePricedItems.reduce(
+                (sum, item) => sum + item.price * item.quantity,
+                0,
+              ) - data.discount,
+            ),
           });
           cart.clearCart();
           setShowPayment(false);
@@ -381,11 +393,12 @@ export default function POSClientPage({
     salespersonId: string;
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
+    items: typeof cart.items;
   }) => {
     setDraftError(null);
     try {
       const draft = await createDraft.mutateAsync({
-        items: cart.items
+        items: data.items
           .filter((item): item is ProductCartItem => item.lineType === "PRODUCT")
           .map((item) => ({
             productId: item.productId,
