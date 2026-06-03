@@ -29,20 +29,22 @@ async function buildCloseShiftSummary(shiftId: string, storeId: string) {
 
   if (!shift) return null;
 
-  const cashAgg = await db.transaction.aggregate({
+  const cashTransactions = await db.transaction.findMany({
     where: {
       storeId,
       paymentMethod: "CASH",
-      status: { notIn: ["VOIDED", "REFUNDED"] },
+      status: { in: ["COMPLETED", "DP"] },
       createdAt: {
         gte: shift.openedAt,
       },
     },
-    _sum: { total: true },
+    select: { total: true, amountPaid: true, status: true },
   });
 
+  const totalCashTransactions = cashTransactions.reduce((acc, t) => {
+    return acc + Number(t.status === "DP" ? t.amountPaid : t.total);
+  }, 0);
   const openingBalance = Number(shift.openingBalance);
-  const totalCashTransactions = Number(cashAgg._sum.total || 0);
   const expectedBalance = openingBalance + totalCashTransactions;
 
   return {

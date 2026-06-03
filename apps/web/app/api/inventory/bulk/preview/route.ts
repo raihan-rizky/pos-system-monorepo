@@ -3,6 +3,7 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { stockDelta } from "@/features/batch-operations/helpers/snapshots";
+import { apiError, apiValidationError } from "@/lib/api/responses";
 
 import { getLogger } from "@/lib/logger";
 
@@ -57,9 +58,9 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "Validation error", errors: error.flatten().fieldErrors }, { status: 422 });
+      return apiValidationError(error);
     }
     log.error("Failed to preview bulk stock update:", error);
-    return NextResponse.json({ message: "Failed to preview bulk stock update" }, { status: 500 });
+    return apiError("Failed to preview bulk stock update", 500, { code: "InternalError" });
   }
 }

@@ -10,7 +10,11 @@ import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import type { Role } from "@/lib/rbac/permissions";
 import { getLogger } from "@/lib/logger";
-import { buildDraftNumber } from "@/features/transactions-draft/helpers/draft-number";
+import {
+  buildDraftNumber,
+  formatDraftNumberForDisplay,
+} from "@/features/transactions-draft/helpers/draft-number";
+import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 
 const log = getLogger("api:transactions:draft");
 
@@ -113,7 +117,7 @@ export async function POST(request: Request) {
         db.transaction.count({
           where: {
             storeId,
-            draftNumber: { startsWith: `DRAFT-${dateStr}-` },
+            draftNumber: { startsWith: `PNW-TLD-${dateStr}-` },
           },
         }),
       ]);
@@ -150,7 +154,8 @@ export async function POST(request: Request) {
         name: product.name,
         size: product.size ?? item.size ?? null,
         material: product.material ?? item.material ?? null,
-        price: Number(product.price),
+        price: item.price,
+        currentPrice: Number(product.price),
         costPrice: product.costPrice ? Number(product.costPrice) : null,
         quantity: item.quantity,
       };
@@ -172,8 +177,9 @@ export async function POST(request: Request) {
             dateStr,
             draftCount + 1 + attempt,
           );
+          const displayDraftNumber = formatDraftNumberForDisplay(draftNumber);
 
-          return tx.transaction.create({
+          const created = await tx.transaction.create({
             data: {
               invoiceNumber: null,
               draftNumber,
@@ -213,10 +219,52 @@ export async function POST(request: Request) {
               },
             },
             include: {
-              items: true,
+              items: {
+                select: {
+                  id: true,
+                  productId: true,
+                  printingServiceId: true,
+                  rawMaterialProductId: true,
+                  productName: true,
+                  size: true,
+                  material: true,
+                  serviceNote: true,
+                  rawMaterialQuantity: true,
+                  rawMaterialUnit: true,
+                  quantity: true,
+                  unitPrice: true,
+                  subtotal: true,
+                  product: { select: { unit: true } },
+                  printingService: { select: { unit: true } },
+                },
+              },
               salesperson: { select: { name: true } },
             },
           });
+
+          const priceLogEntries = serverItems.flatMap((item) =>
+            buildProductPriceLogEntries({
+              productId: item.productId,
+              storeId,
+              before: {
+                price: item.currentPrice,
+                costPrice: item.costPrice,
+              },
+              after: {
+                price: item.price,
+                costPrice: item.costPrice,
+              },
+              actor: user,
+              source: "SYSTEM",
+              note: `Harga khusus untuk nota penawaran dengan nomor ${displayDraftNumber}`,
+            }),
+          );
+
+          if (priceLogEntries.length > 0) {
+            await tx.productPriceLog.createMany({ data: priceLogEntries });
+          }
+
+          return created;
         });
         break;
       } catch (err) {

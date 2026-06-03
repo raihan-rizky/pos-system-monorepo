@@ -87,16 +87,18 @@ export async function GET(request: Request) {
     const openShift = shifts.find((s) => s.status === "OPEN" && s.expectedBalance === null);
     let computedExpectedBalance: number | null = null;
     if (openShift) {
-      const cashAgg = await db.transaction.aggregate({
+      const cashTransactions = await db.transaction.findMany({
         where: {
           storeId,
           paymentMethod: "CASH",
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
           createdAt: { gte: openShift.openedAt },
         },
-        _sum: { total: true },
+        select: { total: true, amountPaid: true, status: true },
       });
-      const totalCash = Number(cashAgg._sum.total || 0);
+      const totalCash = cashTransactions.reduce((acc, t) => {
+        return acc + Number(t.status === "DP" ? t.amountPaid : t.total);
+      }, 0);
       computedExpectedBalance = Number(openShift.openingBalance) + totalCash;
     }
 

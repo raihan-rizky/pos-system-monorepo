@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
+import { Banknote, Smartphone, CreditCard, Landmark } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import type { Transaction } from "@/hooks/useTransactions";
 import { useApproveDraft, useCancelDraft } from "../hooks/useDraftMutations";
+import { formatDraftNumberForDisplay } from "../helpers/draft-number";
 
 interface ApproveDraftDialogProps {
   draft: Transaction;
@@ -12,10 +14,10 @@ interface ApproveDraftDialogProps {
 }
 
 const PAYMENT_METHODS = [
-  { value: "CASH", label: "Tunai", icon: "💵" },
-  { value: "QRIS", label: "QRIS", icon: "📱" },
-  { value: "DEBIT", label: "Debit", icon: "💳" },
-  { value: "TRANSFER", label: "Transfer", icon: "🏦" },
+  { value: "CASH", label: "Tunai", icon: Banknote },
+  { value: "QRIS", label: "QRIS", icon: Smartphone },
+  { value: "DEBIT", label: "Debit", icon: CreditCard },
+  { value: "TRANSFER", label: "Transfer", icon: Landmark },
 ] as const;
 
 type PaymentMethod = (typeof PAYMENT_METHODS)[number]["value"];
@@ -28,6 +30,9 @@ export function ApproveDraftDialog({
   const approveDraft = useApproveDraft();
   const cancelDraft = useCancelDraft();
   const total = Number(draft.total);
+  const displayDraftNumber = draft.draftNumber
+    ? formatDraftNumberForDisplay(draft.draftNumber)
+    : "—";
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [amountPaid, setAmountPaid] = useState<number>(total);
@@ -50,7 +55,7 @@ export function ApproveDraftDialog({
       });
       onSuccess(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal menyetujui draft");
+      setError(err instanceof Error ? err.message : "Gagal menyetujui nota");
     }
   };
 
@@ -61,7 +66,7 @@ export function ApproveDraftDialog({
       onClose();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Gagal membatalkan draft",
+        err instanceof Error ? err.message : "Gagal membatalkan nota",
       );
     }
   };
@@ -78,10 +83,10 @@ export function ApproveDraftDialog({
         <div className="px-6 pt-6 pb-4 border-b border-surface-100 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-surface-900">
-              Setujui Faktur Sementara
+              Setujui Nota Penawaran
             </h2>
             <p className="text-xs text-surface-500 mt-0.5 font-mono">
-              {draft.draftNumber ?? "—"}
+              {displayDraftNumber}
             </p>
           </div>
           <button
@@ -147,7 +152,7 @@ export function ApproveDraftDialog({
                       : "border-surface-200 text-surface-600 hover:border-surface-300"
                   }`}
                 >
-                  <span className="text-base">{m.icon}</span>
+                  <m.icon className="w-4 h-4" aria-hidden="true" />
                   <span>{m.label}</span>
                 </button>
               ))}
@@ -242,7 +247,7 @@ export function ApproveDraftDialog({
             disabled={isPending}
             className="text-xs font-semibold text-red-600 hover:text-red-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
-            Batalkan Draft
+            Batalkan Nota
           </button>
           <div className="flex items-center gap-3">
             <button

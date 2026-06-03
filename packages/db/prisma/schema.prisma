@@ -64,6 +64,7 @@ enum BatchOperationType {
 }
 
 enum BatchOperationStatus {
+  PENDING
   COMMITTED
   UNDONE
   UNDO_BLOCKED
@@ -110,6 +111,8 @@ enum ExpenseCategory {
 enum CustomerType {
   UMUM
   AGEN
+  INDUSTRI
+  PEMERINTAH
 }
 
 // ============================================================

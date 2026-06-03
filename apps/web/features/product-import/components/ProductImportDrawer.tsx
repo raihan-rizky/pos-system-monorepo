@@ -68,7 +68,10 @@ export function ProductImportDrawer({
   const [accumulatedPreviewData, setAccumulatedPreviewData] = useState<ImportPreviewResponse | null>(null);
 
   const previewData = method === "image" ? accumulatedPreviewData : preview.data;
-  const rows: NormalizedImportRow[] = previewData?.rows ?? [];
+  const rows: NormalizedImportRow[] = useMemo(
+    () => previewData?.rows ?? [],
+    [previewData?.rows],
+  );
 
   // Filter rows for the preview table
   const filteredRows = useMemo(() => {
@@ -801,7 +804,7 @@ function CommitProgressPanel({
               {item.label}
             </div>
             <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900">
-              {item.value}
+                  {item.value}
             </div>
           </div>
         ))}
@@ -822,20 +825,19 @@ function ImportPreviewTable({
   >;
 }) {
   return (
-    <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-200 bg-white">
-      <table className="min-w-[900px] w-full text-left text-sm">
-        <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase tracking-widest text-slate-500">
+    <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-200 bg-white relative">
+      <table className="min-w-[900px] w-full text-left text-sm border-collapse">
+        <thead className="sticky top-0 text-[11px] uppercase tracking-widest text-slate-500 z-20 shadow-sm">
           <tr>
-            <th className="px-3 py-2">Baris</th>
-            <th className="px-3 py-2">Produk</th>
-            <th className="px-3 py-2">SKU</th>
-            <th className="px-3 py-2">Kategori</th>
-            <th className="px-3 py-2 text-right">Harga Modal</th>
-            <th className="px-3 py-2 text-right">Harga</th>
-            <th className="px-3 py-2 text-right">Stok</th>
-            <th className="px-3 py-2 text-right">Stok Min.</th>
-            <th className="px-3 py-2">Keputusan</th>
-            <th className="px-3 py-2">Status</th>
+            <th className="px-3 py-2 sticky left-0 z-30 bg-slate-50 border-b border-r border-slate-200">Produk</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">SKU</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Kategori</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga Modal</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Stok</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Stok Min.</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Keputusan</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -843,15 +845,15 @@ function ImportPreviewTable({
             const needsDecision =
               Boolean(row.existingProductId) || row.duplicateInFile;
             return (
-              <tr key={row.rowNumber} className="border-t border-slate-100">
-                <td className="px-3 py-2 font-mono text-xs">
-                  {row.rowNumber}
+              <tr key={row.rowNumber} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
+                <td className="px-3 py-3 font-semibold text-slate-900 sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-400 w-5 text-right">{row.rowNumber}.</span>
+                    <span className="truncate max-w-[200px]" title={row.name}>{row.name}</span>
+                  </div>
                 </td>
-                <td className="px-3 py-2 font-semibold text-slate-900">
-                  {row.name}
-                </td>
-                <td className="px-3 py-2">{row.sku}</td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-3">{row.sku}</td>
+                <td className="px-3 py-3">
                   {row.category}
                   {row.missingCategory && (
                     <span className="ml-1 text-[10px] font-bold text-blue-600">
@@ -859,21 +861,21 @@ function ImportPreviewTable({
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-slate-500">
+                <td className="px-3 py-3 text-right tabular-nums text-slate-500">
                   {row.costPrice != null ? row.costPrice : "-"}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                <td className="px-3 py-3 text-right tabular-nums">
                   {row.price}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                <td className="px-3 py-3 text-right tabular-nums">
                   <div className="flex items-center justify-end gap-1.5">
                     {row.stock < 0 && (
                       <div 
-                        className="group relative flex items-center justify-center cursor-help"
+                        className="group/alert relative flex items-center justify-center cursor-help"
                         aria-label="Peringatan stok negatif"
                       >
                         <AlertTriangle className="w-4 h-4 text-amber-500" />
-                        <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-max max-w-xs opacity-0 scale-95 invisible group-hover:opacity-100 group-hover:scale-100 group-hover:visible transition-all duration-200 z-50">
+                        <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-max max-w-xs opacity-0 scale-95 invisible group-hover/alert:opacity-100 group-hover/alert:scale-100 group-hover/alert:visible transition-all duration-200 z-50">
                           <div className="bg-slate-900 text-white text-xs font-medium rounded-lg py-1.5 px-3 shadow-xl">
                             Stok seharusnya tidak negatif
                             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
@@ -884,10 +886,10 @@ function ImportPreviewTable({
                     <span>{row.stock} {row.unit}</span>
                   </div>
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-slate-500">
+                <td className="px-3 py-3 text-right tabular-nums text-slate-500">
                   {row.minStock != null ? row.minStock : "-"}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-3">
                   {row.existingProductId ? (
                     <select
                       value={decisions[String(row.rowNumber)] ?? ""}
@@ -926,7 +928,7 @@ function ImportPreviewTable({
                     <span className="text-emerald-700 font-bold">Buat</span>
                   )}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-3">
                   {row.errors.length > 0 ? (
                     <span className="text-red-600">{row.errors.join(" ")}</span>
                   ) : row.warnings.length > 0 ? (
@@ -943,7 +945,7 @@ function ImportPreviewTable({
           {rows.length === 0 && (
             <tr>
               <td
-                colSpan={10}
+                colSpan={9}
                 className="px-3 py-8 text-center text-sm text-slate-400"
               >
                 Tidak ada baris yang cocok dengan filter.
@@ -955,4 +957,3 @@ function ImportPreviewTable({
     </div>
   );
 }
-

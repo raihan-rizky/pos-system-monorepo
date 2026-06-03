@@ -2,11 +2,12 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { AlertTriangle } from "lucide-react";
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
 import { ShiftStatusBanner } from "@/components/ShiftStatusBanner";
 import { Pagination } from "@/components/Pagination";
-import { Input } from "@pos/ui";
+import { Button, Input, Modal } from "@pos/ui";
 
 import { getLogger } from "@/lib/logger";
 
@@ -35,11 +36,19 @@ const PrintingServicesTab = dynamic(
     ),
   { ssr: false },
 );
+const NotaPenawaranModal = dynamic(
+  () =>
+    import("@/features/nota-penawaran/components/NotaPenawaranModal").then(
+      (mod) => mod.NotaPenawaranModal,
+    ),
+  { ssr: false },
+);
 import { formatRupiah } from "@/lib/utils";
 import {
   useProductsPage,
   useCategories,
   type Category,
+  type Product,
   type ProductsResponse,
 } from "@/hooks/useProducts";
 import { useCart, type ProductCartItem } from "@/hooks/useCart";
@@ -56,6 +65,10 @@ import {
   saveStockOnlyPreference,
 } from "@/features/pos-search/pos-stock-filter";
 import { getInitialHideOutOfStock } from "@/features/pos-search/pos-stock-filter-hydration";
+import {
+  getCartCheckoutMode,
+} from "@/features/nota-penawaran/helpers/quotation-rules";
+import type { DraftCreateInput } from "@/features/transactions-draft";
 
 const POS_PAGE_SIZE = 24;
 
@@ -77,10 +90,14 @@ export default function POSClientPage({
     getInitialHideOutOfStock,
   );
   const [showPayment, setShowPayment] = useState(false);
+  const [showNotaPenawaran, setShowNotaPenawaran] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
+  const [draftPrintDivision, setDraftPrintDivision] = useState("");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showCloseShift, setShowCloseShift] = useState(false);
   const [activeTab, setActiveTab] = useState<"products" | "services">("products");
+  const [pendingEmptyStockProduct, setPendingEmptyStockProduct] =
+    useState<Product | null>(null);
   const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<{
     tone: "success" | "warning" | "danger";
@@ -148,17 +165,39 @@ export default function POSClientPage({
 
   const { data: categories = [] } = useCategories(initialData.categories);
   const cart = useCart();
+  const checkoutMode = useMemo(
+    () => getCartCheckoutMode(cart.items),
+    [cart.items],
+  );
+  const productCartItems = useMemo(
+    () =>
+      cart.items.filter(
+        (item): item is ProductCartItem => item.lineType === "PRODUCT",
+      ),
+    [cart.items],
+  );
 
-
-  const handleProductClick = useCallback((product: any) => {
+  const addProductToCart = useCallback((product: Product) => {
     cart.addItem({
       id: product.id,
       name: product.name,
       price: Number(product.price),
+      costPrice: product.costPrice,
       unit: product.unit,
       stock: product.stock,
     });
   }, [cart]);
+
+  const handleProductClick = useCallback((product: Product) => {
+    if (
+      product.stock <= 0 &&
+      (role === "CASHIER" || role === "SALES")
+    ) {
+      setPendingEmptyStockProduct(product);
+      return;
+    }
+    addProductToCart(product);
+  }, [addProductToCart, role]);
 
   const handleAddPrintingService = useCallback(
     (data: PrintingServiceOrderData) => {
@@ -206,8 +245,11 @@ export default function POSClientPage({
     if (hasItems) {
       import("@/components/PaymentModal");
       import("@/components/ReceiptModal");
+      if (checkoutMode === "quotation") {
+        import("@/features/nota-penawaran/components/NotaPenawaranModal");
+      }
     }
-  }, [hasItems]);
+  }, [checkoutMode, hasItems]);
 
   const handleOpenPayment = () => {
     if (!activeShift) {
@@ -221,6 +263,19 @@ export default function POSClientPage({
     }
     setCheckoutNotice(null);
     setShowPayment(true);
+  };
+
+  const handleOpenNotaPenawaran = () => {
+    if (hasServiceItems) {
+      setCheckoutNotice({
+        tone: "danger",
+        message:
+          "Nota penawaran stok kosong saat ini hanya mendukung produk, belum layanan cetak.",
+      });
+      return;
+    }
+    setCheckoutNotice(null);
+    setShowNotaPenawaran(true);
   };
 
   const handleCheckout = async (data: {
@@ -364,6 +419,37 @@ export default function POSClientPage({
           : "Gagal menyimpan faktur sementara",
       );
     }
+  };
+
+  const handleCreateNotaPenawaran = async (
+    input: DraftCreateInput,
+    printDivision: string,
+  ) => {
+    setDraftError(null);
+    try {
+      const draft = await createDraft.mutateAsync(input);
+      cart.clearCart();
+      setShowNotaPenawaran(false);
+      setDraftPrintDivision(printDivision);
+      setLastTransaction(draft);
+      setCheckoutNotice({
+        tone: "success",
+        message: `Nota penawaran ${draft.draftNumber ?? ""} berhasil dibuat.`,
+      });
+    } catch (error) {
+      log.error("Nota penawaran creation failed:", error);
+      setDraftError(
+        error instanceof Error
+          ? error.message
+          : "Gagal membuat nota penawaran",
+      );
+    }
+  };
+
+  const handleConfirmEmptyStockProduct = () => {
+    if (!pendingEmptyStockProduct) return;
+    addProductToCart(pendingEmptyStockProduct);
+    setPendingEmptyStockProduct(null);
   };
 
   return (
@@ -610,7 +696,12 @@ export default function POSClientPage({
             onUpdateQuantity={cart.updateQuantity}
             onRemoveItem={cart.removeItem}
             onClearCart={cart.clearCart}
-            onCheckout={handleOpenPayment}
+            onCheckout={
+              checkoutMode === "quotation"
+                ? handleOpenNotaPenawaran
+                : handleOpenPayment
+            }
+            checkoutMode={checkoutMode}
           />
         </div>
       </div>
@@ -662,8 +753,13 @@ export default function POSClientPage({
               onClearCart={cart.clearCart}
               onCheckout={() => {
                 closeCart();
-                handleOpenPayment();
+                if (checkoutMode === "quotation") {
+                  handleOpenNotaPenawaran();
+                } else {
+                  handleOpenPayment();
+                }
               }}
+              checkoutMode={checkoutMode}
               onClose={closeCart}
             />
           </div>
@@ -685,13 +781,68 @@ export default function POSClientPage({
         />
       )}
 
+      {showNotaPenawaran && (
+        <NotaPenawaranModal
+          open={showNotaPenawaran}
+          onClose={() => {
+            setShowNotaPenawaran(false);
+            setDraftError(null);
+          }}
+          items={productCartItems}
+          role={role}
+          onSubmit={handleCreateNotaPenawaran}
+          isSaving={createDraft.isPending}
+          error={draftError}
+        />
+      )}
+
       {/* Receipt Modal */}
       {lastTransaction && (
         <ReceiptModal
           open={!!lastTransaction}
-          onClose={() => setLastTransaction(null)}
+          onClose={() => {
+            setLastTransaction(null);
+            setDraftPrintDivision("");
+          }}
           transaction={lastTransaction}
+          draftPrintDivision={draftPrintDivision}
         />
+      )}
+
+      {pendingEmptyStockProduct && (
+        <Modal
+          open={!!pendingEmptyStockProduct}
+          onClose={() => setPendingEmptyStockProduct(null)}
+          title="Stok Kosong"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+              <AlertTriangle size={22} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">
+                  {pendingEmptyStockProduct.name}
+                </p>
+                <p className="mt-1 text-sm">
+                  Stok produk ini {pendingEmptyStockProduct.stock}. Item akan
+                  masuk ke keranjang untuk nota penawaran, bukan pembayaran
+                  langsung.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setPendingEmptyStockProduct(null)}
+              >
+                Batal
+              </Button>
+              <Button variant="accent" onClick={handleConfirmEmptyStockProduct}>
+                Tambahkan
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Shift Modals */}

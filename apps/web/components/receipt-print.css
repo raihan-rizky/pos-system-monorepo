@@ -1,0 +1,67 @@
+/*
+ * Receipt print styles — static CSS, imported once.
+ *
+ * Uses the `.receipt-compact` class toggle for compact padding,
+ * instead of dangerouslySetInnerHTML with interpolated values.
+ *
+ * Page size: 215mm × 165mm (landscape half-A4, matching the screen preview).
+ */
+
+@media print {
+  @page {
+    size: 215mm 165mm;
+    margin: 0;
+  }
+
+  /* ---------------------------------------------------------------
+   * Hide everything except the receipt.
+   *
+   * Instead of the fragile `body * { visibility: hidden }` hack,
+   * we mark non-receipt elements with `.print-hide` (applied by JS)
+   * and hide them with display:none.  The receipt itself stays in
+   * normal flow, so portals and shadow-DOM are unaffected.
+   * --------------------------------------------------------------- */
+  .print-hide {
+    display: none !important;
+  }
+
+  #print-receipt {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    width: 215mm !important;
+    height: 165mm !important;
+    max-height: 165mm !important;
+    margin: 0 !important;
+    padding: 4mm 6mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    /*
+     * scale(0.96) — slight inward scaling prevents content from
+     * bleeding past the @page margin on printers that don't
+     * honour margin:0 exactly.  Documented here so the reason
+     * is clear; remove if your printer handles it well.
+     */
+    transform: translate(-50%, -50%) scale(0.96) !important;
+    transform-origin: center center !important;
+    page-break-after: avoid;
+    page-break-before: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Compact variant: tighter padding for 4+ line-item receipts */
+  #print-receipt.receipt-compact {
+    padding: 2mm 5mm !important;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

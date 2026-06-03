@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins } from "lucide-react";
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
@@ -49,10 +50,10 @@ interface PaymentModalProps {
 }
 
 const paymentMethods = [
-  { value: "CASH", label: "Tunai", icon: "💵" },
-  { value: "QRIS", label: "QRIS", icon: "📱" },
-  { value: "DEBIT", label: "Debit", icon: "💳" },
-  { value: "TRANSFER", label: "Transfer", icon: "🏦" },
+  { value: "CASH", label: "Tunai", icon: Banknote },
+  { value: "QRIS", label: "QRIS", icon: Smartphone },
+  { value: "DEBIT", label: "Debit", icon: CreditCard },
+  { value: "TRANSFER", label: "Transfer", icon: Landmark },
 ];
 
 const quickAmounts = [10000, 20000, 50000, 100000];
@@ -239,7 +240,7 @@ export function PaymentModal({
                   }
                 `}
               >
-                <span className="text-lg">{method.icon}</span>
+                <method.icon className="w-5 h-5" aria-hidden="true" />
                 <span className="text-xs">{method.label}</span>
               </button>
             ))}
@@ -265,7 +266,7 @@ export function PaymentModal({
                 }
               `}
             >
-              <span>✅</span>
+              <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
               <span>Lunas</span>
             </button>
             <button
@@ -279,7 +280,7 @@ export function PaymentModal({
                 }
               `}
             >
-              <span>💰</span>
+              <Coins className="w-4 h-4" aria-hidden="true" />
               <span>Uang Muka (DP)</span>
             </button>
           </div>

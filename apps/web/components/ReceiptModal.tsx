@@ -1,42 +1,50 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
+import { DraftReceiptModal } from "./DraftReceiptModal";
 import { Modal, Button } from "@pos/ui";
-import { formatRupiah, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import type { Transaction } from "@/hooks/useTransactions";
 import { useStoreSettings } from "@/hooks/useSettings";
+import { StatusBanner } from "./StatusBanner";
+import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
+import "./receipt-print.css";
 
-interface ReceiptModalProps {
-  open: boolean;
-  onClose: () => void;
-  transaction: Transaction;
-}
+// ── Fix #5: configurable compact threshold ──────────────────────────
+/** Number of line-items at which the receipt switches to compact layout. */
+const COMPACT_ITEM_THRESHOLD = 4;
 
-function getReceiptStatusLabel(status: string): { label: string; color: string } {
-  switch (status) {
-    case "DRAFT":
-      return { label: "BELUM LUNAS", color: "text-[#b45309]" };
-    case "PENDING_APPROVAL":
-      return { label: "MENUNGGU PERSETUJUAN", color: "text-[#1d4ed8]" };
-    case "DP":
-      return { label: "UANG MUKA (DP)", color: "text-[#b45309]" };
-    case "VOIDED":
-      return { label: "DIBATALKAN", color: "text-[#64748b]" };
-    case "REFUNDED":
-      return { label: "DIREFUND", color: "text-[#dc2626]" };
-    default:
-      return { label: "LUNAS", color: "text-[#047857]" };
-  }
+// ── Fix #10: inline styles instead of dynamic Tailwind classes ──────
+/** Status → style mapping (purge-safe: no dynamic class generation). */
+const STATUS_STYLE_MAP: Record<string, { label: string; color: string }> = {
+  DRAFT: { label: "BELUM LUNAS", color: "#b45309" },
+  PENDING_APPROVAL: { label: "MENUNGGU PERSETUJUAN", color: "#1d4ed8" },
+  DP: { label: "UANG MUKA (DP)", color: "#b45309" },
+  VOIDED: { label: "DIBATALKAN", color: "#64748b" },
+  REFUNDED: { label: "DIREFUND", color: "#dc2626" },
+};
+const DEFAULT_STATUS_STYLE = { label: "LUNAS", color: "#047857" };
+
+function getReceiptStatusStyle(status: string) {
+  return STATUS_STYLE_MAP[status] ?? DEFAULT_STATUS_STYLE;
 }
 
 function formatReceiptSize(size?: string | null) {
   return size?.split(" = ")[0] ?? "";
 }
 
+interface ReceiptModalProps {
+  open: boolean;
+  onClose: () => void;
+  transaction: Transaction;
+  draftPrintDivision?: string;
+}
+
 export function ReceiptModal({
   open,
   onClose,
   transaction,
+  draftPrintDivision,
 }: ReceiptModalProps) {
   const { data: storeSettings } = useStoreSettings();
   const handlePrint = () => {
@@ -44,26 +52,48 @@ export function ReceiptModal({
   };
 
   const items = transaction?.items || [];
-  const compact = items.length >= 4;
+  // ── Fix #5: use named constant ─────────────────────────────────
+  const compact = items.length >= COMPACT_ITEM_THRESHOLD;
   const isDraft = transaction?.status === "DRAFT";
+
   const isPending = transaction?.status === "PENDING_APPROVAL";
   const isVoided = transaction?.status === "VOIDED";
   const isRefunded = transaction?.status === "REFUNDED";
   const isCancelled = isVoided || isRefunded;
   const displayInvoice =
-    transaction?.invoiceNumber ?? transaction?.draftNumber ?? "";
+    transaction?.invoiceNumber ??
+    formatDraftNumberForDisplay(transaction?.draftNumber) ??
+    "";
 
   const storeName = storeSettings?.name || "TOKO TELADAN";
+
+  // ── Fix #4: single split, memoized ────────────────────────────
+  const nameParts = useMemo(() => {
+    const words = storeName.split(" ");
+    return words.map((word, i) => ({
+      first: word[0] || "",
+      rest: word.slice(1),
+      isLast: i === words.length - 1,
+    }));
+  }, [storeName]);
+
+  // ── DRAFT transactions: render the A4 formal invoice directly ──
+  if (isDraft) {
+    return (
+      <DraftReceiptModal
+        open={open}
+        onClose={onClose}
+        transaction={transaction}
+        initialDivision={draftPrintDivision}
+      />
+    );
+  }
+
   const storeAddress = storeSettings?.address || "Jl. Temu Putih No.30 Cilegon";
   const storePhone = storeSettings?.phone || "0254 393022";
 
-  const nameParts = storeName.split(" ").map((word, i) => ({
-    first: word[0] || "",
-    rest: word.slice(1),
-    isLast: i === storeName.split(" ").length - 1,
-  }));
-
-  const statusInfo = getReceiptStatusLabel(transaction?.status ?? "COMPLETED");
+  // ── Fix #10: returns inline color, not a Tailwind class ───────
+  const statusInfo = getReceiptStatusStyle(transaction?.status ?? "COMPLETED");
 
   const modalTitle = isVoided
     ? "Invoice Dibatalkan"
@@ -78,145 +108,15 @@ export function ReceiptModal({
   return (
     <Modal open={open} onClose={onClose} title={modalTitle} size="xl">
       <div className="space-y-6">
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `
-              @media print {
-                @page {
-                  size: 215mm 165mm;
-                  margin: 0;
-                }
-
-                body * {
-                  visibility: hidden;
-                  transform: none !important;
-                }
-
-                #print-receipt {
-                  visibility: visible;
-                }
-
-                #print-receipt * {
-                  visibility: visible;
-                }
-
-                #print-receipt {
-                  position: fixed !important;
-                  left: 50% !important;
-                  top: 50% !important;
-                  width: 215mm !important;
-                  height: 165mm !important;
-                  max-height: 165mm !important;
-                  margin: 0 !important;
-                  padding: ${compact ? "2mm 5mm" : "4mm 6mm"} !important;
-                  border: none !important;
-                  box-shadow: none !important;
-                  overflow: hidden;
-                  display: flex;
-                  flex-direction: column;
-                  box-sizing: border-box;
-                  transform: translate(-50%, -50%) scale(0.96) !important;
-                  transform-origin: center center !important;
-                  page-break-after: avoid;
-                  page-break-before: avoid;
-                  page-break-inside: avoid;
-                }
-
-                .print\\:hidden {
-                  display: none !important;
-                }
-
-                body {
-                  margin: 0;
-                  padding: 0;
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                }
-              }
-            `,
-          }}
-        />
+        {/* ── Fix #1 & #2: print CSS is now a static import ─────── */}
         <div className="w-full overflow-x-auto pb-4">
           <div
             id="print-receipt"
-            className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[110mm] print:w-[210mm] print:h-[110mm] print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? "text-[9px]" : "text-xs"} ${isCancelled ? "opacity-80" : ""}`}
+            className={`p-4 bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[165mm] print:w-[210mm] print:h-[165mm] print:-mt-4 print:p-4 print:pt-6 flex flex-col box-border border border-surface-200 print:border-none shadow-sm print:shadow-none ${compact ? "receipt-compact text-[9px]" : "text-xs"} ${isCancelled ? "opacity-80" : ""}`}
           >
-            {/* DRAFT Banner */}
-            {isDraft && (
-              <div
-                role="status"
-                aria-label="Faktur sementara, bukan bukti pembayaran"
-                className="mb-2 -mx-4 -mt-4 px-4 py-1.5 bg-amber-100 text-amber-900 border-b-2 border-amber-300 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider print:bg-amber-100 print:text-amber-900"
-                style={
-                  {
-                    printColorAdjust: "exact",
-                    WebkitPrintColorAdjust: "exact",
-                  } as React.CSSProperties
-                }
-              >
-                <span>FAKTUR SEMENTARA</span>
-                <span className="font-medium normal-case tracking-normal">
-                  Bukan bukti pembayaran
-                </span>
-              </div>
-            )}
-            {/* PENDING Banner */}
-            {isPending && (
-              <div
-                role="status"
-                aria-label="Menunggu persetujuan, bukan bukti pembayaran"
-                className="mb-2 -mx-4 -mt-4 px-4 py-1.5 bg-blue-100 text-blue-900 border-b-2 border-blue-300 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider print:bg-blue-100 print:text-blue-900"
-                style={
-                  {
-                    printColorAdjust: "exact",
-                    WebkitPrintColorAdjust: "exact",
-                  } as React.CSSProperties
-                }
-              >
-                <span>MENUNGGU PERSETUJUAN</span>
-                <span className="font-medium normal-case tracking-normal">
-                  Bukan bukti pembayaran
-                </span>
-              </div>
-            )}
-            {/* VOIDED Banner */}
-            {isVoided && (
-              <div
-                role="status"
-                aria-label="Transaksi dibatalkan"
-                className="mb-2 -mx-4 -mt-4 px-4 py-1.5 bg-surface-100 text-surface-600 border-b-2 border-surface-300 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider print:bg-surface-100 print:text-surface-600"
-                style={
-                  {
-                    printColorAdjust: "exact",
-                    WebkitPrintColorAdjust: "exact",
-                  } as React.CSSProperties
-                }
-              >
-                <span>DIBATALKAN</span>
-                <span className="font-medium normal-case tracking-normal">
-                  Invoice ini tidak sah
-                </span>
-              </div>
-            )}
-            {/* REFUNDED Banner */}
-            {isRefunded && (
-              <div
-                role="status"
-                aria-label="Transaksi direfund"
-                className="mb-2 -mx-4 -mt-4 px-4 py-1.5 bg-red-100 text-red-800 border-b-2 border-red-300 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider print:bg-red-100 print:text-red-800"
-                style={
-                  {
-                    printColorAdjust: "exact",
-                    WebkitPrintColorAdjust: "exact",
-                  } as React.CSSProperties
-                }
-              >
-                <span>DIREFUND</span>
-                <span className="font-medium normal-case tracking-normal">
-                  Dana telah dikembalikan
-                </span>
-              </div>
-            )}
+            {/* Fix #9: min-h-[165mm] now matches @page 165mm */}
+            {/* Fix #3: single data-driven StatusBanner */}
+            <StatusBanner status={transaction?.status ?? ""} />
 
             {/* Header — dynamic store info */}
             <div className={`flex flex-col ${compact ? "mb-1" : "mb-2"}`}>
@@ -312,7 +212,8 @@ export function ReceiptModal({
                 <div className="flex">
                   <span className={compact ? "w-20" : "w-24"}>Status</span>
                   <span className="mr-4">:</span>
-                  <span className={`font-bold ${statusInfo.color}`}>
+                  {/* ── Fix #10: inline style, not dynamic Tailwind class ── */}
+                  <span className="font-bold" style={{ color: statusInfo.color }}>
                     {statusInfo.label}
                   </span>
                 </div>
@@ -382,8 +283,9 @@ export function ReceiptModal({
                     </tr>
                   </thead>
                   <tbody>
+                    {/* ── Fix #6: fallback key when item.id may be undefined ── */}
                     {items.map((item, index) => (
-                      <tr key={item.id}>
+                      <tr key={item.id ?? `item-${index}`}>
                         <td
                           className={`border border-black ${cellPad} text-center`}
                         >
@@ -504,7 +406,12 @@ export function ReceiptModal({
                         {transaction.status === "DP" ? "SISA" : "KEMBALI"}
                       </div>
                       <div
-                        className={`border-l border-r border-b border-black ${compact ? "py-0.5 px-3" : "py-2 px-4"} font-bold text-center ${compact ? "w-[150px]" : "w-[180px]"} ${transaction.status === "DP" ? "text-[#b45309]" : ""}`}
+                        className={`border-l border-r border-b border-black ${compact ? "py-0.5 px-3" : "py-2 px-4"} font-bold text-center ${compact ? "w-[150px]" : "w-[180px]"}`}
+                        style={
+                          transaction.status === "DP"
+                            ? { color: "#b45309" }
+                            : undefined
+                        }
                       >
                         Rp{" "}
                         {transaction.status === "DP"
@@ -525,7 +432,8 @@ export function ReceiptModal({
                       {isVoided ? "DIBATALKAN" : "DIREFUND"}
                     </div>
                     <div
-                      className={`border-l border-r border-b border-black ${compact ? "py-0.5 px-3" : "py-2 px-4"} font-bold text-center ${compact ? "w-[150px]" : "w-[180px]"} ${isVoided ? "text-[#64748b]" : "text-[#dc2626]"}`}
+                      className={`border-l border-r border-b border-black ${compact ? "py-0.5 px-3" : "py-2 px-4"} font-bold text-center ${compact ? "w-[150px]" : "w-[180px]"}`}
+                      style={{ color: isVoided ? "#64748b" : "#dc2626" }}
                     >
                       Rp 0
                     </div>
@@ -537,7 +445,7 @@ export function ReceiptModal({
         </div>
 
         {/* Actions (Not Printed) */}
-        <div className="flex gap-3 print:hidden">
+        <div className="flex gap-3 print:hidden  sticky bottom-[-16px] z-10 bg-white pt-4 pb-4 -mx-6 px-6 border-t border-gray-100 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] mt-4">
           <Button
             variant="secondary"
             size="lg"

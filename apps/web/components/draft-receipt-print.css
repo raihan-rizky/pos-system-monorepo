@@ -1,0 +1,159 @@
+/*
+ * Draft Receipt (Surat Penawaran / Faktur Sementara) print styles.
+ *
+ * A4 portrait page (210mm × 297mm).
+ * Completely separate from receipt-print.css to avoid conflicts.
+ *
+ * Key: when #draft-receipt-page exists in the DOM, it overrides
+ * the regular receipt @page size via higher specificity and
+ * hides #print-receipt entirely.
+ */
+
+@media print {
+  /*
+   * Only override @page when the draft receipt is actually in the DOM.
+   * Browsers apply the last-defined @page, so this file must be
+   * imported AFTER receipt-print.css (which it is via DraftReceiptModal).
+  /* Page size is now injected dynamically via <style> in DraftReceiptModal.tsx 
+     to ensure it reliably overrides the global receipt-print.css without conflicts */
+
+  /* Only hide body content if the draft receipt is actually present */
+  body:has(#draft-receipt-page) * {
+    visibility: hidden;
+  }
+
+  body:has(#draft-receipt-page) #draft-receipt-page,
+  body:has(#draft-receipt-page) #draft-receipt-page * {
+    visibility: visible !important;
+  }
+
+  /* Force-hide the regular receipt if it exists in the DOM while draft is printing */
+  body:has(#draft-receipt-page) #print-receipt {
+    display: none !important;
+  }
+
+  /* Hide the print:hidden utility (buttons, form inputs, etc.) */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset positioning and flex centering on modal ancestors to prevent offset */
+  div.fixed.inset-0,
+  div[role="dialog"],
+  div[role="dialog"] > div,
+  .w-full.overflow-x-auto {
+    position: static !important;
+    transform: none !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* ── Position the draft receipt on the page ──────────────────── */
+  #draft-receipt-page {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* ── Screen preview ──────────────────────────────────────────────── */
+
+#draft-receipt-page {
+  font-family: "Times New Roman", "Georgia", serif;
+  color: #1a1a1a;
+  line-height: 1.5;
+}
+
+#draft-receipt-page table {
+  border-collapse: collapse;
+}
+
+#draft-receipt-page th,
+#draft-receipt-page td {
+  border: 1px solid #333;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+#draft-receipt-page th {
+  background-color: #f0f0f0;
+  font-weight: bold;
+  text-align: center;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Total row highlight */
+#draft-receipt-page .total-row {
+  background-color: #f0f0f0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Terbilang box */
+#draft-receipt-page .terbilang-box {
+  border: 1px solid #333;
+  padding: 4px 10px;
+  font-style: italic;
+  font-weight: bold;
+  font-size: 11px;
+  margin-top: -1px;
+}
+
+/* Header section */
+.draft-receipt-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 3px double #cc0000;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+
+.draft-receipt-header img {
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
+}
+
+.draft-receipt-header-text h1 {
+  font-size: 22px;
+  font-weight: bold;
+  color: #cc0000;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.draft-receipt-header-text p {
+  font-size: 11px;
+  margin: 0;
+  color: #333;
+}
+
+/* Signature section */
+.draft-receipt-signature {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 11px;
+}
+
+.draft-receipt-signature .stamp-area {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

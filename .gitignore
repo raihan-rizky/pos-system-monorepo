@@ -52,5 +52,8 @@ test_rls.js
 #MD Files
 markdown-files/
 
-#claude
+# AI settings and configurations
 .claude
+.claude.json
+.opencode
+.opencode.json

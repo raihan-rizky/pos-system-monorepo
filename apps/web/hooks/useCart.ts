@@ -8,6 +8,7 @@ export interface ProductCartItem {
   productId: string;
   name: string;
   price: number;
+  costPrice?: number | null;
   quantity: number;
   unit: string;
   stock: number;
@@ -95,7 +96,7 @@ export function useCart() {
   }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; price: number; unit: string; stock: number; size?: string; material?: string }) => {
+    (product: { id: string; name: string; price: number; costPrice?: number | null; unit: string; stock: number; size?: string; material?: string }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -105,7 +106,6 @@ export function useCart() {
             item.material === product.material,
         );
         if (existing) {
-          if (existing.quantity >= product.stock) return prev;
           return prev.map((item) =>
             item.lineType === "PRODUCT" && item.productId === product.id && item.size === product.size && item.material === product.material
               ? { ...item, quantity: item.quantity + 1 }
@@ -120,6 +120,7 @@ export function useCart() {
             productId: product.id,
             name: product.name,
             price: product.price,
+            costPrice: product.costPrice ?? null,
             quantity: 1,
             unit: product.unit,
             stock: product.stock,
@@ -160,10 +161,7 @@ export function useCart() {
         item.cartLineId === cartLineId
           ? {
               ...item,
-              quantity:
-                item.lineType === "PRODUCT"
-                  ? Math.min(quantity, item.stock)
-                  : quantity,
+              quantity,
             }
           : item
       )

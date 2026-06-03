@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { CUSTOMER_TYPES, toDbCustomerType } from "@/lib/customers";
 
 import { getLogger } from "@/lib/logger";
 
@@ -14,7 +15,7 @@ const updateCustomerSchema = z.object({
   email: z.string().email().optional().nullable().or(z.literal("")),
   company: z.string().max(100).optional().nullable(),
   address: z.string().max(300).optional().nullable(),
-  type: z.enum(["UMUM", "AGEN"]).optional(),
+  type: z.enum(CUSTOMER_TYPES).optional(),
   notes: z.string().max(500).optional().nullable(),
 });
 
@@ -125,9 +126,14 @@ export async function PATCH(
       );
     }
 
+    const { type, ...rest } = parsed.data;
+
     const customer = await db.customer.update({
       where: { id: existingCustomer.id },
-      data: parsed.data,
+      data: {
+        ...rest,
+        ...(type ? { type: toDbCustomerType(type) } : {}),
+      },
     });
 
     return NextResponse.json(customer);

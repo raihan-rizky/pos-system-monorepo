@@ -42,6 +42,8 @@ export interface Transaction {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    product?: { unit: string } | null;
+    printingService?: { unit: string } | null;
   }[];
 }
 

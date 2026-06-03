@@ -76,7 +76,7 @@ export function ProductGrid({
             key={product.id}
             onClick={() => {
               if (isEditMode) return;
-              if (!isOutOfStock) onAddToCart(product);
+              onAddToCart(product);
             }}
             className={`
               relative flex h-full flex-col items-start p-3.5
@@ -87,7 +87,7 @@ export function ProductGrid({
                 isEditMode
                   ? "bg-white border-brand-300 ring-2 ring-brand-100 ring-opacity-50"
                   : isOutOfStock
-                    ? "bg-surface-50 border-surface-200 opacity-60 cursor-not-allowed"
+                    ? "bg-amber-50/70 border-amber-200 hover:border-amber-300 hover:shadow-md active:translate-y-0 cursor-pointer"
                     : "bg-white border-surface-200 hover:border-brand-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
               }
             `}

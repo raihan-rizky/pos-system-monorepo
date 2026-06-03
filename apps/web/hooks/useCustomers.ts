@@ -6,10 +6,11 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
+import type { CustomerType } from "@/lib/customers";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type CustomerType = "UMUM" | "AGEN";
+export type { CustomerType } from "@/lib/customers";
 
 export interface Customer {
   id: string;

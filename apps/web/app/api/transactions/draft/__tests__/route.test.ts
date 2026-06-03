@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const requireRoleMock = vi.hoisted(() => vi.fn());
@@ -8,6 +8,7 @@ const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
+const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const canRolePerformActionMock = vi.hoisted(() => vi.fn());
 const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
@@ -42,6 +43,7 @@ vi.mock("@pos/db", () => ({
       count: transactionCountMock,
       create: transactionCreateMock,
     },
+    productPriceLog: { createMany: productPriceLogCreateManyMock },
     $transaction: dbTransactionMock,
   },
   Prisma: {},
@@ -50,6 +52,8 @@ vi.mock("@pos/db", () => ({
 describe("POST /api/transactions/draft", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-02T03:00:00.000Z"));
     requireRoleMock.mockResolvedValue({
       id: "cashier-1",
       role: "CASHIER",
@@ -77,6 +81,7 @@ describe("POST /api/transactions/draft", () => {
         transaction: {
           create: transactionCreateMock,
         },
+        productPriceLog: { createMany: productPriceLogCreateManyMock },
       }),
     );
     transactionCreateMock.mockImplementation(async ({ data }: any) => ({
@@ -99,7 +104,11 @@ describe("POST /api/transactions/draft", () => {
     }));
   });
 
-  it("creates a DRAFT row with draftNumber, null invoiceNumber, no stock decrement", async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("creates a DRAFT row with PNW draftNumber, null invoiceNumber, no stock decrement", async () => {
     const { POST } = await import("../route");
     const res = await POST(
       new Request("http://localhost/api/transactions/draft", {
@@ -118,13 +127,64 @@ describe("POST /api/transactions/draft", () => {
     const body = await res.json();
     expect(body.status).toBe("DRAFT");
     expect(body.invoiceNumber).toBeNull();
-    expect(body.draftNumber).toMatch(/^DRAFT-\d{8}-\d{4}$/);
+    expect(body.draftNumber).toBe("PNW-TLD-20260602-001");
     expect(transactionCreateMock).toHaveBeenCalledTimes(1);
     const createArgs = transactionCreateMock.mock.calls[0][0];
     expect(createArgs.data.status).toBe("DRAFT");
     expect(createArgs.data.invoiceNumber).toBeNull();
     expect(createArgs.data.cashierId).toBe("cashier-1");
     expect(createArgs.data.requestedById).toBeNull();
+  });
+
+  it("stores custom quote prices as item snapshots and writes audit-only price logs", async () => {
+    const { POST } = await import("../route");
+    const res = await POST(
+      new Request("http://localhost/api/transactions/draft", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            { productId: "p1", name: "Kertas A4", price: 47500, quantity: 3 },
+          ],
+          discount: 0,
+          customerName: "PT Contoh",
+          isJobOrder: false,
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    expect(transactionCreateMock).toHaveBeenCalledTimes(1);
+    const createArgs = transactionCreateMock.mock.calls[0][0];
+    expect(createArgs.data.subtotal).toBe(142500);
+    expect(createArgs.data.total).toBe(142500);
+    expect(createArgs.data.customerName).toBe("PT Contoh");
+    expect(createArgs.data.items.create).toEqual([
+      expect.objectContaining({
+        productId: "p1",
+        productName: "Kertas A4",
+        quantity: 3,
+        unitPrice: 47500,
+        unitCost: 30000,
+        subtotal: 142500,
+      }),
+    ]);
+    expect(createArgs.data).not.toHaveProperty("price");
+    expect(productPriceLogCreateManyMock).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          productId: "p1",
+          storeId: "store-main",
+          field: "PRICE",
+          oldValue: "50000.00",
+          newValue: "47500.00",
+          source: "SYSTEM",
+          note:
+            "Harga khusus untuk nota penawaran dengan nomor 001/PNW-TLD/02/VI/2026",
+          changedBy: "cashier-1",
+          changedByName: "Cashier One",
+        }),
+      ],
+    });
   });
 
   it("returns 422 when cart is empty", async () => {

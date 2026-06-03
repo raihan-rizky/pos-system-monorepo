@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { lazy, Suspense, useMemo, useState } from "react";
 import {
   type InventoryLog,
   type InventoryLogStatus,
@@ -10,6 +10,7 @@ import {
   useRejectInventoryLog,
 } from "@/hooks/useInventoryLogs";
 import { useRole } from "@/components/providers/RoleProvider";
+import { useCancelBulkBatch } from "@/features/bulk-stock-approval/hooks/useBulkApproval";
 import {
   PackagePlus,
   PackageMinus,
@@ -27,6 +28,12 @@ import {
 } from "lucide-react";
 import { getDefaultProductImage } from "@/lib/utils";
 
+const BulkStockApprovalModal = lazy(() =>
+  import("@/features/bulk-stock-approval/components/BulkStockApprovalModal").then(
+    (mod) => ({ default: mod.BulkStockApprovalModal }),
+  ),
+);
+
 type TypeStyle = {
   label: string;
   icon: React.ReactNode;
@@ -36,9 +43,9 @@ type TypeStyle = {
 };
 
 const typeConfig: Record<string, TypeStyle> = {
-  IN:         { label: "Stock In",    icon: <PackagePlus  className="w-4 h-4" />, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" },
-  OUT:        { label: "Stock Out",   icon: <PackageMinus className="w-4 h-4" />, color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-100" },
-  ADJUSTMENT: { label: "Penyesuaian", icon: <Settings2    className="w-4 h-4" />, color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-100" },
+  IN: { label: "Stock In", icon: <PackagePlus className="w-4 h-4" />, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" },
+  OUT: { label: "Stock Out", icon: <PackageMinus className="w-4 h-4" />, color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" },
+  ADJUSTMENT: { label: "Penyesuaian", icon: <Settings2 className="w-4 h-4" />, color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-100" },
 };
 
 const STATUS_FILTERS: Array<{ id: string; label: string; status?: string }> = [
@@ -107,14 +114,17 @@ export default function StockLogsTab() {
   const approveMut = useApproveInventoryLog();
   const rejectMut = useRejectInventoryLog();
   const cancelMut = useCancelInventoryLog();
+  const cancelBulkMut = useCancelBulkBatch();
 
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
-  const logs = data?.data || [];
+  const logs = useMemo(() => data?.data ?? [], [data?.data]);
   const pagination = data?.pagination;
   const pendingTotal = pagination?.pendingTotal ?? 0;
+  const entries = useMemo(() => groupBulkLogs(logs), [logs]);
 
   const handleApprove = async (id: string) => {
     setActionError(null);
@@ -162,6 +172,17 @@ export default function StockLogsTab() {
     }
   };
 
+  const handleCancelBulk = async (batchId: string) => {
+    if (!confirm("Batalkan bundle permintaan stok ini?")) return;
+    setActionError(null);
+    try {
+      await cancelBulkMut.mutateAsync(batchId);
+    } catch (err) {
+      const e = err as Error;
+      setActionError(e.message || "Gagal membatalkan bundle.");
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
       {/* ── Toolbar ── */}
@@ -193,11 +214,10 @@ export default function StockLogsTab() {
               <button
                 key={f.id}
                 onClick={() => { setTypeFilter(f.id); setPage(1); }}
-                className={`min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                  typeFilter === f.id
-                    ? "bg-slate-900 text-white shadow-md"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
+                className={`min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${typeFilter === f.id
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
               >
                 {f.label}
               </button>
@@ -220,11 +240,10 @@ export default function StockLogsTab() {
                 role="tab"
                 aria-selected={active}
                 onClick={() => { setStatusFilterId(f.id); setPage(1); }}
-                className={`min-h-8 inline-flex items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
-                  active
-                    ? "bg-white text-brand-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
+                className={`min-h-8 inline-flex items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${active
+                  ? "bg-white text-brand-700 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+                  }`}
               >
                 {f.label}
                 {f.id === "pending" && pendingTotal > 0 && (
@@ -281,7 +300,19 @@ export default function StockLogsTab() {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log: InventoryLog) => {
+                {entries.map((entry) => {
+                  if (entry.kind === "bundle") {
+                    return (
+                      <BundleDesktopRow
+                        key={entry.batch.id}
+                        entry={entry}
+                        userId={userId}
+                        onOpen={() => setSelectedBatchId(entry.batch.id)}
+                        onCancel={() => handleCancelBulk(entry.batch.id)}
+                      />
+                    );
+                  }
+                  const log = entry.log;
                   const cfg = typeConfig[log.type];
                   const isPending = log.status === "PENDING";
                   const isRejected = log.status === "REJECTED";
@@ -322,12 +353,11 @@ export default function StockLogsTab() {
                           </span>
                         </td>
                         <td className="py-3 px-3 align-middle text-right">
-                          <span className={`text-sm font-black tabular-nums ${
-                            isPending ? "text-slate-700" :
+                          <span className={`text-sm font-black tabular-nums ${isPending ? "text-slate-700" :
                             isRejected ? "text-slate-400 line-through" :
-                            log.type === "IN" ? "text-emerald-600" :
-                            log.type === "OUT" ? "text-amber-600" : "text-blue-600"
-                          }`}>
+                              log.type === "IN" ? "text-emerald-600" :
+                                log.type === "OUT" ? "text-amber-600" : "text-blue-600"
+                            }`}>
                             {log.type === "IN" ? "+" : log.type === "OUT" ? "−" : "±"}{log.quantity}
                           </span>
                           <span className="text-xs text-slate-400 ml-1">{log.product.unit}</span>
@@ -378,7 +408,19 @@ export default function StockLogsTab() {
 
           {/* ── Mobile Cards ── */}
           <div className="flex flex-col gap-3 md:hidden">
-            {logs.map((log: InventoryLog) => {
+            {entries.map((entry) => {
+              if (entry.kind === "bundle") {
+                return (
+                  <BundleMobileCard
+                    key={entry.batch.id}
+                    entry={entry}
+                    userId={userId}
+                    onOpen={() => setSelectedBatchId(entry.batch.id)}
+                    onCancel={() => handleCancelBulk(entry.batch.id)}
+                  />
+                );
+              }
+              const log = entry.log;
               const cfg = typeConfig[log.type];
               const isPending = log.status === "PENDING";
               const isRejected = log.status === "REJECTED";
@@ -402,12 +444,11 @@ export default function StockLogsTab() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className={`text-base font-black tabular-nums ${
-                        isPending ? "text-slate-700" :
+                      <span className={`text-base font-black tabular-nums ${isPending ? "text-slate-700" :
                         isRejected ? "text-slate-400 line-through" :
-                        log.type === "IN" ? "text-emerald-600" :
-                        log.type === "OUT" ? "text-amber-600" : "text-blue-600"
-                      }`}>
+                          log.type === "IN" ? "text-emerald-600" :
+                            log.type === "OUT" ? "text-amber-600" : "text-blue-600"
+                        }`}>
                         {log.type === "IN" ? "+" : log.type === "OUT" ? "−" : "±"}{log.quantity}
                       </span>
                     </div>
@@ -493,6 +534,256 @@ export default function StockLogsTab() {
           )}
         </>
       )}
+      <Suspense fallback={null}>
+        {selectedBatchId && (
+          <BulkStockApprovalModal
+            open={Boolean(selectedBatchId)}
+            batchId={selectedBatchId}
+            onClose={() => setSelectedBatchId(null)}
+          />
+        )}
+      </Suspense>
+    </div>
+  );
+}
+
+type BatchOperationForLog = NonNullable<InventoryLog["batchItem"]>["batchOperation"];
+
+type StockLogEntry =
+  | { kind: "log"; log: InventoryLog }
+  | { kind: "bundle"; batch: BatchOperationForLog; logs: InventoryLog[] };
+
+function groupBulkLogs(logs: InventoryLog[]): StockLogEntry[] {
+  const entries: StockLogEntry[] = [];
+  const bundled = new Set<string>();
+
+  for (const log of logs) {
+    const batch = log.batchItem?.batchOperation;
+    const shouldBundle = batch?.type === "BULK_STOCK_ADJUSTMENT";
+
+    if (!shouldBundle || !batch) {
+      entries.push({ kind: "log", log });
+      continue;
+    }
+
+    if (bundled.has(batch.id)) continue;
+    bundled.add(batch.id);
+    entries.push({
+      kind: "bundle",
+      batch,
+      logs: logs.filter((candidate) => candidate.batchItem?.batchOperation.id === batch.id),
+    });
+  }
+
+  return entries;
+}
+
+function readSummary(batch: BatchOperationForLog) {
+  return typeof batch.summary === "object" && batch.summary !== null
+    ? batch.summary
+    : {};
+}
+
+function summarizeBundle(entry: Extract<StockLogEntry, { kind: "bundle" }>) {
+  const summary = readSummary(entry.batch);
+  const first = entry.logs[0];
+  const pending = Number(summary.pendingCount ?? entry.logs.filter((log) => log.status === "PENDING").length);
+  const approved = Number(summary.approvedCount ?? entry.logs.filter((log) => log.status === "APPROVED").length);
+  const rejected = Number(summary.rejectedCount ?? entry.logs.filter((log) => log.status === "REJECTED").length);
+  const total = Number(summary.totalCount ?? summary.productCount ?? summary.inventoryLogCount ?? entry.logs.length);
+
+  return {
+    productName: String(summary.productName || summary.supplierName || first?.note || "Bundle stok"),
+    note: typeof summary.note === "string" ? summary.note : first?.note || "",
+    requester: first?.person || "-",
+    createdBy: entry.batch.createdBy,
+    createdAt: first?.createdAt || entry.batch.createdAt,
+    type: first?.type || "IN",
+    total,
+    pending,
+    approved,
+    rejected,
+  };
+}
+
+function bundleStatusLabel(summary: ReturnType<typeof summarizeBundle>) {
+  if (summary.pending > 0 && (summary.approved > 0 || summary.rejected > 0)) return "Sebagian";
+  if (summary.pending > 0) return "Pending";
+  if (summary.approved > 0 && summary.rejected > 0) return "Sebagian";
+  if (summary.approved > 0) return "Disetujui";
+  if (summary.rejected > 0) return "Ditolak";
+  return "Pending";
+}
+
+function bundleCountLabel(summary: ReturnType<typeof summarizeBundle>) {
+  if (summary.pending > 0) return { count: summary.pending, label: "pending", color: "text-cyan-700" };
+  if (summary.approved > 0 && summary.rejected === 0) return { count: summary.approved, label: "approved", color: "text-emerald-700" };
+  if (summary.rejected > 0 && summary.approved === 0) return { count: summary.rejected, label: "rejected", color: "text-red-600" };
+  return { count: summary.approved + summary.rejected, label: "decided", color: "text-violet-700" };
+}
+
+function BundleDesktopRow({
+  entry,
+  userId,
+  onOpen,
+  onCancel,
+}: {
+  entry: Extract<StockLogEntry, { kind: "bundle" }>;
+  userId: string | null;
+  onOpen: () => void;
+  onCancel: () => void;
+}) {
+  const summary = summarizeBundle(entry);
+  const cfg = typeConfig[summary.type];
+  const canCancel = summary.createdBy === userId && summary.pending > 0;
+  const countLabel = bundleCountLabel(summary);
+
+  return (
+    <tr
+      onClick={onOpen}
+      className="group cursor-pointer border-b border-cyan-100/70 bg-gradient-to-r from-cyan-50/90 via-white to-violet-50/70 shadow-[inset_0_0_0_1px_rgba(6,182,212,0.14),0_10px_28px_rgba(6,182,212,0.14)] transition-all duration-200 hover:from-cyan-100/80 hover:to-violet-100/70 hover:shadow-[inset_0_0_0_1px_rgba(124,58,237,0.18),0_14px_36px_rgba(124,58,237,0.18)]"
+    >
+      <td className="py-3 px-3 align-middle relative">
+        <span aria-hidden="true" className="absolute left-0 top-1 bottom-1 w-1 rounded-r-full bg-gradient-to-b from-cyan-400 via-blue-500 to-violet-500 shadow-[0_0_16px_rgba(6,182,212,0.75)]" />
+        <div className="flex flex-col gap-1">
+          <span className="inline-flex w-fit max-w-[65px] gap-1.5 rounded-md border border-cyan-200 bg-white/85 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-cyan-700 shadow-[0_0_16px_rgba(6,182,212,0.18)]">
+            Bundle Request
+          </span>
+          <span className="inline-flex w-fit items-center rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+            {bundleStatusLabel(summary)}
+          </span>
+        </div>
+      </td>
+      <td className="py-3 px-3 align-middle">
+        <p className="text-sm font-semibold text-slate-900 tabular-nums">{formatDate(summary.createdAt)}</p>
+        <p className="text-[11px] text-slate-400 tabular-nums">{formatTime(summary.createdAt)}</p>
+      </td>
+      <td className="py-3 px-3 align-middle">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-100 text-cyan-700 shadow-[0_0_18px_rgba(6,182,212,0.28)]">
+            <PackagePlus className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="max-w-[220px] truncate text-sm font-bold text-slate-950">{summary.productName}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-700">{summary.total} produk dalam bundle</p>
+          </div>
+        </div>
+      </td>
+      <td className="py-3 px-3 align-middle">
+        <span className={`inline-flex items-center gap-1.5 rounded-lg border bg-white/80 px-2.5 py-1 text-xs font-bold shadow-sm ${cfg.color} ${cfg.border}`}>
+          {cfg.icon} {cfg.label}
+        </span>
+      </td>
+      <td className="py-3 px-3 align-middle text-right">
+        <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-100 bg-white/75 px-2.5 py-1.5 shadow-sm">
+          <span className={`text-sm font-black tabular-nums ${countLabel.color}`}>{countLabel.count}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{countLabel.label}</span>
+        </div>
+      </td>
+      <td className="py-3 px-3 align-middle">
+        <p className="max-w-[120px] truncate text-xs font-medium text-slate-700">{summary.requester}</p>
+      </td>
+      <td className="py-3 px-3 align-middle">
+        <p className="max-w-[250px] whitespace-normal break-words text-sm text-slate-500">{summary.note || "-"}</p>
+      </td>
+      <td className="py-3 px-3 align-middle">
+        {canCancel ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onCancel();
+            }}
+            className="inline-flex min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white/75 px-2.5 text-xs font-semibold text-slate-500 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            Batalkan
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs font-bold text-cyan-700">
+            Detail
+            <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function BundleMobileCard({
+  entry,
+  userId,
+  onOpen,
+  onCancel,
+}: {
+  entry: Extract<StockLogEntry, { kind: "bundle" }>;
+  userId: string | null;
+  onOpen: () => void;
+  onCancel: () => void;
+}) {
+  const summary = summarizeBundle(entry);
+  const cfg = typeConfig[summary.type];
+  const canCancel = summary.createdBy === userId && summary.pending > 0;
+  const countLabel = bundleCountLabel(summary);
+
+  return (
+    <div
+      onClick={onOpen}
+      className="relative cursor-pointer overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-violet-50 p-4 shadow-[0_14px_38px_rgba(6,182,212,0.18),inset_0_0_0_1px_rgba(124,58,237,0.08)] transition-all duration-200 hover:shadow-[0_18px_46px_rgba(124,58,237,0.22),inset_0_0_0_1px_rgba(6,182,212,0.18)]"
+    >
+      <span aria-hidden="true" className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-cyan-400 via-blue-500 to-violet-500 shadow-[0_0_16px_rgba(6,182,212,0.8)]" />
+      <span aria-hidden="true" className="absolute right-4 top-4 h-12 w-12 rounded-full bg-cyan-300/30 blur-2xl" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-100 text-cyan-700 shadow-[0_0_18px_rgba(6,182,212,0.28)]">
+            <PackagePlus className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <span className="mb-1 inline-flex rounded-full border border-cyan-200 bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-cyan-700">
+              Bundle Request
+            </span>
+            <p className="truncate text-sm font-bold text-slate-950">{summary.productName}</p>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-[10px] font-bold text-slate-400">{relativeTime(summary.createdAt)}</p>
+          <span className="mt-1 inline-flex rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+            {bundleStatusLabel(summary)}
+          </span>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className={`inline-flex items-center gap-1 rounded-md border bg-white/80 px-2 py-0.5 text-[10px] font-bold ${cfg.color} ${cfg.border}`}>
+          {cfg.icon} {cfg.label}
+        </span>
+        <span className={`inline-flex rounded-md border border-cyan-100 bg-white/80 px-2 py-0.5 text-[10px] font-bold ${countLabel.color}`}>
+          {countLabel.count} {countLabel.label}
+        </span>
+        <span className="text-xs font-semibold text-slate-500">{summary.total} produk</span>
+      </div>
+      <div className="mt-3 border-t border-cyan-100/70 pt-3">
+        <p className="text-xs font-medium text-slate-600">Pemohon: {summary.requester}</p>
+        {summary.note && <p className="mt-1 text-xs text-slate-500">{summary.note}</p>}
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        {canCancel ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onCancel();
+            }}
+            className="min-h-9 rounded-lg border border-slate-200 bg-white/80 px-2.5 text-xs font-semibold text-slate-500 shadow-sm hover:bg-slate-50"
+          >
+            Batalkan
+          </button>
+        ) : (
+          <span />
+        )}
+        <span className="inline-flex items-center gap-1 text-xs font-bold text-cyan-700">
+          Detail
+          <ChevronRight className="h-3.5 w-3.5" />
+        </span>
+      </div>
     </div>
   );
 }

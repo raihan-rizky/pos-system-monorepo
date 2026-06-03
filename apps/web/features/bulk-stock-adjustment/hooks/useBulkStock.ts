@@ -16,6 +16,7 @@ export interface BulkStockInput {
   type: "IN" | "OUT" | "ADJUSTMENT";
   reason: BulkStockReason;
   quantities: Record<string, number>;
+  supplierName: string;
   note: string;
 }
 
@@ -56,6 +57,8 @@ async function commitBulkStock(input: BulkStockInput) {
     updatedProductCount: number;
     inventoryLogCount: number;
     batchOperationId: string;
+    status: "PENDING" | "COMMITTED";
+    pendingApproval: boolean;
     undoAvailable: boolean;
   };
 }

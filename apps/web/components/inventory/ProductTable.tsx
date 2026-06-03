@@ -117,10 +117,15 @@ export default function ProductTable({
                     <p className="font-semibold text-surface-900 text-sm tabular-nums">
                       {new Intl.NumberFormat("id-ID").format(product.price)}
                     </p>
-                    {product.costPrice && (
-                      <p className="text-[11px] text-surface-400 mt-0.5 tabular-nums">
-                        HPP: {new Intl.NumberFormat("id-ID").format(product.costPrice)}
-                      </p>
+                    {canChangePrice && product.costPrice && (
+                      <>
+                        <p className="text-[11px] text-surface-400 mt-0.5 tabular-nums">
+                          HPP: {new Intl.NumberFormat("id-ID").format(product.costPrice)}
+                        </p>
+                        <p className="text-[11px] text-emerald-600 font-medium mt-0.5 tabular-nums">
+                          Margin: {new Intl.NumberFormat("id-ID").format(product.price - product.costPrice)} {product.price > 0 ? `(${((product.price - product.costPrice) / product.price * 100).toFixed(1)}%)` : ""}
+                        </p>
+                      </>
                     )}
                   </td>
 
@@ -290,6 +295,16 @@ export default function ProductTable({
                   <p className="text-[15px] font-black text-slate-900 tabular-nums">
                     {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.price)}
                   </p>
+                  {canChangePrice && product.costPrice && (
+                    <>
+                      <p className="text-[10px] font-bold text-slate-500 mt-1">
+                        HPP: {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.costPrice)}
+                      </p>
+                      <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                        Margin: {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.price - product.costPrice)} {product.price > 0 ? `(${((product.price - product.costPrice) / product.price * 100).toFixed(1)}%)` : ""}
+                      </p>
+                    </>
+                  )}
                 </div>
                 <div className={`rounded-2xl p-3 border transition-all duration-300 ${
                   isOut ? "bg-red-50/50 border-red-100/60" : 

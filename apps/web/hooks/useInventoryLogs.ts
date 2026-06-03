@@ -28,6 +28,21 @@ export interface InventoryLog {
     imageUrl: string | null;
     category: { name: string; icon: string | null };
   };
+  batchItem?: {
+    id: string;
+    batchOperationId: string;
+    action: string;
+    beforeSnapshot: unknown;
+    afterSnapshot: unknown;
+    batchOperation: {
+      id: string;
+      status: "PENDING" | "COMMITTED" | "UNDONE" | "UNDO_BLOCKED";
+      type: string;
+      createdBy: string;
+      createdAt: string;
+      summary: Record<string, unknown>;
+    };
+  } | null;
 }
 
 export interface InventoryLogsResponse {
@@ -139,5 +154,36 @@ export function useCancelInventoryLog() {
   return useMutation({
     mutationFn: (id: string) => postJson(`/api/inventory/${id}/cancel`),
     onSuccess: () => invalidateInventoryQueries(qc),
+  });
+}
+
+export interface BulkBatchDetail {
+  id: string;
+  status: "PENDING" | "COMMITTED" | "UNDONE" | "UNDO_BLOCKED";
+  type: string;
+  createdBy: string;
+  createdAt: string;
+  summary: Record<string, unknown>;
+  creator?: { id: string; name: string | null; role: string } | null;
+  items: Array<{
+    id: string;
+    inventoryLogId: string | null;
+    sku: string;
+    beforeSnapshot: unknown;
+    afterSnapshot: unknown;
+    product: { id: string; name: string; sku: string; stock: number } | null;
+    inventoryLog: InventoryLog | null;
+  }>;
+}
+
+export function useBulkBatchDetail(batchId: string | null) {
+  return useQuery({
+    queryKey: ["inventory-bulk", batchId],
+    enabled: Boolean(batchId),
+    queryFn: async () => {
+      const res = await fetch(`/api/inventory/bulk/${batchId}`);
+      if (!res.ok) throw new Error("Failed to load bulk inventory request");
+      return res.json() as Promise<BulkBatchDetail>;
+    },
   });
 }

@@ -1,0 +1,1 @@
+ALTER TYPE "BatchOperationStatus" ADD VALUE IF NOT EXISTS 'PENDING';

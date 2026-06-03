@@ -210,7 +210,10 @@ function ProductsContent() {
   const statsQuery = useProductStats(search, categoryId);
   const { data: categoriesData } = useCategories();
 
-  const products = productsData?.data ?? [];
+  const products = React.useMemo(
+    () => productsData?.data ?? [],
+    [productsData?.data],
+  );
   const categories = categoriesData ?? [];
 
   const pagination = productsData?.pagination;
@@ -972,6 +975,16 @@ function ProductGrid({
                 <p className="text-lg font-black text-slate-900 tracking-tight">
                   {fmt(p.price)}
                 </p>
+                {canChangePrice && p.costPrice !== null && (
+                  <>
+                    <p className="text-[10px] font-bold text-slate-500 mt-0.5">
+                      HPP: {fmt(p.costPrice)}
+                    </p>
+                    <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                      Margin: {fmt(p.price - p.costPrice)} {p.price > 0 ? `(${((p.price - p.costPrice) / p.price * 100).toFixed(1)}%)` : ""}
+                    </p>
+                  </>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">

@@ -66,18 +66,18 @@ export async function GET() {
         where: {
           storeId,
           createdAt: { gte: today },
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
         },
-        select: { total: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
+        select: { total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
       }),
       // 2. Monthly Revenue & Profit
       db.transaction.findMany({
         where: {
           storeId,
           createdAt: { gte: firstDayOfMonth },
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
         },
-        select: { total: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
+        select: { total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
       }),
       // 3. Total Products
       db.product.count({
@@ -98,9 +98,9 @@ export async function GET() {
         where: {
           storeId,
           createdAt: { gte: last7Days },
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
         },
-        select: { createdAt: true, total: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
+        select: { createdAt: true, total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
       }),
       // 6. Top Sales (Last 30 Days)
       db.transaction.groupBy({
@@ -108,7 +108,7 @@ export async function GET() {
         where: {
           storeId,
           createdAt: { gte: last30Days },
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
         },
         _sum: { total: true },
         _count: { id: true },
@@ -121,7 +121,7 @@ export async function GET() {
         where: {
           storeId,
           createdAt: { gte: last30Days },
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
           customerId: { not: null },
         },
         _sum: { total: true },
@@ -134,7 +134,7 @@ export async function GET() {
         where: {
           transaction: {
             storeId,
-            status: { notIn: ["VOIDED", "REFUNDED"] },
+            status: { in: ["COMPLETED", "DP"] },
           },
         },
         _sum: { quantity: true, subtotal: true },
@@ -147,7 +147,7 @@ export async function GET() {
         where: {
           storeId,
           isJobOrder: true,
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
           productionStatus: { not: null },
         },
         _count: { id: true },
@@ -165,15 +165,13 @@ export async function GET() {
         _sum: { total: true, amountPaid: true },
       }),
       // 12. Payment Mix Today (group by paymentMethod, exclude voided/refunded)
-      db.transaction.groupBy({
-        by: ["paymentMethod"],
+      db.transaction.findMany({
         where: {
           storeId,
           createdAt: { gte: today },
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
         },
-        _sum: { total: true },
-        _count: { id: true },
+        select: { total: true, amountPaid: true, status: true, paymentMethod: true },
       }),
     ]);
 
@@ -192,14 +190,14 @@ export async function GET() {
     let todayRevenue = 0;
     let todayProfit = 0;
     todayStats.forEach(t => {
-      todayRevenue += Number(t.total || 0);
+      todayRevenue += Number(t.status === "DP" ? t.amountPaid : t.total || 0);
       todayProfit += calculateProfit(t.items);
     });
 
     let monthlyRevenue = 0;
     let monthlyProfit = 0;
     monthlyStats.forEach(t => {
-      monthlyRevenue += Number(t.total || 0);
+      monthlyRevenue += Number(t.status === "DP" ? t.amountPaid : t.total || 0);
       monthlyProfit += calculateProfit(t.items);
     });
 
@@ -215,7 +213,7 @@ export async function GET() {
     revenueChartRaw.forEach((item) => {
       const dateStr = jakartaDateKey(item.createdAt);
       if (dailyData[dateStr]) {
-        dailyData[dateStr].revenue += Number(item.total || 0);
+        dailyData[dateStr].revenue += Number(item.status === "DP" ? item.amountPaid : item.total || 0);
         dailyData[dateStr].profit += calculateProfit(item.items);
       }
     });
@@ -264,11 +262,21 @@ export async function GET() {
       })),
       dpTransactions: dpTransactionsRaw,
       totalOutstandingDP: Number(totalOutstandingDPRaw._sum.total || 0) - Number(totalOutstandingDPRaw._sum.amountPaid || 0),
-      paymentMixToday: paymentMixTodayRaw.map((row) => ({
-        method: row.paymentMethod,
-        revenue: Number(row._sum.total || 0),
-        transactionCount: row._count.id,
-      })),
+      paymentMixToday: (() => {
+        const mixMap = new Map<string, { revenue: number; txCount: number }>();
+        paymentMixTodayRaw.forEach((t) => {
+          const rev = Number(t.status === "DP" ? t.amountPaid : t.total || 0);
+          const existing = mixMap.get(t.paymentMethod) || { revenue: 0, txCount: 0 };
+          existing.revenue += rev;
+          existing.txCount += 1;
+          mixMap.set(t.paymentMethod, existing);
+        });
+        return Array.from(mixMap.entries()).map(([method, data]) => ({
+          method,
+          revenue: data.revenue,
+          transactionCount: data.txCount,
+        }));
+      })(),
     });
   } catch (error) {
     const authErr = handleAuthError(error);

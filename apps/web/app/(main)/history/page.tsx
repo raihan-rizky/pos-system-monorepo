@@ -12,6 +12,7 @@ import {
   Transaction,
 } from "@/hooks/useTransactions";
 import { ApproveDraftDialog } from "@/features/transactions-draft";
+import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { useCategories } from "@/hooks/useProducts";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { Button } from "@pos/ui";
@@ -833,7 +834,8 @@ export default function HistoryPage() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-surface-50 border-b border-surface-200">
@@ -999,6 +1001,130 @@ export default function HistoryPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile Cards View */}
+                <div className="flex flex-col gap-3 md:hidden p-4 border-b border-surface-100">
+                  {transactions.map((tx: Transaction) => {
+                    const isDP = tx.status === "DP";
+                    const isVoided = tx.status === "VOIDED";
+                    const isRefunded = tx.status === "REFUNDED";
+                    const isPending = tx.status === "PENDING_APPROVAL";
+                    const isDraft = tx.status === "DRAFT";
+                    const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
+                    const cardBg = isPending ? "bg-blue-50/30 border-blue-100" 
+                      : isDraft ? "bg-amber-50/20 border-amber-100"
+                      : isVoided ? "bg-red-50/20 border-red-100 opacity-80"
+                      : "bg-white border-surface-200 shadow-sm";
+
+                    return (
+                      <div key={tx.id} className={`flex flex-col p-4 rounded-2xl border ${cardBg}`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`font-mono text-sm font-bold ${isVoided ? "line-through text-surface-400" : "text-brand-700"}`}>
+                                {tx.invoiceNumber ?? (tx.draftNumber ? formatDraftNumberForDisplay(tx.draftNumber) : "—")}
+                              </span>
+                              {isDraft && <span className="bg-amber-100 text-amber-800 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">Draft</span>}
+                            </div>
+                            <p className="text-xs text-surface-500">{formatDate(new Date(tx.createdAt))}</p>
+                          </div>
+                          <StatusBadge status={tx.status} />
+                        </div>
+
+                        <div className="flex flex-col gap-1 mb-4">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-surface-500">Pelanggan</span>
+                            <span className={`font-medium ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}>
+                              {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-surface-500">Sales</span>
+                            <span className={`font-medium ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}>
+                              {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center mt-2 pt-2 border-t border-surface-100">
+                            <PaymentBadge method={tx.paymentMethod} />
+                            <span className={`font-bold text-lg tabular-nums ${isVoided ? "line-through text-surface-400" : "text-brand-600"}`}>
+                              {formatRupiah(Number(tx.total))}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-surface-100">
+                          <Button
+                            variant="secondary"
+                            onClick={() => setSelectedTransaction(tx)}
+                            className="flex-1 !py-2 !px-3 text-xs h-auto"
+                          >
+                            Lihat Struk
+                          </Button>
+
+                          {!isSalesRole && (
+                            <>
+                              {canUpdateTransactions && (
+                                <button
+                                  onClick={() => setEditingTransaction(tx)}
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-surface-100 text-surface-700 hover:bg-brand-50 hover:text-brand-700"
+                                >
+                                  Ubah
+                                </button>
+                              )}
+                              {canDeleteTransactions && (
+                                <button
+                                  onClick={() => setDeletingTransaction(tx)}
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                                >
+                                  Hapus
+                                </button>
+                              )}
+                            </>
+                          )}
+
+                          {!isSalesRole && tx.status === "PENDING_APPROVAL" && (canApproveTransactions || canRejectTransactions) && (
+                            <>
+                              {canApproveTransactions && (
+                                <button
+                                  onClick={() => setApprovingTransaction(tx)}
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                >
+                                  Setujui
+                                </button>
+                              )}
+                              {canRejectTransactions && (
+                                <button
+                                  onClick={() => setRejectingTransaction(tx)}
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                                >
+                                  Tolak
+                                </button>
+                              )}
+                            </>
+                          )}
+
+                          {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
+                            <button
+                              onClick={() => setApprovingDraft(tx)}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                            >
+                              Setujui
+                            </button>
+                          )}
+
+                          {!isSalesRole && canVoid && (
+                            <button
+                              onClick={() => setVoidingTransaction(tx)}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                            >
+                              Void
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Pagination */}

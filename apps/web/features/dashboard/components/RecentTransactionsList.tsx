@@ -84,95 +84,155 @@ export const RecentTransactionsList: React.FC<RecentTransactionsProps> =
     const visible = transactions.slice(0, maxRows);
 
     return (
-      <div className="overflow-x-auto -mx-5">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left">
-              <th
-                scope="col"
-                className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500"
-              >
-                Invoice
-              </th>
-              <th
-                scope="col"
-                className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500"
-              >
-                Pelanggan
-              </th>
-              <th
-                scope="col"
-                className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500"
-              >
-                Tanggal
-              </th>
-              <th
-                scope="col"
-                className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500"
-              >
-                Status
-              </th>
-              <th
-                scope="col"
-                className="px-5 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-surface-500"
-              >
-                Total
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-100">
-            {visible.map((tx) => {
-              const meta = statusMeta(tx.status);
-              const interactive = Boolean(onSelect);
-              return (
-                <tr
-                  key={tx.id}
-                  className={`transition-colors duration-150 ${
-                    interactive
-                      ? "cursor-pointer hover:bg-surface-50 focus-within:bg-surface-50"
-                      : ""
-                  }`}
-                  onClick={interactive ? () => onSelect?.(tx) : undefined}
-                  onKeyDown={
-                    interactive
-                      ? (event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            onSelect?.(tx);
-                          }
-                        }
-                      : undefined
-                  }
-                  tabIndex={interactive ? 0 : undefined}
-                  role={interactive ? "button" : undefined}
+      <div className="w-full">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto -mx-5 px-5">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left">
+                <th
+                  scope="col"
+                  className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500"
                 >
-                  <td className="px-5 py-3 font-mono text-xs font-bold text-brand-700 whitespace-nowrap">
-                    {tx.invoiceNumber}
-                  </td>
-                  <td className="px-5 py-3 text-surface-700 truncate max-w-[160px]">
+                  Invoice
+                </th>
+                <th
+                  scope="col"
+                  className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500"
+                >
+                  Pelanggan
+                </th>
+                <th
+                  scope="col"
+                  className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500"
+                >
+                  Tanggal
+                </th>
+                <th
+                  scope="col"
+                  className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500"
+                >
+                  Status
+                </th>
+                <th
+                  scope="col"
+                  className="px-5 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-surface-500"
+                >
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-100">
+              {visible.map((tx) => {
+                const meta = statusMeta(tx.status);
+                const interactive = Boolean(onSelect);
+                return (
+                  <tr
+                    key={tx.id}
+                    className={`transition-colors duration-150 ${
+                      interactive
+                        ? "cursor-pointer hover:bg-surface-50 focus-within:bg-surface-50"
+                        : ""
+                    }`}
+                    onClick={interactive ? () => onSelect?.(tx) : undefined}
+                    onKeyDown={
+                      interactive
+                        ? (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              onSelect?.(tx);
+                            }
+                          }
+                        : undefined
+                    }
+                    tabIndex={interactive ? 0 : undefined}
+                    role={interactive ? "button" : undefined}
+                  >
+                    <td className="px-5 py-3 font-mono text-xs font-bold text-brand-700 whitespace-nowrap">
+                      {tx.invoiceNumber}
+                    </td>
+                    <td className="px-5 py-3 text-surface-700 truncate max-w-[160px]">
+                      {tx.customerName || (
+                        <span className="italic text-surface-400">Walk-in</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-surface-500 whitespace-nowrap">
+                      {formatDate(new Date(tx.createdAt))}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.tone}`}
+                      >
+                        {meta.icon}
+                        {meta.label}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-right font-bold text-surface-900 tabular-nums whitespace-nowrap">
+                      {formatRupiah(Number(tx.total))}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="flex flex-col gap-3 md:hidden">
+          {visible.map((tx) => {
+            const meta = statusMeta(tx.status);
+            const interactive = Boolean(onSelect);
+            return (
+              <div
+                key={tx.id}
+                className={`bg-white rounded-xl p-4 shadow-sm border border-surface-100 transition-colors duration-150 ${
+                  interactive ? "cursor-pointer hover:border-brand-300 active:bg-surface-50" : ""
+                }`}
+                onClick={interactive ? () => onSelect?.(tx) : undefined}
+                onKeyDown={
+                  interactive
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onSelect?.(tx);
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={interactive ? 0 : undefined}
+                role={interactive ? "button" : undefined}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex flex-col">
+                    <span className="font-mono text-[13px] font-bold text-brand-700">
+                      {tx.invoiceNumber}
+                    </span>
+                    <span className="text-[11px] text-surface-500 mt-0.5">
+                      {formatDate(new Date(tx.createdAt))}
+                    </span>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.tone}`}
+                  >
+                    {meta.icon}
+                    {meta.label}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-50">
+                  <div className="text-sm font-medium text-surface-700 truncate max-w-[150px]">
                     {tx.customerName || (
                       <span className="italic text-surface-400">Walk-in</span>
                     )}
-                  </td>
-                  <td className="px-5 py-3 text-xs text-surface-500 whitespace-nowrap">
-                    {formatDate(new Date(tx.createdAt))}
-                  </td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.tone}`}
-                    >
-                      {meta.icon}
-                      {meta.label}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-right font-bold text-surface-900 tabular-nums whitespace-nowrap">
+                  </div>
+                  <div className="text-right font-black text-surface-900 tabular-nums">
                     {formatRupiah(Number(tx.total))}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   });

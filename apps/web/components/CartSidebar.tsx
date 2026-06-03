@@ -2,8 +2,10 @@
 
 import React from "react";
 import { Button } from "@pos/ui";
+import { CreditCard, FileText } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
+import type { QuotationCheckoutMode } from "@/features/nota-penawaran/helpers/quotation-rules";
 
 interface CartSidebarProps {
   items: CartItem[];
@@ -13,6 +15,7 @@ interface CartSidebarProps {
   onRemoveItem: (cartLineId: string) => void;
   onClearCart: () => void;
   onCheckout: () => void;
+  checkoutMode?: QuotationCheckoutMode;
   onClose?: () => void;
 }
 
@@ -24,8 +27,11 @@ export function CartSidebar({
   onRemoveItem,
   onClearCart,
   onCheckout,
+  checkoutMode = "payment",
   onClose,
 }: CartSidebarProps) {
+  const isQuotationMode = checkoutMode === "quotation";
+
   return (
     <div className="flex flex-col h-full bg-white border-l border-surface-200">
       {/* Header */}
@@ -148,11 +154,8 @@ export function CartSidebar({
             className="w-full"
             onClick={onCheckout}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-              <line x1="1" y1="10" x2="23" y2="10" />
-            </svg>
-            Bayar
+            {isQuotationMode ? <FileText size={18} /> : <CreditCard size={18} />}
+            {isQuotationMode ? "Create Nota Penawaran" : "Bayar"}
           </Button>
         </div>
       )}

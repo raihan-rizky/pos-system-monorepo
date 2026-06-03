@@ -83,7 +83,35 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    return apiList(logs, {
+    const logIds = logs.map((entry) => entry.id);
+    const batchItems = logIds.length
+      ? await db.batchOperationItem.findMany({
+          where: { inventoryLogId: { in: logIds } },
+          include: {
+            batchOperation: {
+              select: {
+                id: true,
+                type: true,
+                status: true,
+                createdBy: true,
+                createdAt: true,
+                summary: true,
+              },
+            },
+          },
+        })
+      : [];
+    const batchItemByLogId = new Map(
+      batchItems
+        .filter((item) => item.inventoryLogId)
+        .map((item) => [item.inventoryLogId, item]),
+    );
+    const logsWithBatch = logs.map((entry) => ({
+      ...entry,
+      batchItem: batchItemByLogId.get(entry.id) ?? null,
+    }));
+
+    return apiList(logsWithBatch, {
       ...buildPaginationMeta(total, page, limit),
       // Extra field surfaced for badge counts. Clients that don't care
       // can ignore it; it doesn't break the ListResponse contract.

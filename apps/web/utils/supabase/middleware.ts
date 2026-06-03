@@ -1,4 +1,4 @@
-﻿import { createServerClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { DEFAULT_PAGE, isValidRole } from "@/lib/rbac/permissions";
 import type { Role } from "@/lib/rbac/permissions";
@@ -183,11 +183,9 @@ export async function updateSession(request: NextRequest) {
             return redirectResponse;
           }
 
-          if (!hadFreshIdentityCookies) {
-            const redirectResponse = NextResponse.redirect(request.nextUrl);
-            setPosIdentityCookies(redirectResponse, role, posUser.id, posUser.name);
-            return redirectResponse;
-          }
+          // Identity cookies are already set on supabaseResponse (line 167).
+          // No self-redirect needed — the browser will pick them up on the
+          // next navigation. Redirecting to the same URL caused ERR_TOO_MANY_REDIRECTS.
         }
       } else {
         log.warn("user.inactive_or_missing", { username, hasPosUser: Boolean(posUser) });

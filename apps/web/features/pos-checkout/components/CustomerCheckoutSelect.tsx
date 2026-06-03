@@ -21,11 +21,15 @@ interface CustomerCheckoutSelectProps {
 const TYPE_LABELS: Record<Customer["type"], string> = {
   UMUM: "UMUM",
   AGEN: "AGEN",
+  INDUSTRI: "INDUSTRI",
+  PEMERINTAH: "PEMERINTAH",
 };
 
 const TYPE_CLASSES: Record<Customer["type"], string> = {
   UMUM: "bg-slate-100 text-slate-700",
   AGEN: "bg-emerald-100 text-emerald-800",
+  INDUSTRI: "bg-amber-100 text-amber-800",
+  PEMERINTAH: "bg-sky-100 text-sky-800",
 };
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -115,7 +119,7 @@ export function CustomerCheckoutSelect({
     [debouncedSearch],
   );
   const { data, isFetching } = useCustomers(queryParams);
-  const customers = data?.data ?? [];
+  const customers = useMemo(() => data?.data ?? [], [data?.data]);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {

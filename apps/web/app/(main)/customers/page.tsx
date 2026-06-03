@@ -1,55 +1,234 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, {
+  lazy,
+  Suspense,
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useMemo,
+  useState,
+} from "react";
 import {
-  useCustomers,
+  ArrowRight,
+  BadgePercent,
+  BriefcaseBusiness,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
+  Mail,
+  MapPin,
+  Phone,
+  RefreshCcw,
+  Search,
+  Sparkles,
+  Users2,
+  Wallet,
+} from "lucide-react";
+import {
+  type CreateCustomerInput,
+  type Customer,
+  type CustomerType,
   useCreateCustomer,
-  useUpdateCustomer,
+  useCustomerDetail,
+  useCustomers,
   useDeleteCustomer,
   usePayDebt,
-  Customer,
-  CreateCustomerInput,
-  CustomerType,
+  useUpdateCustomer,
 } from "@/hooks/useCustomers";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useRole } from "@/components/providers/RoleProvider";
-import { shouldShowAction, shouldShowDeleteAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
+import {
+  shouldShowAction,
+  shouldShowDeleteAction,
+  shouldShowUpdateAction,
+} from "@/features/rbac/helpers/rbac-ui";
+import { CUSTOMER_TYPES, CUSTOMER_TYPE_LABELS } from "@/lib/customers";
 
-// ─── Type Badge ───────────────────────────────────────────────────────────────
+const CustomerImportDrawer = lazy(() =>
+  import("@/features/customer-import/components/CustomerImportDrawer").then(
+    (mod) => ({ default: mod.CustomerImportDrawer }),
+  ),
+);
 
-const TYPE_CONFIG: Record<CustomerType, { label: string; cls: string }> = {
-  UMUM: { label: "UMUM", cls: "bg-slate-100 text-slate-600" },
-  AGEN: { label: "AGEN", cls: "bg-emerald-100 text-emerald-700" },
+const TYPE_CONFIG: Record<
+  CustomerType,
+  { label: string; className: string; accentClassName: string }
+> = {
+  UMUM: {
+    label: "UMUM",
+    className: "bg-slate-100 text-slate-700",
+    accentClassName: "from-slate-200 to-slate-50",
+  },
+  AGEN: {
+    label: "AGEN",
+    className: "bg-emerald-100 text-emerald-700",
+    accentClassName: "from-emerald-200 to-emerald-50",
+  },
+  INDUSTRI: {
+    label: "INDUSTRI",
+    className: "bg-amber-100 text-amber-700",
+    accentClassName: "from-amber-200 to-amber-50",
+  },
+  PEMERINTAH: {
+    label: "PEMERINTAH",
+    className: "bg-sky-100 text-sky-700",
+    accentClassName: "from-sky-200 to-sky-50",
+  },
 };
 
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "CASH", label: "Tunai" },
+  { value: "QRIS", label: "QRIS" },
+  { value: "DEBIT", label: "Debit" },
+  { value: "TRANSFER", label: "Transfer" },
+] as const;
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function getVisitLabel(value: string | null): string {
+  if (!value) return "Belum ada kunjungan";
+  const visitDate = new Date(value);
+  const now = new Date();
+  const diffDays = Math.floor(
+    (now.getTime() - visitDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (diffDays <= 0) return "Aktif hari ini";
+  if (diffDays === 1) return "Aktif kemarin";
+  if (diffDays < 30) return `Aktif ${diffDays} hari lalu`;
+
+  return `Terakhir ${formatDate(value)}`;
+}
+
 function TypeBadge({ type }: { type: CustomerType }) {
-  const { label, cls } = TYPE_CONFIG[type] ?? TYPE_CONFIG.UMUM;
+  const config = TYPE_CONFIG[type] ?? TYPE_CONFIG.UMUM;
   return (
-    <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold ${cls}`}>
-      {label}
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide ${config.className}`}
+    >
+      {config.label}
     </span>
   );
 }
-
-// ─── Debt Badge ───────────────────────────────────────────────────────────────
 
 function DebtBadge({ amount }: { amount: number }) {
-  if (amount <= 0) return <span className="text-surface-400 text-xs">—</span>;
+  if (amount <= 0) {
+    return (
+      <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+        Aman
+      </span>
+    );
+  }
+
   return (
-    <span className="inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-100 text-red-700">
-      {fmt(amount)}
+    <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-700">
+      {formatCurrency(amount)}
     </span>
   );
 }
 
-// ─── Formatters ───────────────────────────────────────────────────────────────
+function DetailMetricCard({
+  label,
+  value,
+  tone = "slate",
+}: {
+  label: string;
+  value: string;
+  tone?: "slate" | "amber" | "emerald" | "sky";
+}) {
+  const toneMap = {
+    slate: "border-slate-200 bg-slate-50 text-slate-900",
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    sky: "border-sky-200 bg-sky-50 text-sky-900",
+  } as const;
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
-const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  return (
+    <div className={`min-w-0 rounded-2xl border p-3 sm:p-4 ${toneMap[tone]}`}>
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-current/70">
+        {label}
+      </p>
+      <p className="mt-1.5 break-words text-base font-black sm:mt-2 sm:text-lg">{value}</p>
+    </div>
+  );
+}
 
-// ─── Pay Debt Modal ───────────────────────────────────────────────────────────
+function SummaryCard({
+  label,
+  value,
+  hint,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  icon: React.ReactNode;
+  tone: "slate" | "red" | "sky" | "amber";
+}) {
+  const toneMap = {
+    slate:
+      "border-slate-200 bg-white text-slate-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)]",
+    red: "border-red-200 bg-gradient-to-br from-red-50 via-white to-red-100/70 text-red-950",
+    sky: "border-sky-200 bg-gradient-to-br from-sky-50 via-white to-sky-100/70 text-sky-950",
+    amber:
+      "border-amber-200 bg-gradient-to-br from-amber-50 via-white to-amber-100/70 text-amber-950",
+  } as const;
+
+  return (
+    <div className={`min-w-0 rounded-[22px] border p-4 sm:rounded-[28px] sm:p-5 ${toneMap[tone]}`}>
+      <div className="flex items-start justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 space-y-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-current/60">
+            {label}
+          </p>
+          <p className="break-words text-xl font-black leading-none sm:text-2xl">{value}</p>
+          <p className="break-words text-xs leading-5 text-current/70 sm:text-sm">{hint}</p>
+        </div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/80 shadow-sm sm:h-12 sm:w-12">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface PayDebtModalProps {
   customer: Customer;
@@ -66,9 +245,10 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
   const debt = Number(customer.totalDebt);
   const canPay = amount > 0 && amount <= debt;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError("");
+
     try {
       await payDebt.mutateAsync({
         customerId: customer.id,
@@ -78,97 +258,146 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
       });
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Gagal memproses pembayaran");
+      setError(
+        err instanceof Error ? err.message : "Gagal memproses pembayaran",
+      );
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
-          <h2 className="font-bold text-surface-900 text-lg">Bayar Piutang</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 text-surface-500 transition-colors">✕</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-2 backdrop-blur-sm sm:p-4">
+      <div className="max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-[28px] border border-white/70 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-red-600">
+              Bayar Piutang
+            </p>
+            <h2 className="mt-1 break-words text-lg font-black text-slate-900">
+              {customer.name}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+          >
+            Tutup
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Customer Info */}
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <p className="text-sm font-semibold text-red-900">{customer.name}</p>
-            <div className="flex justify-between items-baseline mt-1">
-              <span className="text-xs text-red-600">Sisa Piutang</span>
-              <span className="text-lg font-extrabold text-red-700">{fmt(debt)}</span>
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-5 p-6">
+          <div className="rounded-3xl border border-red-200 bg-gradient-to-br from-red-50 via-white to-amber-50 p-5">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-red-600">
+              Sisa Piutang
+            </p>
+            <p className="mt-2 break-words text-2xl font-black text-red-800 sm:text-3xl">
+              {formatCurrency(debt)}
+            </p>
           </div>
 
-          {error && (
-            <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
-          )}
+          {error ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
 
-          {/* Amount */}
           <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1">Jumlah Bayar</label>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Jumlah Pembayaran
+            </label>
             <input
-              type="number" required min={1} max={debt}
+              type="number"
+              required
+              min={1}
+              max={debt}
               value={amount || ""}
-              onChange={e => setAmount(Number(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400"
+              onChange={(event) => setAmount(Number(event.target.value) || 0)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
               placeholder="0"
             />
-            <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => setAmount(debt)}
-                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
-                Lunas ({fmt(debt)})
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setAmount(debt)}
+                className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100"
+              >
+                Bayar penuh
               </button>
-              {debt > 100000 && (
-                <button type="button" onClick={() => setAmount(Math.round(debt * 0.5))}
-                  className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
-                  50%
+              {debt > 100000 ? (
+                <button
+                  type="button"
+                  onClick={() => setAmount(Math.round(debt / 2))}
+                  className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100"
+                >
+                  Bayar 50%
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
 
-          {/* Payment Method */}
           <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1.5">Metode</label>
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                { v: "CASH", l: "💵 Tunai" },
-                { v: "QRIS", l: "📱 QRIS" },
-                { v: "DEBIT", l: "💳 Debit" },
-                { v: "TRANSFER", l: "🏦 TF" },
-              ].map(m => (
-                <button key={m.v} type="button" onClick={() => setPaymentMethod(m.v)}
-                  className={`py-2 rounded-lg border text-xs font-semibold transition-all ${paymentMethod === m.v ? "border-brand-500 bg-brand-50 text-brand-700" : "border-surface-200 text-surface-600 hover:border-surface-300"}`}>
-                  {m.l}
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Metode Pembayaran
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {PAYMENT_METHOD_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(option.value)}
+                  className={`rounded-2xl border px-3 py-2.5 text-sm font-semibold transition ${paymentMethod === option.value
+                    ? "border-brand-500 bg-brand-50 text-brand-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                >
+                  {option.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Note */}
           <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1">Catatan</label>
-            <input value={note} onChange={e => setNote(e.target.value)} placeholder="Opsional"
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400" />
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Catatan
+            </label>
+            <input
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Opsional"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+            />
           </div>
 
-          {/* Remaining after payment */}
-          {amount > 0 && canPay && (
-            <div className={`flex justify-between items-center p-3 rounded-xl ${amount >= debt ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
-              <span className="text-sm font-medium">{amount >= debt ? "Lunas!" : "Sisa Piutang"}</span>
-              <span className="text-lg font-extrabold">{fmt(debt - amount)}</span>
+          {amount > 0 && canPay ? (
+            <div
+              className={`rounded-2xl px-4 py-3 ${amount >= debt
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-amber-50 text-amber-700"
+                }`}
+            >
+              <p className="text-xs font-bold uppercase tracking-[0.16em]">
+                {amount >= debt ? "Lunas" : "Sisa setelah bayar"}
+              </p>
+              <p className="mt-1 text-xl font-black">
+                {formatCurrency(debt - amount)}
+              </p>
             </div>
-          )}
+          ) : null}
 
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600 hover:bg-surface-50 transition-colors">
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
               Batal
             </button>
-            <button type="submit" disabled={!canPay || payDebt.isPending}
-              className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
-              {payDebt.isPending ? "Memproses..." : `Bayar ${amount > 0 ? fmt(amount) : ""}`}
+            <button
+              type="submit"
+              disabled={!canPay || payDebt.isPending}
+              className="flex-1 rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {payDebt.isPending ? "Memproses..." : "Konfirmasi Bayar"}
             </button>
           </div>
         </form>
@@ -177,18 +406,16 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
   );
 }
 
-// ─── Customer Form Modal ──────────────────────────────────────────────────────
-
 interface FormModalProps {
   initial?: Customer | null;
   onClose: () => void;
 }
 
 function CustomerFormModal({ initial, onClose }: FormModalProps) {
-  const create = useCreateCustomer();
-  const update = useUpdateCustomer();
-  const isPending = create.isPending || update.isPending;
-
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+  const isPending = createCustomer.isPending || updateCustomer.isPending;
+  const [error, setError] = useState("");
   const [form, setForm] = useState<CreateCustomerInput>({
     name: initial?.name ?? "",
     phone: initial?.phone ?? "",
@@ -198,19 +425,23 @@ function CustomerFormModal({ initial, onClose }: FormModalProps) {
     type: initial?.type ?? "UMUM",
     notes: initial?.notes ?? "",
   });
-  const [error, setError] = useState("");
 
-  const set = (k: keyof CreateCustomerInput, v: string) =>
-    setForm((p) => ({ ...p, [k]: v }));
+  const updateField = useCallback(
+    (field: keyof CreateCustomerInput, value: string) => {
+      setForm((current) => ({ ...current, [field]: value }));
+    },
+    [],
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError("");
+
     try {
       if (initial) {
-        await update.mutateAsync({ id: initial.id, ...form });
+        await updateCustomer.mutateAsync({ id: initial.id, ...form });
       } else {
-        await create.mutateAsync(form);
+        await createCustomer.mutateAsync(form);
       }
       onClose();
     } catch (err: unknown) {
@@ -219,83 +450,166 @@ function CustomerFormModal({ initial, onClose }: FormModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
-          <h2 className="font-bold text-surface-900 text-lg">
-            {initial ? "Ubah Pelanggan" : "Tambah Pelanggan"}
-          </h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 text-surface-500 transition-colors">✕</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-2 backdrop-blur-sm sm:p-4">
+      <div className="max-h-[calc(100dvh-1rem)] w-full max-w-2xl overflow-y-auto rounded-[30px] border border-white/70 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:py-5">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-brand-600">
+              {initial ? "Edit Pelanggan" : "Tambah Pelanggan"}
+            </p>
+            <h2 className="mt-1 break-words text-xl font-black text-slate-900">
+              {initial ? initial.name : "Bangun profil pelanggan baru"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Simpan identitas, tipe akun, dan catatan agar proses checkout lebih
+              cepat.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+          >
+            Tutup
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
-          )}
+        <form onSubmit={handleSubmit} className="space-y-5 p-4 sm:p-6">
+          {error ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
 
-          {/* Name */}
-          <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1">Nama <span className="text-red-500">*</span></label>
-            <input required value={form.name} onChange={e => set("name", e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400" />
-          </div>
+          <div className="grid gap-5 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Nama Pelanggan
+              </label>
+              <input
+                required
+                value={form.name}
+                onChange={(event) => updateField("name", event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+                placeholder="Nama yang tampil di transaksi"
+              />
+            </div>
 
-          {/* Phone */}
-          <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1">No. HP / WhatsApp</label>
-            <input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="08xx / +628xx"
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400" />
-          </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                No. HP / WhatsApp
+              </label>
+              <input
+                value={form.phone}
+                onChange={(event) => updateField("phone", event.target.value)}
+                placeholder="08xx / +628xx"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+              />
+            </div>
 
-          {/* Email */}
-          <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1">Email</label>
-            <input type="email" value={form.email} onChange={e => set("email", e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400" />
-          </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Email
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(event) => updateField("email", event.target.value)}
+                placeholder="nama@perusahaan.com"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+              />
+            </div>
 
-          {/* Company */}
-          <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1">Perusahaan / Instansi</label>
-            <input value={form.company} onChange={e => set("company", e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400" />
-          </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Perusahaan / Instansi
+              </label>
+              <input
+                value={form.company}
+                onChange={(event) => updateField("company", event.target.value)}
+                placeholder="Opsional"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+              />
+            </div>
 
-          {/* Type */}
-          <div>
-            <label className="text-sm font-medium text-surface-700 block mb-2">Tipe Pelanggan</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["UMUM", "AGEN"] as CustomerType[]).map(t => (
-                <button key={t} type="button" onClick={() => set("type", t)}
-                  className={`py-2 rounded-lg border text-xs font-semibold transition-all ${form.type === t ? "border-brand-500 bg-brand-50 text-brand-700" : "border-surface-200 text-surface-600 hover:border-surface-300"}`}>
-                  {TYPE_CONFIG[t].label}
-                </button>
-              ))}
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Tipe Pelanggan
+              </label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {CUSTOMER_TYPES.map((type) => {
+                  const config = TYPE_CONFIG[type];
+                  const active = form.type === type;
+
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => updateField("type", type)}
+                      className={`rounded-2xl border px-4 py-3 text-left transition ${active
+                        ? "border-brand-500 bg-brand-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
+                    >
+                      <p className="text-sm font-bold text-slate-900">
+                        {CUSTOMER_TYPE_LABELS[type]}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {type === "UMUM"
+                          ? "Untuk pelanggan harian dan transaksi cepat."
+                          : type === "AGEN"
+                            ? "Cocok untuk reseller dan akun repeat order."
+                            : type === "INDUSTRI"
+                              ? "Untuk perusahaan yang butuh profil resmi."
+                              : "Untuk sekolah, kantor, atau instansi pemerintah."}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Alamat
+              </label>
+              <textarea
+                rows={3}
+                value={form.address}
+                onChange={(event) => updateField("address", event.target.value)}
+                className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+                placeholder="Alamat pengiriman atau penagihan"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Catatan
+              </label>
+              <textarea
+                rows={3}
+                value={form.notes}
+                onChange={(event) => updateField("notes", event.target.value)}
+                className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100"
+                placeholder="Catatan preferensi, termin pembayaran, atau informasi penting lainnya"
+              />
             </div>
           </div>
 
-          {/* Address */}
-          <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1">Alamat</label>
-            <textarea rows={2} value={form.address} onChange={e => set("address", e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 resize-none" />
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="text-sm font-medium text-surface-700 block mb-1">Catatan</label>
-            <textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 resize-none" />
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600 hover:bg-surface-50 transition-colors">
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
               Batal
             </button>
-            <button type="submit" disabled={isPending}
-              className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 transition-colors">
-              {isPending ? "Menyimpan..." : "Simpan"}
+            <button
+              type="submit"
+              disabled={isPending}
+              className="flex-1 rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPending ? "Menyimpan..." : "Simpan Pelanggan"}
             </button>
           </div>
         </form>
@@ -304,21 +618,457 @@ function CustomerFormModal({ initial, onClose }: FormModalProps) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+function CustomerListSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div
+          key={index}
+          className="animate-pulse rounded-[28px] border border-slate-200 bg-white p-5"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-slate-100" />
+              <div className="min-w-0 space-y-2">
+                <div className="h-4 w-32 rounded bg-slate-100 sm:w-40" />
+                <div className="h-3 w-28 rounded bg-slate-100" />
+                <div className="h-3 w-32 rounded bg-slate-100" />
+              </div>
+            </div>
+            <div className="h-8 w-24 rounded-full bg-slate-100" />
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <div className="h-16 rounded-2xl bg-slate-50" />
+            <div className="h-16 rounded-2xl bg-slate-50" />
+            <div className="h-16 rounded-2xl bg-slate-50" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface CustomerListCardProps {
+  customer: Customer;
+  isSelected: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  onSelect: (customerId: string) => void;
+  onEdit: (customer: Customer) => void;
+  onDelete: (customer: Customer) => void;
+  onPayDebt: (customer: Customer) => void;
+}
+
+function CustomerListCard({
+  customer,
+  isSelected,
+  canUpdate,
+  canDelete,
+  onSelect,
+  onEdit,
+  onDelete,
+  onPayDebt,
+}: CustomerListCardProps) {
+  const debt = Number(customer.totalDebt);
+  const spent = Number(customer.totalSpent);
+  const accent = TYPE_CONFIG[customer.type] ?? TYPE_CONFIG.UMUM;
+  const handleSelect = useCallback(() => {
+    onSelect(customer.id);
+  }, [customer.id, onSelect]);
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handleSelect();
+      }
+    },
+    [handleSelect],
+  );
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleSelect}
+      onKeyDown={handleKeyDown}
+      className={`group min-w-0 w-full rounded-[24px] border p-3.5 text-left transition sm:rounded-[28px] sm:p-5 ${isSelected
+        ? "border-brand-400 bg-white shadow-[0_20px_50px_rgba(37,99,235,0.12)]"
+        : "border-slate-200 bg-white/90 hover:border-slate-300 hover:bg-white"
+        }`}
+    >
+      <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex min-w-0 gap-3 sm:gap-4">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-sm font-black text-slate-800 sm:h-14 sm:w-14 ${accent.accentClassName}`}
+          >
+            {getInitials(customer.name)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <p className="min-w-0 break-words text-[15px] font-black leading-tight text-slate-900 sm:text-base">
+                {customer.name}
+              </p>
+              <TypeBadge type={customer.type} />
+            </div>
+            <div className="mt-1.5 flex flex-col gap-y-1 text-xs text-slate-500 sm:flex-row sm:flex-wrap sm:gap-x-4 sm:text-sm">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5" />
+                <span className="truncate">{customer.phone ?? "Tanpa nomor HP"}</span>
+              </span>
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5" />
+                <span className="truncate">{customer.email ?? "Tanpa email"}</span>
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs sm:gap-2">
+              {customer.company ? (
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span className="truncate">{customer.company}</span>
+                </span>
+              ) : null}
+              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-500">
+                {getVisitLabel(customer.lastVisitAt)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex max-w-full flex-wrap items-center gap-2 xl:justify-end">
+          <DebtBadge amount={debt} />
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-bold text-white sm:px-3">
+            Lihat Detail
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-3 grid min-w-0 grid-cols-3 gap-2 sm:mt-4 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
+        <DetailMetricCard label="Total Belanja" value={formatCurrency(spent)} />
+        <DetailMetricCard
+          label="Total Order"
+          value={`${customer.totalOrders} transaksi`}
+          tone="sky"
+        />
+        <DetailMetricCard
+          label="Piutang"
+          value={debt > 0 ? formatCurrency(debt) : "Tidak ada"}
+          tone={debt > 0 ? "amber" : "emerald"}
+        />
+      </div>
+
+      {(canUpdate || canDelete || debt > 0) ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:mt-4 sm:flex sm:flex-wrap sm:pt-4">
+          {debt > 0 && canUpdate ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPayDebt(customer);
+              }}
+              className="rounded-full bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-100 sm:py-1.5"
+            >
+              Bayar Piutang
+            </button>
+          ) : null}
+          {canUpdate ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit(customer);
+              }}
+              className="rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-brand-50 hover:text-brand-700 sm:py-1.5"
+            >
+              Ubah Data
+            </button>
+          ) : null}
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(customer);
+              }}
+              className="rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-700 sm:py-1.5"
+            >
+              Hapus
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CustomerDetailPanel({
+  customerId,
+  fallbackCustomer,
+  canUpdate,
+  onClose,
+  onEdit,
+  onPayDebt,
+}: {
+  customerId: string | null;
+  fallbackCustomer: Customer | null;
+  canUpdate: boolean;
+  onClose: () => void;
+  onEdit: (customer: Customer) => void;
+  onPayDebt: (customer: Customer) => void;
+}) {
+  const detailQuery = useCustomerDetail(customerId);
+  const detailCustomer = detailQuery.data;
+  const customer = fallbackCustomer;
+
+  if (!customerId || !customer) {
+    return (
+      <div className="rounded-[32px] border border-dashed border-slate-300 bg-white/70 p-8 text-center shadow-sm">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+          <Users2 className="h-6 w-6" />
+        </div>
+        <h2 className="mt-4 text-lg font-black text-slate-900">
+          Pilih pelanggan untuk melihat detail
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          Panel ini menampilkan informasi kontak, piutang, dan transaksi terbaru
+          agar tim bisa menindaklanjuti pelanggan tanpa pindah halaman.
+        </p>
+      </div>
+    );
+  }
+
+  const displayName = detailCustomer?.name ?? customer.name;
+  const debtAmount = Number(detailCustomer?.totalDebt ?? customer.totalDebt);
+  const spentAmount = Number(detailCustomer?.totalSpent ?? customer.totalSpent);
+  const transactions = detailCustomer?.transactions ?? [];
+  const type = detailCustomer?.type ?? customer.type;
+  const company = detailCustomer?.company ?? customer.company;
+  const phone = detailCustomer?.phone ?? customer.phone;
+  const email = detailCustomer?.email ?? customer.email;
+  const address = detailCustomer?.address ?? customer.address;
+  const notes = detailCustomer?.notes ?? customer.notes;
+  const lastVisitAt = detailCustomer?.lastVisitAt ?? customer.lastVisitAt;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <aside className="max-h-[92dvh] w-full max-w-5xl min-w-0 overflow-y-auto rounded-t-[30px] border border-white/70 bg-white p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-[32px] sm:p-6">
+      <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200 sm:hidden" />
+      <div className="sticky top-0 z-10 -mx-4 mb-4 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-4 pb-4 backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand-600">
+            Detail Pelanggan
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Riwayat, kontak, dan tindakan akun.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          Tutup
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="flex min-w-0 gap-3 sm:gap-4">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br text-base font-black text-slate-800 sm:h-16 sm:w-16 sm:rounded-[22px] sm:text-lg ${(TYPE_CONFIG[type] ?? TYPE_CONFIG.UMUM).accentClassName
+              }`}
+          >
+            {getInitials(displayName)}
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="break-words text-lg font-black text-slate-900 sm:text-xl">
+                {displayName}
+              </h2>
+              <TypeBadge type={type} />
+            </div>
+            <p className="mt-1 text-sm text-slate-500">{getVisitLabel(lastVisitAt)}</p>
+            {company ? (
+              <p className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                <Building2 className="h-3.5 w-3.5" />
+                <span className="truncate">{company}</span>
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          {debtAmount > 0 && canUpdate ? (
+            <button
+              type="button"
+              onClick={() => onPayDebt(customer)}
+              className="flex-1 rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 sm:flex-none"
+            >
+              Bayar Piutang
+            </button>
+          ) : null}
+          {canUpdate ? (
+            <button
+              type="button"
+              onClick={() => onEdit(customer)}
+              className="flex-1 rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 sm:flex-none"
+            >
+              Ubah Profil
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-5 grid min-w-0 gap-2 sm:mt-6 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
+        <DetailMetricCard
+          label="Total Belanja"
+          value={formatCurrency(spentAmount)}
+          tone="slate"
+        />
+        <DetailMetricCard
+          label="Total Order"
+          value={`${detailCustomer?.totalOrders ?? customer.totalOrders} transaksi`}
+          tone="sky"
+        />
+        <DetailMetricCard
+          label="Piutang"
+          value={debtAmount > 0 ? formatCurrency(debtAmount) : "Tidak ada"}
+          tone={debtAmount > 0 ? "amber" : "emerald"}
+        />
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:mt-6 lg:grid-cols-2">
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+            Kontak Utama
+          </p>
+          <div className="mt-3 space-y-2 text-sm text-slate-600">
+            <p className="flex min-w-0 items-center gap-2">
+              <Phone className="h-4 w-4 text-slate-400" />
+              <span className="truncate">{phone ?? "Belum ada nomor HP"}</span>
+            </p>
+            <p className="flex min-w-0 items-center gap-2">
+              <Mail className="h-4 w-4 text-slate-400" />
+              <span className="truncate">{email ?? "Belum ada email"}</span>
+            </p>
+            <p className="flex min-w-0 items-start gap-2">
+              <MapPin className="mt-0.5 h-4 w-4 text-slate-400" />
+              <span className="min-w-0 break-words">{address ?? "Belum ada alamat"}</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+            Catatan Internal
+          </p>
+          <p className="mt-3 break-words text-sm leading-6 text-slate-600">
+            {notes || "Belum ada catatan untuk pelanggan ini."}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-3xl border border-slate-200 bg-white sm:mt-6">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+              Riwayat Transaksi
+            </p>
+            <h3 className="mt-1 text-base font-black text-slate-900">
+              Aktivitas terbaru pelanggan
+            </h3>
+          </div>
+          {detailQuery.isFetching ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+              <RefreshCcw className="h-3.5 w-3.5 animate-spin" />
+              Memuat
+            </span>
+          ) : null}
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {transactions.length > 0 ? (
+            transactions.map((transaction) => (
+              <div
+                key={transaction.id}
+                className="space-y-3 px-4 py-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-bold text-slate-900">
+                      {transaction.invoiceNumber || transaction.id}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {formatDateTime(transaction.createdAt)}
+                    </p>
+                  </div>
+                  <div className="min-w-0 text-left sm:text-right">
+                    <p className="text-sm font-black text-slate-900">
+                      {formatCurrency(Number(transaction.total))}
+                    </p>
+                    <p className="mt-1 break-words text-xs font-semibold text-slate-500">
+                      {[transaction.paymentMethod, transaction.status].join(" · ")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {transaction.items.slice(0, 3).map((item) => (
+                    <span
+                      key={`${transaction.id}-${item.productName}`}
+                      className="inline-flex max-w-full rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"
+                    >
+                      <span className="truncate">
+                        {item.productName} x{item.quantity}
+                      </span>
+                    </span>
+                  ))}
+                  {transaction.items.length > 3 ? (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                      +{transaction.items.length - 3} item lain
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="px-4 py-10 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                <FileSpreadsheet className="h-5 w-5" />
+              </div>
+              <p className="mt-4 text-sm font-bold text-slate-900">
+                Belum ada transaksi tercatat
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Setelah pelanggan dipakai di transaksi, riwayat akan muncul di
+                sini.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+      </aside>
+    </div>
+  );
+}
 
 export default function CustomersPage() {
   const { canPerform } = useRole();
   const canCreateCustomers = shouldShowAction("customer", "create", canPerform);
   const canUpdateCustomers = shouldShowUpdateAction("customer", canPerform);
   const canDeleteCustomers = shouldShowDeleteAction("customer", canPerform);
+
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<CustomerType | "">("");
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Customer | null>(null);
   const [debtTarget, setDebtTarget] = useState<Customer | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null,
+  );
 
-  const debouncedSearch = useDebounce(search, 300);
+  const deferredSearch = useDeferredValue(search);
+  const debouncedSearch = useDebounce(deferredSearch, 250);
   const deleteCustomer = useDeleteCustomer();
 
   const { data, isLoading, isFetching } = useCustomers({
@@ -328,168 +1078,379 @@ export default function CustomersPage() {
     limit: 20,
   });
 
-  const openCreate = () => { if (!canCreateCustomers) return; setEditTarget(null); setModalOpen(true); };
-  const openEdit = (c: Customer) => { if (!canUpdateCustomers) return; setEditTarget(c); setModalOpen(true); };
-  const closeModal = () => setModalOpen(false);
+  const customers = useMemo(() => data?.data ?? [], [data?.data]);
 
-  const handleDelete = useCallback(async (c: Customer) => {
-    if (!canDeleteCustomers) return;
-    if (!confirm(`Hapus pelanggan "${c.name}"?`)) return;
-    await deleteCustomer.mutateAsync(c.id);
-  }, [canDeleteCustomers, deleteCustomer]);
+  const selectedCustomer = useMemo(
+    () =>
+      customers.find((customer) => customer.id === selectedCustomerId) ?? null,
+    [customers, selectedCustomerId],
+  );
 
-  // Summary stats
-  const totalDebtAll = data?.data.reduce((sum: number, c: Customer) => sum + Number(c.totalDebt), 0) ?? 0;
-  const customersWithDebt = data?.data.filter(c => Number(c.totalDebt) > 0).length ?? 0;
+  const metrics = useMemo(() => {
+    const totalDebtVisible = customers.reduce(
+      (sum, customer) => sum + Number(customer.totalDebt),
+      0,
+    );
+    const totalSpentVisible = customers.reduce(
+      (sum, customer) => sum + Number(customer.totalSpent),
+      0,
+    );
+    const debtCustomerCount = customers.filter(
+      (customer) => Number(customer.totalDebt) > 0,
+    ).length;
+    const businessCustomerCount = customers.filter(
+      (customer) => Boolean(customer.company) || customer.type !== "UMUM",
+    ).length;
+    const activeThirtyDayCount = customers.filter((customer) => {
+      if (!customer.lastVisitAt) return false;
+      const diffDays =
+        (Date.now() - new Date(customer.lastVisitAt).getTime()) /
+        (1000 * 60 * 60 * 24);
+      return diffDays <= 30;
+    }).length;
+
+    return {
+      totalDebtVisible,
+      totalSpentVisible,
+      debtCustomerCount,
+      businessCustomerCount,
+      activeThirtyDayCount,
+    };
+  }, [customers]);
+
+  const handleSearchChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSearch(event.target.value);
+      startTransition(() => {
+        setPage(1);
+      });
+    },
+    [],
+  );
+
+  const handleTypeFilterChange = useCallback((nextType: CustomerType | "") => {
+    startTransition(() => {
+      setTypeFilter(nextType);
+      setPage(1);
+    });
+  }, []);
+
+  const handlePageChange = useCallback(
+    (nextPage: number) => {
+      startTransition(() => {
+        setPage(nextPage);
+      });
+    },
+    [],
+  );
+
+  const openCreateModal = useCallback(() => {
+    if (!canCreateCustomers) return;
+    setEditTarget(null);
+    setModalOpen(true);
+  }, [canCreateCustomers]);
+
+  const openEditModal = useCallback(
+    (customer: Customer) => {
+      if (!canUpdateCustomers) return;
+      setEditTarget(customer);
+      setModalOpen(true);
+    },
+    [canUpdateCustomers],
+  );
+
+  const closeFormModal = useCallback(() => {
+    setModalOpen(false);
+  }, []);
+
+  const handleDeleteCustomer = useCallback(
+    async (customer: Customer) => {
+      if (!canDeleteCustomers) return;
+      if (!confirm(`Hapus pelanggan "${customer.name}"?`)) return;
+      await deleteCustomer.mutateAsync(customer.id);
+    },
+    [canDeleteCustomers, deleteCustomer],
+  );
+
+  const hasActiveFilters = search.trim().length > 0 || typeFilter !== "";
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-surface-50">
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-surface-100 gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold text-surface-900">Database Pelanggan</h1>
-          <p className="text-sm text-surface-500 mt-0.5">
-            {data?.pagination.total ?? 0} pelanggan terdaftar
-          </p>
-        </div>
-        {canCreateCustomers && (
-          <button onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors shadow-sm">
-            + Tambah Pelanggan
-          </button>
-        )}
-      </header>
-
-      {/* Debt Summary Banner */}
-      {totalDebtAll > 0 && (
-        <div className="mx-6 mt-4 flex items-center gap-4 p-4 bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 rounded-2xl">
-          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-lg">💰</div>
-          <div className="flex-1">
-            <p className="text-xs font-semibold text-red-600 uppercase tracking-wider">Total Piutang</p>
-            <p className="text-xl font-extrabold text-red-800">{fmt(totalDebtAll)}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-surface-500">Pelanggan dgn piutang</p>
-            <p className="text-lg font-bold text-red-700">{customersWithDebt}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="flex items-center gap-3 px-6 py-3 bg-white border-b border-surface-100 flex-wrap mt-0">
-        <input
-          value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-          placeholder="Cari nama, HP, atau perusahaan…"
-          className="flex-1 min-w-[200px] px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 bg-surface-50"
-        />
-        <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value as CustomerType | ""); setPage(1); }}
-          className="px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 bg-surface-50">
-          <option value="">Semua Tipe</option>
-          <option value="UMUM">UMUM</option>
-          <option value="AGEN">AGEN</option>
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="flex-1 overflow-auto px-6 py-4">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20 text-surface-400">
-            <div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full mr-3" />
-            Memuat data…
-          </div>
-        ) : (data?.data.length ?? 0) === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-surface-400">
-            <div className="text-5xl mb-4">👤</div>
-            <p className="font-medium">Belum ada pelanggan</p>
-            <p className="text-sm mt-1">Tambahkan pelanggan pertama Anda</p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden shadow-sm">
-            <div className={`transition-opacity duration-150 ${isFetching ? "opacity-60" : "opacity-100"}`}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-surface-50 border-b border-surface-100">
-                    <th className="text-left px-4 py-3 font-semibold text-surface-600 text-xs uppercase tracking-wider">Pelanggan</th>
-                    <th className="text-left px-4 py-3 font-semibold text-surface-600 text-xs uppercase tracking-wider hidden md:table-cell">Tipe</th>
-                    <th className="text-right px-4 py-3 font-semibold text-surface-600 text-xs uppercase tracking-wider hidden lg:table-cell">Total Belanja</th>
-                    <th className="text-right px-4 py-3 font-semibold text-surface-600 text-xs uppercase tracking-wider hidden lg:table-cell">Piutang</th>
-                    <th className="text-right px-4 py-3 font-semibold text-surface-600 text-xs uppercase tracking-wider hidden lg:table-cell">Order</th>
-                    <th className="text-left px-4 py-3 font-semibold text-surface-600 text-xs uppercase tracking-wider hidden xl:table-cell">Kunjungan Terakhir</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-100">
-                  {data?.data.map(c => (
-                    <tr key={c.id} className="hover:bg-surface-50 transition-colors group">
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-surface-900">{c.name}</p>
-                        <p className="text-xs text-surface-500 mt-0.5">{c.phone ?? c.email ?? "—"}</p>
-                        {c.company && <p className="text-xs text-surface-400">{c.company}</p>}
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell"><TypeBadge type={c.type} /></td>
-                      <td className="px-4 py-3 text-right font-medium text-surface-900 hidden lg:table-cell">{fmt(Number(c.totalSpent))}</td>
-                      <td className="px-4 py-3 text-right hidden lg:table-cell">
-                        <DebtBadge amount={Number(c.totalDebt)} />
-                      </td>
-                      <td className="px-4 py-3 text-right text-surface-600 hidden lg:table-cell">{c.totalOrders}x</td>
-                      <td className="px-4 py-3 text-surface-500 text-xs hidden xl:table-cell">{fmtDate(c.lastVisitAt)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {Number(c.totalDebt) > 0 && canUpdateCustomers && (
-                            <button onClick={() => setDebtTarget(c)}
-                              className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 text-xs font-medium transition-colors">
-                              Bayar
-                            </button>
-                          )}
-                          {canUpdateCustomers && (
-                            <button onClick={() => openEdit(c)}
-                              className="px-3 py-1.5 rounded-lg bg-surface-100 text-surface-700 hover:bg-brand-50 hover:text-brand-700 text-xs font-medium transition-colors">
-                              Ubah
-                            </button>
-                          )}
-                          {canDeleteCustomers && (
-                            <button onClick={() => handleDelete(c)}
-                              className="px-3 py-1.5 rounded-lg bg-surface-100 text-surface-700 hover:bg-red-50 hover:text-red-700 text-xs font-medium transition-colors">
-                              Hapus
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {(data?.pagination.totalPages ?? 1) > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-surface-100 bg-surface-50">
-                <p className="text-xs text-surface-500">
-                  Halaman {data?.pagination.page} dari {data?.pagination.totalPages}
+    <div className="min-h-full overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_24%),linear-gradient(180deg,_#fffdf8_0%,_#f8fafc_34%,_#f8fafc_100%)]">
+      <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-4 lg:px-8">
+        <section className="min-w-0 overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-[0_30px_70px_rgba(15,23,42,0.08)] sm:rounded-[34px]">
+          <div className="relative px-4 py-4 sm:px-6 sm:py-7 lg:px-8">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,0.16),_transparent_26%),radial-gradient(circle_at_bottom_left,_rgba(245,158,11,0.14),_transparent_22%)]" />
+            <div className="relative flex min-w-0 flex-col gap-4 sm:gap-6 2xl:flex-row 2xl:items-end 2xl:justify-between">
+              <div className="min-w-0 max-w-3xl">
+                <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 sm:text-xs sm:tracking-[0.2em]">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Customer Workspace
+                </div>
+                <h1 className="mt-3 max-w-2xl text-balance text-lg font-black leading-tight text-slate-950 sm:mt-4 sm:text-3xl lg:text-4xl">
+                  Kelola pelanggan, pantau piutang, dan baca riwayat transaksi.
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:mt-3 sm:text-base sm:leading-7">
+                  Fokus ke pelanggan yang aktif, akun bisnis, dan piutang yang
+                  perlu ditindaklanjuti.
                 </p>
-                <div className="flex gap-2">
-                  <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                    className="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium text-surface-600 disabled:opacity-40 hover:bg-surface-100 transition-colors">
-                    Sebelumnya
+              </div>
+
+              {canCreateCustomers ? (
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setImportOpen(true)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:w-auto sm:px-4 sm:py-3 sm:text-sm"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Import Excel
                   </button>
-                  <button disabled={page >= (data?.pagination.totalPages ?? 1)} onClick={() => setPage(p => p + 1)}
-                    className="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium text-surface-600 disabled:opacity-40 hover:bg-surface-100 transition-colors">
-                    Berikutnya
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-brand-700 sm:w-auto sm:px-5 sm:py-3 sm:text-sm"
+                  >
+                    <Users2 className="h-4 w-4" />
+                    Tambah Pelanggan
                   </button>
                 </div>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 2xl:grid-cols-4">
+          <SummaryCard
+            label="Total Database"
+            value={String(data?.pagination.total ?? 0)}
+            hint="Total pelanggan yang terdaftar."
+            tone="slate"
+            icon={<Users2 className="h-6 w-6 text-slate-700" />}
+          />
+          <SummaryCard
+            label="Piutang di Hasil"
+            value={formatCurrency(metrics.totalDebtVisible)}
+            hint={`${metrics.debtCustomerCount} pelanggan butuh follow-up.`}
+            tone="red"
+            icon={<Wallet className="h-6 w-6 text-red-600" />}
+          />
+          <SummaryCard
+            label="Aktif 30 Hari"
+            value={String(metrics.activeThirtyDayCount)}
+            hint="Pelanggan dengan kunjungan terbaru."
+            tone="sky"
+            icon={<BadgePercent className="h-6 w-6 text-sky-600" />}
+          />
+          <SummaryCard
+            label="Akun Bisnis"
+            value={String(metrics.businessCustomerCount)}
+            hint="Perusahaan, agen, industri, dan instansi."
+            tone="amber"
+            icon={<BriefcaseBusiness className="h-6 w-6 text-amber-600" />}
+          />
+        </section>
+
+        <section className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] sm:rounded-[32px] sm:p-5">
+          <div className="flex min-w-0 flex-col gap-3 sm:gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={handleSearchChange}
+                  placeholder="Cari nama pelanggan, nomor HP, email, atau perusahaan..."
+                  className="w-full rounded-[20px] border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100 sm:rounded-[22px]"
+                />
               </div>
+            </div>
+
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-webkit-overflow-scrolling:touch] 2xl:mx-0 2xl:flex-wrap 2xl:overflow-visible 2xl:px-0">
+              <button
+                type="button"
+                onClick={() => handleTypeFilterChange("")}
+                  className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${typeFilter === ""
+                  ? "bg-slate-900 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+              >
+                Semua
+              </button>
+              {CUSTOMER_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => handleTypeFilterChange(type)}
+                    className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${typeFilter === type
+                    ? "bg-brand-600 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                >
+                  {CUSTOMER_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 sm:mt-4 sm:flex-row sm:items-center sm:justify-between sm:pt-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-slate-500">
+              <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:text-sm">
+                {data?.pagination.total ?? 0} pelanggan
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:text-sm">
+                Nilai belanja terlihat {formatCurrency(metrics.totalSpentVisible)}
+              </span>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    handleTypeFilterChange("");
+                  }}
+                  className="rounded-full bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100 sm:text-sm"
+                >
+                  Reset filter
+                </button>
+              ) : null}
+            </div>
+
+            {isFetching ? (
+              <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500">
+                <RefreshCcw className="h-3.5 w-3.5 animate-spin" />
+                Memperbarui hasil...
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="min-w-0">
+          <div className="min-w-0 space-y-4">
+            {isLoading ? (
+              <CustomerListSkeleton />
+            ) : customers.length === 0 ? (
+              <div className="rounded-[32px] border border-dashed border-slate-300 bg-white/80 px-6 py-14 text-center shadow-sm">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-slate-100 text-slate-500">
+                  <Users2 className="h-7 w-7" />
+                </div>
+                <h2 className="mt-5 text-2xl font-black text-slate-900">
+                  Belum ada pelanggan yang cocok
+                </h2>
+                <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
+                  {hasActiveFilters
+                    ? "Hasil pencarian masih kosong. Coba ubah kata kunci atau reset tipe pelanggan."
+                    : "Bangun database pelanggan lebih rapi agar checkout, nota penawaran, dan follow-up piutang lebih cepat."}
+                </p>
+                {canCreateCustomers ? (
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={openCreateModal}
+                      className="rounded-full bg-brand-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
+                    >
+                      Tambah pelanggan pertama
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImportOpen(true)}
+                      className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      Import dari Excel
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <div className="grid min-w-0 gap-3 sm:gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                  {customers.map((customer) => (
+                    <CustomerListCard
+                      key={customer.id}
+                      customer={customer}
+                      isSelected={customer.id === selectedCustomerId}
+                      canUpdate={canUpdateCustomers}
+                      canDelete={canDeleteCustomers}
+                      onSelect={setSelectedCustomerId}
+                      onEdit={openEditModal}
+                      onDelete={handleDeleteCustomer}
+                      onPayDebt={setDebtTarget}
+                    />
+                  ))}
+                </div>
+
+                {(data?.pagination.totalPages ?? 1) > 1 ? (
+                  <div className="flex flex-col gap-3 rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <div className="text-sm text-slate-500">
+                      Halaman{" "}
+                      <span className="font-bold text-slate-900">
+                        {data?.pagination.page}
+                      </span>{" "}
+                      dari{" "}
+                      <span className="font-bold text-slate-900">
+                        {data?.pagination.totalPages}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:flex">
+                      <button
+                        type="button"
+                        disabled={page <= 1}
+                        onClick={() => handlePageChange(page - 1)}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Sebelumnya
+                      </button>
+                      <button
+                        type="button"
+                        disabled={page >= (data?.pagination.totalPages ?? 1)}
+                        onClick={() => handlePageChange(page + 1)}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
+                      >
+                        Berikutnya
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
-        )}
+
+        </section>
       </div>
 
-      {/* Modals */}
-      {modalOpen && (editTarget ? canUpdateCustomers : canCreateCustomers) && (
-        <CustomerFormModal initial={editTarget} onClose={closeModal} />
-      )}
-      {debtTarget && canUpdateCustomers && (
-        <PayDebtModal customer={debtTarget} onClose={() => setDebtTarget(null)} />
-      )}
+      {selectedCustomerId && selectedCustomer ? (
+        <CustomerDetailPanel
+          customerId={selectedCustomerId}
+          fallbackCustomer={selectedCustomer}
+          canUpdate={canUpdateCustomers}
+          onClose={() => setSelectedCustomerId(null)}
+          onEdit={openEditModal}
+          onPayDebt={setDebtTarget}
+        />
+      ) : null}
+
+      {modalOpen && (editTarget ? canUpdateCustomers : canCreateCustomers) ? (
+        <CustomerFormModal initial={editTarget} onClose={closeFormModal} />
+      ) : null}
+
+      {debtTarget && canUpdateCustomers ? (
+        <PayDebtModal
+          customer={debtTarget}
+          onClose={() => setDebtTarget(null)}
+        />
+      ) : null}
+
+      <Suspense
+        fallback={
+          <div className="fixed inset-0 z-40 bg-slate-950/10 backdrop-blur-[2px]" />
+        }
+      >
+        {importOpen && canCreateCustomers ? (
+          <CustomerImportDrawer
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+          />
+        ) : null}
+      </Suspense>
     </div>
   );
 }

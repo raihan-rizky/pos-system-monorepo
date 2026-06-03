@@ -3,6 +3,7 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
+import { CUSTOMER_TYPES, toDbCustomerType } from "@/lib/customers";
 
 import { getLogger } from "@/lib/logger";
 
@@ -18,7 +19,7 @@ const createCustomerSchema = z.object({
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   company: z.string().max(100).optional(),
   address: z.string().max(300).optional(),
-  type: z.enum(["UMUM", "AGEN"]).default("UMUM"),
+  type: z.enum(CUSTOMER_TYPES).default("UMUM"),
   notes: z.string().max(500).optional(),
 });
 
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
       ];
     }
 
-    if (type && ["UMUM", "AGEN"].includes(type)) {
+    if (type && CUSTOMER_TYPES.includes(type as (typeof CUSTOMER_TYPES)[number])) {
       where.type = type;
     }
 
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
         email: email || null,
         company: company || null,
         address: address || null,
-        type: type ?? "UMUM",
+        type: toDbCustomerType(type ?? "UMUM"),
         notes: notes || null,
         storeId,
       },

@@ -204,6 +204,8 @@ export async function GET(request: Request) {
                 quantity: true,
                 unitPrice: true,
                 subtotal: true,
+                product: { select: { unit: true } },
+                printingService: { select: { unit: true } },
               },
             },
             cashier: {
@@ -536,7 +538,25 @@ export async function POST(request: Request) {
               },
             },
             include: { 
-              items: true,
+              items: {
+                select: {
+                  id: true,
+                  productId: true,
+                  printingServiceId: true,
+                  rawMaterialProductId: true,
+                  productName: true,
+                  size: true,
+                  material: true,
+                  serviceNote: true,
+                  rawMaterialQuantity: true,
+                  rawMaterialUnit: true,
+                  quantity: true,
+                  unitPrice: true,
+                  subtotal: true,
+                  product: { select: { unit: true } },
+                  printingService: { select: { unit: true } },
+                },
+              },
               salesperson: { select: { name: true } }
             },
           });

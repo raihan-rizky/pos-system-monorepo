@@ -64,6 +64,8 @@ export async function GET(request: Request) {
           salesperson: { select: { name: true } },
           customerName: true,
           paymentMethod: true,
+          status: true,
+          amountPaid: true,
           total: true,
           items: {
             select: {
@@ -100,7 +102,7 @@ export async function GET(request: Request) {
       salesperson: s.salesperson,
       customerName: s.customerName,
       paymentMethod: s.paymentMethod,
-      total: s.total.toString(),
+      total: (s.status === "DP" ? s.amountPaid : s.total).toString(),
       items: s.items.map((item) => ({
         ...item,
         subtotal: item.subtotal.toString(),

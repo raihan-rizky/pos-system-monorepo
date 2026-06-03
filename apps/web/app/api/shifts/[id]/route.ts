@@ -60,20 +60,22 @@ export async function PATCH(
       shift.status === "CLOSED" &&
       (openingBalance !== undefined || closingBalance !== undefined)
     ) {
-      const cashAgg = await db.transaction.aggregate({
+      const cashTransactions = await db.transaction.findMany({
         where: {
           storeId,
           paymentMethod: "CASH",
-          status: { notIn: ["VOIDED", "REFUNDED"] },
+          status: { in: ["COMPLETED", "DP"] },
           createdAt: {
             gte: shift.openedAt,
             lte: shift.closedAt || new Date(),
           },
         },
-        _sum: { total: true },
+        select: { total: true, amountPaid: true, status: true },
       });
 
-      const totalCashIncome = Number(cashAgg._sum.total || 0);
+      const totalCashIncome = cashTransactions.reduce((acc, t) => {
+        return acc + Number(t.status === "DP" ? t.amountPaid : t.total);
+      }, 0);
       const newOpening =
         openingBalance !== undefined
           ? openingBalance
