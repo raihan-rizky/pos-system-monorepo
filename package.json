@@ -7,6 +7,7 @@
     "lint": "turbo run lint",
     "e2e": "pnpm --filter @pos/web e2e",
     "test": "pnpm --filter @pos/web test",
+    "audit:icons": "node scripts/audit-icons.mjs",
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "postinstall": "pnpm --filter @pos/db generate",

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Plus, User } from "lucide-react";
 import type { Customer } from "@/hooks/useCustomers";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -34,59 +35,19 @@ const TYPE_CLASSES: Record<Customer["type"], string> = {
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <ChevronDown
+      className={`h-[18px] w-[18px] transition-transform duration-200 ${open ? "rotate-180" : ""}`}
       aria-hidden="true"
-      className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
+    />
   );
 }
 
 function UserIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20 21a8 8 0 0 0-16 0" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
+  return <User className="h-[18px] w-[18px]" aria-hidden="true" />;
 }
 
 function PlusIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 12h14" />
-      <path d="M12 5v14" />
-    </svg>
-  );
+  return <Plus className="h-[18px] w-[18px]" aria-hidden="true" />;
 }
 
 function customerMeta(customer: Customer): string {

@@ -250,16 +250,11 @@ export function ImageUploadStep({
                     <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 text-white p-2.5 rounded-xl shadow-inner relative z-10">
                       <Sparkles className="w-5 h-5 animate-pulse" />
                     </div>
-                    <svg className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] animate-spin" style={{ animationDuration: '3s' }} viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" strokeWidth="1" className="text-slate-200" />
-                      <circle cx="50" cy="50" r="48" fill="none" stroke="url(#gradient)" strokeWidth="2" strokeDasharray="75 225" strokeLinecap="round" />
-                      <defs>
-                        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#3b82f6" />
-                          <stop offset="100%" stopColor="#6366f1" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
+                    <div
+                      className="absolute -inset-2 animate-spin rounded-full border border-slate-200 border-t-blue-500 border-r-indigo-500"
+                      style={{ animationDuration: "3s" }}
+                      aria-hidden="true"
+                    />
                   </div>
                   <div className="text-center">
                     <h3 className="text-sm font-bold text-slate-800">Mengekstrak Data</h3>

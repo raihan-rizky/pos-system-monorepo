@@ -166,7 +166,7 @@ export async function GET(request: Request) {
         }
       } catch (fallbackError: any) {
         log.warn(
-          `[WA/Messages] âš ï¸ Fallback extraction also failed for ${chatId}:`,
+          `[WA/Messages] Warning: fallback extraction also failed for ${chatId}:`,
           fallbackError.message,
         );
       }
@@ -215,7 +215,7 @@ export async function GET(request: Request) {
 
     const duration = (performance.now() - startTime).toFixed(1);
     log.info(
-      `[WA/Messages] âœ… Returning ${messages.length} messages for chatId=${chatIdParam || phone} in ${duration}ms`,
+      `[WA/Messages] Returning ${messages.length} messages for chatId=${chatIdParam || phone} in ${duration}ms`,
     );
 
     return NextResponse.json({ data: messages });
@@ -225,7 +225,7 @@ export async function GET(request: Request) {
 
     const duration = (performance.now() - startTime).toFixed(1);
     log.error(
-      `[WA/Messages] âŒ Failed after ${duration}ms:`,
+      `[WA/Messages] Failed after ${duration}ms:`,
       error.message || error,
     );
     return NextResponse.json(
@@ -295,14 +295,14 @@ export async function POST(request: Request) {
     // This allows the UI to unlock immediately and appear instantaneous organically.
     sendWaTextMessage(targetId, content).catch((e) => {
       log.error(
-        `[WA/SendMsg] âŒ Background WAHA send failed for ${targetId}:`,
+        `[WA/SendMsg] Background WAHA send failed for ${targetId}:`,
         e.message,
       );
     });
 
     const duration = (performance.now() - startTime).toFixed(1);
     log.info(
-      `[WA/SendMsg] âœ… Message queued for ${targetId} in ${duration}ms (fire-and-forget)`,
+      `[WA/SendMsg] Message queued for ${targetId} in ${duration}ms (fire-and-forget)`,
     );
 
     return NextResponse.json(
@@ -323,7 +323,7 @@ export async function POST(request: Request) {
 
     const duration = (performance.now() - startTime).toFixed(1);
     log.error(
-      `[WA/SendMsg] âŒ Failed after ${duration}ms:`,
+      `[WA/SendMsg] Failed after ${duration}ms:`,
       error.message || error,
     );
     return NextResponse.json(

@@ -53,7 +53,7 @@ function resolveWahaFileUrl({
  * Proxies WAHA media file downloads through our Next.js backend.
  *
  * Architecture (on-demand / lazy loading):
- *  1. Frontend clicks a contact â†’ messages are fetched with `downloadMedia=true`.
+ *  1. Frontend clicks a contact -> messages are fetched with `downloadMedia=true`.
  *  2. WAHA processes media and stores files locally, returning URLs like:
  *       http://localhost:3000/api/files/default/<FILENAME>.jpeg
  *  3. That full URL (or just the filename) is stored as `image_url` on the message.
@@ -101,11 +101,11 @@ export async function GET(
     const decoded = decodeURIComponent(id);
     if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
       // Case (b): the frontend passed a full URL.
-      // âš ï¸ IMPORTANT: If the URL contains 'localhost' or '127.0.0.1', it likely came 
+      // Warning: If the URL contains 'localhost' or '127.0.0.1', it likely came 
       // from a local WAHA instance but we are now running in production (Vercel).
       // We must replace the local address with our actual configured baseUrl.
       if (decoded.includes("localhost:") || decoded.includes("127.0.0.1:")) {
-        log.info(`[WA/Media] ðŸ”„ Patching localhost URL to use configured baseUrl`);
+        log.info(`[WA/Media] Patching localhost URL to use configured baseUrl`);
         // Extract the path after the domain (e.g. /api/files/default/abc.jpg)
         const urlObj = new URL(decoded);
         fileUrl = `${baseUrl}${urlObj.pathname}${urlObj.search}`;
@@ -132,7 +132,7 @@ export async function GET(
       const errText = await mediaRes.text();
       const duration = (performance.now() - startTime).toFixed(1);
       log.error(
-        `[WA/Media] âŒ WAHA returned ${mediaRes.status} after ${duration}ms:`,
+        `[WA/Media] WAHA returned ${mediaRes.status} after ${duration}ms:`,
         errText,
       );
       return NextResponse.json(
@@ -146,7 +146,7 @@ export async function GET(
 
     const duration = (performance.now() - startTime).toFixed(1);
     log.info(
-      `[WA/Media] âœ… Streaming media (type=${contentType}) for id=${id} in ${duration}ms`,
+      `[WA/Media] Streaming media (type=${contentType}) for id=${id} in ${duration}ms`,
     );
 
     // Stream the binary directly to the browser â€” no buffering, memory-efficient.
@@ -171,7 +171,7 @@ export async function GET(
 
     const duration = (performance.now() - startTime).toFixed(1);
     log.error(
-      `[WA/Media] âŒ Proxy error after ${duration}ms:`,
+      `[WA/Media] Proxy error after ${duration}ms:`,
       error.message || error,
     );
     return NextResponse.json(

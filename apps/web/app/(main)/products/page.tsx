@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import ProductTable from "@/components/inventory/ProductTable";
+import { CategoryIcon } from "@/lib/category-icons";
 import ProductFormModal from "@/components/inventory/ProductFormModal";
 import PriceUpdateModal from "@/components/inventory/PriceUpdateModal";
 import StockUpdateModal from "@/components/inventory/StockUpdateModal";
@@ -689,7 +690,7 @@ function ProductsContent() {
                     aria-pressed={categoryId === c.id}
                     className={`snap-start shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 cursor-pointer ${categoryId === c.id ? "bg-slate-900 text-white shadow-md shadow-slate-900/20 scale-100" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 scale-95 hover:scale-100"}`}
                   >
-                    <span className="text-base">{c.icon}</span>
+                    <CategoryIcon value={c.icon} className="h-4 w-4" />
                     {c.name}
                     <span
                       className={`px-2 py-0.5 rounded-md text-[10px] ${categoryId === c.id ? "bg-white/20" : "bg-slate-100"}`}
@@ -956,7 +957,7 @@ function ProductGrid({
                   />
                 ) : (
                   <span className="text-3xl drop-shadow-sm">
-                    {p.category?.icon || "??"}
+                    <CategoryIcon value={p.category?.icon} className="h-8 w-8 text-slate-500" />
                   </span>
                 )}
               </div>

@@ -2,6 +2,7 @@ import React from "react";
 import { Product } from "@/hooks/useProducts";
 import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw, BadgeDollarSign } from "lucide-react";
 import { StockWarningBadge } from "@/features/product-stock-warnings/components";
+import { CategoryIcon } from "@/lib/category-icons";
 import { getDefaultProductImage } from "@/lib/utils";
 
 interface ProductTableProps {
@@ -108,7 +109,8 @@ export default function ProductTable({
                         borderColor: product.category.color ? `${product.category.color}35` : "#e5e7eb",
                       }}
                     >
-                      {product.category.icon} {product.category.name}
+                      <CategoryIcon value={product.category.icon} className="h-3.5 w-3.5" />
+                      {product.category.name}
                     </span>
                   </td>
 
@@ -276,7 +278,7 @@ export default function ProductTable({
                         borderColor: product.category.color ? `${product.category.color}25` : undefined,
                       }}
                     >
-                      <span>{product.category.icon}</span>
+                      <CategoryIcon value={product.category.icon} className="h-3.5 w-3.5" />
                       <span>{product.category.name}</span>
                     </span>
                     {(product.size || product.material) && (

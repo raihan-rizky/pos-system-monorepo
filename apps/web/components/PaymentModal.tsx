@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins, RotateCcw } from "lucide-react";
+import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins, FileClock, PackageCheck, PanelsTopLeft, RotateCcw } from "lucide-react";
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
@@ -535,10 +535,7 @@ export function PaymentModal({
                 }
               `}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-                <path d="M3 6h18" />
-              </svg>
+              <PackageCheck className="h-4 w-4" aria-hidden="true" />
               <span>Beli Langsung</span>
             </button>
             <button
@@ -552,11 +549,7 @@ export function PaymentModal({
                 }
               `}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M9 3v18" />
-                <path d="M15 3v18" />
-              </svg>
+              <PanelsTopLeft className="h-4 w-4" aria-hidden="true" />
               <span>Job Order</span>
             </button>
           </div>
@@ -785,22 +778,7 @@ export function PaymentModal({
                 disabled:opacity-60 disabled:cursor-not-allowed
                 focus:outline-none focus:ring-2 focus:ring-slate-500/50"
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <circle cx="12" cy="14" r="3" />
-                <polyline points="12 11 12 14 14 14" />
-              </svg>
+              <FileClock className="h-4 w-4" aria-hidden="true" />
               {isSavingDraft || createCustomer.isPending ? "Menyimpan..." : "Faktur Sementara"}
             </button>
           )}

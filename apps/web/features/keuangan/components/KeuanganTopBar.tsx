@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const MONTH_NAMES_ID = [
   "Januari",
@@ -90,9 +91,7 @@ export function KeuanganTopBar() {
             className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 inline-flex items-center justify-center px-2.5 py-1.5 text-surface-600 hover:text-surface-900 cursor-pointer rounded-l-xl hover:bg-surface-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
             aria-label="Bulan sebelumnya"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
+            <ChevronLeft className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
           </button>
           <span
             className="px-2 sm:px-3 py-1.5 text-sm font-semibold text-surface-900 min-w-[88px] sm:min-w-[120px] text-center tabular-nums"
@@ -108,9 +107,7 @@ export function KeuanganTopBar() {
             className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 inline-flex items-center justify-center px-2.5 py-1.5 text-surface-600 hover:text-surface-900 cursor-pointer rounded-r-xl hover:bg-surface-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
             aria-label="Bulan berikutnya"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
+            <ChevronRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
           </button>
         </div>
       </div>

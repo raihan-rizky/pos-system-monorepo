@@ -10,6 +10,21 @@ import React, {
 } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  Bot,
+  Check,
+  ChevronRight,
+  ChevronsRight,
+  ImageIcon,
+  Loader2,
+  MessageCircle,
+  Send,
+  Settings,
+  User,
+} from "lucide-react";
 import { getLogger } from "@/lib/logger";
 import {
   useWaContacts,
@@ -60,20 +75,7 @@ function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-[90%] overflow-hidden animate-scaleIn">
         <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-5 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
+            <AlertCircle className="h-[22px] w-[22px] text-white" aria-hidden="true" />
           </div>
 
           <div>
@@ -94,21 +96,7 @@ function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
           </p>
 
           <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex gap-3">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#d97706"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="flex-shrink-0 mt-0.5"
-            >
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
+            <AlertTriangle className="mt-0.5 h-[18px] w-[18px] flex-shrink-0 text-amber-600" aria-hidden="true" />
 
             <div className="text-xs text-amber-800 leading-relaxed">
               <strong>Checklist konfigurasi:</strong>
@@ -132,19 +120,7 @@ function WaConnectionErrorPopup({ onDismiss }: { onDismiss: () => void }) {
             onClick={() => router.push("/settings")}
             className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors shadow-md flex items-center justify-center gap-2"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+            <Settings className="h-4 w-4" aria-hidden="true" />
             Buka Pengaturan
           </button>
         </div>
@@ -189,18 +165,7 @@ const WahaImage = memo(function WahaImage({ mediaId }: { mediaId: string }) {
   if (hasError) {
     return (
       <div className="text-xs text-red-500 p-2 border border-red-200 rounded-lg bg-red-50 flex items-center gap-2 mt-1">
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
+        <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
         Gagal memuat gambar WA.
       </div>
     );
@@ -209,22 +174,7 @@ const WahaImage = memo(function WahaImage({ mediaId }: { mediaId: string }) {
   if (!imageSrc) {
     return (
       <div className="text-xs text-surface-400 p-2 italic flex items-center gap-2 mt-1">
-        <svg className="animate-spin h-4 w-4 text-surface-400" viewBox="0 0 24 24">
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-            fill="none"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
+        <Loader2 className="h-4 w-4 animate-spin text-surface-400" aria-hidden="true" />
         Memuat media...
       </div>
     );
@@ -259,22 +209,7 @@ const AiToggleButton = ({
       } hover:shadow-md disabled:opacity-50`}
     title={isAutoReplyOn ? "Nonaktifkan AI Auto Reply" : "Aktifkan AI Auto Reply"}
   >
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="11" width="18" height="10" rx="2" />
-      <circle cx="12" cy="5" r="2" />
-      <path d="M12 7v4" />
-      <line x1="8" y1="16" x2="8.01" y2="16" />
-      <line x1="16" y1="16" x2="16.01" y2="16" />
-    </svg>
+    <Bot className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
 
     <span className="hidden sm:inline">
       {isAutoReplyOn ? "AI Aktif" : "AI Pasif"}
@@ -353,20 +288,7 @@ function SlideToTakeover({
     <div className="slide-takeover-container animate-slideUp">
       <div className="flex items-center justify-center gap-2 mb-2">
         <div className="slide-ai-badge">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="3" y="11" width="18" height="10" rx="2" />
-            <circle cx="12" cy="5" r="2" />
-            <path d="M12 7v4" />
-          </svg>
+          <Bot className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
           <span>AI sedang aktif merespons</span>
         </div>
       </div>
@@ -386,44 +308,9 @@ function SlideToTakeover({
         </span>
 
         <div className="slide-chevrons" style={{ opacity: isDragging ? 0 : 0.5 }}>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ marginLeft: "-6px" }}
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ marginLeft: "-6px" }}
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
+          <ChevronRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+          <ChevronRight className="-ml-1.5 h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+          <ChevronRight className="-ml-1.5 h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
         </div>
 
         <div
@@ -442,32 +329,9 @@ function SlideToTakeover({
           onPointerCancel={handlePointerUp}
         >
           {isCompleted ? (
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
+            <Check className="h-[22px] w-[22px]" strokeWidth={3} aria-hidden="true" />
           ) : (
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="13 17 18 12 13 7" />
-              <polyline points="6 17 11 12 6 7" />
-            </svg>
+            <ChevronsRight className="h-[22px] w-[22px]" strokeWidth={2.5} aria-hidden="true" />
           )}
         </div>
       </div>
@@ -504,18 +368,7 @@ const MessageBubble = memo(function MessageBubble({
           if (msg.image_url.startsWith("waha_fallback:")) {
             return (
               <div className="text-xs text-surface-400 p-2 italic flex items-center gap-1.5 mt-1">
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
+                <ImageIcon className="h-[13px] w-[13px]" aria-hidden="true" />
                 Media tidak tersedia
               </div>
             );
@@ -761,17 +614,7 @@ export default function WACoexistencePage() {
                           />
                         ) : (
                           <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-surface-200 flex items-center justify-center text-surface-500">
-                            <svg
-                              width="24"
-                              height="24"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                              <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
+                            <User className="h-6 w-6" aria-hidden="true" />
                           </div>
                         )}
                       </div>
@@ -792,17 +635,7 @@ export default function WACoexistencePage() {
 
                         <div className="flex gap-1.5 items-center min-w-0">
                           {contact.role === "assistant" && (
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="#0c98e9"
-                              strokeWidth="2.5"
-                              className="flex-shrink-0"
-                            >
-                              <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
+                            <Check className="h-3.5 w-3.5 flex-shrink-0 text-sky-500" strokeWidth={2.5} aria-hidden="true" />
                           )}
 
                           <p
@@ -837,17 +670,7 @@ export default function WACoexistencePage() {
 
           {!selectedChatId ? (
             <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-surface-500 bg-surface-50 px-6 text-center">
-              <svg
-                width="60"
-                height="60"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                className="mb-4 opacity-40"
-              >
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-              </svg>
+              <MessageCircle className="mb-4 h-[60px] w-[60px] opacity-40" strokeWidth={1} aria-hidden="true" />
 
               <h2 className="text-xl font-bold text-surface-600">Chat WhatsApp POS</h2>
               <p className="mt-2 text-sm text-surface-400 max-w-sm">
@@ -862,17 +685,7 @@ export default function WACoexistencePage() {
                   onClick={() => setSelectedChatId(null)}
                   className="mr-3 md:hidden p-2 -ml-2 text-surface-500 rounded-full hover:bg-surface-100 transition-colors"
                 >
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                    <polyline points="12 19 5 12 12 5"></polyline>
-                  </svg>
+                  <ArrowLeft className="h-6 w-6" aria-hidden="true" />
                 </button>
 
                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -884,19 +697,7 @@ export default function WACoexistencePage() {
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-surface-200 flex items-center justify-center text-surface-500 flex-shrink-0">
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                      </svg>
+                      <User className="h-5 w-5" aria-hidden="true" />
                     </div>
                   )}
 
@@ -964,20 +765,7 @@ export default function WACoexistencePage() {
                       disabled={!inputText.trim() || isSending}
                       className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 hover:shadow-lg disabled:opacity-50 disabled:hover:shadow-md transition-all flex-shrink-0 shadow-md transform active:scale-95"
                     >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="ml-1"
-                      >
-                        <line x1="22" y1="2" x2="11" y2="13" />
-                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                      </svg>
+                      <Send className="ml-1 h-5 w-5" strokeWidth={2.5} aria-hidden="true" />
                     </button>
                   </form>
                 )}

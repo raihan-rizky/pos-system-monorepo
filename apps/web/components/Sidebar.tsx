@@ -7,308 +7,48 @@ import { createClient } from "@/utils/supabase/client";
 import { useRole } from "@/components/providers/RoleProvider";
 import { usePendingInventoryLogCount } from "@/hooks/useInventoryLogs";
 import { clearClientAuthState } from "@/lib/auth/pos-session";
+import {
+  BarChart3,
+  BookOpen,
+  BriefcaseBusiness,
+  Calculator,
+  ChevronLeft,
+  CircleDollarSign,
+  Grid2X2,
+  LogOut,
+  MessageCircle,
+  Package,
+  PanelsTopLeft,
+  Settings,
+  Tags,
+  TrendingDown,
+  TrendingUp,
+  User,
+  Users,
+  WalletCards,
+} from "lucide-react";
 
-/* ─────────────────────────────────────────────
-   SVG icon helpers (kept inline to avoid deps)
-   ───────────────────────────────────────────── */
+const sidebarIconClass = "h-5 w-5";
+
 const icons = {
-  dashboard: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  ),
-  pos: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <path d="M8 21h8" />
-      <path d="M12 17v4" />
-      <path d="M7 8h2" />
-      <path d="M15 8h2" />
-      <path d="M7 12h2" />
-      <path d="M15 12h2" />
-      <path d="M11 8h2" />
-      <path d="M11 12h2" />
-    </svg>
-  ),
-  history: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 8v4l3 3" />
-      <circle cx="12" cy="12" r="10" />
-    </svg>
-  ),
-  financial: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 3v18h18" />
-      <path d="M7 15l4-4 3 3 5-7" />
-      <path d="M15 7h4v4" />
-    </svg>
-  ),
-  product: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-      <line x1="12" y1="22.08" x2="12" y2="12" />
-    </svg>
-  ),
-  production: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M9 3v18" />
-      <path d="M15 3v18" />
-    </svg>
-  ),
-  customers: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  ),
-  salespersons: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-      <line x1="7" y1="7" x2="7.01" y2="7" />
-    </svg>
-  ),
-  wa: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </svg>
-  ),
-  shift: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="2" y="7" width="20" height="14" rx="2" />
-      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-    </svg>
-  ),
-  // Group icons
-  operations: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
-    </svg>
-  ),
-  catalog: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-    </svg>
-  ),
-  crm: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  ),
-  finance: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M7 8h10" />
-      <path d="M7 12h4" />
-      <path d="M15 12h2" />
-      <path d="M15 16h2" />
-      <path d="M7 16h4" />
-    </svg>
-  ),
-  pemasukan: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 19V5" />
-      <polyline points="6 11 12 5 18 11" />
-    </svg>
-  ),
-  pengeluaran: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 5v14" />
-      <polyline points="6 13 12 19 18 13" />
-    </svg>
-  ),
-  settings: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
-      <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-    </svg>
-  ),
+  dashboard: <Grid2X2 className={sidebarIconClass} aria-hidden="true" />,
+  pos: <Calculator className={sidebarIconClass} aria-hidden="true" />,
+  history: <WalletCards className={sidebarIconClass} aria-hidden="true" />,
+  financial: <BarChart3 className={sidebarIconClass} aria-hidden="true" />,
+  product: <Package className={sidebarIconClass} aria-hidden="true" />,
+  production: <PanelsTopLeft className={sidebarIconClass} aria-hidden="true" />,
+  customers: <Users className={sidebarIconClass} aria-hidden="true" />,
+  salespersons: <Tags className={sidebarIconClass} aria-hidden="true" />,
+  wa: <MessageCircle className={sidebarIconClass} aria-hidden="true" />,
+  shift: <BriefcaseBusiness className={sidebarIconClass} aria-hidden="true" />,
+  operations: <Settings className={sidebarIconClass} aria-hidden="true" />,
+  catalog: <BookOpen className={sidebarIconClass} aria-hidden="true" />,
+  crm: <User className={sidebarIconClass} aria-hidden="true" />,
+  finance: <CircleDollarSign className={sidebarIconClass} aria-hidden="true" />,
+  pemasukan: <TrendingUp className={sidebarIconClass} aria-hidden="true" />,
+  pengeluaran: <TrendingDown className={sidebarIconClass} aria-hidden="true" />,
+  settings: <Settings className={sidebarIconClass} aria-hidden="true" />,
 };
-
-/* ─────────────────────────────────────────────
-   Nav structure
-   ───────────────────────────────────────────── */
 const navGroups = [
   {
     id: "operations",
@@ -603,18 +343,7 @@ export function Sidebar() {
             <div
               className={`transition-transform duration-300 ${isCollapsed ? "" : "rotate-180"}`}
             >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
             </div>
             {!isCollapsed && (
               <span className="text-sm font-semibold">Sembunyikan</span>
@@ -640,21 +369,7 @@ export function Sidebar() {
               ${isCollapsed ? "justify-center w-10 h-10 bg-surface-800" : "px-3.5 gap-3 w-full"}
             `}
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
             {!isCollapsed && (
               <span className="text-sm font-semibold">Keluar</span>
             )}
@@ -786,20 +501,7 @@ export function Sidebar() {
               }}
               className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-950/20 hover:bg-red-900/30 active:bg-red-900/50 border border-red-900/40 text-red-400 text-sm font-bold rounded-2xl transition-all cursor-pointer"
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
+              <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
               Keluar Akun
             </button>
           </div>

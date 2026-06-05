@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Banknote, Smartphone, CreditCard, Landmark } from "lucide-react";
+import { Banknote, Smartphone, CreditCard, Landmark, X } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import type { Transaction } from "@/hooks/useTransactions";
 import { useApproveDraft, useCancelDraft } from "../hooks/useDraftMutations";
@@ -95,18 +95,7 @@ export function ApproveDraftDialog({
             aria-label="Tutup"
             className="p-2 rounded-xl hover:bg-surface-100 transition-colors text-surface-400 hover:text-surface-700 cursor-pointer"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <X className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
         </div>
 

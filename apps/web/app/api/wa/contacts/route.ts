@@ -42,7 +42,7 @@ export async function GET() {
 
     if (!res.ok) {
       const errorText = await res.text();
-      log.error(`[WA/Contacts] âŒ WAHA returned ${res.status}: ${errorText}`);
+      log.error(`[WA/Contacts] WAHA returned ${res.status}: ${errorText}`);
       throw new Error(`WAHA overview API error: ${res.statusText}`);
     }
 
@@ -116,12 +116,12 @@ export async function GET() {
         return {
           id: idString,
           phone: phoneStr,
-          // overview returns name: null, so fall back through pushName â†’ phone
+          // overview returns name: null, so fall back through pushName to phone
           name: chat.name || pushName || chat.pushname || phoneStr,
           // picture is a direct CDN URL (e.g. pps.whatsapp.net) when available
           picture: chat.picture || null,
           role,
-          content: hasMedia ? "ðŸ“· Media" : content,
+          content: hasMedia ? "Media" : content,
           created_at: new Date(tsMs).toISOString(),
           image_url: hasMedia ? "media" : null,
         };
@@ -133,14 +133,14 @@ export async function GET() {
     );
 
     const duration = (performance.now() - startTime).toFixed(1);
-    log.info(`[WA/Contacts] âœ… Success in ${duration}ms`);
+    log.info(`[WA/Contacts] Success in ${duration}ms`);
 
     return NextResponse.json({ data: contacts });
   } catch (error: any) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    log.error(`[WA/Contacts] âŒ Error:`, error.message);
+    log.error(`[WA/Contacts] Error:`, error.message);
     return NextResponse.json(
       { message: "Failed to fetch WA contacts" },
       { status: 500 },

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input } from "@pos/ui";
+import { Plus, Trash2 } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { useRole } from "@/components/providers/RoleProvider";
 import {
@@ -66,10 +67,7 @@ export function PrintingServicesTab({ onAddToCart }: PrintingServicesTabProps) {
         </div>
         {canManageServices && (
           <Button variant="accent" onClick={openCreateForm}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <Plus className="h-[18px] w-[18px]" aria-hidden="true" />
             Tambah Layanan
           </Button>
         )}
@@ -132,10 +130,7 @@ export function PrintingServicesTab({ onAddToCart }: PrintingServicesTabProps) {
                         onClick={() => deleteService.mutate(service.id)}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-danger-200 text-danger-500 hover:bg-danger-50"
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </>
                   )}

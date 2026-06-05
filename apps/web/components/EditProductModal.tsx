@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Modal, Button, Input } from "@pos/ui";
+import { ImageIcon } from "lucide-react";
 import { useUpdateProduct, useCategories, Product } from "@/hooks/useProducts";
 
 import { getLogger } from "@/lib/logger";
@@ -124,11 +125,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
               {imagePreview ? (
                 <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
               ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-surface-400">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
+                <ImageIcon className="h-6 w-6 text-surface-400" strokeWidth={1.5} aria-hidden="true" />
               )}
             </div>
             <div className="flex-1">

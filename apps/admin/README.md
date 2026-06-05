@@ -1,12 +1,12 @@
-# Admin Panel (🚧 Coming Soon)
+# Admin Panel (Coming Soon)
 
 Admin panel untuk manajemen lanjutan POS system:
 
-- 📊 Laporan detail (harian, mingguan, bulanan)
-- 👥 Manajemen user & cabang
-- 📦 Manajemen stok & purchase order
-- 🏷️ Manajemen produk & kategori
-- ⚙️ Pengaturan sistem
+- Laporan detail (harian, mingguan, bulanan)
+- Manajemen user & cabang
+- Manajemen stok & purchase order
+- Manajemen produk & kategori
+- Pengaturan sistem
 
 ## Development
 

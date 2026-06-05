@@ -1,6 +1,26 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import {
+  AlertTriangle,
+  Banknote,
+  Building2,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  CircleDollarSign,
+  CreditCard,
+  Edit2,
+  FileText,
+  History,
+  Search,
+  Smartphone,
+  Trash2,
+  Undo2,
+  X,
+  XCircle,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { ReceiptModal } from "@/components/ReceiptModal";
 import {
@@ -34,11 +54,11 @@ type EditForm = {
 
 const PAYMENT_METHODS = ["CASH", "TRANSFER", "QRIS", "DEBIT", "KREDIT"];
 const STATUSES = [
-  { value: "COMPLETED", label: "✅ Lunas", color: "text-emerald-700" },
-  { value: "DP", label: "💰 DP", color: "text-amber-700" },
-  { value: "PENDING_APPROVAL", label: "⏳ Pending", color: "text-blue-600" },
-  { value: "VOIDED", label: "❌ Void", color: "text-surface-500" },
-  { value: "REFUNDED", label: "↩️ Refund", color: "text-red-600" },
+  { value: "COMPLETED", label: "Lunas", color: "text-emerald-700" },
+  { value: "DP", label: "DP", color: "text-amber-700" },
+  { value: "PENDING_APPROVAL", label: "Pending", color: "text-blue-600" },
+  { value: "VOIDED", label: "Void", color: "text-surface-500" },
+  { value: "REFUNDED", label: "Refund", color: "text-red-600" },
 ];
 
 const STATUS_FILTERS = [
@@ -136,10 +156,7 @@ function EditModal({
             onClick={onClose}
             className="p-2 rounded-xl hover:bg-surface-100 transition-colors text-surface-400 hover:text-surface-700"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <X className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
         </div>
 
@@ -290,18 +307,7 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "DRAFT") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          aria-hidden="true"
-        >
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
+        <FileText className="h-2.5 w-2.5" strokeWidth={2.5} aria-hidden="true" />
         SEMENTARA
       </span>
     );
@@ -309,7 +315,8 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "DP") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
-        💰 DP
+        <CircleDollarSign className="h-3 w-3" aria-hidden="true" />
+        DP
       </span>
     );
   }
@@ -327,38 +334,44 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "VOIDED") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-500 border border-red-200 line-through decoration-red-400">
-        ❌ DIBATALKAN
+        <XCircle className="h-3 w-3" aria-hidden="true" />
+        DIBATALKAN
       </span>
     );
   }
   if (status === "REFUNDED") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">
-        ↩️ Refund
+        <Undo2 className="h-3 w-3" aria-hidden="true" />
+        Refund
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
-      ✅ Lunas
+      <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+      Lunas
     </span>
   );
 }
 
-// ─── Payment Method Badge ─────────────────────────────────────────────────────
+// Payment Method Badge
 
 function PaymentBadge({ method }: { method: string }) {
-  const map: Record<string, { bg: string; text: string; icon: string }> = {
-    CASH:     { bg: "bg-green-100",   text: "text-green-700",   icon: "💵" },
-    TRANSFER: { bg: "bg-blue-100",    text: "text-blue-700",    icon: "🏦" },
-    QRIS:     { bg: "bg-purple-100",  text: "text-purple-700",  icon: "📱" },
-    DEBIT:    { bg: "bg-indigo-100",  text: "text-indigo-700",  icon: "💳" },
-    KREDIT:   { bg: "bg-orange-100",  text: "text-orange-700",  icon: "💳" },
+  const map: Record<string, { bg: string; text: string; Icon: LucideIcon }> = {
+    CASH: { bg: "bg-green-100", text: "text-green-700", Icon: Banknote },
+    TRANSFER: { bg: "bg-blue-100", text: "text-blue-700", Icon: Building2 },
+    QRIS: { bg: "bg-purple-100", text: "text-purple-700", Icon: Smartphone },
+    DEBIT: { bg: "bg-indigo-100", text: "text-indigo-700", Icon: CreditCard },
+    KREDIT: { bg: "bg-orange-100", text: "text-orange-700", Icon: CreditCard },
   };
-  const style = map[method] ?? { bg: "bg-surface-100", text: "text-surface-600", icon: "💰" };
+  const style = map[method] ?? { bg: "bg-surface-100", text: "text-surface-600", Icon: CircleDollarSign };
+  const Icon = style.Icon;
+
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${style.bg} ${style.text} border-transparent`}>
-      {style.icon} {method}
+      <Icon className="h-3 w-3" aria-hidden="true" />
+      {method}
     </span>
   );
 }
@@ -405,14 +418,7 @@ function DeleteConfirmModal({
         <div className="px-6 pt-6 pb-5 text-center">
           {/* Icon */}
           <div className="mx-auto mb-4 flex items-center justify-center w-14 h-14 rounded-full bg-red-100">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-              className="text-red-600">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M10 11v6" />
-              <path d="M14 11v6" />
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
+            <Trash2 className="h-[26px] w-[26px] text-red-600" aria-hidden="true" />
           </div>
 
           <h2 className="text-lg font-bold text-surface-900 mb-1">Hapus Transaksi?</h2>
@@ -423,7 +429,8 @@ function DeleteConfirmModal({
             {tx.invoiceNumber}
           </span>
           <p className="text-xs text-red-500 font-medium">
-            ⚠️ Tindakan ini tidak dapat dibatalkan.
+            <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
+            Tindakan ini tidak dapat dibatalkan.
           </p>
 
           {error && (
@@ -574,10 +581,7 @@ function VoidConfirmModal({
         <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-600" />
         <div className="px-6 pt-6 pb-5 text-center">
           <div className="mx-auto mb-4 flex items-center justify-center w-14 h-14 rounded-full bg-red-100">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <XCircle className="h-[26px] w-[26px] text-red-600" aria-hidden="true" />
           </div>
 
           <h2 className="text-lg font-bold text-surface-900 mb-1">Batalkan Transaksi?</h2>
@@ -588,7 +592,8 @@ function VoidConfirmModal({
             {tx.invoiceNumber}
           </span>
           <p className="text-xs text-red-500 font-medium">
-            ⚠️ Status akan berubah menjadi <strong>VOID</strong>. Transaksi ini tidak akan dihitung dalam pendapatan.
+            <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
+            Status akan berubah menjadi <strong>VOID</strong>. Transaksi ini tidak akan dihitung dalam pendapatan.
           </p>
 
           {error && (
@@ -760,14 +765,7 @@ export default function HistoryPage() {
           <div className="flex flex-col sm:flex-row gap-3">
             {/* Search */}
             <div className="relative flex-1">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"
-                width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" aria-hidden="true" />
               <input
                 id="history-search"
                 type="text"
@@ -842,10 +840,7 @@ export default function HistoryPage() {
                 onClick={resetFilters}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-danger-600 bg-danger-50 hover:bg-danger-100 transition-colors"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
                 Reset Filter
               </button>
             )}
@@ -861,10 +856,7 @@ export default function HistoryPage() {
               </div>
             ) : transactions.length === 0 ? (
               <div className="p-12 flex flex-col items-center justify-center text-surface-400">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mb-4 opacity-50">
-                  <path d="M12 8v4l3 3" />
-                  <circle cx="12" cy="12" r="10" />
-                </svg>
+                <History className="mb-4 h-16 w-16 opacity-50" strokeWidth={1} aria-hidden="true" />
                 <p className="font-medium text-surface-600">
                   {hasActiveFilters ? "Tidak ada transaksi yang cocok dengan filter." : "Belum ada transaksi."}
                 </p>
@@ -975,10 +967,7 @@ export default function HistoryPage() {
                                           bg-surface-100 text-surface-600 hover:bg-brand-50 hover:text-brand-700 border border-transparent
                                           hover:border-brand-200 transition-all"
                                       >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                        </svg>
+                                        <Edit2 className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
                                         Ubah
                                       </button>
                                     )}
@@ -990,13 +979,7 @@ export default function HistoryPage() {
                                           bg-surface-100 text-red-500 hover:bg-red-50 hover:text-red-700 border border-transparent
                                           hover:border-red-200 transition-all"
                                       >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                          <polyline points="3 6 5 6 21 6" />
-                                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                          <path d="M10 11v6" />
-                                          <path d="M14 11v6" />
-                                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                                        </svg>
+                                        <Trash2 className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
                                         Hapus
                                       </button>
                                     )}
@@ -1045,10 +1028,7 @@ export default function HistoryPage() {
                                       bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200
                                       transition-all"
                                   >
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                      <line x1="18" y1="6" x2="6" y2="18" />
-                                      <line x1="6" y1="6" x2="18" y2="18" />
-                                    </svg>
+                                    <XCircle className="h-2.5 w-2.5" strokeWidth={2.5} aria-hidden="true" />
                                     Void
                                   </button>
                                 )}
@@ -1221,9 +1201,7 @@ export default function HistoryPage() {
                       className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-surface-200 text-sm font-medium
                         text-surface-600 hover:bg-surface-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="15 18 9 12 15 6" />
-                      </svg>
+                      <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
                       Sebelumnya
                     </button>
                     <span className="px-3 py-2 rounded-xl bg-brand-50 text-brand-700 text-sm font-bold min-w-[40px] text-center">
@@ -1238,9 +1216,7 @@ export default function HistoryPage() {
                         text-surface-600 hover:bg-surface-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Berikutnya
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
+                      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 </div>

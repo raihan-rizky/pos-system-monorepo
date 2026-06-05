@@ -127,7 +127,7 @@ async function main() {
       phone: "021-12345678",
     },
   });
-  console.log(`  ✅ Store: ${store.name}`);
+  console.log(`  Store: ${store.name}`);
 
   // ============================================================
   // Create Users (all 4 roles for testing)
@@ -181,7 +181,7 @@ async function main() {
   });
 
   console.log(
-    `  ✅ Users: ${owner.name}, ${admin.name}, ${cashier.name}, ${sales.name}`,
+    `  Users: ${owner.name}, ${admin.name}, ${cashier.name}, ${sales.name}`,
   );
 
   // ============================================================
@@ -190,133 +190,133 @@ async function main() {
   const categoryUpserts = [
     () => prisma.category.upsert({
       where: { name: "ATK" },
-      update: {},
-      create: { name: "ATK", icon: "✏️", color: "#3b82f6", order: 1 },
+      update: { icon: "pen-tool" },
+      create: { name: "ATK", icon: "pen-tool", color: "#3b82f6", order: 1 },
     }),
     () => prisma.category.upsert({
       where: { name: "Bot" },
-      update: {},
-      create: { name: "Bot", icon: "🍾", color: "#22c55e", order: 2 },
+      update: { icon: "package" },
+      create: { name: "Bot", icon: "package", color: "#22c55e", order: 2 },
     }),
     () => prisma.category.upsert({
       where: { name: "Plano" },
-      update: {},
-      create: { name: "Plano", icon: "📄", color: "#a855f7", order: 3 },
+      update: { icon: "file-text" },
+      create: { name: "Plano", icon: "file-text", color: "#a855f7", order: 3 },
     }),
     () => prisma.category.upsert({
       where: { name: "Catridge HP" },
-      update: {},
-      create: { name: "Catridge HP", icon: "🖨️", color: "#f97316", order: 4 },
+      update: { icon: "printer" },
+      create: { name: "Catridge HP", icon: "printer", color: "#f97316", order: 4 },
     }),
     () => prisma.category.upsert({
       where: { name: "Catridge Canon" },
-      update: {},
+      update: { icon: "printer" },
       create: {
         name: "Catridge Canon",
-        icon: "🖨️",
+        icon: "printer",
         color: "#ef4444",
         order: 5,
       },
     }),
     () => prisma.category.upsert({
       where: { name: "Cetakan" },
-      update: {},
-      create: { name: "Cetakan", icon: "🖼️", color: "#eab308", order: 6 },
+      update: { icon: "image" },
+      create: { name: "Cetakan", icon: "image", color: "#eab308", order: 6 },
     }),
     () => prisma.category.upsert({
       where: { name: "FC" },
-      update: {},
-      create: { name: "FC", icon: "📄", color: "#64748b", order: 7 },
+      update: { icon: "file-text" },
+      create: { name: "FC", icon: "file-text", color: "#64748b", order: 7 },
     }),
     () => prisma.category.upsert({
       where: { name: "Stamp" },
-      update: {},
-      create: { name: "Stamp", icon: "💮", color: "#06b6d4", order: 8 },
+      update: { icon: "stamp" },
+      create: { name: "Stamp", icon: "stamp", color: "#06b6d4", order: 8 },
     }),
     () => prisma.category.upsert({
       where: { name: "Sparepart Fc" },
-      update: {},
-      create: { name: "Sparepart Fc", icon: "⚙️", color: "#64748b", order: 9 },
+      update: { icon: "settings" },
+      create: { name: "Sparepart Fc", icon: "settings", color: "#64748b", order: 9 },
     }),
     () => prisma.category.upsert({
       where: { name: "MNM" },
-      update: {},
-      create: { name: "MNM", icon: "📦", color: "#3b82f6", order: 10 },
+      update: { icon: "package" },
+      create: { name: "MNM", icon: "package", color: "#3b82f6", order: 10 },
     }),
     () => prisma.category.upsert({
       where: { name: "Id Card" },
-      update: {},
-      create: { name: "Id Card", icon: "🪪", color: "#10b981", order: 11 },
+      update: { icon: "id-card" },
+      create: { name: "Id Card", icon: "id-card", color: "#10b981", order: 11 },
     }),
     () => prisma.category.upsert({
       where: { name: "Toner HP" },
-      update: {},
-      create: { name: "Toner HP", icon: "🖨️", color: "#f97316", order: 12 },
+      update: { icon: "printer" },
+      create: { name: "Toner HP", icon: "printer", color: "#f97316", order: 12 },
     }),
     () => prisma.category.upsert({
       where: { name: "Toner DP" },
-      update: {},
-      create: { name: "Toner DP", icon: "🖨️", color: "#8b5cf6", order: 13 },
+      update: { icon: "printer" },
+      create: { name: "Toner DP", icon: "printer", color: "#8b5cf6", order: 13 },
     }),
     () => prisma.category.upsert({
       where: { name: "Toner E print" },
-      update: {},
-      create: { name: "Toner E print", icon: "🖨️", color: "#ec4899", order: 14 },
+      update: { icon: "printer" },
+      create: { name: "Toner E print", icon: "printer", color: "#ec4899", order: 14 },
     }),
     () => prisma.category.upsert({
       where: { name: "Cardridge Canon" },
-      update: {},
-      create: { name: "Cardridge Canon", icon: "🖨️", color: "#ef4444", order: 15 },
+      update: { icon: "printer" },
+      create: { name: "Cardridge Canon", icon: "printer", color: "#ef4444", order: 15 },
     }),
     () => prisma.category.upsert({
       where: { name: "Tinta" },
-      update: {},
-      create: { name: "Tinta", icon: "💧", color: "#0ea5e9", order: 16 },
+      update: { icon: "droplets" },
+      create: { name: "Tinta", icon: "droplets", color: "#0ea5e9", order: 16 },
     }),
     () => prisma.category.upsert({
       where: { name: "Tinta Printing" },
-      update: {},
-      create: { name: "Tinta Printing", icon: "💧", color: "#2563eb", order: 17 },
+      update: { icon: "droplets" },
+      create: { name: "Tinta Printing", icon: "droplets", color: "#2563eb", order: 17 },
     }),
     () => prisma.category.upsert({
       where: { name: "Kertas" },
-      update: {},
-      create: { name: "Kertas", icon: "📄", color: "#f59e0b", order: 18 },
+      update: { icon: "file-text" },
+      create: { name: "Kertas", icon: "file-text", color: "#f59e0b", order: 18 },
     }),
     () => prisma.category.upsert({
       where: { name: "PRNT" },
-      update: {},
-      create: { name: "PRNT", icon: "🖨️", color: "#64748b", order: 19 },
+      update: { icon: "printer" },
+      create: { name: "PRNT", icon: "printer", color: "#64748b", order: 19 },
     }),
     () => prisma.category.upsert({
       where: { name: "Catridge M.TIK" },
-      update: {},
-      create: { name: "Catridge M.TIK", icon: "🖨️", color: "#8b5cf6", order: 20 },
+      update: { icon: "printer" },
+      create: { name: "Catridge M.TIK", icon: "printer", color: "#8b5cf6", order: 20 },
     }),
     () => prisma.category.upsert({
       where: { name: "Cartridge" },
-      update: {},
-      create: { name: "Cartridge", icon: "🖨️", color: "#64748b", order: 21 },
+      update: { icon: "printer" },
+      create: { name: "Cartridge", icon: "printer", color: "#64748b", order: 21 },
     }),
     () => prisma.category.upsert({
       where: { name: "PLAT" },
-      update: {},
-      create: { name: "PLAT", icon: "💿", color: "#94a3b8", order: 22 },
+      update: { icon: "disc" },
+      create: { name: "PLAT", icon: "disc", color: "#94a3b8", order: 22 },
     }),
     () => prisma.category.upsert({
       where: { name: "JLD" },
-      update: {},
-      create: { name: "JLD", icon: "📦", color: "#06b6d4", order: 23 },
+      update: { icon: "package" },
+      create: { name: "JLD", icon: "package", color: "#06b6d4", order: 23 },
     }),
     () => prisma.category.upsert({
       where: { name: "SP" },
-      update: {},
-      create: { name: "SP", icon: "📦", color: "#8b5cf6", order: 24 },
+      update: { icon: "package" },
+      create: { name: "SP", icon: "package", color: "#8b5cf6", order: 24 },
     }),
     () => prisma.category.upsert({
       where: { name: "AYK" },
-      update: {},
-      create: { name: "AYK", icon: "📦", color: "#10b981", order: 25 },
+      update: { icon: "package" },
+      create: { name: "AYK", icon: "package", color: "#10b981", order: 25 },
     }),
   ];
 
@@ -324,7 +324,7 @@ async function main() {
     await upsertCategory();
   }
 
-  console.log(`  ✅ Categories: ${categoryUpserts.length} created`);
+  console.log(`  Categories: ${categoryUpserts.length} created`);
 
   // ============================================================
   // Create Products
@@ -336,7 +336,7 @@ async function main() {
 
 main()
   .catch((e: unknown) => {
-    console.error("❌ Seed failed:", e);
+    console.error("Seed failed:", e);
     process.exit(1);
   })
   .finally(async () => {

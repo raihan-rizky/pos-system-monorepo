@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, X } from "lucide-react";
 
 interface DeleteConfirmationDialogProps {
   isOpen: boolean;
@@ -30,9 +30,7 @@ export const DeleteConfirmationDialog = React.forwardRef<
           className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 disabled:opacity-50"
           aria-label="Tutup dialog"
         >
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X className="h-6 w-6" aria-hidden="true" />
         </button>
 
         {/* Icon */}

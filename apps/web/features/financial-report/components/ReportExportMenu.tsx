@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { Button } from "@pos/ui";
+import { ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import {
   exportReportPdf,
   exportReportXlsx,
@@ -24,27 +25,11 @@ const PERIOD_OPTIONS: { value: ReportPeriod; label: string; hint: string }[] = [
 ];
 
 const DownloadIcon = (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="7 10 12 15 17 10" />
-    <line x1="12" y1="15" x2="12" y2="3" />
-  </svg>
+  <Download className="h-4 w-4" aria-hidden="true" />
 );
 
 const BackIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <polyline points="15 18 9 12 15 6" />
-  </svg>
+  <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
 );
 
 async function fetchReportInput(period: ReportPeriod): Promise<ExportInput> {
@@ -158,9 +143,7 @@ export function ReportExportMenu(): ReactNode {
                         <p className="text-sm font-semibold text-surface-900">{opt.label}</p>
                         <p className="text-[11px] text-surface-500">{opt.hint}</p>
                       </div>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-surface-400">
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
+                      <ChevronRight className="h-3.5 w-3.5 text-surface-400" strokeWidth={2.5} aria-hidden="true" />
                     </button>
                   </li>
                 ))}
@@ -202,10 +185,7 @@ export function ReportExportMenu(): ReactNode {
                         <p className="text-[11px] text-surface-500">{opt.hint}</p>
                       </div>
                       {busy ? (
-                        <svg className="animate-spin h-4 w-4 text-surface-500" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-                          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" className="opacity-75" />
-                        </svg>
+                        <Loader2 className="h-4 w-4 animate-spin text-surface-500" aria-hidden="true" />
                       ) : null}
                     </button>
                   </li>

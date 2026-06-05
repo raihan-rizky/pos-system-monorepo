@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { Modal, Button, Input } from "@pos/ui";
+import { Package } from "lucide-react";
 import { useProductsPage } from "@/hooks/useProducts";
 import { formatRupiah } from "@/lib/utils";
 
@@ -125,20 +126,7 @@ export function ServiceMaterialModal({
               />
             ) : (
               <div className="w-12 h-12 bg-brand-100 text-brand-500 rounded-lg flex items-center justify-center">
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="21 8 21 21 3 21 3 8" />
-                  <rect x="1" y="3" width="22" height="5" />
-                  <line x1="10" y1="12" x2="14" y2="12" />
-                </svg>
+                <Package className="h-6 w-6" aria-hidden="true" />
               </div>
             )}
             <div className="flex-1 min-w-0">
