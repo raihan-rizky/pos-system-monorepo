@@ -143,18 +143,18 @@ export default function FinancialReportPage() {
   return (
     <main className="flex-1 overflow-y-auto bg-surface-50/40">
       <header className="sticky top-0 z-20 border-b border-surface-100 bg-white/85 backdrop-blur-md">
-        <div className="px-4 py-4 md:px-8 md:py-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="px-4 py-3 md:px-6 md:py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <h1 className="text-xl font-extrabold text-surface-900 md:text-2xl">
+              <h1 className="text-lg font-bold text-surface-900 md:text-xl">
                 Laporan Keuangan
               </h1>
-              <p className="mt-1 text-sm text-surface-500">
+              <p className="mt-0.5 text-xs text-surface-500">
                 Revenue, gross profit, pembayaran, piutang, dan selisih shift.
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div
                 role="tablist"
                 aria-label="Periode cepat"
@@ -169,7 +169,7 @@ export default function FinancialReportPage() {
                       role="tab"
                       aria-selected={active}
                       onClick={() => selectPreset(item.value)}
-                      className={`min-h-9 rounded-lg px-3 text-xs font-bold transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+                      className={`min-h-8 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
                         active
                           ? "bg-white text-brand-700 shadow-sm"
                           : "text-surface-500 hover:text-surface-900"
@@ -186,12 +186,12 @@ export default function FinancialReportPage() {
         </div>
       </header>
 
-      <div className="space-y-6 px-4 py-6 md:px-8">
+      <div className="space-y-4 px-3 py-4 md:px-6">
         <section
           aria-label="Filter periode"
           className="rounded-2xl border border-surface-200 bg-white shadow-sm"
         >
-          <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[1fr_1fr_auto] md:items-end md:gap-4 md:p-5">
+          <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-[1fr_1fr_auto] md:items-end md:gap-3 md:p-4">
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-500">
                 Dari
@@ -284,7 +284,7 @@ export default function FinancialReportPage() {
 
         <section
           aria-label="Ringkasan KPI"
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6"
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6"
         >
           <KpiCard
             label="Omzet"
@@ -378,7 +378,7 @@ export default function FinancialReportPage() {
 
         <TrendChart trend={report?.trend} loading={isLoading} />
 
-        <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <PaymentBreakdownCard
             rows={report?.paymentMethods ?? []}
             totalRevenue={summary?.revenue ?? 0}
@@ -390,7 +390,7 @@ export default function FinancialReportPage() {
           />
         </section>
 
-        <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <RankedListCard
             title="Sales Teratas"
             accent="success"
@@ -408,7 +408,7 @@ export default function FinancialReportPage() {
           />
         </section>
 
-        <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <RankedListCard
             title="Kategori"
             accent="warning"

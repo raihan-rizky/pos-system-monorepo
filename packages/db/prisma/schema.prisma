@@ -162,6 +162,7 @@ model Store {
   shifts       CashierShift[]
   salespersons Salesperson[]
   customers    Customer[]
+  debtPaymentLogs DebtPaymentLog[]
   batchOperations BatchOperation[]
   priceLogs    ProductPriceLog[]
   customerCategoryPricingRules CategoryCustomerPricingRule[]
@@ -270,6 +271,7 @@ model Transaction {
   offlineOriginalPayload  Json?
   offlineSyncMetadata     Json?
   expenses         Expense[]
+  debtPaymentLogs  DebtPaymentLog[]
   createdAt        DateTime          @default(now())
 
   @@index([storeId])
@@ -330,6 +332,7 @@ model Customer {
   storeId      String
   store        Store         @relation(fields: [storeId], references: [id])
   transactions Transaction[]
+  debtPaymentLogs DebtPaymentLog[]
 
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -338,6 +341,25 @@ model Customer {
   @@index([phone])
   @@index([type])
   @@map("pos_customers")
+}
+
+model DebtPaymentLog {
+  id            String        @id @default(cuid())
+  transactionId String
+  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  storeId       String
+  store         Store         @relation(fields: [storeId], references: [id])
+  amount        Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod
+  note          String?
+  createdAt     DateTime      @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([customerId, createdAt])
+  @@index([transactionId])
+  @@map("pos_debt_payment_logs")
 }
 
 model Salesperson {

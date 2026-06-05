@@ -3,6 +3,10 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { CUSTOMER_TYPES, toDbCustomerType } from "@/lib/customers";
+import {
+  applyComputedCustomerDebt,
+  loadCustomerDebtByActiveDp,
+} from "@/features/customer-debt/helpers/customer-debt-summary";
 
 import { getLogger } from "@/lib/logger";
 
@@ -60,7 +64,14 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(customer);
+    const debtByCustomerId = await loadCustomerDebtByActiveDp(db, {
+      storeId,
+      customers: [{ id: customer.id, name: customer.name }],
+    });
+
+    return NextResponse.json(
+      applyComputedCustomerDebt([customer], debtByCustomerId)[0],
+    );
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

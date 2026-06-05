@@ -75,7 +75,7 @@ export function KeuanganTopBar() {
 
   return (
     <header className="border-b border-surface-200 bg-white/80 backdrop-blur sticky top-0 z-30">
-      <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
+      <div className="px-3 md:px-5 py-2 md:py-3 flex items-center justify-between gap-3">
         <div className="min-w-0 flex items-baseline gap-2 sm:gap-3">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-surface-900 truncate">
             Keuangan

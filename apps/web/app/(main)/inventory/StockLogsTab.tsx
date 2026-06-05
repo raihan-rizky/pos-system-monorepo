@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useInventoryLogs";
 import { useRole } from "@/components/providers/RoleProvider";
 import { useCancelBulkBatch } from "@/features/bulk-stock-approval/hooks/useBulkApproval";
+import { InternalUseRecapPanel } from "@/features/internal-use-recap";
 import {
   PackagePlus,
   PackageMinus,
@@ -256,6 +257,8 @@ export default function StockLogsTab() {
           })}
         </div>
       </div>
+
+      <InternalUseRecapPanel />
 
       {actionError && (
         <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">

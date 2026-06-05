@@ -11,8 +11,6 @@ import React, {
 } from "react";
 import {
   ArrowRight,
-  BadgePercent,
-  BriefcaseBusiness,
   Building2,
   ChevronLeft,
   ChevronRight,
@@ -51,10 +49,24 @@ import {
   getTransactionDebtRemaining,
   isValidDebtPayment,
 } from "@/features/customer-debt/helpers/debt-payment";
+import { buildCustomerRecapRange } from "@/features/customer-recap/helpers/recap-core";
+import type { CustomerRecapQuery } from "@/features/customer-recap/types/customer-recap";
 
 const CustomerImportDrawer = lazy(() =>
   import("@/features/customer-import/components/CustomerImportDrawer").then(
     (mod) => ({ default: mod.CustomerImportDrawer }),
+  ),
+);
+
+const CustomerRecapSection = lazy(() =>
+  import("@/features/customer-recap/components/CustomerRecapSection").then(
+    (mod) => ({ default: mod.CustomerRecapSection }),
+  ),
+);
+
+const CustomerRecapPanel = lazy(() =>
+  import("@/features/customer-recap/components/CustomerRecapPanel").then(
+    (mod) => ({ default: mod.CustomerRecapPanel }),
   ),
 );
 
@@ -944,6 +956,7 @@ function CustomerDetailPanel({
   onClose,
   onEdit,
   onPayDebt,
+  recapRange,
 }: {
   customerId: string | null;
   fallbackCustomer: Customer | null;
@@ -951,6 +964,7 @@ function CustomerDetailPanel({
   onClose: () => void;
   onEdit: (customer: Customer) => void;
   onPayDebt: (customer: Customer) => void;
+  recapRange: CustomerRecapQuery;
 }) {
   const detailQuery = useCustomerDetail(customerId);
   const detailCustomer = detailQuery.data;
@@ -1071,6 +1085,14 @@ function CustomerDetailPanel({
           tone={debtAmount > 0 ? "amber" : "emerald"}
         />
       </div>
+
+      <Suspense
+        fallback={
+          <div className="mt-5 h-80 rounded-3xl border border-slate-200 bg-slate-50 sm:mt-6" />
+        }
+      >
+        <CustomerRecapPanel customerId={customerId} range={recapRange} />
+      </Suspense>
 
       <div className="mt-5 grid gap-3 sm:mt-6 lg:grid-cols-2">
         <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
@@ -1202,6 +1224,9 @@ export default function CustomersPage() {
   const [debtTarget, setDebtTarget] = useState<Customer | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
     null,
+  );
+  const [recapRange, setRecapRange] = useState<CustomerRecapQuery>(() =>
+    buildCustomerRecapRange("month"),
   );
 
   const deferredSearch = useDeferredValue(search);
@@ -1364,36 +1389,17 @@ export default function CustomersPage() {
           </div>
         </section>
 
-        <section className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 2xl:grid-cols-4">
-          <SummaryCard
-            label="Total Database"
-            value={String(data?.pagination.total ?? 0)}
-            hint="Total pelanggan yang terdaftar."
-            tone="slate"
-            icon={<Users2 className="h-6 w-6 text-slate-700" />}
+        <Suspense
+          fallback={
+            <section className="h-[520px] rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)] sm:rounded-[32px]" />
+          }
+        >
+          <CustomerRecapSection
+            range={recapRange}
+            onRangeChange={setRecapRange}
+            onSelectCustomer={setSelectedCustomerId}
           />
-          <SummaryCard
-            label="Piutang di Hasil"
-            value={formatCurrency(metrics.totalDebtVisible)}
-            hint={`${metrics.debtCustomerCount} pelanggan butuh follow-up.`}
-            tone="red"
-            icon={<Wallet className="h-6 w-6 text-red-600" />}
-          />
-          <SummaryCard
-            label="Aktif 30 Hari"
-            value={String(metrics.activeThirtyDayCount)}
-            hint="Pelanggan dengan kunjungan terbaru."
-            tone="sky"
-            icon={<BadgePercent className="h-6 w-6 text-sky-600" />}
-          />
-          <SummaryCard
-            label="Akun Bisnis"
-            value={String(metrics.businessCustomerCount)}
-            hint="Perusahaan, agen, industri, dan instansi."
-            tone="amber"
-            icon={<BriefcaseBusiness className="h-6 w-6 text-amber-600" />}
-          />
-        </section>
+        </Suspense>
 
         <section className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] sm:rounded-[32px] sm:p-5">
           <div className="flex min-w-0 flex-col gap-3 sm:gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
@@ -1582,6 +1588,7 @@ export default function CustomersPage() {
           onClose={() => setSelectedCustomerId(null)}
           onEdit={openEditModal}
           onPayDebt={setDebtTarget}
+          recapRange={recapRange}
         />
       ) : null}
 

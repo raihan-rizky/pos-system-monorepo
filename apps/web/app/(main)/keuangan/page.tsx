@@ -164,7 +164,7 @@ export default function KeuanganDashboardPage() {
   const summaryLoading = pemasukan.isLoading || pengeluaran.isLoading;
 
   return (
-    <div className="px-3 sm:px-4 md:px-6 py-4 sm:py-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
+    <div className="px-2 sm:px-3 py-2 sm:py-3 max-w-6xl mx-auto space-y-3 sm:space-y-4">
       {/* ───────── Hero — Net Cash Flow ───────── */}
       <section
         className={`relative overflow-hidden rounded-2xl sm:rounded-3xl border shadow-sm ${
@@ -173,7 +173,7 @@ export default function KeuanganDashboardPage() {
             : "border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white"
         }`}
       >
-        <div className="px-4 py-5 sm:px-6 sm:py-7 md:px-8 md:py-9 flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-5">
+        <div className="px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 flex flex-col md:flex-row md:items-end md:justify-between gap-3 md:gap-4">
           <div className="min-w-0">
             <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.16em] sm:tracking-[0.18em] text-surface-500">
               Net Cash Flow {monthLabel(month)}
@@ -220,8 +220,8 @@ export default function KeuanganDashboardPage() {
       </section>
 
       {/* ───────── Bidirectional Daily Flow ───────── */}
-      <section className="rounded-2xl border border-surface-200 bg-white p-4 sm:p-5 md:p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <section className="rounded-2xl border border-surface-200 bg-white p-3 sm:p-4 md:p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <h2 className="text-sm font-semibold text-surface-900">Arus Kas Harian</h2>
           <div className="flex items-center gap-2 sm:gap-3 text-[11px]">
             <span className="inline-flex items-center gap-1.5">
@@ -272,7 +272,7 @@ export default function KeuanganDashboardPage() {
               </ComposedChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex items-center justify-center text-sm text-surface-500">
+            <div className="h-full flex items-center justify-center text-xs text-surface-500">
               Belum ada aktivitas bulan ini
             </div>
           )}
@@ -280,10 +280,10 @@ export default function KeuanganDashboardPage() {
       </section>
 
       {/* ───────── Two Columns: Pemasukan + Pengeluaran ───────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* ─── Pemasukan column ─── */}
         <section className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
-          <header className="px-4 sm:px-5 py-3 sm:py-4 border-b border-surface-100 flex items-center justify-between gap-2">
+          <header className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-1.5 h-5 rounded-full shrink-0" style={{ backgroundColor: FLOW_COLOR_INCOME }} />
               <h2 className="text-sm font-semibold text-surface-900 truncate">Pemasukan</h2>
@@ -294,7 +294,7 @@ export default function KeuanganDashboardPage() {
               </span>
             )}
           </header>
-          <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-surface-100">
+          <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100">
             {pemasukan.isLoading ? (
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
@@ -306,20 +306,20 @@ export default function KeuanganDashboardPage() {
           {pemasukan.isLoading ? (
             <div className="divide-y divide-surface-100">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-14 bg-surface-50 animate-pulse" />
+                <div key={i} className="h-12 bg-surface-50 animate-pulse" />
               ))}
             </div>
           ) : !pemasukan.data || pemasukan.data.daily.length === 0 ? (
-            <div className="px-4 sm:px-5 py-12 text-center text-sm text-surface-500">
+            <div className="px-3 sm:px-4 py-10 text-center text-sm text-surface-500">
               Belum ada pemasukan bulan ini
             </div>
           ) : (
-            <ul className="divide-y divide-surface-100 max-h-80 sm:max-h-96 overflow-y-auto">
+              <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
               {pemasukan.data.daily.map((row) => (
                 <li key={row.date}>
                   <Link
                     href={`/history?date=${row.date}`}
-                    className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 min-h-12 hover:bg-surface-50 transition-colors cursor-pointer group focus:outline-none focus-visible:bg-surface-50"
+                    className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 min-h-11 hover:bg-surface-50 transition-colors cursor-pointer group focus:outline-none focus-visible:bg-surface-50"
                   >
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-semibold text-surface-900 truncate">
@@ -342,7 +342,7 @@ export default function KeuanganDashboardPage() {
 
         {/* ─── Pengeluaran column ─── */}
         <section className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
-          <header className="px-4 sm:px-5 py-3 sm:py-4 border-b border-surface-100 flex items-center justify-between gap-2">
+          <header className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-1.5 h-5 rounded-full shrink-0" style={{ backgroundColor: FLOW_COLOR_EXPENSE }} />
               <h2 className="text-sm font-semibold text-surface-900 truncate">Pengeluaran</h2>
@@ -353,7 +353,7 @@ export default function KeuanganDashboardPage() {
               </span>
             )}
           </header>
-          <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-surface-100 space-y-3">
+          <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 space-y-2">
             {pengeluaran.isLoading ? (
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
@@ -409,20 +409,20 @@ export default function KeuanganDashboardPage() {
           {list.isLoading ? (
             <div className="divide-y divide-surface-100">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-14 bg-surface-50 animate-pulse" />
+                <div key={i} className="h-12 bg-surface-50 animate-pulse" />
               ))}
             </div>
           ) : !list.data || list.data.data.length === 0 ? (
-            <div className="px-4 sm:px-5 py-12 text-center text-sm text-surface-500">
+            <div className="px-3 sm:px-4 py-10 text-center text-sm text-surface-500">
               {filterCategory
                 ? `Belum ada pengeluaran ${CATEGORY_LABELS_ID[filterCategory]}`
                 : "Belum ada pengeluaran bulan ini"}
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-surface-100 max-h-80 sm:max-h-96 overflow-y-auto">
+            <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
                 {list.data.data.map((item) => (
-                  <li key={item.id} className="px-4 sm:px-5 py-3 flex items-start sm:items-center gap-3">
+                  <li key={item.id} className="px-3 sm:px-4 py-2.5 flex items-start sm:items-center gap-3">
                     <span
                       className="w-1 self-stretch rounded-full shrink-0"
                       style={{ backgroundColor: CATEGORY_COLORS[item.category] }}
@@ -479,7 +479,7 @@ export default function KeuanganDashboardPage() {
               </ul>
 
               {list.data.pagination.totalPages > 1 && (
-                <footer className="px-4 sm:px-5 py-3 border-t border-surface-100 flex items-center justify-between gap-2">
+                <footer className="px-3 sm:px-4 py-2 border-t border-surface-100 flex items-center justify-between gap-2">
                   <span className="text-xs text-surface-500">
                     Hal. {list.data.pagination.page} dari {list.data.pagination.totalPages}
                   </span>

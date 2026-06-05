@@ -6,6 +6,7 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionUpdateMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
+const debtPaymentLogCreateMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -20,6 +21,9 @@ vi.mock("@pos/db", () => ({
     },
     customer: {
       update: customerUpdateMock,
+    },
+    debtPaymentLog: {
+      create: debtPaymentLogCreateMock,
     },
     $transaction: dbTransactionMock,
   },
@@ -56,6 +60,9 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
         customer: {
           update: customerUpdateMock,
         },
+        debtPaymentLog: {
+          create: debtPaymentLogCreateMock,
+        },
       }),
     );
   });
@@ -83,6 +90,16 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
         totalDebt: { decrement: 50000 },
         totalSpent: { increment: 50000 },
       }),
+    });
+    expect(debtPaymentLogCreateMock).toHaveBeenCalledWith({
+      data: {
+        transactionId: "tx-dp-1",
+        customerId: "customer-1",
+        storeId: "store-main",
+        amount: 50000,
+        paymentMethod: "CASH",
+        note: null,
+      },
     });
   });
 

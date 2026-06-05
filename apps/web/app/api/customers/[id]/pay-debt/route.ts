@@ -35,7 +35,7 @@ export async function POST(
       );
     }
 
-    const { amount, note } = parsed.data;
+    const { amount, note, paymentMethod } = parsed.data;
 
     // Fetch current customer to validate debt
     const customer = await db.customer.findFirst({
@@ -105,6 +105,16 @@ export async function POST(
             note: note
               ? `${note} | Pelunasan ${new Intl.NumberFormat("id-ID").format(amount)}`
               : `Pelunasan piutang ${new Intl.NumberFormat("id-ID").format(amount)}`,
+          },
+        });
+        await tx.debtPaymentLog.create({
+          data: {
+            transactionId: dpTransaction.id,
+            customerId: id,
+            storeId,
+            amount,
+            paymentMethod,
+            note: note || null,
           },
         });
       }

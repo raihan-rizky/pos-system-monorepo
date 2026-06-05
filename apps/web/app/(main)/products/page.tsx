@@ -437,7 +437,12 @@ function ProductsContent() {
         </div>
 
         {/* -- Tab Navigation -- */}
-        <div className="flex items-center gap-2 p-1.5 bg-slate-100/80 rounded-2xl w-fit">
+        <HorizontalScroll
+          ariaLabel="Navigasi halaman produk"
+          className="p-1.5 bg-slate-100/80 rounded-2xl w-fit max-w-full flex items-center gap-2 flex-nowrap"
+          showScrollIndicators={false}
+          showEdgeFades={false}
+        >
           {[
             {
               id: "products" as PageTab,
@@ -477,7 +482,7 @@ function ProductsContent() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
+              className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 shrink-0 whitespace-nowrap ${
                 activeTab === tab.id
                   ? "text-slate-900 shadow-sm"
                   : "text-slate-400 hover:text-slate-600"
@@ -500,7 +505,7 @@ function ProductsContent() {
               </span>
             </button>
           ))}
-        </div>
+        </HorizontalScroll>
 
         {/* -- Tab Content -- */}
         {activeTab !== "products" ? (

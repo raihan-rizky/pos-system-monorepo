@@ -95,6 +95,16 @@ export async function POST(
             lastVisitAt: new Date(),
           },
         });
+        await tx.debtPaymentLog.create({
+          data: {
+            transactionId: transaction.id,
+            customerId: transaction.customerId,
+            storeId,
+            amount,
+            paymentMethod,
+            note: note || null,
+          },
+        });
       }
 
       return updatedTx;

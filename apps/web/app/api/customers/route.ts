@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 import { CUSTOMER_TYPES, toDbCustomerType } from "@/lib/customers";
+import {
+  applyComputedCustomerDebt,
+  loadCustomerDebtByActiveDp,
+} from "@/features/customer-debt/helpers/customer-debt-summary";
 
 import { getLogger } from "@/lib/logger";
 
@@ -53,9 +57,43 @@ export async function GET(request: Request) {
       where.type = type;
     }
 
+    const customerSelect = {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      company: true,
+      address: true,
+      type: true,
+      notes: true,
+      totalSpent: true,
+      totalOrders: true,
+      totalDebt: true,
+      loyaltyPoint: true,
+      lastVisitAt: true,
+      createdAt: true,
+    } satisfies Prisma.CustomerSelect;
+
     const hasDebt = searchParams.get("hasDebt") === "true";
+
     if (hasDebt) {
-      where.totalDebt = { gt: 0 };
+      const allMatchingCustomers = await db.customer.findMany({
+        where,
+        orderBy: { lastVisitAt: { sort: "desc", nulls: "last" } },
+        select: customerSelect,
+      });
+      const debtByCustomerId = await loadCustomerDebtByActiveDp(db, {
+        storeId,
+        customers: allMatchingCustomers,
+      });
+      const customersWithDebt = applyComputedCustomerDebt(
+        allMatchingCustomers,
+        debtByCustomerId,
+      ).filter((customer) => Number(customer.totalDebt) > 0);
+      const total = customersWithDebt.length;
+      const customers = customersWithDebt.slice(skip, skip + limit);
+
+      return apiList(customers, buildPaginationMeta(total, page, limit));
     }
 
     const [total, customers] = await db.$transaction([
@@ -65,26 +103,18 @@ export async function GET(request: Request) {
         orderBy: { lastVisitAt: { sort: "desc", nulls: "last" } },
         skip,
         take: limit,
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          email: true,
-          company: true,
-          address: true,
-          type: true,
-          notes: true,
-          totalSpent: true,
-          totalOrders: true,
-          totalDebt: true,
-          loyaltyPoint: true,
-          lastVisitAt: true,
-          createdAt: true,
-        },
+        select: customerSelect,
       }),
     ]);
+    const debtByCustomerId = await loadCustomerDebtByActiveDp(db, {
+      storeId,
+      customers,
+    });
 
-    return apiList(customers, buildPaginationMeta(total, page, limit));
+    return apiList(
+      applyComputedCustomerDebt(customers, debtByCustomerId),
+      buildPaginationMeta(total, page, limit),
+    );
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

@@ -16,11 +16,29 @@ export async function GET(
     const storeId = user.storeId || "store-main";
     const { id } = await params;
 
+    const customer = await db.customer.findFirst({
+      where: { id, storeId },
+      select: { id: true, name: true },
+    });
+
+    if (!customer) {
+      return NextResponse.json(
+        { message: "Customer not found" },
+        { status: 404 }
+      );
+    }
+
     const transactions = await db.transaction.findMany({
       where: {
-        customerId: id,
         storeId,
         status: "DP",
+        OR: [
+          { customerId: id },
+          {
+            customerId: null,
+            customerName: { equals: customer.name, mode: "insensitive" },
+          },
+        ],
       },
       orderBy: { createdAt: "asc" },
       select: {
