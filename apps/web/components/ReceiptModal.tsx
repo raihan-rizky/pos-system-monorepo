@@ -143,8 +143,8 @@ export function ReceiptModal({
             id="print-receipt"
             className={`bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[165mm] print:w-[210mm] print:h-[165mm] print:-mt-4 box-border border border-surface-200 print:border-none shadow-sm print:shadow-none overflow-hidden text-xs ${isCancelled ? "opacity-80" : ""}`}
             style={{
-              // Jika jumlah item lebih dari 5, atur ke 42%, jika tidak maka 50%
-              "--print-top": items.length > 5 ? "43%" : "50%",
+              // Jika jumlah item lebih dari 5, atur ke 47%, jika tidak maka 50%
+              "--print-top": items.length > 5 ? "47%" : "50%",
             } as React.CSSProperties}
           >
             <div
@@ -261,12 +261,14 @@ export function ReceiptModal({
               {(() => {
                 const serviceItems = items.filter((item) => item.printingServiceId);
                 const hasSize = serviceItems.length > 0;
-                const cellPad = "py-2 px-3";
+                const isCompact = items.length > 5;
+                const cellPad = isCompact ? "py-1 px-2" : "py-2 px-3";
+                const tableFontSize = isCompact ? "text-[9px]" : "text-[11px]";
                 const MIN_ROWS = 5;
                 const emptyRowCount = Math.max(0, MIN_ROWS - items.length);
                 return (
                   <table
-                    className={`w-full border-collapse border border-black text-[11px] mb-2 flex-grow-0 ${isCancelled ? "line-through opacity-60" : ""}`}
+                    className={`w-full border-collapse border border-black ${tableFontSize} mb-2 flex-grow-0 ${isCancelled ? "line-through opacity-60" : ""}`}
                   >
                     <thead>
                       <tr>
