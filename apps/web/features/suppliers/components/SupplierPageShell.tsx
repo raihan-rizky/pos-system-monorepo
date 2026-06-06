@@ -122,7 +122,7 @@ export function SupplierPageShell() {
   };
 
   return (
-    <main className="min-h-full bg-slate-50 px-4 py-5 pb-24 md:px-6 md:pb-8">
+    <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 px-4 py-5 pb-32 scroll-pb-32 md:px-6 md:pb-8 md:scroll-pb-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
