@@ -31,15 +31,23 @@ function formatCurrency(amount: number): string {
 }
 
 export function RecapTrendChart({ trend, mode }: RecapTrendChartProps) {
+  const isPageMode = mode === "page";
   const data = trend.points.map((point) => ({
     bucketKey: point.bucketKey,
     label: point.label,
-    amount:
-      mode === "page"
-        ? (point as PageTrend["points"][number]).revenue
+    primary:
+      isPageMode
+        ? (point as PageTrend["points"][number]).newCustomers
         : (point as DetailTrend["points"][number]).spent,
-    orderCount: point.orderCount,
+    secondary: isPageMode
+      ? (point as PageTrend["points"][number]).returningCustomers
+      : point.orderCount,
   }));
+  const heading = isPageMode
+    ? "Pelanggan baru dan kembali"
+    : "Omzet dan jumlah order";
+  const primaryName = isPageMode ? "Pelanggan Baru" : "Omzet";
+  const secondaryName = isPageMode ? "Pelanggan Kembali" : "Order";
 
   return (
     <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
@@ -47,7 +55,7 @@ export function RecapTrendChart({ trend, mode }: RecapTrendChartProps) {
         Tren Periode
       </p>
       <h3 className="mt-1 text-sm font-black text-slate-900">
-        Omzet dan jumlah order
+        {heading}
       </h3>
       <div className="mt-4 h-64 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
@@ -55,34 +63,39 @@ export function RecapTrendChart({ trend, mode }: RecapTrendChartProps) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="label" minTickGap={24} />
             <YAxis
-              yAxisId="amount"
-              tickFormatter={(value) => `${Number(value) / 1000}k`}
+              yAxisId="primary"
+              allowDecimals={!isPageMode}
+              tickFormatter={(value) =>
+                isPageMode ? String(value) : `${Number(value) / 1000}k`
+              }
             />
-            <YAxis yAxisId="orders" orientation="right" allowDecimals={false} />
+            {!isPageMode ? (
+              <YAxis yAxisId="secondary" orientation="right" allowDecimals={false} />
+            ) : null}
             <Tooltip
               formatter={(value, name) =>
-                name === "Order"
-                  ? [Number(value), "Order"]
-                  : [formatCurrency(Number(value)), "Omzet"]
+                name === secondaryName || isPageMode
+                  ? [Number(value), String(name)]
+                  : [formatCurrency(Number(value)), primaryName]
               }
             />
             <Line
-              yAxisId="amount"
+              yAxisId="primary"
               type="monotone"
-              dataKey="amount"
+              dataKey="primary"
               stroke="#2563eb"
               strokeWidth={2}
               dot={false}
-              name="Omzet"
+              name={primaryName}
             />
             <Line
-              yAxisId="orders"
+              yAxisId={isPageMode ? "primary" : "secondary"}
               type="monotone"
-              dataKey="orderCount"
+              dataKey="secondary"
               stroke="#0ea5e9"
               strokeWidth={2}
               dot={false}
-              name="Order"
+              name={secondaryName}
             />
           </LineChart>
         </ResponsiveContainer>

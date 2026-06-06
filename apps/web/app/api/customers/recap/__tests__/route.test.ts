@@ -82,6 +82,18 @@ describe("GET /api/customers/recap", () => {
       totalDebtOutstanding: 100000,
       debtCollectedInPeriod: 25000,
     });
+    expect(body.data.trend.points).toEqual([
+      expect.objectContaining({
+        bucketKey: "2026-05-01",
+        newCustomers: 1,
+        returningCustomers: 0,
+      }),
+      expect.objectContaining({
+        bucketKey: "2026-05-02",
+        newCustomers: 0,
+        returningCustomers: 1,
+      }),
+    ]);
     expect(customerFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { storeId: "store-main" },

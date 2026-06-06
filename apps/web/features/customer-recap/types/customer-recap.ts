@@ -45,6 +45,8 @@ export interface CustomerRecapData {
       label: string;
       revenue: number;
       orderCount: number;
+      newCustomers: number;
+      returningCustomers: number;
     }>;
   };
 }

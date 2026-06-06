@@ -127,6 +127,29 @@ function bucketLabel(bucketKey: string, granularity: TrendBucketGranularity): st
   return bucketKey;
 }
 
+function bucketStartDateKey(
+  bucketKey: string,
+  granularity: TrendBucketGranularity,
+): string {
+  if (granularity === "daily") return bucketKey;
+  if (granularity === "monthly") return `${bucketKey}-01`;
+
+  const [yearValue, weekValue] = bucketKey.split("-W");
+  const isoYear = Number(yearValue);
+  const week = Number(weekValue);
+  const jan4 = new Date(Date.UTC(isoYear, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1) + (week - 1) * 7);
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(monday);
+}
+
 function generateTrendPoints(dateFrom: string, dateTo: string) {
   const granularity = pickGranularity(rangeDays(dateFrom, dateTo));
   const seen = new Set<string>();
@@ -135,6 +158,8 @@ function generateTrendPoints(dateFrom: string, dateTo: string) {
     label: string;
     revenue: number;
     orderCount: number;
+    newCustomers: number;
+    returningCustomers: number;
   }> = [];
   let cursor = dateFrom;
   while (cursor <= dateTo) {
@@ -146,6 +171,8 @@ function generateTrendPoints(dateFrom: string, dateTo: string) {
         label: bucketLabel(key, granularity),
         revenue: 0,
         orderCount: 0,
+        newCustomers: 0,
+        returningCustomers: 0,
       });
     }
     cursor = addDays(cursor, 1);
@@ -163,6 +190,15 @@ export function buildCustomerRecap(input: BuildCustomerRecapInput) {
   const revenueByCustomer = new Map<string, number>();
   const { granularity, points } = generateTrendPoints(input.dateFrom, input.dateTo);
   const trendByKey = new Map(points.map((point) => [point.bucketKey, point]));
+  const returningCustomerIdsByTrendKey = new Map(
+    points.map((point) => [point.bucketKey, new Set<string>()]),
+  );
+
+  for (const customer of input.customers) {
+    if (!isInPeriod(customer.createdAt, input.dateFrom, input.dateTo)) continue;
+    const trendPoint = trendByKey.get(bucketKeyForDate(customer.createdAt, granularity));
+    if (trendPoint) trendPoint.newCustomers += 1;
+  }
 
   let totalRevenue = 0;
   for (const transaction of confirmedTransactions) {
@@ -183,7 +219,21 @@ export function buildCustomerRecap(input: BuildCustomerRecapInput) {
     if (trendPoint) {
       trendPoint.revenue += total;
       trendPoint.orderCount += 1;
+
+      const customer = customerById.get(transaction.customerId)!;
+      const customerCreatedKey = bucketKeyForDate(
+        customer.createdAt,
+        "daily",
+      );
+      const trendStartKey = bucketStartDateKey(trendPoint.bucketKey, granularity);
+      if (customerCreatedKey < trendStartKey) {
+        returningCustomerIdsByTrendKey.get(trendPoint.bucketKey)?.add(transaction.customerId);
+      }
     }
+  }
+
+  for (const point of points) {
+    point.returningCustomers = returningCustomerIdsByTrendKey.get(point.bucketKey)?.size ?? 0;
   }
 
   const churnCutoff = addDays(input.dateTo, -60);

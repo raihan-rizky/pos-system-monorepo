@@ -51,6 +51,14 @@ describe("buildCustomerRecap", () => {
           lastVisitAt: new Date("2026-05-03T02:00:00.000Z"),
         },
         {
+          id: "new-without-order",
+          name: "New Without Order",
+          type: "UMUM",
+          totalDebt: 0,
+          createdAt: new Date("2026-05-02T02:00:00.000Z"),
+          lastVisitAt: null,
+        },
+        {
           id: "churn-risk",
           name: "Churn Risk",
           type: "PEMERINTAH",
@@ -74,6 +82,14 @@ describe("buildCustomerRecap", () => {
           createdAt: new Date("2026-05-02T03:00:00.000Z"),
           status: "DP",
           total: 200000,
+          items: [],
+        },
+        {
+          id: "tx-returning-same-day",
+          customerId: "returning-customer",
+          createdAt: new Date("2026-05-02T05:00:00.000Z"),
+          status: "COMPLETED",
+          total: 50000,
           items: [],
         },
         {
@@ -103,27 +119,27 @@ describe("buildCustomerRecap", () => {
     });
 
     expect(recap.summary).toMatchObject({
-      newCustomers: 1,
+      newCustomers: 2,
       returningCustomers: 1,
       churnedCustomers: 1,
       totalDebtOutstanding: 150000,
       debtCollectedInPeriod: 40000,
-      avgOrderValue: 400000 / 3,
-      orderFrequency: 1.5,
+      avgOrderValue: 450000 / 4,
+      orderFrequency: 2,
       repeatPurchaseRate: 0.5,
     });
     expect(recap.byType).toEqual([
-      { type: "INDUSTRI", customerCount: 1, revenue: 280000, debtAmount: 50000 },
+      { type: "INDUSTRI", customerCount: 1, revenue: 330000, debtAmount: 50000 },
       { type: "PEMERINTAH", customerCount: 1, revenue: 0, debtAmount: 0 },
-      { type: "UMUM", customerCount: 1, revenue: 120000, debtAmount: 100000 },
+      { type: "UMUM", customerCount: 2, revenue: 120000, debtAmount: 100000 },
     ]);
     expect(recap.topSpenders).toEqual([
       {
         id: "returning-customer",
         name: "Returning Customer",
         type: "INDUSTRI",
-        spentInPeriod: 280000,
-        orderCount: 2,
+        spentInPeriod: 330000,
+        orderCount: 3,
         lastVisitAt: "2026-05-03T02:00:00.000Z",
       },
       {
@@ -137,9 +153,12 @@ describe("buildCustomerRecap", () => {
     ]);
     expect(recap.trend.points.map((point) => point.revenue)).toEqual([
       120000,
-      200000,
+      250000,
       80000,
     ]);
+    expect(recap.trend.points.map((point) => point.orderCount)).toEqual([1, 2, 1]);
+    expect(recap.trend.points.map((point) => point.newCustomers)).toEqual([1, 1, 0]);
+    expect(recap.trend.points.map((point) => point.returningCustomers)).toEqual([0, 1, 1]);
   });
 });
 
