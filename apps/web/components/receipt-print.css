@@ -30,7 +30,7 @@
   #print-receipt {
     position: fixed !important;
     left: 50% !important;
-    top: 50% !important;
+    top: var(--print-top, 50%) !important;
     width: var(--page-w, 215mm) !important;
     height: var(--page-h, 165mm) !important;
     max-height: var(--page-h, 165mm) !important;
