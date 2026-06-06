@@ -143,8 +143,8 @@ export function ReceiptModal({
             id="print-receipt"
             className={`bg-white text-black font-sans mx-auto min-w-[210mm] max-w-[210mm] min-h-[165mm] print:w-[210mm] print:h-[165mm] print:-mt-4 box-border border border-surface-200 print:border-none shadow-sm print:shadow-none overflow-hidden text-xs ${isCancelled ? "opacity-80" : ""}`}
             style={{
-              // Jika jumlah item lebih dari 5, atur ke 47%, jika tidak maka 50%
-              "--print-top": items.length > 5 ? "47%" : "50%",
+              // Jika jumlah item lebih dari 5, atur ke 49%, jika tidak maka 50%
+              "--print-top": items.length > 5 ? "49%" : "50%",
             } as React.CSSProperties}
           >
             <div
