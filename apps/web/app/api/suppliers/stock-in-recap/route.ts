@@ -28,7 +28,10 @@ export async function GET(request: Request) {
       take: limit,
     });
 
-    return apiList(result.logs, buildPaginationMeta(result.total, page, limit));
+    return apiList(
+      result.bundles,
+      buildPaginationMeta(result.total, page, limit),
+    );
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

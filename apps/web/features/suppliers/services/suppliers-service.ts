@@ -3,8 +3,10 @@ import { db } from "@pos/db";
 import {
   createSupplier,
   countSuppliers,
-  countSupplierRestockLogs,
   findActiveSupplierById,
+  findSupplierStockInBatchItems,
+  findSupplierStockInDetailLogs,
+  findSupplierStockInRecapLogs,
   findSupplierById,
   findSupplierRestockLogs,
   findSuppliersByName,
@@ -20,6 +22,10 @@ import {
   buildSupplierSummary,
   type SupplierSummary,
 } from "@/features/suppliers/helpers/supplier-summary";
+import {
+  buildSupplierStockInRecapBundles,
+  type SupplierStockInRecapBundle,
+} from "@/features/suppliers/helpers/supplier-stock-in-recap";
 import type {
   SupplierInput,
   SupplierListItem,
@@ -92,12 +98,59 @@ export async function getSupplierStockInRecap(filters: {
   categoryId?: string;
   skip: number;
   take: number;
-}): Promise<{ total: number; logs: Awaited<ReturnType<typeof findSupplierRestockLogs>> }> {
-  const [total, logs] = await Promise.all([
-    countSupplierRestockLogs(filters),
-    findSupplierRestockLogs(filters),
-  ]);
-  return { total, logs };
+}): Promise<{ total: number; bundles: SupplierStockInRecapBundle[] }> {
+  const logs = await findSupplierStockInRecapLogs(filters);
+  const batchItems = await findSupplierStockInBatchItems(
+    logs.map((entry) => entry.id),
+  );
+  const allBundles = buildSupplierStockInRecapBundles(logs, batchItems);
+
+  return {
+    total: allBundles.length,
+    bundles: allBundles.slice(filters.skip, filters.skip + filters.take),
+  };
+}
+
+export async function getSupplierDetail(filters: {
+  supplierId: string;
+  limit: number;
+  cursor?: string;
+}): Promise<{
+  supplier: SupplierListItem;
+  history: {
+    items: SupplierStockInRecapBundle[];
+    pageInfo: { nextCursor: string | null; hasNextPage: boolean };
+  };
+}> {
+  const offset = decodeSupplierDetailCursor(filters.cursor);
+  if (offset === null) {
+    throw new SupplierValidationError("Invalid supplier detail cursor");
+  }
+
+  const supplier = await getSupplierOrThrow(filters.supplierId);
+  const logs = await findSupplierStockInDetailLogs({
+    supplierId: filters.supplierId,
+  });
+  const batchItems = await findSupplierStockInBatchItems(
+    logs.map((entry) => entry.id),
+  );
+  const bundles = buildSupplierStockInRecapBundles(logs, batchItems);
+  const items = bundles.slice(offset, offset + filters.limit);
+  const nextOffset = offset + items.length;
+  const hasNextPage = nextOffset < bundles.length;
+
+  return {
+    supplier,
+    history: {
+      items,
+      pageInfo: {
+        nextCursor: hasNextPage
+          ? encodeSupplierDetailCursor(nextOffset)
+          : null,
+        hasNextPage,
+      },
+    },
+  };
 }
 
 export async function validateRestockSupplier(
@@ -132,4 +185,15 @@ export class SupplierNotFoundError extends Error {
     super("Supplier not found");
     this.name = "SupplierNotFoundError";
   }
+}
+
+function encodeSupplierDetailCursor(offset: number): string {
+  return `offset:${offset}`;
+}
+
+function decodeSupplierDetailCursor(cursor: string | undefined): number | null {
+  if (!cursor) return 0;
+  const match = /^offset:(\d+)$/.exec(cursor);
+  if (!match) return null;
+  return Number.parseInt(match[1], 10);
 }

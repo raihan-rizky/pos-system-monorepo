@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Button, Modal } from "@pos/ui";
-import { Building2, PackagePlus, Search, RefreshCcw } from "lucide-react";
+import { PackagePlus, Search, RefreshCcw } from "lucide-react";
 
 import { useDebounce } from "@/hooks/useDebounce";
 import {
@@ -18,6 +18,10 @@ import {
   type SupplierInput,
   type SupplierListItem,
 } from "@/features/suppliers/types/supplier";
+import { SupplierImportDrawer } from "@/features/supplier-import";
+import { SupplierDetailPopup } from "./SupplierDetailPopup";
+import { SupplierStatusConfirmDialog } from "./SupplierStatusConfirmDialog";
+import { SupplierStockInRecapBundles } from "./SupplierStockInRecapBundles";
 
 const emptyForm: SupplierInput = {
   name: "",
@@ -34,8 +38,10 @@ export function SupplierPageShell() {
   const [type, setType] = useState<SupplierInput["type"] | "ALL">("ALL");
   const [showInactive, setShowInactive] = useState(false);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<SupplierListItem | null>(null);
   const [selected, setSelected] = useState<SupplierListItem | null>(null);
+  const [statusTarget, setStatusTarget] = useState<SupplierListItem | null>(null);
   const [form, setForm] = useState<SupplierInput>(emptyForm);
   const [warnings, setWarnings] = useState<string[]>([]);
   const debouncedSearch = useDebounce(search.trim(), 300);
@@ -58,7 +64,7 @@ export function SupplierPageShell() {
 
   const supplierRows = suppliers.data?.data ?? [];
   const summaryData = summary.data;
-  const recapRows = recap.data?.data ?? [];
+  const recapBundles = recap.data?.data ?? [];
 
   const openCreate = () => {
     setEditing(null);
@@ -96,6 +102,25 @@ export function SupplierPageShell() {
     if (result.warnings.length === 0) closeForm();
   };
 
+  const openEditFromDetail = (supplier: SupplierListItem) => {
+    setSelected(null);
+    openEdit(supplier);
+  };
+
+  const confirmStatusChange = (supplier: SupplierListItem) => {
+    setActive.mutate(
+      { id: supplier.id, active: !supplier.isActive },
+      {
+        onSuccess: (result) => {
+          setStatusTarget(null);
+          setSelected((current) =>
+            current?.id === result.data.id ? result.data : current,
+          );
+        },
+      },
+    );
+  };
+
   return (
     <main className="min-h-full bg-slate-50 px-4 py-5 pb-24 md:px-6 md:pb-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
@@ -106,9 +131,18 @@ export function SupplierPageShell() {
               Kelola supplier dan pantau rekap stock in dari pembelian.
             </p>
           </div>
-          <Button type="button" onClick={openCreate}>
-            Tambah Supplier
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setImportDrawerOpen(true)}
+            >
+              Import Supplier
+            </Button>
+            <Button type="button" onClick={openCreate}>
+              Tambah Supplier
+            </Button>
+          </div>
         </div>
 
         <div className="flex gap-2 overflow-x-auto">
@@ -228,28 +262,11 @@ export function SupplierPageShell() {
               <h2 className="text-base font-black text-slate-950">Rekap Stock In</h2>
               <p className="text-sm text-slate-500">Hanya restock supplier yang sudah disetujui.</p>
             </div>
-            <div className="grid gap-3 p-3">
-              {recap.error ? (
-                <ErrorBox message="Gagal memuat rekap stock in." />
-              ) : recapRows.length === 0 ? (
-                <EmptyBox title="Belum ada stock in supplier" />
-              ) : (
-                recapRows.map((log) => (
-                  <div key={log.id} className="grid gap-2 rounded-xl border border-slate-100 p-3 md:grid-cols-[1.2fr_1fr_auto] md:items-center">
-                    <div>
-                      <p className="font-bold text-slate-950">{log.product.name}</p>
-                      <p className="text-xs text-slate-500">{log.supplier?.name ?? "-"}</p>
-                    </div>
-                    <p className="text-sm text-slate-600">
-                      {formatNumber(log.quantity)} {log.product.unit} x {formatCurrency(Number(log.unitCost ?? 0))}
-                    </p>
-                    <p className="text-sm font-black text-slate-950">
-                      {log.unitCost === null ? "Biaya belum ada" : formatCurrency(Number(log.unitCost) * log.quantity)}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
+            <SupplierStockInRecapBundles
+              bundles={recapBundles}
+              isPending={recap.isPending}
+              isError={recap.isError}
+            />
           </section>
         )}
       </div>
@@ -265,25 +282,26 @@ export function SupplierPageShell() {
         onSave={saveSupplier}
       />
 
-      <Modal open={selected !== null} onClose={() => setSelected(null)} title="Detail Supplier" size="lg">
-        {selected && (
-          <div className="space-y-3 text-sm text-slate-600">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-                <Building2 className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-base font-black text-slate-950">{selected.name}</p>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{selected.type}</p>
-              </div>
-            </div>
-            <Metric label="Kontak" value={selected.contactPerson || "-"} />
-            <Metric label="Phone" value={selected.phone || "-"} />
-            <Metric label="Alamat" value={selected.address || "-"} />
-            <Metric label="Catatan" value={selected.notes || "-"} />
-          </div>
-        )}
-      </Modal>
+      <SupplierImportDrawer
+        open={importDrawerOpen}
+        onClose={() => setImportDrawerOpen(false)}
+      />
+
+      <SupplierDetailPopup
+        open={selected !== null}
+        supplier={selected}
+        statusActionPending={setActive.isPending}
+        onClose={() => setSelected(null)}
+        onEdit={openEditFromDetail}
+        onRequestStatusChange={setStatusTarget}
+      />
+
+      <SupplierStatusConfirmDialog
+        supplier={statusTarget}
+        pending={setActive.isPending}
+        onClose={() => setStatusTarget(null)}
+        onConfirm={confirmStatusChange}
+      />
     </main>
   );
 }

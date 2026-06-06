@@ -1,10 +1,16 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import {
   createSupplier,
   deactivateSupplier,
+  getSupplierDetail,
   getSupplierStockInRecap,
   getSupplierSummary,
   listSuppliers,
@@ -47,6 +53,36 @@ export function useSupplierStockInRecap(filters: {
     queryKey: ["suppliers", "stock-in-recap", filters],
     queryFn: () => getSupplierStockInRecap(filters),
     staleTime: 15_000,
+  });
+}
+
+export function useSupplierDetail({
+  supplierId,
+  open,
+  limit = 10,
+}: {
+  supplierId: string | null;
+  open: boolean;
+  limit?: number;
+}) {
+  return useInfiniteQuery({
+    queryKey: ["suppliers", supplierId, "detail", { limit }],
+    queryFn: ({ pageParam }) =>
+      getSupplierDetail(supplierId as string, {
+        limit,
+        cursor: pageParam,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.data.history.pageInfo.nextCursor ?? undefined,
+    enabled: open && Boolean(supplierId),
+    staleTime: 15_000,
+    retry: (failureCount, error) => {
+      const status = error instanceof Error && "status" in error
+        ? Number((error as { status: unknown }).status)
+        : 0;
+      return status >= 400 && status < 500 ? false : failureCount < 2;
+    },
   });
 }
 

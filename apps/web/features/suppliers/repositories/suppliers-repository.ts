@@ -5,6 +5,10 @@ import type {
   SupplierListItem,
   SupplierType,
 } from "@/features/suppliers/types/supplier";
+import type {
+  SupplierStockInRecapBatchItem,
+  SupplierStockInRecapLog,
+} from "@/features/suppliers/helpers/supplier-stock-in-recap";
 import type { SupplierRestockLog } from "@/features/suppliers/helpers/supplier-summary";
 
 export type SupplierListFilters = {
@@ -158,6 +162,127 @@ export function findSupplierRestockLogs(filters: {
       createdAt: log.createdAt,
     })),
   );
+}
+
+export function findSupplierStockInRecapLogs(filters: {
+  from?: Date;
+  to?: Date;
+  supplierId?: string;
+  productId?: string;
+  categoryId?: string;
+}): Promise<SupplierStockInRecapLog[]> {
+  return db.inventoryLog.findMany({
+    where: {
+      ...buildRestockLogWhere(filters),
+      status: { in: ["APPROVED", "REJECTED"] },
+    },
+    include: {
+      supplier: {
+        select: { id: true, name: true, type: true },
+      },
+      product: {
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          unit: true,
+          category: { select: { id: true, name: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  }).then((logs) =>
+    logs.map((log) => ({
+      id: log.id,
+      supplierId: log.supplierId,
+      supplier: log.supplier,
+      productId: log.productId,
+      product: {
+        id: log.product.id,
+        name: log.product.name,
+        sku: log.product.sku,
+        unit: log.product.unit,
+        category: log.product.category,
+      },
+      quantity: log.quantity,
+      unitCost: log.unitCost,
+      note: log.note,
+      person: log.person,
+      approverName: log.approverName,
+      status: log.status === "REJECTED" ? "REJECTED" : "APPROVED",
+      rejectionReason: log.rejectionReason,
+      createdAt: log.createdAt,
+      decidedAt: log.decidedAt,
+    })),
+  );
+}
+
+export function findSupplierStockInDetailLogs(filters: {
+  supplierId: string;
+}): Promise<SupplierStockInRecapLog[]> {
+  return db.inventoryLog.findMany({
+    where: buildRestockLogWhere({ supplierId: filters.supplierId }),
+    include: {
+      supplier: {
+        select: { id: true, name: true, type: true },
+      },
+      product: {
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          unit: true,
+          category: { select: { id: true, name: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  }).then((logs) =>
+    logs.map((log) => ({
+      id: log.id,
+      supplierId: log.supplierId,
+      supplier: log.supplier,
+      productId: log.productId,
+      product: {
+        id: log.product.id,
+        name: log.product.name,
+        sku: log.product.sku,
+        unit: log.product.unit,
+        category: log.product.category,
+      },
+      quantity: log.quantity,
+      unitCost: log.unitCost,
+      note: log.note,
+      person: log.person,
+      approverName: log.approverName,
+      status: "APPROVED",
+      rejectionReason: null,
+      createdAt: log.createdAt,
+      decidedAt: log.decidedAt,
+    })),
+  );
+}
+
+export function findSupplierStockInBatchItems(
+  inventoryLogIds: string[],
+): Promise<SupplierStockInRecapBatchItem[]> {
+  if (inventoryLogIds.length === 0) return Promise.resolve([]);
+
+  return db.batchOperationItem.findMany({
+    where: {
+      inventoryLogId: { in: inventoryLogIds },
+      batchOperation: { type: "BULK_STOCK_ADJUSTMENT" },
+    },
+    include: {
+      batchOperation: {
+        select: {
+          id: true,
+          createdAt: true,
+          summary: true,
+        },
+      },
+    },
+  });
 }
 
 export function countSupplierRestockLogs(filters: {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { DraftPdfModal } from "@/features/invoice-pdf/components/DraftPdfModal";
 import { Modal, Button } from "@pos/ui";
 import { terbilang } from "@/lib/terbilang";
 import type { Transaction } from "@/hooks/useTransactions";
@@ -44,6 +45,7 @@ export function DraftReceiptModal({
   const [divisiPurchasing, setDivisiPurchasing] = useState(
     initialDivision || decodedDivision
   );
+  const [showDraftPdfModal, setShowDraftPdfModal] = useState(false);
 
   const handlePrint = () => {
     window.print();
@@ -318,12 +320,29 @@ export function DraftReceiptModal({
           <Button
             variant="accent"
             size="lg"
+            onClick={() => setShowDraftPdfModal(true)}
+            className="flex-1"
+          >
+            Cetak PDF
+          </Button>
+          <Button
+            variant="accent"
+            size="lg"
             onClick={handlePrint}
             className="flex-1"
           >
             Cetak Nota Penawaran
           </Button>
         </div>
+
+        {/* Draft PDF generator modal */}
+        <DraftPdfModal
+          open={showDraftPdfModal}
+          onClose={() => setShowDraftPdfModal(false)}
+          transaction={transaction}
+          kepadaYth={kepadaYth}
+          divisiPurchasing={divisiPurchasing}
+        />
       </div>
     </Modal>
   );

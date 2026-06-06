@@ -3,6 +3,7 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DraftReceiptModal } from "./DraftReceiptModal";
 import { InvoicePrintModal } from "./InvoicePrintModal";
+import { InvoicePdfModal } from "@/features/invoice-pdf/components/InvoicePdfModal";
 import { Modal, Button } from "@pos/ui";
 import { formatDate } from "@/lib/utils";
 import type { Transaction } from "@/hooks/useTransactions";
@@ -48,6 +49,7 @@ export function ReceiptModal({
 }: ReceiptModalProps) {
   const { data: storeSettings } = useStoreSettings();
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentScale, setContentScale] = useState(1);
@@ -423,14 +425,24 @@ export function ReceiptModal({
             Tutup
           </Button>
           {!isCancelled && (
-            <Button
-              variant="accent"
-              size="lg"
-              onClick={() => setShowPrintModal(true)}
-              className="flex-1"
-            >
-              Cetak Invoice
-            </Button>
+            <>
+              <Button
+                variant="accent"
+                size="lg"
+                onClick={() => setShowPdfModal(true)}
+                className="flex-1"
+              >
+                Cetak PDF
+              </Button>
+              <Button
+                variant="accent"
+                size="lg"
+                onClick={() => setShowPrintModal(true)}
+                className="flex-1"
+              >
+                Cetak Invoice
+              </Button>
+            </>
           )}
         </div>
 
@@ -438,6 +450,13 @@ export function ReceiptModal({
         <InvoicePrintModal
           open={showPrintModal}
           onClose={() => setShowPrintModal(false)}
+        />
+
+        {/* PDF generator modal */}
+        <InvoicePdfModal
+          open={showPdfModal}
+          onClose={() => setShowPdfModal(false)}
+          transaction={transaction}
         />
       </div>
     </Modal>

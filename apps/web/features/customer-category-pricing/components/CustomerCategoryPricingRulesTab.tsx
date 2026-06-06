@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Percent, Save, Tag, Trash2 } from "lucide-react";
+import { AlertTriangle, Percent, Save, Tag, Trash2, RefreshCcw } from "lucide-react";
 import { useCategories, useProductsPage } from "@/hooks/useProducts";
 import {
   useCreateCustomerCategoryPricingRule,
@@ -154,48 +154,64 @@ export function CustomerCategoryPricingRulesTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rules.map((rule) => (
-                <tr key={rule.id} className={!rule.isActive ? "opacity-50" : ""}>
-                  <td className="px-4 py-3 font-bold text-slate-900">{rule.customerType}</td>
-                  <td className="px-4 py-3 text-slate-700">{rule.category.name}</td>
-                  <td className="px-4 py-3 text-slate-700">
-                    {rule.mode === "FLAT_DISCOUNT" ? "Diskon Rp" : "Diskon %"}
-                  </td>
-                  <td className="px-4 py-3 font-bold text-slate-900">{ruleValueLabel(rule)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-md px-2 py-1 text-xs font-bold ${rule.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                      {rule.isActive ? "Aktif" : "Nonaktif"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => editRule(rule)}
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                      {rule.isActive && (
-                        <button
-                          type="button"
-                          onClick={() => deleteRule.mutateAsync(rule.id)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                          aria-label="Nonaktifkan aturan"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
+              {rulesQuery.isPending ? (
+                <tr>
+                  <td className="px-4 py-10 text-center text-sm font-medium text-slate-500" colSpan={6}>
+                    <div className="flex items-center justify-center">
+                      <RefreshCcw className="mr-2 h-5 w-5 animate-spin text-slate-400" />
+                      Memuat aturan harga khusus...
                     </div>
                   </td>
                 </tr>
-              ))}
-              {rules.length === 0 && (
+              ) : rulesQuery.error ? (
+                <tr>
+                  <td className="px-4 py-10 text-center text-sm font-medium text-red-500" colSpan={6}>
+                    Gagal memuat aturan harga khusus.
+                  </td>
+                </tr>
+              ) : rules.length === 0 ? (
                 <tr>
                   <td className="px-4 py-10 text-center text-sm font-medium text-slate-500" colSpan={6}>
                     Belum ada aturan harga khusus.
                   </td>
                 </tr>
+              ) : (
+                rules.map((rule) => (
+                  <tr key={rule.id} className={!rule.isActive ? "opacity-50" : ""}>
+                    <td className="px-4 py-3 font-bold text-slate-900">{rule.customerType}</td>
+                    <td className="px-4 py-3 text-slate-700">{rule.category.name}</td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {rule.mode === "FLAT_DISCOUNT" ? "Diskon Rp" : "Diskon %"}
+                    </td>
+                    <td className="px-4 py-3 font-bold text-slate-900">{ruleValueLabel(rule)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-md px-2 py-1 text-xs font-bold ${rule.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                        {rule.isActive ? "Aktif" : "Nonaktif"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => editRule(rule)}
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        >
+                          Edit
+                        </button>
+                        {rule.isActive && (
+                          <button
+                            type="button"
+                            onClick={() => deleteRule.mutateAsync(rule.id)}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                            aria-label="Nonaktifkan aturan"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>

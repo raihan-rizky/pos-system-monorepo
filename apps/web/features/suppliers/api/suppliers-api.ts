@@ -45,30 +45,65 @@ export type SupplierSummary = {
   suppliers: SupplierSummaryRow[];
 };
 
-export type SupplierStockInRecapItem = {
+export type SupplierStockInRecapBundleItem = {
   id: string;
-  supplierId: string | null;
-  supplier: { id: string; name: string; type: SupplierType } | null;
-  productId: string;
+  status: "APPROVED" | "REJECTED";
   product: {
     id: string;
     name: string;
     sku: string;
     unit: string;
-    category: { id: string; name: string };
+    category: { id: string; name: string } | null;
   };
   quantity: number;
-  unitCost: number | string | null;
+  unitCost: number | null;
+  lineTotalCost: number | null;
   note: string | null;
-  person: string | null;
+  requesterName: string | null;
   approverName: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   decidedAt: string | null;
 };
 
+export type SupplierStockInRecapBundle = {
+  id: string;
+  kind: "BULK_BATCH" | "MANUAL_RESTOCK";
+  batchOperationId: string | null;
+  supplier: { id: string; name: string; type: SupplierType } | null;
+  createdAt: string;
+  decidedAt: string | null;
+  requesterName: string | null;
+  approverName: string | null;
+  note: string | null;
+  summary: {
+    itemCount: number;
+    approvedItemCount: number;
+    rejectedItemCount: number;
+    approvedQuantity: number;
+    approvedTotalCost: number;
+    hasPartialCost: boolean;
+    missingCostCount: number;
+  };
+  items: SupplierStockInRecapBundleItem[];
+};
+
 export type SupplierStockInRecapResponse = {
-  data: SupplierStockInRecapItem[];
+  data: SupplierStockInRecapBundle[];
   pagination: SupplierPagination;
+};
+
+export type SupplierDetailResponse = {
+  data: {
+    supplier: SupplierListItem;
+    history: {
+      items: SupplierStockInRecapBundle[];
+      pageInfo: {
+        nextCursor: string | null;
+        hasNextPage: boolean;
+      };
+    };
+  };
 };
 
 export type SupplierListFilters = {
@@ -215,5 +250,20 @@ export function getSupplierStockInRecap(filters: {
     query
       ? `/api/suppliers/stock-in-recap?${query}`
       : "/api/suppliers/stock-in-recap",
+  );
+}
+
+export function getSupplierDetail(
+  supplierId: string,
+  filters: { limit?: number; cursor?: string } = {},
+): Promise<SupplierDetailResponse> {
+  const params = new URLSearchParams();
+  if (filters.limit) params.set("limit", String(filters.limit));
+  if (filters.cursor) params.set("cursor", filters.cursor);
+  const query = params.toString();
+  return supplierRequest<SupplierDetailResponse>(
+    query
+      ? `/api/suppliers/${supplierId}/detail?${query}`
+      : `/api/suppliers/${supplierId}/detail`,
   );
 }
