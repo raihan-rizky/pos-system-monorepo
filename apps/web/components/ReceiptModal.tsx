@@ -65,10 +65,11 @@ export function ReceiptModal({
   const isVoided = transaction?.status === "VOIDED";
   const isRefunded = transaction?.status === "REFUNDED";
   const isCancelled = isVoided || isRefunded;
-  const displayInvoice =
+  const rawInvoice =
     transaction?.invoiceNumber ??
     formatDraftNumberForDisplay(transaction?.draftNumber) ??
     "";
+  const displayInvoice = rawInvoice.replace(/-/g, "/");
 
   const storeName = storeSettings?.name || "TOKO TELADAN";
 
@@ -181,16 +182,16 @@ export function ReceiptModal({
               <div
                 className="w-full mb-3"
                 style={
-                {
-                  borderTop: isVoided
-                    ? "2.5px dashed #94a3b8"
-                    : isRefunded
-                      ? "2.5px dashed #dc2626"
-                      : "2.5px solid #cc0000",
-                  printColorAdjust: "exact",
-                  WebkitPrintColorAdjust: "exact",
-                } as React.CSSProperties
-              }
+                  {
+                    borderTop: isVoided
+                      ? "2.5px dashed #94a3b8"
+                      : isRefunded
+                        ? "2.5px dashed #dc2626"
+                        : "2.5px solid #cc0000",
+                    printColorAdjust: "exact",
+                    WebkitPrintColorAdjust: "exact",
+                  } as React.CSSProperties
+                }
               />
 
               {/* Info */}
@@ -305,33 +306,34 @@ export function ReceiptModal({
                   </table>
                 );
               })()}
+              <div className="flex-1">
+                {isCancelled && (
+                  <div className="text-[12px]">
+                    <span className="font-bold">
+                      {isVoided ? "Dibatalkan" : "Direfund"}:{" "}
+                    </span>
+                    <span>Invoice ini tidak sah sebagai bukti pembayaran.</span>
+                  </div>
+                )}
+                {!isCancelled && isDraft && (
+                  <div className="text-[12px]">
+                    <span className="font-bold">Catatan: </span>
+                    <span>Faktur sementara</span>
+                  </div>
+                )}
+                {!isCancelled && transaction.note && (
+                  <div className="text-[12px]">
+                    <span className="font-bold">Catatan: </span>
+                    <span>{transaction.note}</span>
+                  </div>
+                )}
+              </div>
 
-              {/* Notes + Totals */}
+              {/* Notes + Totals, mt-auto ensures this section sticks to the bottom, mb buat geser ke atas sedikit */}
               <div
-                className="flex justify-between mt-auto text-[12px]"
+                className="flex flex-col items-end mt-auto mb-4 text-[12px]"
               >
-                <div className="flex-1">
-                  {isCancelled && (
-                    <div className="text-[12px]">
-                      <span className="font-bold">
-                        {isVoided ? "Dibatalkan" : "Direfund"}:{" "}
-                      </span>
-                      <span>Invoice ini tidak sah sebagai bukti pembayaran.</span>
-                    </div>
-                  )}
-                  {!isCancelled && isDraft && (
-                    <div className="text-[12px]">
-                      <span className="font-bold">Catatan: </span>
-                      <span>Faktur sementara</span>
-                    </div>
-                  )}
-                  {!isCancelled && transaction.note && (
-                    <div className="text-[12px]">
-                      <span className="font-bold">Catatan: </span>
-                      <span>{transaction.note}</span>
-                    </div>
-                  )}
-                </div>
+
                 <div className="flex flex-col items-end">
                   <div className="flex w-[350px]">
                     <div

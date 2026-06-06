@@ -63,4 +63,10 @@
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
+  /* Sembunyikan semua elemen di halaman web (termasuk background app & modal lain) */
+  /* yang TIDAK memiliki #print-receipt di dalamnya saat sedang mode cetak. */
+  body>*:not(:has(#print-receipt)) {
+    display: none !important;
+  }
 }

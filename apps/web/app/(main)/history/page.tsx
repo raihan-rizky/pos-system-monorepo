@@ -186,21 +186,6 @@ function EditModal({
             </select>
           </div>
 
-          {/* Custom Sales Name (Fallback) */}
-          <div>
-            <label className="block text-xs font-semibold text-surface-600 mb-1.5">
-              Nama Sales (Custom)
-            </label>
-            <input
-              type="text"
-              value={form.salesName}
-              onChange={(e) => handleChange("salesName", e.target.value)}
-              placeholder="Nama sales / kasir"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
-            />
-          </div>
-
           {/* Customer Name */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 mb-1.5">
