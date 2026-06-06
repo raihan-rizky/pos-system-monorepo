@@ -23,6 +23,7 @@ import {
   Tags,
   TrendingDown,
   TrendingUp,
+  Truck,
   User,
   Users,
   WalletCards,
@@ -36,6 +37,7 @@ const icons = {
   history: <WalletCards className={sidebarIconClass} aria-hidden="true" />,
   financial: <BarChart3 className={sidebarIconClass} aria-hidden="true" />,
   product: <Package className={sidebarIconClass} aria-hidden="true" />,
+  suppliers: <Truck className={sidebarIconClass} aria-hidden="true" />,
   production: <PanelsTopLeft className={sidebarIconClass} aria-hidden="true" />,
   customers: <Users className={sidebarIconClass} aria-hidden="true" />,
   salespersons: <Tags className={sidebarIconClass} aria-hidden="true" />,
@@ -66,6 +68,7 @@ const navGroups = [
     icon: icons.catalog,
     items: [
       { href: "/products", label: "Produk", icon: icons.product },
+      { href: "/suppliers", label: "Supplier", icon: icons.suppliers },
       { href: "/production", label: "Produksi", icon: icons.production },
     ],
   },

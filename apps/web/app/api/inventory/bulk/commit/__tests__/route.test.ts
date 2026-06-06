@@ -11,6 +11,7 @@ const inventoryLogCreateMock = vi.hoisted(() => vi.fn());
 const batchOperationCreateMock = vi.hoisted(() => vi.fn());
 const batchOperationUpdateMock = vi.hoisted(() => vi.fn());
 const batchOperationItemCreateMock = vi.hoisted(() => vi.fn());
+const supplierFindUniqueMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -33,6 +34,9 @@ vi.mock("@/lib/push-events", () => ({
 vi.mock("@pos/db", () => ({
   db: {
     $transaction: dbTransactionMock,
+    supplier: {
+      findUnique: supplierFindUniqueMock,
+    },
   },
   Prisma: {},
 }));
@@ -77,8 +81,16 @@ describe("POST /api/inventory/bulk/commit", () => {
       ...data,
     }));
     batchOperationItemCreateMock.mockResolvedValue({ id: "item-1" });
+    supplierFindUniqueMock.mockResolvedValue({
+      id: "supplier-1",
+      name: "CV Sinar Jaya",
+      isActive: true,
+    });
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
+        supplier: {
+          findUnique: supplierFindUniqueMock,
+        },
         product: {
           findMany: productFindManyMock,
           update: productUpdateMock,
@@ -163,6 +175,8 @@ describe("POST /api/inventory/bulk/commit", () => {
       type: "IN",
       reason: "RESTOCK",
       quantities: { "product-1": 5 },
+      unitCosts: { "product-1": 750 },
+      supplierId: "supplier-1",
       supplierName: "Owner bundle",
       note: "owner restock",
     });
@@ -180,6 +194,8 @@ describe("POST /api/inventory/bulk/commit", () => {
         data: expect.objectContaining({
           status: "APPROVED",
           approvedBy: "owner-1",
+          supplierId: "supplier-1",
+          unitCost: 750,
         }),
       }),
     );
@@ -197,12 +213,53 @@ describe("POST /api/inventory/bulk/commit", () => {
     );
   });
 
-  it("allows supplier name to be omitted and uses the batch note as the bundle name", async () => {
+  it("rejects RESTOCK stock-in requests without a supplier id", async () => {
     const response = await request({
       productIds: ["product-1", "product-2"],
       type: "IN",
       reason: "RESTOCK",
       quantities: { "product-1": 3, "product-2": 2 },
+      note: "stok awal event",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.code).toBe("ValidationError");
+    expect(body.errors.supplierId).toContain("Supplier is required for restock stock-in");
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects RESTOCK stock-in requests with an inactive supplier", async () => {
+    supplierFindUniqueMock.mockResolvedValue({
+      id: "supplier-1",
+      name: "CV Sinar Jaya",
+      isActive: false,
+    });
+
+    const response = await request({
+      productIds: ["product-1", "product-2"],
+      type: "IN",
+      reason: "RESTOCK",
+      quantities: { "product-1": 3, "product-2": 2 },
+      supplierId: "supplier-1",
+      note: "stok awal event",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.code).toBe("ValidationError");
+    expect(body.errors.supplierId).toContain("Supplier must be active");
+    expect(batchOperationCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("stores supplier id and per-product unit costs for pending RESTOCK logs", async () => {
+    const response = await request({
+      productIds: ["product-1", "product-2"],
+      type: "IN",
+      reason: "RESTOCK",
+      quantities: { "product-1": 3, "product-2": 2 },
+      unitCosts: { "product-1": 750 },
+      supplierId: "supplier-1",
       note: "stok awal event",
     });
     const body = await response.json();
@@ -213,8 +270,8 @@ describe("POST /api/inventory/bulk/commit", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           summary: expect.objectContaining({
-            productName: "stok awal event",
-            supplierName: "",
+            supplierId: "supplier-1",
+            supplierName: "CV Sinar Jaya",
           }),
         }),
       }),
@@ -222,7 +279,20 @@ describe("POST /api/inventory/bulk/commit", () => {
     expect(inventoryLogCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          note: "stok awal event",
+          productId: "product-1",
+          supplierId: "supplier-1",
+          unitCost: 750,
+          note: "CV Sinar Jaya",
+        }),
+      }),
+    );
+    expect(inventoryLogCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          productId: "product-2",
+          supplierId: "supplier-1",
+          unitCost: 500,
+          note: "CV Sinar Jaya",
         }),
       }),
     );

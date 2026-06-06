@@ -88,6 +88,7 @@ export async function approvePendingBulkLog(
     inventoryLogId: string;
     approverId: string;
     approverName: string | null | undefined;
+    skipBatchStatusUpdate?: boolean;
   },
 ) {
   const batch = await findBulkBatch(tx, input.batchId);
@@ -123,12 +124,15 @@ export async function approvePendingBulkLog(
     },
   });
 
-  const batchSummary = await updateBatchDecisionStatus(tx, batch, {
-    inventoryLogId: log.id,
-    status: "APPROVED",
-  });
+  let batchSummary = null;
+  if (!input.skipBatchStatusUpdate) {
+    batchSummary = await updateBatchDecisionStatus(tx, batch, {
+      inventoryLogId: log.id,
+      status: "APPROVED",
+    });
+  }
 
-  return { log: updatedLog, batchStatus: batchSummary.status, batchSummary };
+  return { log: updatedLog, batchStatus: batchSummary?.status ?? "PENDING", batchSummary };
 }
 
 export async function rejectPendingBulkLog(
@@ -139,6 +143,7 @@ export async function rejectPendingBulkLog(
     approverId: string;
     approverName: string | null | undefined;
     reason: string;
+    skipBatchStatusUpdate?: boolean;
   },
 ) {
   const batch = await findBulkBatch(tx, input.batchId);
@@ -157,12 +162,15 @@ export async function rejectPendingBulkLog(
       rejectionReason: input.reason,
     },
   });
-  const batchSummary = await updateBatchDecisionStatus(tx, batch, {
-    inventoryLogId: log.id,
-    status: "REJECTED",
-  });
+  let batchSummary = null;
+  if (!input.skipBatchStatusUpdate) {
+    batchSummary = await updateBatchDecisionStatus(tx, batch, {
+      inventoryLogId: log.id,
+      status: "REJECTED",
+    });
+  }
 
-  return { log: updatedLog, batchStatus: batchSummary.status, batchSummary };
+  return { log: updatedLog, batchStatus: batchSummary?.status ?? "PENDING", batchSummary };
 }
 
 export function mapBulkRequestError(error: unknown, fallback: string) {

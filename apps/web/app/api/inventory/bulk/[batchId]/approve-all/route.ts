@@ -3,7 +3,7 @@ import { db } from "@pos/db";
 
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
-import { approvePendingBulkLog, computeAfterStock, findBulkBatch, mapBulkRequestError, rejectPendingBulkLog } from "../_shared";
+import { approvePendingBulkLog, computeAfterStock, findBulkBatch, mapBulkRequestError, rejectPendingBulkLog, updateBatchDecisionStatus } from "../_shared";
 
 const logger = getLogger("api:inventory:bulk:approve-all");
 const INSUFFICIENT_STOCK_REASON = "Stok tidak mencukupi";
@@ -34,6 +34,7 @@ export async function POST(
             approverId: user.id,
             approverName: user.name,
             reason: INSUFFICIENT_STOCK_REASON,
+            skipBatchStatusUpdate: true,
           });
           rejectedCount += 1;
           continue;
@@ -43,12 +44,17 @@ export async function POST(
           inventoryLogId,
           approverId: user.id,
           approverName: user.name,
+          skipBatchStatusUpdate: true,
         });
         approvedCount += 1;
       }
 
+      if (approvedCount > 0 || rejectedCount > 0) {
+        await updateBatchDecisionStatus(tx, batch);
+      }
+
       return { approvedCount, rejectedCount };
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

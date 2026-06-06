@@ -16,7 +16,9 @@ export interface BulkStockInput {
   type: "IN" | "OUT" | "ADJUSTMENT";
   reason: BulkStockReason;
   quantities: Record<string, number>;
-  supplierName: string;
+  unitCosts?: Record<string, number | null>;
+  supplierId?: string;
+  supplierName?: string;
   note: string;
 }
 

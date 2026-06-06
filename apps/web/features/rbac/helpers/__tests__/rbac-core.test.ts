@@ -30,13 +30,17 @@ describe("RBAC permission matrix", () => {
     const defaults = buildDefaultRolePermissions();
 
     expect(canRoleAccessPage("ADMIN", "/products", defaults)).toBe(true);
+    expect(canRoleAccessPage("ADMIN", "/suppliers", defaults)).toBe(true);
     expect(canRoleAccessPage("ADMIN", "/financial-report", defaults)).toBe(true);
     expect(canRoleAccessPage("CASHIER", "/products", defaults)).toBe(false);
+    expect(canRoleAccessPage("CASHIER", "/suppliers", defaults)).toBe(false);
     expect(canRoleAccessPage("CASHIER", "/financial-report", defaults)).toBe(false);
     expect(canRoleAccessPage("SALES", "/financial-report", defaults)).toBe(false);
     expect(canRoleAccessPage("SALES", "/pos", defaults)).toBe(true);
 
     expect(canRolePerformAction("ADMIN", "product", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "supplier", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "supplier", "read", defaults)).toBe(false);
     expect(canRolePerformAction("ADMIN", "financial-report", "read", defaults)).toBe(true);
     expect(canRolePerformAction("CASHIER", "financial-report", "read", defaults)).toBe(false);
     expect(canRolePerformAction("CASHIER", "product", "update", defaults)).toBe(false);

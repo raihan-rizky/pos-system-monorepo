@@ -17,6 +17,7 @@ import {
   type BulkStockReason,
 } from "../hooks/useBulkStock";
 import { BatchResultPanel } from "@/features/batch-operations/components/BatchResultPanel";
+import { SupplierSelector } from "@/features/suppliers";
 
 const REASONS_BY_TYPE: Record<
   "IN" | "OUT" | "ADJUSTMENT",
@@ -50,6 +51,8 @@ export function BulkStockDrawer({
   const [type, setType] = useState<"IN" | "OUT" | "ADJUSTMENT">("IN");
   const [reason, setReason] = useState<BulkStockReason>("RESTOCK");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [unitCosts, setUnitCosts] = useState<Record<string, number | null>>({});
+  const [supplierId, setSupplierId] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [note, setNote] = useState("");
   const [quickQuantity, setQuickQuantity] = useState("");
@@ -58,13 +61,24 @@ export function BulkStockDrawer({
 
   const productIds = useMemo(() => products.map((product) => product.id), [products]);
   const input = useMemo(
-    () => ({ productIds, type, reason, quantities, supplierName, note }),
-    [productIds, type, reason, quantities, supplierName, note],
+    () => ({
+      productIds,
+      type,
+      reason,
+      quantities,
+      unitCosts,
+      supplierId: supplierId || undefined,
+      supplierName,
+      note,
+    }),
+    [productIds, type, reason, quantities, unitCosts, supplierId, supplierName, note],
   );
+  const requiresSupplier = type === "IN" && reason === "RESTOCK";
   const rows = useMemo(
     () =>
       products.map((product) => {
         const quantity = quantities[product.id] ?? 0;
+        const unitCost = unitCosts[product.id] !== undefined ? unitCosts[product.id] : (product.costPrice ?? null);
         const afterStock =
           type === "IN"
             ? product.stock + quantity
@@ -82,9 +96,10 @@ export function BulkStockDrawer({
               : type === "OUT"
                 ? -quantity
                 : quantity - product.stock,
+          unitCost,
         };
       }),
-    [products, quantities, type],
+    [products, quantities, type, unitCosts],
   );
   const filledCount = rows.filter((row) => row.quantity > 0).length;
   const missingCount = Math.max(productIds.length - filledCount, 0);
@@ -99,6 +114,8 @@ export function BulkStockDrawer({
     setType("IN");
     setReason("RESTOCK");
     setQuantities({});
+    setUnitCosts({});
+    setSupplierId("");
     setSupplierName("");
     setNote("");
     setQuickQuantity("");
@@ -114,6 +131,7 @@ export function BulkStockDrawer({
   const handleTypeChange = useCallback((next: "IN" | "OUT" | "ADJUSTMENT") => {
     setType(next);
     setReason(REASONS_BY_TYPE[next][0].value);
+    setSupplierId("");
     commit.reset();
     setValidationWarnings([]);
     setShowNegativeWarning(false);
@@ -121,6 +139,20 @@ export function BulkStockDrawer({
 
   const handleQuantityChange = useCallback((productId: string, value: string) => {
     setQuantities((current) => ({ ...current, [productId]: Number(value) }));
+    commit.reset();
+    setValidationWarnings([]);
+  }, [commit]);
+
+  const handleUnitCostChange = useCallback((productId: string, value: string) => {
+    setUnitCosts((current) => {
+      const next = { ...current };
+      if (value === "") {
+        next[productId] = null;
+      } else {
+        next[productId] = Number(value);
+      }
+      return next;
+    });
     commit.reset();
     setValidationWarnings([]);
   }, [commit]);
@@ -144,6 +176,7 @@ export function BulkStockDrawer({
     const warnings: string[] = [];
     if (!note.trim()) warnings.push("Catatan batch wajib diisi.");
     if (!hasQuantities) warnings.push(`${missingCount} produk belum memiliki jumlah.`);
+    if (requiresSupplier && !supplierId) warnings.push("Supplier wajib dipilih untuk Stock In Restock.");
 
     if (warnings.length > 0) {
       setValidationWarnings(warnings);
@@ -248,22 +281,34 @@ export function BulkStockDrawer({
                 </select>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                <label className="mb-1 block text-sm font-bold text-slate-700">Nama supplier <span className="font-semibold text-slate-400">(opsional)</span></label>
-                <input
-                  value={supplierName}
-                  onChange={(event) => {
-                    setSupplierName(event.target.value);
+              {requiresSupplier ? (
+                <SupplierSelector
+                  value={supplierId}
+                  onChange={(nextSupplierId) => {
+                    setSupplierId(nextSupplierId);
                     commit.reset();
                     setValidationWarnings([]);
                   }}
-                  className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                  placeholder="Contoh: CV Sinar Jaya"
+                  error={validationWarnings.find((warning) => warning.includes("Supplier")) ?? null}
                 />
-                <p className="mt-1 text-xs text-slate-400">
-                  Jika dikosongkan, catatan batch akan dipakai sebagai nama bundle di Stock Logs.
-                </p>
-              </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">Nama supplier <span className="font-semibold text-slate-400">(opsional)</span></label>
+                  <input
+                    value={supplierName}
+                    onChange={(event) => {
+                      setSupplierName(event.target.value);
+                      commit.reset();
+                      setValidationWarnings([]);
+                    }}
+                    className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                    placeholder="Contoh: CV Sinar Jaya"
+                  />
+                  <p className="mt-1 text-xs text-slate-400">
+                    Jika dikosongkan, catatan batch akan dipakai sebagai nama bundle di Stock Logs.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -319,14 +364,17 @@ export function BulkStockDrawer({
             </div>
 
             <div className="space-y-3 md:hidden">
-              {rows.map(({ product, quantity, afterStock }) => (
+              {rows.map(({ product, quantity, afterStock, unitCost }) => (
                 <StockQuantityCard
                   key={product.id}
                   product={product}
                   quantity={quantity}
                   afterStock={afterStock}
+                  unitCost={unitCost}
+                  showUnitCost={requiresSupplier}
                   type={type}
                   onChange={handleQuantityChange}
+                  onUnitCostChange={handleUnitCostChange}
                 />
               ))}
             </div>
@@ -339,11 +387,12 @@ export function BulkStockDrawer({
                     <th className="px-3 py-2">SKU</th>
                     <th className="px-3 py-2 text-right">Saat Ini</th>
                     <th className="px-3 py-2">Jumlah</th>
+                    {requiresSupplier && <th className="px-3 py-2">Harga Beli</th>}
                     <th className="px-3 py-2 text-right">Setelah</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ product, quantity, afterStock }) => {
+                  {rows.map(({ product, quantity, afterStock, unitCost }) => {
                     return (
                       <tr key={product.id} className="border-t border-slate-100">
                         <td className="px-3 py-2 font-semibold text-slate-900">{product.name}</td>
@@ -360,6 +409,19 @@ export function BulkStockDrawer({
                             className="min-h-10 w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                           />
                         </td>
+                        {requiresSupplier && (
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={unitCosts[product.id] !== undefined ? (unitCosts[product.id] ?? "") : (product.costPrice ?? "")}
+                              onChange={(event) => {
+                                handleUnitCostChange(product.id, event.target.value);
+                              }}
+                              className="min-h-10 w-32 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                            />
+                          </td>
+                        )}
                         <td className={`px-3 py-2 text-right font-bold tabular-nums ${afterStock < 0 ? "text-red-600" : "text-slate-900"}`}>
                           {afterStock} {product.unit}
                         </td>
@@ -503,14 +565,20 @@ function StockQuantityCard({
   product,
   quantity,
   afterStock,
+  unitCost,
+  showUnitCost,
   type,
   onChange,
+  onUnitCostChange,
 }: {
   product: Product;
   quantity: number;
   afterStock: number;
+  unitCost: number | null;
+  showUnitCost: boolean;
   type: "IN" | "OUT" | "ADJUSTMENT";
   onChange: (productId: string, value: string) => void;
+  onUnitCostChange: (productId: string, value: string) => void;
 }) {
   const deltaLabel =
     type === "IN"
@@ -549,6 +617,18 @@ function StockQuantityCard({
           <p className="text-[10px] font-bold text-slate-400">{deltaLabel}</p>
         </div>
       </div>
+      {showUnitCost && (
+        <label className="mt-3 block">
+          <span className="mb-1 block text-[11px] font-bold text-slate-600">Harga beli</span>
+          <input
+            type="number"
+            min="0"
+            value={unitCost ?? ""}
+            onChange={(event) => onUnitCostChange(product.id, event.target.value)}
+            className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+          />
+        </label>
+      )}
     </div>
   );
 }

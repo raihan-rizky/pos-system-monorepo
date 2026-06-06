@@ -57,6 +57,14 @@ enum InventoryReason {
   MANUAL_ADJUSTMENT
 }
 
+enum SupplierType {
+  DISTRIBUTOR
+  MARKETPLACE
+  INDIVIDUAL
+  MANUFACTURER
+  OTHER
+}
+
 enum BatchOperationType {
   PRODUCT_IMPORT
   BULK_STOCK_ADJUSTMENT
@@ -343,6 +351,26 @@ model Customer {
   @@map("pos_customers")
 }
 
+model Supplier {
+  id            String       @id @default(cuid())
+  name          String
+  type          SupplierType
+  phone         String?
+  contactPerson String?
+  address       String?
+  notes         String?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  inventoryLogs InventoryLog[]
+
+  @@index([isActive])
+  @@index([type])
+  @@index([name])
+  @@map("pos_suppliers")
+}
+
 model DebtPaymentLog {
   id            String        @id @default(cuid())
   transactionId String
@@ -418,6 +446,8 @@ model InventoryLog {
   id              String              @id @default(cuid())
   productId       String
   product         Product             @relation(fields: [productId], references: [id])
+  supplierId      String?
+  supplier        Supplier?           @relation(fields: [supplierId], references: [id])
   type            InventoryType
   reason          InventoryReason?
   quantity        Float
@@ -434,6 +464,7 @@ model InventoryLog {
   rejectionReason String?
 
   @@index([productId])
+  @@index([supplierId, createdAt])
   @@index([createdAt])
   @@index([reason, createdAt])
   @@index([status, createdAt])

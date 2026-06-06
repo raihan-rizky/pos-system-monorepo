@@ -298,7 +298,7 @@ export function InvoicePrintModal({ open, onClose }: InvoicePrintModalProps) {
         </div>
 
         {/* ── Actions ──────────────────────────────────────────────── */}
-        <div className="flex gap-3 border-t border-surface-100 pt-4">
+        <div className="sticky bottom-0 bg-white z-10 flex gap-3 border-t border-surface-100 pt-4 pb-2">
           <Button
             variant="secondary"
             size="lg"
