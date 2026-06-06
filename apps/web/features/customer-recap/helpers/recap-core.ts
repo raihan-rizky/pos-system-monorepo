@@ -32,13 +32,22 @@ export interface CustomerRecapTransaction {
   createdAt: Date;
   status: string;
   total: NullableNumber;
+  amountPaid?: NullableNumber;
   items: CustomerRecapTransactionItem[];
 }
 
 export interface CustomerRecapDebtPaymentLog {
+  transactionId?: string;
   customerId: string;
   amount: NullableNumber;
   createdAt: Date;
+  transaction?: {
+    id: string;
+    createdAt: Date;
+    status: string;
+    total: NullableNumber;
+    amountPaid: NullableNumber;
+  };
 }
 
 export interface BuildCustomerRecapInput {
@@ -158,6 +167,8 @@ function generateTrendPoints(dateFrom: string, dateTo: string) {
     label: string;
     revenue: number;
     orderCount: number;
+    transactionCount: number;
+    averageOrderValue: number;
     newCustomers: number;
     returningCustomers: number;
   }> = [];
@@ -171,6 +182,8 @@ function generateTrendPoints(dateFrom: string, dateTo: string) {
         label: bucketLabel(key, granularity),
         revenue: 0,
         orderCount: 0,
+        transactionCount: 0,
+        averageOrderValue: 0,
         newCustomers: 0,
         returningCustomers: 0,
       });
@@ -219,6 +232,7 @@ export function buildCustomerRecap(input: BuildCustomerRecapInput) {
     if (trendPoint) {
       trendPoint.revenue += total;
       trendPoint.orderCount += 1;
+      trendPoint.transactionCount += 1;
 
       const customer = customerById.get(transaction.customerId)!;
       const customerCreatedKey = bucketKeyForDate(
@@ -234,6 +248,8 @@ export function buildCustomerRecap(input: BuildCustomerRecapInput) {
 
   for (const point of points) {
     point.returningCustomers = returningCustomerIdsByTrendKey.get(point.bucketKey)?.size ?? 0;
+    point.averageOrderValue =
+      point.transactionCount > 0 ? point.revenue / point.transactionCount : 0;
   }
 
   const churnCutoff = addDays(input.dateTo, -60);
@@ -323,10 +339,13 @@ export function buildCustomerRecap(input: BuildCustomerRecapInput) {
 }
 
 export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
-  const confirmedTransactions = input.transactions.filter(
+  const allConfirmedTransactions = input.transactions.filter(
     (transaction) =>
       transaction.customerId === input.customer.id &&
       CONFIRMED_STATUSES.has(transaction.status),
+  );
+  const confirmedTransactions = allConfirmedTransactions.filter((transaction) =>
+    isInPeriod(transaction.createdAt, input.dateFrom, input.dateTo),
   );
   const { granularity, points } = generateTrendPoints(input.dateFrom, input.dateTo);
   const detailPoints = points.map((point) => ({
@@ -334,6 +353,9 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
     label: point.label,
     spent: 0,
     orderCount: 0,
+    runningDebtRemaining: 0,
+    averagePaymentDays: 0,
+    debtPaidOffAmount: 0,
   }));
   const trendByKey = new Map(detailPoints.map((point) => [point.bucketKey, point]));
   const productByKey = new Map<
@@ -349,11 +371,12 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
   let totalSpent = 0;
   for (const transaction of confirmedTransactions) {
     const total = toNumber(transaction.total);
+    const paid = transaction.amountPaid !== undefined ? toNumber(transaction.amountPaid) : total;
     totalSpent += total;
 
     const trendPoint = trendByKey.get(bucketKeyForDate(transaction.createdAt, granularity));
     if (trendPoint) {
-      trendPoint.spent += total;
+      trendPoint.spent += paid;
       trendPoint.orderCount += 1;
     }
 
@@ -379,6 +402,107 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
         : sum,
     0,
   );
+
+  const logsByTransactionId = new Map<string, CustomerRecapDebtPaymentLog[]>();
+  for (const log of input.debtPaymentLogs) {
+    if (log.customerId !== input.customer.id || !log.transactionId) continue;
+    const logs = logsByTransactionId.get(log.transactionId) ?? [];
+    logs.push(log);
+    logsByTransactionId.set(log.transactionId, logs);
+  }
+
+  const transactionById = new Map(
+    allConfirmedTransactions.map((transaction) => [transaction.id, transaction]),
+  );
+  for (const log of input.debtPaymentLogs) {
+    if (log.customerId !== input.customer.id || !log.transaction) continue;
+    if (transactionById.has(log.transaction.id)) continue;
+    transactionById.set(log.transaction.id, {
+      id: log.transaction.id,
+      customerId: input.customer.id,
+      createdAt: log.transaction.createdAt,
+      status: log.transaction.status,
+      total: log.transaction.total,
+      amountPaid: log.transaction.amountPaid,
+      items: [],
+    });
+  }
+
+  const paymentDaysByBucket = new Map<string, number[]>();
+  const debtPaidOffByBucket = new Map<string, number>();
+  const debtOrigins = [...transactionById.values()].flatMap((transaction) => {
+    const logs = (logsByTransactionId.get(transaction.id) ?? []).sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    );
+    if (logs.length === 0 && transaction.status !== "DP") return [];
+
+    const currentRemaining = Math.max(
+      0,
+      toNumber(transaction.total) - toNumber(transaction.amountPaid),
+    );
+    const initialDebt =
+      logs.reduce((sum, log) => sum + toNumber(log.amount), 0) + currentRemaining;
+    let paid = 0;
+    let closedAt: Date | null = null;
+
+    for (const log of logs) {
+      paid += toNumber(log.amount);
+      if (initialDebt > 0 && paid >= initialDebt) {
+        closedAt = log.createdAt;
+        break;
+      }
+    }
+
+    if (closedAt && isInPeriod(closedAt, input.dateFrom, input.dateTo)) {
+      const key = bucketKeyForDate(transaction.createdAt, granularity);
+      const days = Math.max(
+        0,
+        Math.round((closedAt.getTime() - transaction.createdAt.getTime()) / 86_400_000),
+      );
+      const bucketDays = paymentDaysByBucket.get(key) ?? [];
+      bucketDays.push(days);
+      paymentDaysByBucket.set(key, bucketDays);
+      debtPaidOffByBucket.set(
+        key,
+        (debtPaidOffByBucket.get(key) ?? 0) + initialDebt,
+      );
+    }
+
+    return [{
+      transaction,
+      logs,
+      initialDebt,
+      closedAt,
+    }];
+  });
+
+  for (const point of detailPoints) {
+    point.runningDebtRemaining = debtOrigins.reduce((sum, origin) => {
+      if (
+        origin.initialDebt <= 0 ||
+        bucketKeyForDate(origin.transaction.createdAt, granularity) !== point.bucketKey
+      ) {
+        return sum;
+      }
+      if (origin.closedAt && isInPeriod(origin.closedAt, input.dateFrom, input.dateTo)) {
+        return sum;
+      }
+      return (
+        sum +
+        Math.max(
+          0,
+          toNumber(origin.transaction.total) - toNumber(origin.transaction.amountPaid),
+        )
+      );
+    }, 0);
+
+    const paymentDays = paymentDaysByBucket.get(point.bucketKey) ?? [];
+    point.averagePaymentDays =
+      paymentDays.length > 0
+        ? paymentDays.reduce((sum, days) => sum + days, 0) / paymentDays.length
+        : 0;
+    point.debtPaidOffAmount = debtPaidOffByBucket.get(point.bucketKey) ?? 0;
+  }
 
   return {
     id: input.customer.id,

@@ -25,40 +25,6 @@ export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProp
 
   return (
     <div className="mt-5 space-y-4 sm:mt-6">
-      <div className="grid min-w-0 grid-cols-2 gap-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-            Belanja Periode
-          </p>
-          <p className="mt-2 break-words text-sm font-black text-slate-950">
-            {formatCurrency(data.summary.totalSpent)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-            Order
-          </p>
-          <p className="mt-2 text-sm font-black text-slate-950">
-            {data.summary.totalOrders}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">
-            Sisa Piutang
-          </p>
-          <p className="mt-2 break-words text-sm font-black text-amber-950">
-            {formatCurrency(data.summary.debtRemaining)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
-            Terbayar
-          </p>
-          <p className="mt-2 break-words text-sm font-black text-emerald-950">
-            {formatCurrency(data.summary.debtPaidInPeriod)}
-          </p>
-        </div>
-      </div>
 
       <Suspense
         fallback={

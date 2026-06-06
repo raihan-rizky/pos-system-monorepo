@@ -14,6 +14,7 @@ import {
   FileText,
   History,
   Search,
+  SlidersHorizontal,
   Smartphone,
   Trash2,
   Undo2,
@@ -686,6 +687,7 @@ export default function HistoryPage() {
   const [categoryId, setCategoryId] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   // Debounce search
   const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -735,17 +737,30 @@ export default function HistoryPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="flex items-center justify-between px-4 md:px-8 py-4 md:py-6 bg-white border-b border-surface-100">
+        <header className="flex items-center justify-between gap-3 px-4 md:px-8 py-4 md:py-6 bg-white border-b border-surface-100">
           <div>
             <h1 className="text-xl md:text-2xl font-extrabold text-surface-900">Riwayat Transaksi</h1>
             <p className="text-sm text-surface-500 mt-1">
               Daftar seluruh transaksi dan invoice toko
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileFilterOpen((open) => !open)}
+            className="md:hidden inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-surface-200 bg-surface-50 text-surface-700 transition-colors hover:bg-surface-100"
+            aria-controls="history-filters"
+            aria-expanded={isMobileFilterOpen}
+            aria-label={isMobileFilterOpen ? "Sembunyikan filter" : "Tampilkan filter"}
+          >
+            <SlidersHorizontal className="h-5 w-5" aria-hidden="true" />
+          </button>
         </header>
 
         {/* Filters */}
-        <div className="px-4 md:px-8 py-4 bg-white border-b border-surface-100 space-y-3">
+        <div
+          id="history-filters"
+          className={`${isMobileFilterOpen ? "block" : "hidden"} md:block px-4 md:px-8 py-4 bg-white border-b border-surface-100 space-y-3`}
+        >
           {/* Row 1: Search + Category */}
           <div className="flex flex-col sm:flex-row gap-3">
             {/* Search */}

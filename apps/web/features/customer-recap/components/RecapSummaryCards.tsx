@@ -8,6 +8,7 @@ import {
   UserPlus,
   Wallet,
 } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import type { CustomerRecapData } from "../types/customer-recap";
 
 interface RecapSummaryCardsProps {
@@ -38,36 +39,42 @@ export function RecapSummaryCards({ summary }: RecapSummaryCardsProps) {
       value: String(summary.newCustomers),
       icon: <UserPlus className="h-5 w-5" />,
       tone: "brand" as const,
+      info: "Jumlah pelanggan yang baru terdaftar pada periode ini.",
     },
     {
       label: "Pelanggan Kembali",
       value: String(summary.returningCustomers),
       icon: <RotateCcw className="h-5 w-5" />,
       tone: "sky" as const,
+      info: "Jumlah pelanggan lama yang kembali melakukan transaksi pada periode ini.",
     },
     {
       label: "Risiko Churn",
       value: String(summary.churnedCustomers),
       icon: <UserMinus className="h-5 w-5" />,
       tone: "danger" as const,
+      info: "Jumlah pelanggan lama yang sudah tidak melakukan transaksi dalam 60 hari terakhir sebelum akhir periode ini.",
     },
     {
       label: "Piutang Total",
       value: formatCurrency(summary.totalDebtOutstanding),
       icon: <Wallet className="h-5 w-5" />,
       tone: "warning" as const,
+      info: "Total sisa piutang dari semua pelanggan pada periode ini.",
     },
     {
       label: "Piutang Terbayar",
       value: formatCurrency(summary.debtCollectedInPeriod),
       icon: <CheckCircle className="h-5 w-5" />,
       tone: "success" as const,
+      info: "Total nominal piutang yang berhasil ditagih atau dibayarkan pada periode ini.",
     },
     {
       label: "Rata-rata Belanja",
       value: formatCurrency(summary.avgOrderValue),
       icon: <Receipt className="h-5 w-5" />,
       tone: "neutral" as const,
+      info: "Rata-rata nominal per transaksi pada periode ini.",
     },
   ];
 
@@ -80,9 +87,12 @@ export function RecapSummaryCards({ summary }: RecapSummaryCardsProps) {
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-current/60">
-                {card.label}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-current/60">
+                  {card.label}
+                </p>
+                {card.info && <InfoTooltip title={card.label} description={card.info} />}
+              </div>
               <p className="mt-2 break-words text-base font-black leading-tight">
                 {card.value}
               </p>

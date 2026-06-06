@@ -31,9 +31,16 @@ function queryString(input: CustomerRecapQuery): string {
   }).toString();
 }
 
+function getBaseUrl() {
+  if (typeof window !== "undefined") return ""; // browser should use relative url
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000"; // fallback for SSR in dev
+}
+
 export const customerRecapApi = {
   async getPageRecap(input: CustomerRecapQuery): Promise<CustomerRecapData> {
-    const response = await fetch(`/api/customers/recap?${queryString(input)}`);
+    const response = await fetch(`${getBaseUrl()}/api/customers/recap?${queryString(input)}`);
     return readEnvelope<CustomerRecapData>(
       response,
       "Failed to load customer recap",
@@ -45,7 +52,7 @@ export const customerRecapApi = {
     input: CustomerRecapQuery,
   ): Promise<CustomerDetailRecapData> {
     const response = await fetch(
-      `/api/customers/${customerId}/recap?${queryString(input)}`,
+      `${getBaseUrl()}/api/customers/${customerId}/recap?${queryString(input)}`,
     );
     return readEnvelope<CustomerDetailRecapData>(
       response,

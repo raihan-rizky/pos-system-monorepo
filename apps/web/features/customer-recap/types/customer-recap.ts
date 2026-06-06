@@ -45,6 +45,8 @@ export interface CustomerRecapData {
       label: string;
       revenue: number;
       orderCount: number;
+      transactionCount: number;
+      averageOrderValue: number;
       newCustomers: number;
       returningCustomers: number;
     }>;
@@ -69,6 +71,9 @@ export interface CustomerDetailRecapData {
       label: string;
       spent: number;
       orderCount: number;
+      runningDebtRemaining: number;
+      averagePaymentDays: number;
+      debtPaidOffAmount: number;
     }>;
   };
   topProducts: Array<{

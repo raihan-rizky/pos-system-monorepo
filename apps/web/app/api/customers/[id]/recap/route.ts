@@ -92,8 +92,14 @@ export async function GET(
         where: {
           storeId,
           customerId: id,
-          createdAt: bounds,
           status: { in: ["COMPLETED", "DP"] },
+          OR: [
+            { createdAt: bounds },
+            {
+              status: "DP",
+              createdAt: { lt: bounds.lt },
+            },
+          ],
         },
         select: {
           id: true,
@@ -101,6 +107,7 @@ export async function GET(
           createdAt: true,
           status: true,
           total: true,
+          amountPaid: true,
           items: {
             select: {
               productId: true,
@@ -115,12 +122,21 @@ export async function GET(
         where: {
           storeId,
           customerId: id,
-          createdAt: bounds,
         },
         select: {
+          transactionId: true,
           customerId: true,
           amount: true,
           createdAt: true,
+          transaction: {
+            select: {
+              id: true,
+              createdAt: true,
+              status: true,
+              total: true,
+              amountPaid: true,
+            },
+          },
         },
       }),
     ]);

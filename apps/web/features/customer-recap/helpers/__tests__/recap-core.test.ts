@@ -157,6 +157,12 @@ describe("buildCustomerRecap", () => {
       80000,
     ]);
     expect(recap.trend.points.map((point) => point.orderCount)).toEqual([1, 2, 1]);
+    expect(recap.trend.points.map((point) => point.transactionCount)).toEqual([1, 2, 1]);
+    expect(recap.trend.points.map((point) => point.averageOrderValue)).toEqual([
+      120000,
+      125000,
+      80000,
+    ]);
     expect(recap.trend.points.map((point) => point.newCustomers)).toEqual([1, 1, 0]);
     expect(recap.trend.points.map((point) => point.returningCustomers)).toEqual([0, 1, 1]);
   });
@@ -174,7 +180,7 @@ describe("buildCustomerDetailRecap", () => {
         lastVisitAt: new Date("2026-05-02T02:00:00.000Z"),
       },
       dateFrom: "2026-05-01",
-      dateTo: "2026-05-02",
+      dateTo: "2026-05-03",
       transactions: [
         {
           id: "tx-1",
@@ -196,6 +202,15 @@ describe("buildCustomerDetailRecap", () => {
               subtotal: 40000,
             },
           ],
+        },
+        {
+          id: "tx-debt",
+          customerId: "customer-1",
+          createdAt: new Date("2026-05-01T04:00:00.000Z"),
+          status: "COMPLETED",
+          total: 50000,
+          amountPaid: 50000,
+          items: [],
         },
         {
           id: "tx-2",
@@ -223,23 +238,56 @@ describe("buildCustomerDetailRecap", () => {
       ],
       debtPaymentLogs: [
         {
+          transactionId: "tx-debt",
           customerId: "customer-1",
           amount: 25000,
           createdAt: new Date("2026-05-02T05:00:00.000Z"),
+          transaction: {
+            id: "tx-debt",
+            createdAt: new Date("2026-05-01T04:00:00.000Z"),
+            status: "COMPLETED",
+            total: 50000,
+            amountPaid: 50000,
+          },
+        },
+        {
+          transactionId: "tx-debt",
+          customerId: "customer-1",
+          amount: 25000,
+          createdAt: new Date("2026-05-03T05:00:00.000Z"),
+          transaction: {
+            id: "tx-debt",
+            createdAt: new Date("2026-05-01T04:00:00.000Z"),
+            status: "COMPLETED",
+            total: 50000,
+            amountPaid: 50000,
+          },
         },
       ],
     });
 
     expect(recap.summary).toEqual({
-      totalSpent: 150000,
-      totalOrders: 2,
-      avgOrderValue: 75000,
+      totalSpent: 200000,
+      totalOrders: 3,
+      avgOrderValue: 200000 / 3,
       debtRemaining: 75000,
-      debtPaidInPeriod: 25000,
+      debtPaidInPeriod: 50000,
     });
     expect(recap.trend.points.map((point) => point.spent)).toEqual([
-      100000,
+      150000,
       50000,
+      0,
+    ]);
+    expect(recap.trend.points.map((point) => point.runningDebtRemaining)).toEqual([
+      0,
+      50000,
+      0,
+    ]);
+    expect(recap.trend.points.map((point) => point.averagePaymentDays)).toEqual([2, 0, 0]);
+    expect(recap.trend.points.map((point) => point.debtPaidOffAmount)).toEqual([
+      50000,
+      0,
+      0,
     ]);
     expect(recap.topProducts).toEqual([
       {

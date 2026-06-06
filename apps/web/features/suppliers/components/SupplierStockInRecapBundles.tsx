@@ -73,7 +73,7 @@ export function SupplierStockInRecapBundles({
   }
 
   return (
-    <div className="grid gap-3 p-3">
+    <div className="grid gap-3 p-2 sm:p-3">
       {bundles.map((bundle) => {
         const isExpanded = expandedIds.has(bundle.id);
         const detailId = `supplier-stock-in-bundle-${bundle.id}`;
@@ -88,23 +88,27 @@ export function SupplierStockInRecapBundles({
               aria-expanded={isExpanded}
               aria-controls={detailId}
               onClick={() => toggleBundle(bundle.id)}
-              className="grid min-h-11 w-full cursor-pointer gap-3 p-4 text-left transition-colors duration-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 md:grid-cols-[1.25fr_1fr_1fr_auto] md:items-center"
+              className="flex min-h-11 w-full cursor-pointer flex-col gap-3 p-3 text-left transition-colors duration-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:p-4 md:grid md:grid-cols-[1.25fr_1fr_1fr_auto] md:items-center"
             >
               <div className="min-w-0">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <div className="flex min-w-0 items-start gap-2">
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
                     <PackagePlus className="h-4 w-4" />
                   </span>
-                  <p className="truncate text-sm font-black text-slate-950 sm:text-base">
-                    {bundle.supplier?.name ?? "Supplier tidak diketahui"}
-                  </p>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    {bundle.kind === "BULK_BATCH" ? "Bundle" : "Manual"}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-black leading-snug text-slate-950 sm:text-base md:truncate">
+                      {bundle.supplier?.name ?? "Supplier tidak diketahui"}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        {bundle.kind === "BULK_BATCH" ? "Bundle" : "Manual"}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {formatDateTime(bundle.createdAt)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <p className="mt-1 text-xs font-semibold text-slate-500">
-                  {formatDateTime(bundle.createdAt)}
-                </p>
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
@@ -113,7 +117,7 @@ export function SupplierStockInRecapBundles({
                 <MetricPill label="Ditolak" value={bundle.summary.rejectedItemCount} />
               </div>
 
-              <div className="grid gap-1 text-xs text-slate-500 sm:text-sm">
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 sm:text-sm md:block md:space-y-1">
                 <span>
                   Qty:{" "}
                   <strong className="text-slate-900">
@@ -126,16 +130,18 @@ export function SupplierStockInRecapBundles({
                     {formatCurrency(bundle.summary.approvedTotalCost)}
                   </strong>
                 </span>
-                <span className="truncate">
+                <span className="col-span-2 break-words md:block md:truncate">
                   {bundle.requesterName || "-"} / {bundle.approverName || "-"}
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-2 md:justify-end">
                 {bundle.summary.hasPartialCost && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700">
+                  <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700">
                     <AlertTriangle className="h-3 w-3" />
-                    {bundle.summary.missingCostCount} biaya kosong
+                    <span className="break-words">
+                      {bundle.summary.missingCostCount} biaya kosong
+                    </span>
                   </span>
                 )}
                 {isExpanded ? (
@@ -149,7 +155,7 @@ export function SupplierStockInRecapBundles({
             {isExpanded && (
               <div
                 id={detailId}
-                className="border-t border-slate-100 bg-slate-50/60 p-3"
+                className="border-t border-slate-100 bg-slate-50/60 p-2 sm:p-3"
               >
                 {bundle.note && (
                   <p className="mb-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600">
@@ -218,14 +224,14 @@ function MobileLineItem({ item }: { item: SupplierStockInRecapBundleItem }) {
     <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-black text-slate-950">{item.product.name}</p>
-          <p className="mt-0.5 text-xs font-semibold text-slate-500">
+          <p className="break-words font-black leading-snug text-slate-950">{item.product.name}</p>
+          <p className="mt-0.5 break-words text-xs font-semibold text-slate-500">
             {item.product.sku} / {item.product.category?.name ?? "-"}
           </p>
         </div>
         <StatusBadge status={item.status} />
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <MetricPill
           label="Qty"
           value={`${formatNumber(item.quantity)} ${item.product.unit}`}
@@ -289,11 +295,13 @@ function MetricPill({
   value: React.ReactNode;
 }) {
   return (
-    <span className="rounded-xl border border-slate-200 bg-white px-2 py-1">
+    <span className="min-w-0 rounded-xl border border-slate-200 bg-white px-2 py-1">
       <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
         {label}
       </span>
-      <span className="font-bold text-slate-900">{value}</span>
+      <span className="block break-words text-xs font-bold leading-snug text-slate-900 sm:text-sm">
+        {value}
+      </span>
     </span>
   );
 }
