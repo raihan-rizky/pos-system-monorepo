@@ -74,6 +74,9 @@ export interface CustomerDetailRecapData {
       runningDebtRemaining: number;
       averagePaymentDays: number;
       debtPaidOffAmount: number;
+      debtUnpaidAmount: number;
+      dpTransactionCount: number;
+      dpPaidOffCount: number;
     }>;
   };
   topProducts: Array<{

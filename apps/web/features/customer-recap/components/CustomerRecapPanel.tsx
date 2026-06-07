@@ -1,6 +1,6 @@
 "use client";
 
-import React, { lazy, Suspense } from "react";
+import React, { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { PackageOpen } from "lucide-react";
 import { useCustomerDetailRecap } from "../hooks/useCustomerRecap";
 import type { CustomerRecapQuery } from "../types/customer-recap";
@@ -12,6 +12,18 @@ interface CustomerRecapPanelProps {
   range: CustomerRecapQuery;
 }
 
+type DetailRangePreset = "inherited" | "7d" | "14d" | "30d";
+
+const DETAIL_RANGE_OPTIONS: Array<{
+  value: Exclude<DetailRangePreset, "inherited">;
+  label: string;
+  days: number;
+}> = [
+  { value: "7d", label: "7 Hari", days: 7 },
+  { value: "14d", label: "14 Hari", days: 14 },
+  { value: "30d", label: "30 Hari", days: 30 },
+];
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -20,11 +32,69 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+function jakartaDateKey(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function addDays(dateKeyValue: string, days: number): string {
+  const date = new Date(`${dateKeyValue}T00:00:00+07:00`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return jakartaDateKey(date);
+}
+
+function buildDetailRange(preset: DetailRangePreset, fallback: CustomerRecapQuery): CustomerRecapQuery {
+  const option = DETAIL_RANGE_OPTIONS.find((item) => item.value === preset);
+  if (!option) return fallback;
+  const dateTo = jakartaDateKey(new Date());
+  return {
+    dateFrom: addDays(dateTo, -(option.days - 1)),
+    dateTo,
+  };
+}
+
 export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProps) {
-  const { data } = useCustomerDetailRecap(customerId, range);
+  const [detailRangePreset, setDetailRangePreset] =
+    useState<DetailRangePreset>("30d");
+  const detailRange = useMemo(
+    () => buildDetailRange(detailRangePreset, range),
+    [detailRangePreset, range],
+  );
+  const { data } = useCustomerDetailRecap(customerId, detailRange);
+  const handleRangeChange = useCallback((next: DetailRangePreset) => {
+    setDetailRangePreset(next);
+  }, []);
 
   return (
     <div className="mt-5 space-y-4 sm:mt-6">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+          Rentang Detail
+        </p>
+        <div className="grid w-full grid-cols-3 gap-1 rounded-full bg-slate-100 p-1 sm:w-auto">
+          {DETAIL_RANGE_OPTIONS.map((option) => {
+            const active = detailRangePreset === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleRangeChange(option.value)}
+                className={`min-w-0 rounded-full px-3 py-2 text-xs font-black transition ${
+                  active
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-600 hover:bg-white/70"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <Suspense
         fallback={

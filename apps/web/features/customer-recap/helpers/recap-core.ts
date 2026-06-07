@@ -356,6 +356,9 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
     runningDebtRemaining: 0,
     averagePaymentDays: 0,
     debtPaidOffAmount: 0,
+    debtUnpaidAmount: 0,
+    dpTransactionCount: 0,
+    dpPaidOffCount: 0,
   }));
   const trendByKey = new Map(detailPoints.map((point) => [point.bucketKey, point]));
   const productByKey = new Map<
@@ -430,6 +433,9 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
 
   const paymentDaysByBucket = new Map<string, number[]>();
   const debtPaidOffByBucket = new Map<string, number>();
+  const debtUnpaidByBucket = new Map<string, number>();
+  const dpCountByBucket = new Map<string, number>();
+  const dpPaidOffCountByBucket = new Map<string, number>();
   const debtOrigins = [...transactionById.values()].flatMap((transaction) => {
     const logs = (logsByTransactionId.get(transaction.id) ?? []).sort(
       (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
@@ -444,6 +450,8 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
       logs.reduce((sum, log) => sum + toNumber(log.amount), 0) + currentRemaining;
     let paid = 0;
     let closedAt: Date | null = null;
+    const key = bucketKeyForDate(transaction.createdAt, granularity);
+    dpCountByBucket.set(key, (dpCountByBucket.get(key) ?? 0) + 1);
 
     for (const log of logs) {
       paid += toNumber(log.amount);
@@ -454,7 +462,6 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
     }
 
     if (closedAt && isInPeriod(closedAt, input.dateFrom, input.dateTo)) {
-      const key = bucketKeyForDate(transaction.createdAt, granularity);
       const days = Math.max(
         0,
         Math.round((closedAt.getTime() - transaction.createdAt.getTime()) / 86_400_000),
@@ -465,6 +472,12 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
       debtPaidOffByBucket.set(
         key,
         (debtPaidOffByBucket.get(key) ?? 0) + initialDebt,
+      );
+      dpPaidOffCountByBucket.set(key, (dpPaidOffCountByBucket.get(key) ?? 0) + 1);
+    } else {
+      debtUnpaidByBucket.set(
+        key,
+        (debtUnpaidByBucket.get(key) ?? 0) + currentRemaining,
       );
     }
 
@@ -502,6 +515,9 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
         ? paymentDays.reduce((sum, days) => sum + days, 0) / paymentDays.length
         : 0;
     point.debtPaidOffAmount = debtPaidOffByBucket.get(point.bucketKey) ?? 0;
+    point.debtUnpaidAmount = debtUnpaidByBucket.get(point.bucketKey) ?? 0;
+    point.dpTransactionCount = dpCountByBucket.get(point.bucketKey) ?? 0;
+    point.dpPaidOffCount = dpPaidOffCountByBucket.get(point.bucketKey) ?? 0;
   }
 
   return {

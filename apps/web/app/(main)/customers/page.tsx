@@ -496,7 +496,7 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
 
                         {/* Payment Input Area */}
                         <div className="border-t border-slate-100 bg-slate-50/80 p-5">
-                          <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr_auto] lg:items-end">
+                          <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr_auto] lg:items-start">
                             <div>
                               <label className="mb-1.5 block text-xs font-bold text-slate-700">
                                 Nominal Pembayaran
@@ -566,7 +566,7 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
                               type="button"
                               onClick={() => handleSubmit(transaction)}
                               disabled={!canPay || payTransactionDebt.isPending}
-                              className="mt-2 w-full rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:mt-0 lg:w-auto"
+                              className="mt-2 w-full rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:mt-0 lg:mt-[22px] lg:w-auto"
                             >
                               {isPaying ? (
                                 <span className="flex items-center justify-center gap-2">

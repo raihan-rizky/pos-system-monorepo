@@ -28,9 +28,13 @@ interface ChartDatum {
   bucketKey: string;
   label: string;
   barValue: number;
+  paidBarValue: number;
+  unpaidBarValue: number;
   lineValue: number;
   barLabel: string;
   barColor: string;
+  dpTransactionCount: number;
+  dpPaidOffCount: number;
 }
 
 function formatCurrency(amount: number): string {
@@ -66,6 +70,8 @@ export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode })
         : hasPaidOffDebt
           ? debtPaidOffAmount
           : detailPoint.runningDebtRemaining,
+      paidBarValue: isPageMode ? 0 : detailPoint.debtPaidOffAmount,
+      unpaidBarValue: isPageMode ? 0 : detailPoint.debtUnpaidAmount,
       lineValue: isPageMode
         ? (point as PageTrend["points"][number]).averageOrderValue
         : detailPoint.averagePaymentDays,
@@ -75,6 +81,8 @@ export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode })
           ? "Sisa utang yang dilunasi"
           : "Sisa Piutang Berjalan",
       barColor: hasPaidOffDebt ? "#16a34a" : "#2563eb",
+      dpTransactionCount: isPageMode ? 0 : detailPoint.dpTransactionCount,
+      dpPaidOffCount: isPageMode ? 0 : detailPoint.dpPaidOffCount,
     };
   });
   const heading = isPageMode
@@ -147,6 +155,14 @@ export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode })
                     ? (entry as { payload?: ChartDatum }).payload
                     : undefined;
 
+                if (!isPageMode && name === "Sisa utang yang dilunasi") {
+                  return [formatCurrency(Number(value)), "Sisa utang yang dilunasi"];
+                }
+
+                if (!isPageMode && name === "Sisa Piutang Belum Lunas") {
+                  return [formatCurrency(Number(value)), "Sisa Piutang Belum Lunas"];
+                }
+
                 return name === barName
                   ? [
                       isPageMode ? Number(value) : formatCurrency(Number(value)),
@@ -157,19 +173,48 @@ export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode })
                       String(name),
                     ];
               }}
+              labelFormatter={(label, payload) => {
+                if (isPageMode) return String(label);
+                const point = payload?.[0]?.payload as ChartDatum | undefined;
+                if (!point || point.dpTransactionCount === 0) return String(label);
+                return `${String(label)} - ${point.dpPaidOffCount} dari ${point.dpTransactionCount} transaksi DP lunas`;
+              }}
             />
-            <Bar
-              yAxisId="bar"
-              dataKey="barValue"
-              fill="#2563eb"
-              radius={[6, 6, 0, 0]}
-              maxBarSize={42}
-              name={barName}
-            >
-              {data.map((point) => (
-                <Cell key={point.bucketKey} fill={point.barColor} />
-              ))}
-            </Bar>
+            {isPageMode ? (
+              <Bar
+                yAxisId="bar"
+                dataKey="barValue"
+                fill="#2563eb"
+                radius={[6, 6, 0, 0]}
+                maxBarSize={42}
+                name={barName}
+              >
+                {data.map((point) => (
+                  <Cell key={point.bucketKey} fill={point.barColor} />
+                ))}
+              </Bar>
+            ) : (
+              <>
+                <Bar
+                  yAxisId="bar"
+                  dataKey="unpaidBarValue"
+                  stackId="debt"
+                  fill="#2563eb"
+                  radius={[0, 0, 0, 0]}
+                  maxBarSize={42}
+                  name="Sisa Piutang Belum Lunas"
+                />
+                <Bar
+                  yAxisId="bar"
+                  dataKey="paidBarValue"
+                  stackId="debt"
+                  fill="#16a34a"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={42}
+                  name="Sisa utang yang dilunasi"
+                />
+              </>
+            )}
             <Line
               yAxisId="line"
               type="monotone"

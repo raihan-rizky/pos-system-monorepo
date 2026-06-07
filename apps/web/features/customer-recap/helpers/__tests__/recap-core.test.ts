@@ -213,6 +213,24 @@ describe("buildCustomerDetailRecap", () => {
           items: [],
         },
         {
+          id: "tx-debt-open-a",
+          customerId: "customer-1",
+          createdAt: new Date("2026-05-01T06:00:00.000Z"),
+          status: "DP",
+          total: 75000,
+          amountPaid: 25000,
+          items: [],
+        },
+        {
+          id: "tx-debt-open-b",
+          customerId: "customer-1",
+          createdAt: new Date("2026-05-01T07:00:00.000Z"),
+          status: "DP",
+          total: 100000,
+          amountPaid: 40000,
+          items: [],
+        },
+        {
           id: "tx-2",
           customerId: "customer-1",
           createdAt: new Date("2026-05-02T03:00:00.000Z"),
@@ -267,19 +285,19 @@ describe("buildCustomerDetailRecap", () => {
     });
 
     expect(recap.summary).toEqual({
-      totalSpent: 200000,
-      totalOrders: 3,
-      avgOrderValue: 200000 / 3,
+      totalSpent: 375000,
+      totalOrders: 5,
+      avgOrderValue: 75000,
       debtRemaining: 75000,
       debtPaidInPeriod: 50000,
     });
     expect(recap.trend.points.map((point) => point.spent)).toEqual([
-      150000,
+      215000,
       50000,
       0,
     ]);
     expect(recap.trend.points.map((point) => point.runningDebtRemaining)).toEqual([
-      0,
+      110000,
       50000,
       0,
     ]);
@@ -289,6 +307,13 @@ describe("buildCustomerDetailRecap", () => {
       0,
       0,
     ]);
+    expect(recap.trend.points.map((point) => point.debtUnpaidAmount)).toEqual([
+      110000,
+      50000,
+      0,
+    ]);
+    expect(recap.trend.points.map((point) => point.dpTransactionCount)).toEqual([3, 1, 0]);
+    expect(recap.trend.points.map((point) => point.dpPaidOffCount)).toEqual([1, 0, 0]);
     expect(recap.topProducts).toEqual([
       {
         productId: "prod-a",
