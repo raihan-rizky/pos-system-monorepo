@@ -74,14 +74,6 @@ export function InvoicePdfModal({
   const previewStoreName = storeSettings?.name || "TOKO TELADAN";
   const previewStoreAddress = storeSettings?.address || "Jl. Temu Putih No.30 Cilegon";
   const previewStorePhone = storeSettings?.phone || "0254 393022";
-  const previewNameParts = useMemo(() => {
-    const words = previewStoreName.split(" ");
-    return words.map((word, i) => ({
-      first: word[0] || "",
-      rest: word.slice(1),
-      isLast: i === words.length - 1,
-    }));
-  }, [previewStoreName]);
 
   const handlePresetChange = useCallback((index: number) => {
     setSelectedPreset(index);
@@ -278,21 +270,14 @@ export function InvoicePdfModal({
                 }}
               >
                 <div className="mb-1">
-                  <div className="font-serif font-extrabold leading-none tracking-wider text-[#003366] uppercase whitespace-nowrap">
-                    {previewNameParts.map((part, i) => (
-                      <span key={`${part.first}-${i}`}>
-                        <span className="text-[13px]">
-                          {part.first}
-                        </span>
-                        <span className="text-[10px]">
-                          {part.rest}
-                        </span>
-                        {!part.isLast && " "}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-0.5 truncate text-[4px] leading-none text-black">
-                    {previewStoreAddress} | Telp: {previewStorePhone}
+                  <div className="flex items-start gap-1.5">
+                    <div className="w-3.5 h-3.5 rounded-sm bg-surface-200 flex-shrink-0" />
+                    <div>
+                      <div className="font-bold text-[6px] text-black leading-none mb-0.5">FAKTUR PENJUALAN</div>
+                      <div className="font-bold text-[5px] text-[#003366] leading-none">{previewStoreName}</div>
+                      <div className="text-[3px] text-black leading-none mt-0.5">{previewStoreAddress}</div>
+                      <div className="text-[3px] text-black leading-none">Telp: {previewStorePhone}</div>
+                    </div>
                   </div>
                 </div>
                 <div className="mb-1.5 h-0.5 w-full bg-red-400" />

@@ -8,6 +8,7 @@
 import React from "react";
 import {
   Document,
+  Image,
   Page,
   View,
   Text,
@@ -74,38 +75,35 @@ const s = StyleSheet.create({
 
   /* ── Header ─────────────────────────────────────────────────── */
   headerWrap: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: mm(2),
   },
-  storeNameRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    marginBottom: px(4)
+  headerLogo: {
+    width: px(80),
+    height: px(80),
+    marginRight: px(12),
+  },
+  headerRight: {
+    flex: 1,
+    flexDirection: "column",
+  },
+  headerTitle: {
+    fontSize: px(22),
+    fontFamily: "Helvetica-Bold",
+    color: "#000000",
+    marginBottom: px(4),
   },
   storeNameText: {
-    fontSize: px(28),
-    fontFamily: "Times-Bold",
+    fontSize: px(14),
+    fontFamily: "Helvetica-Bold",
     color: "#003366",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  storeNameFirstLetter: {
-    fontSize: px(36),
-    fontFamily: "Times-Bold",
-    color: "#003366",
-    letterSpacing: 1.2,
-  },
-  storeNameRest: {
-    fontSize: px(28),
-    fontFamily: "Times-Bold",
-    color: "#003366",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    lineHeight: 1,
+    marginBottom: px(2),
   },
   storeInfo: {
     fontSize: px(11),
     color: "#000000",
-    marginTop: px(8),
+    marginBottom: px(1),
   },
 
   /* ── Separator ──────────────────────────────────────────────── */
@@ -320,16 +318,6 @@ const BANNER_MAP: Record<string, {
   },
 };
 
-/* ── Store-name word splitter (matches ReceiptModal nameParts) ─── */
-
-function splitStoreName(name: string) {
-  return name.split(" ").map((word, i, arr) => ({
-    first: word[0] || "",
-    rest: word.slice(1),
-    isLast: i === arr.length - 1,
-  }));
-}
-
 /* ══════════════════════════════════════════════════════════════════
    Component
    ══════════════════════════════════════════════════════════════════ */
@@ -370,9 +358,6 @@ export function InvoicePdfDocument({
   const thStyle = isCompact ? s.thCompact : s.th;
   const tdStyle = isCompact ? s.tdCompact : s.td;
 
-  // Name parts
-  const nameParts = splitStoreName(data.storeName);
-
   return (
     <Document>
       <Page
@@ -401,29 +386,15 @@ export function InvoicePdfDocument({
           </View>
         )}
 
-        {/* ── Header (store name with enlarged first letters) ── */}
+        {/* ── Header (logo + FAKTUR PENJUALAN + store info) ──── */}
         <View style={s.headerWrap}>
-          <View style={s.storeNameRow}>
-            <Text
-              style={[
-                s.storeNameText,
-                data.isCancelled ? s.lineThrough : {},
-              ]}
-            >
-              {nameParts.map((part, i) => (
-                <Text key={`w-${i}`} style={s.storeNameRest}>
-                  <Text style={s.storeNameFirstLetter}>
-                    {part.first.toUpperCase()}
-                  </Text>
-                  {part.rest.toUpperCase()}
-                  {!part.isLast ? " " : ""}
-                </Text>
-              ))}
-            </Text>
+          <Image style={s.headerLogo} src="/images/logo_teladan.png" />
+          <View style={s.headerRight}>
+            <Text style={s.headerTitle}>FAKTUR PENJUALAN</Text>
+            <Text style={s.storeNameText}>{data.storeName}</Text>
+            <Text style={s.storeInfo}>{data.storeAddress}</Text>
+            <Text style={s.storeInfo}>Telp: {data.storePhone}</Text>
           </View>
-          <Text style={s.storeInfo}>
-            {data.storeAddress} | Telp: {data.storePhone}
-          </Text>
         </View>
 
         {/* ── Red separator ───────────────────────────────────── */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { DraftReceiptModal } from "./DraftReceiptModal";
 import { InvoicePrintModal } from "./InvoicePrintModal";
 import { InvoicePdfModal } from "@/features/invoice-pdf/components/InvoicePdfModal";
@@ -74,16 +74,6 @@ export function ReceiptModal({
   const displayInvoice = rawInvoice.replace(/-/g, "/");
 
   const storeName = storeSettings?.name || "TOKO TELADAN";
-
-  // ── Fix #4: single split, memoized ────────────────────────────
-  const nameParts = useMemo(() => {
-    const words = storeName.split(" ");
-    return words.map((word, i) => ({
-      first: word[0] || "",
-      rest: word.slice(1),
-      isLast: i === words.length - 1,
-    }));
-  }, [storeName]);
 
   // ── Dynamic scaling: measure content and shrink to fit one page ──
   useLayoutEffect(() => {
@@ -163,26 +153,27 @@ export function ReceiptModal({
               {/* Fix #3: single data-driven StatusBanner */}
               <StatusBanner status={printStatus ?? ""} />
 
-              {/* Header — dynamic store info */}
-              <div className="flex flex-col mb-2">
-                <div className="flex items-baseline">
-                  <h1
-                    className={`leading-none font-serif font-extrabold text-[#003366] tracking-wider uppercase text-[28px] ${isCancelled ? "line-through opacity-50" : ""}`}
-                  >
-                    {nameParts.map((part, i) => (
-                      <React.Fragment key={i}>
-                        <span className="text-[36px]">
-                          {part.first}
-                        </span>
-                        {part.rest}
-                        {!part.isLast && " "}
-                      </React.Fragment>
-                    ))}
-                  </h1>
+              {/* Header — logo + FAKTUR PENJUALAN + store info */}
+              <div className="flex items-start gap-3 mb-2">
+                <img
+                  src="/images/logo_teladan.png"
+                  alt="Logo Toko"
+                  className="w-16 h-16 object-contain"
+                />
+                <div className="flex-1">
+                  <h2 className="font-bold text-base text-black mb-0.5">
+                    FAKTUR PENJUALAN
+                  </h2>
+                  <p className="font-bold text-sm text-[#003366]">
+                    {storeName}
+                  </p>
+                  <p className="text-black text-[11px]">
+                    {storeAddress}
+                  </p>
+                  <p className="text-black text-[11px]">
+                    Telp: {storePhone}
+                  </p>
                 </div>
-                <p className="text-black text-[11px] mt-1">
-                  {storeAddress} | Telp: {storePhone}
-                </p>
               </div>
 
               <div
