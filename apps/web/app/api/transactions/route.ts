@@ -137,6 +137,7 @@ export async function GET(request: Request) {
     const categoryId = searchParams.get("categoryId");
     const status = searchParams.get("status");
     const salespersonId = searchParams.get("salespersonId");
+    const suratJalan = searchParams.get("suratJalan");
     const { page, limit, skip } = parsePagination(searchParams, {
       defaultLimit: 10,
       maxLimit: 100,
@@ -195,6 +196,10 @@ export async function GET(request: Request) {
       andConditions.push({ salespersonId });
     }
 
+    if (suratJalan === "bundled") {
+      andConditions.push({ suratJalan: { some: {} } });
+    }
+
     if (andConditions.length > 0) {
       where.AND = andConditions;
     }
@@ -237,6 +242,17 @@ export async function GET(request: Request) {
                 printingService: { select: { unit: true } },
               },
             },
+            suratJalan: {
+              select: {
+                id: true,
+                status: true,
+                items: {
+                  select: {
+                    quantity: true,
+                  },
+                },
+              },
+            },
             cashier: {
               select: { name: true },
             },
@@ -247,7 +263,34 @@ export async function GET(request: Request) {
         }),
     });
 
-    return apiList(transactions, buildPaginationMeta(total, page, limit));
+    const transactionsWithSuratJalanSummary = transactions.map((transaction) => {
+      const totalQuantity = transaction.items
+        .filter((item) => item.productId)
+        .reduce((sum, item) => sum + item.quantity, 0);
+      const deliveredQuantity = transaction.suratJalan
+        .filter((item) => item.status === "CONFIRMED")
+        .flatMap((item) => item.items)
+        .reduce((sum, item) => sum + Number(item.quantity), 0);
+      const summary = {
+        count: transaction.suratJalan.length,
+        confirmedCount: transaction.suratJalan.filter(
+          (item) => item.status === "CONFIRMED",
+        ).length,
+        pendingCount: transaction.suratJalan.filter(
+          (item) => item.status === "PENDING",
+        ).length,
+        deliveredQuantity,
+        totalQuantity,
+      };
+
+      const { suratJalan: _suratJalan, ...transactionPayload } = transaction;
+      return { ...transactionPayload, suratJalanSummary: summary };
+    });
+
+    return apiList(
+      transactionsWithSuratJalanSummary,
+      buildPaginationMeta(total, page, limit),
+    );
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
@@ -522,12 +565,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Pembayaran kurang" }, { status: 422 });
       }
 
-      if (isDP && amountPaid <= 0) {
-        return NextResponse.json(
-          { message: "Jumlah DP harus lebih dari 0" },
-          { status: 422 }
-        );
-      }
     }
 
     // Invoice number sequence is computed from the pre-fetched daily count.

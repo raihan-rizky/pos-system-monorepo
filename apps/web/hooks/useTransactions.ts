@@ -29,6 +29,13 @@ export interface Transaction {
   note: string | null;
   status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED, DRAFT
   createdAt: string;
+  suratJalanSummary?: {
+    count: number;
+    confirmedCount: number;
+    pendingCount: number;
+    deliveredQuantity: number;
+    totalQuantity: number;
+  } | null;
   items: {
     id: string;
     productId?: string | null;
@@ -74,6 +81,7 @@ export interface TransactionHistoryParams {
   dateTo?: string;
   categoryId?: string;
   status?: string;
+  suratJalan?: "bundled";
   page?: number;
 }
 

@@ -172,6 +172,24 @@ input[type="number"] {
   animation: pending-row-glow 2.4s ease-in-out infinite;
 }
 
+@keyframes history-surat-jalan-glow {
+  0%,
+  100% {
+    box-shadow:
+      inset 3px 0 0 0 rgba(16, 185, 129, 0.45),
+      0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    box-shadow:
+      inset 3px 0 0 0 rgba(16, 185, 129, 0.7),
+      0 0 18px 0 rgba(16, 185, 129, 0.16);
+  }
+}
+
+.history-surat-jalan-glow {
+  animation: history-surat-jalan-glow 2.8s ease-in-out infinite;
+}
+
 @keyframes pending-badge-glow {
   0%,
   100% {
@@ -188,11 +206,15 @@ input[type="number"] {
 
 @media (prefers-reduced-motion: reduce) {
   .animate-pending-row,
-  .animate-pending-badge {
+  .animate-pending-badge,
+  .history-surat-jalan-glow {
     animation: none;
   }
   .animate-pending-row {
     box-shadow: inset 3px 0 0 0 rgba(37, 99, 235, 0.9);
+  }
+  .history-surat-jalan-glow {
+    box-shadow: inset 3px 0 0 0 rgba(16, 185, 129, 0.65);
   }
 }
 

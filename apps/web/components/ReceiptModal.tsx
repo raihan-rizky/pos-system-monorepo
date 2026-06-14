@@ -3,7 +3,7 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { DraftReceiptModal } from "./DraftReceiptModal";
 import { InvoicePrintModal } from "./InvoicePrintModal";
-import { InvoicePdfModal } from "@/features/invoice-pdf/components/InvoicePdfModal";
+import { SuratJalanBundleButton } from "@/features/surat-jalan/components/SuratJalanBundleButton";
 import { Modal, Button } from "@pos/ui";
 import { formatDate } from "@/lib/utils";
 import type { Transaction } from "@/hooks/useTransactions";
@@ -49,7 +49,6 @@ export function ReceiptModal({
 }: ReceiptModalProps) {
   const { data: storeSettings } = useStoreSettings();
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [showPdfModal, setShowPdfModal] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentScale, setContentScale] = useState(1);
@@ -417,14 +416,9 @@ export function ReceiptModal({
           </Button>
           {!isCancelled && (
             <>
-              <Button
-                variant="accent"
-                size="lg"
-                onClick={() => setShowPdfModal(true)}
-                className="flex-1"
-              >
-                Cetak PDF
-              </Button>
+              <div className="flex-1">
+                <SuratJalanBundleButton transaction={transaction} />
+              </div>
               <Button
                 variant="accent"
                 size="lg"
@@ -441,13 +435,6 @@ export function ReceiptModal({
         <InvoicePrintModal
           open={showPrintModal}
           onClose={() => setShowPrintModal(false)}
-        />
-
-        {/* PDF generator modal */}
-        <InvoicePdfModal
-          open={showPdfModal}
-          onClose={() => setShowPdfModal(false)}
-          transaction={transaction}
         />
       </div>
     </Modal>

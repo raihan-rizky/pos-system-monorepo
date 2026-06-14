@@ -58,6 +58,7 @@ export const RESOURCE_TARGETS = [
   "transaction.request",
   "transaction.approve",
   "transaction.draft",
+  "surat_jalan",
   "production",
   "customer",
   "product",
@@ -190,6 +191,12 @@ const RESOURCE_GRANULAR_ACCESS: Partial<
     create: ["OWNER", "ADMIN", "CASHIER", "SALES"],
     update: ["OWNER", "ADMIN", "CASHIER"],
     delete: ["OWNER", "ADMIN", "CASHIER"],
+  },
+  surat_jalan: {
+    read: ["OWNER", "ADMIN", "CASHIER", "SALES"],
+    create: ["OWNER", "ADMIN", "CASHIER", "SALES"],
+    update: ["OWNER"],
+    delete: ["OWNER"],
   },
 };
 

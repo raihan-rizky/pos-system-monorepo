@@ -4,6 +4,7 @@ export interface TransactionHistorySearchParamsInput {
   dateTo?: string;
   categoryId?: string;
   status?: string;
+  suratJalan?: "bundled";
   page?: number;
 }
 
@@ -16,6 +17,7 @@ export function buildTransactionHistorySearchParams(
   if (params.dateTo) searchParams.set("dateTo", params.dateTo);
   if (params.categoryId) searchParams.set("categoryId", params.categoryId);
   if (params.status) searchParams.set("status", params.status);
+  if (params.suratJalan) searchParams.set("suratJalan", params.suratJalan);
   searchParams.set("page", String(params.page || 1));
   searchParams.set("limit", "10");
   return searchParams;

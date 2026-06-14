@@ -92,6 +92,18 @@ describe("RBAC permission matrix", () => {
     expect(canRolePerformAction("SALES", "inventory.approve", "update", defaults)).toBe(false);
   });
 
+  it("adds surat_jalan as its own configurable resource", () => {
+    const defaults = buildDefaultRolePermissions();
+    expect(canRolePerformAction("OWNER", "surat_jalan", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("OWNER", "surat_jalan", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "surat_jalan", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("SALES", "surat_jalan", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "surat_jalan", "read", defaults)).toBe(true);
+    expect(canRolePerformAction("SALES", "surat_jalan", "read", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "surat_jalan", "update", defaults)).toBe(false);
+    expect(canRolePerformAction("SALES", "surat_jalan", "update", defaults)).toBe(false);
+  });
+
   it("ignores persisted editable-role grants for owner-locked inventory approval", () => {
     const normalized = normalizeRolePermissions([
       {

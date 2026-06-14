@@ -11,12 +11,14 @@ import {
   CircleDollarSign,
   CreditCard,
   Edit2,
+  ChevronUp,
+  ChevronDown,
   FileText,
   History,
   Search,
-  SlidersHorizontal,
   Smartphone,
   Trash2,
+  Truck,
   Undo2,
   X,
   XCircle,
@@ -24,6 +26,12 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { ReceiptModal } from "@/components/ReceiptModal";
+import { SuratJalanBundleButton } from "@/features/surat-jalan/components/SuratJalanBundleButton";
+import { SuratJalanCreateModal } from "@/features/surat-jalan/components/SuratJalanCreateModal";
+import {
+  formatSuratJalanBundleProgress,
+  isSuratJalanBundle,
+} from "@/features/transaction-history/helpers/surat-jalan-bundle";
 import {
   useTransactionHistory,
   useUpdateTransaction,
@@ -212,11 +220,10 @@ function EditModal({
                 <button
                   key={pm}
                   onClick={() => handleChange("paymentMethod", pm)}
-                  className={`py-2 rounded-xl text-xs font-bold border transition-all ${
-                    form.paymentMethod === pm
-                      ? "bg-brand-600 text-white border-brand-600 shadow-sm"
-                      : "bg-surface-50 text-surface-600 border-surface-200 hover:border-brand-400 hover:text-brand-600"
-                  }`}
+                  className={`py-2 rounded-xl text-xs font-bold border transition-all ${form.paymentMethod === pm
+                    ? "bg-brand-600 text-white border-brand-600 shadow-sm"
+                    : "bg-surface-50 text-surface-600 border-surface-200 hover:border-brand-400 hover:text-brand-600"
+                    }`}
                 >
                   {pm}
                 </button>
@@ -242,13 +249,12 @@ function EditModal({
                     key={s.value}
                     onClick={() => isAllowed && handleChange("status", s.value)}
                     disabled={!isAllowed}
-                    className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                      form.status === s.value
-                        ? "bg-surface-900 text-white border-surface-900 shadow-sm"
-                        : isAllowed
-                          ? "bg-surface-50 text-surface-600 border-surface-200 hover:border-surface-400"
-                          : "bg-surface-50 text-surface-300 border-surface-100 opacity-40 cursor-not-allowed"
-                    }`}
+                    className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${form.status === s.value
+                      ? "bg-surface-900 text-white border-surface-900 shadow-sm"
+                      : isAllowed
+                        ? "bg-surface-50 text-surface-600 border-surface-200 hover:border-surface-400"
+                        : "bg-surface-50 text-surface-300 border-surface-100 opacity-40 cursor-not-allowed"
+                      }`}
                   >
                     {s.label}
                   </button>
@@ -670,6 +676,7 @@ export default function HistoryPage() {
   const canDeleteTransactions = shouldShowDeleteAction("transaction", canPerform);
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedSuratJalanTransactionId, setSelectedSuratJalanTransactionId] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [approvingTransaction, setApprovingTransaction] = useState<Transaction | null>(null);
@@ -686,8 +693,9 @@ export default function HistoryPage() {
   const [dateTo, setDateTo] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [suratJalanOnly, setSuratJalanOnly] = useState(false);
   const [page, setPage] = useState(1);
-  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
 
   // Debounce search
   const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -708,6 +716,7 @@ export default function HistoryPage() {
     dateTo: dateTo || undefined,
     categoryId: categoryId || undefined,
     status: statusFilter || undefined,
+    suratJalan: suratJalanOnly ? "bundled" : undefined,
     page,
   });
 
@@ -716,7 +725,16 @@ export default function HistoryPage() {
   const totalPages = result?.pagination.totalPages ?? 1;
 
   const hasActiveFilters =
-    debouncedSearch || dateFrom || dateTo || categoryId || statusFilter;
+    debouncedSearch || dateFrom || dateTo || categoryId || statusFilter || suratJalanOnly;
+
+  const openTransactionDetail = useCallback((tx: Transaction) => {
+    if (isSuratJalanBundle(tx)) {
+      setSelectedSuratJalanTransactionId(tx.id);
+      return;
+    }
+
+    setSelectedTransaction(tx);
+  }, []);
 
   const resetFilters = () => {
     setSearchInput("");
@@ -725,6 +743,7 @@ export default function HistoryPage() {
     setDateTo("");
     setCategoryId("");
     setStatusFilter("");
+    setSuratJalanOnly(false);
     setPage(1);
   };
 
@@ -735,120 +754,172 @@ export default function HistoryPage() {
   return (
     <>
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="flex items-center justify-between gap-3 px-4 md:px-8 py-4 md:py-6 bg-white border-b border-surface-100">
-          <div>
-            <h1 className="text-xl md:text-2xl font-extrabold text-surface-900">Riwayat Transaksi</h1>
-            <p className="text-sm text-surface-500 mt-1">
-              Daftar seluruh transaksi dan invoice toko
-            </p>
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Header + Filters (collapsible) */}
+        <div
+          className={`relative transition-all duration-300 ease-out ${isHeaderVisible ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+            }`}
+        >
+          {/* Header */}
+          <header className="relative px-4 md:px-8 pt-4 pb-0 bg-white border-b border-surface-100">
+            {/* Hide button — inside header, connected to bottom border */}
+
+            <div className="pb-4 md:pb-6">
+              <h1 className="text-xl md:text-2xl font-extrabold text-surface-900">Riwayat Transaksi</h1>
+              <p className="text-sm text-surface-500 mt-1">
+                Daftar seluruh transaksi dan invoice toko
+              </p>
+            </div>
+          </header>
+
+          {/* Filters */}
+          <div
+            id="history-filters"
+            className={`md:block px-4 md:px-8 py-4 bg-white border-b border-surface-100 space-y-3`}
+          >
+            {/* Row 1: Search + Category */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" aria-hidden="true" />
+                <input
+                  id="history-search"
+                  type="text"
+                  placeholder="Cari invoice, pelanggan, nama produk, atau sales..."
+                  value={searchInput}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                />
+              </div>
+
+              {/* Category Dropdown */}
+              <select
+                id="history-category-filter"
+                value={categoryId}
+                onChange={(e) => { setCategoryId(e.target.value); setPage(1); }}
+                className="px-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all
+                    min-w-[180px]"
+              >
+                <option value="">Semua Kategori</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+
+              {/* Status Dropdown */}
+              <select
+                id="history-status-filter"
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                className="px-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all
+                    min-w-[160px]"
+              >
+                {STATUS_FILTERS.map((status) => (
+                  <option key={status.value || "all"} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Row 2: Dates + Reset */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-surface-500 whitespace-nowrap">Dari</label>
+                <input
+                  id="history-date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                  className="px-3 py-2 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-surface-500 whitespace-nowrap">Sampai</label>
+                <input
+                  id="history-date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                  className="px-3 py-2 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                />
+              </div>
+
+              <label className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100">
+                <input
+                  id="history-surat-jalan-filter"
+                  type="checkbox"
+                  checked={suratJalanOnly}
+                  onChange={(e) => {
+                    setSuratJalanOnly(e.target.checked);
+                    setPage(1);
+                  }}
+                  className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <Truck className="h-3.5 w-3.5" aria-hidden="true" />
+                Surat Jalan saja
+              </label>
+
+              {hasActiveFilters && (
+                <button
+                  id="history-reset-filters"
+                  onClick={resetFilters}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-danger-600 bg-danger-50 hover:bg-danger-100 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  Reset Filter
+                </button>
+              )}
+            </div>
           </div>
           <button
+            id="history-toggle-header"
             type="button"
-            onClick={() => setIsMobileFilterOpen((open) => !open)}
-            className="md:hidden inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-surface-200 bg-surface-50 text-surface-700 transition-colors hover:bg-surface-100"
-            aria-controls="history-filters"
-            aria-expanded={isMobileFilterOpen}
-            aria-label={isMobileFilterOpen ? "Sembunyikan filter" : "Tampilkan filter"}
+            onClick={() => setIsHeaderVisible((v) => !v)}
+            className="absolute left-1/2 -translate-x-1/2 bottom-0 translate-y-1/2 z-10 inline-flex h-6 w-8 items-center justify-center rounded-b-lg  bg-white text-surface-500 shadow-brand-500/30 shadow-lg hover:shadow-brand-500/50 transition-all duration-300 hover:text-surface-700"
+            style={{
+              opacity: isHeaderVisible ? 1 : 0,
+              pointerEvents: isHeaderVisible ? "auto" : "none",
+            }}
+            aria-label="Sembunyikan header"
           >
-            <SlidersHorizontal className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </header>
-
-        {/* Filters */}
-        <div
-          id="history-filters"
-          className={`${isMobileFilterOpen ? "block" : "hidden"} md:block px-4 md:px-8 py-4 bg-white border-b border-surface-100 space-y-3`}
-        >
-          {/* Row 1: Search + Category */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" aria-hidden="true" />
-              <input
-                id="history-search"
-                type="text"
-                placeholder="Cari invoice, pelanggan, nama produk, atau sales..."
-                value={searchInput}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
-              />
-            </div>
-
-            {/* Category Dropdown */}
-            <select
-              id="history-category-filter"
-              value={categoryId}
-              onChange={(e) => { setCategoryId(e.target.value); setPage(1); }}
-              className="px-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all
-                min-w-[180px]"
-            >
-              <option value="">Semua Kategori</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-
-            {/* Status Dropdown */}
-            <select
-              id="history-status-filter"
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="px-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all
-                min-w-[160px]"
-            >
-              {STATUS_FILTERS.map((status) => (
-                <option key={status.value || "all"} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Row 2: Dates + Reset */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-surface-500 whitespace-nowrap">Dari</label>
-              <input
-                id="history-date-from"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-                className="px-3 py-2 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-surface-500 whitespace-nowrap">Sampai</label>
-              <input
-                id="history-date-to"
-                type="date"
-                value={dateTo}
-                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-                className="px-3 py-2 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
-              />
-            </div>
-
-            {hasActiveFilters && (
-              <button
-                id="history-reset-filters"
-                onClick={resetFilters}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-danger-600 bg-danger-50 hover:bg-danger-100 transition-colors"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-                Reset Filter
-              </button>
+            {isHeaderVisible ? (
+              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-          </div>
+          </button>
+
         </div>
 
+
+
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 relative">
+          {/* Show button — sticky top, centered horizontally */}
+          <button
+            id="history-toggle-header-show"
+            type="button"
+            onClick={() => setIsHeaderVisible((v) => !v)}
+            className="sticky top-0 left-1/2 -translate-x-1/2 z-10 inline-flex h-6 w-8 items-center justify-center rounded-b-xl border border-surface-200 border-t-0 bg-white text-surface-500 shadow-brand-500/30 shadow-lg hover:shadow-brand-500/50 transition-all duration-300 hover:text-surface-700"
+            style={{
+              opacity: isHeaderVisible ? 0 : 1,
+              pointerEvents: isHeaderVisible ? "none" : "auto",
+            }}
+            aria-label="Tampilkan header"
+          >
+            {isHeaderVisible ? (
+              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+          </button>
+
           <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden shadow-sm">
             {isLoading ? (
               <div className="p-8 flex items-center justify-center">
@@ -894,18 +965,22 @@ export default function HistoryPage() {
                         const isRefunded = tx.status === "REFUNDED";
                         const isPending = tx.status === "PENDING_APPROVAL";
                         const isDraft = tx.status === "DRAFT";
+                        const isBundled = isSuratJalanBundle(tx);
+                        const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
                         const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
                         const rowBg = isPending
                           ? "bg-blue-50/70 hover:bg-blue-50 animate-pending-row relative"
                           : isDraft
                             ? "bg-amber-50/40 hover:bg-amber-50"
-                            : isDP
-                              ? "bg-amber-50/60 hover:bg-amber-50"
-                              : isVoided
-                                ? "bg-red-50/40 opacity-70"
-                                : isRefunded
-                                  ? "bg-surface-50/50 hover:bg-surface-50"
-                                  : "hover:bg-surface-50";
+                            : isBundled
+                              ? "bg-emerald-50/50 hover:bg-emerald-50 history-surat-jalan-glow"
+                              : isDP
+                                ? "bg-amber-50/60 hover:bg-amber-50"
+                                : isVoided
+                                  ? "bg-red-50/40 opacity-70"
+                                  : isRefunded
+                                    ? "bg-surface-50/50 hover:bg-surface-50"
+                                    : "hover:bg-surface-50";
                         const textClass = isVoided ? "line-through text-surface-400" : "";
                         return (
                           <tr
@@ -913,11 +988,11 @@ export default function HistoryPage() {
                             className={`${rowBg} transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400`}
                             tabIndex={0}
                             role="button"
-                            onClick={() => setSelectedTransaction(tx)}
+                            onClick={() => openTransactionDetail(tx)}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
-                                setSelectedTransaction(tx);
+                                openTransactionDetail(tx);
                               }
                             }}
                           >
@@ -925,9 +1000,17 @@ export default function HistoryPage() {
                               {formatDate(new Date(tx.createdAt))}
                             </td>
                             <td className="py-3.5 px-4">
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : isVoided ? "bg-red-50 text-red-400 line-through" : "bg-surface-100 text-surface-700"}`}>
-                                {tx.invoiceNumber ?? tx.draftNumber ?? "—"}
-                              </span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : isVoided ? "bg-red-50 text-red-400 line-through" : "bg-surface-100 text-surface-700"}`}>
+                                  {tx.invoiceNumber ?? tx.draftNumber ?? "—"}
+                                </span>
+                                {isBundled && (
+                                  <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                                    <Truck className="h-3 w-3" aria-hidden="true" />
+                                    Surat Jalan
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className={`py-3.5 px-4 text-sm font-medium whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
                               {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
@@ -937,6 +1020,11 @@ export default function HistoryPage() {
                             </td>
                             <td className={`py-3.5 px-4 text-sm ${isVoided ? "text-surface-400 line-through" : "text-surface-600"}`}>
                               <div>{tx.items.length} Barang</div>
+                              {bundleProgress && (
+                                <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                                  {bundleProgress}
+                                </div>
+                              )}
                               {appliedPricingCount(tx) > 0 && (
                                 <div className="mt-1 text-[11px] font-bold text-emerald-700">
                                   Harga khusus {appliedPricingCount(tx)} item
@@ -957,7 +1045,7 @@ export default function HistoryPage() {
                               onClick={(event) => event.stopPropagation()}
                             >
                               <div className="flex items-center justify-end gap-2">
-                                {!isSalesRole && (
+                                {!isBundled && !isSalesRole && (
                                   <>
                                     {canUpdateTransactions && (
                                       <button
@@ -1020,7 +1108,7 @@ export default function HistoryPage() {
                                     Setujui
                                   </button>
                                 )}
-                                {!isSalesRole && canVoid && (
+                                {!isBundled && !isSalesRole && canVoid && (
                                   <button
                                     id={`void-tx-${tx.id}`}
                                     onClick={() => setVoidingTransaction(tx)}
@@ -1032,13 +1120,18 @@ export default function HistoryPage() {
                                     Void
                                   </button>
                                 )}
-                                <Button
-                                  variant="secondary"
-                                  onClick={() => setSelectedTransaction(tx)}
-                                  className="!py-1.5 !px-3 text-sm h-auto"
-                                >
-                                  Lihat Struk
-                                </Button>
+                                {!isBundled && (
+                                  <>
+                                    <Button
+                                      variant="secondary"
+                                      onClick={() => openTransactionDetail(tx)}
+                                      className="!py-1.5 !px-3 text-sm h-auto"
+                                    >
+                                      Lihat Struk
+                                    </Button>
+                                    <SuratJalanBundleButton transaction={tx} />
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1056,11 +1149,14 @@ export default function HistoryPage() {
                     const isRefunded = tx.status === "REFUNDED";
                     const isPending = tx.status === "PENDING_APPROVAL";
                     const isDraft = tx.status === "DRAFT";
+                    const isBundled = isSuratJalanBundle(tx);
+                    const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
                     const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
-                    const cardBg = isPending ? "bg-blue-50/30 border-blue-100" 
+                    const cardBg = isPending ? "bg-blue-50/30 border-blue-100"
                       : isDraft ? "bg-amber-50/20 border-amber-100"
-                      : isVoided ? "bg-red-50/20 border-red-100 opacity-80"
-                      : "bg-white border-surface-200 shadow-sm";
+                        : isBundled ? "bg-emerald-50/60 border-emerald-200 history-surat-jalan-glow"
+                          : isVoided ? "bg-red-50/20 border-red-100 opacity-80"
+                            : "bg-white border-surface-200 shadow-sm";
 
                     return (
                       <div
@@ -1068,11 +1164,11 @@ export default function HistoryPage() {
                         className={`flex flex-col p-4 rounded-2xl border ${cardBg} cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400`}
                         tabIndex={0}
                         role="button"
-                        onClick={() => setSelectedTransaction(tx)}
+                        onClick={() => openTransactionDetail(tx)}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.preventDefault();
-                            setSelectedTransaction(tx);
+                            openTransactionDetail(tx);
                           }
                         }}
                       >
@@ -1083,8 +1179,19 @@ export default function HistoryPage() {
                                 {tx.invoiceNumber ?? (tx.draftNumber ? formatDraftNumberForDisplay(tx.draftNumber) : "—")}
                               </span>
                               {isDraft && <span className="bg-amber-100 text-amber-800 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">Draft</span>}
+                              {isBundled && (
+                                <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                  <Truck className="h-3 w-3" aria-hidden="true" />
+                                  Surat Jalan
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-surface-500">{formatDate(new Date(tx.createdAt))}</p>
+                            {bundleProgress && (
+                              <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                                {bundleProgress}
+                              </p>
+                            )}
                           </div>
                           <StatusBadge status={tx.status} />
                         </div>
@@ -1110,78 +1217,83 @@ export default function HistoryPage() {
                           </div>
                         </div>
 
-                        <div
-                          className="flex flex-wrap gap-2 pt-3 border-t border-surface-100"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <Button
-                            variant="secondary"
-                            onClick={() => setSelectedTransaction(tx)}
-                            className="flex-1 !py-2 !px-3 text-xs h-auto"
+                        {!isBundled && (
+                          <div
+                            className="flex flex-wrap gap-2 pt-3 border-t border-surface-100"
+                            onClick={(event) => event.stopPropagation()}
                           >
-                            Lihat Struk
-                          </Button>
-
-                          {!isSalesRole && (
-                            <>
-                              {canUpdateTransactions && (
-                                <button
-                                  onClick={() => setEditingTransaction(tx)}
-                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-surface-100 text-surface-700 hover:bg-brand-50 hover:text-brand-700"
-                                >
-                                  Ubah
-                                </button>
-                              )}
-                              {canDeleteTransactions && (
-                                <button
-                                  onClick={() => setDeletingTransaction(tx)}
-                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
-                                >
-                                  Hapus
-                                </button>
-                              )}
-                            </>
-                          )}
-
-                          {!isSalesRole && tx.status === "PENDING_APPROVAL" && (canApproveTransactions || canRejectTransactions) && (
-                            <>
-                              {canApproveTransactions && (
-                                <button
-                                  onClick={() => setApprovingTransaction(tx)}
-                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
-                                >
-                                  Setujui
-                                </button>
-                              )}
-                              {canRejectTransactions && (
-                                <button
-                                  onClick={() => setRejectingTransaction(tx)}
-                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
-                                >
-                                  Tolak
-                                </button>
-                              )}
-                            </>
-                          )}
-
-                          {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
-                            <button
-                              onClick={() => setApprovingDraft(tx)}
-                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                            <Button
+                              variant="secondary"
+                              onClick={() => openTransactionDetail(tx)}
+                              className="flex-1 !py-2 !px-3 text-xs h-auto"
                             >
-                              Setujui
-                            </button>
-                          )}
+                              Lihat Struk
+                            </Button>
+                            <div className="flex-1">
+                              <SuratJalanBundleButton transaction={tx} />
+                            </div>
 
-                          {!isSalesRole && canVoid && (
-                            <button
-                              onClick={() => setVoidingTransaction(tx)}
-                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
-                            >
-                              Void
-                            </button>
-                          )}
-                        </div>
+                            {!isSalesRole && (
+                              <>
+                                {canUpdateTransactions && (
+                                  <button
+                                    onClick={() => setEditingTransaction(tx)}
+                                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-surface-100 text-surface-700 hover:bg-brand-50 hover:text-brand-700"
+                                  >
+                                    Ubah
+                                  </button>
+                                )}
+                                {canDeleteTransactions && (
+                                  <button
+                                    onClick={() => setDeletingTransaction(tx)}
+                                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                                  >
+                                    Hapus
+                                  </button>
+                                )}
+                              </>
+                            )}
+
+                            {!isSalesRole && tx.status === "PENDING_APPROVAL" && (canApproveTransactions || canRejectTransactions) && (
+                              <>
+                                {canApproveTransactions && (
+                                  <button
+                                    onClick={() => setApprovingTransaction(tx)}
+                                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                  >
+                                    Setujui
+                                  </button>
+                                )}
+                                {canRejectTransactions && (
+                                  <button
+                                    onClick={() => setRejectingTransaction(tx)}
+                                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                                  >
+                                    Tolak
+                                  </button>
+                                )}
+                              </>
+                            )}
+
+                            {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
+                              <button
+                                onClick={() => setApprovingDraft(tx)}
+                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                              >
+                                Setujui
+                              </button>
+                            )}
+
+                            {!isSalesRole && canVoid && (
+                              <button
+                                onClick={() => setVoidingTransaction(tx)}
+                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                              >
+                                Void
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1232,6 +1344,14 @@ export default function HistoryPage() {
           open={!!selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
           transaction={selectedTransaction}
+        />
+      )}
+
+      {selectedSuratJalanTransactionId && (
+        <SuratJalanCreateModal
+          open={!!selectedSuratJalanTransactionId}
+          transactionId={selectedSuratJalanTransactionId}
+          onClose={() => setSelectedSuratJalanTransactionId(null)}
         />
       )}
 

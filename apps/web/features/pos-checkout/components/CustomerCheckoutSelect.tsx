@@ -16,6 +16,8 @@ interface CustomerCheckoutSelectProps {
   onChange: (value: CheckoutCustomerSelection) => void;
   error?: string | null;
   disabled?: boolean;
+  label?: string;
+  allowNewCustomer?: boolean;
   onClearError?: () => void;
 }
 
@@ -65,6 +67,8 @@ export function CustomerCheckoutSelect({
   onChange,
   error,
   disabled,
+  label = "Pelanggan",
+  allowNewCustomer = true,
   onClearError,
 }: CustomerCheckoutSelectProps) {
   const [open, setOpen] = useState(false);
@@ -104,7 +108,7 @@ export function CustomerCheckoutSelect({
         id="checkout-customer-label"
         className="text-sm font-medium text-surface-700 mb-1.5 block"
       >
-        Pelanggan
+        {label}
       </label>
       <button
         type="button"
@@ -222,30 +226,32 @@ export function CustomerCheckoutSelect({
             )}
           </div>
 
-          <button
-            type="button"
-            role="option"
-            aria-selected={value.kind === "new"}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              selectValue({
-                kind: "new",
-                name: search.trim(),
-                phone: "",
-              });
-            }}
-            className="flex min-h-11 w-full items-center gap-3 border-t border-surface-100 px-3 py-2.5 text-left text-brand-700 transition-colors duration-150 hover:bg-brand-50 cursor-pointer"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100">
-              <PlusIcon />
-            </span>
-            <span>
-              <span className="block text-sm font-bold">Tambah pelanggan baru</span>
-              <span className="block text-xs text-brand-600">
-                Simpan ke database pelanggan saat checkout
+          {allowNewCustomer && (
+            <button
+              type="button"
+              role="option"
+              aria-selected={value.kind === "new"}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                selectValue({
+                  kind: "new",
+                  name: search.trim(),
+                  phone: "",
+                });
+              }}
+              className="flex min-h-11 w-full items-center gap-3 border-t border-surface-100 px-3 py-2.5 text-left text-brand-700 transition-colors duration-150 hover:bg-brand-50 cursor-pointer"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100">
+                <PlusIcon />
               </span>
-            </span>
-          </button>
+              <span>
+                <span className="block text-sm font-bold">Tambah pelanggan baru</span>
+                <span className="block text-xs text-brand-600">
+                  Simpan ke database pelanggan saat checkout
+                </span>
+              </span>
+            </button>
+          )}
         </div>
       )}
 

@@ -314,4 +314,44 @@ describe("POST /api/transactions printing service items", () => {
     expect(response.status).toBe(201);
     expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
   });
+
+  it("allows zero down payment when the user explicitly selects DP", async () => {
+    transactionCreateMock.mockResolvedValue({
+      id: "txn-dp-0",
+      invoiceNumber: "INV-20260523-0003",
+      status: "DP",
+      items: [],
+      salesperson: null,
+    });
+
+    const { POST } = await import("../route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              productId: "material-1",
+              quantity: 1,
+            },
+          ],
+          paymentMethod: "CASH",
+          amountPaid: 0,
+          discount: 0,
+          paymentStatus: "DP",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          amountPaid: 0,
+          change: 0,
+          status: "DP",
+        }),
+      }),
+    );
+  });
 });

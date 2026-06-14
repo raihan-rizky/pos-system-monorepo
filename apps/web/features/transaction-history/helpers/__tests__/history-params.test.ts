@@ -20,4 +20,13 @@ describe("buildTransactionHistorySearchParams", () => {
       }).toString(),
     ).toBe("page=1&limit=10");
   });
+
+  it("includes bundled surat jalan filter when selected", () => {
+    expect(
+      buildTransactionHistorySearchParams({
+        suratJalan: "bundled",
+        page: 3,
+      }).toString(),
+    ).toBe("suratJalan=bundled&page=3&limit=10");
+  });
 });

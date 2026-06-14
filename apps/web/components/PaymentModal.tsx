@@ -179,7 +179,7 @@ export function PaymentModal({
   const change = amountPaid - total;
   const remaining = total - amountPaid;
 
-  // Full payment: must pay >= total. DP: must pay > 0 and < total.
+  // Full payment: must pay >= total. DP: may be 0 as long as it is still below total.
   // SALES role just submits the request, no payment required yet.
   const hasInvalidManualPrice = pricedItems.some(
     (item) =>
@@ -189,7 +189,7 @@ export function PaymentModal({
   );
 
   const canPay = isDP
-    ? amountPaid > 0 && amountPaid < total && total > 0 && !hasInvalidManualPrice
+    ? amountPaid >= 0 && amountPaid < total && total > 0 && !hasInvalidManualPrice
     : amountPaid >= total && total > 0 && !hasInvalidManualPrice;
 
   const resolveCustomerForSubmit = async () => {
