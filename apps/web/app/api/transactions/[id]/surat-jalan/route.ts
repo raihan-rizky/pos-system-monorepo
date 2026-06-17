@@ -18,6 +18,8 @@ import type {
   SuratJalanRecord,
   SuratJalanTransactionItem,
 } from "@/features/surat-jalan";
+import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
 
 const log = getLogger("api:transactions:surat-jalan");
 
@@ -46,9 +48,17 @@ export async function GET(
         where: { id: transactionId, storeId },
         include: {
           customer: { select: { type: true } },
+          salesperson: { select: { name: true } },
           items: {
             include: {
-              product: { select: { stock: true, unit: true } },
+              product: {
+                select: {
+                  stock: true,
+                  unit: true,
+                  unitMultiplierToBase: true,
+                  stockGroup: { select: { baseStock: true } },
+                },
+              },
             },
           },
           suratJalan: {
@@ -79,10 +89,19 @@ export async function GET(
           customerType: transaction.customer?.type ?? null,
           createdAt: transaction.createdAt.toISOString(),
           total: Number(transaction.total),
+          paymentMethod: transaction.paymentMethod,
+          amountPaid: Number(transaction.amountPaid),
+          change: Number(transaction.change),
+          note: transaction.note,
+          salesName: transaction.salesName,
+          salesperson: transaction.salesperson ? { name: transaction.salesperson.name } : null,
           stockManagedBySuratJalan: transaction.stockManagedBySuratJalan,
           items: transaction.items.map((item) => ({
             id: item.id,
+            printingServiceId: item.printingServiceId,
             productName: item.productName,
+            size: item.size,
+            material: item.material,
             quantity: item.quantity,
             unit: item.product?.unit ?? null,
             unitPrice: Number(item.unitPrice),
@@ -143,7 +162,14 @@ export async function POST(
             include: {
               items: {
                 include: {
-                  product: { select: { stock: true, unit: true } },
+                  product: {
+                    select: {
+                      stock: true,
+                      unit: true,
+                      unitMultiplierToBase: true,
+                      stockGroup: { select: { baseStock: true } },
+                    },
+                  },
                 },
               },
               suratJalan: {
@@ -190,9 +216,11 @@ export async function POST(
 
           if (plan.shouldMarkTransactionManaged) {
             for (const movement of plan.invoiceReversalMovements) {
-              await tx.product.update({
-                where: { id: movement.productId },
-                data: { stock: { increment: movement.quantity } },
+              await applyProductStockDelta(tx, {
+                storeId,
+                productId: movement.productId,
+                delta: movement.quantity,
+                allowNegative: true,
               });
             }
             await tx.transaction.update({
@@ -202,9 +230,10 @@ export async function POST(
           }
 
           for (const movement of plan.deliveryStockMovements) {
-            await tx.product.update({
-              where: { id: movement.productId },
-              data: { stock: { decrement: movement.quantity } },
+            await applyProductStockDelta(tx, {
+              storeId,
+              productId: movement.productId,
+              delta: -movement.quantity,
             });
           }
 
@@ -330,7 +359,12 @@ function toPlannerTransactionItem(item: {
   printingServiceId: string | null;
   productName: string;
   quantity: number;
-  product: { stock: number; unit: string } | null;
+  product: {
+    stock: number;
+    unit: string;
+    unitMultiplierToBase?: number | null;
+    stockGroup?: { baseStock: number } | null;
+  } | null;
 }): SuratJalanTransactionItem {
   return {
     id: item.id,
@@ -339,7 +373,7 @@ function toPlannerTransactionItem(item: {
     productName: item.productName,
     quantity: item.quantity,
     unit: item.product?.unit ?? null,
-    currentStock: item.product?.stock ?? null,
+    currentStock: item.product ? resolveProductDisplayStock(item.product) : null,
   };
 }
 

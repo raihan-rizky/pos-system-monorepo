@@ -24,6 +24,13 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     costPrice: "",
     minStock: "5",
     unit: "pcs",
+    unitMultiplierToBase: "1",
+    smallestUnit: "pcs",
+    smallestSku: "",
+    smallestBarcode: "",
+    smallestPrice: "",
+    smallestCostPrice: "",
+    includeSmallestUnitVariant: false,
     stock: "0",
     size: "",
     material: "",
@@ -73,6 +80,13 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         costPrice: initialData.costPrice?.toString() || "",
         minStock: initialData.minStock.toString(),
         unit: initialData.unit,
+        unitMultiplierToBase: String(initialData.unitMultiplierToBase ?? 1),
+        smallestUnit: "pcs",
+        smallestSku: "",
+        smallestBarcode: "",
+        smallestPrice: "",
+        smallestCostPrice: "",
+        includeSmallestUnitVariant: false,
         stock: initialData.stock.toString(),
         size: initialData.size || "",
         material: initialData.material || "",
@@ -87,6 +101,13 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         costPrice: "",
         minStock: "5",
         unit: "pcs",
+        unitMultiplierToBase: "1",
+        smallestUnit: "pcs",
+        smallestSku: "",
+        smallestBarcode: "",
+        smallestPrice: "",
+        smallestCostPrice: "",
+        includeSmallestUnitVariant: false,
         stock: "0",
         size: "",
         material: "",
@@ -114,6 +135,23 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   };
 
   const isProcessing = createProduct.isPending || updateProduct.isPending;
+  const unitMultiplier = Number(formData.unitMultiplierToBase || "1");
+  const canAddSmallestUnitVariant = !productId && Number.isFinite(unitMultiplier) && unitMultiplier > 1;
+  const showSmallestUnitVariant =
+    canAddSmallestUnitVariant && formData.includeSmallestUnitVariant;
+  const derivedBaseStock = showSmallestUnitVariant
+    ? Number(formData.stock || "0") * unitMultiplier
+    : 0;
+
+  const suggestSmallestSku = (sku: string, unit: string) => {
+    const trimmedSku = sku.trim();
+    const suffix = unit.trim().replace(/\s+/g, "-").toUpperCase();
+    if (!trimmedSku || !suffix) return "";
+    const family = trimmedSku.includes("-")
+      ? trimmedSku.slice(0, trimmedSku.lastIndexOf("-"))
+      : trimmedSku;
+    return `${family}-${suffix}`;
+  };
 
   return (
     <Modal open={isOpen} onClose={onClose} title={productId ? "Ubah Produk" : "Tambah Produk"}>
@@ -136,7 +174,16 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             label="SKU / Kode Barang"
             placeholder="Contoh: BNR-FLX-280"
             value={formData.sku}
-            onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+            onChange={(e) => {
+              const nextSku = e.target.value;
+              setFormData((current) => ({
+                ...current,
+                sku: nextSku,
+                smallestSku: current.smallestSku
+                  ? current.smallestSku
+                  : suggestSmallestSku(nextSku, current.smallestUnit),
+              }));
+            }}
             required
           />
         </div>
@@ -181,11 +228,24 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
           )}
           <Input
             label="Unit"
-            placeholder="pcs, rim, meter, box"
+            placeholder="pcs, rim, meter, dus"
             value={formData.unit}
             onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
             required
           />
+          {!productId && (
+            <Input
+              label="Isi per Unit Terkecil"
+              type="number"
+              min="1"
+              step="any"
+              value={formData.unitMultiplierToBase}
+              onChange={(e) =>
+                setFormData({ ...formData, unitMultiplierToBase: e.target.value })
+              }
+              required
+            />
+          )}
           <Input
             label="Stok Saat Ini"
             type="number"
@@ -195,6 +255,130 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             required
           />
         </div>
+
+        {canAddSmallestUnitVariant && !showSmallestUnitVariant && (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-slate-900">
+                  Varian Unit Terkecil
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  Tambahkan jika produk ini juga dijual dalam unit terkecil.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  setFormData((current) => ({
+                    ...current,
+                    includeSmallestUnitVariant: true,
+                    smallestSku:
+                      current.smallestSku ||
+                      suggestSmallestSku(current.sku, current.smallestUnit),
+                  }))
+                }
+              >
+                Tambah Varian Unit Terkecil
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {showSmallestUnitVariant && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="mb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-900">
+                    Varian Unit Terkecil
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Produk unit terkecil akan dibuat sebagai produk yang bisa dijual.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData({
+                      ...formData,
+                      includeSmallestUnitVariant: false,
+                    })
+                  }
+                  className="rounded-lg px-2 py-1 text-xs font-black text-slate-500 hover:bg-slate-200"
+                >
+                  Hapus
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="Unit Terkecil"
+                placeholder="pcs, lbr, bh"
+                value={formData.smallestUnit}
+                onChange={(e) => {
+                  const nextUnit = e.target.value;
+                  setFormData((current) => ({
+                    ...current,
+                    smallestUnit: nextUnit,
+                    smallestSku: suggestSmallestSku(current.sku, nextUnit),
+                  }));
+                }}
+                required
+              />
+              <Input
+                label="SKU Unit Terkecil"
+                placeholder="Contoh: JOYKO-PCS"
+                value={formData.smallestSku}
+                onChange={(e) =>
+                  setFormData({ ...formData, smallestSku: e.target.value })
+                }
+                required
+              />
+              <Input
+                label="Barcode Unit Terkecil"
+                placeholder="Opsional"
+                value={formData.smallestBarcode}
+                onChange={(e) =>
+                  setFormData({ ...formData, smallestBarcode: e.target.value })
+                }
+              />
+              <Input
+                label="Harga Jual Unit Terkecil"
+                type="number"
+                min="0"
+                value={formData.smallestPrice}
+                onChange={(e) =>
+                  setFormData({ ...formData, smallestPrice: e.target.value })
+                }
+                required
+              />
+              <Input
+                label="HPP Unit Terkecil"
+                type="number"
+                min="0"
+                placeholder="Opsional"
+                value={formData.smallestCostPrice}
+                onChange={(e) =>
+                  setFormData({ ...formData, smallestCostPrice: e.target.value })
+                }
+              />
+            </div>
+            <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-xs font-bold text-sky-700">
+              <p>Base unit: {formData.smallestUnit || "-"}</p>
+              <p>
+                Shared stock: {Number.isFinite(derivedBaseStock) ? derivedBaseStock : 0}{" "}
+                {formData.smallestUnit || "unit"}
+              </p>
+              <p>
+                Tampilan: {formData.stock || "0"} {formData.unit || "unit"} ={" "}
+                {Number.isFinite(derivedBaseStock) ? derivedBaseStock : 0}{" "}
+                {formData.smallestUnit || "unit"}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <Input

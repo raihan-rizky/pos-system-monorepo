@@ -17,6 +17,15 @@ export interface Product {
   material: string | null;
   imageUrl: string | null;
   isActive: boolean;
+  stockGroupId?: string | null;
+  unitMultiplierToBase?: number;
+  conversionNeedsReview?: boolean;
+  stockGroup?: {
+    id: string;
+    displayName: string;
+    baseUnit: string;
+    baseStock: number;
+  } | null;
   category: {
     id: string;
     name: string;
@@ -52,6 +61,7 @@ export interface UseProductsOptions {
   limit?: number;
   inStockOnly?: boolean;
   stockStatus?: ProductStockStatusFilter;
+  stockGroupMinVariants?: number;
   initialData?: ProductsResponse;
 }
 
@@ -62,6 +72,7 @@ async function fetchProducts(
   limit = 100,
   inStockOnly = false,
   stockStatus?: ProductStockStatusFilter,
+  stockGroupMinVariants?: number,
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
@@ -71,6 +82,9 @@ async function fetchProducts(
   if (inStockOnly) params.set("inStockOnly", "true");
   if (stockStatus && stockStatus !== "all") {
     params.set("stockStatus", stockStatus);
+  }
+  if (stockGroupMinVariants && stockGroupMinVariants > 0) {
+    params.set("stockGroupMinVariants", String(stockGroupMinVariants));
   }
 
   const res = await fetch(`/api/products?${params.toString()}`);
@@ -133,9 +147,18 @@ export function useProducts(
       limit,
       inStockOnly,
       stockStatus,
+      options.stockGroupMinVariants,
     ],
     queryFn: () =>
-      fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly, stockStatus),
+      fetchProducts(
+        debouncedSearch,
+        categoryId,
+        page,
+        limit,
+        inStockOnly,
+        stockStatus,
+        options.stockGroupMinVariants,
+      ),
     select: (data) => data.data,
     placeholderData: keepPreviousData,
   });
@@ -178,7 +201,14 @@ export function useProductsPage(
   categoryId?: string,
   options: UseProductsOptions = {},
 ) {
-  const { page = 1, limit = 100, inStockOnly = false, stockStatus, initialData } = options;
+  const {
+    page = 1,
+    limit = 100,
+    inStockOnly = false,
+    stockStatus,
+    stockGroupMinVariants,
+    initialData,
+  } = options;
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
 
   return useQuery({
@@ -191,11 +221,25 @@ export function useProductsPage(
       limit,
       inStockOnly,
       stockStatus,
+      stockGroupMinVariants,
     ],
     queryFn: () =>
-      fetchProducts(debouncedSearch, categoryId, page, limit, inStockOnly, stockStatus),
+      fetchProducts(
+        debouncedSearch,
+        categoryId,
+        page,
+        limit,
+        inStockOnly,
+        stockStatus,
+        stockGroupMinVariants,
+      ),
     initialData:
-      debouncedSearch === "" && !categoryId && page === 1 && !inStockOnly && !stockStatus
+      debouncedSearch === "" &&
+      !categoryId &&
+      page === 1 &&
+      !inStockOnly &&
+      !stockStatus &&
+      !stockGroupMinVariants
         ? initialData
         : undefined,
     placeholderData: keepPreviousData,
@@ -217,10 +261,19 @@ export interface CreateProductInput {
   price: number;
   stock: number;
   unit: string;
+  unitMultiplierToBase?: number;
   categoryId: string;
   size?: string;
   material?: string;
   imageUrl?: string;
+  smallestUnitVariant?: {
+    unit: string;
+    sku: string;
+    barcode?: string | null;
+    price: number;
+    costPrice?: number | null;
+    multiplierFromPackaging: number;
+  };
 }
 
 async function createProduct(input: CreateProductInput): Promise<Product> {

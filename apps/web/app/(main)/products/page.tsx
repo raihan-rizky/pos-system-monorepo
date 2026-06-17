@@ -40,6 +40,8 @@ import {
   shouldShowAction,
   shouldShowUpdateAction,
 } from "@/features/rbac/helpers/rbac-ui";
+import { StockGroupWorkspaceModal } from "@/features/product-stock-groups/components/StockGroupWorkspace";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 
 const StockHistoryTab = lazy(
   () => import("@/app/(main)/inventory/StockHistoryTab"),
@@ -47,6 +49,10 @@ const StockHistoryTab = lazy(
 const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
 const ProductPriceLogsTab = lazy(
   () => import("@/app/(main)/products/ProductPriceLogsTab"),
+);
+const StockGroupActivityTab = lazy(
+  () =>
+    import("@/features/product-stock-groups/components/StockGroupActivityTab"),
 );
 const CustomerCategoryPricingRulesTab = lazy(() =>
   import("@/features/customer-category-pricing/components/CustomerCategoryPricingRulesTab").then(
@@ -63,8 +69,19 @@ const BulkStockDrawer = lazy(() =>
     (mod) => ({ default: mod.BulkStockDrawer }),
   ),
 );
+const BulkStockGroupDrawer = lazy(() =>
+  import("@/features/product-stock-groups/components/BulkStockGroupDrawer").then(
+    (mod) => ({ default: mod.BulkStockGroupDrawer }),
+  ),
+);
 
-type PageTab = "products" | "prices" | "special-prices" | "history" | "logs";
+type PageTab =
+  | "products"
+  | "prices"
+  | "special-prices"
+  | "history"
+  | "logs"
+  | "group-activity";
 
 function useFitText(value: string | number) {
   const ref = useRef<HTMLParagraphElement>(null);
@@ -173,14 +190,14 @@ function ProductsContent() {
 
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab = (tabParam && ["products", "prices", "special-prices", "history", "logs"].includes(tabParam)
+  const initialTab = (tabParam && ["products", "prices", "special-prices", "history", "logs", "group-activity"].includes(tabParam)
     ? tabParam 
     : "products") as PageTab;
   const [activeTab, setActiveTab] = useState<PageTab>(initialTab);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab && ["products", "prices", "special-prices", "history", "logs"].includes(tab)) {
+    if (tab && ["products", "prices", "special-prices", "history", "logs", "group-activity"].includes(tab)) {
       setActiveTab(tab as PageTab);
     }
   }, [searchParams]);
@@ -195,6 +212,7 @@ function ProductsContent() {
   >(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isBulkStockOpen, setIsBulkStockOpen] = useState(false);
+  const [isBulkStockGroupOpen, setIsBulkStockGroupOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(
     new Set(),
   );
@@ -203,10 +221,12 @@ function ProductsContent() {
   const [priceUpdateProductId, setPriceUpdateProductId] = useState<
     string | null
   >(null);
+  const [stockGroupId, setStockGroupId] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "out" | "negative">("all");
+  const [groupedOnly, setGroupedOnly] = useState(false);
   const [sortBy, setSortBy] = useState<
     "name" | "price_asc" | "price_desc" | "stock_asc"
   >("name");
@@ -218,6 +238,7 @@ function ProductsContent() {
       stockFilter === "negative" || stockFilter === "out"
         ? stockFilter
         : undefined,
+    stockGroupMinVariants: groupedOnly ? 2 : undefined,
   });
   const productsData = productsQuery.data;
   const isLoading = productsQuery.isLoading;
@@ -242,7 +263,7 @@ function ProductsContent() {
   // Reset to page 1 whenever search, category, or stock filter changes
   useEffect(() => {
     setPage(1);
-  }, [search, categoryId, stockFilter]);
+  }, [search, categoryId, stockFilter, groupedOnly]);
 
   // Clamp page when result set shrinks (e.g. category change reduces total pages)
   useEffect(() => {
@@ -319,6 +340,10 @@ function ProductsContent() {
   };
   const closePriceChange = () => {
     setPriceUpdateProductId(null);
+  };
+
+  const openStockGroup = (id: string) => {
+    setStockGroupId(id);
   };
   const toggleSelectedProduct = (id: string) => {
     setSelectedProductIds((current) => {
@@ -478,6 +503,11 @@ function ProductsContent() {
               icon: <ClipboardList className="w-4 h-4" />,
               badge: pendingCount > 0 ? pendingCount : undefined,
             },
+            {
+              id: "group-activity" as PageTab,
+              label: "Aktivitas Grup",
+              icon: <Boxes className="w-4 h-4" />,
+            },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -519,6 +549,9 @@ function ProductsContent() {
             >
               {activeTab === "history" && <StockHistoryTab />}
               {activeTab === "logs" && <StockLogsTab />}
+              {activeTab === "group-activity" && (
+                <StockGroupActivityTab onOpenStockGroup={openStockGroup} />
+              )}
               {activeTab === "prices" && canViewPriceHistory && (
                 <ProductPriceLogsTab
                   products={products}
@@ -553,11 +586,11 @@ function ProductsContent() {
               <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0 relative">
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center justify-center gap-2 px-4 py-3.5 border rounded-2xl text-sm font-bold transition-all ${showFilters || stockFilter !== "all" || sortBy !== "name" ? "bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20" : "bg-slate-50 hover:bg-slate-100 border-slate-200/60 text-slate-700"}`}
+                  className={`flex items-center justify-center gap-2 px-4 py-3.5 border rounded-2xl text-sm font-bold transition-all ${showFilters || stockFilter !== "all" || sortBy !== "name" || groupedOnly ? "bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20" : "bg-slate-50 hover:bg-slate-100 border-slate-200/60 text-slate-700"}`}
                 >
                   <SlidersHorizontal className="w-4 h-4" />
                   <span className="hidden sm:inline">Filter</span>
-                  {(stockFilter !== "all" || sortBy !== "name") && (
+                  {(stockFilter !== "all" || sortBy !== "name" || groupedOnly) && (
                     <span className="w-2 h-2 rounded-full bg-blue-400 absolute -top-1 -right-1 border-2 border-white"></span>
                   )}
                 </button>
@@ -604,6 +637,21 @@ function ProductsContent() {
                               </button>
                             ))}
                           </div>
+                        </div>
+                        <div className="h-px bg-slate-100" />
+                        <div>
+                          <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Grup Stok
+                          </p>
+                          <button
+                            onClick={() => {
+                              setGroupedOnly((value) => !value);
+                              setShowFilters(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${groupedOnly ? "bg-blue-50 text-blue-600 ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50"}`}
+                          >
+                            Grup 2+ Unit
+                          </button>
                         </div>
                         <div className="h-px bg-slate-100" />
                         <div>
@@ -716,6 +764,7 @@ function ProductsContent() {
                   onEdit={openEdit}
                   onUpdateStock={openStock}
                   onChangePrice={openPriceChange}
+                  onViewStockGroup={openStockGroup}
                   canUpdateProduct={canUpdateProducts}
                   canUpdateStock={canUpdateInventory}
                   canChangePrice={canChangePrice}
@@ -733,6 +782,7 @@ function ProductsContent() {
                   onEdit={openEdit}
                   onUpdateStock={openStock}
                   onChangePrice={openPriceChange}
+                  onViewStockGroup={openStockGroup}
                   canUpdateProduct={canUpdateProducts}
                   canUpdateStock={canUpdateInventory}
                   canChangePrice={canChangePrice}
@@ -755,12 +805,13 @@ function ProductsContent() {
                   <p className="text-slate-500 text-center max-w-xs mt-1">
                     Coba ubah pencarian atau filter untuk menemukan produk.
                   </p>
-                  {(search || categoryId !== "" || stockFilter !== "all") && (
+                  {(search || categoryId !== "" || stockFilter !== "all" || groupedOnly) && (
                     <button
                       onClick={() => {
                         setSearch("");
                         setCategoryId("");
                         setStockFilter("all");
+                        setGroupedOnly(false);
                       }}
                       className="mt-6 text-sm font-bold text-blue-600 hover:text-blue-700"
                     >
@@ -813,6 +864,17 @@ function ProductsContent() {
           onViewHistory={openPriceHistory}
         />
       )}
+      {stockGroupId && (
+        <StockGroupWorkspaceModal
+          stockGroupId={stockGroupId}
+          onClose={() => setStockGroupId(null)}
+          canUpdateStock={canUpdateInventory}
+          onSaved={() => {
+            productsQuery.refetch();
+            statsQuery.refetch();
+          }}
+        />
+      )}
       {selectedProductIds.size > 0 &&
         activeTab === "products" &&
         canUpdateInventory && (
@@ -831,6 +893,14 @@ function ProductsContent() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {canUpdateProducts && selectedProductIds.size >= 2 && (
+                <button
+                  onClick={() => setIsBulkStockGroupOpen(true)}
+                  className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white"
+                >
+                  Grup Stok
+                </button>
+              )}
               <button
                 onClick={() => setIsBulkStockOpen(true)}
                 className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white"
@@ -864,6 +934,18 @@ function ProductsContent() {
             products={selectedProducts}
           />
         )}
+        {isBulkStockGroupOpen && (
+          <BulkStockGroupDrawer
+            open={isBulkStockGroupOpen}
+            onClose={() => setIsBulkStockGroupOpen(false)}
+            onSaved={() => {
+              setSelectedProductIds(new Set());
+              productsQuery.refetch();
+              statsQuery.refetch();
+            }}
+            products={selectedProducts}
+          />
+        )}
       </Suspense>
     </div>
   );
@@ -876,6 +958,7 @@ function ProductGrid({
   onEdit,
   onUpdateStock,
   onChangePrice,
+  onViewStockGroup,
   canUpdateProduct,
   canUpdateStock,
   canChangePrice,
@@ -887,6 +970,7 @@ function ProductGrid({
   onEdit: (id: string) => void;
   onUpdateStock: (id: string) => void;
   onChangePrice: (id: string) => void;
+  onViewStockGroup?: (id: string) => void;
   canUpdateProduct: boolean;
   canUpdateStock: boolean;
   canChangePrice: boolean;
@@ -1019,14 +1103,25 @@ function ProductGrid({
                 <div
                   className={`inline-flex items-baseline gap-1 ${isLow ? "text-red-600" : "text-emerald-600"}`}
                 >
-                  <span className="text-lg font-black">{p.stock}</span>
-                  <span className="text-xs font-bold opacity-70">{p.unit}</span>
+                  <span className="text-lg font-black">{formatCompoundStock(p)}</span>
                 </div>
               </div>
             </div>
 
             {(canChangePrice || canUpdateStock || canUpdateProduct) && (
-              <div className="grid grid-cols-3 gap-2 relative z-10">
+              <div className="grid grid-cols-4 gap-2 relative z-10">
+                {p.stockGroupId && onViewStockGroup && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewStockGroup(p.stockGroupId!);
+                    }}
+                    className="flex h-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700 shadow-sm ring-1 ring-sky-100 transition-colors hover:bg-sky-100"
+                    title="Lihat Stok Unit"
+                  >
+                    <Boxes className="w-5 h-5" />
+                  </button>
+                )}
                 {canChangePrice && (
                   <button
                     onClick={(e) => {
@@ -1145,6 +1240,278 @@ function ProductsPager({
         </button>
       </div>
     </nav>
+  );
+}
+
+interface StockGroupDetail {
+  id: string;
+  displayName: string;
+  baseUnit: string;
+  baseStock: number;
+  hasNegativeStock: boolean;
+  hasDuplicateUnits?: boolean;
+  conversionPairs?: Array<{
+    fromProductId: string;
+    fromUnit: string;
+    fromQuantity: number;
+    toProductId: string;
+    toUnit: string;
+    toQuantity: number;
+    label: string;
+  }>;
+  variants: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    unit: string;
+    unitMultiplierToBase: number;
+    conversionNeedsReview: boolean;
+    stock: number;
+    price: number;
+  }>;
+}
+
+function StockGroupDetailModal({
+  stockGroupId,
+  onClose,
+  canUpdateStock,
+  onSaved,
+}: {
+  stockGroupId: string;
+  onClose: () => void;
+  canUpdateStock: boolean;
+  onSaved: () => void;
+}) {
+  const [detail, setDetail] = useState<StockGroupDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sharedStock, setSharedStock] = useState("");
+  const [stockInputMode, setStockInputMode] = useState<"BASE" | "VARIANT">("BASE");
+  const [stockVariantProductId, setStockVariantProductId] = useState("");
+  const [note, setNote] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    fetch(`/api/product-stock-groups/${stockGroupId}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Gagal memuat stok unit");
+        return (await res.json()) as StockGroupDetail;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setDetail(data);
+          setSharedStock(String(data.baseStock));
+          setStockVariantProductId(data.variants[0]?.id ?? "");
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Gagal memuat stok unit");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stockGroupId]);
+
+  async function saveSharedStock() {
+    if (!detail || !Number.isFinite(Number(sharedStock))) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/product-stock-groups/${stockGroupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sharedStock: Number(sharedStock),
+          stockInput:
+            stockInputMode === "BASE"
+              ? { mode: "BASE" }
+              : { mode: "VARIANT", variantProductId: stockVariantProductId },
+          note: note.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.message || "Gagal menyimpan stok grup");
+      }
+      onSaved();
+      const next = await fetch(`/api/product-stock-groups/${stockGroupId}`).then(
+        (response) => response.json() as Promise<StockGroupDetail>,
+      );
+      setDetail(next);
+      setSharedStock(String(next.baseStock));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan stok grup");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+          <div>
+            <p className="text-sm font-black text-slate-900">
+              {detail?.displayName ?? "Stok Unit"}
+            </p>
+            {detail && (
+              <p className="mt-1 text-xs text-slate-500">
+                Base: {detail.baseStock} {detail.baseUnit}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200"
+            aria-label="Tutup"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[70vh] overflow-y-auto p-5">
+          {isLoading && (
+            <div className="py-10 text-center text-sm font-semibold text-slate-500">
+              Memuat...
+            </div>
+          )}
+          {error && (
+            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              {error}
+            </div>
+          )}
+          {detail && (
+            <div className="space-y-3">
+              {detail.hasNegativeStock && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  Stok bersama bernilai negatif.
+                </div>
+              )}
+              {detail.hasDuplicateUnits && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  Grup memiliki unit duplikat dan perlu direview.
+                </div>
+              )}
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">
+                  Konversi Saat Ini
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(detail.conversionPairs ?? []).length > 0 ? (
+                    detail.conversionPairs?.map((pair) => (
+                      <span
+                        key={`${pair.fromProductId}:${pair.toProductId}`}
+                        className="rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100"
+                      >
+                        {pair.label}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm font-semibold text-slate-500">
+                      Belum ada pair konversi antar unit.
+                    </span>
+                  )}
+                </div>
+              </div>
+              {canUpdateStock && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <label className="text-xs font-bold text-slate-600">
+                      Shared Stock
+                      <input
+                        value={sharedStock}
+                        onChange={(event) => setSharedStock(event.target.value)}
+                        inputMode="decimal"
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Unit Input
+                      <select
+                        value={stockInputMode === "BASE" ? "BASE" : stockVariantProductId}
+                        onChange={(event) => {
+                          if (event.target.value === "BASE") {
+                            setStockInputMode("BASE");
+                          } else {
+                            setStockInputMode("VARIANT");
+                            setStockVariantProductId(event.target.value);
+                          }
+                        }}
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      >
+                        <option value="BASE">{detail.baseUnit}</option>
+                        {detail.variants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.unit}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Catatan
+                      <input
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={saveSharedStock}
+                    disabled={isSaving || sharedStock.trim() === ""}
+                    className="mt-3 h-10 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:bg-slate-300"
+                  >
+                    {isSaving ? "Menyimpan..." : "Simpan Shared Stock"}
+                  </button>
+                </div>
+              )}
+              {detail.variants.map((variant) => (
+                <div
+                  key={variant.id}
+                  className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-900">
+                      {variant.name}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {variant.sku} · multiplier {variant.unitMultiplierToBase}
+                    </p>
+                    {variant.conversionNeedsReview && (
+                      <span className="mt-2 inline-flex rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-black text-amber-700 ring-1 ring-amber-100">
+                        Perlu review konversi
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-base font-black tabular-nums text-slate-900">
+                      {formatCompoundStock({
+                        stock: variant.stock,
+                        unit: variant.unit,
+                        unitMultiplierToBase: variant.unitMultiplierToBase,
+                        stockGroup: {
+                          baseUnit: detail.baseUnit,
+                        },
+                      })}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {fmt(variant.price)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

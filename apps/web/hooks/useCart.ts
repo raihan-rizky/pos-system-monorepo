@@ -13,6 +13,10 @@ export interface ProductCartItem {
   quantity: number;
   unit: string;
   stock: number;
+  unitMultiplierToBase?: number | null;
+  stockGroup?: {
+    baseUnit?: string | null;
+  } | null;
   categoryId: string;
   categoryName: string;
   size?: string;
@@ -112,7 +116,7 @@ export function useCart() {
   }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; price: number; costPrice?: number | null; unit: string; stock: number; categoryId: string; categoryName: string; size?: string; material?: string }) => {
+    (product: { id: string; name: string; price: number; costPrice?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { baseUnit?: string | null } | null; categoryId: string; categoryName: string; size?: string; material?: string }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -141,6 +145,8 @@ export function useCart() {
             quantity: 1,
             unit: product.unit,
             stock: product.stock,
+            unitMultiplierToBase: product.unitMultiplierToBase ?? null,
+            stockGroup: product.stockGroup ?? null,
             categoryId: product.categoryId,
             categoryName: product.categoryName,
             size: product.size,

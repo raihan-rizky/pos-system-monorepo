@@ -10,6 +10,13 @@ export type ProductFormValues = {
   costPrice: string;
   minStock: string;
   unit: string;
+  unitMultiplierToBase: string;
+  smallestUnit: string;
+  smallestSku: string;
+  smallestBarcode: string;
+  smallestPrice: string;
+  smallestCostPrice: string;
+  includeSmallestUnitVariant: boolean;
   stock: string;
   size: string;
   material: string;
@@ -40,6 +47,7 @@ export function buildProductFormPayload(
     minStock: Number(formData.minStock),
     stock: Number(formData.stock),
     unit: formData.unit,
+    unitMultiplierToBase: Number(formData.unitMultiplierToBase || "1"),
     size: formData.size || undefined,
     material: formData.material || undefined,
     imageUrl: formData.imageUrl || undefined,
@@ -53,5 +61,18 @@ export function buildProductFormPayload(
     ...common,
     price: Number(formData.price),
     costPrice: formData.costPrice ? Number(formData.costPrice) : undefined,
+    smallestUnitVariant:
+      formData.includeSmallestUnitVariant
+        ? {
+            unit: formData.smallestUnit,
+            sku: formData.smallestSku,
+            barcode: formData.smallestBarcode || undefined,
+            price: Number(formData.smallestPrice),
+            costPrice: formData.smallestCostPrice
+              ? Number(formData.smallestCostPrice)
+              : undefined,
+            multiplierFromPackaging: Number(formData.unitMultiplierToBase),
+          }
+        : undefined,
   };
 }

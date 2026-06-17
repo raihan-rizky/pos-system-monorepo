@@ -186,6 +186,8 @@ export default function POSClientPage({
       costPrice: product.costPrice,
       unit: product.unit,
       stock: product.stock,
+      unitMultiplierToBase: product.unitMultiplierToBase,
+      stockGroup: product.stockGroup,
       categoryId: product.category.id,
       categoryName: product.category.name,
     });
@@ -307,6 +309,11 @@ export default function POSClientPage({
           tone: "success",
           message:
             "Permintaan pembayaran berhasil dikirim ke kasir. Tunggu persetujuan sebelum menyerahkan barang.",
+        });
+      } else {
+        setCheckoutNotice({
+          tone: "success",
+          message: "Invoice berhasil dibuat dan siap dicetak.",
         });
       }
       cart.clearCart();

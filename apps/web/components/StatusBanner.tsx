@@ -35,16 +35,6 @@ export const STATUS_BANNER_MAP: Record<string, StatusBannerConfig> = {
       borderBottomColor: "#fcd34d", // amber-300
     },
   },
-  PENDING_APPROVAL: {
-    label: "MENUNGGU PERSETUJUAN",
-    subtitle: "Bukan bukti pembayaran",
-    ariaLabel: "Menunggu persetujuan, bukan bukti pembayaran",
-    style: {
-      backgroundColor: "#dbeafe", // blue-100
-      color: "#1e3a5f",           // blue-900
-      borderBottomColor: "#93c5fd", // blue-300
-    },
-  },
   VOIDED: {
     label: "DIBATALKAN",
     subtitle: "Invoice ini tidak sah",

@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { Product } from "@/hooks/useProducts";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 import {
   useBulkStockCommit,
   type BulkStockReason,
@@ -397,7 +398,7 @@ export function BulkStockDrawer({
                       <tr key={product.id} className="border-t border-slate-100">
                         <td className="px-3 py-2 font-semibold text-slate-900">{product.name}</td>
                         <td className="px-3 py-2">{product.sku}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{product.stock} {product.unit}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatCompoundStock(product)}</td>
                         <td className="px-3 py-2">
                           <input
                             type="number"
@@ -423,7 +424,7 @@ export function BulkStockDrawer({
                           </td>
                         )}
                         <td className={`px-3 py-2 text-right font-bold tabular-nums ${afterStock < 0 ? "text-red-600" : "text-slate-900"}`}>
-                          {afterStock} {product.unit}
+                          {formatCompoundStock({ ...product, stock: afterStock })}
                         </td>
                       </tr>
                     );
@@ -503,7 +504,7 @@ export function BulkStockDrawer({
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{row.product.sku}</p>
                         </div>
                         <p className="shrink-0 text-sm font-black text-red-600 tabular-nums">
-                          {row.afterStock} {row.product.unit}
+                          {formatCompoundStock({ ...row.product, stock: row.afterStock })}
                         </p>
                       </div>
                     ))}
@@ -595,7 +596,7 @@ function StockQuantityCard({
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{product.sku}</p>
         </div>
         <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-500">
-          {product.stock} {product.unit}
+          {formatCompoundStock(product)}
         </span>
       </div>
       <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
@@ -612,7 +613,7 @@ function StockQuantityCard({
         <div className={`min-w-24 rounded-xl border px-3 py-2 text-right ${afterStock < 0 ? "border-red-200 bg-red-50" : "border-cyan-100 bg-cyan-50/70"}`}>
           <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Setelah</p>
           <p className={`text-sm font-black tabular-nums ${afterStock < 0 ? "text-red-600" : "text-slate-950"}`}>
-            {afterStock} {product.unit}
+            {formatCompoundStock({ ...product, stock: afterStock })}
           </p>
           <p className="text-[10px] font-bold text-slate-400">{deltaLabel}</p>
         </div>

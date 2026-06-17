@@ -172,6 +172,7 @@ model Store {
   logoUrl      String?
   users        User[]
   products     Product[]
+  productStockGroups ProductStockGroup[]
   printingServices PrintingService[]
   transactions Transaction[]
   shifts       CashierShift[]
@@ -210,6 +211,10 @@ model Product {
   price         Decimal           @db.Decimal(12, 2)
   costPrice     Decimal?          @db.Decimal(12, 2)
   stock         Float             @default(0)
+  stockGroupId  String?
+  stockGroup    ProductStockGroup? @relation(fields: [stockGroupId], references: [id])
+  unitMultiplierToBase Float      @default(1)
+  conversionNeedsReview Boolean   @default(false)
   minStock      Int               @default(5)    // Alert when stock below this
   unit          String            @default("pcs") // pcs, rim, box, lembar, gsm, meter, roll, pack, lusin, kodi, set
   size          String?           // e.g., "3x2m", "A4", "F4"
@@ -224,6 +229,7 @@ model Product {
   transactionProductItems TransactionItem[] @relation("transaction_product")
   inventoryLogs InventoryLog[]
   priceLogs     ProductPriceLog[]
+  stockGroupActivities ProductStockGroupActivity[]
   batchItems    BatchOperationItem[]
   suratJalanItems SuratJalanItem[]
   createdAt     DateTime          @default(now())
@@ -231,8 +237,48 @@ model Product {
 
   @@index([categoryId])
   @@index([storeId])
+  @@index([stockGroupId])
   @@index([sku])
   @@map("pos_products")
+}
+
+model ProductStockGroup {
+  id          String    @id @default(cuid())
+  storeId     String
+  store       Store     @relation(fields: [storeId], references: [id])
+  groupKey    String
+  displayName String
+  baseUnit    String    @default("pcs")
+  baseStock   Float     @default(0)
+  products    Product[]
+  activities  ProductStockGroupActivity[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([storeId, groupKey])
+  @@index([storeId])
+  @@index([storeId, groupKey])
+  @@map("pos_product_stock_groups")
+}
+
+model ProductStockGroupActivity {
+  id           String            @id @default(cuid())
+  stockGroupId String
+  stockGroup   ProductStockGroup @relation(fields: [stockGroupId], references: [id], onDelete: Cascade)
+  productId    String?
+  product      Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  type         String
+  note         String?
+  createdBy    String?
+  person       String?
+  before       Json?
+  after        Json?
+  createdAt    DateTime          @default(now())
+
+  @@index([stockGroupId, createdAt])
+  @@index([stockGroupId, type, createdAt])
+  @@index([productId])
+  @@map("pos_product_stock_group_activities")
 }
 
 model PrintingService {

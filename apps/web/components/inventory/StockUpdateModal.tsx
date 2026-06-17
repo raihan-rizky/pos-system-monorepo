@@ -4,6 +4,7 @@ import { useUpdateStock, Product, type InventoryReason } from "@/hooks/useProduc
 import { useRole } from "@/components/providers/RoleProvider";
 import { getDefaultProductImage } from "@/lib/utils";
 import { PackagePlus, PackageMinus, Settings2, Info } from "lucide-react";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 
 interface StockUpdateModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
   const [note, setNote] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [submittedAsRequest, setSubmittedAsRequest] = useState(false);
+  const stockLabel = formatCompoundStock(product);
 
   const handleTypeChange = (next: "IN" | "OUT" | "ADJUSTMENT") => {
     setType(next);
@@ -56,7 +58,7 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
     }
 
     if (type === "OUT" && numQty > product.stock) {
-      setError(`Tidak bisa mengurangi ${numQty}. Stok saat ini hanya ${product.stock}.`);
+      setError(`Tidak bisa mengurangi ${numQty}. Stok saat ini hanya ${stockLabel}.`);
       return;
     }
 
@@ -130,7 +132,7 @@ export default function StockUpdateModal({ isOpen, onClose, product }: StockUpda
           <div>
             <h4 className="font-semibold text-surface-900">{product.name}</h4>
             <p className="text-sm text-surface-500">
-              Stok Saat Ini: <strong className="text-surface-900">{product.stock} {product.unit}</strong>
+              Stok Saat Ini: <strong className="text-surface-900">{stockLabel}</strong>
             </p>
           </div>
         </div>

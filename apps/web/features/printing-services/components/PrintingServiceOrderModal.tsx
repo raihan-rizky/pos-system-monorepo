@@ -5,6 +5,7 @@ import { Button, Input, Modal } from "@pos/ui";
 import { Calculator, Layers3, Minus, PencilLine, Plus } from "lucide-react";
 import { useProductsPage } from "@/hooks/useProducts";
 import { formatRupiah } from "@/lib/utils";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 import type { PrintingService } from "../types";
 
 export interface PrintingServiceOrderData {
@@ -46,6 +47,8 @@ export function PrintingServiceOrderModal({
     price: number;
     stock: number;
     unit: string;
+    unitMultiplierToBase?: number | null;
+    stockGroup?: { baseUnit?: string | null } | null;
   } | null>(null);
   const [rawMaterialQuantity, setRawMaterialQuantity] = useState<number | "">(1);
   const [isEditingRawMaterialQuantity, setIsEditingRawMaterialQuantity] = useState(false);
@@ -254,6 +257,8 @@ export function PrintingServiceOrderModal({
                                 price: Number(material.price),
                                 stock: material.stock,
                                 unit: material.unit,
+                                unitMultiplierToBase: material.unitMultiplierToBase,
+                                stockGroup: material.stockGroup,
                               };
                               setSelectedMaterial(selected);
                               setRawMaterialQuantity(1);
@@ -266,7 +271,7 @@ export function PrintingServiceOrderModal({
                           >
                             <div className="font-semibold">{material.name}</div>
                             <div className={disabled ? "text-danger-600 font-semibold" : "text-surface-500"}>
-                              Stok: {material.stock} {material.unit}
+                              Stok: {formatCompoundStock(material)}
                               {" \u2022 "}
                               Satuan: {material.unit}
                               {" \u2022 "}

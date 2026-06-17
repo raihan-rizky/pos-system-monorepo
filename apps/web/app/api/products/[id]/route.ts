@@ -6,6 +6,13 @@ import { z } from "zod";
 
 import { getLogger } from "@/lib/logger";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
+import { withCalculatedStock } from "@/features/product-stock-groups/stock-display";
+import {
+  buildStockGroupCreateData,
+  ensureProductStockGroup,
+  resolveGroupedStockUpdate,
+  shouldMarkConversionForReview,
+} from "@/features/product-stock-groups/product-stock-groups-service";
 
 const log = getLogger("api:products:id");
 const updateProductSchema = z.object({
@@ -16,6 +23,7 @@ const updateProductSchema = z.object({
   price: z.coerce.number().min(0, "Price must be >= 0").optional(),
   costPrice: z.coerce.number().optional().nullable(),
   stock: z.coerce.number().optional(),
+  unitMultiplierToBase: z.coerce.number().positive().optional(),
   minStock: z.coerce.number().optional(),
   unit: z.string().optional(),
   size: z.string().optional().nullable(),
@@ -52,7 +60,7 @@ export async function PUT(
 
     const existingProduct = await db.product.findFirst({
       where: { id, storeId },
-      select: { id: true, price: true, costPrice: true },
+      include: { stockGroup: true },
     });
 
     if (!existingProduct) {
@@ -63,12 +71,77 @@ export async function PUT(
     }
 
     const product = await db.$transaction(async (tx) => {
+      const nextName = validatedData.name ?? existingProduct.name;
+      const nextCategoryId = validatedData.categoryId ?? existingProduct.categoryId;
+      const nextMaterial = validatedData.material ?? existingProduct.material;
+      const nextSize = validatedData.size ?? existingProduct.size;
+      const nextUnit = validatedData.unit ?? existingProduct.unit;
+      const currentMultiplier = existingProduct.unitMultiplierToBase ?? 1;
+      const nextMultiplier =
+        validatedData.unitMultiplierToBase ?? currentMultiplier;
+      const currentDisplayStock = existingProduct.stockGroup
+        ? existingProduct.stockGroup.baseStock / currentMultiplier
+        : existingProduct.stock;
+      const requestedStock = validatedData.stock;
+      const { baseStock } = buildStockGroupCreateData({
+        unitMultiplierToBase: nextMultiplier,
+        stock: requestedStock ?? currentDisplayStock,
+      });
+      const { group, created: groupCreated } = await ensureProductStockGroup(tx, {
+        storeId,
+        name: nextName,
+        categoryId: nextCategoryId,
+        material: nextMaterial,
+        size: nextSize,
+        displayName: nextName,
+        baseUnit: nextUnit,
+        baseStock,
+      });
+      const shouldUseGroupedStock = Boolean(group.id);
+      const productData = {
+        ...validatedData,
+        ...(shouldUseGroupedStock ? { stock: undefined } : {}),
+        stockGroupId: group.id,
+        unitMultiplierToBase: nextMultiplier,
+        conversionNeedsReview:
+          validatedData.unitMultiplierToBase !== undefined
+            ? false
+            : group.id === existingProduct.stockGroupId
+              ? existingProduct.conversionNeedsReview
+              : shouldMarkConversionForReview({
+                  groupCreated,
+                  unitMultiplierProvided: false,
+                  unit: nextUnit,
+                  baseUnit: group.baseUnit,
+                }),
+      };
+
+      const nextBaseStock = resolveGroupedStockUpdate({
+        requestedDisplayStock: requestedStock,
+        multiplier: nextMultiplier,
+      });
+      if (nextBaseStock !== undefined) {
+        await tx.productStockGroup.update({
+          where: { id: group.id },
+          data: { baseStock: nextBaseStock },
+        });
+      }
+
       const updated = await tx.product.update({
         where: { id: existingProduct.id },
-        data: validatedData,
+        data: productData,
         include: {
           category: {
             select: { id: true, name: true, icon: true, color: true },
+          },
+          stockGroup: {
+            select: {
+              id: true,
+              groupKey: true,
+              displayName: true,
+              baseUnit: true,
+              baseStock: true,
+            },
           },
         },
       });
@@ -96,7 +169,7 @@ export async function PUT(
       return updated;
     });
 
-    return NextResponse.json(product);
+    return NextResponse.json(withCalculatedStock(product));
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

@@ -4,6 +4,10 @@ import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { sendRolePushEvent } from "@/lib/push-events";
+import {
+  applyProductStockDelta,
+  StockMutationError,
+} from "@/features/product-stock-groups/stock-mutations";
 
 const logger = getLogger("api:inventory");
 
@@ -142,32 +146,20 @@ export async function POST(request: Request) {
         stockDelta,
       });
 
-      let updatedProduct = null;
+      const updatedProduct = null;
       if (isOwner) {
-        const newStock = product.stock + stockDelta;
-        if (newStock < 0) {
-          logger.warn("inventory.request.rejected.negative_stock", {
-            logId: log.id,
-            actorId: user.id,
-            actorRole: user.role,
-            productId: validatedData.productId,
-            beforeStock: product.stock,
-            stockDelta,
-            requestedQuantity: Math.abs(validatedData.quantity),
-          });
-          throw new Error("NEGATIVE_STOCK");
-        }
-        updatedProduct = await tx.product.update({
-          where: { id: validatedData.productId },
-          data: { stock: newStock },
+        const stockResult = await applyProductStockDelta(tx, {
+          storeId,
+          productId: validatedData.productId,
+          delta: stockDelta,
         });
         logger.info("inventory.request.stock_updated", {
           logId: log.id,
           actorId: user.id,
           actorRole: user.role,
           productId: validatedData.productId,
-          beforeStock: product.stock,
-          afterStock: newStock,
+          beforeStock: stockResult.beforeStock,
+          afterStock: stockResult.afterStock,
           stockDelta,
         });
       }
@@ -240,8 +232,21 @@ export async function POST(request: Request) {
       if (error.message === "PRODUCT_NOT_FOUND") {
         return NextResponse.json({ message: "Product not found" }, { status: 404 });
       }
-      if (error.message === "NEGATIVE_STOCK") {
+      if (
+        error.message === "NEGATIVE_STOCK" ||
+        (error instanceof StockMutationError &&
+          error.message === "INSUFFICIENT_STOCK")
+      ) {
         return NextResponse.json({ message: "Stock cannot be negative" }, { status: 422 });
+      }
+      if (
+        error instanceof StockMutationError &&
+        error.message === "CONVERSION_NEEDS_REVIEW"
+      ) {
+        return NextResponse.json(
+          { message: "Product unit conversion must be reviewed before stock changes" },
+          { status: 422 },
+        );
       }
     }
 

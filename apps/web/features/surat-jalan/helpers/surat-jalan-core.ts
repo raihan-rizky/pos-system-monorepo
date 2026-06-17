@@ -106,13 +106,19 @@ export function calculateSuratJalanProgress(input: {
 export function previewSuratJalanStockImpact(input: {
   items: ReadonlyArray<SuratJalanTransactionItem>;
   quantities: Record<string, number>;
+  /** When true, first SJ: API restores invoice qty to stock before deducting delivery qty */
+  addInvoiceQtyToFirstSj?: boolean;
 }): SuratJalanStockImpactPreview[] {
   return input.items
     .filter((item) => item.productId && item.currentStock !== null)
     .map((item) => {
       const requestedQuantity = input.quantities[item.id] ?? 0;
       const currentStock = item.currentStock ?? 0;
-      const afterStock = currentStock - requestedQuantity;
+      // First SJ reverses invoice qty to stock first: effective stock = current + invoiceQty
+      const effectiveStock = input.addInvoiceQtyToFirstSj
+        ? currentStock + item.quantity
+        : currentStock;
+      const afterStock = effectiveStock - requestedQuantity;
       return {
         transactionItemId: item.id,
         productId: item.productId!,

@@ -84,9 +84,6 @@ describe("POST /api/transactions/[id]/approve", () => {
           updateMany: transactionUpdateManyMock,
           findUniqueOrThrow: transactionFindUniqueOrThrowMock,
         },
-        product: {
-          updateMany: productUpdateManyMock,
-        },
         inventoryLog: {
           create: inventoryLogCreateMock,
         },
@@ -175,5 +172,48 @@ describe("POST /api/transactions/[id]/approve", () => {
         change: 10000,
       }),
     });
+  });
+
+  it("approves a sales-created regular invoice while preserving its invoice status", async () => {
+    transactionFindFirstMock.mockResolvedValueOnce({
+      id: "tx-1",
+      invoiceNumber: "INV-20260520-0001",
+      storeId: "store-main",
+      status: "COMPLETED",
+      cashierId: null,
+      requestedById: "sales-1",
+      total: 50000,
+      paymentMethod: "TRANSFER",
+      amountPaid: 50000,
+      change: 0,
+      customerId: "customer-1",
+      items: [{ productId: "product-1", quantity: 1 }],
+    });
+    queryRawMock.mockResolvedValueOnce([{ id: "product-1" }]);
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: "tx-1",
+        storeId: "store-main",
+        requestedById: { not: null },
+        cashierId: null,
+      },
+      data: expect.objectContaining({
+        status: "COMPLETED",
+        cashierId: "cashier-1",
+        amountPaid: 50000,
+        change: 0,
+      }),
+    });
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
   });
 });

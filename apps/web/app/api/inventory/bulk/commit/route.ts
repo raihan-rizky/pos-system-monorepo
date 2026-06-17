@@ -5,6 +5,11 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { sendRolePushEvent } from "@/lib/push-events";
 import { apiError, apiValidationError } from "@/lib/api/responses";
+import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+import {
+  applyProductStockDelta,
+  StockMutationError,
+} from "@/features/product-stock-groups/stock-mutations";
 
 const logger = getLogger("api:inventory:bulk:commit");
 import { productSnapshot, stockDelta } from "@/features/batch-operations/helpers/snapshots";
@@ -61,7 +66,10 @@ export async function POST(request: Request) {
     const bundleName = supplierDisplayName || input.note;
 
     const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
-      const products = await tx.product.findMany({ where: { id: { in: input.productIds }, storeId, isActive: true } });
+      const products = await tx.product.findMany({
+        where: { id: { in: input.productIds }, storeId, isActive: true },
+        include: { stockGroup: true },
+      });
 
       if (products.length !== input.productIds.length) {
         throw new Error("PRODUCT_NOT_FOUND");
@@ -69,8 +77,15 @@ export async function POST(request: Request) {
 
       const impacts = products.map((product) => {
         const quantity = input.quantities[product.id] ?? 0;
-        const delta = stockDelta(input.type, product.stock, quantity);
-        return { product, quantity, delta, afterStock: product.stock + delta };
+        const currentStock = resolveProductDisplayStock(product);
+        const delta = stockDelta(input.type, currentStock, quantity);
+        return {
+          product,
+          quantity,
+          delta,
+          currentStock,
+          afterStock: currentStock + delta,
+        };
       });
 
       if (impacts.some((impact) => impact.quantity <= 0)) throw new Error("QUANTITY_REQUIRED");
@@ -101,12 +116,17 @@ export async function POST(request: Request) {
       let inventoryLogCount = 0;
 
       for (const impact of impacts) {
-        const beforeSnapshot = productSnapshot(impact.product);
+        const beforeSnapshot = productSnapshot({
+          ...impact.product,
+          stock: impact.currentStock,
+        });
         const updated = isOwner
-          ? await tx.product.update({
-              where: { id: impact.product.id },
-              data: { stock: impact.afterStock },
-            })
+          ? await applyProductStockDelta(tx, {
+              storeId,
+              productId: impact.product.id,
+              delta: impact.delta,
+              currentStock: impact.currentStock,
+            }).then(() => ({ ...impact.product, stock: impact.afterStock }))
           : { ...impact.product, stock: impact.afterStock };
         const log = await tx.inventoryLog.create({
           data: {
@@ -226,6 +246,19 @@ export async function POST(request: Request) {
           code: "ValidationError",
           errors: { stock: ["Stock cannot be negative"] },
         });
+      }
+      if (
+        error instanceof StockMutationError &&
+        error.message === "CONVERSION_NEEDS_REVIEW"
+      ) {
+        return apiError(
+          "Product unit conversion must be reviewed before stock changes",
+          422,
+          {
+            code: "ValidationError",
+            errors: { stock: ["CONVERSION_NEEDS_REVIEW"] },
+          },
+        );
       }
     }
     logger.error("inventory.bulk.commit.failed", { error });

@@ -282,7 +282,7 @@ export function ReceiptModal({
                           {hasSize && (
                             <td className={`border border-black ${cellPad} text-center`}>{formatReceiptSize(item.size) || "-"}</td>
                           )}
-                          <td className={`border border-black ${cellPad} text-center`}>{item.quantity}</td>
+                          <td className={`border border-black ${cellPad} text-center`}>{item.quantity} {item.product?.unit || item.printingService?.unit || item.rawMaterialUnit || "pcs"}</td>
                           <td className={`border border-black ${cellPad} text-right`}>{Number(item.unitPrice).toLocaleString("id-ID")}</td>
                           <td className={`border border-black ${cellPad} text-right`}>{Number(item.subtotal).toLocaleString("id-ID")}</td>
                         </tr>

@@ -14,10 +14,19 @@ export interface SuratJalanBundle {
     customerType: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH" | null;
     createdAt: string;
     total: number;
+    paymentMethod: string;
+    amountPaid: number;
+    change: number;
+    note: string | null;
+    salesName: string | null;
+    salesperson: { name: string } | null;
     stockManagedBySuratJalan: boolean;
     items: {
       id: string;
+      printingServiceId: string | null;
       productName: string;
+      size: string | null;
+      material: string | null;
       quantity: number;
       unit: string | null;
       unitPrice: number;

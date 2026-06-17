@@ -20,7 +20,7 @@ function getPosIdentityCookieOptions() {
   return {
     path: "/",
     httpOnly: false,
-    sameSite: "strict" as const,
+    sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24,
   };
@@ -35,7 +35,7 @@ function setPosIdentityCookies(
   const cookieOptions = getPosIdentityCookieOptions();
   response.cookies.set(ROLE_COOKIE, role, cookieOptions);
   response.cookies.set(USER_ID_COOKIE, userId, cookieOptions);
-  response.cookies.set(USER_NAME_COOKIE, userName, cookieOptions);
+  response.cookies.set(USER_NAME_COOKIE, encodeURIComponent(userName), cookieOptions);
 }
 
 function isProtectedPageRequest(pathname: string) {
@@ -176,6 +176,10 @@ export async function updateSession(request: NextRequest) {
 
           if (!canAccess) {
             log.info("page.access.denied", { role, path: request.nextUrl.pathname });
+            if (request.nextUrl.pathname === DEFAULT_PAGE[role]) {
+              // Prevent infinite redirect loop if default page is not accessible
+              return new NextResponse("Unauthorized: You do not have access to your default page.", { status: 403 });
+            }
             const url = request.nextUrl.clone();
             url.pathname = DEFAULT_PAGE[role];
             const redirectResponse = NextResponse.redirect(url);

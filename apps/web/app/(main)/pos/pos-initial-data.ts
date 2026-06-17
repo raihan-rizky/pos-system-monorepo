@@ -2,6 +2,7 @@ import { db } from "@pos/db";
 import { requirePermission } from "@/lib/rbac/guard";
 import { buildPaginationMeta } from "@/lib/api/responses";
 import type { POSInitialData } from "./POSClientPage";
+import { withCalculatedStock } from "@/features/product-stock-groups/stock-display";
 
 const POS_PAGE_SIZE = 24;
 
@@ -38,6 +39,17 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
           material: true,
           imageUrl: true,
           isActive: true,
+          stockGroupId: true,
+          unitMultiplierToBase: true,
+          conversionNeedsReview: true,
+          stockGroup: {
+            select: {
+              id: true,
+              displayName: true,
+              baseUnit: true,
+              baseStock: true,
+            },
+          },
           category: {
             select: { id: true, name: true, icon: true, color: true },
           },
@@ -57,10 +69,18 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
     return {
       products: {
         data: products.map((product) => ({
-          ...product,
-          price: Number(product.price),
-          costPrice: product.costPrice == null ? null : Number(product.costPrice),
-          stock: Number(product.stock),
+          ...withCalculatedStock({
+            ...product,
+            price: Number(product.price),
+            costPrice: product.costPrice == null ? null : Number(product.costPrice),
+            stock: Number(product.stock),
+          }),
+          stockGroup: product.stockGroup
+            ? {
+                ...product.stockGroup,
+                baseStock: Number(product.stockGroup.baseStock),
+              }
+            : null,
         })),
         pagination: buildPaginationMeta(total, 1, POS_PAGE_SIZE),
       },

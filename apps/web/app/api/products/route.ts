@@ -13,6 +13,13 @@ import {
 } from "@/features/pos-search/pos-stock-filter";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
+import { withCalculatedStock } from "@/features/product-stock-groups/stock-display";
+import {
+  buildStockGroupCreateData,
+  ensureProductStockGroup,
+  shouldMarkConversionForReview,
+} from "@/features/product-stock-groups/product-stock-groups-service";
+import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
 
 import { getLogger } from "@/lib/logger";
 
@@ -25,12 +32,33 @@ const productSchema = z.object({
   price: z.coerce.number().min(0, "Price must be >= 0"),
   costPrice: z.coerce.number().optional().nullable(),
   stock: z.coerce.number().default(0),
+  unitMultiplierToBase: z.coerce.number().positive().optional(),
   minStock: z.coerce.number().default(5),
   unit: z.string().default("pcs"),
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   categoryId: z.string().min(1, "Category is required"),
   imageUrl: z.string().optional().nullable(),
+  smallestUnitVariant: z.object({
+    unit: z.string().trim().min(1),
+    sku: z.string().trim().min(1),
+    barcode: z.string().optional().nullable(),
+    price: z.coerce.number().min(0),
+    costPrice: z.coerce.number().optional().nullable(),
+    multiplierFromPackaging: z.coerce.number().positive(),
+  }).optional(),
+}).superRefine((value, ctx) => {
+  if (
+    value.smallestUnitVariant &&
+    value.smallestUnitVariant.unit.trim().toLowerCase() ===
+      value.unit.trim().toLowerCase()
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["smallestUnitVariant", "unit"],
+      message: "Smallest unit must be different from packaging unit",
+    });
+  }
 });
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +78,8 @@ export async function GET(request: Request) {
     });
     const inStockOnly = searchParams.get("inStockOnly") === "true";
     const stockStatus = searchParams.get("stockStatus") as ProductStockStatusFilter | null;
+    const stockGroupMinVariants =
+      Number(searchParams.get("stockGroupMinVariants") ?? "0") || 0;
 
     const tokens = parseSearchQuery(search);
     const searchWhere = buildProductSearchOR(tokens);
@@ -57,12 +87,45 @@ export async function GET(request: Request) {
       buildProductStockStatusFilter(stockStatus) ??
       buildProductStockFilter(inStockOnly);
 
+    let stockGroupFilter: Prisma.ProductWhereInput = {};
+    if (stockGroupMinVariants > 0) {
+      const groups = await db.productStockGroup.findMany({
+        where: {
+          storeId,
+          ...(categoryId
+            ? { products: { some: { isActive: true, categoryId } } }
+            : {}),
+        },
+        include: {
+          products: {
+            where: { isActive: true },
+            select: { id: true },
+          },
+        },
+      });
+      stockGroupFilter = {
+        stockGroupId: {
+          in: groups
+            .filter((group) => {
+              const variantCount =
+                "products" in group && Array.isArray(group.products)
+                  ? group.products.length
+                  : (group as { _count?: { products?: number } })._count
+                      ?.products ?? 0;
+              return variantCount >= stockGroupMinVariants;
+            })
+            .map((group) => group.id),
+        },
+      };
+    }
+
     const whereClause: Prisma.ProductWhereInput = {
       storeId,
       isActive: true,
       ...(searchWhere ?? {}),
       ...(categoryId && { categoryId }),
       ...(stockFilter ?? {}),
+      ...(stockGroupFilter ?? {}),
     };
 
     const [products, total] = await Promise.all([
@@ -71,6 +134,15 @@ export async function GET(request: Request) {
         include: {
           category: {
             select: { id: true, name: true, icon: true, color: true },
+          },
+          stockGroup: {
+            select: {
+              id: true,
+              groupKey: true,
+              displayName: true,
+              baseUnit: true,
+              baseStock: true,
+            },
           },
         },
         orderBy: { name: "asc" },
@@ -82,7 +154,10 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    const res = apiList(products, buildPaginationMeta(total, page, limit));
+    const res = apiList(
+      products.map((product) => withCalculatedStock(product)),
+      buildPaginationMeta(total, page, limit),
+    );
     res.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
     return res;
   } catch (error) {
@@ -119,16 +194,207 @@ export async function POST(request: Request) {
       );
     }
 
+    if (validatedData.smallestUnitVariant) {
+      const existingSmallestSku = await db.product.findUnique({
+        where: { sku: validatedData.smallestUnitVariant.sku },
+      });
+      if (existingSmallestSku) {
+        return NextResponse.json(
+          { message: "Smallest unit SKU already exists. Please use a unique SKU." },
+          { status: 409 }
+        );
+      }
+    }
+
     const storeId = user.storeId || "store-main";
+    const unitMultiplierProvided = body.unitMultiplierToBase !== undefined && body.unitMultiplierToBase !== null;
+
     const product = await db.$transaction(async (tx) => {
+      if (validatedData.smallestUnitVariant) {
+        const smallest = validatedData.smallestUnitVariant;
+        const multiplier = smallest.multiplierFromPackaging;
+        const groupKey = normalizeStockGroupKey({
+          name: validatedData.name,
+          categoryId: validatedData.categoryId,
+          material: validatedData.material,
+          size: validatedData.size,
+        });
+        const existingGroup = await tx.productStockGroup.findUnique({
+          where: { storeId_groupKey: { storeId, groupKey } },
+          include: {
+            products: {
+              where: { isActive: true },
+              select: { id: true, unit: true },
+            },
+          },
+        });
+        if (existingGroup) throw new Error("STOCK_GROUP_ALREADY_EXISTS");
+
+        const baseStock = Number(validatedData.stock ?? 0) * multiplier;
+        const { group } = await ensureProductStockGroup(tx, {
+          storeId,
+          name: validatedData.name,
+          categoryId: validatedData.categoryId,
+          material: validatedData.material,
+          size: validatedData.size,
+          displayName: validatedData.name,
+          baseUnit: smallest.unit,
+          baseStock,
+        });
+        const { smallestUnitVariant: _smallestUnitVariant, ...packagingData } =
+          validatedData;
+
+        const packaging = await tx.product.create({
+          data: {
+            ...packagingData,
+            unitMultiplierToBase: multiplier,
+            stockGroupId: group.id,
+            conversionNeedsReview: false,
+            storeId,
+          },
+          include: {
+            category: {
+              select: { id: true, name: true, icon: true, color: true },
+            },
+            stockGroup: {
+              select: {
+                id: true,
+                groupKey: true,
+                displayName: true,
+                baseUnit: true,
+                baseStock: true,
+              },
+            },
+          },
+        });
+
+        const smallestProduct = await tx.product.create({
+          data: {
+            name: validatedData.name,
+            sku: smallest.sku,
+            barcode: smallest.barcode,
+            description: validatedData.description,
+            price: smallest.price,
+            costPrice: smallest.costPrice ?? null,
+            stock: baseStock,
+            minStock: validatedData.minStock,
+            unit: smallest.unit,
+            size: validatedData.size,
+            material: validatedData.material,
+            categoryId: validatedData.categoryId,
+            imageUrl: validatedData.imageUrl,
+            stockGroupId: group.id,
+            unitMultiplierToBase: 1,
+            conversionNeedsReview: false,
+            storeId,
+          },
+        });
+
+        const priceLogEntries = [
+          ...buildProductPriceLogEntries({
+            productId: packaging.id,
+            storeId,
+            before: null,
+            after: {
+              price: packaging.price,
+              costPrice: packaging.costPrice,
+            },
+            actor: user,
+            source: "MANUAL",
+          }),
+          ...buildProductPriceLogEntries({
+            productId: smallestProduct.id,
+            storeId,
+            before: null,
+            after: {
+              price: smallestProduct.price,
+              costPrice: smallestProduct.costPrice,
+            },
+            actor: user,
+            source: "MANUAL",
+            note: `Smallest unit variant for ${validatedData.name}`,
+          }),
+        ];
+
+        if (priceLogEntries.length > 0) {
+          await tx.productPriceLog.createMany({ data: priceLogEntries });
+        }
+
+        const txWithActivity = tx as typeof tx & {
+          productStockGroupActivity?: {
+            create: (args: unknown) => Promise<unknown>;
+          };
+        };
+        await txWithActivity.productStockGroupActivity?.create({
+          data: {
+            stockGroupId: group.id,
+            type: "PAIRED_VARIANTS_CREATED",
+            productId: packaging.id,
+            note: `Created ${validatedData.unit} and ${smallest.unit} variants`,
+            createdBy: user.id,
+            person: user.name ?? null,
+            before: null,
+            after: {
+              baseUnit: smallest.unit,
+              baseStock,
+              variants: [
+                {
+                  id: packaging.id,
+                  unit: validatedData.unit,
+                  unitMultiplierToBase: multiplier,
+                },
+                {
+                  id: smallestProduct.id,
+                  unit: smallest.unit,
+                  unitMultiplierToBase: 1,
+                },
+              ],
+            },
+          },
+        });
+
+        return packaging;
+      }
+
+      const { multiplier, baseStock } = buildStockGroupCreateData({
+        unitMultiplierToBase: validatedData.unitMultiplierToBase,
+        stock: validatedData.stock,
+      });
+      const { group, created: groupCreated } = await ensureProductStockGroup(tx, {
+        storeId,
+        name: validatedData.name,
+        categoryId: validatedData.categoryId,
+        material: validatedData.material,
+        size: validatedData.size,
+        displayName: validatedData.name,
+        baseUnit: validatedData.unit,
+        baseStock,
+      });
       const created = await tx.product.create({
         data: {
           ...validatedData,
+          unitMultiplierToBase: multiplier,
+          stockGroupId: group.id,
+          conversionNeedsReview: shouldMarkConversionForReview({
+            groupCreated,
+            unitMultiplierProvided,
+            unit: validatedData.unit,
+            baseUnit: group.baseUnit,
+          }),
           storeId,
         },
         include: {
           category: {
             select: { id: true, name: true, icon: true, color: true },
+          },
+          stockGroup: {
+            select: {
+              id: true,
+              groupKey: true,
+              displayName: true,
+              baseUnit: true,
+              baseStock: true,
+            },
           },
         },
       });
@@ -152,7 +418,7 @@ export async function POST(request: Request) {
       return created;
     });
 
-    return NextResponse.json(product, { status: 201 });
+    return NextResponse.json(withCalculatedStock(product), { status: 201 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
@@ -162,6 +428,15 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { message: "Validation error", errors: error.flatten().fieldErrors },
         { status: 422 }
+      );
+    }
+    if (error instanceof Error && error.message === "STOCK_GROUP_ALREADY_EXISTS") {
+      return NextResponse.json(
+        {
+          message:
+            "A matching stock group already exists. Add or manage unit variants from the existing stock group.",
+        },
+        { status: 409 },
       );
     }
     return NextResponse.json(

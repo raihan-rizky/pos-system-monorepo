@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const afterMock = vi.hoisted(() => vi.fn());
 const requireRoleMock = vi.hoisted(() => vi.fn());
+const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const canRolePerformActionMock = vi.hoisted(() => vi.fn());
 const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
@@ -10,6 +11,7 @@ const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const printingServiceFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
+const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
 const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const queryRawMock = vi.hoisted(() => vi.fn());
@@ -25,7 +27,7 @@ vi.mock("next/server", async () => {
 
 vi.mock("@/lib/rbac/guard", () => ({
   requireRole: requireRoleMock,
-  requirePermission: vi.fn(),
+  requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
   AuthError: class AuthError extends Error {
     public statusCode: number;
@@ -65,6 +67,7 @@ vi.mock("@pos/db", () => ({
     },
     transaction: {
       count: transactionCountMock,
+      findMany: transactionFindManyMock,
       create: transactionCreateMock,
     },
     categoryCustomerPricingRule: {
@@ -84,6 +87,12 @@ describe("POST /api/transactions printing service items", () => {
     vi.resetModules();
     afterMock.mockImplementation((cb: () => void | Promise<void>) => cb());
     requireRoleMock.mockResolvedValue({
+      id: "cashier-1",
+      role: "CASHIER",
+      storeId: "store-main",
+      name: "Cashier One",
+    });
+    requirePermissionMock.mockResolvedValue({
       id: "cashier-1",
       role: "CASHIER",
       storeId: "store-main",
@@ -119,6 +128,7 @@ describe("POST /api/transactions printing service items", () => {
       },
     ]);
     transactionCountMock.mockResolvedValue(0);
+    transactionFindManyMock.mockResolvedValue([]);
     transactionCreateMock.mockResolvedValue({
       id: "txn-1",
       invoiceNumber: "INV-20260523-0001",
@@ -215,7 +225,7 @@ describe("POST /api/transactions printing service items", () => {
     });
   }, 10_000);
 
-  it("notifies cashiers, owners, and admins when sales creates a pending transaction", async () => {
+  it("creates a regular printable invoice when sales checks out from POS", async () => {
     requireRoleMock.mockResolvedValue({
       id: "sales-1",
       role: "SALES",
@@ -225,7 +235,7 @@ describe("POST /api/transactions printing service items", () => {
     transactionCreateMock.mockResolvedValue({
       id: "txn-sales-1",
       invoiceNumber: "INV-20260523-0002",
-      status: "PENDING_APPROVAL",
+      status: "COMPLETED",
       items: [],
       salesperson: null,
     });
@@ -254,7 +264,7 @@ describe("POST /api/transactions printing service items", () => {
         data: expect.objectContaining({
           cashierId: null,
           requestedById: "sales-1",
-          status: "PENDING_APPROVAL",
+          status: "COMPLETED",
           paymentMethod: "TRANSFER",
           amountPaid: 60000,
           change: 48000,
@@ -262,22 +272,10 @@ describe("POST /api/transactions printing service items", () => {
       }),
     );
     expect(queryRawMock).not.toHaveBeenCalled();
-    expect(sendRolePushEventMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventName: "pending-transaction-created",
-        storeId: "store-main",
-        roles: ["CASHIER", "OWNER", "ADMIN"],
-        featureKey: "pendingTransactions",
-        payload: expect.objectContaining({
-          title: "Transaksi menunggu approval",
-          url: "/history",
-          tag: "pending-transaction:txn-sales-1",
-        }),
-      }),
-    );
+    expect(sendRolePushEventMock).not.toHaveBeenCalled();
   });
 
-  it("keeps the sales transaction successful when push notification fails", async () => {
+  it("does not send approval notifications for sales regular invoices", async () => {
     sendRolePushEventMock.mockRejectedValueOnce(new Error("Missing VAPID"));
     requireRoleMock.mockResolvedValue({
       id: "sales-1",
@@ -288,7 +286,7 @@ describe("POST /api/transactions printing service items", () => {
     transactionCreateMock.mockResolvedValue({
       id: "txn-sales-1",
       invoiceNumber: "INV-20260523-0002",
-      status: "PENDING_APPROVAL",
+      status: "COMPLETED",
       items: [],
       salesperson: null,
     });
@@ -305,14 +303,14 @@ describe("POST /api/transactions printing service items", () => {
             },
           ],
           paymentMethod: "CASH",
-          amountPaid: 0,
+          amountPaid: 12000,
           discount: 0,
         }),
       }),
     );
 
     expect(response.status).toBe(201);
-    expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
+    expect(sendRolePushEventMock).not.toHaveBeenCalled();
   });
 
   it("allows zero down payment when the user explicitly selects DP", async () => {
@@ -350,6 +348,100 @@ describe("POST /api/transactions printing service items", () => {
           amountPaid: 0,
           change: 0,
           status: "DP",
+        }),
+      }),
+    );
+  });
+
+  it("creates a regular DP invoice when sales selects down payment", async () => {
+    requireRoleMock.mockResolvedValue({
+      id: "sales-1",
+      role: "SALES",
+      storeId: "store-main",
+      name: "Sales One",
+    });
+    transactionCreateMock.mockResolvedValue({
+      id: "txn-sales-dp-1",
+      invoiceNumber: "INV-20260523-0004",
+      status: "DP",
+      items: [],
+      salesperson: null,
+    });
+
+    const { POST } = await import("../route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              productId: "material-1",
+              quantity: 1,
+            },
+          ],
+          paymentMethod: "CASH",
+          amountPaid: 5000,
+          discount: 0,
+          paymentStatus: "DP",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          cashierId: null,
+          requestedById: "sales-1",
+          amountPaid: 5000,
+          change: 0,
+          status: "DP",
+        }),
+      }),
+    );
+    expect(queryRawMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+    expect(customerUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("includes sales-created regular invoices in the pending history filter", async () => {
+    const { GET } = await import("../route");
+    const response = await GET(
+      new Request("http://localhost/api/transactions?status=PENDING_APPROVAL"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionCountMock).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        storeId: "store-main",
+        AND: [
+          {
+            OR: [
+              { status: "PENDING_APPROVAL" },
+              {
+                requestedById: { not: null },
+                status: { in: ["COMPLETED", "DP"] },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    expect(transactionFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: "store-main",
+          AND: [
+            {
+              OR: [
+                { status: "PENDING_APPROVAL" },
+                {
+                  requestedById: { not: null },
+                  status: { in: ["COMPLETED", "DP"] },
+                },
+              ],
+            },
+          ],
         }),
       }),
     );

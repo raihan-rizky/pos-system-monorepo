@@ -26,7 +26,9 @@ export async function POST(
       return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
     }
 
-    if (transaction.status !== "PENDING_APPROVAL") {
+    const isSalesRequestedInvoice =
+      Boolean(transaction.requestedById) && !transaction.cashierId;
+    if (transaction.status !== "PENDING_APPROVAL" && !isSalesRequestedInvoice) {
       return NextResponse.json({ message: "Transaksi bukan PENDING_APPROVAL" }, { status: 409 });
     }
 

@@ -9,13 +9,15 @@ import { z } from "zod";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 
 import { getLogger } from "@/lib/logger";
-import { sendRolePushEvent } from "@/lib/push-events";
-import { buildStockDecrementParams } from "@/features/pos-checkout/stock-decrement";
 import {
   buildCustomerUpdateArgs,
   buildInventoryLogRows,
   buildServiceMaterialInventoryLogRows,
 } from "@/features/pos-checkout/post-commit";
+import {
+  applyProductStockDeltas,
+  StockMutationError,
+} from "@/features/product-stock-groups/stock-mutations";
 import { fetchTransactionsAndCount } from "@/features/transaction-history/helpers/fetch-transactions";
 import {
   priceProductForCustomerType,
@@ -186,8 +188,20 @@ export async function GET(request: Request) {
       });
     }
 
-    // Status filter
-    if (status) {
+    // Status filter. The history "Pending" tab also tracks regular invoices
+    // submitted by SALES, while keeping their payment status printable as
+    // COMPLETED/DP.
+    if (status === "PENDING_APPROVAL") {
+      andConditions.push({
+        OR: [
+          { status: "PENDING_APPROVAL" },
+          {
+            requestedById: { not: null },
+            status: { in: ["COMPLETED", "DP"] },
+          },
+        ],
+      });
+    } else if (status) {
       andConditions.push({ status: status as Prisma.EnumTransactionStatusFilter["equals"] });
     }
 
@@ -552,19 +566,11 @@ export async function POST(request: Request) {
     const isDP = paymentStatus === "DP";
     const isSalesRequest = user.role === "SALES";
 
-    // Wait, SALES role doesn't handle payment
     const amountPaidComputed = amountPaid;
-    let changeComputed = 0;
-    
-    if (isSalesRequest) {
-      changeComputed = isDP ? 0 : amountPaid - total;
-    } else {
-      changeComputed = isDP ? 0 : amountPaid - total;
+    const changeComputed = isDP ? 0 : amountPaid - total;
 
-      if (!isDP && amountPaid < total) {
-        return NextResponse.json({ message: "Pembayaran kurang" }, { status: 422 });
-      }
-
+    if (!isDP && amountPaid < total) {
+      return NextResponse.json({ message: "Pembayaran kurang" }, { status: 422 });
     }
 
     // Invoice number sequence is computed from the pre-fetched daily count.
@@ -595,7 +601,7 @@ export async function POST(request: Request) {
               paymentMethod: paymentMethod,
               amountPaid: amountPaidComputed,
               change: changeComputed,
-              status: isSalesRequest ? "PENDING_APPROVAL" : (isDP ? "DP" : "COMPLETED"),
+              status: isDP ? "DP" : "COMPLETED",
               note: note || null,
               customerName: customerName || null,
               salesName: salesName || null,
@@ -682,67 +688,43 @@ export async function POST(request: Request) {
             },
           });
 
-          // Deduct stock for each item only if it's not a sales request
-          if (!isSalesRequest) {
-            // Batched stock decrement: a single UPDATE ... FROM (VALUES ...)
-            // round-trip instead of N sequential updateMany calls. The
-            // RETURNING clause lets us count matched rows so we can detect
-            // insufficient stock without an extra read.
-            const stockDecrementItems = serverItems.flatMap((item) => {
-              if (item.lineType === "PRINTING_SERVICE") {
-                if (!item.rawMaterialProductId || !item.rawMaterialQuantity) {
-                  return [];
-                }
-                return [
-                  {
-                    productId: item.rawMaterialProductId,
-                    quantity: item.rawMaterialQuantity,
-                  },
-                ];
+          // Batched stock decrement: a single UPDATE ... FROM (VALUES ...)
+          // round-trip instead of N sequential updateMany calls. The
+          // RETURNING clause lets us count matched rows so we can detect
+          // insufficient stock without an extra read.
+          const stockDecrementItems = serverItems.flatMap((item) => {
+            if (item.lineType === "PRINTING_SERVICE") {
+              if (!item.rawMaterialProductId || !item.rawMaterialQuantity) {
+                return [];
               }
-
               return [
                 {
-                  productId: item.productId,
-                  quantity: item.quantity,
+                  productId: item.rawMaterialProductId,
+                  quantity: item.rawMaterialQuantity,
                 },
               ];
-            });
-            const { values, expectedRowCount } = buildStockDecrementParams(
-              stockDecrementItems,
-              storeId,
-            );
-
-            if (expectedRowCount > 0) {
-              // unnest(text[], float8[]) gives Postgres the column types
-              // up front, which a parameterized VALUES list cannot. This
-              // is the standard pattern for batched Prisma raw upserts.
-              const productIds = values.map(([id]) => id);
-              const quantities = values.map(([, qty]) => qty);
-              const updated = await tx.$queryRaw<Array<{ id: string }>>`
-                UPDATE pos_products AS p
-                SET stock = p.stock - v.qty
-                FROM unnest(${productIds}::text[], ${quantities}::float8[])
-                  AS v(id, qty)
-                WHERE p.id = v.id
-                  AND p."storeId" = ${storeId}
-                  AND p.stock >= v.qty
-                RETURNING p.id
-              `;
-
-              if (updated.length !== expectedRowCount) {
-                // Either a row was missing (caught by pre-validation) or
-                // its current stock fell below the requested quantity
-                // between read and write. Treat both as insufficient stock
-                // — the interactive transaction will roll back cleanly.
-                throw new Error("INSUFFICIENT_STOCK");
-              }
             }
-            // Inventory logs are an audit trail — they are written *after*
-            // the response (see `after()` below) so they don't extend the
-            // cashier's wait time.
+
+            return [
+              {
+                productId: item.productId,
+                quantity: item.quantity,
+              },
+            ];
+          });
+          if (!isSalesRequest) {
+            await applyProductStockDeltas(tx, {
+              storeId,
+              items: stockDecrementItems.map((item) => ({
+                productId: item.productId,
+                delta: -item.quantity,
+              })),
+            });
           }
 
+          // Inventory logs are an audit trail — they are written *after*
+          // the response (see `after()` below) so they don't extend the
+          // cashier's wait time.
           // Customer analytics are also written post-response (see
           // `after()` below). They're additive counters / a debt increment
           // that don't gate the receipt and don't need to share the txn.
@@ -821,41 +803,27 @@ export async function POST(request: Request) {
       });
     }
 
-    if (transaction && isSalesRequest && transaction.status === "PENDING_APPROVAL") {
-      after(async () => {
-        try {
-          await sendRolePushEvent({
-            eventName: "pending-transaction-created",
-            storeId,
-            roles: ["CASHIER", "OWNER", "ADMIN"],
-            featureKey: "pendingTransactions",
-            payload: {
-              title: "Transaksi menunggu approval",
-              body: `${user.name || salesName || "Sales"} membuat transaksi ${formatRupiah(total)}.`,
-              url: "/history",
-              tag: `pending-transaction:${transaction.id}`,
-            },
-          });
-        } catch (notificationError) {
-          log.error("pending_transaction.notification_failed", {
-            error: notificationError,
-            transactionId: transaction.id,
-            requestedById: user.id,
-            storeId,
-          });
-        }
-      });
-    }
-
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    if (error instanceof Error && error.message === "INSUFFICIENT_STOCK") {
+    if (
+      error instanceof StockMutationError &&
+      error.message === "INSUFFICIENT_STOCK"
+    ) {
       return NextResponse.json(
         { message: "Stok produk tidak mencukupi" },
         { status: 409 }
+      );
+    }
+    if (
+      error instanceof StockMutationError &&
+      error.message === "CONVERSION_NEEDS_REVIEW"
+    ) {
+      return NextResponse.json(
+        { message: "Konversi unit produk perlu direview sebelum stok bisa diproses" },
+        { status: 422 },
       );
     }
 
@@ -865,13 +833,5 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
-
-function formatRupiah(amount: number) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 

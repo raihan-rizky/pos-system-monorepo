@@ -3,6 +3,10 @@ import { db, Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
+import {
+  applyProductStockDelta,
+  StockMutationError,
+} from "@/features/product-stock-groups/stock-mutations";
 
 const logger = getLogger("api:inventory:approve");
 
@@ -71,64 +75,32 @@ export async function POST(
         throw new Error(`ALREADY_DECIDED:${log.status}`);
       }
 
-      const product = await tx.product.findUnique({
-        where: { id: log.productId },
-        select: { id: true, stock: true },
-      });
-      if (!product) {
-        logger.warn("inventory.approval.product_not_found", {
-          logId: id,
-          productId: log.productId,
-          requesterId: log.createdBy,
-          approverId: user.id,
-        });
-        throw new Error("PRODUCT_NOT_FOUND");
-      }
-
       const delta = computeStockDelta(log.type, log.quantity);
-      const newStock = product.stock + delta;
-      if (newStock < 0) {
-        logger.warn("inventory.approval.rejected.negative_stock", {
-          logId: id,
-          productId: log.productId,
-          requesterId: log.createdBy,
-          requesterName: log.person,
-          approverId: user.id,
-          approverRole: user.role,
-          beforeStock: product.stock,
-          stockDelta: delta,
-          requestedQuantity: Math.abs(delta),
-        });
-        throw new Error(
-          `NEGATIVE_STOCK:${product.stock}:${Math.abs(delta)}`,
-        );
-      }
+      const stockResult = await applyProductStockDelta(tx, {
+        storeId: user.storeId || "store-main",
+        productId: log.productId,
+        delta,
+      });
 
-      const [updatedLog] = await Promise.all([
-        tx.inventoryLog.update({
-          where: { id },
-          data: {
-            status: "APPROVED",
-            approvedBy: user.id,
-            approverName: user.name,
-            decidedAt: new Date(),
-          },
-        }),
-        tx.product.update({
-          where: { id: product.id },
-          data: { stock: newStock },
-        }),
-      ]);
+      const updatedLog = await tx.inventoryLog.update({
+        where: { id },
+        data: {
+          status: "APPROVED",
+          approvedBy: user.id,
+          approverName: user.name,
+          decidedAt: new Date(),
+        },
+      });
 
       logger.info("inventory.approval.stock_updated", {
         logId: id,
-        productId: product.id,
+        productId: log.productId,
         requesterId: log.createdBy,
         requesterName: log.person,
         approverId: user.id,
         approverName: user.name,
-        beforeStock: product.stock,
-        afterStock: newStock,
+        beforeStock: stockResult.beforeStock,
+        afterStock: stockResult.afterStock,
         stockDelta: delta,
       });
 
@@ -166,19 +138,45 @@ export async function POST(
           { code: "Conflict", extra: { currentStatus } },
         );
       }
-      if (error.message === "PRODUCT_NOT_FOUND") {
+      if (
+        error.message === "PRODUCT_NOT_FOUND" ||
+        (error instanceof StockMutationError &&
+          error.message === "PRODUCT_NOT_FOUND")
+      ) {
         return apiError("Produk tidak ditemukan", 404, { code: "NotFound" });
       }
-      if (error.message.startsWith("NEGATIVE_STOCK:")) {
-        const [, available, requested] = error.message.split(":");
-        const availableNum = Number(available);
-        const requestedNum = Number(requested);
+      if (
+        error.message.startsWith("NEGATIVE_STOCK:") ||
+        (error instanceof StockMutationError &&
+          error.message === "INSUFFICIENT_STOCK")
+      ) {
+        const availableNum =
+          error instanceof StockMutationError
+            ? Number(error.details.available ?? 0)
+            : Number(error.message.split(":")[1]);
+        const requestedNum =
+          error instanceof StockMutationError
+            ? Number(error.details.requested ?? 0)
+            : Number(error.message.split(":")[2]);
         return apiError(
-          `Stok tidak mencukupi (tersedia ${available}, diminta ${requested})`,
+          `Stok tidak mencukupi (tersedia ${availableNum}, diminta ${requestedNum})`,
           422,
           {
             code: "ValidationError",
             extra: { available: availableNum, requested: requestedNum },
+          },
+        );
+      }
+      if (
+        error instanceof StockMutationError &&
+        error.message === "CONVERSION_NEEDS_REVIEW"
+      ) {
+        return apiError(
+          "Konversi unit produk perlu direview sebelum stok bisa diproses",
+          422,
+          {
+            code: "ValidationError",
+            errors: { stock: ["CONVERSION_NEEDS_REVIEW"] },
           },
         );
       }

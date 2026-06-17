@@ -5,6 +5,7 @@ import { Modal, Button, Input } from "@pos/ui";
 import { Package } from "lucide-react";
 import { useProductsPage } from "@/hooks/useProducts";
 import { formatRupiah } from "@/lib/utils";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 
 interface ServiceMaterialModalProps {
   open: boolean;
@@ -45,6 +46,8 @@ export function ServiceMaterialModal({
     price: number;
     stock: number;
     unit: string;
+    unitMultiplierToBase?: number | null;
+    stockGroup?: { baseUnit?: string | null } | null;
   } | null>(null);
 
   const [length, setLength] = useState<number | "">("");
@@ -173,6 +176,8 @@ export function ServiceMaterialModal({
                         price: Number(m.price),
                         stock: m.stock,
                         unit: m.unit,
+                        unitMultiplierToBase: m.unitMultiplierToBase,
+                        stockGroup: m.stockGroup,
                       })
                     }
                     className={`w-full text-left px-4 py-2 hover:bg-surface-50 text-sm transition-colors ${
@@ -183,7 +188,7 @@ export function ServiceMaterialModal({
                   >
                     <div className="font-medium text-surface-900">{m.name}</div>
                     <div className="text-xs text-surface-500">
-                      Stok: {m.stock} {m.unit} • Harga/unit:{" "}
+                      Stok: {formatCompoundStock(m)} • Harga/unit:{" "}
                       {formatRupiah(Number(m.price))}
                     </div>
                   </button>

@@ -14,6 +14,7 @@
     "build": "prisma generate && node -e \"const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/.build','prisma generated\\n')\"",
     "generate": "prisma generate",
     "postinstall": "prisma generate",
+    "migrate:base-units": "tsx scripts/migrate-base-units.ts",
     "seed": "tsx src/seed.ts",
     "type-check": "tsc --noEmit"
   },

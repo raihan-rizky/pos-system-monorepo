@@ -3,6 +3,7 @@ import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { buildOfflineSyncDecision } from "@/lib/offline/offline-sync-core";
+import { applyProductStockDeltas } from "@/features/product-stock-groups/stock-mutations";
 
 import { getLogger } from "@/lib/logger";
 
@@ -288,22 +289,13 @@ async function createSyncedTransaction({
     });
 
     if (!isPendingApproval) {
-      const updates = await Promise.all(
-        decision.items.map((item) =>
-          tx.product.updateMany({
-            where: {
-              id: item.productId,
-              storeId,
-              stock: { gte: item.quantity },
-            },
-            data: { stock: { decrement: item.quantity } },
-          }),
-        ),
-      );
-
-      if (updates.some((update) => update.count !== 1)) {
-        throw new Error("INSUFFICIENT_STOCK");
-      }
+      await applyProductStockDeltas(tx, {
+        storeId,
+        items: decision.items.map((item) => ({
+          productId: item.productId,
+          delta: -item.quantity,
+        })),
+      });
 
       const productIds = decision.items.map((item) => item.productId);
       const productCosts = await tx.product.findMany({

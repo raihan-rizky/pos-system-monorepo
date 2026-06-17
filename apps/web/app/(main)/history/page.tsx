@@ -372,6 +372,10 @@ function appliedPricingCount(tx: Transaction) {
   return tx.items.filter((item) => item.pricingRuleId).length;
 }
 
+function needsCashierApproval(tx: Transaction) {
+  return tx.status === "PENDING_APPROVAL" || (Boolean(tx.requestedById) && !tx.cashierId);
+}
+
 // ─── Delete Confirm Modal ─────────────────────────────────────────────────────
 
 function DeleteConfirmModal({
@@ -422,7 +426,7 @@ function DeleteConfirmModal({
           </span>
           <p className="text-xs text-red-500 font-medium">
             <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
-            Tindakan ini tidak dapat dibatalkan.
+            Stok barang akan dikembalikan ke inventory. Tindakan ini tidak dapat dibatalkan.
           </p>
 
           {error && (
@@ -963,7 +967,7 @@ export default function HistoryPage() {
                         const isDP = tx.status === "DP";
                         const isVoided = tx.status === "VOIDED";
                         const isRefunded = tx.status === "REFUNDED";
-                        const isPending = tx.status === "PENDING_APPROVAL";
+                        const isPending = needsCashierApproval(tx);
                         const isDraft = tx.status === "DRAFT";
                         const isBundled = isSuratJalanBundle(tx);
                         const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
@@ -1038,7 +1042,7 @@ export default function HistoryPage() {
                               <PaymentBadge method={tx.paymentMethod} />
                             </td>
                             <td className="py-3.5 px-4">
-                              <StatusBadge status={tx.status} />
+                              <StatusBadge status={isPending ? "PENDING_APPROVAL" : tx.status} />
                             </td>
                             <td
                               className="py-3.5 px-4 text-right"
@@ -1073,7 +1077,7 @@ export default function HistoryPage() {
                                     )}
                                   </>
                                 )}
-                                {!isSalesRole && tx.status === "PENDING_APPROVAL" && (canApproveTransactions || canRejectTransactions) && (
+                                {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
                                   <div className="flex gap-2">
                                     {canApproveTransactions && (
                                       <button
@@ -1147,7 +1151,7 @@ export default function HistoryPage() {
                     const isDP = tx.status === "DP";
                     const isVoided = tx.status === "VOIDED";
                     const isRefunded = tx.status === "REFUNDED";
-                    const isPending = tx.status === "PENDING_APPROVAL";
+                    const isPending = needsCashierApproval(tx);
                     const isDraft = tx.status === "DRAFT";
                     const isBundled = isSuratJalanBundle(tx);
                     const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
@@ -1193,7 +1197,7 @@ export default function HistoryPage() {
                               </p>
                             )}
                           </div>
-                          <StatusBadge status={tx.status} />
+                          <StatusBadge status={isPending ? "PENDING_APPROVAL" : tx.status} />
                         </div>
 
                         <div className="flex flex-col gap-1 mb-4">
@@ -1254,7 +1258,7 @@ export default function HistoryPage() {
                               </>
                             )}
 
-                            {!isSalesRole && tx.status === "PENDING_APPROVAL" && (canApproveTransactions || canRejectTransactions) && (
+                            {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
                               <>
                                 {canApproveTransactions && (
                                   <button

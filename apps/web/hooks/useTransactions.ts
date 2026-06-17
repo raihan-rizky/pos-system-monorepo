@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CartItem } from "./useCart";
 import { decrementProductStockInCache } from "@/features/pos-checkout/products-cache-update";
 import { buildHistoryQueryOptions } from "@/features/transaction-history/helpers/query-options";
@@ -25,6 +25,8 @@ export interface Transaction {
   customerName: string | null;
   salesName: string | null;
   salespersonId: string | null;
+  cashierId?: string | null;
+  requestedById?: string | null;
   salesperson?: { name: string } | null;
   note: string | null;
   status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED, DRAFT
@@ -117,6 +119,12 @@ async function fetchTransactionHistory(
   return res.json();
 }
 
+async function fetchTransaction(id: string): Promise<Transaction> {
+  const res = await fetch(`/api/transactions/${id}`);
+  if (!res.ok) throw new Error("Failed to fetch transaction");
+  return res.json() as Promise<Transaction>;
+}
+
 async function createTransaction(
   input: CreateTransactionInput
 ): Promise<Transaction> {
@@ -136,6 +144,25 @@ export function useTransactions() {
   return useQuery({
     queryKey: ["transactions"],
     queryFn: fetchTransactions,
+  });
+}
+
+export function useTransaction(id: string | null) {
+  return useQuery({
+    queryKey: ["transaction", id],
+    queryFn: () => {
+      if (!id) throw new Error("Transaction ID is required");
+      return fetchTransaction(id);
+    },
+    enabled: Boolean(id),
+  });
+}
+
+/** Suspense variant — blocks rendering until data arrives. Use inside <Suspense>. */
+export function useSuspenseTransaction(id: string) {
+  return useSuspenseQuery({
+    queryKey: ["transaction", id],
+    queryFn: () => fetchTransaction(id),
   });
 }
 

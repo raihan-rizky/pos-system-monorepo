@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, FileText, Minus, Plus } from "lucide-react";
 import { Button, Modal } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 import type { ProductCartItem } from "@/hooks/useCart";
 import type { DraftCreateInput } from "@/features/transactions-draft";
 import {
@@ -41,6 +42,8 @@ function toEditorLines(items: ProductCartItem[]): QuoteEditorLine[] {
     quantity: item.quantity,
     unit: item.unit,
     stock: item.stock,
+    unitMultiplierToBase: item.unitMultiplierToBase,
+    stockGroup: item.stockGroup,
     size: item.size ?? null,
     material: item.material ?? null,
   }));
@@ -175,7 +178,7 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
                     {line.name}
                   </p>
                   <p className="mt-0.5 text-xs text-surface-500">
-                    Stok: {line.stock} {line.unit}
+                    Stok: {formatCompoundStock(line)}
                   </p>
                 </div>
                 <div className="flex items-center justify-start gap-1.5 md:justify-center">

@@ -29,6 +29,7 @@
     "openai": "^6.38.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-error-boundary": "^6.1.2",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.0",
     "web-push": "^3.6.7",

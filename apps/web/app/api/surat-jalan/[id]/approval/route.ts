@@ -6,6 +6,11 @@ import {
 } from "@/lib/rbac/guard";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
+import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+import {
+  applyProductStockDelta,
+  StockMutationError,
+} from "@/features/product-stock-groups/stock-mutations";
 
 const log = getLogger("api:surat-jalan:approval");
 
@@ -26,7 +31,14 @@ export async function POST(
         include: {
           items: {
             include: {
-              product: { select: { stock: true } },
+              product: {
+                select: {
+                  stock: true,
+                  stockGroupId: true,
+                  unitMultiplierToBase: true,
+                  stockGroup: { select: { baseStock: true } },
+                },
+              },
             },
           },
           transaction: {
@@ -65,15 +77,16 @@ export async function POST(
         if (alreadyDelivered + item.quantity > invoiceItem.quantity) {
           throw new Error("QUANTITY_EXCEEDS_REMAINING");
         }
-        if (item.product.stock < item.quantity) {
+        if (resolveProductDisplayStock(item.product) < item.quantity) {
           throw new Error("INSUFFICIENT_STOCK");
         }
       }
 
       for (const item of suratJalan.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
+        await applyProductStockDelta(tx, {
+          storeId,
+          productId: item.productId,
+          delta: -item.quantity,
         });
       }
 
@@ -104,6 +117,9 @@ export async function POST(
       });
 
       return updated;
+    }, {
+      maxWait: 5000,
+      timeout: 20000,
     });
 
     return NextResponse.json(result, { status: 200 });
@@ -127,6 +143,15 @@ export async function POST(
         return apiError("Invalid surat jalan quantities", 422, {
           code: "ValidationError",
           errors: { quantities: [error.message] },
+        });
+      }
+      if (
+        error instanceof StockMutationError &&
+        error.message === "INSUFFICIENT_STOCK"
+      ) {
+        return apiError("Invalid surat jalan quantities", 422, {
+          code: "ValidationError",
+          errors: { quantities: ["INSUFFICIENT_STOCK"] },
         });
       }
     }

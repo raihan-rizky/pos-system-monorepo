@@ -1,9 +1,10 @@
 import React from "react";
 import { Product } from "@/hooks/useProducts";
-import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw, BadgeDollarSign } from "lucide-react";
+import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw, BadgeDollarSign, Boxes } from "lucide-react";
 import { StockWarningBadge } from "@/features/product-stock-warnings/components";
 import { CategoryIcon } from "@/lib/category-icons";
 import { getDefaultProductImage } from "@/lib/utils";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 
 interface ProductTableProps {
   products: Product[];
@@ -11,6 +12,7 @@ interface ProductTableProps {
   onEdit: (id: string) => void;
   onUpdateStock: (id: string) => void;
   onChangePrice?: (id: string) => void;
+  onViewStockGroup?: (id: string) => void;
   canUpdateProduct: boolean;
   canUpdateStock: boolean;
   canChangePrice?: boolean;
@@ -24,6 +26,7 @@ export default function ProductTable({
   onEdit,
   onUpdateStock,
   onChangePrice,
+  onViewStockGroup,
   canUpdateProduct,
   canUpdateStock,
   canChangePrice = false,
@@ -66,6 +69,7 @@ export default function ProductTable({
           <tbody>
             {products.map(product => {
               const isLow = product.stock <= product.minStock;
+              const stockLabel = formatCompoundStock(product);
               return (
                 <tr key={product.id} className="group border-b border-surface-50 hover:bg-brand-50/30 transition-colors duration-150">
                   {onToggleProduct && (
@@ -137,9 +141,8 @@ export default function ProductTable({
                       <div className="flex items-center gap-1.5">
                         {isLow && <AlertCircle className="w-3.5 h-3.5 text-amber-500 animate-pulse" />}
                         <span className={`font-bold tabular-nums text-sm ${isLow ? "text-amber-600" : "text-surface-900"}`}>
-                          {product.stock}
+                          {stockLabel}
                         </span>
-                        <span className="text-xs text-surface-400">{product.unit}</span>
                       </div>
                       {isLow && (
                         <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Restock</span>
@@ -158,6 +161,15 @@ export default function ProductTable({
                             className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                           >
                             <BadgeDollarSign className="w-4 h-4" />
+                          </button>
+                        )}
+                        {product.stockGroupId && onViewStockGroup && (
+                          <button
+                            onClick={() => onViewStockGroup(product.stockGroupId!)}
+                            title="Lihat Stok Unit"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-500 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                          >
+                            <Boxes className="w-4 h-4" />
                           </button>
                         )}
                         {canUpdateStock && (
@@ -193,6 +205,7 @@ export default function ProductTable({
         {products.map(product => {
           const isLow = product.stock <= product.minStock;
           const isOut = product.stock <= 0;
+          const stockLabel = formatCompoundStock(product);
           return (
             <div 
               key={product.id} 
@@ -245,6 +258,15 @@ export default function ProductTable({
                             title="Ubah Harga"
                           >
                             <BadgeDollarSign className="w-4 h-4" />
+                          </button>
+                        )}
+                        {product.stockGroupId && onViewStockGroup && (
+                          <button
+                            onClick={() => onViewStockGroup(product.stockGroupId!)}
+                            className="p-2.5 bg-slate-50 text-slate-500 hover:text-sky-600 hover:bg-sky-50 active:bg-sky-100 rounded-xl transition-all cursor-pointer"
+                            title="Lihat Stok Unit"
+                          >
+                            <Boxes className="w-4 h-4" />
                           </button>
                         )}
                         {canUpdateStock && (
@@ -321,7 +343,7 @@ export default function ProductTable({
                       "text-emerald-600"
                     }`}>
                       <div className="flex items-center gap-2">
-                      {product.stock} <span className="text-[10px] opacity-70 ml-0.5 uppercase tracking-tighter">{product.unit}</span>
+                      {stockLabel}
                       <StockWarningBadge stock={product.stock} minStock={product.minStock} productName={product.name} />
                     </div>
                     </p>

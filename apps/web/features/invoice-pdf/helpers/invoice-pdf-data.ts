@@ -22,6 +22,7 @@ export interface InvoicePdfItem {
   productName: string;
   size: string;
   quantity: number;
+  unit: string;
   unitPriceFormatted: string;
   subtotalFormatted: string;
 }
@@ -159,14 +160,18 @@ export function buildInvoicePdfData(
   const totals = computeTotals(transaction);
   const status = getStatusDisplay(transaction.status);
 
-  const pdfItems: InvoicePdfItem[] = items.map((item, index) => ({
-    no: index + 1,
-    productName: item.productName,
-    size: formatReceiptSize(item.size) || "-",
-    quantity: item.quantity,
-    unitPriceFormatted: formatNumber(item.unitPrice),
-    subtotalFormatted: formatNumber(item.subtotal),
-  }));
+  const pdfItems: InvoicePdfItem[] = items.map((item, index) => {
+    const unit = item.product?.unit || item.printingService?.unit || item.rawMaterialUnit || "pcs";
+    return {
+      no: index + 1,
+      productName: item.productName,
+      size: formatReceiptSize(item.size) || "-",
+      quantity: item.quantity,
+      unit,
+      unitPriceFormatted: formatNumber(item.unitPrice),
+      subtotalFormatted: formatNumber(item.subtotal),
+    };
+  });
 
   return {
     storeName: storeSettings.name,

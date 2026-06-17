@@ -472,7 +472,7 @@ export function InvoicePdfDocument({
                 </Text>
               )}
               <Text style={[tdStyle, s.colQty, { textAlign: "center" }]}>
-                {item.quantity}
+                {item.quantity} {item.unit}
               </Text>
               <Text style={[tdStyle, s.colPrice, { textAlign: "right" }]}>
                 {item.unitPriceFormatted}

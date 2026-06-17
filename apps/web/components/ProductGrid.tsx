@@ -9,6 +9,7 @@ import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowDeleteAction } from "@/features/rbac/helpers/rbac-ui";
 import { StockWarningBadge } from "@/features/product-stock-warnings/components";
 import { CategoryIcon } from "@/lib/category-icons";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 
 // Tiny 4×4 neutral grey pixel — used as blur placeholder (no external request)
 const BLUR_DATA_URL =
@@ -173,7 +174,7 @@ export function ProductGrid({
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    {isOutOfStock ? "Habis" : `Stok: ${product.stock}`}
+                    {isOutOfStock ? "Habis" : `Stok: ${formatCompoundStock(product)}`}
                     <StockWarningBadge stock={product.stock} minStock={product.minStock} productName={product.name} />
                   </div>
                 </span>

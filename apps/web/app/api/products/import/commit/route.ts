@@ -9,6 +9,12 @@ import {
 } from "@/features/product-import/helpers/import-core";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import { getLogger } from "@/lib/logger";
+import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+import {
+  buildStockGroupCreateData,
+  ensureProductStockGroup,
+  shouldMarkConversionForReview,
+} from "@/features/product-stock-groups/product-stock-groups-service";
 
 const logger = getLogger("api:products:import:commit");
 
@@ -67,6 +73,7 @@ export async function POST(request: Request) {
         const skus = rows.map((row) => row.sku);
         const existingProducts = await tx.product.findMany({
           where: { storeId, sku: { in: skus } },
+          include: { stockGroup: true },
         });
         const existingBySku = new Map(
           existingProducts.map((product) => [product.sku, product]),
@@ -158,7 +165,26 @@ export async function POST(request: Request) {
           if (!category) throw new Error(`CATEGORY_NOT_FOUND:${row.category}`);
 
           if (existing) {
-            const beforeSnapshot = productSnapshot(existing);
+            const beforeDisplayStock = resolveProductDisplayStock(existing);
+            const beforeSnapshot = productSnapshot({
+              ...existing,
+              stock: beforeDisplayStock,
+            });
+            const multiplier = existing.unitMultiplierToBase || 1;
+            const { group } = await ensureProductStockGroup(tx, {
+              storeId,
+              name: row.name,
+              categoryId: category.id,
+              material: row.material,
+              size: row.size,
+              displayName: row.name,
+              baseUnit: row.unit,
+              baseStock: row.stock * multiplier,
+            });
+            await tx.productStockGroup.update({
+              where: { id: group.id },
+              data: { baseStock: row.stock * multiplier },
+            });
             const updated = await tx.product.update({
               where: { id: existing.id },
               data: {
@@ -167,13 +193,13 @@ export async function POST(request: Request) {
                 description: row.description,
                 price: row.price,
                 costPrice: row.costPrice,
-                stock: row.stock,
                 minStock: row.minStock ?? 5,
                 unit: row.unit,
                 size: row.size,
                 material: row.material,
                 imageUrl: row.imageUrl,
                 categoryId: category.id,
+                stockGroupId: group.id,
               },
             });
             updatedProductCount += 1;
@@ -196,7 +222,7 @@ export async function POST(request: Request) {
               await tx.productPriceLog.createMany({ data: priceLogEntries });
               priceLogCount += priceLogEntries.length;
             }
-            const delta = row.stock - existing.stock;
+            const delta = row.stock - beforeDisplayStock;
             const log =
               delta === 0
                 ? null
@@ -221,12 +247,26 @@ export async function POST(request: Request) {
                 beforeSnapshot:
                   beforeSnapshot as unknown as Prisma.InputJsonValue,
                 afterSnapshot: productSnapshot(
-                  updated,
+                  { ...updated, stock: row.stock },
                 ) as unknown as Prisma.InputJsonValue,
                 inventoryLogId: log?.id,
               },
             });
           } else {
+            const { multiplier, baseStock } = buildStockGroupCreateData({
+              stock: row.stock,
+              unitMultiplierToBase: 1,
+            });
+            const { group, created: groupCreated } = await ensureProductStockGroup(tx, {
+              storeId,
+              name: row.name,
+              categoryId: category.id,
+              material: row.material,
+              size: row.size,
+              displayName: row.name,
+              baseUnit: row.unit,
+              baseStock,
+            });
             const created = await tx.product.create({
               data: {
                 name: row.name,
@@ -242,6 +282,14 @@ export async function POST(request: Request) {
                 material: row.material,
                 imageUrl: row.imageUrl,
                 categoryId: category.id,
+                stockGroupId: group.id,
+                unitMultiplierToBase: multiplier,
+                conversionNeedsReview: shouldMarkConversionForReview({
+                  groupCreated,
+                  unitMultiplierProvided: false,
+                  unit: row.unit,
+                  baseUnit: group.baseUnit,
+                }),
                 storeId,
               },
             });

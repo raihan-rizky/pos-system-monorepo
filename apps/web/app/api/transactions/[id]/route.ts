@@ -5,8 +5,14 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 import { getLogger } from "@/lib/logger";
+import { applyProductStockDeltas } from "@/features/product-stock-groups/stock-mutations";
 
 const log = getLogger("api:transactions:id");
+const toIsoString = (value: Date | string | null | undefined) => {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString() : value;
+};
+
 const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   COMPLETED: ["DP", "VOIDED", "REFUNDED"],
   DP: ["COMPLETED", "VOIDED"],
@@ -25,6 +31,60 @@ const updateTransactionSchema = z.object({
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional(),
   status: z.enum(["COMPLETED", "DP", "VOIDED", "REFUNDED", "PENDING_APPROVAL"]).optional(),
 });
+
+// GET /api/transactions/[id]
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requirePermission("transaction", "read");
+    const storeId = user.storeId || "store-main";
+    const { id } = await params;
+
+    const transaction = await db.transaction.findFirst({
+      where: { id, storeId },
+      include: {
+        cashier: { select: { name: true } },
+        salesperson: { select: { name: true } },
+        items: {
+          include: {
+            product: { select: { unit: true } },
+            printingService: { select: { unit: true } },
+          },
+        },
+      },
+    });
+
+    if (!transaction) {
+      return NextResponse.json(
+        { message: "Transaksi tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    const createdAt = toIsoString(transaction.createdAt) ?? new Date(0).toISOString();
+
+    return NextResponse.json({
+      ...transaction,
+      createdAt,
+      items: transaction.items.map((item) => ({
+        ...item,
+        createdAt:
+          toIsoString((item as { createdAt?: Date | string | null }).createdAt) ?? createdAt,
+      })),
+    });
+  } catch (error: any) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+
+    log.error("Failed to fetch transaction:", error);
+    return NextResponse.json(
+      { message: "Failed to fetch transaction" },
+      { status: 500 }
+    );
+  }
+}
 
 // PATCH /api/transactions/[id]
 export async function PATCH(
@@ -168,19 +228,14 @@ export async function PATCH(
             );
 
             // 1. Restore stock for each product item
-            if (productItems.length > 0) {
-              const productIds = productItems.map((item) => item.productId);
-              const quantities = productItems.map((item) => item.quantity);
-
-              await db.$executeRaw`
-                UPDATE pos_products AS p
-                SET stock = p.stock + v.qty
-                FROM unnest(${productIds}::text[], ${quantities}::int[])
-                  AS v(id, qty)
-                WHERE p.id = v.id
-                  AND p."storeId" = ${storeId}
-              `;
-            }
+            await applyProductStockDeltas(db as any, {
+              storeId,
+              items: productItems.map((item) => ({
+                productId: item.productId,
+                delta: item.quantity,
+              })),
+              allowNegative: true,
+            });
 
             // 2. Create void reversal inventory log entries (IN type, SALE_RETURN reason)
             const voidInventoryRows = productItems.map((item) => ({
@@ -269,7 +324,7 @@ export async function DELETE(
 
     const existingTransaction = await db.transaction.findFirst({
       where: { id, storeId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
 
     if (!existingTransaction) {
@@ -277,6 +332,101 @@ export async function DELETE(
         { message: "Transaksi tidak ditemukan" },
         { status: 404 }
       );
+    }
+
+    // Fetch full transaction for side-effect reversal (only if not already voided)
+    if (existingTransaction.status !== "VOIDED") {
+      const txToRevert = await db.transaction.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          customerId: true,
+          total: true,
+          amountPaid: true,
+          status: true,
+          items: {
+            select: {
+              productId: true,
+              productName: true,
+              quantity: true,
+              unitCost: true,
+            },
+          },
+        },
+      });
+
+      if (txToRevert) {
+        // Restore stock for each product item
+        const productItems = txToRevert.items.filter(
+          (item): item is typeof item & { productId: string } =>
+            item.productId !== null,
+        );
+
+        if (productItems.length > 0) {
+          await applyProductStockDeltas(db as any, {
+            storeId,
+            items: productItems.map((item) => ({
+              productId: item.productId,
+              delta: item.quantity,
+            })),
+            allowNegative: true,
+          });
+
+          // Create inventory log entries for the restoration
+          const voidInventoryRows = productItems.map((item) => ({
+            productId: item.productId,
+            type: "IN" as const,
+            reason: "SALE_RETURN" as const,
+            quantity: item.quantity,
+            unitCost:
+              item.unitCost === null || item.unitCost === undefined
+                ? null
+                : Number(item.unitCost.toString()),
+            note: `Delete transaksi ${txToRevert.invoiceNumber} - ${item.productName}`,
+            createdBy: user.id,
+            person: user.name ?? null,
+          }));
+
+          await db.inventoryLog.createMany({ data: voidInventoryRows });
+        }
+
+        // Reverse customer analytics
+        if (txToRevert.customerId) {
+          const existingCustomer = await db.customer.findUnique({
+            where: { id: txToRevert.customerId },
+            select: { totalSpent: true, totalOrders: true, totalDebt: true },
+          });
+
+          if (existingCustomer) {
+            const total = Number(txToRevert.total);
+            const amountPaid = Math.min(Number(txToRevert.amountPaid), total);
+            const wasDp = txToRevert.status === "DP";
+            const debtDecrement = wasDp
+              ? Math.max(0, total - amountPaid)
+              : 0;
+
+            await db.customer.update({
+              where: { id: txToRevert.customerId },
+              data: {
+                totalSpent: Math.max(
+                  0,
+                  Number(existingCustomer.totalSpent) - amountPaid,
+                ),
+                totalOrders: Math.max(0, existingCustomer.totalOrders - 1),
+                ...(debtDecrement > 0
+                  ? {
+                      totalDebt: Math.max(
+                        0,
+                        Number(existingCustomer.totalDebt) - debtDecrement,
+                      ),
+                    }
+                  : {}),
+              },
+            });
+          }
+        }
+      }
     }
 
     // Delete items first (referential integrity), then the transaction

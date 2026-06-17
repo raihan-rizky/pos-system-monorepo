@@ -2,6 +2,11 @@ import { Prisma } from "@pos/db";
 
 import { productSnapshot, stockDelta } from "@/features/batch-operations/helpers/snapshots";
 import { summarizeBulkApprovalBundle } from "@/features/bulk-stock-approval/helpers/bundle-status";
+import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+import {
+  applyProductStockDelta,
+  StockMutationError,
+} from "@/features/product-stock-groups/stock-mutations";
 import { apiError } from "@/lib/api/responses";
 
 type Tx = Prisma.TransactionClient;
@@ -97,16 +102,23 @@ export async function approvePendingBulkLog(
   if (!log) throw new Error("LOG_NOT_FOUND");
   if (log.status !== "PENDING") throw new Error(`ALREADY_DECIDED:${log.status}`);
 
-  const product = await tx.product.findUnique({ where: { id: log.productId } });
+  const product = await tx.product.findUnique({
+    where: { id: log.productId },
+    include: { stockGroup: true },
+  });
   if (!product) throw new Error("PRODUCT_NOT_FOUND");
 
-  const afterStock = computeAfterStock(log.type, product.stock, log.quantity);
-  if (afterStock < 0) throw new Error(`NEGATIVE_STOCK:${product.stock}:${Math.abs(log.quantity)}`);
+  const beforeStock = resolveProductDisplayStock(product);
+  const delta = stockDelta(log.type, beforeStock, log.quantity);
+  const afterStock = beforeStock + delta;
+  if (afterStock < 0) throw new Error(`NEGATIVE_STOCK:${beforeStock}:${Math.abs(log.quantity)}`);
 
-  const updatedProduct = await tx.product.update({
-    where: { id: product.id },
-    data: { stock: afterStock },
+  await applyProductStockDelta(tx, {
+    storeId: product.storeId,
+    productId: product.id,
+    delta,
   });
+  const updatedProduct = { ...product, stock: afterStock };
   const updatedLog = await tx.inventoryLog.update({
     where: { id: log.id },
     data: {
@@ -199,6 +211,21 @@ export function mapBulkRequestError(error: unknown, fallback: string) {
           requested: Number(requested),
         },
       });
+    }
+    if (error instanceof StockMutationError) {
+      if (error.message === "PRODUCT_NOT_FOUND") {
+        return apiError("Permintaan tidak ditemukan", 404, { code: "NotFound" });
+      }
+      if (error.message === "INSUFFICIENT_STOCK") {
+        return apiError("Stok tidak mencukupi", 422, {
+          code: "ValidationError",
+          errors: { stock: ["Stok tidak mencukupi"] },
+          extra: {
+            available: Number(error.details.available ?? 0),
+            requested: Number(error.details.requested ?? 0),
+          },
+        });
+      }
     }
   }
 

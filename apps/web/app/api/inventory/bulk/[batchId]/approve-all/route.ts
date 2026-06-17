@@ -4,6 +4,7 @@ import { db } from "@pos/db";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { approvePendingBulkLog, computeAfterStock, findBulkBatch, mapBulkRequestError, rejectPendingBulkLog, updateBatchDecisionStatus } from "../_shared";
+import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 
 const logger = getLogger("api:inventory:bulk:approve-all");
 const INSUFFICIENT_STOCK_REASON = "Stok tidak mencukupi";
@@ -26,8 +27,12 @@ export async function POST(
       for (const inventoryLogId of pendingIds) {
         const log = await tx.inventoryLog.findUnique({ where: { id: inventoryLogId } });
         if (!log || log.status !== "PENDING") continue;
-        const product = await tx.product.findUnique({ where: { id: log.productId }, select: { stock: true } });
-        if (!product || computeAfterStock(log.type, product.stock, log.quantity) < 0) {
+        const product = await tx.product.findUnique({
+          where: { id: log.productId },
+          include: { stockGroup: true },
+        });
+        const currentStock = product ? resolveProductDisplayStock(product) : 0;
+        if (!product || computeAfterStock(log.type, currentStock, log.quantity) < 0) {
           await rejectPendingBulkLog(tx, {
             batchId,
             inventoryLogId,

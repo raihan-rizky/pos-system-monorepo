@@ -101,7 +101,6 @@ export function PaymentModal({
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
   
   const { role } = useRole();
-  const isSalesRole = role === "SALES";
   const selectedCustomerType: CustomerType =
     customerSelection.kind === "existing"
       ? customerSelection.customer.type ?? "UMUM"
@@ -179,8 +178,7 @@ export function PaymentModal({
   const change = amountPaid - total;
   const remaining = total - amountPaid;
 
-  // Full payment: must pay >= total. DP: may be 0 as long as it is still below total.
-  // SALES role just submits the request, no payment required yet.
+  // Full payment must pay >= total. DP may be 0 as long as it is still below total.
   const hasInvalidManualPrice = pricedItems.some(
     (item) =>
       item.lineType === "PRODUCT" &&
@@ -792,11 +790,9 @@ export function PaymentModal({
           >
             {isProcessing
               ? "Memproses..."
-              : isSalesRole
-                ? "Kirim Permintaan"
-                : isDP
-                  ? `Bayar DP ${amountPaid > 0 ? formatRupiah(amountPaid) : ''}`
-                  : "Konfirmasi Bayar"
+              : isDP
+                ? `Bayar DP ${amountPaid > 0 ? formatRupiah(amountPaid) : ''}`
+                : "Konfirmasi Bayar"
             }
           </Button>
         </div>

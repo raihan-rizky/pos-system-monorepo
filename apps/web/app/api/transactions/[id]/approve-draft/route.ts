@@ -7,8 +7,11 @@ import {
   requirePermission,
 } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
-import { buildStockDecrementParams } from "@/features/pos-checkout/stock-decrement";
 import { buildCustomerUpdateArgs } from "@/features/pos-checkout/post-commit";
+import {
+  applyProductStockDeltas,
+  StockMutationError,
+} from "@/features/product-stock-groups/stock-mutations";
 
 const log = getLogger("api:transactions:approve-draft");
 
@@ -117,32 +120,14 @@ export async function POST(
               throw new Error("DRAFT_NOT_FOUND");
             }
 
-            const { values, expectedRowCount } = buildStockDecrementParams(
-              draft.items.flatMap((item) =>
+            await applyProductStockDeltas(tx, {
+              storeId,
+              items: draft.items.flatMap((item) =>
                 item.productId
-                  ? [{ productId: item.productId, quantity: item.quantity }]
+                  ? [{ productId: item.productId, delta: -item.quantity }]
                   : [],
               ),
-              storeId,
-            );
-
-            if (expectedRowCount > 0) {
-              const productIds = values.map(([pid]) => pid);
-              const quantities = values.map(([, qty]) => qty);
-              const decremented = await tx.$queryRaw<Array<{ id: string }>>`
-                UPDATE pos_products AS p
-                SET stock = p.stock - v.qty
-                FROM unnest(${productIds}::text[], ${quantities}::float8[])
-                  AS v(id, qty)
-                WHERE p.id = v.id
-                  AND p."storeId" = ${storeId}
-                  AND p.stock >= v.qty
-                RETURNING p.id
-              `;
-              if (decremented.length !== expectedRowCount) {
-                throw new Error("INSUFFICIENT_STOCK");
-              }
-            }
+            });
 
             return { invoiceNumber };
           },
@@ -214,10 +199,22 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    if (error instanceof Error && error.message === "INSUFFICIENT_STOCK") {
+    if (
+      error instanceof StockMutationError &&
+      error.message === "INSUFFICIENT_STOCK"
+    ) {
       return NextResponse.json(
         { message: "Stok produk tidak mencukupi" },
         { status: 409 },
+      );
+    }
+    if (
+      error instanceof StockMutationError &&
+      error.message === "CONVERSION_NEEDS_REVIEW"
+    ) {
+      return NextResponse.json(
+        { message: "Konversi unit produk perlu direview sebelum stok bisa diproses" },
+        { status: 422 },
       );
     }
     if (error instanceof Error && error.message === "DRAFT_NOT_FOUND") {

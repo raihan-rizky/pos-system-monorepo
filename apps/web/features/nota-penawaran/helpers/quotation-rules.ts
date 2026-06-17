@@ -12,6 +12,10 @@ export type QuotationProductLine = {
   quantity: number;
   unit: string;
   stock: number;
+  unitMultiplierToBase?: number | null;
+  stockGroup?: {
+    baseUnit?: string | null;
+  } | null;
   size?: string | null;
   material?: string | null;
 };

@@ -45,7 +45,8 @@
       "Bash(python scripts/search.py \"dashboard data-table\" --domain ux -n 5)",
       "Bash(python3 *)",
       "Bash(python \"C:\\\\Users\\\\Unknown\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"POS inventory dashboard approval workflow\" --design-system -p \"POS Stock Approval\")",
-      "Bash(powershell -Command \"\\(Get-Content 'apps\\\\web\\\\app\\\\\\(main\\)\\\\customers\\\\page.tsx' -Raw\\).Substring\\(27500, 200\\)\")"
+      "Bash(powershell -Command \"\\(Get-Content 'apps\\\\web\\\\app\\\\\\(main\\)\\\\customers\\\\page.tsx' -Raw\\).Substring\\(27500, 200\\)\")",
+      "Bash(python *)"
     ]
   }
 }

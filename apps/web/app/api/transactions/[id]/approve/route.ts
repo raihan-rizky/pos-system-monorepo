@@ -4,8 +4,11 @@ import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
-import { buildStockDecrementParams } from "@/features/pos-checkout/stock-decrement";
 import { buildCustomerUpdateArgs } from "@/features/pos-checkout/post-commit";
+import {
+  applyProductStockDeltas,
+  StockMutationError,
+} from "@/features/product-stock-groups/stock-mutations";
 
 const log = getLogger("api:transactions:id:approve");
 const approveTransactionSchema = z.object({
@@ -44,7 +47,9 @@ export async function POST(
       return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
     }
 
-    if (transaction.status !== "PENDING_APPROVAL") {
+    const isSalesRequestedInvoice =
+      Boolean(transaction.requestedById) && !transaction.cashierId;
+    if (transaction.status !== "PENDING_APPROVAL" && !isSalesRequestedInvoice) {
       return NextResponse.json({ message: "Transaksi bukan PENDING_APPROVAL" }, { status: 409 });
     }
 
@@ -63,7 +68,10 @@ export async function POST(
 
     const change = amountPaid > total ? amountPaid - total : 0;
     const finalAmountPaid = amountPaid;
-    const newStatus = isDP ? "DP" : "COMPLETED";
+    const newStatus =
+      transaction.status === "PENDING_APPROVAL"
+        ? isDP ? "DP" : "COMPLETED"
+        : transaction.status;
 
     // Keep the interactive transaction focused on the state transition and
     // stock mutation. Audit/customer side effects run after the response,
@@ -71,7 +79,13 @@ export async function POST(
     const updatedTransaction = await db.$transaction(async (tx) => {
       // 1. Update the transaction
       const updateResult = await tx.transaction.updateMany({
-        where: { id, storeId, status: "PENDING_APPROVAL" },
+        where: {
+          id,
+          storeId,
+          ...(transaction.status === "PENDING_APPROVAL"
+            ? { status: "PENDING_APPROVAL" as const }
+            : { requestedById: { not: null }, cashierId: null }),
+        },
         data: {
           status: newStatus,
           cashierId: user.id,
@@ -87,36 +101,17 @@ export async function POST(
 
       // 2. Deduct stock in one round-trip since it wasn't done during the
       // SALES request phase.
-      const { values, expectedRowCount } = buildStockDecrementParams(
-        transaction.items
+      await applyProductStockDeltas(tx, {
+        storeId,
+        items: transaction.items
           .filter((item): item is typeof item & { productId: string } =>
             Boolean(item.productId),
           )
           .map((item) => ({
             productId: item.productId,
-            quantity: item.quantity,
+            delta: -item.quantity,
           })),
-        storeId,
-      );
-
-      if (expectedRowCount > 0) {
-        const productIds = values.map(([productId]) => productId);
-        const quantities = values.map(([, quantity]) => quantity);
-        const updated = await tx.$queryRaw<Array<{ id: string }>>`
-          UPDATE pos_products AS p
-          SET stock = p.stock - v.qty
-          FROM unnest(${productIds}::text[], ${quantities}::float8[])
-            AS v(id, qty)
-          WHERE p.id = v.id
-            AND p."storeId" = ${storeId}
-            AND p.stock >= v.qty
-          RETURNING p.id
-        `;
-
-        if (updated.length !== expectedRowCount) {
-          throw new Error("INSUFFICIENT_STOCK");
-        }
-      }
+      });
 
       return {
         ...transaction,
@@ -177,10 +172,22 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    if (error instanceof Error && error.message === "INSUFFICIENT_STOCK") {
+    if (
+      error instanceof StockMutationError &&
+      error.message === "INSUFFICIENT_STOCK"
+    ) {
       return NextResponse.json(
         { message: "Stok produk tidak mencukupi" },
         { status: 409 }
+      );
+    }
+    if (
+      error instanceof StockMutationError &&
+      error.message === "CONVERSION_NEEDS_REVIEW"
+    ) {
+      return NextResponse.json(
+        { message: "Konversi unit produk perlu direview sebelum stok bisa diproses" },
+        { status: 422 },
       );
     }
 

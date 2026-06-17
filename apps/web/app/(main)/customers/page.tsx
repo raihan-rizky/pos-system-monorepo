@@ -109,6 +109,8 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: "TRANSFER", label: "Transfer" },
 ] as const;
 
+type CustomerPageTab = "all" | "debt";
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -1277,7 +1279,7 @@ export default function CustomersPage() {
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<CustomerType | "">("");
-  const [hasDebtFilter, setHasDebtFilter] = useState(false);
+  const [activeTab, setActiveTab] = useState<CustomerPageTab>("all");
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -1297,7 +1299,7 @@ export default function CustomersPage() {
   const { data, isLoading, isFetching } = useCustomers({
     search: debouncedSearch,
     type: typeFilter,
-    hasDebt: hasDebtFilter,
+    hasDebt: activeTab === "debt",
     page,
     limit: 20,
   });
@@ -1359,9 +1361,9 @@ export default function CustomersPage() {
     });
   }, []);
 
-  const handleDebtFilterToggle = useCallback(() => {
+  const handleTabChange = useCallback((nextTab: CustomerPageTab) => {
     startTransition(() => {
-      setHasDebtFilter((prev) => !prev);
+      setActiveTab(nextTab);
       setPage(1);
     });
   }, []);
@@ -1403,7 +1405,7 @@ export default function CustomersPage() {
     [canDeleteCustomers, deleteCustomer],
   );
 
-  const hasActiveFilters = search.trim().length > 0 || typeFilter !== "" || hasDebtFilter;
+  const hasActiveFilters = search.trim().length > 0 || typeFilter !== "";
 
   return (
     <div className="min-h-full overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_24%),linear-gradient(180deg,_#fffdf8_0%,_#f8fafc_34%,_#f8fafc_100%)]">
@@ -1463,6 +1465,41 @@ export default function CustomersPage() {
         </Suspense>
 
         <section className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] sm:rounded-[32px] sm:p-5">
+          <div
+            role="tablist"
+            aria-label="Tampilan pelanggan"
+            className="mb-3 grid grid-cols-2 gap-2 rounded-[20px] bg-slate-100 p-1 sm:mb-4 sm:inline-grid sm:min-w-[420px]"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "all"}
+              onClick={() => handleTabChange("all")}
+              className={`inline-flex min-w-0 items-center justify-center gap-2 rounded-[16px] px-3 py-2.5 text-xs font-black transition sm:text-sm ${
+                activeTab === "all"
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Users2 className="h-4 w-4 shrink-0" />
+              <span className="truncate">Semua Pelanggan</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "debt"}
+              onClick={() => handleTabChange("debt")}
+              className={`inline-flex min-w-0 items-center justify-center gap-2 rounded-[16px] px-3 py-2.5 text-xs font-black transition sm:text-sm ${
+                activeTab === "debt"
+                  ? "bg-white text-red-700 shadow-sm"
+                  : "text-slate-600 hover:text-red-700"
+              }`}
+            >
+              <Wallet className="h-4 w-4 shrink-0" />
+              <span className="truncate">Piutang</span>
+            </button>
+          </div>
+
           <div className="flex min-w-0 flex-col gap-3 sm:gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
             <div className="min-w-0 flex-1">
               <div className="relative">
@@ -1500,28 +1537,22 @@ export default function CustomersPage() {
                   {CUSTOMER_TYPE_LABELS[type]}
                 </button>
               ))}
-              <div className="mx-1 h-8 w-px self-center bg-slate-200" />
-              <button
-                type="button"
-                onClick={handleDebtFilterToggle}
-                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold transition ${hasDebtFilter
-                  ? "bg-red-600 text-white"
-                  : "bg-red-50 text-red-700 hover:bg-red-100"
-                  }`}
-              >
-                <Wallet className="h-3.5 w-3.5" />
-                Ada Piutang
-              </button>
             </div>
           </div>
 
           <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 sm:mt-4 sm:flex-row sm:items-center sm:justify-between sm:pt-4">
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-slate-500">
               <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:text-sm">
-                {data?.pagination.total ?? 0} pelanggan
+                {data?.pagination.total ?? 0}{" "}
+                {activeTab === "debt" ? "pelanggan berpiutang" : "pelanggan"}
               </span>
               <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:text-sm">
-                Nilai belanja terlihat {formatCurrency(metrics.totalSpentVisible)}
+                {activeTab === "debt" ? "Piutang terlihat" : "Nilai belanja terlihat"}{" "}
+                {formatCurrency(
+                  activeTab === "debt"
+                    ? metrics.totalDebtVisible
+                    : metrics.totalSpentVisible,
+                )}
               </span>
               {hasActiveFilters ? (
                 <button
@@ -1561,6 +1592,8 @@ export default function CustomersPage() {
                 <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
                   {hasActiveFilters
                     ? "Hasil pencarian masih kosong. Coba ubah kata kunci atau reset tipe pelanggan."
+                    : activeTab === "debt"
+                      ? "Belum ada piutang aktif dari pelanggan. Tagihan yang belum lunas akan muncul di tab ini."
                     : "Bangun database pelanggan lebih rapi agar checkout, nota penawaran, dan follow-up piutang lebih cepat."}
                 </p>
                 {canCreateCustomers ? (

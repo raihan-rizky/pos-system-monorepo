@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approveSuratJalan,
   createSuratJalan,
@@ -15,6 +15,13 @@ export function useSuratJalanBundle(transactionId: string, enabled = true) {
     queryKey: suratJalanBundleKey(transactionId),
     queryFn: () => fetchSuratJalanBundle(transactionId),
     enabled: enabled && Boolean(transactionId),
+  });
+}
+
+export function useSuspenseSuratJalanBundle(transactionId: string) {
+  return useSuspenseQuery({
+    queryKey: suratJalanBundleKey(transactionId),
+    queryFn: () => fetchSuratJalanBundle(transactionId),
   });
 }
 
