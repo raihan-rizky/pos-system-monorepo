@@ -40,12 +40,16 @@ export const SuratJalanPrintModal: React.FC<SuratJalanPrintModalProps> = ({
     <>
       <Button
         variant="accent"
-        size="lg"
+        size="sm"
         icon={<Printer className="h-4 w-4" />}
-        onClick={() => setOpen(true)}
-        className="flex-1"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className="w-full sm:w-auto"
       >
-        Print Surat Jalan
+        <span className="hidden sm:inline">Print Surat Jalan</span>
+        <span className="sm:hidden">Print</span>
       </Button>
       <Modal
         open={open}
@@ -147,10 +151,11 @@ export const SuratJalanPrintModal: React.FC<SuratJalanPrintModalProps> = ({
               Pratinjau Cetak
             </p>
           </div>
-          <div
-            id="surat-jalan-print"
-            className="mx-auto h-[165mm] w-[215mm] overflow-hidden bg-white p-[4mm_6mm] font-sans text-xs text-black shadow-lg ring-1 ring-black/5"
-          >
+          <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div
+              id="surat-jalan-print"
+              className="mx-auto min-w-[215mm] h-[165mm] w-[215mm] overflow-hidden bg-white p-[4mm_6mm] font-sans text-xs text-black shadow-lg ring-1 ring-black/5"
+            >
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <img
@@ -239,6 +244,7 @@ export const SuratJalanPrintModal: React.FC<SuratJalanPrintModalProps> = ({
                 </div>
               </div>
             </div>
+          </div>
 
           {/* ── Actions Footer ── */}
           <div className="flex flex-col gap-3 border-t border-surface-100 pt-4 sm:flex-row-reverse">

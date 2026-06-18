@@ -8,14 +8,33 @@ const HEADER_ALIASES: Record<string, string> = {
   product_name: "name",
   nama: "name",
   namaproduk: "name",
+  nama_item: "name",
+  namaitem: "name",
   kode: "sku",
   code: "sku",
+  kode_item: "sku",
+  kodeitem: "sku",
   kategori: "category",
   harga: "price",
+  harga_level_1: "price",
+  hargalevel1: "price",
+  hargadinas: "hargaDinas",
+  harga_dinas: "hargaDinas",
+  hargapemerintah: "hargaDinas",
+  harga_pemerintah: "hargaDinas",
+  harga_level_2: "hargaDinas",
+  hargalevel2: "hargaDinas",
   stok: "stock",
   satuan: "unit",
+  konversi: "unitMultiplierToBase",
+  unit_multiplier_to_base: "unitMultiplierToBase",
+  unitmultiplier: "unitMultiplierToBase",
+  multiplier: "unitMultiplierToBase",
   hpp: "costPrice",
+  harga_pokok: "costPrice",
+  hargapokok: "costPrice",
   cost: "costPrice",
+  costprice: "costPrice",
   cost_price: "costPrice",
   min_stock: "minStock",
   minimumstock: "minStock",
@@ -71,6 +90,6 @@ export function buildAutoMapping(rawHeaders: string[]): ColumnMapping {
  */
 export function getMissingRequiredColumns(mapping: ColumnMapping): string[] {
   const mapped: Set<string> = new Set(Object.values(mapping).filter(Boolean));
-  const required = ["name", "sku", "category", "price", "stock", "unit"];
+  const required = ["name", "sku", "category", "price", "unit"];
   return required.filter((col) => !mapped.has(col));
 }

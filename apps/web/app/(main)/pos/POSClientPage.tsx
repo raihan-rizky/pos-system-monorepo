@@ -94,6 +94,7 @@ export default function POSClientPage({
   const [showNotaPenawaran, setShowNotaPenawaran] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [draftPrintDivision, setDraftPrintDivision] = useState("");
+  const [isDesktopCartOpen, setIsDesktopCartOpen] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showCloseShift, setShowCloseShift] = useState(false);
   const [activeTab, setActiveTab] = useState<"products" | "services">("products");
@@ -108,6 +109,9 @@ export default function POSClientPage({
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
+
+  const toggleDesktopCart = useCallback(() => setIsDesktopCartOpen((prev) => !prev), []);
+  const closeDesktopCart = useCallback(() => setIsDesktopCartOpen(false), []);
 
   const toggleHideOutOfStock = useCallback(() => {
     setHideOutOfStock((prev) => {
@@ -184,6 +188,7 @@ export default function POSClientPage({
       name: product.name,
       price: Number(product.price),
       costPrice: product.costPrice,
+      hargaDinas: product.hargaDinas,
       unit: product.unit,
       stock: product.stock,
       unitMultiplierToBase: product.unitMultiplierToBase,
@@ -545,12 +550,30 @@ export default function POSClientPage({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 md:gap-3">
               {todayLabel && (
-                <div className="hidden md:block text-right">
+                <div className="hidden lg:block text-right">
                   <p className="text-xs text-surface-400">{todayLabel}</p>
                 </div>
               )}
+              <button
+                type="button"
+                onClick={toggleDesktopCart}
+                className={`hidden lg:flex relative items-center justify-center p-2 rounded-xl transition-colors ${
+                  isDesktopCartOpen
+                    ? "bg-brand-50 text-brand-700"
+                    : "bg-surface-100 text-surface-600 hover:bg-surface-200"
+                }`}
+                title={isDesktopCartOpen ? "Tutup Keranjang" : "Buka Keranjang"}
+                aria-label={isDesktopCartOpen ? "Tutup Keranjang" : "Buka Keranjang"}
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {!isDesktopCartOpen && cart.totalItems > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-danger-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+                    {cart.totalItems}
+                  </span>
+                )}
+              </button>
             </div>
           </header>
 
@@ -644,7 +667,6 @@ export default function POSClientPage({
             </HorizontalScroll>
           )}
 
-          {/* Product Grid */}
           {activeTab === "products" ? (
             <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-6 py-3 md:py-4">
               <ProductGrid
@@ -657,9 +679,7 @@ export default function POSClientPage({
             <PrintingServicesTab onAddToCart={handleAddPrintingService} />
           )}
 
-          {/* Pagination */}
           {activeTab === "products" && pagination && pagination.total > 0 && (
-            /* shrink-0 keeps pagination pinned at the bottom */
             <Pagination
               page={currentPage}
               totalPages={totalPages}
@@ -671,28 +691,30 @@ export default function POSClientPage({
           )}
         </div>
 
-        {/* Cart Sidebar - Desktop (lg+) */}
-        <div className="hidden lg:block w-[340px] flex-shrink-0">
-          <CartSidebar
-            items={cart.items}
-            subtotal={cart.subtotal}
-            totalItems={cart.totalItems}
-            onUpdateQuantity={cart.updateQuantity}
-            onRemoveItem={cart.removeItem}
-            onClearCart={cart.clearCart}
-            onCheckout={
-              checkoutMode === "quotation"
-                ? handleOpenNotaPenawaran
-                : handleOpenPayment
-            }
-            checkoutMode={checkoutMode}
-          />
-        </div>
+        {isDesktopCartOpen && (
+          <div className="hidden lg:block w-[340px] flex-shrink-0">
+            <CartSidebar
+              items={cart.items}
+              subtotal={cart.subtotal}
+              totalItems={cart.totalItems}
+              onUpdateQuantity={cart.updateQuantity}
+              onRemoveItem={cart.removeItem}
+              onClearCart={cart.clearCart}
+              onCheckout={
+                checkoutMode === "quotation"
+                  ? handleOpenNotaPenawaran
+                  : handleOpenPayment
+              }
+              checkoutMode={checkoutMode}
+              onClose={closeDesktopCart}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Mobile Cart FAB */}
       {!showPayment && cart.totalItems > 0 && (
         <button
+          type="button"
           onClick={openCart}
           className="lg:hidden fixed bottom-20 md:bottom-4 right-4 z-[90] flex items-center gap-2.5 px-5 py-3.5 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl shadow-lg shadow-brand-600/30 transition-all duration-200 active:scale-95 animate-scale-in"
         >
@@ -700,12 +722,13 @@ export default function POSClientPage({
           <span className="font-bold text-sm">
             Keranjang ({cart.totalItems})
           </span>
-          <span className="text-xs opacity-80">•</span>
+          <span className="text-xs opacity-80">/</span>
           <span className="font-extrabold text-sm">
             {formatRupiah(cart.subtotal)}
           </span>
         </button>
       )}
+
 
       {/* Mobile Cart Modal */}
       {isCartOpen && (

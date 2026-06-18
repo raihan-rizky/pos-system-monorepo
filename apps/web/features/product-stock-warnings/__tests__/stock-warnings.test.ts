@@ -35,6 +35,7 @@ describe("Stock Warning Detection", () => {
     sku: "TEST-001",
     price: 10000,
     costPrice: null,
+    hargaDinas: null,
     stock,
     minStock,
     unit: "pcs",

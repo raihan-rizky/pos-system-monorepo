@@ -21,7 +21,7 @@ function row(overrides: Partial<NormalizedImportRow> = {}): NormalizedImportRow 
 }
 
 describe("resolveProductImportAutoDecisions", () => {
-  it("auto-skips same product, same unit, same price and cost", () => {
+  it("auto-skips same product, same unit, same price, cost, and Harga Dinas", () => {
     const [resolved] = resolveProductImportAutoDecisions({
       rows: [row({ name: "hvs", category: "ATK", unit: "PCS", price: 1500, costPrice: 1000 })],
       existingProducts: [
@@ -33,6 +33,7 @@ describe("resolveProductImportAutoDecisions", () => {
           unit: "pcs",
           price: 1500,
           costPrice: 1000,
+          hargaDinas: null,
           stockGroupId: "group-1",
           stockGroupBaseUnit: "pcs",
         },
@@ -42,6 +43,30 @@ describe("resolveProductImportAutoDecisions", () => {
 
     expect(resolved.autoAction).toBe("auto_skip");
     expect(resolved.matchedProductId).toBe("prod-1");
+  });
+
+  it("auto-updates when same product and unit has different Harga Dinas", () => {
+    const [resolved] = resolveProductImportAutoDecisions({
+      rows: [row({ name: "Fc A4", category: "Jasa", unit: "lembar", price: 500, costPrice: 100, hargaDinas: 700 })],
+      existingProducts: [
+        {
+          id: "prod-1",
+          name: "Fotocopy A4",
+          sku: "FC-A4",
+          category: "Jasa",
+          unit: "lembar",
+          price: 500,
+          costPrice: 100,
+          hargaDinas: 600,
+          stockGroupId: "group-1",
+          stockGroupBaseUnit: "lembar",
+        },
+      ],
+      existingSkus: new Set(["FC-A4"]),
+    });
+
+    expect(resolved.autoAction).toBe("auto_price_update");
+    expect(resolved.autoActionReason).toContain("Harga Dinas changed");
   });
 
   it("auto-updates only price and cost for same product and same unit when price data differs", () => {
@@ -89,6 +114,8 @@ describe("resolveProductImportAutoDecisions", () => {
     expect(resolved.autoAction).toBe("auto_create_variant");
     expect(resolved.generatedSku).toBe("HVS-A4-LEMBAR-2");
     expect(resolved.matchedStockGroupId).toBe("group-1");
+    expect(resolved.stockIgnoredForVariant).toBe(true);
+    expect(resolved.autoActionReason).toContain("imported stock ignored");
   });
 
   it("resolves in-file duplicates in row order", () => {
@@ -127,5 +154,16 @@ describe("resolveProductImportAutoDecisions", () => {
     });
 
     expect(resolved.autoAction).toBe("conflict");
+  });
+
+  it("explains that standalone rows without stock start at zero", () => {
+    const [resolved] = resolveProductImportAutoDecisions({
+      rows: [row({ stock: 0, stockProvided: false })],
+      existingProducts: [],
+      existingSkus: new Set(),
+    });
+
+    expect(resolved.autoAction).toBe("create");
+    expect(resolved.autoActionReason).toContain("Stock not provided");
   });
 });

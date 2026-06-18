@@ -23,6 +23,7 @@ export default function PriceUpdateModal({
   const updateProduct = useUpdateProduct();
   const [price, setPrice] = useState("");
   const [costPrice, setCostPrice] = useState("");
+  const [hargaDinas, setHargaDinas] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +31,7 @@ export default function PriceUpdateModal({
     if (!isOpen || !product) return;
     setPrice(String(product.price));
     setCostPrice(product.costPrice == null ? "" : String(product.costPrice));
+    setHargaDinas(product.hargaDinas == null ? "" : String(product.hargaDinas));
     setNote("");
     setError(null);
   }, [isOpen, product]);
@@ -40,13 +42,17 @@ export default function PriceUpdateModal({
       productId: product.id,
       currentPrice: product.price,
       currentCostPrice: product.costPrice,
+      currentHargaDinas: product.hargaDinas,
       nextPrice: price,
       nextCostPrice: costPrice,
+      nextHargaDinas: hargaDinas,
       note,
     });
-  }, [costPrice, note, price, product]);
+  }, [costPrice, hargaDinas, note, price, product]);
 
   const canSave = Boolean(payload) && Number(price) >= 0;
+  const showHargaDinasWarning =
+    hargaDinas.trim() !== "" && Number(hargaDinas) < Number(price || "0");
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
@@ -107,6 +113,22 @@ export default function PriceUpdateModal({
             value={costPrice}
             onChange={(event) => setCostPrice(event.target.value)}
           />
+        </div>
+
+        <div className="space-y-1">
+          <Input
+            label="Harga Dinas"
+            type="number"
+            min="0"
+            placeholder="Opsional"
+            value={hargaDinas}
+            onChange={(event) => setHargaDinas(event.target.value)}
+          />
+          {showHargaDinasWarning && (
+            <p className="text-xs font-medium text-amber-700">
+              Harga Dinas lebih rendah dari harga jual.
+            </p>
+          )}
         </div>
 
         <div>

@@ -9,6 +9,7 @@ function makeSnapshot(overrides: Partial<ProductSnapshot> = {}): ProductSnapshot
     sku: "SKU-001",
     price: 15000,
     costPrice: 10000,
+    hargaDinas: null,
     stock: 50,
     minStock: 5,
     unit: "pcs",

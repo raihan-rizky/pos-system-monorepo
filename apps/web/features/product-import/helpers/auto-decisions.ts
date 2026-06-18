@@ -11,6 +11,7 @@ export interface ExistingImportProduct {
   unit: string;
   price: number;
   costPrice: number | null;
+  hargaDinas?: number | null;
   stockGroupId?: string | null;
   stockGroupBaseUnit?: string | null;
 }
@@ -36,8 +37,23 @@ function normalizePrice(value: number | null | undefined): number | null {
 function priceDataMatches(row: NormalizedImportRow, product: ExistingImportProduct): boolean {
   return (
     normalizePrice(row.price) === normalizePrice(product.price) &&
-    normalizePrice(row.costPrice ?? null) === normalizePrice(product.costPrice)
+    normalizePrice(row.costPrice ?? null) === normalizePrice(product.costPrice) &&
+    (row.hargaDinas == null ||
+      normalizePrice(row.hargaDinas) === normalizePrice(product.hargaDinas ?? null))
   );
+}
+
+function describePriceDataChanges(row: NormalizedImportRow, product: ExistingImportProduct): string {
+  const changed: string[] = [];
+  if (normalizePrice(row.price) !== normalizePrice(product.price)) changed.push("price");
+  if (normalizePrice(row.costPrice ?? null) !== normalizePrice(product.costPrice)) changed.push("cost");
+  if (
+    row.hargaDinas != null &&
+    normalizePrice(row.hargaDinas) !== normalizePrice(product.hargaDinas ?? null)
+  ) {
+    changed.push("Harga Dinas");
+  }
+  return changed.join("/") || "price/cost";
 }
 
 function createCandidateFromRow(row: NormalizedImportRow): ProductCandidate {
@@ -54,6 +70,7 @@ function createCandidateFromRow(row: NormalizedImportRow): ProductCandidate {
     unit: row.unit,
     price: row.price,
     costPrice: row.costPrice ?? null,
+    hargaDinas: row.hargaDinas ?? null,
     stockGroupId: row.matchedStockGroupId ?? `row-group:${row.rowNumber}`,
     stockGroupBaseUnit: row.unit,
     productKey,
@@ -116,7 +133,7 @@ export function resolveProductImportAutoDecisions(
         autoActionReason:
           autoAction === "auto_skip"
             ? "Skipped: same product, same unit, same price/cost."
-            : "Updated: same product and unit, price/cost changed.",
+            : `Updated: same product and unit, ${describePriceDataChanges(row, sameUnit)} changed.`,
         matchedProductId: sameUnit.id,
         matchedProductSku: sameUnit.sku,
         matchedStockGroupId: sameUnit.stockGroupId,
@@ -139,10 +156,11 @@ export function resolveProductImportAutoDecisions(
         generatedSku,
         unitMultiplierToBase: conversion.multiplier,
         conversionNeedsReview: conversion.conversionNeedsReview,
+        stockIgnoredForVariant: true,
         autoAction: "auto_create_variant",
         autoActionReason: conversion.conversionNeedsReview
-          ? "Variant: same product, different unit. Review needed: unit conversion was not recognized."
-          : "Variant: same product, different unit.",
+          ? "Variant: linked to existing stock group; imported stock ignored. Review needed: unit conversion was not recognized."
+          : "Variant: linked to existing stock group; imported stock ignored.",
         matchedProductId: differentUnit.id,
         matchedProductSku: differentUnit.sku,
         matchedStockGroupId: differentUnit.stockGroupId,
@@ -159,7 +177,9 @@ export function resolveProductImportAutoDecisions(
       sku,
       generatedSku: sku !== row.sku ? sku : undefined,
       autoAction: "create",
-      autoActionReason: "Created: no matching product found.",
+      autoActionReason: row.stockProvided === false
+        ? "Created: no matching product found. Stock not provided; product will start at 0."
+        : "Created: no matching product found.",
       normalizedProductKey: productKey,
     };
     candidatesByKey.set(productKey, [...matchingCandidates, createCandidateFromRow(resolved)]);

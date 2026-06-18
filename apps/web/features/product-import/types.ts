@@ -1,7 +1,9 @@
-export const REQUIRED_IMPORT_COLUMNS = ["name", "sku", "category", "price", "stock", "unit"] as const;
+export const REQUIRED_IMPORT_COLUMNS = ["name", "sku", "category", "price", "unit"] as const;
 
 export const OPTIONAL_IMPORT_COLUMNS = [
+  "stock",
   "costPrice",
+  "hargaDinas",
   "minStock",
   "unitMultiplierToBase",
   "barcode",
@@ -22,6 +24,14 @@ export type ImportAutoAction =
   | "auto_create_variant"
   | "conflict";
 export type PreviewFilter = "all" | "ready" | "errors" | "warnings" | "duplicate" | "new-category";
+export type ImportCleaningStatus = "clean" | "auto_fixed" | "review_required" | "warning";
+
+export interface ImportCleaningFix {
+  ruleId: string;
+  field: "price" | "costPrice" | "hargaDinas";
+  oldValue: number | null;
+  newValue: number | null;
+}
 
 export interface ColumnMapping {
   [rawHeader: string]: ImportColumn | "";
@@ -34,9 +44,11 @@ export interface NormalizedImportRow {
   category: string;
   price: number;
   stock: number;
+  stockProvided?: boolean;
   unit: string;
   unitMultiplierToBase?: number | null;
   costPrice?: number | null;
+  hargaDinas?: number | null;
   minStock?: number;
   barcode?: string | null;
   description?: string | null;
@@ -54,7 +66,12 @@ export interface NormalizedImportRow {
   matchedStockGroupId?: string | null;
   generatedSku?: string;
   conversionNeedsReview?: boolean;
+  stockIgnoredForVariant?: boolean;
   normalizedProductKey?: string;
+  sourceFamilyKey?: string;
+  cleaningStatus?: ImportCleaningStatus;
+  cleaningIssues?: string[];
+  cleaningFixes?: ImportCleaningFix[];
   warnings: string[];
   errors: string[];
 }

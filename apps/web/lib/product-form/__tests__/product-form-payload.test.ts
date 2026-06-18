@@ -7,6 +7,7 @@ const formData = {
   categoryId: "cat-1",
   price: "15000",
   costPrice: "9000",
+  hargaDinas: "18000",
   minStock: "5",
   unit: "meter",
   unitMultiplierToBase: "1",
@@ -28,6 +29,7 @@ describe("buildProductFormPayload", () => {
       expect.objectContaining({
         price: 15000,
         costPrice: 9000,
+        hargaDinas: 18000,
       }),
     );
   });
@@ -38,6 +40,14 @@ describe("buildProductFormPayload", () => {
         price: expect.anything(),
         costPrice: expect.anything(),
         priceChangeNote: expect.anything(),
+      }),
+    );
+  });
+
+  it("allows editing product-level Harga Dinas without regular price fields", () => {
+    expect(buildProductFormPayload(formData, "edit")).toEqual(
+      expect.objectContaining({
+        hargaDinas: 18000,
       }),
     );
   });

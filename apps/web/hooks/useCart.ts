@@ -10,6 +10,7 @@ export interface ProductCartItem {
   price: number;
   catalogPrice: number;
   costPrice?: number | null;
+  hargaDinas?: number | null;
   quantity: number;
   unit: string;
   stock: number;
@@ -116,7 +117,7 @@ export function useCart() {
   }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; price: number; costPrice?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { baseUnit?: string | null } | null; categoryId: string; categoryName: string; size?: string; material?: string }) => {
+    (product: { id: string; name: string; price: number; costPrice?: number | null; hargaDinas?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { baseUnit?: string | null } | null; categoryId: string; categoryName: string; size?: string; material?: string }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -142,6 +143,7 @@ export function useCart() {
             price: product.price,
             catalogPrice: product.price,
             costPrice: product.costPrice ?? null,
+            hargaDinas: product.hargaDinas ?? null,
             quantity: 1,
             unit: product.unit,
             stock: product.stock,

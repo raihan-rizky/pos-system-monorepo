@@ -10,6 +10,7 @@ export interface Product {
   sku: string;
   price: number;
   costPrice: number | null;
+  hargaDinas: number | null;
   stock: number;
   minStock: number;
   unit: string;
@@ -258,6 +259,7 @@ export interface CreateProductInput {
   name: string;
   sku: string;
   costPrice?: number | null;
+  hargaDinas?: number | null;
   price: number;
   stock: number;
   unit: string;

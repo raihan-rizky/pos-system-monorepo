@@ -73,29 +73,31 @@ const SuratJalanListItem: React.FC<SuratJalanListItemProps> = ({
             toggle();
           }
         }}
-        className="flex items-start gap-4 px-5 py-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+        className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 px-5 py-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         aria-expanded={expanded}
       >
-        <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-100 text-surface-500 transition-colors group-hover:bg-brand-50 group-hover:text-brand-600">
-          <ChevronDown
-            className={`h-4 w-4 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-surface-900">{record.number}</span>
-            <StatusPill status={record.status} />
+        <div className="flex items-start gap-4 w-full sm:w-auto sm:flex-1 min-w-0">
+          <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-100 text-surface-500 transition-colors group-hover:bg-brand-50 group-hover:text-brand-600">
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
           </div>
-          <div className="mt-1 text-sm font-medium text-surface-600">
-            {record.recipientName}
-            <span className="mx-2 text-surface-300">•</span>
-            {totalQty} Item
-            <span className="mx-2 text-surface-300">•</span>
-            {formatDate(new Date(record.confirmedAt || record.createdAt))}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-surface-900">{record.number}</span>
+              <StatusPill status={record.status} />
+            </div>
+            <div className="mt-1 text-sm font-medium text-surface-600 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>{record.recipientName}</span>
+              <span className="text-surface-300 hidden sm:inline">•</span>
+              <span>{totalQty} Item</span>
+              <span className="text-surface-300 hidden sm:inline">•</span>
+              <span>{formatDate(new Date(record.confirmedAt || record.createdAt))}</span>
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap items-center gap-2 shrink-0 pl-10 sm:pl-0 w-full sm:w-auto justify-start sm:justify-end" onClick={(e) => e.stopPropagation()}>
           {record.status === "CONFIRMED" && (
             <SuratJalanPrintModal suratJalan={record} />
           )}

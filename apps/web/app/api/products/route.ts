@@ -31,6 +31,7 @@ const productSchema = z.object({
   description: z.string().optional().nullable(),
   price: z.coerce.number().min(0, "Price must be >= 0"),
   costPrice: z.coerce.number().optional().nullable(),
+  hargaDinas: z.coerce.number().min(0, "Harga Dinas must be >= 0").optional().nullable(),
   stock: z.coerce.number().default(0),
   unitMultiplierToBase: z.coerce.number().positive().optional(),
   minStock: z.coerce.number().default(5),
@@ -307,8 +308,8 @@ export async function POST(request: Request) {
             storeId,
             before: null,
             after: {
-              price: smallestProduct.price,
-              costPrice: smallestProduct.costPrice,
+            price: smallestProduct.price,
+            costPrice: smallestProduct.costPrice,
             },
             actor: user,
             source: "MANUAL",

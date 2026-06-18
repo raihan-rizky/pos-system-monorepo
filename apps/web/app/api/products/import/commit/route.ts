@@ -9,6 +9,7 @@ import {
 } from "@/features/product-import/helpers/import-core";
 import { resolveProductImportAutoDecisions } from "@/features/product-import/helpers/auto-decisions";
 import { getCommitActionForResolvedRow } from "@/features/product-import/helpers/commit-actions";
+import { resolveImportCreateStockPlan } from "@/features/product-import/helpers/commit-stock";
 import { expandProductNameAbbreviations } from "@/features/product-import/helpers/name-normalization";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import { getLogger } from "@/lib/logger";
@@ -137,6 +138,7 @@ export async function POST(request: Request) {
           ...row,
           duplicateInFile: false,
           missingCategory: false,
+          stockProvided: row.stockProvided ?? true,
           warnings: [],
           errors: [],
         }));
@@ -151,6 +153,7 @@ export async function POST(request: Request) {
             unit: product.unit,
             price: Number(product.price),
             costPrice: product.costPrice == null ? null : Number(product.costPrice),
+            hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
             stockGroupId: product.stockGroupId,
             stockGroupBaseUnit: product.stockGroup?.baseUnit ?? null,
           })),
@@ -211,6 +214,7 @@ export async function POST(request: Request) {
               data: {
                 price: row.price,
                 costPrice: row.costPrice,
+                ...(row.hargaDinas != null ? { hargaDinas: row.hargaDinas } : {}),
               },
             });
             updatedProductCount += 1;
@@ -275,6 +279,7 @@ export async function POST(request: Request) {
                 description: row.description,
                 price: row.price,
                 costPrice: row.costPrice,
+                ...(row.hargaDinas != null ? { hargaDinas: row.hargaDinas } : {}),
                 minStock: row.minStock ?? 5,
                 unit: row.unit,
                 size: row.size,
@@ -335,7 +340,7 @@ export async function POST(request: Request) {
               },
             });
           } else {
-            const { multiplier, baseStock } = buildStockGroupCreateData({
+            const { multiplier } = buildStockGroupCreateData({
               stock: row.stock,
               unitMultiplierToBase: row.unitMultiplierToBase ?? 1,
             });
@@ -343,6 +348,13 @@ export async function POST(request: Request) {
             const variantGroup = commitAction === "create-variant" && matched?.stockGroup
               ? matched.stockGroup
               : null;
+            const stockPlan = resolveImportCreateStockPlan({
+              commitAction,
+              rowStock: row.stock,
+              stockProvided: row.stockProvided,
+              multiplier,
+              matchedGroupBaseStock: variantGroup?.baseStock,
+            });
             const ensured = variantGroup
               ? { group: variantGroup, created: false }
               : await ensureProductStockGroup(tx, {
@@ -353,7 +365,7 @@ export async function POST(request: Request) {
                   size: row.size,
                   displayName: row.name,
                   baseUnit: row.unit,
-                  baseStock,
+                  baseStock: stockPlan.groupBaseStock,
                 });
             const { group, created: groupCreated } = ensured;
             const created = await tx.product.create({
@@ -364,7 +376,8 @@ export async function POST(request: Request) {
                 description: row.description,
                 price: row.price,
                 costPrice: row.costPrice,
-                stock: row.stock,
+                hargaDinas: row.hargaDinas,
+                stock: stockPlan.productStock,
                 minStock: row.minStock ?? 5,
                 unit: row.unit,
                 size: row.size,
@@ -402,14 +415,14 @@ export async function POST(request: Request) {
               priceLogCount += priceLogEntries.length;
             }
             const log =
-              row.stock === 0
+              stockPlan.inventoryLogQuantity == null
                 ? null
                 : await tx.inventoryLog.create({
                     data: {
                       productId: created.id,
                       type: row.stock < 0 ? "ADJUSTMENT" : "IN",
                       reason: row.stock < 0 ? "MANUAL_ADJUSTMENT" : "RESTOCK",
-                      quantity: Math.abs(row.stock),
+                      quantity: stockPlan.inventoryLogQuantity,
                       unitCost: row.costPrice ?? null,
                       note: `Batch import initial stock: ${row.name}`,
                       createdBy: user.id,

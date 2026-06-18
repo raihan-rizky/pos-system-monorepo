@@ -6,11 +6,25 @@ import {
   buildMissingColumnResponse,
   extractRawHeaders,
   parseImportFile,
+  normalizeHeader,
+  buildCleanedImportRows,
+  buildCleaningChangeLogRows,
+  revertImportCleaningFixes,
 } from "../import-core";
 
 describe("buildMissingColumnResponse", () => {
+  it("maps legacy catalog headers into POS import columns", () => {
+    expect(normalizeHeader("Kode Item")).toBe("sku");
+    expect(normalizeHeader("Nama Item")).toBe("name");
+    expect(normalizeHeader("Satuan")).toBe("unit");
+    expect(normalizeHeader("Konversi")).toBe("unitMultiplierToBase");
+    expect(normalizeHeader("Harga Pokok")).toBe("costPrice");
+    expect(normalizeHeader("Harga Level 1")).toBe("price");
+    expect(normalizeHeader("Harga Level 2")).toBe("hargaDinas");
+  });
+
   it("returns no missing columns when all required columns present", () => {
-    const headers = ["name", "sku", "category", "price", "stock", "unit"];
+    const headers = ["name", "sku", "category", "price", "unit"];
     const result = buildMissingColumnResponse(headers);
     expect(result.missingColumns).toEqual([]);
   });
@@ -20,7 +34,6 @@ describe("buildMissingColumnResponse", () => {
     const result = buildMissingColumnResponse(headers);
     expect(result.missingColumns).toContain("category");
     expect(result.missingColumns).toContain("price");
-    expect(result.missingColumns).toContain("stock");
     expect(result.missingColumns).toContain("unit");
   });
 
@@ -77,12 +90,129 @@ describe("normalizeImportRows", () => {
     expect(result.rows[0].warnings).toContain("This stock is not supposed to be negative.");
   });
 
+  it("defaults missing stock to 0 and tracks that stock was not provided", () => {
+    const records = [{ name: "Product", sku: "SKU-NO-STOCK", category: "Drinks", price: 10000, unit: "pcs" }];
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0].stock).toBe(0);
+    expect(result.rows[0].stockProvided).toBe(false);
+    expect(result.rows[0].errors).toEqual([]);
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+  });
+
   it("defaults invalid prices to 0 as a warning", () => {
     const records = [{ name: "Product", sku: "SKU-PRICE", category: "Drinks", price: "", stock: 5, unit: "pcs" }];
     const result = normalizeImportRows(records, new Map(), categories);
     expect(result.rows[0].price).toBe(0);
     expect(result.rows[0].errors).toEqual([]);
     expect(result.rows[0].warnings).toContain("Price was not a valid number and will be imported as 0.");
+  });
+
+  it("accepts optional Harga Dinas and warns when it is below regular price", () => {
+    const records = [{ name: "Product", sku: "SKU-DINAS", category: "Drinks", price: 10000, hargaDinas: 9000, unit: "pcs" }];
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0].hargaDinas).toBe(9000);
+    expect(result.rows[0].warnings).toContain("Harga Dinas is lower than regular price.");
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+  });
+
+  it("auto-fixes package rows when package prices are lower than small-unit prices", () => {
+    const records = [
+      {
+        name: "Binder Clip",
+        sku: "BC-001",
+        category: "ATK",
+        unit: "pcs",
+        unitMultiplierToBase: 1,
+        price: 1000,
+        costPrice: 700,
+        hargaDinas: 1200,
+      },
+      {
+        name: "Binder Clip",
+        sku: "BC-001",
+        category: "ATK",
+        unit: "dus",
+        unitMultiplierToBase: 12,
+        price: 900,
+        costPrice: 600,
+        hargaDinas: 1100,
+      },
+    ];
+
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({
+        price: 900,
+        costPrice: 600,
+        hargaDinas: 1100,
+        cleaningStatus: "auto_fixed",
+        sourceFamilyKey: "BC-001",
+      }),
+    );
+    expect(result.rows[1]).toEqual(
+      expect.objectContaining({
+        price: 1000,
+        costPrice: 700,
+        hargaDinas: 1200,
+        cleaningStatus: "auto_fixed",
+        sourceFamilyKey: "BC-001",
+      }),
+    );
+    expect(result.rows[1].cleaningFixes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ruleId: "PACKAGE_PRICE_LOWER_THAN_SMALL",
+          field: "price",
+          oldValue: 900,
+          newValue: 1000,
+        }),
+        expect.objectContaining({
+          ruleId: "PACKAGE_PRICE_LOWER_THAN_SMALL",
+          field: "costPrice",
+          oldValue: 600,
+          newValue: 700,
+        }),
+        expect.objectContaining({
+          ruleId: "PACKAGE_PRICE_LOWER_THAN_SMALL",
+          field: "hargaDinas",
+          oldValue: 1100,
+          newValue: 1200,
+        }),
+      ]),
+    );
+    expect(result.warnings).toContain(
+      "Row 3: Auto-fixed package/small price fields because package unit price was lower than small unit price.",
+    );
+  });
+
+  it("marks package rows without a small-unit comparison as review required", () => {
+    const records = [
+      {
+        name: "Amplop Coklat",
+        sku: "AMP-001",
+        category: "ATK",
+        unit: "ball",
+        unitMultiplierToBase: 100,
+        price: 50000,
+      },
+    ];
+
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({
+        cleaningStatus: "review_required",
+        cleaningIssues: [
+          "Package unit has no small/base unit comparison row.",
+        ],
+      }),
+    );
+    expect(result.warnings).toContain(
+      "Row 2: Package unit has no small/base unit comparison row.",
+    );
   });
 
   it("defaults invalid min stock to 5 instead of sending a commit-invalid value", () => {
@@ -134,5 +264,109 @@ describe("normalizeImportRows", () => {
     const records = [{ name: "Product", sku: "SKU-1", category: "Drinks", price: 10000, stock: 5, unit: "pcs" }];
     const result = normalizeImportRows(records, new Map(), categories);
     expect(result.rows[0].rowNumber).toBe(2);
+  });
+});
+
+describe("cleaning export helpers", () => {
+  it("builds cleaned import rows and change-log rows from preview metadata", () => {
+    const normalized = normalizeImportRows(
+      [
+        {
+          name: "Binder Clip",
+          sku: "BC-001",
+          category: "ATK",
+          unit: "pcs",
+          unitMultiplierToBase: 1,
+          price: 1000,
+        },
+        {
+          name: "Binder Clip",
+          sku: "BC-001",
+          category: "ATK",
+          unit: "dus",
+          unitMultiplierToBase: 12,
+          price: 900,
+        },
+      ],
+      new Map(),
+      new Set(["atk"]),
+    );
+
+    expect(buildCleanedImportRows(normalized.rows)).toEqual([
+      expect.objectContaining({
+        sku: "BC-001",
+        name: "Binder Clip",
+        unit: "pcs",
+        price: 900,
+      }),
+      expect.objectContaining({
+        sku: "BC-001",
+        name: "Binder Clip",
+        unit: "dus",
+        price: 1000,
+      }),
+    ]);
+    expect(buildCleaningChangeLogRows(normalized.rows)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rowNumber: 2,
+          sourceFamilyKey: "BC-001",
+          field: "price",
+          oldValue: 1000,
+          newValue: 900,
+          ruleId: "PACKAGE_PRICE_LOWER_THAN_SMALL",
+        }),
+        expect.objectContaining({
+          rowNumber: 3,
+          sourceFamilyKey: "BC-001",
+          field: "price",
+          oldValue: 900,
+          newValue: 1000,
+          ruleId: "PACKAGE_PRICE_LOWER_THAN_SMALL",
+        }),
+      ]),
+    );
+  });
+
+  it("reverts auto-fixed fields back to their original values", () => {
+    const normalized = normalizeImportRows(
+      [
+        {
+          name: "Binder Clip",
+          sku: "BC-001",
+          category: "ATK",
+          unit: "pcs",
+          unitMultiplierToBase: 1,
+          price: 1000,
+        },
+        {
+          name: "Binder Clip",
+          sku: "BC-001",
+          category: "ATK",
+          unit: "dus",
+          unitMultiplierToBase: 12,
+          price: 900,
+        },
+      ],
+      new Map(),
+      new Set(["atk"]),
+    );
+
+    const reverted = revertImportCleaningFixes(normalized.rows);
+
+    expect(reverted[0]).toEqual(
+      expect.objectContaining({
+        price: 1000,
+        cleaningStatus: "clean",
+        cleaningFixes: [],
+      }),
+    );
+    expect(reverted[1]).toEqual(
+      expect.objectContaining({
+        price: 900,
+        cleaningStatus: "clean",
+        cleaningFixes: [],
+      }),
+    );
   });
 });

@@ -18,6 +18,7 @@ export interface PriceableProduct {
   categoryId: string;
   categoryName?: string | null;
   price: number;
+  hargaDinas?: number | null;
 }
 
 export interface AppliedCategoryPricing {
@@ -99,6 +100,24 @@ export function priceProductForCustomerType(
   customerType: CustomerType,
   rules: CategoryPricingRule[],
 ): PricedProductLine {
+  if (customerType === "PEMERINTAH" && product.hargaDinas != null) {
+    const originalUnitPrice = roundCurrency(product.price);
+    const appliedUnitPrice = roundCurrency(product.hargaDinas);
+    return {
+      unitPrice: appliedUnitPrice,
+      appliedPricing: {
+        ruleId: "harga-dinas",
+        customerType,
+        categoryId: product.categoryId,
+        categoryName: product.categoryName ?? null,
+        mode: "FLAT_DISCOUNT",
+        value: roundCurrency(originalUnitPrice - appliedUnitPrice),
+        originalUnitPrice,
+        appliedUnitPrice,
+      },
+    };
+  }
+
   return applyCategoryPricingRule(
     product,
     customerType,
@@ -206,10 +225,14 @@ export function resolveCustomPricedLine(input: {
 }
 
 export function formatPricingRuleLabel(input: {
+  ruleId?: string;
   customerType: CustomerType;
   mode: CategoryCustomerPricingMode;
   value: number;
 }) {
+  if (input.ruleId === "harga-dinas") {
+    return "Harga Dinas";
+  }
   if (input.mode === "FLAT_DISCOUNT") {
     return `${input.customerType} diskon Rp ${input.value.toLocaleString("id-ID")}`;
   }

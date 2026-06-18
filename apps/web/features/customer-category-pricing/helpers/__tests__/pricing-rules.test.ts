@@ -89,6 +89,45 @@ describe("customer category pricing rules", () => {
     );
   });
 
+  it("uses product Harga Dinas for PEMERINTAH before category pricing", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-ink",
+        categoryName: "Tinta",
+        price: 100000,
+        hargaDinas: 125000,
+      },
+      "PEMERINTAH",
+      rules,
+    );
+
+    expect(priced.unitPrice).toBe(125000);
+    expect(priced.appliedPricing).toEqual(
+      expect.objectContaining({
+        ruleId: "harga-dinas",
+        customerType: "PEMERINTAH",
+        originalUnitPrice: 100000,
+        appliedUnitPrice: 125000,
+      }),
+    );
+  });
+
+  it("falls back to category pricing when Harga Dinas is empty", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-ink",
+        categoryName: "Tinta",
+        price: 100000,
+        hargaDinas: null,
+      },
+      "PEMERINTAH",
+      rules,
+    );
+
+    expect(priced.unitPrice).toBe(87500);
+    expect(priced.appliedPricing?.ruleId).toBe("rule-percent");
+  });
+
   it("keeps catalog price when rule does not match", () => {
     expect(
       applyCategoryPricingRule(

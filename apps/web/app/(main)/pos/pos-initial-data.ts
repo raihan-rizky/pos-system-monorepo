@@ -32,6 +32,7 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
           sku: true,
           price: true,
           costPrice: true,
+          hargaDinas: true,
           stock: true,
           minStock: true,
           unit: true,
@@ -73,6 +74,7 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
             ...product,
             price: Number(product.price),
             costPrice: product.costPrice == null ? null : Number(product.costPrice),
+            hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
             stock: Number(product.stock),
           }),
           stockGroup: product.stockGroup

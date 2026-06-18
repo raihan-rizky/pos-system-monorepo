@@ -125,6 +125,7 @@ export function PaymentModal({
         categoryId: item.categoryId,
         categoryName: item.categoryName,
         price: item.catalogPrice ?? item.price,
+        hargaDinas: item.hargaDinas,
       },
       selectedCustomerType,
       activePricingRules,
@@ -412,6 +413,7 @@ export function PaymentModal({
                 <div className="mt-1 text-[11px] text-surface-500">
                   <span className="font-semibold text-emerald-700">
                     {formatPricingRuleLabel({
+                      ruleId: item.appliedPricing.ruleId,
                       customerType: item.appliedPricing.customerType,
                       mode: item.appliedPricing.mode,
                       value: item.appliedPricing.value,

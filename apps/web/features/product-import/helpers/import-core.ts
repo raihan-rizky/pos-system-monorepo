@@ -5,6 +5,7 @@ import {
   REQUIRED_IMPORT_COLUMNS,
   type ColumnMapping,
   type ImportPreviewResponse,
+  type ImportCleaningFix,
   type NormalizedImportRow,
 } from "../types";
 
@@ -15,16 +16,31 @@ const HEADER_ALIASES: Record<string, string> = {
   product_name: "name",
   nama: "name",
   namaproduk: "name",
+  nama_item: "name",
+  namaitem: "name",
   kode: "sku",
   code: "sku",
+  kode_item: "sku",
+  kodeitem: "sku",
   kategori: "category",
   harga: "price",
+  harga_level_1: "price",
+  hargalevel1: "price",
+  hargadinas: "hargaDinas",
+  harga_dinas: "hargaDinas",
+  hargapemerintah: "hargaDinas",
+  harga_pemerintah: "hargaDinas",
+  harga_level_2: "hargaDinas",
+  hargalevel2: "hargaDinas",
   stok: "stock",
   satuan: "unit",
+  konversi: "unitMultiplierToBase",
   unit_multiplier_to_base: "unitMultiplierToBase",
   unitmultiplier: "unitMultiplierToBase",
   multiplier: "unitMultiplierToBase",
   hpp: "costPrice",
+  harga_pokok: "costPrice",
+  hargapokok: "costPrice",
   cost: "costPrice",
   costprice: "costPrice",
   cost_price: "costPrice",
@@ -42,10 +58,12 @@ export const importRowCommitSchema = z.object({
   sku: z.string().trim().min(1),
   category: z.string().trim().min(1),
   price: z.coerce.number(),
-  stock: z.coerce.number(),
+  stock: z.coerce.number().optional().default(0),
+  stockProvided: z.boolean().optional(),
   unit: z.string().trim().min(1),
   unitMultiplierToBase: z.coerce.number().min(0).optional().nullable(),
   costPrice: z.coerce.number().min(0).optional().nullable(),
+  hargaDinas: z.coerce.number().min(0).optional().nullable(),
   minStock: z.coerce.number().int().min(0).optional(),
   barcode: z.string().trim().optional().nullable(),
   description: z.string().trim().optional().nullable(),
@@ -73,6 +91,119 @@ function toNumber(value: unknown) {
   const cleaned = normalizeValue(value).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", ".");
   if (!cleaned) return Number.NaN;
   return Number(cleaned);
+}
+
+const PACKAGE_UNITS = new Set(["dus", "box", "pak", "pack", "ball", "rim"]);
+const SMALL_UNITS = new Set(["pcs", "pc", "bh", "buah", "lbr", "lembar"]);
+const PACKAGE_PRICE_LOWER_RULE = "PACKAGE_PRICE_LOWER_THAN_SMALL";
+const PACKAGE_PRICE_LOWER_WARNING =
+  "Auto-fixed package/small price fields because package unit price was lower than small unit price.";
+const MISSING_BASE_ROW_WARNING = "Package unit has no small/base unit comparison row.";
+
+function normalizeUnit(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function buildSourceFamilyKey(row: NormalizedImportRow) {
+  if (row.sku.trim()) return row.sku.trim();
+  return `${row.name.trim().toLowerCase()}|${row.category.trim().toLowerCase()}`;
+}
+
+function isSmallUnitRow(row: NormalizedImportRow) {
+  const unit = normalizeUnit(row.unit);
+  return row.unitMultiplierToBase === 1 || SMALL_UNITS.has(unit);
+}
+
+function isPackageUnitRow(row: NormalizedImportRow) {
+  const unit = normalizeUnit(row.unit);
+  return (row.unitMultiplierToBase ?? 0) > 1 || PACKAGE_UNITS.has(unit);
+}
+
+function addCleaningFix(
+  row: NormalizedImportRow,
+  fix: ImportCleaningFix,
+) {
+  row.cleaningStatus = "auto_fixed";
+  row.cleaningIssues = Array.from(
+    new Set([...(row.cleaningIssues ?? []), PACKAGE_PRICE_LOWER_WARNING]),
+  );
+  row.cleaningFixes = [...(row.cleaningFixes ?? []), fix];
+}
+
+function addReviewIssue(row: NormalizedImportRow, warning: string, warnings: string[]) {
+  if (row.cleaningStatus !== "auto_fixed") row.cleaningStatus = "review_required";
+  row.cleaningIssues = Array.from(new Set([...(row.cleaningIssues ?? []), warning]));
+  if (!row.warnings.includes(warning)) {
+    row.warnings.push(warning);
+    warnings.push(`Row ${row.rowNumber}: ${warning}`);
+  }
+}
+
+function swapFieldWhenPackageLower(
+  smallRow: NormalizedImportRow,
+  packageRow: NormalizedImportRow,
+  field: "price" | "costPrice" | "hargaDinas",
+) {
+  const smallValue = smallRow[field] ?? null;
+  const packageValue = packageRow[field] ?? null;
+  if (smallValue == null || packageValue == null || packageValue >= smallValue) return false;
+
+  smallRow[field] = packageValue as never;
+  packageRow[field] = smallValue as never;
+  addCleaningFix(smallRow, {
+    ruleId: PACKAGE_PRICE_LOWER_RULE,
+    field,
+    oldValue: smallValue,
+    newValue: packageValue,
+  });
+  addCleaningFix(packageRow, {
+    ruleId: PACKAGE_PRICE_LOWER_RULE,
+    field,
+    oldValue: packageValue,
+    newValue: smallValue,
+  });
+  return true;
+}
+
+function applyImportCleaning(rows: NormalizedImportRow[], warnings: string[]) {
+  const rowsByFamily = new Map<string, NormalizedImportRow[]>();
+
+  for (const row of rows) {
+    const sourceFamilyKey = buildSourceFamilyKey(row);
+    row.sourceFamilyKey = sourceFamilyKey;
+    row.cleaningStatus = "clean";
+    rowsByFamily.set(sourceFamilyKey, [
+      ...(rowsByFamily.get(sourceFamilyKey) ?? []),
+      row,
+    ]);
+  }
+
+  for (const familyRows of rowsByFamily.values()) {
+    const smallRow = familyRows.find(isSmallUnitRow);
+    if (!smallRow) {
+      for (const row of familyRows) {
+        if (isPackageUnitRow(row)) addReviewIssue(row, MISSING_BASE_ROW_WARNING, warnings);
+      }
+      continue;
+    }
+
+    for (const packageRow of familyRows) {
+      if (packageRow === smallRow || !isPackageUnitRow(packageRow)) continue;
+      const priceChanged = swapFieldWhenPackageLower(smallRow, packageRow, "price");
+      const costChanged = swapFieldWhenPackageLower(smallRow, packageRow, "costPrice");
+      const hargaDinasChanged = swapFieldWhenPackageLower(smallRow, packageRow, "hargaDinas");
+      const changed = priceChanged || costChanged || hargaDinasChanged;
+
+      if (changed) {
+        for (const row of [smallRow, packageRow]) {
+          if (!row.warnings.includes(PACKAGE_PRICE_LOWER_WARNING)) {
+            row.warnings.push(PACKAGE_PRICE_LOWER_WARNING);
+            warnings.push(`Row ${row.rowNumber}: ${PACKAGE_PRICE_LOWER_WARNING}`);
+          }
+        }
+      }
+    }
+  }
 }
 
 function parseWorkbookRows(buffer: ArrayBuffer, columnMapping?: ColumnMapping) {
@@ -158,12 +289,16 @@ export function normalizeImportRows(
     const sku = normalizeValue(record.sku);
     const category = normalizeValue(record.category);
     const price = toNumber(record.price);
-    const stock = toNumber(record.stock);
+    const stockRaw = normalizeValue(record.stock);
+    const stockProvided = stockRaw.length > 0;
+    const stock = stockProvided ? toNumber(record.stock) : 0;
     const minStockRaw = normalizeValue(record.minStock);
     const costPriceRaw = normalizeValue(record.costPrice);
+    const hargaDinasRaw = normalizeValue(record.hargaDinas);
     const unitMultiplierRaw = normalizeValue(record.unitMultiplierToBase);
     const minStock = minStockRaw ? toNumber(record.minStock) : 5;
     const costPrice = costPriceRaw ? toNumber(record.costPrice) : Number.NaN;
+    const hargaDinas = hargaDinasRaw ? toNumber(record.hargaDinas) : Number.NaN;
     const unitMultiplierToBase = unitMultiplierRaw ? toNumber(record.unitMultiplierToBase) : Number.NaN;
 
     if (!normalizeValue(record.name)) rowErrors.push("Name is required.");
@@ -173,11 +308,20 @@ export function normalizeImportRows(
       rowWarnings.push("Price was not a valid number and will be imported as 0.");
     }
     if (!normalizeValue(record.unit)) rowErrors.push("Unit is required.");
+    if (stockProvided && !Number.isFinite(stock)) {
+      rowWarnings.push("Stock was not a valid number and will be imported as 0.");
+    }
     if (Number.isFinite(stock) && stock < 0) {
       rowWarnings.push("This stock is not supposed to be negative.");
     }
     if (costPriceRaw && (!Number.isFinite(costPrice) || costPrice < 0)) {
       rowWarnings.push("Cost price was not a valid number and will be imported as empty.");
+    }
+    if (hargaDinasRaw && (!Number.isFinite(hargaDinas) || hargaDinas < 0)) {
+      rowWarnings.push("Harga Dinas was not a valid number and will be imported as empty.");
+    }
+    if (hargaDinasRaw && Number.isFinite(hargaDinas) && hargaDinas >= 0 && Number.isFinite(price) && hargaDinas < price) {
+      rowWarnings.push("Harga Dinas is lower than regular price.");
     }
     if (minStockRaw && (!Number.isFinite(minStock) || minStock < 0)) {
       rowWarnings.push("Min stock was not a valid number and will be imported as 5.");
@@ -211,12 +355,17 @@ export function normalizeImportRows(
       category,
       price: Number.isFinite(price) ? price : 0,
       stock: Number.isFinite(stock) ? stock : 0,
+      stockProvided,
       unit: normalizeValue(record.unit),
       unitMultiplierToBase:
         unitMultiplierRaw && Number.isFinite(unitMultiplierToBase) && unitMultiplierToBase > 0
           ? unitMultiplierToBase
           : null,
       costPrice: costPriceRaw && Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : null,
+      hargaDinas:
+        hargaDinasRaw && Number.isFinite(hargaDinas) && hargaDinas >= 0
+          ? hargaDinas
+          : null,
       minStock: minStockRaw && Number.isFinite(minStock) && minStock >= 0 ? Math.trunc(minStock) : 5,
       barcode: normalizeValue(record.barcode) || null,
       description: normalizeValue(record.description) || null,
@@ -232,6 +381,8 @@ export function normalizeImportRows(
     };
   });
 
+  applyImportCleaning(rows, warnings);
+
   if (records.length > MAX_PRODUCT_IMPORT_ROWS) {
     errors.push(`Import files are limited to ${MAX_PRODUCT_IMPORT_ROWS} rows.`);
   }
@@ -243,4 +394,64 @@ export function normalizeImportRows(
     existingSkuMatches: Array.from(existingSkuMatches.values()),
     missingCategories: Array.from(missingCategories),
   };
+}
+
+export function buildCleanedImportRows(rows: NormalizedImportRow[]) {
+  return rows.map((row) => ({
+    name: row.name,
+    sku: row.sku,
+    category: row.category,
+    price: row.price,
+    stock: row.stock,
+    unit: row.unit,
+    unitMultiplierToBase: row.unitMultiplierToBase ?? "",
+    costPrice: row.costPrice ?? "",
+    hargaDinas: row.hargaDinas ?? "",
+    minStock: row.minStock ?? "",
+    barcode: row.barcode ?? "",
+    description: row.description ?? "",
+    size: row.size ?? "",
+    material: row.material ?? "",
+    imageUrl: row.imageUrl ?? "",
+  }));
+}
+
+export function buildCleaningChangeLogRows(rows: NormalizedImportRow[]) {
+  return rows.flatMap((row) =>
+    (row.cleaningFixes ?? []).map((fix) => ({
+      rowNumber: row.rowNumber,
+      sourceFamilyKey: row.sourceFamilyKey ?? "",
+      sku: row.sku,
+      name: row.name,
+      unit: row.unit,
+      field: fix.field,
+      oldValue: fix.oldValue,
+      newValue: fix.newValue,
+      ruleId: fix.ruleId,
+      confidence: "high",
+    })),
+  );
+}
+
+export function revertImportCleaningFixes(rows: NormalizedImportRow[]): NormalizedImportRow[] {
+  return rows.map((row) => {
+    const reverted: NormalizedImportRow = {
+      ...row,
+      warnings: row.warnings.filter((warning) => warning !== PACKAGE_PRICE_LOWER_WARNING),
+    };
+
+    for (const fix of row.cleaningFixes ?? []) {
+      if (fix.field === "price") reverted.price = Number(fix.oldValue ?? 0);
+      if (fix.field === "costPrice") reverted.costPrice = fix.oldValue;
+      if (fix.field === "hargaDinas") reverted.hargaDinas = fix.oldValue;
+    }
+
+    if (row.cleaningStatus === "auto_fixed") {
+      reverted.cleaningStatus = "clean";
+      reverted.cleaningIssues = [];
+      reverted.cleaningFixes = [];
+    }
+
+    return reverted;
+  });
 }

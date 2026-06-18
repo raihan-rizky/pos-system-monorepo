@@ -21,6 +21,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
+  const [hargaDinas, setHargaDinas] = useState("");
   const [stock, setStock] = useState("");
   const [unit, setUnit] = useState("pcs");
   const [categoryId, setCategoryId] = useState("");
@@ -36,6 +37,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
       setName(product.name);
       setSku(product.sku);
       setPrice(product.price.toString());
+      setHargaDinas(product.hargaDinas == null ? "" : product.hargaDinas.toString());
       setStock(product.stock.toString());
       setUnit(product.unit);
       setCategoryId(product.category.id);
@@ -91,11 +93,13 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
     }
 
     try {
+      const parsedHargaDinas = hargaDinas.trim() ? Number(hargaDinas) : null;
       await updateProduct.mutateAsync({
         id: product.id,
         name,
         sku,
         price: Number(price),
+        hargaDinas: parsedHargaDinas,
         stock: Number(stock),
         unit,
         categoryId,
@@ -171,13 +175,29 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Harga Jual (Rp) *"
             type="number"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
           />
+          <div className="space-y-1">
+            <Input
+              label="Harga Dinas (Opsional)"
+              type="number"
+              value={hargaDinas}
+              onChange={(e) => setHargaDinas(e.target.value)}
+            />
+            {hargaDinas.trim() && Number(hargaDinas) < Number(price || 0) && (
+              <p className="text-xs font-medium text-amber-700">
+                Harga Dinas lebih rendah dari harga jual.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Stok *"
             type="number"

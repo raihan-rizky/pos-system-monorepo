@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Database,
+  Download,
   FileSpreadsheet,
   Filter,
   LoaderCircle,
@@ -31,6 +32,11 @@ import { MethodSelector, type ImportMethod } from "./MethodSelector";
 import { ImageUploadStep } from "./ImageUploadStep";
 import { AutoActionBadge } from "./AutoActionBadge";
 import { readFileHeaders, buildAutoMapping } from "../helpers/client-parser";
+import {
+  buildCleanedImportRows,
+  buildCleaningChangeLogRows,
+  revertImportCleaningFixes,
+} from "../helpers/import-core";
 import { getRowsMissingImportDecision } from "../helpers/import-decisions";
 import { buildProductImportResultSummary } from "../helpers/result-summary";
 
@@ -68,12 +74,16 @@ export function ProductImportDrawer({
   const [commitProgress, setCommitProgress] = useState(0);
   const [extractProgress, setExtractProgress] = useState<{ current: number; total: number; stage: "preprocessing" | "extracting" } | null>(null);
   const [accumulatedPreviewData, setAccumulatedPreviewData] = useState<ImportPreviewResponse | null>(null);
+  const [previewRowsOverride, setPreviewRowsOverride] = useState<NormalizedImportRow[] | null>(null);
 
   const previewData = method === "image" ? accumulatedPreviewData : preview.data;
   const rows: NormalizedImportRow[] = useMemo(
-    () => previewData?.rows ?? [],
-    [previewData?.rows],
+    () => previewRowsOverride ?? previewData?.rows ?? [],
+    [previewData?.rows, previewRowsOverride],
   );
+  useEffect(() => {
+    setPreviewRowsOverride(null);
+  }, [previewData]);
 
   // Filter rows for the preview table
   const filteredRows = useMemo(() => {
@@ -109,6 +119,8 @@ export function ProductImportDrawer({
     blockingErrors.length === 0 &&
     needsDecision.length === 0;
   const showCommitProgress = commitStarted && step === "preview";
+  const cleanedRowsForExport = useMemo(() => buildCleanedImportRows(rows), [rows]);
+  const cleaningLogRows = useMemo(() => buildCleaningChangeLogRows(rows), [rows]);
 
   // Filter counts for badges
   const filterCounts = useMemo(() => {
@@ -188,6 +200,7 @@ export function ProductImportDrawer({
     setCommitProgress(0);
     setExtractProgress(null);
     setAccumulatedPreviewData(null);
+    setPreviewRowsOverride(null);
     preview.reset();
     imageExtract.reset();
     commit.reset();
@@ -227,6 +240,7 @@ export function ProductImportDrawer({
     setPreviewFilter("all");
     setCommitStarted(false);
     setCommitProgress(0);
+    setPreviewRowsOverride(null);
     try {
       const result = await preview.mutateAsync({
         file,
@@ -513,6 +527,42 @@ export function ProductImportDrawer({
                 onChange={setPreviewFilter}
               />
 
+              {(cleanedRowsForExport.length > 0 || cleaningLogRows.length > 0) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadCsv("cleaned-product-import.csv", cleanedRowsForExport)
+                    }
+                    className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download cleaned file
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cleaningLogRows.length === 0}
+                    onClick={() =>
+                      downloadCsv("product-import-cleaning-log.csv", cleaningLogRows)
+                    }
+                    className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download change log
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cleaningLogRows.length === 0 || commit.isPending}
+                    onClick={() =>
+                      setPreviewRowsOverride(revertImportCleaningFixes(rows))
+                    }
+                    className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Revert all auto-fixes
+                  </button>
+                </div>
+              )}
+
               <ImportPreviewTable
                 rows={filteredRows}
                 decisions={decisions}
@@ -631,6 +681,32 @@ export function ProductImportDrawer({
       )}
     </>
   );
+}
+
+function csvEscape(value: unknown) {
+  const text = String(value ?? "");
+  if (!/[",\n\r]/.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function toCsv(rows: Array<Record<string, unknown>>) {
+  if (rows.length === 0) return "";
+  const headers = Object.keys(rows[0]);
+  return [
+    headers.join(","),
+    ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(",")),
+  ].join("\n");
+}
+
+function downloadCsv(filename: string, rows: Array<Record<string, unknown>>) {
+  if (typeof window === "undefined") return;
+  const blob = new Blob([toCsv(rows)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ── Preview Filter Bar ── */
@@ -819,7 +895,7 @@ function ImportPreviewTable({
 }) {
   return (
     <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-200 bg-white relative">
-      <table className="min-w-[900px] w-full text-left text-sm border-collapse">
+      <table className="min-w-[980px] w-full text-left text-sm border-collapse">
         <thead className="sticky top-0 text-[11px] uppercase tracking-widest text-slate-500 z-20 shadow-sm">
           <tr>
             <th className="px-3 py-2 sticky left-0 z-30 bg-slate-50 border-b border-r border-slate-200">Produk</th>
@@ -827,8 +903,10 @@ function ImportPreviewTable({
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Kategori</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga Modal</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga Dinas</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Stok</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Stok Min.</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Cleaning</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Keputusan</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Status</th>
           </tr>
@@ -860,6 +938,9 @@ function ImportPreviewTable({
                 <td className="px-3 py-3 text-right tabular-nums">
                   {row.price}
                 </td>
+                <td className="px-3 py-3 text-right tabular-nums text-slate-500">
+                  {row.hargaDinas != null ? row.hargaDinas : "-"}
+                </td>
                 <td className="px-3 py-3 text-right tabular-nums">
                   <div className="flex items-center justify-end gap-1.5">
                     {row.stock < 0 && (
@@ -881,6 +962,9 @@ function ImportPreviewTable({
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
                   {row.minStock != null ? row.minStock : "-"}
+                </td>
+                <td className="px-3 py-3">
+                  <CleaningStatusBadge row={row} />
                 </td>
                 <td className="px-3 py-3">
                   {row.existingProductId ? (
@@ -944,7 +1028,7 @@ function ImportPreviewTable({
           {rows.length === 0 && (
             <tr>
               <td
-                colSpan={9}
+                colSpan={11}
                 className="px-3 py-8 text-center text-sm text-slate-400"
               >
                 Tidak ada baris yang cocok dengan filter.
@@ -955,4 +1039,38 @@ function ImportPreviewTable({
       </table>
     </div>
   );
+}
+
+function CleaningStatusBadge({ row }: { row: NormalizedImportRow }) {
+  if (row.cleaningStatus === "auto_fixed") {
+    return (
+      <span
+        className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-700"
+        title={row.cleaningIssues?.join(" ") || undefined}
+      >
+        Auto-fixed
+      </span>
+    );
+  }
+  if (row.cleaningStatus === "review_required") {
+    return (
+      <span
+        className="inline-flex rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-700"
+        title={row.cleaningIssues?.join(" ") || undefined}
+      >
+        Review
+      </span>
+    );
+  }
+  if (row.cleaningStatus === "warning") {
+    return (
+      <span
+        className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600"
+        title={row.cleaningIssues?.join(" ") || undefined}
+      >
+        Warning
+      </span>
+    );
+  }
+  return <span className="text-xs text-slate-400">-</span>;
 }
