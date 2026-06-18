@@ -4,37 +4,46 @@
     margin: 0;
   }
 
-  body {
-    margin: 0;
-    padding: 0;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+  /*
+   * Hide everything except the surat jalan content.
+   *
+   * We use visibility: hidden on everything, then visibility: visible
+   * on #surat-jalan-print itself. This is safer than display: none on
+   * ancestors which can break modal DOM structures and result in a blank
+   * screen (the approach used by receipt-print.css and draft-receipt-print.css).
+   */
+  body:has(#surat-jalan-print) * {
+    visibility: hidden;
   }
 
-  /* 1. Hide the main app background to prevent extra blank pages */
-  body > *:not(:has(#surat-jalan-print)) {
+  body:has(#surat-jalan-print) #surat-jalan-print,
+  body:has(#surat-jalan-print) #surat-jalan-print * {
+    visibility: visible !important;
+  }
+
+  /* Force-hide other receipts that may coexist in the DOM */
+  body:has(#surat-jalan-print) #print-receipt {
     display: none !important;
   }
 
-  /* 2. Hide explicit non-print elements inside the modal */
-  body:has(#surat-jalan-print) #print-receipt,
   body:has(#surat-jalan-print) #draft-receipt-page {
     display: none !important;
   }
 
+  /* Hide print:hidden utility and surat-jalan specific non-print elements */
   .print\:hidden,
   .surat-jalan-print-hide {
     display: none !important;
   }
 
-  /* 3. Strip transforms, positioning, and clipping from modal ancestors 
-        and force them to tightly wrap the content without extra height */
-  body:has(#surat-jalan-print) div.fixed.inset-0,
-  body:has(#surat-jalan-print) div[role="dialog"],
-  body:has(#surat-jalan-print) div[role="dialog"] > div,
-  body:has(#surat-jalan-print) .overflow-y-auto,
-  body:has(#surat-jalan-print) .min-h-full,
-  body:has(#surat-jalan-print) .min-h-screen {
+  /* Strip transforms, positioning, and clipping from modal ancestors
+        to prevent offset when printing */
+  div.fixed.inset-0,
+  div[role="dialog"],
+  div[role="dialog"] > div,
+  .overflow-y-auto,
+  .min-h-full,
+  .min-h-screen {
     position: static !important;
     transform: none !important;
     display: block !important;
@@ -47,15 +56,15 @@
     background: transparent !important;
   }
 
-  /* 4. Position the receipt in normal flow so it dictates document height */
+  /* Position the surat jalan on the page */
   #surat-jalan-print {
-    position: relative !important;
+    position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     width: 215mm !important;
     height: 165mm !important;
     max-height: 165mm !important;
-    margin: 0 auto !important;
+    margin: 0 !important;
     padding: 4mm 6mm !important;
     border: none !important;
     box-shadow: none !important;
@@ -64,8 +73,22 @@
     display: flex;
     flex-direction: column;
     box-sizing: border-box !important;
+    transform: scale(0.96) !important;
+    transform-origin: top left !important;
     page-break-before: avoid;
     page-break-after: avoid;
     page-break-inside: avoid;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
