@@ -48,30 +48,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Only check duplicates among rows that are NOT skipped
-    const activeRows = rows.filter((row) => {
-      const decision = decisions[String(row.rowNumber)] ?? decisions[row.sku];
-      return decision !== "skip";
-    });
-
-    const duplicateSkus = Array.from(
-      activeRows.reduce(
-        (counts, row) => counts.set(row.sku, (counts.get(row.sku) ?? 0) + 1),
-        new Map<string, number>(),
-      ),
-    )
-      .filter(([, count]) => count > 1)
-      .map(([sku]) => sku);
-
-    if (duplicateSkus.length > 0) {
-      return NextResponse.json(
-        {
-          message: "Import contains duplicate SKUs. Mark extra rows as skip.",
-          duplicateSkus,
-        },
-        { status: 409 },
-      );
-    }
+    // Duplicate check has been moved into the transaction block below,
+    // so it evaluates SKUs after conflict resolutions have generated new ones.
 
     const result = await db.$transaction(
       async (tx: Prisma.TransactionClient) => {
@@ -161,6 +139,31 @@ export async function POST(request: Request) {
           existingSkus: new Set(existingProducts.map((product) => product.sku)),
           decisions,
         });
+
+        // Check for duplicates after SKUs have been generated for create/create-variant
+        const activeResolvedRows = resolvedRows.filter((row) => {
+          const decision = getEffectiveImportDecision(row, decisions);
+          try {
+            return getCommitActionForResolvedRow(row, decision) !== "skip";
+          } catch {
+            // If it throws ROW_CONFLICT, it's active and unresolved, so keep it for duplicate counting
+            // or let the later loop throw the exact error.
+            return true;
+          }
+        });
+
+        const duplicateSkus = Array.from(
+          activeResolvedRows.reduce(
+            (counts, row) => counts.set(row.sku, (counts.get(row.sku) ?? 0) + 1),
+            new Map<string, number>(),
+          ),
+        )
+          .filter(([, count]) => count > 1)
+          .map(([sku]) => sku);
+
+        if (duplicateSkus.length > 0) {
+          throw new Error(`DUPLICATE_SKUS:${duplicateSkus.join(",")}`);
+        }
 
         for (const row of resolvedRows) {
           const existing = existingBySku.get(row.sku) ?? (row.matchedProductId ? existingById.get(row.matchedProductId) : undefined);
@@ -498,6 +501,15 @@ export async function POST(request: Request) {
             missingCategories: error.message
               .replace("MISSING_CATEGORIES:", "")
               .split(", "),
+          },
+          { status: 409 },
+        );
+      }
+      if (error.message.startsWith("DUPLICATE_SKUS:")) {
+        return NextResponse.json(
+          {
+            message: "Import contains duplicate SKUs. Mark extra rows as skip.",
+            duplicateSkus: error.message.replace("DUPLICATE_SKUS:", "").split(","),
           },
           { status: 409 },
         );
