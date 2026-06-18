@@ -34,6 +34,7 @@ const commitSchema = z.object({
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   try {
     const user = await requirePermission("product", "create");
     const { rows, decisions, createMissingCategories } = commitSchema.parse(
@@ -41,7 +42,23 @@ export async function POST(request: Request) {
     );
     const storeId = user.storeId || "store-main";
 
+    logger.info("product.import.commit.started", {
+      userId: user.id,
+      storeId,
+      rowCount: rows.length,
+      decisionCount: Object.keys(decisions).length,
+      createMissingCategories,
+      requestedCreateCount: Object.values(decisions).filter((value) => value === "create").length,
+      requestedUpdateCount: Object.values(decisions).filter((value) => value === "update").length,
+      requestedSkipCount: Object.values(decisions).filter((value) => value === "skip").length,
+      requestedCreateVariantCount: Object.values(decisions).filter((value) => value === "create-variant").length,
+    });
+
     if (rows.length === 0) {
+      logger.warn("product.import.commit.empty_rows", {
+        userId: user.id,
+        storeId,
+      });
       return NextResponse.json(
         { message: "No rows to import" },
         { status: 422 },
@@ -482,12 +499,24 @@ export async function POST(request: Request) {
       },
     );
 
+    logger.info("product.import.commit.completed", {
+      userId: user.id,
+      storeId,
+      rowCount: rows.length,
+      ...result,
+      durationMs: Date.now() - startedAt,
+    });
+
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
     if (error instanceof z.ZodError) {
+      logger.warn("product.import.commit.validation_failed", {
+        errors: error.flatten().fieldErrors,
+        durationMs: Date.now() - startedAt,
+      });
       return NextResponse.json(
         { message: "Validation error", errors: error.flatten().fieldErrors },
         { status: 422 },
@@ -538,11 +567,13 @@ export async function POST(request: Request) {
       }
     }
 
-    logger.error("products.import.commit.failed", { error });
+    logger.error("product.import.commit.failed", {
+      error,
+      durationMs: Date.now() - startedAt,
+    });
     return NextResponse.json(
       { message: "Failed to commit product import" },
       { status: 500 },
     );
   }
 }
-

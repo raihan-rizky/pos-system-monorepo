@@ -16,17 +16,28 @@ const log = getLogger("api:products:import:preview");
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   try {
     const user = await requirePermission("product", "create");
     const formData = await request.formData();
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
+      log.warn("product.import.preview.file_missing", {
+        userId: user.id,
+        storeId: user.storeId || "store-main",
+      });
       return NextResponse.json({ message: "File is required" }, { status: 422 });
     }
 
     const fileName = file.name.toLowerCase();
     if (!fileName.endsWith(".csv") && !fileName.endsWith(".xlsx")) {
+      log.warn("product.import.preview.unsupported_file_type", {
+        userId: user.id,
+        storeId: user.storeId || "store-main",
+        fileName: file.name,
+        fileSizeBytes: file.size,
+      });
       return NextResponse.json({ message: "Only .csv and .xlsx files are supported" }, { status: 415 });
     }
 
@@ -36,10 +47,31 @@ export async function POST(request: Request) {
       ? JSON.parse(String(mappingRaw))
       : undefined;
 
+    const storeId = user.storeId || "store-main";
+
+    log.info("product.import.preview.started", {
+      userId: user.id,
+      storeId,
+      fileName: file.name,
+      fileSizeBytes: file.size,
+      hasColumnMapping: Boolean(columnMapping),
+      mappedColumnCount: columnMapping ? Object.values(columnMapping).filter(Boolean).length : 0,
+    });
+
     const { headers, records } = parseImportFile(await file.arrayBuffer(), columnMapping);
     const { missingColumns, unknownColumns, suggestions } = buildMissingColumnResponse(headers);
 
     if (missingColumns.length > 0) {
+      log.warn("product.import.preview.missing_required_columns", {
+        userId: user.id,
+        storeId,
+        fileName: file.name,
+        headerCount: headers.length,
+        recordCount: records.length,
+        missingColumns,
+        unknownColumns,
+        durationMs: Date.now() - startedAt,
+      });
       return NextResponse.json(
         {
           code: "MISSING_REQUIRED_COLUMNS",
@@ -53,7 +85,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const storeId = user.storeId || "store-main";
     const skus = records.map((row) => String(row.sku ?? "").trim()).filter(Boolean);
     const [products, categories] = await Promise.all([
       db.product.findMany({
@@ -96,6 +127,20 @@ export async function POST(request: Request) {
       existingSkus: new Set(products.map((product) => product.sku)),
     });
 
+    log.info("product.import.preview.completed", {
+      userId: user.id,
+      storeId,
+      fileName: file.name,
+      headerCount: headers.length,
+      recordCount: records.length,
+      uniqueSkuCount: skus.length,
+      rowCount: normalized.rows.length,
+      warningCount: normalized.warnings.length,
+      errorCount: normalized.errors.length,
+      existingMatchCount: normalized.existingSkuMatches.length,
+      durationMs: Date.now() - startedAt,
+    });
+
     return NextResponse.json({
       ...normalized,
       rows,
@@ -108,7 +153,10 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    log.error("Failed to preview product import:", error);
+    log.error("product.import.preview.failed", {
+      error,
+      durationMs: Date.now() - startedAt,
+    });
     return NextResponse.json({ message: "Failed to preview product import" }, { status: 500 });
   }
 }
