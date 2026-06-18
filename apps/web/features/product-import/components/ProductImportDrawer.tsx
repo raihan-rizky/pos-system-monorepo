@@ -96,18 +96,20 @@ export function ProductImportDrawer({
         case "ready":
           return row.errors.length === 0 && row.warnings.length === 0;
         case "errors":
-          return row.errors.length > 0;
+          return row.errors.length > 0 || row.autoAction === "conflict";
         case "warnings":
           return row.warnings.length > 0;
         case "duplicate":
           return row.duplicateInFile || Boolean(row.existingProductId);
         case "new-category":
           return row.missingCategory;
+        case "unresolved":
+          return (row.existingProductId || row.duplicateInFile) && !getEffectiveImportDecision(row, decisions);
         default:
           return true;
       }
     });
-  }, [rows, previewFilter]);
+  }, [rows, previewFilter, decisions]);
 
   const blockingErrors = useMemo(
     () => rows.flatMap((row) => row.errors),
@@ -130,14 +132,17 @@ export function ProductImportDrawer({
     const ready = rows.filter(
       (r) => r.errors.length === 0 && r.warnings.length === 0
     ).length;
-    const errors = rows.filter((r) => r.errors.length > 0).length;
+    const errors = rows.filter((r) => r.errors.length > 0 || r.autoAction === "conflict").length;
     const warnings = rows.filter((r) => r.warnings.length > 0).length;
     const duplicate = rows.filter(
       (r) => r.duplicateInFile || Boolean(r.existingProductId)
     ).length;
     const newCategory = rows.filter((r) => r.missingCategory).length;
-    return { all: rows.length, ready, errors, warnings, duplicate, newCategory };
-  }, [rows]);
+    const unresolved = rows.filter(
+      (r) => (r.existingProductId || r.duplicateInFile) && !getEffectiveImportDecision(r, decisions)
+    ).length;
+    return { all: rows.length, ready, errors, warnings, duplicate, newCategory, unresolved };
+  }, [rows, decisions]);
 
   const commitSummary = useMemo(() => {
     return rows.reduce(
@@ -567,7 +572,8 @@ export function ProductImportDrawer({
               )}
 
               <ImportPreviewTable
-                rows={filteredRows}
+                filteredRows={filteredRows}
+                allRows={rows}
                 decisions={decisions}
                 setDecisions={setDecisions}
               />
@@ -726,6 +732,7 @@ function PreviewFilterBar({
     warnings: number;
     duplicate: number;
     newCategory: number;
+    unresolved: number;
   };
   onChange: (f: PreviewFilter) => void;
 }) {
@@ -736,6 +743,7 @@ function PreviewFilterBar({
     { id: "warnings", label: "Peringatan", count: counts.warnings, color: "bg-amber-100 text-amber-700" },
     { id: "duplicate", label: "SKU Duplikat", count: counts.duplicate, color: "bg-purple-100 text-purple-700" },
     { id: "new-category", label: "Kategori Baru", count: counts.newCategory, color: "bg-blue-100 text-blue-700" },
+    { id: "unresolved", label: "Aksi Kosong", count: counts.unresolved, color: "bg-indigo-100 text-indigo-700" },
   ];
 
   return (
@@ -886,11 +894,13 @@ function CommitProgressPanel({
 }
 
 function ImportPreviewTable({
-  rows,
+  filteredRows,
+  allRows,
   decisions,
   setDecisions,
 }: {
-  rows: NormalizedImportRow[];
+  filteredRows: NormalizedImportRow[];
+  allRows: NormalizedImportRow[];
   decisions: Record<string, ImportRowDecision>;
   setDecisions: React.Dispatch<
     React.SetStateAction<Record<string, ImportRowDecision>>
@@ -915,7 +925,7 @@ function ImportPreviewTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {filteredRows.map((row) => {
             return (
               <tr key={row.rowNumber} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
                 <td className="px-3 py-3 font-semibold text-slate-900 sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 transition-colors">
@@ -970,6 +980,7 @@ function ImportPreviewTable({
                 <td className="px-3 py-3">
                   <ImportActionSelect
                     row={row}
+                    rows={allRows}
                     decisions={decisions}
                     setDecisions={setDecisions}
                   />
@@ -994,7 +1005,7 @@ function ImportPreviewTable({
               </tr>
             );
           })}
-          {rows.length === 0 && (
+          {filteredRows.length === 0 && (
             <tr>
               <td
                 colSpan={11}
@@ -1046,22 +1057,67 @@ function CleaningStatusBadge({ row }: { row: NormalizedImportRow }) {
 
 function ImportActionSelect({
   row,
+  rows,
   decisions,
   setDecisions,
 }: {
   row: NormalizedImportRow;
+  rows: NormalizedImportRow[];
   decisions: Record<string, ImportRowDecision>;
   setDecisions: React.Dispatch<
     React.SetStateAction<Record<string, ImportRowDecision>>
   >;
 }) {
   const effectiveDecision = getEffectiveImportDecision(row, decisions);
+
+  const hasCreatedSibling = useMemo(() => {
+    return rows.some(
+      (r) =>
+        r.rowNumber !== row.rowNumber &&
+        r.normalizedProductKey === row.normalizedProductKey &&
+        getEffectiveImportDecision(r, decisions) === "create"
+    );
+  }, [rows, row, decisions]);
+
   const setDecision = (value: ImportRowDecision) => {
-    setDecisions((current) => ({
-      ...current,
-      [String(row.rowNumber)]: value,
-    }));
+    setDecisions((current) => {
+      const next = {
+        ...current,
+        [String(row.rowNumber)]: value,
+      };
+
+      if (row.autoAction === "conflict" && value !== "create") {
+        rows.forEach((r) => {
+          if (
+            r.rowNumber !== row.rowNumber &&
+            r.normalizedProductKey === row.normalizedProductKey &&
+            next[String(r.rowNumber)] === "create-variant"
+          ) {
+            delete next[String(r.rowNumber)];
+          }
+        });
+      }
+
+      return next;
+    });
   };
+
+  if (row.autoAction === "conflict") {
+    return (
+      <select
+        value={effectiveDecision ?? ""}
+        onChange={(event) => setDecision(event.target.value as ImportRowDecision)}
+        className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-sm focus:ring-2 focus:ring-red-400 focus:outline-none"
+      >
+        <option value="">Pilih...</option>
+        <option value="create">Tambahkan produk dengan SKU yang berbeda</option>
+        {hasCreatedSibling && (
+          <option value="create-variant">Tambahkan varian produk dengan SKU yang berbeda</option>
+        )}
+        <option value="skip">Lewati baris</option>
+      </select>
+    );
+  }
 
   if (row.autoAction === "auto_skip") {
     return <span className="font-bold text-slate-600">Lewati baris</span>;

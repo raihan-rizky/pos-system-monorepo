@@ -92,4 +92,18 @@ describe("getRowsMissingImportDecision", () => {
 
     expect(getRowsMissingImportDecision([duplicate, regular], {})).toEqual([duplicate]);
   });
+
+  it("defaults conflict rows to undefined decision and requires manual decision", () => {
+    const conflict = row({
+      rowNumber: 5,
+      existingProductId: "prod-1",
+      autoAction: "conflict",
+    });
+
+    expect(getEffectiveImportDecision(conflict, {})).toBeUndefined();
+    expect(getRowsMissingImportDecision([conflict], {})).toEqual([conflict]);
+    expect(getRowsMissingImportDecision([conflict], { "5": "create" })).toEqual([]);
+    expect(getRowsMissingImportDecision([conflict], { "5": "create-variant" })).toEqual([]);
+    expect(getRowsMissingImportDecision([conflict], { "5": "skip" })).toEqual([]);
+  });
 });

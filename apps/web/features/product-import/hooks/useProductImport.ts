@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { ColumnMapping, ImportPreviewResponse, NormalizedImportRow } from "../types";
+import type { ColumnMapping, ImportPreviewResponse, NormalizedImportRow, ImportRowDecision } from "../types";
 
 export interface ImportPreviewInput {
   file: File;
@@ -10,7 +10,7 @@ export interface ImportPreviewInput {
 
 export interface ImportCommitInput {
   rows: NormalizedImportRow[];
-  decisions: Record<string, "create" | "update" | "skip">;
+  decisions: Record<string, ImportRowDecision>;
   createMissingCategories: boolean;
 }
 

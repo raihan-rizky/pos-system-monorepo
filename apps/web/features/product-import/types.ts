@@ -16,14 +16,14 @@ export const OPTIONAL_IMPORT_COLUMNS = [
 export const IMPORT_COLUMNS = [...REQUIRED_IMPORT_COLUMNS, ...OPTIONAL_IMPORT_COLUMNS] as const;
 
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
-export type ImportRowDecision = "create" | "update" | "skip";
+export type ImportRowDecision = "create" | "update" | "skip" | "create-variant";
 export type ImportAutoAction =
   | "create"
   | "auto_skip"
   | "auto_price_update"
   | "auto_create_variant"
   | "conflict";
-export type PreviewFilter = "all" | "ready" | "errors" | "warnings" | "duplicate" | "new-category";
+export type PreviewFilter = "all" | "ready" | "errors" | "warnings" | "duplicate" | "new-category" | "unresolved";
 export type ImportCleaningStatus = "clean" | "auto_fixed" | "review_required" | "warning";
 
 export interface ImportCleaningFix {

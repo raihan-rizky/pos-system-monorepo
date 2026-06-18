@@ -49,9 +49,27 @@ describe("getCommitActionForResolvedRow", () => {
     ).toBe("skip");
   });
 
-  it("blocks conflicts before mutating data", () => {
+  it("blocks conflicts before mutating data when no decision is provided", () => {
     expect(() =>
       getCommitActionForResolvedRow(row({ autoAction: "conflict" })),
     ).toThrow("ROW_CONFLICT:2");
+  });
+
+  it("resolves conflicts based on user decisions", () => {
+    expect(
+      getCommitActionForResolvedRow(row({ autoAction: "conflict" }), "create"),
+    ).toBe("create");
+    expect(
+      getCommitActionForResolvedRow(row({ autoAction: "conflict" }), "create-variant"),
+    ).toBe("create-variant");
+    expect(
+      getCommitActionForResolvedRow(row({ autoAction: "conflict" }), "skip"),
+    ).toBe("skip");
+  });
+
+  it("maps update decisions to update commit action", () => {
+    expect(
+      getCommitActionForResolvedRow(row(), "update"),
+    ).toBe("update");
   });
 });

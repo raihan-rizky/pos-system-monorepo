@@ -1,4 +1,4 @@
-import type { NormalizedImportRow } from "../types";
+import type { ImportRowDecision, NormalizedImportRow } from "../types";
 import { normalizeProductDuplicateKey } from "./name-normalization";
 import { resolveImportUnitMultiplier } from "./unit-conversion";
 import { generateVariantSku } from "./variant-sku";
@@ -24,6 +24,7 @@ export interface ResolveProductImportAutoDecisionsInput {
   rows: NormalizedImportRow[];
   existingProducts: ExistingImportProduct[];
   existingSkus: Set<string>;
+  decisions?: Record<string, ImportRowDecision>;
 }
 
 function normalizeUnit(value: string): string {
@@ -103,6 +104,8 @@ export function resolveProductImportAutoDecisions(
     const existingSkuProduct = skuToProduct.get(row.sku);
     const matchingCandidates = candidatesByKey.get(productKey) ?? [];
 
+    const decision = input.decisions?.[String(row.rowNumber)] ?? input.decisions?.[row.sku];
+
     if (
       existingSkuProduct &&
       normalizeProductDuplicateKey({
@@ -110,6 +113,26 @@ export function resolveProductImportAutoDecisions(
         category: existingSkuProduct.category,
       }) !== productKey
     ) {
+      if (decision === "create" || decision === "create-variant") {
+        const generatedSku = generateVariantSku(row.sku, "new", usedSkus);
+        usedSkus.add(generatedSku);
+        const resolved: NormalizedImportRow = {
+          ...row,
+          sku: generatedSku,
+          generatedSku,
+          autoAction: "conflict",
+          autoActionReason: `Conflict: User decided to ${
+            decision === "create" ? "create new" : "create variant"
+          } with new SKU.`,
+          matchedProductId: existingSkuProduct.id,
+          normalizedProductKey: productKey,
+        };
+        if (decision === "create") {
+          candidatesByKey.set(productKey, [...matchingCandidates, createCandidateFromRow(resolved)]);
+        }
+        return resolved;
+      }
+
       return {
         ...row,
         autoAction: "conflict",

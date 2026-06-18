@@ -156,6 +156,60 @@ describe("resolveProductImportAutoDecisions", () => {
     expect(resolved.autoAction).toBe("conflict");
   });
 
+  it("generates a fresh SKU for conflict row when user chooses create", () => {
+    const [resolved] = resolveProductImportAutoDecisions({
+      rows: [row({ rowNumber: 2, name: "Amplop", category: "ATK", sku: "HVS-A4" })],
+      existingProducts: [
+        {
+          id: "prod-1",
+          name: "Kertas HVS",
+          sku: "HVS-A4",
+          category: "Kertas",
+          unit: "rim",
+          price: 10000,
+          costPrice: null,
+          stockGroupId: "group-1",
+          stockGroupBaseUnit: "lembar",
+        },
+      ],
+      existingSkus: new Set(["HVS-A4"]),
+      decisions: { "2": "create" },
+    });
+
+    expect(resolved.autoAction).toBe("conflict");
+    expect(resolved.sku).not.toBe("HVS-A4");
+    expect(resolved.generatedSku).not.toBeUndefined();
+  });
+
+  it("handles create-variant decision on conflict rows by treating them as variants", () => {
+    const rows = [
+      row({ rowNumber: 2, name: "Amplop", category: "ATK", sku: "HVS-A4", unit: "pack" }),
+      row({ rowNumber: 3, name: "Amplop", category: "ATK", sku: "HVS-A4", unit: "pcs" }),
+    ];
+    const resolved = resolveProductImportAutoDecisions({
+      rows,
+      existingProducts: [
+        {
+          id: "prod-1",
+          name: "Kertas HVS",
+          sku: "HVS-A4",
+          category: "Kertas",
+          unit: "rim",
+          price: 10000,
+          costPrice: null,
+          stockGroupId: "group-1",
+          stockGroupBaseUnit: "lembar",
+        },
+      ],
+      existingSkus: new Set(["HVS-A4"]),
+      decisions: { "2": "create", "3": "create-variant" },
+    });
+
+    expect(resolved[0].sku).not.toBe("HVS-A4");
+    expect(resolved[1].sku).not.toBe("HVS-A4");
+    expect(resolved[1].sku).not.toBe(resolved[0].sku);
+  });
+
   it("explains that standalone rows without stock start at zero", () => {
     const [resolved] = resolveProductImportAutoDecisions({
       rows: [row({ stock: 0, stockProvided: false })],

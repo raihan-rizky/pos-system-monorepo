@@ -26,7 +26,7 @@ const logger = getLogger("api:products:import:commit");
 const commitSchema = z.object({
   rows: z.array(importRowCommitSchema).max(MAX_PRODUCT_IMPORT_ROWS),
   decisions: z
-    .record(z.string(), z.enum(["create", "update", "skip"]))
+    .record(z.string(), z.enum(["create", "update", "skip", "create-variant"]))
     .default({}),
   createMissingCategories: z.boolean().default(false),
 });
@@ -159,6 +159,7 @@ export async function POST(request: Request) {
             stockGroupBaseUnit: product.stockGroup?.baseUnit ?? null,
           })),
           existingSkus: new Set(existingProducts.map((product) => product.sku)),
+          decisions,
         });
 
         for (const row of resolvedRows) {
@@ -169,7 +170,7 @@ export async function POST(request: Request) {
           if (
             existing &&
             !row.autoAction &&
-            !["update", "skip"].includes(decision)
+            !["update", "skip", "create-variant"].includes(decision)
           ) {
             throw new Error(`ROW_DECISION_REQUIRED:${row.rowNumber}`);
           }
@@ -200,7 +201,7 @@ export async function POST(request: Request) {
           const category = categoryByName.get(row.category.toLowerCase());
           if (!category) throw new Error(`CATEGORY_NOT_FOUND:${row.category}`);
 
-          if (existing && commitAction === "update-price") {
+          if (commitAction === "update-price" && existing) {
             const beforeDisplayStock = resolveProductDisplayStock(existing);
             const beforeSnapshot = productSnapshot({
               ...existing,
@@ -247,7 +248,7 @@ export async function POST(request: Request) {
                 ) as unknown as Prisma.InputJsonValue,
               },
             });
-          } else if (existing) {
+          } else if (commitAction === "update" && existing) {
             const beforeDisplayStock = resolveProductDisplayStock(existing);
             const beforeSnapshot = productSnapshot({
               ...existing,
@@ -336,7 +337,7 @@ export async function POST(request: Request) {
                 inventoryLogId: log?.id,
               },
             });
-          } else {
+          } else if (commitAction === "create" || commitAction === "create-variant") {
             const { multiplier } = buildStockGroupCreateData({
               stock: row.stock,
               unitMultiplierToBase: row.unitMultiplierToBase ?? 1,
