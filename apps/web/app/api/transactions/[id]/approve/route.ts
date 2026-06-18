@@ -14,6 +14,7 @@ const log = getLogger("api:transactions:id:approve");
 const approveTransactionSchema = z.object({
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional(),
   amountPaid: z.number().min(0).optional(),
+  isPayLater: z.boolean().optional(),
 });
 
 export const dynamic = "force-dynamic";
@@ -54,15 +55,19 @@ export async function POST(
     }
 
     const total = Number(transaction.total);
-    const paymentMethod = transaction.paymentMethod as
+    const paymentMethod = (parsed.data.paymentMethod || transaction.paymentMethod) as
       | "CASH"
       | "DEBIT"
       | "CREDIT"
       | "QRIS"
       | "TRANSFER";
-    const amountPaid = Number(transaction.amountPaid);
-    const isDP = amountPaid > 0 && amountPaid < total;
-    if (amountPaid === 0) {
+    const amountPaid = parsed.data.amountPaid !== undefined 
+      ? parsed.data.amountPaid 
+      : Number(transaction.amountPaid);
+    const isPayLater = parsed.data.isPayLater === true;
+    const isDP = isPayLater || (amountPaid > 0 && amountPaid < total);
+    
+    if (amountPaid === 0 && !isPayLater) {
       return NextResponse.json({ message: "Pembayaran harus lebih dari 0" }, { status: 422 });
     }
 

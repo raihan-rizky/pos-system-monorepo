@@ -36,8 +36,10 @@ async function commitProductImport(input: ImportCommitInput) {
   if (!res.ok) throw new Error(payload.message || "Failed to commit import");
   return payload as {
     createdProductCount: number;
+    variantProductCount: number;
     updatedProductCount: number;
     skippedRowCount: number;
+    conversionReviewCount: number;
     createdCategoryCount: number;
     inventoryLogCount: number;
     batchOperationId: string;

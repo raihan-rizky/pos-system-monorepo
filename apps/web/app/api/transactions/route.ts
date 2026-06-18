@@ -201,6 +201,21 @@ export async function GET(request: Request) {
           },
         ],
       });
+    } else if (status === "DEBT_HISTORY") {
+      andConditions.push({
+        OR: [
+          { status: "DP" },
+          {
+            status: "COMPLETED",
+            debtPaymentLogs: { some: {} },
+          },
+        ],
+      });
+    } else if (status === "DEBT_HISTORY_COMPLETED") {
+      andConditions.push({
+        status: "COMPLETED",
+        debtPaymentLogs: { some: {} },
+      });
     } else if (status) {
       andConditions.push({ status: status as Prisma.EnumTransactionStatusFilter["equals"] });
     }
@@ -272,6 +287,11 @@ export async function GET(request: Request) {
             },
             salesperson: {
               select: { name: true },
+            },
+            debtPaymentLogs: {
+              select: { id: true, createdAt: true, amount: true, paymentMethod: true },
+              orderBy: { createdAt: "desc" },
+              take: 1,
             },
           },
         }),

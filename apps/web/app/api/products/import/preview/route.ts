@@ -8,6 +8,7 @@ import {
   normalizeImportRows,
   parseImportFile,
 } from "@/features/product-import/helpers/import-core";
+import { resolveProductImportAutoDecisions } from "@/features/product-import/helpers/auto-decisions";
 
 import { getLogger } from "@/lib/logger";
 
@@ -56,20 +57,46 @@ export async function POST(request: Request) {
     const skus = records.map((row) => String(row.sku ?? "").trim()).filter(Boolean);
     const [products, categories] = await Promise.all([
       db.product.findMany({
-        where: { storeId, sku: { in: skus } },
-        select: { id: true, sku: true, name: true },
+        where: { storeId },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          unit: true,
+          price: true,
+          costPrice: true,
+          stockGroupId: true,
+          category: { select: { name: true } },
+          stockGroup: { select: { baseUnit: true } },
+        },
       }),
       db.category.findMany({ select: { name: true } }),
     ]);
 
-    const result = normalizeImportRows(
+    const normalized = normalizeImportRows(
       records,
       new Map(products.map((product) => [product.sku, { id: product.id, name: product.name }])),
       new Set(categories.map((category) => category.name.toLowerCase())),
     );
+    const rows = resolveProductImportAutoDecisions({
+      rows: normalized.rows,
+      existingProducts: products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        category: product.category.name,
+        unit: product.unit,
+        price: Number(product.price),
+        costPrice: product.costPrice == null ? null : Number(product.costPrice),
+        stockGroupId: product.stockGroupId,
+        stockGroupBaseUnit: product.stockGroup?.baseUnit ?? null,
+      })),
+      existingSkus: new Set(products.map((product) => product.sku)),
+    });
 
     return NextResponse.json({
-      ...result,
+      ...normalized,
+      rows,
       missingColumns,
       unknownColumns,
       requiredColumns: REQUIRED_IMPORT_COLUMNS,

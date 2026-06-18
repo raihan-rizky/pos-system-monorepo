@@ -22,6 +22,7 @@ export interface Transaction {
   paymentMethod: string;
   amountPaid: number;
   change: number;
+  customerId?: string | null;
   customerName: string | null;
   salesName: string | null;
   salespersonId: string | null;
@@ -31,6 +32,12 @@ export interface Transaction {
   note: string | null;
   status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED, DRAFT
   createdAt: string;
+  debtPaymentLogs?: {
+    id: string;
+    createdAt: string;
+    amount: number;
+    paymentMethod: string;
+  }[];
   suratJalanSummary?: {
     count: number;
     confirmedCount: number;
@@ -282,6 +289,7 @@ export interface ApproveTransactionInput {
   id: string;
   paymentMethod?: string;
   amountPaid?: number;
+  isPayLater?: boolean;
 }
 
 async function approveTransaction(input: ApproveTransactionInput): Promise<Transaction> {

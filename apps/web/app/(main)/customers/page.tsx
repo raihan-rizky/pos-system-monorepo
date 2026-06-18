@@ -55,6 +55,7 @@ import {
   getTransactionDebtRemaining,
   isValidDebtPayment,
 } from "@/features/customer-debt/helpers/debt-payment";
+import { DebtTransactionsList } from "@/features/customer-debt/components/DebtTransactionsList";
 import { buildCustomerRecapRange } from "@/features/customer-recap/helpers/recap-core";
 import type { CustomerRecapQuery } from "@/features/customer-recap/types/customer-recap";
 
@@ -1302,6 +1303,7 @@ export default function CustomersPage() {
     hasDebt: activeTab === "debt",
     page,
     limit: 20,
+    enabled: activeTab !== "debt",
   });
 
   const customers = useMemo(() => data?.data ?? [], [data?.data]);
@@ -1500,9 +1502,13 @@ export default function CustomersPage() {
             </button>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-3 sm:gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="relative">
+          {activeTab === "debt" ? (
+            <DebtTransactionsList />
+          ) : (
+            <>
+              <div className="flex min-w-0 flex-col gap-3 sm:gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={search}
@@ -1543,16 +1549,10 @@ export default function CustomersPage() {
           <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 sm:mt-4 sm:flex-row sm:items-center sm:justify-between sm:pt-4">
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-slate-500">
               <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:text-sm">
-                {data?.pagination.total ?? 0}{" "}
-                {activeTab === "debt" ? "pelanggan berpiutang" : "pelanggan"}
+                {data?.pagination.total ?? 0} pelanggan
               </span>
               <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:text-sm">
-                {activeTab === "debt" ? "Piutang terlihat" : "Nilai belanja terlihat"}{" "}
-                {formatCurrency(
-                  activeTab === "debt"
-                    ? metrics.totalDebtVisible
-                    : metrics.totalSpentVisible,
-                )}
+                Nilai belanja terlihat {formatCurrency(metrics.totalSpentVisible)}
               </span>
               {hasActiveFilters ? (
                 <button
@@ -1575,10 +1575,13 @@ export default function CustomersPage() {
               </div>
             ) : null}
           </div>
+          </>
+          )}
         </section>
 
-        <section className="min-w-0">
-          <div className="min-w-0 space-y-4">
+        {activeTab === "all" && (
+          <section className="min-w-0">
+            <div className="min-w-0 space-y-4">
             {isLoading ? (
               <CustomerListSkeleton />
             ) : customers.length === 0 ? (
@@ -1592,8 +1595,6 @@ export default function CustomersPage() {
                 <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
                   {hasActiveFilters
                     ? "Hasil pencarian masih kosong. Coba ubah kata kunci atau reset tipe pelanggan."
-                    : activeTab === "debt"
-                      ? "Belum ada piutang aktif dari pelanggan. Tagihan yang belum lunas akan muncul di tab ini."
                     : "Bangun database pelanggan lebih rapi agar checkout, nota penawaran, dan follow-up piutang lebih cepat."}
                 </p>
                 {canCreateCustomers ? (
@@ -1670,8 +1671,8 @@ export default function CustomersPage() {
               </>
             )}
           </div>
-
         </section>
+        )}
       </div>
 
       {selectedCustomerId && selectedCustomer ? (

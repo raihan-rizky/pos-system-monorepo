@@ -7,6 +7,9 @@ import {
   MAX_PRODUCT_IMPORT_ROWS,
   importRowCommitSchema,
 } from "@/features/product-import/helpers/import-core";
+import { resolveProductImportAutoDecisions } from "@/features/product-import/helpers/auto-decisions";
+import { getCommitActionForResolvedRow } from "@/features/product-import/helpers/commit-actions";
+import { expandProductNameAbbreviations } from "@/features/product-import/helpers/name-normalization";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import { getLogger } from "@/lib/logger";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
@@ -70,13 +73,15 @@ export async function POST(request: Request) {
 
     const result = await db.$transaction(
       async (tx: Prisma.TransactionClient) => {
-        const skus = rows.map((row) => row.sku);
         const existingProducts = await tx.product.findMany({
-          where: { storeId, sku: { in: skus } },
-          include: { stockGroup: true },
+          where: { storeId },
+          include: { stockGroup: true, category: true },
         });
         const existingBySku = new Map(
           existingProducts.map((product) => [product.sku, product]),
+        );
+        const existingById = new Map(
+          existingProducts.map((product) => [product.id, product]),
         );
         const categories = await tx.category.findMany();
         const categoryByName = new Map(
@@ -125,20 +130,51 @@ export async function POST(request: Request) {
         let skippedRowCount = 0;
         let inventoryLogCount = 0;
         let priceLogCount = 0;
+        let variantProductCount = 0;
+        let conversionReviewCount = 0;
 
-        for (const row of rows) {
-          const existing = existingBySku.get(row.sku);
+        const commitRows = rows.map((row) => ({
+          ...row,
+          duplicateInFile: false,
+          missingCategory: false,
+          warnings: [],
+          errors: [],
+        }));
+
+        const resolvedRows = resolveProductImportAutoDecisions({
+          rows: commitRows,
+          existingProducts: existingProducts.map((product) => ({
+            id: product.id,
+            name: product.name,
+            sku: product.sku,
+            category: product.category.name,
+            unit: product.unit,
+            price: Number(product.price),
+            costPrice: product.costPrice == null ? null : Number(product.costPrice),
+            stockGroupId: product.stockGroupId,
+            stockGroupBaseUnit: product.stockGroup?.baseUnit ?? null,
+          })),
+          existingSkus: new Set(existingProducts.map((product) => product.sku)),
+        });
+
+        for (const row of resolvedRows) {
+          const existing = existingBySku.get(row.sku) ?? (row.matchedProductId ? existingById.get(row.matchedProductId) : undefined);
           const decision = existing
             ? (decisions[String(row.rowNumber)] ?? decisions[row.sku])
             : (decisions[String(row.rowNumber)] ??
               decisions[row.sku] ??
               "create");
+          const commitAction = getCommitActionForResolvedRow(row);
 
-          if (existing && !["update", "skip"].includes(decision)) {
+          if (
+            existing &&
+            !row.autoAction &&
+            !["update", "skip"].includes(decision)
+          ) {
             throw new Error(`ROW_DECISION_REQUIRED:${row.rowNumber}`);
           }
 
-          if (decision === "skip") {
+          if (decision === "skip" || commitAction === "skip") {
             skippedRowCount += 1;
             await tx.batchOperationItem.create({
               data: {
@@ -164,7 +200,53 @@ export async function POST(request: Request) {
           const category = categoryByName.get(row.category.toLowerCase());
           if (!category) throw new Error(`CATEGORY_NOT_FOUND:${row.category}`);
 
-          if (existing) {
+          if (existing && commitAction === "update-price") {
+            const beforeDisplayStock = resolveProductDisplayStock(existing);
+            const beforeSnapshot = productSnapshot({
+              ...existing,
+              stock: beforeDisplayStock,
+            });
+            const updated = await tx.product.update({
+              where: { id: existing.id },
+              data: {
+                price: row.price,
+                costPrice: row.costPrice,
+              },
+            });
+            updatedProductCount += 1;
+            const priceLogEntries = buildProductPriceLogEntries({
+              productId: updated.id,
+              storeId,
+              before: {
+                price: existing.price,
+                costPrice: existing.costPrice,
+              },
+              after: {
+                price: updated.price,
+                costPrice: updated.costPrice,
+              },
+              actor: user,
+              source: "IMPORT",
+              note: `Batch import price update: ${existing.name}`,
+            });
+            if (priceLogEntries.length > 0) {
+              await tx.productPriceLog.createMany({ data: priceLogEntries });
+              priceLogCount += priceLogEntries.length;
+            }
+            await tx.batchOperationItem.create({
+              data: {
+                batchOperationId: batch.id,
+                productId: updated.id,
+                sku: row.sku,
+                action: "UPDATE",
+                beforeSnapshot:
+                  beforeSnapshot as unknown as Prisma.InputJsonValue,
+                afterSnapshot: productSnapshot(
+                  { ...existing, ...updated, stock: beforeDisplayStock },
+                ) as unknown as Prisma.InputJsonValue,
+              },
+            });
+          } else if (existing) {
             const beforeDisplayStock = resolveProductDisplayStock(existing);
             const beforeSnapshot = productSnapshot({
               ...existing,
@@ -255,21 +337,28 @@ export async function POST(request: Request) {
           } else {
             const { multiplier, baseStock } = buildStockGroupCreateData({
               stock: row.stock,
-              unitMultiplierToBase: 1,
+              unitMultiplierToBase: row.unitMultiplierToBase ?? 1,
             });
-            const { group, created: groupCreated } = await ensureProductStockGroup(tx, {
-              storeId,
-              name: row.name,
-              categoryId: category.id,
-              material: row.material,
-              size: row.size,
-              displayName: row.name,
-              baseUnit: row.unit,
-              baseStock,
-            });
+            const matched = row.matchedProductId ? existingById.get(row.matchedProductId) : undefined;
+            const variantGroup = commitAction === "create-variant" && matched?.stockGroup
+              ? matched.stockGroup
+              : null;
+            const ensured = variantGroup
+              ? { group: variantGroup, created: false }
+              : await ensureProductStockGroup(tx, {
+                  storeId,
+                  name: row.name,
+                  categoryId: category.id,
+                  material: row.material,
+                  size: row.size,
+                  displayName: row.name,
+                  baseUnit: row.unit,
+                  baseStock,
+                });
+            const { group, created: groupCreated } = ensured;
             const created = await tx.product.create({
               data: {
-                name: row.name,
+                name: expandProductNameAbbreviations(row.name),
                 sku: row.sku,
                 barcode: row.barcode,
                 description: row.description,
@@ -284,9 +373,9 @@ export async function POST(request: Request) {
                 categoryId: category.id,
                 stockGroupId: group.id,
                 unitMultiplierToBase: multiplier,
-                conversionNeedsReview: shouldMarkConversionForReview({
+                conversionNeedsReview: row.conversionNeedsReview ?? shouldMarkConversionForReview({
                   groupCreated,
-                  unitMultiplierProvided: false,
+                  unitMultiplierProvided: Boolean(row.unitMultiplierToBase),
                   unit: row.unit,
                   baseUnit: group.baseUnit,
                 }),
@@ -294,6 +383,8 @@ export async function POST(request: Request) {
               },
             });
             createdProductCount += 1;
+            if (commitAction === "create-variant") variantProductCount += 1;
+            if (row.conversionNeedsReview) conversionReviewCount += 1;
             const priceLogEntries = buildProductPriceLogEntries({
               productId: created.id,
               storeId,
@@ -347,8 +438,10 @@ export async function POST(request: Request) {
             summary: {
               rowCount: rows.length,
               createdProductCount,
+              variantProductCount,
               updatedProductCount,
               skippedRowCount,
+              conversionReviewCount,
               createdCategoryCount: missingCategories.length,
               inventoryLogCount,
               priceLogCount,
@@ -358,8 +451,10 @@ export async function POST(request: Request) {
 
         return {
           createdProductCount,
+          variantProductCount,
           updatedProductCount,
           skippedRowCount,
+          conversionReviewCount,
           createdCategoryCount: missingCategories.length,
           inventoryLogCount,
           priceLogCount,
@@ -402,6 +497,17 @@ export async function POST(request: Request) {
             message: "Existing SKU rows require update or skip decisions",
             rowNumber: Number(
               error.message.replace("ROW_DECISION_REQUIRED:", ""),
+            ),
+          },
+          { status: 409 },
+        );
+      }
+      if (error.message.startsWith("ROW_CONFLICT:")) {
+        return NextResponse.json(
+          {
+            message: "Import row conflicts with an existing SKU assigned to another product",
+            rowNumber: Number(
+              error.message.replace("ROW_CONFLICT:", ""),
             ),
           },
           { status: 409 },

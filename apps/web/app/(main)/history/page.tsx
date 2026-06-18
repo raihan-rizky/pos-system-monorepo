@@ -22,11 +22,13 @@ import {
   Undo2,
   X,
   XCircle,
+  MoreHorizontal,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { SuratJalanBundleButton } from "@/features/surat-jalan/components/SuratJalanBundleButton";
+import { TransactionActionMenu } from "./TransactionActionMenu";
 import { SuratJalanCreateModal } from "@/features/surat-jalan/components/SuratJalanCreateModal";
 import {
   formatSuratJalanBundleProgress,
@@ -474,14 +476,24 @@ function ApproveModal({
 }) {
   const approveTx = useApproveTransaction();
   const [error, setError] = useState("");
-  const amountPaid = Number(tx.amountPaid);
+  
   const total = Number(tx.total);
-  const approvalStatus = amountPaid > 0 && amountPaid < total ? "DP" : "Lunas";
+  const [amountPaidInput, setAmountPaidInput] = useState<string>(Number(tx.amountPaid).toString());
+  const [paymentMethodInput, setPaymentMethodInput] = useState<string>(tx.paymentMethod || "CASH");
+  const [isPayLater, setIsPayLater] = useState<boolean>(false);
+
+  const parsedAmount = Number(amountPaidInput) || 0;
+  const approvalStatus = isPayLater ? "DP" : (parsedAmount > 0 && parsedAmount < total ? "DP" : "Lunas");
 
   const handleApprove = async () => {
     setError("");
     try {
-      await approveTx.mutateAsync({ id: tx.id });
+      await approveTx.mutateAsync({ 
+        id: tx.id,
+        amountPaid: isPayLater ? 0 : parsedAmount,
+        paymentMethod: paymentMethodInput,
+        isPayLater,
+      });
       onSuccess();
     } catch (err: any) {
       setError(err.message);
@@ -511,15 +523,44 @@ function ApproveModal({
             <span className="text-surface-500">Total</span>
             <span className="font-bold text-brand-700">{formatRupiah(total)}</span>
           </div>
-          <div className="flex justify-between gap-3 py-1">
-            <span className="text-surface-500">Metode</span>
-            <span className="font-semibold text-surface-900">{tx.paymentMethod}</span>
-          </div>
-          <div className="flex justify-between gap-3 py-1">
-            <span className="text-surface-500">Dibayar</span>
-            <span className="font-bold text-surface-900">
-              {formatRupiah(amountPaid)}
-            </span>
+          <label className="flex items-center gap-2 py-2 cursor-pointer border-y border-surface-200 my-1">
+            <input
+              type="checkbox"
+              checked={isPayLater}
+              onChange={(e) => setIsPayLater(e.target.checked)}
+              className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
+            />
+            <span className="text-sm font-semibold text-surface-800">Bayar Nanti (Tempo)</span>
+          </label>
+          <div className={`transition-opacity duration-200 ${isPayLater ? "opacity-50 pointer-events-none" : ""}`}>
+            <div className="flex justify-between gap-3 py-1 items-center">
+              <span className="text-surface-500">Metode</span>
+              <select
+                value={paymentMethodInput}
+                onChange={(e) => setPaymentMethodInput(e.target.value)}
+                className="px-2 py-1 bg-white border border-surface-200 rounded-md text-sm font-semibold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                disabled={isPayLater}
+              >
+                <option value="CASH">Cash</option>
+                <option value="TRANSFER">Transfer</option>
+                <option value="DEBIT">Debit</option>
+                <option value="CREDIT">Kredit</option>
+                <option value="QRIS">QRIS</option>
+              </select>
+            </div>
+            <div className="flex justify-between gap-3 py-1 items-center">
+              <span className="text-surface-500">Dibayar</span>
+              <div className="relative w-32">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-400 text-xs font-medium">Rp</span>
+                <input
+                  type="number"
+                  value={isPayLater ? 0 : amountPaidInput}
+                  onChange={(e) => setAmountPaidInput(e.target.value)}
+                  disabled={isPayLater}
+                  className="w-full pl-6 pr-2 py-1 text-right bg-white border border-surface-200 rounded-md text-sm font-bold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-surface-100 disabled:text-surface-500"
+                />
+              </div>
+            </div>
           </div>
           <div className="flex justify-between gap-3 py-1">
             <span className="text-surface-500">Status setelah setujui</span>
@@ -665,6 +706,119 @@ function RejectModal({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Transaction Row Actions ───────────────────────────────────────────────────
+
+function TransactionRowActions({
+  tx,
+  canApproveTransactions,
+  canUpdateTransactions,
+  canDeleteTransactions,
+  canRejectTransactions,
+  onAction,
+}: {
+  tx: Transaction;
+  canApproveTransactions: boolean;
+  canUpdateTransactions: boolean;
+  canDeleteTransactions: boolean;
+  canRejectTransactions: boolean;
+  onAction: (e: React.MouseEvent, action: string, tx: Transaction) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const handleActionClick = (e: React.MouseEvent, action: string) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    onAction(e, action, tx);
+  };
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors focus:outline-none"
+        aria-label="Aksi Lainnya"
+      >
+        <MoreHorizontal className="w-5 h-5" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 overflow-hidden border border-surface-100">
+          <div className="py-1">
+            {tx.status === "PENDING" && canApproveTransactions && (
+              <button
+                onClick={(e) => handleActionClick(e, 'approve')}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-700 flex items-center transition-colors"
+              >
+                <CheckCircle2 className="mr-3 h-4 w-4 text-brand-600" aria-hidden="true" />
+                Setujui
+              </button>
+            )}
+            {tx.status === "PENDING" && canRejectTransactions && (
+              <button
+                onClick={(e) => handleActionClick(e, 'reject')}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium text-surface-700 hover:bg-red-50 hover:text-red-700 flex items-center transition-colors"
+              >
+                <XCircle className="mr-3 h-4 w-4 text-red-600" aria-hidden="true" />
+                Tolak
+              </button>
+            )}
+            <div className="h-px bg-surface-100 my-1"></div>
+            <SuratJalanBundleButton
+              transaction={tx}
+              asDropdownItem
+            />
+            {tx.status !== "VOIDED" && canUpdateTransactions && (
+              <>
+                <button
+                  onClick={(e) => handleActionClick(e, 'edit')}
+                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-surface-700 hover:bg-surface-50 flex items-center transition-colors"
+                >
+                  <Edit2 className="mr-3 h-4 w-4 text-surface-500" aria-hidden="true" />
+                  Edit
+                </button>
+                <button
+                  onClick={(e) => handleActionClick(e, 'void')}
+                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center transition-colors"
+                >
+                  <AlertTriangle className="mr-3 h-4 w-4 text-red-500" aria-hidden="true" />
+                  Void
+                </button>
+              </>
+            )}
+            {canDeleteTransactions && (
+              <button
+                onClick={(e) => handleActionClick(e, 'delete')}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center transition-colors"
+              >
+                <Trash2 className="mr-3 h-4 w-4 text-red-500" aria-hidden="true" />
+                Hapus
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1039,7 +1193,14 @@ export default function HistoryPage() {
                               {formatRupiah(Number(tx.total))}
                             </td>
                             <td className="py-3.5 px-4">
-                              <PaymentBadge method={tx.paymentMethod} />
+                              <div className="flex items-center gap-2">
+                                <PaymentBadge method={tx.paymentMethod} />
+                                {isPending && tx.status === "DP" && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-200 bg-amber-100 text-[10px] font-bold text-amber-700">
+                                    DP
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3.5 px-4">
                               <StatusBadge status={isPending ? "PENDING_APPROVAL" : tx.status} />
@@ -1049,93 +1210,61 @@ export default function HistoryPage() {
                               onClick={(event) => event.stopPropagation()}
                             >
                               <div className="flex items-center justify-end gap-2">
-                                {!isBundled && !isSalesRole && (
-                                  <>
-                                    {canUpdateTransactions && (
-                                      <button
-                                        id={`edit-tx-${tx.id}`}
-                                        onClick={() => setEditingTransaction(tx)}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                          bg-surface-100 text-surface-600 hover:bg-brand-50 hover:text-brand-700 border border-transparent
-                                          hover:border-brand-200 transition-all"
-                                      >
-                                        <Edit2 className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
-                                        Ubah
-                                      </button>
-                                    )}
-                                    {canDeleteTransactions && (
-                                      <button
-                                        id={`delete-tx-${tx.id}`}
-                                        onClick={() => setDeletingTransaction(tx)}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                          bg-surface-100 text-red-500 hover:bg-red-50 hover:text-red-700 border border-transparent
-                                          hover:border-red-200 transition-all"
-                                      >
-                                        <Trash2 className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
-                                        Hapus
-                                      </button>
-                                    )}
-                                  </>
+                                {!isBundled && (
+                                  <Button
+                                    variant="secondary"
+                                    onClick={(e) => { e.stopPropagation(); openTransactionDetail(tx); }}
+                                    className="!py-1.5 !px-3 text-sm h-auto"
+                                  >
+                                    Lihat Struk
+                                  </Button>
                                 )}
                                 {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
                                   <div className="flex gap-2">
                                     {canApproveTransactions && (
-                                      <button
-                                        onClick={() => setApprovingTransaction(tx)}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                          bg-surface-100 text-blue-600 hover:bg-blue-50 hover:text-blue-700 border border-transparent
-                                          hover:border-blue-200 transition-all"
+                                      <Button
+                                        onClick={(e) => { e.stopPropagation(); setApprovingTransaction(tx); }}
+                                        className="!py-1.5 !px-3 text-sm h-auto bg-blue-600 hover:bg-blue-700 text-white"
                                       >
                                         Setujui
-                                      </button>
+                                      </Button>
                                     )}
                                     {canRejectTransactions && (
-                                      <button
-                                        onClick={() => setRejectingTransaction(tx)}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                          bg-surface-100 text-red-500 hover:bg-red-50 hover:text-red-700 border border-transparent
-                                          hover:border-red-200 transition-all"
+                                      <Button
+                                        onClick={(e) => { e.stopPropagation(); setRejectingTransaction(tx); }}
+                                        className="!py-1.5 !px-3 text-sm h-auto bg-red-600 hover:bg-red-700 text-white border-transparent"
                                       >
                                         Tolak
-                                      </button>
+                                      </Button>
                                     )}
                                   </div>
                                 )}
                                 {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
-                                  <button
-                                    id={`approve-draft-${tx.id}`}
-                                    onClick={() => setApprovingDraft(tx)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                      bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 border border-amber-200
-                                      transition-all cursor-pointer"
+                                  <Button
+                                    onClick={(e) => { e.stopPropagation(); setApprovingDraft(tx); }}
+                                    className="!py-1.5 !px-3 text-sm h-auto bg-amber-600 hover:bg-amber-700 text-white"
                                   >
-                                    Setujui
-                                  </button>
+                                    Setujui Draft
+                                  </Button>
                                 )}
-                                {!isBundled && !isSalesRole && canVoid && (
-                                  <button
-                                    id={`void-tx-${tx.id}`}
-                                    onClick={() => setVoidingTransaction(tx)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                      bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200
-                                      transition-all"
-                                  >
-                                    <XCircle className="h-2.5 w-2.5" strokeWidth={2.5} aria-hidden="true" />
-                                    Void
-                                  </button>
-                                )}
-                                {!isBundled && (
-                                  <>
-                                    <Button
-                                      variant="secondary"
-                                      onClick={() => openTransactionDetail(tx)}
-                                      className="!py-1.5 !px-3 text-sm h-auto"
-                                    >
-                                      Lihat Struk
-                                    </Button>
-                                    <SuratJalanBundleButton transaction={tx} />
-                                  </>
-                                )}
+                                <TransactionActionMenu
+                                  tx={tx}
+                                  isSalesRole={isSalesRole}
+                                  canUpdateTransactions={canUpdateTransactions}
+                                  canDeleteTransactions={canDeleteTransactions}
+                                  canApproveTransactions={canApproveTransactions}
+                                  canRejectTransactions={canRejectTransactions}
+                                  canApproveDrafts={canApproveDrafts}
+                                  canVoid={canVoid}
+                                  isPending={isPending}
+                                  isBundled={isBundled}
+                                  onEdit={() => setEditingTransaction(tx)}
+                                  onDelete={() => setDeletingTransaction(tx)}
+                                  onApprove={() => setApprovingTransaction(tx)}
+                                  onReject={() => setRejectingTransaction(tx)}
+                                  onApproveDraft={() => setApprovingDraft(tx)}
+                                  onVoid={() => setVoidingTransaction(tx)}
+                                />
                               </div>
                             </td>
                           </tr>
@@ -1214,7 +1343,14 @@ export default function HistoryPage() {
                             </span>
                           </div>
                           <div className="flex justify-between items-center mt-2 pt-2 border-t border-surface-100">
-                            <PaymentBadge method={tx.paymentMethod} />
+                            <div className="flex items-center gap-2">
+                              <PaymentBadge method={tx.paymentMethod} />
+                              {isPending && tx.status === "DP" && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-200 bg-amber-100 text-[10px] font-bold text-amber-700">
+                                  DP
+                                </span>
+                              )}
+                            </div>
                             <span className={`font-bold text-lg tabular-nums ${isVoided ? "line-through text-surface-400" : "text-brand-600"}`}>
                               {formatRupiah(Number(tx.total))}
                             </span>
@@ -1223,79 +1359,64 @@ export default function HistoryPage() {
 
                         {!isBundled && (
                           <div
-                            className="flex flex-wrap gap-2 pt-3 border-t border-surface-100"
+                            className="flex items-center justify-end gap-2 pt-3 border-t border-surface-100"
                             onClick={(event) => event.stopPropagation()}
                           >
-                            <Button
-                              variant="secondary"
-                              onClick={() => openTransactionDetail(tx)}
-                              className="flex-1 !py-2 !px-3 text-xs h-auto"
-                            >
-                              Lihat Struk
-                            </Button>
-                            <div className="flex-1">
-                              <SuratJalanBundleButton transaction={tx} />
-                            </div>
-
-                            {!isSalesRole && (
-                              <>
-                                {canUpdateTransactions && (
-                                  <button
-                                    onClick={() => setEditingTransaction(tx)}
-                                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-surface-100 text-surface-700 hover:bg-brand-50 hover:text-brand-700"
-                                  >
-                                    Ubah
-                                  </button>
-                                )}
-                                {canDeleteTransactions && (
-                                  <button
-                                    onClick={() => setDeletingTransaction(tx)}
-                                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
-                                  >
-                                    Hapus
-                                  </button>
-                                )}
-                              </>
+                            {!isBundled && (
+                              <Button
+                                variant="secondary"
+                                onClick={(e) => { e.stopPropagation(); openTransactionDetail(tx); }}
+                                className="flex-1 !py-2 !px-3 text-xs h-auto"
+                              >
+                                Lihat Struk
+                              </Button>
                             )}
-
                             {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
                               <>
                                 {canApproveTransactions && (
-                                  <button
-                                    onClick={() => setApprovingTransaction(tx)}
-                                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                  <Button
+                                    onClick={(e) => { e.stopPropagation(); setApprovingTransaction(tx); }}
+                                    className="flex-1 !py-2 !px-3 text-xs h-auto bg-blue-600 hover:bg-blue-700 text-white"
                                   >
                                     Setujui
-                                  </button>
+                                  </Button>
                                 )}
                                 {canRejectTransactions && (
-                                  <button
-                                    onClick={() => setRejectingTransaction(tx)}
-                                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                                  <Button
+                                    onClick={(e) => { e.stopPropagation(); setRejectingTransaction(tx); }}
+                                    className="flex-1 !py-2 !px-3 text-xs h-auto bg-red-600 hover:bg-red-700 text-white border-transparent"
                                   >
                                     Tolak
-                                  </button>
+                                  </Button>
                                 )}
                               </>
                             )}
-
                             {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
-                              <button
-                                onClick={() => setApprovingDraft(tx)}
-                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                              <Button
+                                onClick={(e) => { e.stopPropagation(); setApprovingDraft(tx); }}
+                                className="flex-1 !py-2 !px-3 text-xs h-auto bg-amber-600 hover:bg-amber-700 text-white"
                               >
-                                Setujui
-                              </button>
+                                Setujui Draft
+                              </Button>
                             )}
-
-                            {!isSalesRole && canVoid && (
-                              <button
-                                onClick={() => setVoidingTransaction(tx)}
-                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
-                              >
-                                Void
-                              </button>
-                            )}
+                            <TransactionActionMenu
+                              tx={tx}
+                              isSalesRole={isSalesRole}
+                              canUpdateTransactions={canUpdateTransactions}
+                              canDeleteTransactions={canDeleteTransactions}
+                              canApproveTransactions={canApproveTransactions}
+                              canRejectTransactions={canRejectTransactions}
+                              canApproveDrafts={canApproveDrafts}
+                              canVoid={canVoid}
+                              isPending={isPending}
+                              isBundled={isBundled}
+                              onEdit={() => setEditingTransaction(tx)}
+                              onDelete={() => setDeletingTransaction(tx)}
+                              onApprove={() => setApprovingTransaction(tx)}
+                              onReject={() => setRejectingTransaction(tx)}
+                              onApproveDraft={() => setApprovingDraft(tx)}
+                              onVoid={() => setVoidingTransaction(tx)}
+                            />
                           </div>
                         )}
                       </div>

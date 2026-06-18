@@ -8,7 +8,7 @@ import {
   type NormalizedImportRow,
 } from "../types";
 
-export const MAX_PRODUCT_IMPORT_ROWS = 2000;
+export const MAX_PRODUCT_IMPORT_ROWS = 3000;
 
 const HEADER_ALIASES: Record<string, string> = {
   productname: "name",
@@ -21,8 +21,12 @@ const HEADER_ALIASES: Record<string, string> = {
   harga: "price",
   stok: "stock",
   satuan: "unit",
+  unit_multiplier_to_base: "unitMultiplierToBase",
+  unitmultiplier: "unitMultiplierToBase",
+  multiplier: "unitMultiplierToBase",
   hpp: "costPrice",
   cost: "costPrice",
+  costprice: "costPrice",
   cost_price: "costPrice",
   min_stock: "minStock",
   minimumstock: "minStock",
@@ -40,6 +44,7 @@ export const importRowCommitSchema = z.object({
   price: z.coerce.number(),
   stock: z.coerce.number(),
   unit: z.string().trim().min(1),
+  unitMultiplierToBase: z.coerce.number().min(0).optional().nullable(),
   costPrice: z.coerce.number().min(0).optional().nullable(),
   minStock: z.coerce.number().int().min(0).optional(),
   barcode: z.string().trim().optional().nullable(),
@@ -156,8 +161,10 @@ export function normalizeImportRows(
     const stock = toNumber(record.stock);
     const minStockRaw = normalizeValue(record.minStock);
     const costPriceRaw = normalizeValue(record.costPrice);
+    const unitMultiplierRaw = normalizeValue(record.unitMultiplierToBase);
     const minStock = minStockRaw ? toNumber(record.minStock) : 5;
     const costPrice = costPriceRaw ? toNumber(record.costPrice) : Number.NaN;
+    const unitMultiplierToBase = unitMultiplierRaw ? toNumber(record.unitMultiplierToBase) : Number.NaN;
 
     if (!normalizeValue(record.name)) rowErrors.push("Name is required.");
     if (!sku) rowErrors.push("SKU is required.");
@@ -174,6 +181,9 @@ export function normalizeImportRows(
     }
     if (minStockRaw && (!Number.isFinite(minStock) || minStock < 0)) {
       rowWarnings.push("Min stock was not a valid number and will be imported as 5.");
+    }
+    if (unitMultiplierRaw && (!Number.isFinite(unitMultiplierToBase) || unitMultiplierToBase <= 0)) {
+      rowWarnings.push("Unit multiplier was not a valid positive number and will be guessed or reviewed.");
     }
 
     const duplicateInFile = sku ? (skuCounts.get(sku) ?? 0) > 1 : false;
@@ -202,6 +212,10 @@ export function normalizeImportRows(
       price: Number.isFinite(price) ? price : 0,
       stock: Number.isFinite(stock) ? stock : 0,
       unit: normalizeValue(record.unit),
+      unitMultiplierToBase:
+        unitMultiplierRaw && Number.isFinite(unitMultiplierToBase) && unitMultiplierToBase > 0
+          ? unitMultiplierToBase
+          : null,
       costPrice: costPriceRaw && Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : null,
       minStock: minStockRaw && Number.isFinite(minStock) && minStock >= 0 ? Math.trunc(minStock) : 5,
       barcode: normalizeValue(record.barcode) || null,
@@ -219,7 +233,7 @@ export function normalizeImportRows(
   });
 
   if (records.length > MAX_PRODUCT_IMPORT_ROWS) {
-    errors.push("Import files are limited to 2000 rows.");
+    errors.push(`Import files are limited to ${MAX_PRODUCT_IMPORT_ROWS} rows.`);
   }
 
   return {

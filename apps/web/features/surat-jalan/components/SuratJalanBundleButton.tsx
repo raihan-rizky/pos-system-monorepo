@@ -21,7 +21,13 @@ export function isTransactionEligibleForSuratJalan(transaction: Transaction): bo
   }).eligible;
 }
 
-export function SuratJalanBundleButton({ transaction }: { transaction: Transaction }) {
+export function SuratJalanBundleButton({
+  transaction,
+  asDropdownItem = false,
+}: {
+  transaction: Transaction;
+  asDropdownItem?: boolean;
+}) {
   const [open, setOpen] = useState(false);
 
   if (!isTransactionEligibleForSuratJalan(transaction)) return null;
@@ -31,9 +37,13 @@ export function SuratJalanBundleButton({ transaction }: { transaction: Transacti
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+        className={
+          asDropdownItem
+            ? "flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-surface-700 hover:bg-surface-50 hover:text-brand-600 transition-colors duration-200 cursor-pointer text-left focus:outline-none focus:bg-surface-50"
+            : "inline-flex w-full min-h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+        }
       >
-        <Truck className="h-4 w-4" />
+        <Truck className={asDropdownItem ? "h-4 w-4 text-surface-400 group-hover:text-brand-600" : "h-4 w-4"} />
         Cetak Surat Jalan
       </button>
       <SuratJalanCreateModal

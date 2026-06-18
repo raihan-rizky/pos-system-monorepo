@@ -29,8 +29,10 @@ import { MissingColumnsDialog } from "./MissingColumnsDialog";
 import { ColumnMappingStep } from "./ColumnMappingStep";
 import { MethodSelector, type ImportMethod } from "./MethodSelector";
 import { ImageUploadStep } from "./ImageUploadStep";
+import { AutoActionBadge } from "./AutoActionBadge";
 import { readFileHeaders, buildAutoMapping } from "../helpers/client-parser";
 import { getRowsMissingImportDecision } from "../helpers/import-decisions";
+import { buildProductImportResultSummary } from "../helpers/result-summary";
 
 type ImportStep = "upload" | "mapping" | "preview" | "result";
 
@@ -388,16 +390,7 @@ export function ProductImportDrawer({
           {step === "result" && commit.data && (
             <BatchResultPanel
               batchOperationId={commit.data.batchOperationId}
-              summary={[
-                { label: "Dibuat", value: commit.data.createdProductCount },
-                { label: "Diupdate", value: commit.data.updatedProductCount },
-                { label: "Dilewati", value: commit.data.skippedRowCount },
-                {
-                  label: "Kategori",
-                  value: commit.data.createdCategoryCount,
-                },
-                { label: "Stock Logs", value: commit.data.inventoryLogCount },
-              ]}
+              summary={buildProductImportResultSummary(commit.data)}
             />
           )}
 
@@ -929,7 +922,13 @@ function ImportPreviewTable({
                   )}
                 </td>
                 <td className="px-3 py-3">
-                  {row.errors.length > 0 ? (
+                  {row.autoAction ? (
+                    <AutoActionBadge
+                      action={row.autoAction}
+                      reason={row.autoActionReason}
+                      conversionNeedsReview={row.conversionNeedsReview}
+                    />
+                  ) : row.errors.length > 0 ? (
                     <span className="text-red-600">{row.errors.join(" ")}</span>
                   ) : row.warnings.length > 0 ? (
                     <span className="text-amber-700">

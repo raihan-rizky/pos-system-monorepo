@@ -108,7 +108,7 @@ describe("normalizeImportRows", () => {
   });
 
   it("limits to 2000 rows", () => {
-    const records = Array.from({ length: 2010 }, (_, i) => ({
+    const records = Array.from({ length: 3010 }, (_, i) => ({
       name: `Product ${i}`,
       sku: `SKU-${i}`,
       category: "Drinks",
@@ -117,9 +117,17 @@ describe("normalizeImportRows", () => {
       unit: "pcs",
     }));
     const result = normalizeImportRows(records, new Map(), categories);
-    expect(MAX_PRODUCT_IMPORT_ROWS).toBe(2000);
+    expect(MAX_PRODUCT_IMPORT_ROWS).toBe(3000);
     expect(result.rows.length).toBe(MAX_PRODUCT_IMPORT_ROWS);
-    expect(result.errors).toContain("Import files are limited to 2000 rows.");
+    expect(result.errors).toContain("Import files are limited to 3000 rows.");
+  });
+
+  it("accepts optional unit multiplier values for commit", () => {
+    const records = [{ name: "Product", sku: "SKU-MULT", category: "Drinks", price: 10000, stock: 5, unit: "rim", unitMultiplierToBase: 500 }];
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0].unitMultiplierToBase).toBe(500);
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
   });
 
   it("returns correct row numbers (starting at 2 for first data row)", () => {

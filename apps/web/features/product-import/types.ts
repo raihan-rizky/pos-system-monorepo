@@ -3,6 +3,7 @@ export const REQUIRED_IMPORT_COLUMNS = ["name", "sku", "category", "price", "sto
 export const OPTIONAL_IMPORT_COLUMNS = [
   "costPrice",
   "minStock",
+  "unitMultiplierToBase",
   "barcode",
   "description",
   "size",
@@ -14,6 +15,12 @@ export const IMPORT_COLUMNS = [...REQUIRED_IMPORT_COLUMNS, ...OPTIONAL_IMPORT_CO
 
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
 export type ImportRowDecision = "create" | "update" | "skip";
+export type ImportAutoAction =
+  | "create"
+  | "auto_skip"
+  | "auto_price_update"
+  | "auto_create_variant"
+  | "conflict";
 export type PreviewFilter = "all" | "ready" | "errors" | "warnings" | "duplicate" | "new-category";
 
 export interface ColumnMapping {
@@ -28,6 +35,7 @@ export interface NormalizedImportRow {
   price: number;
   stock: number;
   unit: string;
+  unitMultiplierToBase?: number | null;
   costPrice?: number | null;
   minStock?: number;
   barcode?: string | null;
@@ -39,6 +47,14 @@ export interface NormalizedImportRow {
   existingProductId?: string;
   existingProductName?: string;
   missingCategory: boolean;
+  autoAction?: ImportAutoAction;
+  autoActionReason?: string;
+  matchedProductId?: string;
+  matchedProductSku?: string;
+  matchedStockGroupId?: string | null;
+  generatedSku?: string;
+  conversionNeedsReview?: boolean;
+  normalizedProductKey?: string;
   warnings: string[];
   errors: string[];
 }

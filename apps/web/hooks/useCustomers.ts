@@ -63,6 +63,7 @@ export interface CustomerListParams {
   hasDebt?: boolean;
   page?: number;
   limit?: number;
+  enabled?: boolean;
 }
 
 export interface CreateCustomerInput {
@@ -154,6 +155,7 @@ export function useCustomers(params: CustomerListParams = {}) {
     queryFn: () => fetchCustomers(params),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+    enabled: params.enabled,
   });
 }
 

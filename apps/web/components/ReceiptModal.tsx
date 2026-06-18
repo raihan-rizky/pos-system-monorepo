@@ -53,7 +53,7 @@ export function ReceiptModal({
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentScale, setContentScale] = useState(1);
 
-  const items = transaction?.items || [];
+  const items = React.useMemo(() => transaction?.items || [], [transaction?.items]);
   const isDraft = transaction?.status === "DRAFT";
 
   const isPending = transaction?.status === "PENDING_APPROVAL";
