@@ -40,6 +40,15 @@ describe("getCommitActionForResolvedRow", () => {
     ).toBe("create-variant");
   });
 
+  it("lets explicit user decisions override auto price and auto variant actions", () => {
+    expect(
+      getCommitActionForResolvedRow(row({ autoAction: "auto_price_update" }), "skip"),
+    ).toBe("skip");
+    expect(
+      getCommitActionForResolvedRow(row({ autoAction: "auto_create_variant" }), "skip"),
+    ).toBe("skip");
+  });
+
   it("blocks conflicts before mutating data", () => {
     expect(() =>
       getCommitActionForResolvedRow(row({ autoAction: "conflict" })),

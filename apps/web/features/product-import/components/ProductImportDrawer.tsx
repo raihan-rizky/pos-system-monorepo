@@ -37,7 +37,10 @@ import {
   buildCleaningChangeLogRows,
   revertImportCleaningFixes,
 } from "../helpers/import-core";
-import { getRowsMissingImportDecision } from "../helpers/import-decisions";
+import {
+  getEffectiveImportDecision,
+  getRowsMissingImportDecision,
+} from "../helpers/import-decisions";
 import { buildProductImportResultSummary } from "../helpers/result-summary";
 
 type ImportStep = "upload" | "mapping" | "preview" | "result";
@@ -913,8 +916,6 @@ function ImportPreviewTable({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const needsDecision =
-              Boolean(row.existingProductId) || row.duplicateInFile;
             return (
               <tr key={row.rowNumber} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
                 <td className="px-3 py-3 font-semibold text-slate-900 sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 transition-colors">
@@ -967,43 +968,11 @@ function ImportPreviewTable({
                   <CleaningStatusBadge row={row} />
                 </td>
                 <td className="px-3 py-3">
-                  {row.existingProductId ? (
-                    <select
-                      value={decisions[String(row.rowNumber)] ?? ""}
-                      onChange={(event) =>
-                        setDecisions((current) => ({
-                          ...current,
-                          [String(row.rowNumber)]: event.target.value as
-                            | "update"
-                            | "skip",
-                        }))
-                      }
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                    >
-                      <option value="">Pilih...</option>
-                      <option value="update">Perbarui yang sudah ada</option>
-                      <option value="skip">Lewati baris</option>
-                    </select>
-                  ) : row.duplicateInFile ? (
-                    <select
-                      value={decisions[String(row.rowNumber)] ?? ""}
-                      onChange={(event) =>
-                        setDecisions((current) => ({
-                          ...current,
-                          [String(row.rowNumber)]: event.target.value as
-                            | "create"
-                            | "skip",
-                        }))
-                      }
-                      className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none"
-                    >
-                      <option value="">Pilih...</option>
-                      <option value="create">Tetap Buat</option>
-                      <option value="skip">Lewati baris</option>
-                    </select>
-                  ) : (
-                    <span className="text-emerald-700 font-bold">Buat</span>
-                  )}
+                  <ImportActionSelect
+                    row={row}
+                    decisions={decisions}
+                    setDecisions={setDecisions}
+                  />
                 </td>
                 <td className="px-3 py-3">
                   {row.autoAction ? (
@@ -1073,4 +1042,84 @@ function CleaningStatusBadge({ row }: { row: NormalizedImportRow }) {
     );
   }
   return <span className="text-xs text-slate-400">-</span>;
+}
+
+function ImportActionSelect({
+  row,
+  decisions,
+  setDecisions,
+}: {
+  row: NormalizedImportRow;
+  decisions: Record<string, ImportRowDecision>;
+  setDecisions: React.Dispatch<
+    React.SetStateAction<Record<string, ImportRowDecision>>
+  >;
+}) {
+  const effectiveDecision = getEffectiveImportDecision(row, decisions);
+  const setDecision = (value: ImportRowDecision) => {
+    setDecisions((current) => ({
+      ...current,
+      [String(row.rowNumber)]: value,
+    }));
+  };
+
+  if (row.autoAction === "auto_skip") {
+    return <span className="font-bold text-slate-600">Lewati baris</span>;
+  }
+
+  if (row.autoAction === "auto_create_variant") {
+    return (
+      <select
+        value={effectiveDecision ?? "create"}
+        onChange={(event) => setDecision(event.target.value as ImportRowDecision)}
+        className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+      >
+        <option value="create">Tambahkan varian baru</option>
+        <option value="skip">Lewati baris</option>
+      </select>
+    );
+  }
+
+  if (row.autoAction === "auto_price_update") {
+    return (
+      <select
+        value={effectiveDecision ?? "update"}
+        onChange={(event) => setDecision(event.target.value as ImportRowDecision)}
+        className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+      >
+        <option value="update">Perbarui harga yang sudah ada</option>
+        <option value="skip">Lewati baris</option>
+      </select>
+    );
+  }
+
+  if (row.existingProductId) {
+    return (
+      <select
+        value={effectiveDecision ?? ""}
+        onChange={(event) => setDecision(event.target.value as ImportRowDecision)}
+        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+      >
+        <option value="">Pilih...</option>
+        <option value="update">Perbarui yang sudah ada</option>
+        <option value="skip">Lewati baris</option>
+      </select>
+    );
+  }
+
+  if (row.duplicateInFile) {
+    return (
+      <select
+        value={effectiveDecision ?? ""}
+        onChange={(event) => setDecision(event.target.value as ImportRowDecision)}
+        className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none"
+      >
+        <option value="">Pilih...</option>
+        <option value="create">Tetap Buat</option>
+        <option value="skip">Lewati baris</option>
+      </select>
+    );
+  }
+
+  return <span className="font-bold text-emerald-700">Buat</span>;
 }

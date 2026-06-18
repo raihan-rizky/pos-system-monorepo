@@ -9,6 +9,7 @@ import {
 } from "@/features/product-import/helpers/import-core";
 import { resolveProductImportAutoDecisions } from "@/features/product-import/helpers/auto-decisions";
 import { getCommitActionForResolvedRow } from "@/features/product-import/helpers/commit-actions";
+import { getEffectiveImportDecision } from "@/features/product-import/helpers/import-decisions";
 import { resolveImportCreateStockPlan } from "@/features/product-import/helpers/commit-stock";
 import { expandProductNameAbbreviations } from "@/features/product-import/helpers/name-normalization";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
@@ -162,12 +163,8 @@ export async function POST(request: Request) {
 
         for (const row of resolvedRows) {
           const existing = existingBySku.get(row.sku) ?? (row.matchedProductId ? existingById.get(row.matchedProductId) : undefined);
-          const decision = existing
-            ? (decisions[String(row.rowNumber)] ?? decisions[row.sku])
-            : (decisions[String(row.rowNumber)] ??
-              decisions[row.sku] ??
-              "create");
-          const commitAction = getCommitActionForResolvedRow(row);
+          const decision = getEffectiveImportDecision(row, decisions) ?? "create";
+          const commitAction = getCommitActionForResolvedRow(row, decision);
 
           if (
             existing &&

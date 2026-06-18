@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getRowsMissingImportDecision } from "../import-decisions";
+import {
+  getEffectiveImportDecision,
+  getRowsMissingImportDecision,
+} from "../import-decisions";
 import type { NormalizedImportRow } from "../../types";
 
 function row(overrides: Partial<NormalizedImportRow> = {}): NormalizedImportRow {
@@ -20,6 +23,50 @@ function row(overrides: Partial<NormalizedImportRow> = {}): NormalizedImportRow 
 }
 
 describe("getRowsMissingImportDecision", () => {
+  it("defaults auto price updates and auto variants without requiring manual decisions", () => {
+    const autoPrice = row({
+      rowNumber: 2,
+      existingProductId: "prod-1",
+      autoAction: "auto_price_update",
+    });
+    const autoVariant = row({
+      rowNumber: 3,
+      duplicateInFile: true,
+      autoAction: "auto_create_variant",
+    });
+
+    expect(getEffectiveImportDecision(autoPrice, {})).toBe("update");
+    expect(getEffectiveImportDecision(autoVariant, {})).toBe("create");
+    expect(getRowsMissingImportDecision([autoPrice, autoVariant], {})).toEqual([]);
+  });
+
+  it("lets user row decisions override auto price and auto variant defaults", () => {
+    const autoPrice = row({
+      rowNumber: 2,
+      existingProductId: "prod-1",
+      autoAction: "auto_price_update",
+    });
+    const autoVariant = row({
+      rowNumber: 3,
+      duplicateInFile: true,
+      autoAction: "auto_create_variant",
+    });
+
+    expect(getEffectiveImportDecision(autoPrice, { "2": "skip" })).toBe("skip");
+    expect(getEffectiveImportDecision(autoVariant, { "3": "skip" })).toBe("skip");
+  });
+
+  it("keeps auto skip as default skip", () => {
+    const autoSkip = row({
+      rowNumber: 2,
+      existingProductId: "prod-1",
+      autoAction: "auto_skip",
+    });
+
+    expect(getEffectiveImportDecision(autoSkip, {})).toBe("skip");
+    expect(getRowsMissingImportDecision([autoSkip], {})).toEqual([]);
+  });
+
   it("requires a decision for rows matching existing products", () => {
     const rows = [row({ existingProductId: "prod-1" })];
 
