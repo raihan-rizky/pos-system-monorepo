@@ -5,6 +5,12 @@ import { describe, expect, it } from "vitest";
 const componentSource = readFileSync(
   join(process.cwd(), "features/surat-jalan/components/SuratJalanCreateModal.tsx"),
   "utf8",
+) + readFileSync(
+  join(process.cwd(), "features/surat-jalan/components/SuratJalanHeader.tsx"),
+  "utf8",
+) + readFileSync(
+  join(process.cwd(), "features/surat-jalan/components/SuratJalanForm.tsx"),
+  "utf8",
 );
 const quantityTableSource = readFileSync(
   join(process.cwd(), "features/surat-jalan/components/SuratJalanQuantityTable.tsx"),

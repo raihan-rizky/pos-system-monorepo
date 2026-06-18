@@ -35,7 +35,7 @@ function setPosIdentityCookies(
   const cookieOptions = getPosIdentityCookieOptions();
   response.cookies.set(ROLE_COOKIE, role, cookieOptions);
   response.cookies.set(USER_ID_COOKIE, userId, cookieOptions);
-  response.cookies.set(USER_NAME_COOKIE, encodeURIComponent(userName), cookieOptions);
+  response.cookies.set(USER_NAME_COOKIE, userName, cookieOptions);
 }
 
 function isProtectedPageRequest(pathname: string) {

@@ -74,7 +74,9 @@ export const SuratJalanQuantityTable: React.FC<SuratJalanQuantityTableProps> = (
                       {item.invoiceQuantity}/{item.invoiceQuantity}
                     </span>
                   ) : (
-                    `${item.remainingQuantity}/${item.invoiceQuantity}`
+                    <>
+                      {item.remainingQuantity}/{item.invoiceQuantity}
+                    </>
                   )}
                 </td>
                 <td className="px-3 py-3 text-right">{item.currentStock ?? "-"}</td>

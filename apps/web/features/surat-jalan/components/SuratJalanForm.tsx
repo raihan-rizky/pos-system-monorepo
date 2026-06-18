@@ -99,7 +99,7 @@ export const SuratJalanForm: React.FC<SuratJalanFormProps> = ({
               if (next.kind === "new") return;
               setRecipientSelection(next);
             }}
-            label="Penerima Surat Jalan"
+            label="Penerima"
             allowNewCustomer={false}
           />
         </div>
@@ -165,7 +165,7 @@ export const SuratJalanForm: React.FC<SuratJalanFormProps> = ({
             onClick={handleCreate}
             className="flex-1 shadow-sm"
           >
-            Ya, Kurangi Stok & Buat
+            Ya, Kurangi Stok
           </Button>
         ) : (
           <Button
