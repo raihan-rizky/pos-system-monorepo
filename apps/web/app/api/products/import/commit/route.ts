@@ -184,8 +184,13 @@ export async function POST(request: Request) {
 
         for (const row of resolvedRows) {
           const existing = existingBySku.get(row.sku) ?? (row.matchedProductId ? existingById.get(row.matchedProductId) : undefined);
-          const decision = getEffectiveImportDecision(row, decisions) ?? "create";
+          const rawDecision = getEffectiveImportDecision(row, decisions);
+          const decision = rawDecision ?? "create";
           const commitAction = getCommitActionForResolvedRow(row, decision);
+
+          if (row.autoAction === "conflict" && !rawDecision) {
+            throw new Error(`ROW_DECISION_REQUIRED:${row.rowNumber}`);
+          }
 
           if (
             existing &&

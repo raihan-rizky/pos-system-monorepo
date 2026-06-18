@@ -27,7 +27,10 @@ export function getRowsMissingImportDecision(
   decisions: ImportDecisionMap,
 ) {
   return rows.filter((row) => {
-    const requiresDecision = Boolean(row.existingProductId) || row.duplicateInFile;
+    const requiresDecision =
+      Boolean(row.existingProductId) ||
+      row.duplicateInFile ||
+      row.autoAction === "conflict";
     const decision = getEffectiveImportDecision(row, decisions);
 
     return requiresDecision && !decision;
