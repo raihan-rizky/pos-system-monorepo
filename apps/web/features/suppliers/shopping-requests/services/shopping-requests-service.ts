@@ -4,6 +4,7 @@ import {
   defaultApprovedQty,
   sanitizeShoppingRequestItems,
 } from "../helpers/shopping-requests-core";
+import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import {
   countShoppingRequests,
   createShoppingRequestWithItems,
@@ -26,6 +27,8 @@ export type ProductSnapshot = {
   sku: string;
   unit: string | null;
   stock: number;
+  unitMultiplierToBase?: number | null;
+  stockGroup?: { baseStock: number } | null;
 };
 
 export async function listShoppingRequestsPage(
@@ -82,7 +85,7 @@ export async function createShoppingRequest(
             productId: item.productId,
             productName: product.name,
             unit: product.unit,
-            stockOnHand: product.stock,
+            stockOnHand: resolveProductDisplayStock(product),
             requestedQty: item.requestedQty,
           };
         }),
@@ -147,7 +150,15 @@ export async function cancelShoppingRequest(
 async function findProductSnapshots(productIds: string[]): Promise<ProductSnapshot[]> {
   return db.product.findMany({
     where: { id: { in: productIds }, isActive: true },
-    select: { id: true, name: true, sku: true, unit: true, stock: true },
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      unit: true,
+      stock: true,
+      unitMultiplierToBase: true,
+      stockGroup: { select: { baseStock: true } },
+    },
   });
 }
 

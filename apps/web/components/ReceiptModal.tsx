@@ -233,9 +233,13 @@ export function ReceiptModal({
                     <span className="w-24">Pembayaran</span>
                     <span className="mr-4">:</span>
                     <span>
-                      {transaction?.paymentMethod === "CASH"
-                        ? "Tunai"
-                        : transaction?.paymentMethod}
+                      {transaction?.payments && transaction.payments.length > 0
+                        ? transaction.payments
+                            .map((p) => p.method === "CASH" ? "Tunai" : p.method)
+                            .join(", ")
+                        : transaction?.paymentMethod === "CASH"
+                          ? "Tunai"
+                          : transaction?.paymentMethod}
                     </span>
                   </div>
                   <div className="flex">
@@ -353,15 +357,31 @@ export function ReceiptModal({
                   </div>
                   {!isCancelled && (
                     <>
-                      <div className="flex w-[350px]">
-                        <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2">
-                          {printStatus === "DP" ? "UANG MUKA" : "TUNAI"}
+                      {transaction.payments && transaction.payments.length > 0 ? (
+                        transaction.payments.map((p, idx) => (
+                          <div key={idx} className="flex w-[350px]">
+                            <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2 uppercase">
+                              {p.method === "CASH" ? "TUNAI" : p.method}
+                            </div>
+                            <div className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]">
+                              Rp{" "}
+                              {Number(p.amount).toLocaleString("id-ID")}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex w-[350px]">
+                          <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2 uppercase">
+                            {printStatus === "DP" 
+                              ? "UANG MUKA" 
+                              : (transaction.paymentMethod === "CASH" ? "TUNAI" : transaction.paymentMethod)}
+                          </div>
+                          <div className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]">
+                            Rp{" "}
+                            {Number(transaction.amountPaid).toLocaleString("id-ID")}
+                          </div>
                         </div>
-                        <div className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]">
-                          Rp{" "}
-                          {Number(transaction.amountPaid).toLocaleString("id-ID")}
-                        </div>
-                      </div>
+                      )}
                       <div className="flex w-[350px]">
                         <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2">
                           {transaction.status === "DP" ? "SISA" : "KEMBALI"}

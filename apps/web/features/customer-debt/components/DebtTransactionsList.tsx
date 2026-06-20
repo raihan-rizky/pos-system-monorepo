@@ -75,28 +75,39 @@ function SingleTransactionPayModal({
 }) {
   const payTx = usePayTransactionDebt();
   const remaining = Number(transaction.total) - Number(transaction.amountPaid);
-  const [amount, setAmount] = useState(remaining);
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>(["CASH"]);
+  const [amountsPaid, setAmountsPaid] = useState<Record<string, number>>({ CASH: remaining });
+  const totalAmount = selectedPaymentMethods.reduce((sum, method) => sum + (amountsPaid[method] || 0), 0);
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
 
   const handlePay = async () => {
     setError("");
-    if (!amount || amount <= 0) {
+    if (!totalAmount || totalAmount <= 0) {
       setError("Nominal harus lebih dari 0");
       return;
     }
-    if (amount > remaining) {
+    if (totalAmount > remaining) {
       setError("Nominal melebihi sisa tagihan");
       return;
     }
 
     try {
+      const payments = selectedPaymentMethods.map(method => ({
+        method,
+        amount: amountsPaid[method] || 0,
+      })).filter(p => p.amount > 0);
+
+      const primaryPaymentMethod = payments.length > 0
+        ? payments.reduce((primary, p) => p.amount > primary.amount ? p : primary, payments[0]).method
+        : selectedPaymentMethods[0];
+
       await payTx.mutateAsync({
         transactionId: transaction.id,
         customerId: transaction.customerId ?? undefined,
-        amount,
-        paymentMethod,
+        amount: totalAmount,
+        paymentMethod: primaryPaymentMethod,
+        payments,
         note,
       });
       onClose();
@@ -137,42 +148,30 @@ function SingleTransactionPayModal({
 
           <div>
             <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Nominal Bayar
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">Rp</span>
-              <input
-                type="number"
-                value={amount || ""}
-                onChange={(e) => setAmount(Number(e.target.value))}
-                min={0}
-                max={remaining}
-                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm font-bold text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
-              />
-            </div>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setAmount(remaining)}
-                className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200"
-              >
-                Pelunasan
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Metode Pembayaran
+              Metode Pembayaran (Bisa Pilih Lebih Dari Satu)
             </label>
             <div className="grid grid-cols-2 gap-2">
               {PAYMENT_METHODS.map((pm) => (
                 <button
                   key={pm.value}
                   type="button"
-                  onClick={() => setPaymentMethod(pm.value)}
+                  onClick={() => {
+                    setSelectedPaymentMethods(prev => {
+                      if (prev.includes(pm.value)) {
+                        if (prev.length === 1) return prev;
+                        const next = prev.filter(m => m !== pm.value);
+                        setAmountsPaid(curr => {
+                          const newAmounts = { ...curr };
+                          delete newAmounts[pm.value];
+                          return newAmounts;
+                        });
+                        return next;
+                      }
+                      return [...prev, pm.value];
+                    });
+                  }}
                   className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                    paymentMethod === pm.value
+                    selectedPaymentMethods.includes(pm.value)
                       ? "border-brand-600 bg-brand-50 text-brand-700"
                       : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                   }`}
@@ -181,6 +180,41 @@ function SingleTransactionPayModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-3">
+            {selectedPaymentMethods.map(methodValue => {
+              const methodDef = PAYMENT_METHODS.find(m => m.value === methodValue);
+              return (
+                <div key={methodValue} className="rounded-xl border border-slate-200 p-3">
+                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Nominal Bayar ({methodDef?.label})
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">Rp</span>
+                    <input
+                      type="number"
+                      value={amountsPaid[methodValue] || ""}
+                      onChange={(e) => setAmountsPaid(prev => ({ ...prev, [methodValue]: Number(e.target.value) || 0 }))}
+                      min={0}
+                      className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm font-bold text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
+                    />
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAmountsPaid(prev => ({
+                        ...prev,
+                        [methodValue]: remaining - (totalAmount - (prev[methodValue] || 0))
+                      }))}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200"
+                    >
+                      Lunasi Sisa ({formatCurrency(remaining - (totalAmount - (amountsPaid[methodValue] || 0)))})
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div>

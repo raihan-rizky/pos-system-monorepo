@@ -90,6 +90,7 @@ describe("createShoppingRequest", () => {
           stockOnHand: 25,
           requestedQty: 5,
           approvedQty: null,
+          product: { unitMultiplierToBase: 1, stockGroup: null },
         },
       ],
     });
@@ -139,6 +140,7 @@ describe("approveShoppingRequest", () => {
         stockOnHand: 25,
         requestedQty: 5,
         approvedQty: null as number | null,
+        product: { unitMultiplierToBase: 1, stockGroup: null },
       },
       {
         id: "sri-2",
@@ -149,6 +151,7 @@ describe("approveShoppingRequest", () => {
         stockOnHand: 3,
         requestedQty: 5,
         approvedQty: null as number | null,
+        product: { unitMultiplierToBase: 1, stockGroup: null },
       },
     ],
   };

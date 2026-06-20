@@ -115,7 +115,7 @@ export function findShoppingRequestById(
         supplier: { select: { id: true, name: true } },
         items: {
           include: {
-            product: { select: { name: true, sku: true, unit: true } },
+            product: { select: { name: true, sku: true, unit: true, unitMultiplierToBase: true, stockGroup: { select: { baseUnit: true } } } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -132,6 +132,10 @@ export function findShoppingRequestById(
         stockOnHand: item.stockOnHand,
         requestedQty: item.requestedQty,
         approvedQty: item.approvedQty,
+        product: {
+          unitMultiplierToBase: item.product.unitMultiplierToBase,
+          stockGroup: item.product.stockGroup,
+        },
       }));
       const totalRequestedQty = items.reduce(
         (sum, item) => sum + item.requestedQty,
@@ -185,7 +189,7 @@ export async function createShoppingRequestWithItems(
     include: {
       items: {
         include: {
-          product: { select: { name: true, sku: true, unit: true } },
+          product: { select: { name: true, sku: true, unit: true, unitMultiplierToBase: true, stockGroup: { select: { baseUnit: true } } } },
         },
       },
       supplier: { select: { id: true, name: true } },
@@ -226,7 +230,7 @@ export async function updateShoppingRequestStatus(
     include: {
       items: {
         include: {
-          product: { select: { name: true, sku: true, unit: true } },
+          product: { select: { name: true, sku: true, unit: true, unitMultiplierToBase: true, stockGroup: { select: { baseUnit: true } } } },
         },
       },
       supplier: { select: { id: true, name: true } },
@@ -255,7 +259,7 @@ function reify(row: {
     stockOnHand: number;
     requestedQty: number;
     approvedQty: number | null;
-    product: { name: string; sku: string; unit: string };
+    product: { name: string; sku: string; unit: string; unitMultiplierToBase?: number | null; stockGroup?: { baseUnit: string | null } | null };
   }>;
 }): ShoppingRequestDetail {
   const items: ShoppingRequestItemRecord[] = row.items.map((item) => ({
@@ -267,6 +271,10 @@ function reify(row: {
     stockOnHand: item.stockOnHand,
     requestedQty: item.requestedQty,
     approvedQty: item.approvedQty,
+    product: {
+      unitMultiplierToBase: item.product.unitMultiplierToBase,
+      stockGroup: item.product.stockGroup,
+    },
   }));
   const totalRequestedQty = items.reduce(
     (sum, item) => sum + item.requestedQty,

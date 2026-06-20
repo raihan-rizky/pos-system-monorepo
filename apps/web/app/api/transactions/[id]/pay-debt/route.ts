@@ -12,6 +12,10 @@ const payDebtSchema = z.object({
   amount: z.number().positive("Jumlah harus lebih dari 0"),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).default("CASH"),
   note: z.string().max(300).optional(),
+  payments: z.array(z.object({
+    method: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
+    amount: z.number().min(0),
+  })).optional(),
 });
 
 // POST /api/transactions/[id]/pay-debt
@@ -33,7 +37,20 @@ export async function POST(
       );
     }
 
-    const { amount, note, paymentMethod } = parsed.data;
+    const { amount, note, paymentMethod, payments: rawPayments } = parsed.data;
+
+    // Resolve payments array
+    const resolvedPayments = rawPayments && rawPayments.length > 0
+      ? rawPayments
+      : [{ method: paymentMethod, amount }];
+
+    const totalPaymentAmount = resolvedPayments.reduce((sum, p) => sum + p.amount, 0);
+
+    // Determine primary payment method for note
+    const primaryPaymentMethod = resolvedPayments.reduce((primary, p) =>
+      p.amount > primary.amount ? p : primary,
+      resolvedPayments[0],
+    ).method;
 
     // Fetch transaction
     const transaction = await db.transaction.findFirst({
@@ -59,10 +76,10 @@ export async function POST(
     const total = Number(transaction.total);
     const maxAmount = total - currentPaid;
 
-    if (amount > maxAmount) {
+    if (totalPaymentAmount > maxAmount) {
       return NextResponse.json(
         {
-          message: `Jumlah pembayaran (${amount}) melebihi sisa piutang (${maxAmount})`,
+          message: `Jumlah pembayaran (${totalPaymentAmount}) melebihi sisa piutang (${maxAmount})`,
           maxAmount,
         },
         { status: 422 }
@@ -71,17 +88,21 @@ export async function POST(
 
     // Process payment in a transaction
     const updated = await db.$transaction(async (tx: Prisma.TransactionClient) => {
-      const newAmountPaid = currentPaid + amount;
+      const newAmountPaid = currentPaid + totalPaymentAmount;
       const newStatus = newAmountPaid >= total ? "COMPLETED" : "DP";
       
+      const paymentSummaryStr = resolvedPayments
+        .map((p) => `${new Intl.NumberFormat("id-ID").format(p.amount)} (${p.method})`)
+        .join(", ");
+
       const updatedTx = await tx.transaction.update({
         where: { id: transaction.id },
         data: {
           amountPaid: newAmountPaid,
           status: newStatus,
           note: note
-            ? `${note} | Pelunasan ${new Intl.NumberFormat("id-ID").format(amount)} (${paymentMethod})`
-            : `Pelunasan piutang ${new Intl.NumberFormat("id-ID").format(amount)} (${paymentMethod})`,
+            ? `${note} | Pelunasan ${paymentSummaryStr}`
+            : `Pelunasan piutang ${paymentSummaryStr}`,
         },
       });
 
@@ -90,21 +111,24 @@ export async function POST(
         await tx.customer.update({
           where: { id: transaction.customerId },
           data: {
-            totalDebt: { decrement: amount },
-            totalSpent: { increment: amount },
+            totalDebt: { decrement: totalPaymentAmount },
+            totalSpent: { increment: totalPaymentAmount },
             lastVisitAt: new Date(),
           },
         });
-        await tx.debtPaymentLog.create({
-          data: {
-            transactionId: transaction.id,
-            customerId: transaction.customerId,
-            storeId,
-            amount,
-            paymentMethod,
-            note: note || null,
-          },
-        });
+        
+        if (resolvedPayments.length > 0) {
+          await tx.debtPaymentLog.createMany({
+            data: resolvedPayments.map((p) => ({
+              transactionId: transaction.id,
+              customerId: transaction.customerId!,
+              storeId,
+              amount: p.amount,
+              paymentMethod: p.method,
+              note: note || null,
+            })),
+          });
+        }
       }
 
       return updatedTx;

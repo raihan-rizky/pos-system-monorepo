@@ -1253,8 +1253,14 @@ export default function HistoryPage() {
                               {formatRupiah(Number(tx.total))}
                             </td>
                             <td className="py-3.5 px-4">
-                              <div className="flex items-center gap-2">
-                                <PaymentBadge method={tx.paymentMethod} />
+                              <div className="flex flex-wrap items-center gap-2">
+                                {tx.payments && tx.payments.length > 0 ? (
+                                  tx.payments.map((p, idx) => (
+                                    <PaymentBadge key={idx} method={p.method} />
+                                  ))
+                                ) : (
+                                  <PaymentBadge method={tx.paymentMethod} />
+                                )}
                                 {isPending && tx.status === "DP" && (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-200 bg-amber-100 text-[10px] font-bold text-amber-700">
                                     DP
@@ -1425,8 +1431,14 @@ export default function HistoryPage() {
                             </span>
                           </div>
                           <div className="flex justify-between items-center mt-2 pt-2 border-t border-surface-100">
-                            <div className="flex items-center gap-2">
-                              <PaymentBadge method={tx.paymentMethod} />
+                            <div className="flex flex-wrap items-center gap-2">
+                              {tx.payments && tx.payments.length > 0 ? (
+                                tx.payments.map((p, idx) => (
+                                  <PaymentBadge key={idx} method={p.method} />
+                                ))
+                              ) : (
+                                <PaymentBadge method={tx.paymentMethod} />
+                              )}
                               {isPending && tx.status === "DP" && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-200 bg-amber-100 text-[10px] font-bold text-amber-700">
                                   DP

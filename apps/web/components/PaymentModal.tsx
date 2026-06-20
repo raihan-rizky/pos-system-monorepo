@@ -44,6 +44,7 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
     items: CartItem[];
+    payments?: { method: string; amount: number }[];
   }) => void;
   onSaveDraft?: (data: {
     discount: number;
@@ -81,10 +82,24 @@ export function PaymentModal({
   isSavingDraft,
   draftError,
 }: PaymentModalProps) {
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>(["CASH"]);
   const [discountMode, setDiscountMode] = useState<"RP" | "PERCENT">("RP");
   const [discountInput, setDiscountInput] = useState(0);
-  const [amountPaid, setAmountPaid] = useState(0);
+  const [amountsPaid, setAmountsPaid] = useState<Record<string, number>>({});
+  const amountPaid = selectedPaymentMethods.reduce((sum, method) => sum + (amountsPaid[method] || 0), 0);
+  
+  const togglePaymentMethod = (method: string) => {
+    setSelectedPaymentMethods((prev) => {
+      if (prev.includes(method)) {
+        if (prev.length === 1) return prev; // Keep at least one
+        const newAmounts = { ...amountsPaid };
+        delete newAmounts[method];
+        setAmountsPaid(newAmounts);
+        return prev.filter((m) => m !== method);
+      }
+      return [...prev, method];
+    });
+  };
   const [note, setNote] = useState("");
   const [customerSelection, setCustomerSelection] =
     useState<CheckoutCustomerSelection>({ kind: "general" });
@@ -212,7 +227,7 @@ export function PaymentModal({
     if (!customer) return;
 
     onConfirm({
-      paymentMethod,
+      paymentMethod: selectedPaymentMethods[0] || "CASH",
       amountPaid,
       discount,
       note,
@@ -224,6 +239,7 @@ export function PaymentModal({
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
       items: pricedItems,
+      payments: selectedPaymentMethods.map(m => ({ method: m, amount: amountsPaid[m] || 0 })).filter(p => p.amount > 0),
     });
   };
 
@@ -254,7 +270,10 @@ export function PaymentModal({
     !createCustomer.isPending;
 
   const handleExactAmount = () => {
-    setAmountPaid(total);
+    const firstMethod = selectedPaymentMethods[0];
+    if (firstMethod) {
+      setAmountsPaid(prev => ({ ...prev, [firstMethod]: total }));
+    }
   };
 
   const updateManualPrice = (cartLineId: string, value: number) => {
@@ -461,23 +480,24 @@ export function PaymentModal({
             Metode Pembayaran
           </label>
           <div className="grid grid-cols-4 gap-2">
-            {paymentMethods.map((method) => (
-              <button
-                key={method.value}
-                onClick={() => setPaymentMethod(method.value)}
-                className={`
-                  flex flex-col items-center gap-1 p-3 rounded-xl border text-sm font-medium
-                  transition-all duration-200
-                  ${paymentMethod === method.value
-                    ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
-                    : "border-surface-200 text-surface-600 hover:border-surface-300"
-                  }
-                `}
-              >
-                <method.icon className="w-5 h-5" aria-hidden="true" />
-                <span className="text-xs">{method.label}</span>
-              </button>
-            ))}
+            {paymentMethods.map((method) => {
+              const Icon = method.icon;
+              const isSelected = selectedPaymentMethods.includes(method.value);
+              return (
+                <button
+                  key={method.value}
+                  onClick={() => togglePaymentMethod(method.value)}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                    isSelected
+                      ? "border-brand-500 bg-brand-50 text-brand-700"
+                      : "border-surface-200 bg-white text-surface-600 hover:border-brand-300 hover:bg-brand-50"
+                  }`}
+                >
+                  <Icon className={`w-6 h-6 mb-2 ${isSelected ? "text-brand-600" : "text-surface-400"}`} />
+                  <span className="text-xs font-semibold">{method.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -655,17 +675,26 @@ export function PaymentModal({
 
         {/* Amount Paid */}
         <div>
-          <Input
-            label={isDP ? "Jumlah DP / Uang Muka (Rp)" : "Jumlah Bayar (Rp)"}
-            type="number"
-            value={amountPaid || ""}
-            onChange={(e) => setAmountPaid(Number(e.target.value) || 0)}
-            placeholder="0"
-          />
+          {selectedPaymentMethods.map((method) => (
+            <div key={method} className="mb-2">
+              <Input
+                label={selectedPaymentMethods.length > 1 ? `Jumlah Bayar - ${paymentMethods.find(m => m.value === method)?.label || method} (Rp)` : (isDP ? "Jumlah DP / Uang Muka (Rp)" : "Jumlah Bayar (Rp)")}
+                type="number"
+                value={amountsPaid[method] || ""}
+                onChange={(e) => setAmountsPaid(prev => ({ ...prev, [method]: Number(e.target.value) || 0 }))}
+                placeholder="0"
+              />
+            </div>
+          ))}
           <div className="flex flex-wrap gap-2 mt-2">
             {!isDP && (
               <button
-                onClick={handleExactAmount}
+                onClick={() => {
+                  const firstMethod = selectedPaymentMethods[0];
+                  if (firstMethod) {
+                    setAmountsPaid({ [firstMethod]: total });
+                  }
+                }}
                 className="px-3 py-1.5 text-xs font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
               >
                 Uang Pas
@@ -673,30 +702,31 @@ export function PaymentModal({
             )}
             {isDP && (
               <>
-                <button
-                  onClick={() => setAmountPaid(Math.round(total * 0.25))}
-                  className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
-                >
-                  25%
-                </button>
-                <button
-                  onClick={() => setAmountPaid(Math.round(total * 0.50))}
-                  className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
-                >
-                  50%
-                </button>
-                <button
-                  onClick={() => setAmountPaid(Math.round(total * 0.75))}
-                  className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
-                >
-                  75%
-                </button>
+                {[0.25, 0.50, 0.75].map((percent) => (
+                  <button
+                    key={percent}
+                    onClick={() => {
+                      const firstMethod = selectedPaymentMethods[0];
+                      if (firstMethod) {
+                        setAmountsPaid({ [firstMethod]: Math.round(total * percent) });
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                  >
+                    {percent * 100}%
+                  </button>
+                ))}
               </>
             )}
             {quickAmounts.map((amount) => (
               <button
                 key={amount}
-                onClick={() => setAmountPaid(amount)}
+                onClick={() => {
+                  const firstMethod = selectedPaymentMethods[0];
+                  if (firstMethod) {
+                    setAmountsPaid({ [firstMethod]: amount });
+                  }
+                }}
                 className="px-3 py-1.5 text-xs font-medium text-surface-600 bg-surface-100 rounded-lg hover:bg-surface-200 transition-colors"
               >
                 {(amount / 1000)}K

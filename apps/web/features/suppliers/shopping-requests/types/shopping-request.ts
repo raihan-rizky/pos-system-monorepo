@@ -31,6 +31,10 @@ export interface ShoppingRequestItemRecord {
   stockOnHand: number;
   requestedQty: number;
   approvedQty: number | null;
+  product: {
+    unitMultiplierToBase?: number | null;
+    stockGroup?: { baseUnit: string | null } | null;
+  };
 }
 
 export interface ShoppingRequestDetail extends ShoppingRequestListItem {

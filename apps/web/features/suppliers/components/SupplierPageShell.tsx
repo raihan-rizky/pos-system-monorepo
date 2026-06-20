@@ -2,7 +2,22 @@
 
 import React, { useMemo, useState } from "react";
 import { Button, Modal } from "@pos/ui";
-import { PackagePlus, Search, RefreshCcw } from "lucide-react";
+import {
+  PackagePlus,
+  Search,
+  Building2,
+  ShoppingCart,
+  Wallet,
+  Boxes,
+  User,
+  Package,
+  ChevronRight,
+  Store,
+  X,
+  Plus,
+  Upload,
+  Inbox,
+} from "lucide-react";
 
 import { useDebounce } from "@/hooks/useDebounce";
 import {
@@ -18,6 +33,13 @@ import {
   type SupplierInput,
   type SupplierListItem,
 } from "@/features/suppliers/types/supplier";
+import {
+  buildEmptyStateContent,
+  buildSupplierCardA11yProps,
+  buildSupplierCardKeyDown,
+  isSupplierCardInteractiveTarget,
+  KPI_ACCENTS,
+} from "@/features/suppliers/helpers/supplier-card-helpers";
 import { SupplierImportDrawer } from "@/features/supplier-import";
 import { SupplierDetailPopup } from "./SupplierDetailPopup";
 import { SupplierStatusConfirmDialog } from "./SupplierStatusConfirmDialog";
@@ -70,6 +92,13 @@ export function SupplierPageShell() {
   const supplierRows = suppliers.data?.data ?? [];
   const summaryData = summary.data;
   const recapBundles = recap.data?.data ?? [];
+  const filtersActive = search.trim() !== "" || type !== "ALL" || showInactive;
+
+  const resetFilters = () => {
+    setSearch("");
+    setType("ALL");
+    setShowInactive(false);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -131,6 +160,10 @@ export function SupplierPageShell() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
+            <p className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-cyan-700">
+              <Store className="h-3 w-3" />
+              Manajemen Supplier
+            </p>
             <h1 className="text-2xl font-black text-slate-950">Supplier</h1>
             <p className="text-sm text-slate-500">
               Kelola supplier dan pantau rekap stock in dari pembelian.
@@ -142,22 +175,36 @@ export function SupplierPageShell() {
               variant="secondary"
               onClick={() => setImportDrawerOpen(true)}
             >
+              <Upload className="mr-1.5 h-4 w-4" />
               Import Supplier
             </Button>
             <Button type="button" onClick={openCreate}>
+              <Plus className="mr-1.5 h-4 w-4" />
               Tambah Supplier
             </Button>
           </div>
         </div>
 
         <div className="flex gap-2 overflow-x-auto">
-          <TabButton active={tab === "suppliers"} onClick={() => setTab("suppliers")}>
+          <TabButton
+            active={tab === "suppliers"}
+            onClick={() => setTab("suppliers")}
+            icon={<Building2 className="h-4 w-4" />}
+          >
             Supplier
           </TabButton>
-          <TabButton active={tab === "recap"} onClick={() => setTab("recap")}>
+          <TabButton
+            active={tab === "recap"}
+            onClick={() => setTab("recap")}
+            icon={<Boxes className="h-4 w-4" />}
+          >
             Rekap Stock In
           </TabButton>
-          <TabButton active={tab === "shopping"} onClick={() => setTab("shopping")}>
+          <TabButton
+            active={tab === "shopping"}
+            onClick={() => setTab("shopping")}
+            icon={<ShoppingCart className="h-4 w-4" />}
+          >
             Daftar Belanja
           </TabButton>
         </div>
@@ -165,21 +212,48 @@ export function SupplierPageShell() {
         {tab === "suppliers" ? (
           <>
             <section className="grid gap-3 md:grid-cols-4">
-              <KpiCard label="Total Pembelian" value={formatCurrency(summaryData?.totalPurchaseValue ?? 0)} />
-              <KpiCard label="Qty Restock" value={formatNumber(summaryData?.totalRestockQuantity ?? 0)} />
-              <KpiCard label="Supplier Aktif" value={summaryData?.activeSupplierCount ?? 0} />
-              <KpiCard label="Top Supplier" value={summaryData?.topSupplier?.supplierName ?? "-"} />
+              {summary.isPending ? (
+                <>
+                  <KpiCardSkeleton />
+                  <KpiCardSkeleton />
+                  <KpiCardSkeleton />
+                  <KpiCardSkeleton />
+                </>
+              ) : (
+                <>
+                  <KpiCard
+                    label="Total Pembelian"
+                    value={formatCurrency(summaryData?.totalPurchaseValue ?? 0)}
+                    accentIndex={0}
+                  />
+                  <KpiCard
+                    label="Qty Restock"
+                    value={formatNumber(summaryData?.totalRestockQuantity ?? 0)}
+                    accentIndex={1}
+                  />
+                  <KpiCard
+                    label="Supplier Aktif"
+                    value={summaryData?.activeSupplierCount ?? 0}
+                    accentIndex={2}
+                  />
+                  <KpiCard
+                    label="Top Supplier"
+                    value={summaryData?.topSupplier?.supplierName ?? "-"}
+                    accentIndex={3}
+                  />
+                </>
+              )}
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
+              <div className="grid gap-2 md:grid-cols-[1fr_180px_auto_auto]">
                 <label className="relative block">
                   <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     className="min-h-11 w-full rounded-xl border border-slate-200 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                    placeholder="Cari supplier"
+                    placeholder="Cari nama, kontak, atau telepon..."
                   />
                 </label>
                 <select
@@ -202,18 +276,34 @@ export function SupplierPageShell() {
                   />
                   Tampilkan nonaktif
                 </label>
+                {filtersActive && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    <X className="h-4 w-4" />
+                    Reset
+                  </button>
+                )}
               </div>
             </section>
 
             {suppliers.isPending ? (
-              <div className="flex items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-sm font-semibold text-slate-500">
-                <RefreshCcw className="mr-2 h-5 w-5 animate-spin text-slate-400" />
-                Memuat data supplier...
-              </div>
+              <section className="grid gap-3 lg:grid-cols-2">
+                <SupplierCardSkeleton />
+                <SupplierCardSkeleton />
+                <SupplierCardSkeleton />
+              </section>
             ) : suppliers.error ? (
               <ErrorBox message="Gagal memuat supplier." />
             ) : supplierRows.length === 0 ? (
-              <EmptyBox title="Belum ada supplier" />
+              <EmptyState
+                variant={
+                  filtersActive ? "no-match" : "no-suppliers"
+                }
+                onAction={filtersActive ? resetFilters : openCreate}
+              />
             ) : (
               <section className="grid gap-3 lg:grid-cols-2">
                 {supplierRows.map((supplier) => {
@@ -221,44 +311,20 @@ export function SupplierPageShell() {
                     (row) => row.supplierId === supplier.id,
                   );
                   return (
-                    <article
+                    <SupplierCard
                       key={supplier.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setSelected(supplier)}
-                          className="min-w-0 cursor-pointer text-left"
-                        >
-                          <p className="truncate text-base font-black text-slate-950">{supplier.name}</p>
-                          <p className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-500">{supplier.type}</p>
-                        </button>
-                        <span className={`rounded-full px-2 py-1 text-xs font-bold ${supplier.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                          {supplier.isActive ? "Aktif" : "Nonaktif"}
-                        </span>
-                      </div>
-                      <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                        <Metric label="Pembelian" value={formatCurrency(supplierMetric?.purchaseValue ?? 0)} />
-                        <Metric label="Restock" value={supplierMetric?.restockCount ?? 0} />
-                        <Metric label="Kontak" value={supplier.contactPerson || supplier.phone || "-"} />
-                        <Metric label="Produk Top" value={supplierMetric?.topProductName ?? "-"} />
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button type="button" size="sm" variant="secondary" onClick={() => openEdit(supplier)}>
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={supplier.isActive ? "ghost" : "primary"}
-                          loading={setActive.isPending}
-                          onClick={() => setActive.mutate({ id: supplier.id, active: !supplier.isActive })}
-                        >
-                          {supplier.isActive ? "Nonaktifkan" : "Aktifkan"}
-                        </Button>
-                      </div>
-                    </article>
+                      supplier={supplier}
+                      metric={supplierMetric ?? null}
+                      onOpen={() => setSelected(supplier)}
+                      onEdit={() => openEdit(supplier)}
+                      onToggleActive={() =>
+                        setActive.mutate({
+                          id: supplier.id,
+                          active: !supplier.isActive,
+                        })
+                      }
+                      statusActionPending={setActive.isPending}
+                    />
                   );
                 })}
               </section>
@@ -408,22 +474,42 @@ function TextInput({ label, value, onChange }: { label: string; value: string; o
   );
 }
 
-function TabButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+function TabButton({
+  active,
+  children,
+  onClick,
+  icon,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+  icon?: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`min-h-11 cursor-pointer rounded-xl px-4 text-sm font-bold transition-colors ${active ? "bg-slate-950 text-white" : "bg-white text-slate-600 hover:bg-slate-100"}`}
+      className={`inline-flex min-h-11 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border px-4 text-sm font-bold transition-colors ${active ? "border-slate-950 bg-slate-950 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"}`}
     >
+      {icon}
       {children}
     </button>
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: React.ReactNode }) {
+function KpiCard({
+  label,
+  value,
+  accentIndex,
+}: {
+  label: string;
+  value: React.ReactNode;
+  accentIndex: number;
+}) {
+  const accent = KPI_ACCENTS[accentIndex] ?? KPI_ACCENTS[0];
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+      <div className={`mb-2 flex h-9 w-9 items-center justify-center rounded-xl ${accent.bgClass} ${accent.iconClass}`}>
         <PackagePlus className="h-4 w-4" />
       </div>
       <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
@@ -432,11 +518,26 @@ function KpiCard({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: React.ReactNode }) {
+function KpiCardSkeleton() {
   return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p>
-      <p className="mt-0.5 font-semibold text-slate-700">{value}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-2 h-9 w-9 animate-pulse rounded-xl bg-slate-100" />
+      <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+      <div className="mt-2 h-5 w-28 animate-pulse rounded bg-slate-100" />
+    </div>
+  );
+}
+
+function MetricRow({ label, value, icon }: { label: string; value: React.ReactNode; icon: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+        <p className="truncate text-sm font-bold text-slate-800">{value}</p>
+      </div>
     </div>
   );
 }
@@ -445,8 +546,119 @@ function ErrorBox({ message }: { message: string }) {
   return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{message}</div>;
 }
 
-function EmptyBox({ title }: { title: string }) {
-  return <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500">{title}</div>;
+function EmptyState({ variant, onAction }: { variant: "no-suppliers" | "no-match"; onAction: () => void }) {
+  const content = buildEmptyStateContent(variant);
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+        <Inbox className="h-6 w-6" />
+      </div>
+      <div>
+        <p className="text-base font-black text-slate-900">{content.title}</p>
+        <p className="mt-1 max-w-md text-sm text-slate-500">{content.description}</p>
+      </div>
+      <Button type="button" variant={variant === "no-match" ? "secondary" : "primary"} onClick={onAction}>
+        {content.ctaLabel}
+      </Button>
+    </div>
+  );
+}
+
+function SupplierCardSkeleton() {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100" />
+          <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+        </div>
+        <div className="h-6 w-16 animate-pulse rounded-full bg-slate-100" />
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
+        <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
+        <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
+        <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
+      </div>
+      <div className="mt-3 flex gap-2">
+        <div className="h-9 w-20 animate-pulse rounded-xl bg-slate-100" />
+        <div className="h-9 w-24 animate-pulse rounded-xl bg-slate-100" />
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ isActive }: { isActive: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-bold ${isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-slate-400"}`} />
+      {isActive ? "Aktif" : "Nonaktif"}
+    </span>
+  );
+}
+
+type SupplierMetricSummary = NonNullable<ReturnType<typeof useSupplierSummary>["data"]>["suppliers"][number];
+
+function SupplierCard({
+  supplier,
+  metric,
+  onOpen,
+  onEdit,
+  onToggleActive,
+  statusActionPending,
+}: {
+  supplier: SupplierListItem;
+  metric: SupplierMetricSummary | null;
+  onOpen: () => void;
+  onEdit: () => void;
+  onToggleActive: () => void;
+  statusActionPending: boolean;
+}) {
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (isSupplierCardInteractiveTarget(event.target)) return;
+    onOpen();
+  };
+
+  return (
+    <article
+      {...buildSupplierCardA11yProps()}
+      onClick={handleClick}
+      onKeyDown={buildSupplierCardKeyDown(onOpen)}
+      className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-base font-black text-slate-950">{supplier.name}</p>
+          <p className="mt-1 truncate text-xs font-bold uppercase tracking-wider text-slate-500">
+            {supplier.type}{supplier.phone ? ` · ${supplier.phone}` : ""}
+          </p>
+        </div>
+        <StatusPill isActive={supplier.isActive} />
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <MetricRow label="Pembelian" value={formatCurrency(metric?.purchaseValue ?? 0)} icon={<Wallet className="h-3.5 w-3.5" />} />
+        <MetricRow label="Restock" value={metric?.restockCount ?? 0} icon={<Boxes className="h-3.5 w-3.5" />} />
+        <MetricRow label="Kontak" value={supplier.contactPerson || supplier.phone || "-"} icon={<User className="h-3.5 w-3.5" />} />
+        <MetricRow label="Produk Top" value={metric?.topProductName ?? "-"} icon={<Package className="h-3.5 w-3.5" />} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+        <span className="inline-flex items-center gap-1 text-sm font-bold text-cyan-700 transition-colors group-hover:text-cyan-800">
+          Lihat Detail
+          <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+        </span>
+        <div className="flex flex-wrap gap-2" data-card-stop="true">
+          <Button type="button" size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); onEdit(); }}>
+            Edit
+          </Button>
+          <Button type="button" size="sm" variant={supplier.isActive ? "ghost" : "primary"} loading={statusActionPending} onClick={(event) => { event.stopPropagation(); onToggleActive(); }}>
+            {supplier.isActive ? "Nonaktifkan" : "Aktifkan"}
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function formatCurrency(value: number) {

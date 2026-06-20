@@ -540,14 +540,16 @@ export function InvoicePdfDocument({
           {/* Payment & Balance rows (only when not cancelled) */}
           {!data.isCancelled && (
             <>
-              <View style={s.totalRow}>
-                <View style={s.totalLabel}>
-                  <Text>{data.totals.paymentLabel}</Text>
+              {data.totals.paymentsList.map((payment, idx) => (
+                <View key={`payment-${idx}`} style={s.totalRow}>
+                  <View style={s.totalLabel}>
+                    <Text>{payment.label}</Text>
+                  </View>
+                  <Text style={s.paymentBox}>
+                    Rp {payment.amountFormatted}
+                  </Text>
                 </View>
-                <Text style={s.paymentBox}>
-                  Rp {data.totals.amountPaidFormatted}
-                </Text>
-              </View>
+              ))}
               <View style={s.totalRow}>
                 <View style={s.totalLabel}>
                   <Text>{data.totals.balanceLabel}</Text>

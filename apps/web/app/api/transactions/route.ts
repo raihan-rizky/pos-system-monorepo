@@ -90,6 +90,10 @@ const createTransactionSchema = z.object({
   paymentStatus: z.enum(["COMPLETED", "DP"]).optional().default("COMPLETED"),
   isJobOrder: z.boolean().optional().default(false),
   estimatedDoneAt: z.string().optional().nullable(),
+  payments: z.array(z.object({
+    method: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
+    amount: z.number().min(0),
+  })).optional(),
 });
 
 type DateTimeFilter = { gte?: Date; lt?: Date };
@@ -373,7 +377,19 @@ export async function POST(request: Request) {
       paymentStatus,
       isJobOrder,
       estimatedDoneAt,
+      payments: rawPayments,
     } = parsed.data;
+
+    // Resolve payments array: use explicit payments or fall back to single paymentMethod
+    const resolvedPayments = rawPayments && rawPayments.length > 0
+      ? rawPayments
+      : [{ method: paymentMethod, amount: amountPaid }];
+
+    // Determine primary payment method (largest amount) for backward-compatible field
+    const primaryPaymentMethod = resolvedPayments.reduce((primary, p) =>
+      p.amount > primary.amount ? p : primary,
+      resolvedPayments[0],
+    ).method;
 
     if (items.length === 0) {
       return NextResponse.json({ message: "Cart is empty" }, { status: 422 });
@@ -431,7 +447,6 @@ export async function POST(request: Request) {
         where: {
           id: { in: uniqueProductIds },
           storeId,
-          isActive: true,
         },
         select: {
           id: true,
@@ -620,7 +635,7 @@ export async function POST(request: Request) {
               discount,
               tax: 0,
               total,
-              paymentMethod: paymentMethod,
+              paymentMethod: primaryPaymentMethod,
               amountPaid: amountPaidComputed,
               change: changeComputed,
               status: isDP ? "DP" : "COMPLETED",
@@ -677,6 +692,12 @@ export async function POST(request: Request) {
                         }
                 ),
               },
+              payments: {
+                create: resolvedPayments.map((p) => ({
+                  amount: p.amount,
+                  method: p.method,
+                })),
+              },
             },
             include: { 
               items: {
@@ -706,7 +727,8 @@ export async function POST(request: Request) {
                   printingService: { select: { unit: true } },
                 },
               },
-              salesperson: { select: { name: true } }
+              salesperson: { select: { name: true } },
+              payments: { select: { amount: true, method: true } },
             },
           });
 
@@ -856,4 +878,8 @@ export async function POST(request: Request) {
     );
   }
 }
+
+
+
+
 

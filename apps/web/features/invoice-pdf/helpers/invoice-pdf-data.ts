@@ -40,6 +40,7 @@ export interface InvoicePdfTotals {
   balanceLabel: string;
   isCancelled: boolean;
   cancelLabel: string | null;
+  paymentsList: { label: string; amountFormatted: string }[];
 }
 
 export interface InvoicePdfData {
@@ -91,6 +92,16 @@ export function computeTotals(transaction: Transaction): InvoicePdfTotals {
   const isCancelled = isVoided || isRefunded;
   const remaining = isDP ? grandTotal - amountPaid : 0;
 
+  const paymentsList = (transaction.payments && transaction.payments.length > 0)
+    ? transaction.payments.map((p) => ({
+        label: p.method === "CASH" ? "TUNAI" : p.method,
+        amountFormatted: Number(p.amount).toLocaleString("id-ID"),
+      }))
+    : [{
+        label: isDP ? "UANG MUKA" : (transaction.paymentMethod === "CASH" ? "TUNAI" : transaction.paymentMethod),
+        amountFormatted: amountPaid.toLocaleString("id-ID"),
+      }];
+
   return {
     grandTotal,
     grandTotalFormatted: grandTotal.toLocaleString("id-ID"),
@@ -108,6 +119,7 @@ export function computeTotals(transaction: Transaction): InvoicePdfTotals {
       : isRefunded
         ? "DIREFUND"
         : null,
+    paymentsList,
   };
 }
 
@@ -184,9 +196,13 @@ export function buildInvoicePdfData(
       transaction.salesperson?.name ??
       "-",
     paymentMethod:
-      transaction.paymentMethod === "CASH"
-        ? "Tunai"
-        : transaction.paymentMethod,
+      transaction.payments && transaction.payments.length > 0
+        ? transaction.payments
+            .map((p) => p.method === "CASH" ? "Tunai" : p.method)
+            .join(", ")
+        : transaction.paymentMethod === "CASH"
+          ? "Tunai"
+          : transaction.paymentMethod,
     date: formatIndonesianDate(
       transaction.createdAt || new Date().toISOString()
     ),

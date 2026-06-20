@@ -8,6 +8,8 @@ export interface ShoppingRequestPrintRow {
   approvedQty: string;
 }
 
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
+
 /**
  * Build printable rows from a shopping request detail.
  */
@@ -18,7 +20,12 @@ export function buildShoppingRequestPrintRows(
     no: index + 1,
     productName: item.productName,
     requestedQty: `${item.requestedQty} ${item.unit ?? ""}`.trim(),
-    stockOnHand: `${item.stockOnHand} ${item.unit ?? ""}`.trim(),
+    stockOnHand: formatCompoundStock({
+      stock: item.stockOnHand,
+      unit: item.unit ?? "",
+      unitMultiplierToBase: item.product?.unitMultiplierToBase,
+      stockGroup: item.product?.stockGroup,
+    }),
     approvedQty:
       item.approvedQty !== null
         ? `${item.approvedQty} ${item.unit ?? ""}`.trim()

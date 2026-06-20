@@ -39,6 +39,10 @@ export interface Transaction {
     amount: number;
     paymentMethod: string;
   }[];
+  payments?: {
+    amount: number;
+    method: string;
+  }[];
   suratJalanSummary?: {
     count: number;
     confirmedCount: number;
@@ -108,6 +112,10 @@ interface CreateTransactionInput {
   paymentStatus?: string; // 'COMPLETED' | 'DP'
   isJobOrder?: boolean;
   estimatedDoneAt?: string | null;
+  payments?: {
+    method: string;
+    amount: number;
+  }[];
 }
 
 async function fetchTransactions(): Promise<Transaction[]> {

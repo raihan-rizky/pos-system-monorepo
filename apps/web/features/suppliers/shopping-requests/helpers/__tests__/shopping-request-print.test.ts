@@ -29,6 +29,7 @@ const detail: ShoppingRequestDetail = {
       stockOnHand: 25,
       requestedQty: 5,
       approvedQty: 5,
+      product: { unitMultiplierToBase: 1, stockGroup: null },
     },
     {
       id: "sri-2",
@@ -39,6 +40,7 @@ const detail: ShoppingRequestDetail = {
       stockOnHand: 3,
       requestedQty: 5,
       approvedQty: 3,
+      product: { unitMultiplierToBase: 1, stockGroup: null },
     },
   ],
 };

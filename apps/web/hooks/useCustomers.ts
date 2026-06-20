@@ -218,6 +218,10 @@ export interface PayDebtInput {
   amount: number;
   paymentMethod?: string;
   note?: string;
+  payments?: {
+    method: string;
+    amount: number;
+  }[];
 }
 
 async function payDebt(input: PayDebtInput): Promise<{ success: boolean; customer: Partial<Customer> }> {
@@ -254,6 +258,10 @@ export interface PayTransactionDebtInput {
   amount: number;
   paymentMethod?: string;
   note?: string;
+  payments?: {
+    method: string;
+    amount: number;
+  }[];
 }
 
 async function payTransactionDebt(input: PayTransactionDebtInput) {
