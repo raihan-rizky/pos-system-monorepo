@@ -134,6 +134,46 @@ describe("resolveProductImportAutoDecisions", () => {
     expect(variant.generatedSku).toBe("MSN-RIBBON");
   });
 
+  it("keeps the original SKU for the first same-family duplicate and generates variant SKUs for later create decisions", () => {
+    const rows = [
+      row({ rowNumber: 2, name: "Amplop", sku: "AMP", category: "ATK", unit: "pack" }),
+      row({ rowNumber: 3, name: "Amplop", sku: "AMP", category: "ATK", unit: "pcs" }),
+      row({ rowNumber: 4, name: "Amplop", sku: "AMP", category: "ATK", unit: "lusin" }),
+    ];
+
+    const resolved = resolveProductImportAutoDecisions({
+      rows,
+      existingProducts: [],
+      existingSkus: new Set(),
+      decisions: { "2": "create", "3": "create", "4": "create" },
+    });
+
+    expect(resolved[0].sku).toBe("AMP");
+    expect(resolved[0].autoAction).toBe("create");
+    expect(resolved[1].sku).toBe("AMP-PCS");
+    expect(resolved[1].autoAction).toBe("auto_create_variant");
+    expect(resolved[2].sku).toBe("AMP-LUSIN");
+    expect(resolved[2].autoAction).toBe("auto_create_variant");
+  });
+
+  it("generates variant SKUs for same-family duplicate create decisions even when the unit matches", () => {
+    const rows = [
+      row({ rowNumber: 2, name: "Amplop", sku: "AMP", category: "ATK", unit: "pack" }),
+      row({ rowNumber: 3, name: "Amplop", sku: "AMP", category: "ATK", unit: "pack" }),
+    ];
+
+    const resolved = resolveProductImportAutoDecisions({
+      rows,
+      existingProducts: [],
+      existingSkus: new Set(),
+      decisions: { "2": "create", "3": "create" },
+    });
+
+    expect(resolved[0].sku).toBe("AMP");
+    expect(resolved[1].sku).toBe("AMP-PACK");
+    expect(resolved[1].autoAction).toBe("auto_create_variant");
+  });
+
   it("marks same SKU with different normalized product as a conflict", () => {
     const [resolved] = resolveProductImportAutoDecisions({
       rows: [row({ name: "Amplop", category: "ATK", sku: "HVS-A4" })],

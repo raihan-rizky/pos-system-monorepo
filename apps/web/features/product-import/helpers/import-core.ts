@@ -70,6 +70,14 @@ export const importRowCommitSchema = z.object({
   size: z.string().trim().optional().nullable(),
   material: z.string().trim().optional().nullable(),
   imageUrl: z.string().trim().optional().nullable(),
+  existingProductId: z.string().optional(),
+  matchedProductId: z.string().optional(),
+  matchedProductSku: z.string().optional(),
+  matchedStockGroupId: z.string().optional().nullable(),
+  generatedSku: z.string().optional(),
+  autoAction: z
+    .enum(["create", "auto_skip", "auto_price_update", "auto_create_variant", "conflict"])
+    .optional(),
 });
 
 export type ImportCommitRow = z.infer<typeof importRowCommitSchema>;

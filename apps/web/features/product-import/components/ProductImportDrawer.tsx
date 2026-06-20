@@ -374,7 +374,7 @@ export function ProductImportDrawer({
         open={open}
         onClose={close}
         title="Batch Import Produk"
-        size="xl"
+        size="5xl"
       >
         <div className="space-y-5">
           {/* Step indicator */}

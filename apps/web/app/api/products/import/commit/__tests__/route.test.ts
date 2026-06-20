@@ -126,4 +126,126 @@ describe("POST /api/products/import/commit", () => {
     // Verify it called create instead of update!
     expect(txMock.product.update).not.toHaveBeenCalled();
   });
+
+  it("limits the initial product lookup to import candidates", async () => {
+    txMock.product.findMany.mockResolvedValue([]);
+
+    const payload = {
+      rows: [
+        {
+          rowNumber: 2,
+          name: "Amplop",
+          sku: "AMP-001",
+          category: "Jasa",
+          price: 1000,
+          stock: 10,
+          unit: "pack",
+          matchedProductId: "prod-preview-1",
+        },
+      ],
+      decisions: {},
+    };
+
+    txMock.product.create.mockResolvedValue({
+      id: "prod-2",
+      name: "Amplop",
+      sku: "AMP-001",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/commit", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(txMock.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: "store-main",
+          OR: expect.arrayContaining([
+            { sku: { in: ["AMP-001"] } },
+            { id: { in: ["prod-preview-1"] } },
+            {
+              categoryId: { in: ["cat-1"] },
+              name: { in: ["Amplop"] },
+            },
+          ]),
+        }),
+        select: expect.objectContaining({
+          id: true,
+          sku: true,
+          category: { select: { name: true } },
+          stockGroup: { select: { id: true, baseUnit: true, baseStock: true } },
+        }),
+      }),
+    );
+  });
+
+  it("commits same-family duplicate SKUs when all duplicate rows are marked create", async () => {
+    txMock.product.findMany.mockResolvedValue([]);
+    txMock.product.create
+      .mockResolvedValueOnce({
+        id: "prod-1",
+        name: "Amplop",
+        sku: "AMP",
+      })
+      .mockResolvedValueOnce({
+        id: "prod-2",
+        name: "Amplop",
+        sku: "AMP-PCS",
+      });
+
+    const payload = {
+      rows: [
+        {
+          rowNumber: 2,
+          name: "Amplop",
+          sku: "AMP",
+          category: "Jasa",
+          price: 1000,
+          stock: 10,
+          unit: "pack",
+        },
+        {
+          rowNumber: 3,
+          name: "Amplop",
+          sku: "AMP",
+          category: "Jasa",
+          price: 1000,
+          stock: 0,
+          unit: "pcs",
+        },
+      ],
+      decisions: { "2": "create", "3": "create" },
+    };
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/commit", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.createdProductCount).toBe(2);
+    expect(body.variantProductCount).toBe(1);
+    expect(txMock.product.create).toHaveBeenCalledTimes(2);
+    expect(txMock.product.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({ sku: "AMP" }),
+      }),
+    );
+    expect(txMock.product.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({ sku: "AMP-PCS" }),
+      }),
+    );
+  });
 });

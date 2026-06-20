@@ -78,6 +78,40 @@ function createCandidateFromRow(row: NormalizedImportRow): ProductCandidate {
   };
 }
 
+function createVariantRowFromCandidate(input: {
+  row: NormalizedImportRow;
+  candidate: ProductCandidate;
+  productKey: string;
+  usedSkus: Set<string>;
+  reasonPrefix?: string;
+}): NormalizedImportRow {
+  const { row, candidate, productKey, usedSkus, reasonPrefix } = input;
+  const generatedSku = generateVariantSku(candidate.sku, row.unit, usedSkus);
+  usedSkus.add(generatedSku);
+  const conversion = resolveImportUnitMultiplier({
+    unit: row.unit,
+    baseUnit: candidate.stockGroupBaseUnit ?? candidate.unit,
+    providedMultiplier: row.unitMultiplierToBase,
+  });
+
+  return {
+    ...row,
+    sku: generatedSku,
+    generatedSku,
+    unitMultiplierToBase: conversion.multiplier,
+    conversionNeedsReview: conversion.conversionNeedsReview,
+    stockIgnoredForVariant: true,
+    autoAction: "auto_create_variant",
+    autoActionReason: conversion.conversionNeedsReview
+      ? `${reasonPrefix ?? "Variant"}: linked to existing stock group; imported stock ignored. Review needed: unit conversion was not recognized.`
+      : `${reasonPrefix ?? "Variant"}: linked to existing stock group; imported stock ignored.`,
+    matchedProductId: candidate.id,
+    matchedProductSku: candidate.sku,
+    matchedStockGroupId: candidate.stockGroupId,
+    normalizedProductKey: productKey,
+  };
+}
+
 export function resolveProductImportAutoDecisions(
   input: ResolveProductImportAutoDecisionsInput,
 ): NormalizedImportRow[] {
@@ -146,6 +180,19 @@ export function resolveProductImportAutoDecisions(
       (candidate) => normalizeUnit(candidate.unit) === normalizeUnit(row.unit),
     );
 
+    if ((decision === "create" || decision === "create-variant") && matchingCandidates.length > 0) {
+      const candidate = sameUnit ?? matchingCandidates[0];
+      const resolved = createVariantRowFromCandidate({
+        row,
+        candidate,
+        productKey,
+        usedSkus,
+        reasonPrefix: "Variant: user kept duplicate SKU as a new variant",
+      });
+      candidatesByKey.set(productKey, [...matchingCandidates, createCandidateFromRow(resolved)]);
+      return resolved;
+    }
+
     if (sameUnit) {
       const autoAction = priceDataMatches(row, sameUnit)
         ? "auto_skip"
@@ -166,29 +213,12 @@ export function resolveProductImportAutoDecisions(
 
     const differentUnit = matchingCandidates[0];
     if (differentUnit) {
-      const generatedSku = generateVariantSku(differentUnit.sku, row.unit, usedSkus);
-      usedSkus.add(generatedSku);
-      const conversion = resolveImportUnitMultiplier({
-        unit: row.unit,
-        baseUnit: differentUnit.stockGroupBaseUnit ?? differentUnit.unit,
-        providedMultiplier: row.unitMultiplierToBase,
+      const resolved = createVariantRowFromCandidate({
+        row,
+        candidate: differentUnit,
+        productKey,
+        usedSkus,
       });
-      const resolved: NormalizedImportRow = {
-        ...row,
-        sku: generatedSku,
-        generatedSku,
-        unitMultiplierToBase: conversion.multiplier,
-        conversionNeedsReview: conversion.conversionNeedsReview,
-        stockIgnoredForVariant: true,
-        autoAction: "auto_create_variant",
-        autoActionReason: conversion.conversionNeedsReview
-          ? "Variant: linked to existing stock group; imported stock ignored. Review needed: unit conversion was not recognized."
-          : "Variant: linked to existing stock group; imported stock ignored.",
-        matchedProductId: differentUnit.id,
-        matchedProductSku: differentUnit.sku,
-        matchedStockGroupId: differentUnit.stockGroupId,
-        normalizedProductKey: productKey,
-      };
       candidatesByKey.set(productKey, [...matchingCandidates, createCandidateFromRow(resolved)]);
       return resolved;
     }

@@ -15,6 +15,18 @@ import { getLogger } from "@/lib/logger";
 const log = getLogger("api:products:import:preview");
 export const dynamic = "force-dynamic";
 
+function countResolvedActions(rows: Array<{ autoAction?: string; generatedSku?: string }>) {
+  return rows.reduce(
+    (counts, row) => {
+      const key = row.autoAction ?? "unknown";
+      counts.byAction[key] = (counts.byAction[key] ?? 0) + 1;
+      if (row.generatedSku) counts.generatedSkuCount += 1;
+      return counts;
+    },
+    { byAction: {} as Record<string, number>, generatedSkuCount: 0 },
+  );
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
   try {
@@ -61,6 +73,17 @@ export async function POST(request: Request) {
     const { headers, records } = parseImportFile(await file.arrayBuffer(), columnMapping);
     const { missingColumns, unknownColumns, suggestions } = buildMissingColumnResponse(headers);
 
+    log.info("product.import.preview.file_parsed", {
+      userId: user.id,
+      storeId,
+      fileName: file.name,
+      headerCount: headers.length,
+      recordCount: records.length,
+      missingColumnCount: missingColumns.length,
+      unknownColumnCount: unknownColumns.length,
+      durationMs: Date.now() - startedAt,
+    });
+
     if (missingColumns.length > 0) {
       log.warn("product.import.preview.missing_required_columns", {
         userId: user.id,
@@ -105,6 +128,16 @@ export async function POST(request: Request) {
       db.category.findMany({ select: { name: true } }),
     ]);
 
+    log.info("product.import.preview.reference_data_loaded", {
+      userId: user.id,
+      storeId,
+      fileName: file.name,
+      productCandidateCount: products.length,
+      categoryCount: categories.length,
+      uniqueSkuCount: skus.length,
+      durationMs: Date.now() - startedAt,
+    });
+
     const normalized = normalizeImportRows(
       records,
       new Map(products.map((product) => [product.sku, { id: product.id, name: product.name }])),
@@ -125,6 +158,20 @@ export async function POST(request: Request) {
         stockGroupBaseUnit: product.stockGroup?.baseUnit ?? null,
       })),
       existingSkus: new Set(products.map((product) => product.sku)),
+    });
+    const resolvedActionCounts = countResolvedActions(rows);
+
+    log.info("product.import.preview.rows_resolved", {
+      userId: user.id,
+      storeId,
+      fileName: file.name,
+      rowCount: rows.length,
+      warningCount: normalized.warnings.length,
+      errorCount: normalized.errors.length,
+      existingMatchCount: normalized.existingSkuMatches.length,
+      missingCategoryCount: normalized.missingCategories.length,
+      ...resolvedActionCounts,
+      durationMs: Date.now() - startedAt,
     });
 
     log.info("product.import.preview.completed", {

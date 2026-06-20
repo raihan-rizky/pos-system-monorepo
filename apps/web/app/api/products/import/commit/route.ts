@@ -33,6 +33,22 @@ const commitSchema = z.object({
 
 export const dynamic = "force-dynamic";
 
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
+
+function countResolvedActions(rows: Array<{ autoAction?: string; generatedSku?: string }>) {
+  return rows.reduce(
+    (counts, row) => {
+      const key = row.autoAction ?? "unknown";
+      counts.byAction[key] = (counts.byAction[key] ?? 0) + 1;
+      if (row.generatedSku) counts.generatedSkuCount += 1;
+      return counts;
+    },
+    { byAction: {} as Record<string, number>, generatedSkuCount: 0 },
+  );
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
   try {
@@ -70,16 +86,6 @@ export async function POST(request: Request) {
 
     const result = await db.$transaction(
       async (tx: Prisma.TransactionClient) => {
-        const existingProducts = await tx.product.findMany({
-          where: { storeId },
-          include: { stockGroup: true, category: true },
-        });
-        const existingBySku = new Map(
-          existingProducts.map((product) => [product.sku, product]),
-        );
-        const existingById = new Map(
-          existingProducts.map((product) => [product.id, product]),
-        );
         const categories = await tx.category.findMany();
         const categoryByName = new Map(
           categories.map((category) => [category.name.toLowerCase(), category]),
@@ -107,6 +113,89 @@ export async function POST(request: Request) {
           });
           categoryByName.set(category.name.toLowerCase(), category);
         }
+
+        logger.info("product.import.commit.categories_resolved", {
+          userId: user.id,
+          storeId,
+          categoryCount: categoryByName.size,
+          createdCategoryCount: missingCategories.length,
+          durationMs: Date.now() - startedAt,
+        });
+
+        const rowSkus = uniqueStrings(rows.map((row) => row.sku));
+        const previewMatchedProductIds = uniqueStrings(
+          rows.flatMap((row) => [row.existingProductId, row.matchedProductId]),
+        );
+        const rowCategoryIds = uniqueStrings(
+          rows.map((row) => categoryByName.get(row.category.toLowerCase())?.id),
+        );
+        const rowNames = uniqueStrings(
+          rows.flatMap((row) => [row.name, expandProductNameAbbreviations(row.name)]),
+        );
+
+        const productCandidateFilters: Prisma.ProductWhereInput[] = [];
+        if (rowSkus.length > 0) {
+          productCandidateFilters.push({ sku: { in: rowSkus } });
+        }
+        if (previewMatchedProductIds.length > 0) {
+          productCandidateFilters.push({ id: { in: previewMatchedProductIds } });
+        }
+        if (rowCategoryIds.length > 0 && rowNames.length > 0) {
+          productCandidateFilters.push({
+            categoryId: { in: rowCategoryIds },
+            name: { in: rowNames },
+          });
+        }
+
+        const existingProducts = await tx.product.findMany({
+          where: {
+            storeId,
+            OR: productCandidateFilters,
+          },
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            barcode: true,
+            description: true,
+            price: true,
+            costPrice: true,
+            hargaDinas: true,
+            stock: true,
+            stockGroupId: true,
+            unitMultiplierToBase: true,
+            conversionNeedsReview: true,
+            minStock: true,
+            unit: true,
+            size: true,
+            material: true,
+            categoryId: true,
+            storeId: true,
+            isActive: true,
+            imageUrl: true,
+            createdAt: true,
+            updatedAt: true,
+            category: { select: { name: true } },
+            stockGroup: { select: { id: true, baseUnit: true, baseStock: true } },
+          },
+        });
+        const existingBySku = new Map(
+          existingProducts.map((product) => [product.sku, product]),
+        );
+        const existingById = new Map(
+          existingProducts.map((product) => [product.id, product]),
+        );
+
+        logger.info("product.import.commit.product_candidates_loaded", {
+          userId: user.id,
+          storeId,
+          rowSkuCount: rowSkus.length,
+          previewMatchedProductCount: previewMatchedProductIds.length,
+          rowNameCount: rowNames.length,
+          candidateFilterCount: productCandidateFilters.length,
+          existingProductCandidateCount: existingProducts.length,
+          durationMs: Date.now() - startedAt,
+        });
 
         const batch = await tx.batchOperation.create({
           data: {
@@ -157,6 +246,15 @@ export async function POST(request: Request) {
           decisions,
         });
 
+        const resolvedActionCounts = countResolvedActions(resolvedRows);
+        logger.info("product.import.commit.rows_resolved", {
+          userId: user.id,
+          storeId,
+          rowCount: resolvedRows.length,
+          ...resolvedActionCounts,
+          durationMs: Date.now() - startedAt,
+        });
+
         // Check for duplicates after SKUs have been generated for create/create-variant
         const activeResolvedRows = resolvedRows.filter((row) => {
           const decision = getEffectiveImportDecision(row, decisions);
@@ -179,6 +277,13 @@ export async function POST(request: Request) {
           .map(([sku]) => sku);
 
         if (duplicateSkus.length > 0) {
+          logger.warn("product.import.commit.duplicate_skus_after_resolution", {
+            userId: user.id,
+            storeId,
+            duplicateSkuCount: duplicateSkus.length,
+            duplicateSkus,
+            durationMs: Date.now() - startedAt,
+          });
           throw new Error(`DUPLICATE_SKUS:${duplicateSkus.join(",")}`);
         }
 
@@ -187,6 +292,18 @@ export async function POST(request: Request) {
           const rawDecision = getEffectiveImportDecision(row, decisions);
           const decision = rawDecision ?? "create";
           const commitAction = getCommitActionForResolvedRow(row, decision);
+
+          logger.debug("product.import.commit.row_processing", {
+            userId: user.id,
+            storeId,
+            rowNumber: row.rowNumber,
+            sku: row.sku,
+            generatedSku: row.generatedSku,
+            autoAction: row.autoAction,
+            decision,
+            commitAction,
+            matchedProductId: row.matchedProductId,
+          });
 
           if (row.autoAction === "conflict" && !rawDecision) {
             throw new Error(`ROW_DECISION_REQUIRED:${row.rowNumber}`);
@@ -367,7 +484,7 @@ export async function POST(request: Request) {
               stock: row.stock,
               unitMultiplierToBase: row.unitMultiplierToBase ?? 1,
             });
-            const matched = row.matchedProductId ? existingById.get(row.matchedProductId) : undefined;
+            const matched = (row.matchedProductId && row.autoAction !== "conflict") ? existingById.get(row.matchedProductId) : undefined;
             const variantGroup = commitAction === "create-variant" && matched?.stockGroup
               ? matched.stockGroup
               : null;
