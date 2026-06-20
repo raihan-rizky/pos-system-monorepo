@@ -46,7 +46,8 @@ const detail: ShoppingRequestDetail = {
 describe("buildShoppingRequestPrintRows", () => {
   it("returns rows with no, name, kebutuhan, sisa stock, jumlah acc", () => {
     const rows = buildShoppingRequestPrintRows(detail);
-    expect(rows).toEqual([
+    expect(rows).toHaveLength(5);
+    expect(rows.slice(0, 2)).toEqual([
       {
         no: 1,
         productName: "Kertas A4",
@@ -60,6 +61,29 @@ describe("buildShoppingRequestPrintRows", () => {
         requestedQty: "5 pcs",
         stockOnHand: "3 pcs",
         approvedQty: "3 pcs",
+      },
+    ]);
+    expect(rows.slice(2)).toEqual([
+      {
+        no: "",
+        productName: "",
+        requestedQty: "",
+        stockOnHand: "",
+        approvedQty: "",
+      },
+      {
+        no: "",
+        productName: "",
+        requestedQty: "",
+        stockOnHand: "",
+        approvedQty: "",
+      },
+      {
+        no: "",
+        productName: "",
+        requestedQty: "",
+        stockOnHand: "",
+        approvedQty: "",
       },
     ]);
   });

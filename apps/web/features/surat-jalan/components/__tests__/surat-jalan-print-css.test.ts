@@ -23,6 +23,6 @@ describe("surat jalan print css", () => {
     expect(css).toContain("left: 0 !important");
     expect(css).toContain("top: 0 !important");
     expect(css).toContain("display: flex");
-    expect(css).toContain("padding: 4mm 6mm !important");
+    expect(css).toContain("padding: 10mm 6mm 4mm 10mm !important");
   });
 });
