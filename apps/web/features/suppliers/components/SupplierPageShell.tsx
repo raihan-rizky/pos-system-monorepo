@@ -331,7 +331,7 @@ export function SupplierPageShell() {
             )}
           </>
         ) : tab === "recap" ? (
-          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm px-1 md:px-4">
             <div className="border-b border-slate-100 p-4">
               <h2 className="text-base font-black text-slate-950">Rekap Stock In</h2>
               <p className="text-sm text-slate-500">Hanya restock supplier yang sudah disetujui.</p>
@@ -343,7 +343,7 @@ export function SupplierPageShell() {
             />
           </section>
         ) : (
-          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm px-1 md:px-4">
             <div className="border-b border-slate-100 p-4">
               <h2 className="text-base font-black text-slate-950">Daftar Belanja</h2>
               <p className="text-sm text-slate-500">Buat dan cetak daftar kebutuhan barang untuk pengajuan belanja.</p>

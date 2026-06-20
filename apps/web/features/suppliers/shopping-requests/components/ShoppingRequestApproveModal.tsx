@@ -75,28 +75,30 @@ export function ShoppingRequestApproveModal({
           <div className="overflow-hidden rounded-xl border border-slate-200">
             <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-500">
               <span>Nama Barang</span>
-              <span>Kebutuhan Belanja</span>
-              <span>Jumlah yang Di Acc</span>
+              <span className="text-center">Kebutuhan Belanja</span>
+              <span className="text-center">Jumlah yang Di Acc</span>
             </div>
             {rows.map((row) => (
               <div
                 key={row.id}
-                className="grid grid-cols-[1.4fr_0.8fr_0.8fr] gap-2 border-b border-slate-100 px-3 py-3 last:border-b-0"
+                className="grid grid-cols-[1.4fr_0.8fr_0.8fr] items-center gap-2 border-b border-slate-100 px-3 py-3 last:border-b-0"
               >
                 <span className="flex min-h-10 items-center text-sm font-semibold text-slate-900">
                   {row.productName}
                 </span>
-                <span className="flex min-h-10 items-center text-sm text-slate-600">
+                <span className="flex min-h-10 items-center justify-center text-sm text-slate-600">
                   {row.requestedQty}
                 </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={row.approvedQty}
-                  onChange={(e) => updateRow(row.id, Number(e.target.value))}
-                  className="min-h-10 rounded-xl border border-slate-200 px-3 text-sm"
-                />
+                <div className="flex w-full justify-center">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={row.approvedQty}
+                    onChange={(e) => updateRow(row.id, Number(e.target.value))}
+                    className="flex min-h-10 w-full max-w-[40px] md:max-w-[100px] items-center justify-center rounded-xl border border-slate-200 px-3 text-center text-sm"
+                  />
+                </div>
               </div>
             ))}
           </div>
