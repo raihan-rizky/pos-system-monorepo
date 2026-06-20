@@ -11,12 +11,10 @@ export default defineConfig({
       "app/**/__tests__/**/*.test.ts",
       "lib/**/__tests__/**/*.test.ts",
     ],
-    // Run tests serially to avoid Prisma prepared statement conflicts
     pool: "threads",
     fileParallelism: false,
     maxWorkers: 1,
   },
-  // Vite 8 uses oxc for JSX transform; vitest type defs don't expose it yet
   oxc: {
     jsx: "automatic",
   },
@@ -27,4 +25,3 @@ export default defineConfig({
     },
   },
 } as any);
-

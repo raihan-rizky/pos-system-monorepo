@@ -292,6 +292,9 @@ export async function GET(request: Request) {
             salesperson: {
               select: { name: true },
             },
+            payments: {
+              select: { amount: true, method: true },
+            },
             debtPaymentLogs: {
               select: { id: true, createdAt: true, amount: true, paymentMethod: true },
               orderBy: { createdAt: "desc" },
@@ -300,7 +303,6 @@ export async function GET(request: Request) {
           },
         }),
     });
-
     const transactionsWithSuratJalanSummary = transactions.map((transaction) => {
       const totalQuantity = transaction.items
         .filter((item) => item.productId)

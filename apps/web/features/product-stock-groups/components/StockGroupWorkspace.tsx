@@ -3,9 +3,9 @@
 import React, { useEffect, useMemo, useState, Suspense, useCallback } from "react";
 import { AlertTriangle, Plus, Save, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { 
-  type StockGroupDetail, 
-  type StockInputMode 
+import {
+  type StockGroupDetail,
+  type StockInputMode
 } from "../api/stock-group-api";
 import {
   useSuspenseStockGroupDetail,
@@ -229,7 +229,7 @@ export function StockGroupWorkspaceContent({
     const nextBaseStock =
       conversionDraft.mode === "PRESERVE_SOURCE_STOCK" && selectedSourceVariant
         ? selectedSourceVariant.stock *
-          (nextMultipliers.get(selectedSourceVariant.id) ?? 1)
+        (nextMultipliers.get(selectedSourceVariant.id) ?? 1)
         : baseChanged
           ? detail.baseStock / selectedBaseVariant.unitMultiplierToBase
           : detail.baseStock;
@@ -248,8 +248,8 @@ export function StockGroupWorkspaceContent({
   }, [conversionDraft, detail.baseStock, detail.baseUnit, detail.variants, selectedBaseVariant, selectedSourceVariant]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+    <div className="mx-auto flex flex-col w-full max-w-5xl max-h-[72vh] rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+      <div className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
         <div>
           <p className="text-sm font-black text-slate-900">
             {detail.displayName || "Stok Unit"}
@@ -268,18 +268,17 @@ export function StockGroupWorkspaceContent({
         </button>
       </div>
 
-      <div className="border-b border-slate-100 px-5 py-3">
+      <div className="shrink-0 border-b border-slate-100 px-5 py-3">
         <div className="flex gap-2 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => onActiveTabChange?.(tab.id)}
-              className={`h-9 shrink-0 rounded-lg px-3 text-xs font-black ${
-                activeTab === tab.id
+              className={`h-9 shrink-0 rounded-lg px-3 text-xs font-black ${activeTab === tab.id
                   ? "bg-slate-900 text-white"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -287,7 +286,7 @@ export function StockGroupWorkspaceContent({
         </div>
       </div>
 
-      <div className="max-h-[72vh] overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-5 min-h-0">
         <div className="space-y-4">
           {isSaving && (
             <div
@@ -458,72 +457,72 @@ export function StockGroupWorkspaceContent({
                 </div>
                 {conversionDraft?.editMode !== "DIRECT" ? (
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <label className="text-xs font-bold text-slate-600">
-                    Unit asal
-                    <select
-                      value={conversionDraft?.fromProductId ?? ""}
-                      onChange={(event) =>
-                        onConversionDraftChange?.({
-                          ...conversionDraft!,
-                          fromProductId: event.target.value,
-                        })
-                      }
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    >
-                      {detail.variants.map((variant) => (
-                        <option key={variant.id} value={variant.id}>
-                          {variant.unit}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Qty asal
-                    <input
-                      value={conversionDraft?.fromQuantity ?? "1"}
-                      onChange={(event) =>
-                        onConversionDraftChange?.({
-                          ...conversionDraft!,
-                          fromQuantity: event.target.value,
-                        })
-                      }
-                      inputMode="decimal"
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Setara unit
-                    <select
-                      value={conversionDraft?.toProductId ?? ""}
-                      onChange={(event) =>
-                        onConversionDraftChange?.({
-                          ...conversionDraft!,
-                          toProductId: event.target.value,
-                        })
-                      }
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    >
-                      {detail.variants.map((variant) => (
-                        <option key={variant.id} value={variant.id}>
-                          {variant.unit}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Qty setara
-                    <input
-                      value={conversionDraft?.toQuantity ?? "1"}
-                      onChange={(event) =>
-                        onConversionDraftChange?.({
-                          ...conversionDraft!,
-                          toQuantity: event.target.value,
-                        })
-                      }
-                      inputMode="decimal"
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    />
-                  </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Unit asal
+                      <select
+                        value={conversionDraft?.fromProductId ?? ""}
+                        onChange={(event) =>
+                          onConversionDraftChange?.({
+                            ...conversionDraft!,
+                            fromProductId: event.target.value,
+                          })
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      >
+                        {detail.variants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.unit}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Qty asal
+                      <input
+                        value={conversionDraft?.fromQuantity ?? "1"}
+                        onChange={(event) =>
+                          onConversionDraftChange?.({
+                            ...conversionDraft!,
+                            fromQuantity: event.target.value,
+                          })
+                        }
+                        inputMode="decimal"
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Setara unit
+                      <select
+                        value={conversionDraft?.toProductId ?? ""}
+                        onChange={(event) =>
+                          onConversionDraftChange?.({
+                            ...conversionDraft!,
+                            toProductId: event.target.value,
+                          })
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      >
+                        {detail.variants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.unit}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Qty setara
+                      <input
+                        value={conversionDraft?.toQuantity ?? "1"}
+                        onChange={(event) =>
+                          onConversionDraftChange?.({
+                            ...conversionDraft!,
+                            toQuantity: event.target.value,
+                          })
+                        }
+                        inputMode="decimal"
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      />
+                    </label>
                   </div>
                 ) : (
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -582,10 +581,10 @@ export function StockGroupWorkspaceContent({
                 </label>
                 {conversionDraft?.fromProductId ===
                   conversionDraft?.toProductId && (
-                  <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-                    Unit asal dan setara harus berbeda.
-                  </div>
-                )}
+                    <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+                      Unit asal dan setara harus berbeda.
+                    </div>
+                  )}
                 {conversionPreview.length > 0 && (
                   <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
                     <div className="grid grid-cols-4 bg-slate-50 px-3 py-2 text-xs font-black text-slate-600">
@@ -738,9 +737,9 @@ export function StockGroupWorkspaceContent({
                     <input
                       value={
                         newVariantDraft?.[
-                          key as keyof NonNullable<
-                            StockGroupWorkspaceContentProps["newVariantDraft"]
-                          >
+                        key as keyof NonNullable<
+                          StockGroupWorkspaceContentProps["newVariantDraft"]
+                        >
                         ] ?? ""
                       }
                       onChange={(event) =>
@@ -958,20 +957,20 @@ function StockGroupWorkspaceDataFetcher({
 }) {
   const { data: detail } = useSuspenseStockGroupDetail(stockGroupId);
   const queryClient = useQueryClient();
-  
+
   const [sharedStock, setSharedStock] = useState(() => String(detail.baseStock));
   const [stockInputMode, setStockInputMode] = useState<StockInputMode>("BASE");
   const firstVariantId = detail.variants[0]?.id ?? "";
   const [stockVariantProductId, setStockVariantProductId] = useState(firstVariantId);
   const [note, setNote] = useState("");
-  
+
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("summary");
-  
+
   const [conversionDraft, setConversionDraft] = useState<NonNullable<StockGroupWorkspaceContentProps["conversionDraft"]>>(() =>
     buildUnitManagementDraft(detail),
   );
-  
-  const [priceDrafts, setPriceDrafts] = useState<Record<string, { price: string; costPrice: string; note: string }>>(() => 
+
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, { price: string; costPrice: string; note: string }>>(() =>
     Object.fromEntries(
       detail.variants.map((variant) => [
         variant.id,
@@ -983,7 +982,7 @@ function StockGroupWorkspaceDataFetcher({
       ]),
     )
   );
-  
+
   const [newVariantDraft, setNewVariantDraft] = useState<NonNullable<StockGroupWorkspaceContentProps["newVariantDraft"]>>(() => ({
     unit: "",
     price: "",
@@ -1042,10 +1041,10 @@ function StockGroupWorkspaceDataFetcher({
   const updateVariantPriceMut = useUpdateVariantPrice(stockGroupId);
   const addVariantMut = useAddVariant(stockGroupId);
 
-  const isSaving = 
-    updateSharedStockMut.isPending || 
-    updateConversionRateMut.isPending || 
-    updateVariantPriceMut.isPending || 
+  const isSaving =
+    updateSharedStockMut.isPending ||
+    updateConversionRateMut.isPending ||
+    updateVariantPriceMut.isPending ||
     addVariantMut.isPending;
 
   let savingMessage = null;
@@ -1054,10 +1053,10 @@ function StockGroupWorkspaceDataFetcher({
   else if (updateVariantPriceMut.isPending) savingMessage = "Menyimpan harga varian...";
   else if (addVariantMut.isPending) savingMessage = "Menambahkan varian baru...";
 
-  const error = 
-    updateSharedStockMut.error?.message || 
-    updateConversionRateMut.error?.message || 
-    updateVariantPriceMut.error?.message || 
+  const error =
+    updateSharedStockMut.error?.message ||
+    updateConversionRateMut.error?.message ||
+    updateVariantPriceMut.error?.message ||
     addVariantMut.error?.message;
 
   const handlePriceDraftChange = useCallback((productId: string, draft: { price: string; costPrice: string; note: string }) => {
@@ -1087,32 +1086,32 @@ function StockGroupWorkspaceDataFetcher({
     const payload =
       conversionDraft.editMode === "DIRECT"
         ? {
-            mode: conversionDraft.mode,
-            baseProductId: conversionDraft.baseProductId,
-            sourceProductId: conversionDraft.fromProductId,
-            note: note.trim() || undefined,
-            directMultipliers: detail.variants.map((variant) => ({
-              productId: variant.id,
-              unitMultiplierToBase:
-                variant.id === conversionDraft.baseProductId
-                  ? 1
-                  : Number(conversionDraft.directMultipliers[variant.id]),
-            })),
-          }
+          mode: conversionDraft.mode,
+          baseProductId: conversionDraft.baseProductId,
+          sourceProductId: conversionDraft.fromProductId,
+          note: note.trim() || undefined,
+          directMultipliers: detail.variants.map((variant) => ({
+            productId: variant.id,
+            unitMultiplierToBase:
+              variant.id === conversionDraft.baseProductId
+                ? 1
+                : Number(conversionDraft.directMultipliers[variant.id]),
+          })),
+        }
         : {
-            mode: conversionDraft.mode,
-            baseProductId: conversionDraft.baseProductId,
-            sourceProductId: conversionDraft.fromProductId,
-            note: note.trim() || undefined,
-            conversionPairs: [
-              {
-                fromProductId: conversionDraft.fromProductId,
-                fromQuantity: Number(conversionDraft.fromQuantity),
-                toProductId: conversionDraft.toProductId,
-                toQuantity: Number(conversionDraft.toQuantity),
-              },
-            ],
-          };
+          mode: conversionDraft.mode,
+          baseProductId: conversionDraft.baseProductId,
+          sourceProductId: conversionDraft.fromProductId,
+          note: note.trim() || undefined,
+          conversionPairs: [
+            {
+              fromProductId: conversionDraft.fromProductId,
+              fromQuantity: Number(conversionDraft.fromQuantity),
+              toProductId: conversionDraft.toProductId,
+              toQuantity: Number(conversionDraft.toQuantity),
+            },
+          ],
+        };
     updateConversionRateMut.mutate(
       payload,
       {
@@ -1158,10 +1157,10 @@ function StockGroupWorkspaceDataFetcher({
         minStock: Number(newVariantDraft.minStock),
         conversionPair: newVariantDraft.conversionToProductId
           ? {
-              fromQuantity: Number(newVariantDraft.conversionFromQuantity),
-              toProductId: newVariantDraft.conversionToProductId,
-              toQuantity: Number(newVariantDraft.conversionToQuantity),
-            }
+            fromQuantity: Number(newVariantDraft.conversionFromQuantity),
+            toProductId: newVariantDraft.conversionToProductId,
+            toQuantity: Number(newVariantDraft.conversionToQuantity),
+          }
           : undefined,
         note: newVariantDraft.note.trim() || undefined,
       },

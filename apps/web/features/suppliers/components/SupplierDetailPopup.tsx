@@ -93,7 +93,7 @@ export function SupplierDetailPopup({
       onClose={onClose}
       title="Detail Supplier"
       size="4xl"
-      className="max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:max-h-[88dvh] max-sm:max-w-none max-sm:translate-y-0 max-sm:rounded-b-none"
+      className="max-sm:relative max-sm:inset-x-0 max-sm:max-h-[80dvh] max-sm:max-w-none max-sm:translate-y-0 max-sm:rounded-b-none"
     >
       <div className="space-y-4">
         <div className="sticky -top-4 z-10 border-b border-slate-100 bg-white pb-4">
@@ -318,11 +318,10 @@ function HistoryItemRow({ item }: { item: SupplierStockInRecapBundleItem }) {
 function StatusPill({ active }: { active: boolean }) {
   return (
     <span
-      className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wider ${
-        active
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-500"
-      }`}
+      className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wider ${active
+        ? "bg-emerald-50 text-emerald-700"
+        : "bg-slate-100 text-slate-500"
+        }`}
     >
       {active ? "Aktif" : "Nonaktif"}
     </span>

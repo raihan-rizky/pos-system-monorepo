@@ -184,9 +184,9 @@ function EditModal({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative flex flex-col w-full max-w-md max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-surface-100 flex items-center justify-between">
+        <div className="shrink-0 px-6 pt-6 pb-4 border-b border-surface-100 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-surface-900">Ubah Transaksi</h2>
             <p className="text-xs text-surface-500 mt-0.5">{tx.invoiceNumber}</p>
@@ -200,7 +200,7 @@ function EditModal({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="flex-1 px-6 py-5 space-y-4 overflow-y-auto min-h-0">
           {/* Sales Person Selection */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 mb-1.5">
@@ -308,7 +308,7 @@ function EditModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-6 flex items-center gap-3">
+        <div className="shrink-0 px-6 py-4 border-t border-surface-100 bg-white flex items-center gap-3">
           <button
             onClick={onClose}
             className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600
