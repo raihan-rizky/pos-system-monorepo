@@ -22,6 +22,10 @@ import { SupplierImportDrawer } from "@/features/supplier-import";
 import { SupplierDetailPopup } from "./SupplierDetailPopup";
 import { SupplierStatusConfirmDialog } from "./SupplierStatusConfirmDialog";
 import { SupplierStockInRecapBundles } from "./SupplierStockInRecapBundles";
+import {
+  ShoppingRequestCreateModal,
+  ShoppingRequestList,
+} from "@/features/suppliers/shopping-requests";
 
 const emptyForm: SupplierInput = {
   name: "",
@@ -33,7 +37,8 @@ const emptyForm: SupplierInput = {
 };
 
 export function SupplierPageShell() {
-  const [tab, setTab] = useState<"suppliers" | "recap">("suppliers");
+  const [tab, setTab] = useState<"suppliers" | "recap" | "shopping">("suppliers");
+  const [shoppingCreateOpen, setShoppingCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [type, setType] = useState<SupplierInput["type"] | "ALL">("ALL");
   const [showInactive, setShowInactive] = useState(false);
@@ -152,6 +157,9 @@ export function SupplierPageShell() {
           <TabButton active={tab === "recap"} onClick={() => setTab("recap")}>
             Rekap Stock In
           </TabButton>
+          <TabButton active={tab === "shopping"} onClick={() => setTab("shopping")}>
+            Daftar Belanja
+          </TabButton>
         </div>
 
         {tab === "suppliers" ? (
@@ -256,7 +264,7 @@ export function SupplierPageShell() {
               </section>
             )}
           </>
-        ) : (
+        ) : tab === "recap" ? (
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 p-4">
               <h2 className="text-base font-black text-slate-950">Rekap Stock In</h2>
@@ -267,6 +275,14 @@ export function SupplierPageShell() {
               isPending={recap.isPending}
               isError={recap.isError}
             />
+          </section>
+        ) : (
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 p-4">
+              <h2 className="text-base font-black text-slate-950">Daftar Belanja</h2>
+              <p className="text-sm text-slate-500">Buat dan cetak daftar kebutuhan barang untuk pengajuan belanja.</p>
+            </div>
+            <ShoppingRequestList onCreateClick={() => setShoppingCreateOpen(true)} />
           </section>
         )}
       </div>
@@ -285,6 +301,11 @@ export function SupplierPageShell() {
       <SupplierImportDrawer
         open={importDrawerOpen}
         onClose={() => setImportDrawerOpen(false)}
+      />
+
+      <ShoppingRequestCreateModal
+        open={shoppingCreateOpen}
+        onClose={() => setShoppingCreateOpen(false)}
       />
 
       <SupplierDetailPopup

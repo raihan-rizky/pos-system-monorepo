@@ -1,6 +1,3 @@
-// Prisma Schema for POS System - Toko Percetakan & ATK
-// All tables use pos_ prefix to avoid conflicts
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
@@ -12,249 +9,131 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ============================================================
-// ENUMS
-// ============================================================
-
-enum Role {
-  OWNER
-  SALES
-  CASHIER
-  ADMIN
-}
-
-enum PaymentMethod {
-  CASH
-  DEBIT
-  CREDIT
-  QRIS
-  TRANSFER
-}
-
-enum TransactionStatus {
-  PENDING_APPROVAL
-  COMPLETED
-  DP
-  VOIDED
-  REFUNDED
-  DRAFT
-}
-
-enum InventoryType {
-  IN
-  OUT
-  ADJUSTMENT
-}
-
-enum InventoryReason {
-  SALE
-  SALE_RETURN
-  RESTOCK
-  SUPPLIER_RETURN
-  WASTE
-  USAGE
-  OPNAME
-  MANUAL_ADJUSTMENT
-}
-
-enum SupplierType {
-  DISTRIBUTOR
-  MARKETPLACE
-  INDIVIDUAL
-  MANUFACTURER
-  OTHER
-}
-
-enum BatchOperationType {
-  PRODUCT_IMPORT
-  BULK_STOCK_ADJUSTMENT
-  UNDO
-}
-
-enum BatchOperationStatus {
-  PENDING
-  COMMITTED
-  UNDONE
-  UNDO_BLOCKED
-}
-
-enum BatchOperationItemAction {
-  CREATE
-  UPDATE
-  SKIP
-  STOCK_IN
-  STOCK_OUT
-  ADJUSTMENT
-  UNDO
-}
-
-enum ShiftStatus {
-  OPEN
-  CLOSED
-}
-
-enum ProductionStatus {
-  PRINTING
-  READY_PICKUP
-  DELIVERED
-}
-
-enum ProductionActivityEventType {
-  STATUS_CHANGE
-  PICKUP_WHATSAPP_SENT
-}
-
-enum ExpenseCategory {
-  SUPPLIES
-  UTILITIES
-  RENT
-  SALARY
-  TRANSPORT
-  MAINTENANCE
-  CASH_BOND
-  BEVERAGES
-  OTHER
-}
-
-enum CustomerType {
-  UMUM
-  AGEN
-  INDUSTRI
-  PEMERINTAH
-}
-
-enum CategoryCustomerPricingMode {
-  FLAT_DISCOUNT
-  PERCENT_DISCOUNT
-}
-
-enum SuratJalanStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  REJECTED
-}
-
-// ============================================================
-// MODELS
-// ============================================================
-
 model User {
-  id                    String        @id @default(cuid())
-  username              String        @unique
-  name                  String
-  role                  Role          @default(CASHIER)
-  password              String?       // password for quick POS login
-  avatarUrl             String?
-  isActive              Boolean       @default(true)
-  storeId               String?
-  store                 Store?        @relation(fields: [storeId], references: [id])
-  transactions          Transaction[] @relation("processed_transactions")
-  requestedTransactions Transaction[] @relation("requested_transactions")
-  productionActivityLogs ProductionActivityLog[] @relation("production_activity_actor")
-  shifts                CashierShift[]
-  batchOperations       BatchOperation[] @relation("created_batch_operations")
-  undoneBatchOperations BatchOperation[] @relation("undone_batch_operations")
-  recordedExpenses      Expense[]     @relation("recorded_expenses")
+  id                                  String                        @id @default(cuid())
+  username                            String                        @unique
+  name                                String
+  role                                Role                          @default(CASHIER)
+  password                            String?
+  avatarUrl                           String?
+  isActive                            Boolean                       @default(true)
+  storeId                             String?
+  createdAt                           DateTime                      @default(now())
+  updatedAt                           DateTime                      @updatedAt
+  batchOperations                     BatchOperation[]              @relation("created_batch_operations")
+  undoneBatchOperations               BatchOperation[]              @relation("undone_batch_operations")
+  shifts                              CashierShift[]
   createdCategoryCustomerPricingRules CategoryCustomerPricingRule[] @relation("created_category_customer_pricing_rules")
   updatedCategoryCustomerPricingRules CategoryCustomerPricingRule[] @relation("updated_category_customer_pricing_rules")
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  recordedExpenses                    Expense[]                     @relation("recorded_expenses")
+  productImportJobs                   ProductImportJob[]            @relation("created_product_import_jobs")
+  productionActivityLogs              ProductionActivityLog[]       @relation("production_activity_actor")
+  transactions                        Transaction[]                 @relation("processed_transactions")
+  requestedTransactions               Transaction[]                 @relation("requested_transactions")
+  store                               Store?                        @relation(fields: [storeId], references: [id])
 
   @@map("pos_users")
 }
 
 model Store {
-  id           String        @id @default(cuid())
-  name         String
-  address      String?
-  phone        String?
-  logoUrl      String?
-  users        User[]
-  products     Product[]
-  productStockGroups ProductStockGroup[]
-  printingServices PrintingService[]
-  transactions Transaction[]
-  shifts       CashierShift[]
-  salespersons Salesperson[]
-  customers    Customer[]
-  debtPaymentLogs DebtPaymentLog[]
-  batchOperations BatchOperation[]
-  priceLogs    ProductPriceLog[]
+  id                           String                        @id @default(cuid())
+  name                         String
+  address                      String?
+  phone                        String?
+  logoUrl                      String?
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  batchOperations              BatchOperation[]
+  shifts                       CashierShift[]
   customerCategoryPricingRules CategoryCustomerPricingRule[]
-  productionActivityLogs ProductionActivityLog[]
-  suratJalan   SuratJalan[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  customers                    Customer[]
+  debtPaymentLogs              DebtPaymentLog[]
+  printingServices             PrintingService[]
+  priceLogs                    ProductPriceLog[]
+  productImportJobs            ProductImportJob[]
+  productStockGroups           ProductStockGroup[]
+  productionActivityLogs       ProductionActivityLog[]
+  products                     Product[]
+  salespersons                 Salesperson[]
+  shoppingRequests             ShoppingRequest[]
+  suratJalan                   SuratJalan[]
+  transactions                 Transaction[]
+  users                        User[]
 
   @@map("pos_stores")
 }
 
 model Category {
-  id       String    @id @default(cuid())
-  name     String    @unique // "Alat Tulis", "Kertas", "Tinta", "Jasa Cetak", "Amplop", "Map"
-  icon     String?   // Emoji or icon name
-  color    String?   // Hex color for category badge
-  order    Int       @default(0)
-  products Product[]
+  id                           String                        @id @default(cuid())
+  name                         String                        @unique
+  icon                         String?
+  color                        String?
+  order                        Int                           @default(0)
   customerCategoryPricingRules CategoryCustomerPricingRule[]
+  products                     Product[]
 
   @@map("pos_categories")
 }
 
 model Product {
-  id            String            @id @default(cuid())
-  name          String
-  sku           String            @unique
-  barcode       String?
-  description   String?
-  price         Decimal           @db.Decimal(12, 2)
-  costPrice     Decimal?          @db.Decimal(12, 2)
-  hargaDinas    Decimal?          @db.Decimal(12, 2)
-  stock         Float             @default(0)
-  stockGroupId  String?
-  stockGroup    ProductStockGroup? @relation(fields: [stockGroupId], references: [id])
-  unitMultiplierToBase Float      @default(1)
-  conversionNeedsReview Boolean   @default(false)
-  minStock      Int               @default(5)    // Alert when stock below this
-  unit          String            @default("pcs") // pcs, rim, box, lembar, gsm, meter, roll, pack, lusin, kodi, set
-  size          String?           // e.g., "3x2m", "A4", "F4"
-  material      String?           // e.g., "Flexi 280gr", "Art Paper 150gsm"
-  categoryId    String
-  category      Category          @relation(fields: [categoryId], references: [id])
-  storeId       String
-  store         Store             @relation(fields: [storeId], references: [id])
-  isActive      Boolean           @default(true)
-  imageUrl      String?
-  serviceMaterialItems TransactionItem[] @relation("transaction_raw_material")
-  transactionProductItems TransactionItem[] @relation("transaction_product")
-  inventoryLogs InventoryLog[]
-  priceLogs     ProductPriceLog[]
-  stockGroupActivities ProductStockGroupActivity[]
-  batchItems    BatchOperationItem[]
-  suratJalanItems SuratJalanItem[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id                      String                      @id @default(cuid())
+  name                    String
+  sku                     String                      @unique
+  barcode                 String?
+  description             String?
+  price                   Decimal                     @db.Decimal(12, 2)
+  costPrice               Decimal?                    @db.Decimal(12, 2)
+  stock                   Float                       @default(0)
+  minStock                Int                         @default(5)
+  unit                    String                      @default("pcs")
+  categoryId              String
+  storeId                 String
+  isActive                Boolean                     @default(true)
+  imageUrl                String?
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  material                String?
+  size                    String?
+  stockGroupId            String?
+  unitMultiplierToBase    Float                       @default(1)
+  conversionNeedsReview   Boolean                     @default(false)
+  hargaDinas              Decimal?                    @db.Decimal(12, 2)
+  batchItems              BatchOperationItem[]
+  inventoryLogs           InventoryLog[]
+  priceLogs               ProductPriceLog[]
+  shoppingRequestItems    ShoppingRequestItem[]
+  stockGroupActivities    ProductStockGroupActivity[]
+  category                Category                    @relation(fields: [categoryId], references: [id])
+  stockGroup              ProductStockGroup?          @relation(fields: [stockGroupId], references: [id])
+  store                   Store                       @relation(fields: [storeId], references: [id])
+  suratJalanItems         SuratJalanItem[]
+  transactionProductItems TransactionItem[]           @relation("transaction_product")
+  serviceMaterialItems    TransactionItem[]           @relation("transaction_raw_material")
 
   @@index([categoryId])
   @@index([storeId])
   @@index([stockGroupId])
   @@index([sku])
+  @@index([barcode(ops: raw("gin_trgm_ops"))], map: "pos_products_barcode_trgm_idx", type: Gin)
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "pos_products_name_trgm_idx", type: Gin)
+  @@index([sku(ops: raw("gin_trgm_ops"))], map: "pos_products_sku_trgm_idx", type: Gin)
+  @@index([storeId, isActive, name], map: "pos_products_store_active_name_idx")
+  @@index([storeId, categoryId, isActive, name], map: "pos_products_store_category_active_name_idx")
   @@map("pos_products")
 }
 
 model ProductStockGroup {
-  id          String    @id @default(cuid())
+  id          String                      @id @default(cuid())
   storeId     String
-  store       Store     @relation(fields: [storeId], references: [id])
   groupKey    String
   displayName String
-  baseUnit    String    @default("pcs")
-  baseStock   Float     @default(0)
-  products    Product[]
+  baseUnit    String                      @default("pcs")
+  baseStock   Float                       @default(0)
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @default(now()) @updatedAt
   activities  ProductStockGroupActivity[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  store       Store                       @relation(fields: [storeId], references: [id])
+  products    Product[]
 
   @@unique([storeId, groupKey])
   @@index([storeId])
@@ -265,9 +144,7 @@ model ProductStockGroup {
 model ProductStockGroupActivity {
   id           String            @id @default(cuid())
   stockGroupId String
-  stockGroup   ProductStockGroup @relation(fields: [stockGroupId], references: [id], onDelete: Cascade)
   productId    String?
-  product      Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
   type         String
   note         String?
   createdBy    String?
@@ -275,25 +152,26 @@ model ProductStockGroupActivity {
   before       Json?
   after        Json?
   createdAt    DateTime          @default(now())
+  product      Product?          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockGroup   ProductStockGroup @relation(fields: [stockGroupId], references: [id], onDelete: Cascade)
 
   @@index([stockGroupId, createdAt])
-  @@index([stockGroupId, type, createdAt])
   @@index([productId])
+  @@index([stockGroupId, type, createdAt], map: "pos_product_stock_group_activities_stockGroupId_type_createdAt_")
   @@map("pos_product_stock_group_activities")
 }
 
 model PrintingService {
-  id          String   @id @default(cuid())
+  id          String            @id @default(cuid())
   storeId     String
-  store       Store    @relation(fields: [storeId], references: [id])
   name        String
-  basePrice   Decimal  @db.Decimal(12, 2)
-  unit        String   @default("pcs")
+  basePrice   Decimal           @db.Decimal(12, 2)
+  unit        String            @default("pcs")
   description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  store       Store             @relation(fields: [storeId], references: [id])
   items       TransactionItem[]
 
   @@index([storeId, isActive])
@@ -302,44 +180,45 @@ model PrintingService {
 }
 
 model Transaction {
-  id               String            @id @default(cuid())
-  invoiceNumber    String?           @unique
-  draftNumber      String?           @unique
-  storeId          String
-  store            Store             @relation(fields: [storeId], references: [id])
-  cashierId        String?           // Nullable: filled when Cashier approves a SALES request
-  cashier          User?             @relation("processed_transactions", fields: [cashierId], references: [id])
-  requestedById    String?           // The SALES user who created the request
-  requestedBy      User?             @relation("requested_transactions", fields: [requestedById], references: [id])
-  customerId       String?
-  customer         Customer?         @relation(fields: [customerId], references: [id])
-  salespersonId    String?
-  salesperson      Salesperson?      @relation(fields: [salespersonId], references: [id])
-  items            TransactionItem[]
-  subtotal         Decimal           @db.Decimal(12, 2)
-  discount         Decimal           @default(0) @db.Decimal(12, 2)
-  tax              Decimal           @default(0) @db.Decimal(12, 2)
-  total            Decimal           @db.Decimal(12, 2)
-  paymentMethod    PaymentMethod     @default(CASH)
-  amountPaid       Decimal           @default(0) @db.Decimal(12, 2)
-  change           Decimal           @default(0) @db.Decimal(12, 2)
-  status           TransactionStatus @default(COMPLETED)
-  customerName     String?           // kept for walk-in / backward compat
-  salesName        String?
-  note             String?
-  isJobOrder       Boolean           @default(false)
-  productionStatus ProductionStatus?
-  productionActivityLogs ProductionActivityLog[]
-  estimatedDoneAt  DateTime?
-  offlineClientMutationId String?     @unique
-  offlineOriginalPayload  Json?
-  offlineSyncMetadata     Json?
-  expenses         Expense[]
-  debtPaymentLogs  DebtPaymentLog[]
-  inventoryLogs    InventoryLog[]
-  suratJalan       SuratJalan[]
-  stockManagedBySuratJalan Boolean @default(false)
-  createdAt        DateTime          @default(now())
+  id                       String                  @id @default(cuid())
+  invoiceNumber            String?                 @unique
+  storeId                  String
+  cashierId                String?
+  subtotal                 Decimal                 @db.Decimal(12, 2)
+  discount                 Decimal                 @default(0) @db.Decimal(12, 2)
+  tax                      Decimal                 @default(0) @db.Decimal(12, 2)
+  total                    Decimal                 @db.Decimal(12, 2)
+  paymentMethod            PaymentMethod           @default(CASH)
+  amountPaid               Decimal                 @default(0) @db.Decimal(12, 2)
+  change                   Decimal                 @default(0) @db.Decimal(12, 2)
+  status                   TransactionStatus       @default(COMPLETED)
+  note                     String?
+  createdAt                DateTime                @default(now())
+  customerName             String?
+  salesName                String?
+  salespersonId            String?
+  estimatedDoneAt          DateTime?
+  isJobOrder               Boolean                 @default(false)
+  productionStatus         ProductionStatus?
+  customerId               String?
+  requestedById            String?
+  offlineClientMutationId  String?                 @unique
+  offlineOriginalPayload   Json?
+  offlineSyncMetadata      Json?
+  buktiTransaksiUrls       String[]                @default([])
+  draftNumber              String?                 @unique
+  stockManagedBySuratJalan Boolean                 @default(false)
+  debtPaymentLogs          DebtPaymentLog[]
+  expenses                 Expense[]
+  inventoryLogs            InventoryLog[]
+  productionActivityLogs   ProductionActivityLog[]
+  suratJalan               SuratJalan[]
+  items                    TransactionItem[]
+  cashier                  User?                   @relation("processed_transactions", fields: [cashierId], references: [id])
+  customer                 Customer?               @relation(fields: [customerId], references: [id])
+  requestedBy              User?                   @relation("requested_transactions", fields: [requestedById], references: [id])
+  salesperson              Salesperson?            @relation(fields: [salespersonId], references: [id])
+  store                    Store                   @relation(fields: [storeId], references: [id])
 
   @@index([storeId])
   @@index([cashierId])
@@ -350,26 +229,31 @@ model Transaction {
   @@index([status])
   @@index([draftNumber])
   @@index([offlineClientMutationId])
+  @@index([customerId, storeId, status, createdAt], map: "pos_transactions_customer_store_status_createdAt_idx")
+  @@index([storeId, createdAt(sort: Desc)], map: "pos_transactions_store_createdAt_desc_idx")
+  @@index([storeId, isJobOrder, productionStatus, createdAt(sort: Desc)], map: "pos_transactions_store_job_production_createdAt_desc_idx")
+  @@index([storeId, paymentMethod, createdAt(sort: Desc)], map: "pos_transactions_store_payment_createdAt_desc_idx")
+  @@index([storeId, status, createdAt(sort: Desc)], map: "pos_transactions_store_status_createdAt_desc_idx")
   @@map("pos_transactions")
 }
 
 model ProductionActivityLog {
-  id            String           @id @default(cuid())
+  id            String                      @id @default(cuid())
   transactionId String
-  transaction   Transaction      @relation(fields: [transactionId], references: [id])
   storeId       String
-  store         Store            @relation(fields: [storeId], references: [id])
   invoiceNumber String?
   customerName  String?
   fromStatus    ProductionStatus?
   toStatus      ProductionStatus
   actorId       String?
-  actor         User?            @relation("production_activity_actor", fields: [actorId], references: [id])
   actorName     String
   actorRole     Role
+  createdAt     DateTime                    @default(now())
   eventType     ProductionActivityEventType @default(STATUS_CHANGE)
   note          String?
-  createdAt     DateTime         @default(now())
+  actor         User?                       @relation("production_activity_actor", fields: [actorId], references: [id])
+  store         Store                       @relation(fields: [storeId], references: [id])
+  transaction   Transaction                 @relation(fields: [transactionId], references: [id])
 
   @@index([storeId, createdAt])
   @@index([transactionId, createdAt])
@@ -379,50 +263,54 @@ model ProductionActivityLog {
   @@map("pos_production_activity_logs")
 }
 
+/// This model contains an index with non-default null sort order and requires additional setup for migrations. Visit https://pris.ly/d/default-index-null-ordering for more info.
 model Customer {
-  id           String        @id @default(cuid())
-  name         String
-  phone        String?       // Standardized E.164 format e.g. +6281234567890
-  email        String?
-  company      String?
-  address      String?
-  type         CustomerType  @default(UMUM)
-  notes        String?       // Free-text notes (allergies, preferences, etc.)
-
-  // Analytics — updated atomically on every transaction
-  totalSpent   Decimal       @default(0) @db.Decimal(12, 2)
-  totalOrders  Int           @default(0)
-  totalDebt    Decimal       @default(0) @db.Decimal(12, 2) // Outstanding piutang (remaining from DP)
-  loyaltyPoint Int           @default(0)
-  lastVisitAt  DateTime?
-
-  storeId      String
-  store        Store         @relation(fields: [storeId], references: [id])
-  transactions Transaction[]
+  id              String           @id @default(cuid())
+  name            String
+  phone           String?
+  email           String?
+  company         String?
+  address         String?
+  type            CustomerType     @default(UMUM)
+  notes           String?
+  totalSpent      Decimal          @default(0) @db.Decimal(12, 2)
+  totalOrders     Int              @default(0)
+  loyaltyPoint    Int              @default(0)
+  lastVisitAt     DateTime?
+  storeId         String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  totalDebt       Decimal          @default(0) @db.Decimal(12, 2)
+  store           Store            @relation(fields: [storeId], references: [id])
   debtPaymentLogs DebtPaymentLog[]
-
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  transactions    Transaction[]
 
   @@index([storeId])
   @@index([phone])
   @@index([type])
+  @@index([company(ops: raw("gin_trgm_ops"))], map: "pos_customers_company_trgm_idx", type: Gin)
+  @@index([email(ops: raw("gin_trgm_ops"))], map: "pos_customers_email_trgm_idx", type: Gin)
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "pos_customers_name_trgm_idx", type: Gin)
+  @@index([phone(ops: raw("gin_trgm_ops"))], map: "pos_customers_phone_trgm_idx", type: Gin)
+  @@index([storeId, lastVisitAt(sort: Desc)], map: "pos_customers_store_lastVisitAt_desc_idx")
+  @@index([storeId, phone], map: "pos_customers_store_phone_idx")
+  @@index([storeId, type, lastVisitAt(sort: Desc)], map: "pos_customers_store_type_lastVisitAt_desc_idx")
   @@map("pos_customers")
 }
 
 model Supplier {
-  id            String       @id @default(cuid())
-  name          String
-  type          SupplierType
-  phone         String?
-  contactPerson String?
-  address       String?
-  notes         String?
-  isActive      Boolean      @default(true)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  inventoryLogs InventoryLog[]
+  id               String            @id @default(cuid())
+  name             String
+  type             SupplierType
+  phone            String?
+  contactPerson    String?
+  address          String?
+  notes            String?
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  inventoryLogs    InventoryLog[]
+  shoppingRequests ShoppingRequest[]
 
   @@index([isActive])
   @@index([type])
@@ -433,15 +321,15 @@ model Supplier {
 model DebtPaymentLog {
   id            String        @id @default(cuid())
   transactionId String
-  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   customerId    String
-  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   storeId       String
-  store         Store         @relation(fields: [storeId], references: [id])
   amount        Decimal       @db.Decimal(12, 2)
   paymentMethod PaymentMethod
   note          String?
   createdAt     DateTime      @default(now())
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store         Store         @relation(fields: [storeId], references: [id])
+  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
   @@index([storeId, createdAt])
   @@index([customerId, createdAt])
@@ -454,45 +342,46 @@ model Salesperson {
   name         String
   isActive     Boolean       @default(true)
   storeId      String
-  store        Store         @relation(fields: [storeId], references: [id])
-  transactions Transaction[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  store        Store         @relation(fields: [storeId], references: [id])
+  transactions Transaction[]
 
   @@index([storeId])
+  @@index([storeId, isActive, name], map: "pos_salespersons_store_active_name_idx")
   @@map("pos_salespersons")
 }
 
 model TransactionItem {
-  id            String      @id @default(cuid())
-  transactionId String
-  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  productId     String?
-  product       Product?    @relation("transaction_product", fields: [productId], references: [id])
-  printingServiceId String?
-  printingService   PrintingService? @relation(fields: [printingServiceId], references: [id])
+  id                   String                       @id @default(cuid())
+  transactionId        String
+  productId            String?
+  productName          String
+  quantity             Int
+  unitPrice            Decimal                      @db.Decimal(12, 2)
+  discount             Decimal                      @default(0) @db.Decimal(12, 2)
+  subtotal             Decimal                      @db.Decimal(12, 2)
+  material             String?
+  size                 String?
+  unitCost             Decimal?                     @db.Decimal(12, 2)
+  printingServiceId    String?
   rawMaterialProductId String?
-  rawMaterialProduct   Product? @relation("transaction_raw_material", fields: [rawMaterialProductId], references: [id])
-  productName   String      // Snapshot of product name at time of sale
-  size          String?     // Snapshot of size
-  material      String?     // Snapshot of material
-  serviceNote   String?
-  rawMaterialQuantity Float?
-  rawMaterialUnit String?
-  quantity      Int
-  unitPrice     Decimal     @db.Decimal(12, 2)
-  unitCost      Decimal?    @db.Decimal(12, 2)
-  discount      Decimal     @default(0) @db.Decimal(12, 2)
-  subtotal      Decimal     @db.Decimal(12, 2)
-  pricingRuleId String?
-  pricingCustomerType CustomerType?
-  pricingCategoryId String?
-  pricingCategoryName String?
-  pricingMode CategoryCustomerPricingMode?
-  pricingValue Decimal? @db.Decimal(12, 2)
-  originalUnitPrice Decimal? @db.Decimal(12, 2)
-  appliedUnitPrice Decimal? @db.Decimal(12, 2)
-  suratJalanItems SuratJalanItem[]
+  serviceNote          String?
+  rawMaterialQuantity  Float?
+  rawMaterialUnit      String?
+  pricingRuleId        String?
+  pricingCustomerType  CustomerType?
+  pricingCategoryId    String?
+  pricingCategoryName  String?
+  pricingMode          CategoryCustomerPricingMode?
+  pricingValue         Decimal?                     @db.Decimal(12, 2)
+  originalUnitPrice    Decimal?                     @db.Decimal(12, 2)
+  appliedUnitPrice     Decimal?                     @db.Decimal(12, 2)
+  suratJalanItems      SuratJalanItem[]
+  printingService      PrintingService?             @relation(fields: [printingServiceId], references: [id])
+  product              Product?                     @relation("transaction_product", fields: [productId], references: [id], onDelete: Restrict)
+  rawMaterialProduct   Product?                     @relation("transaction_raw_material", fields: [rawMaterialProductId], references: [id])
+  transaction          Transaction                  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
   @@index([transactionId])
   @@index([productId])
@@ -503,29 +392,28 @@ model TransactionItem {
 }
 
 model InventoryLog {
-  id              String              @id @default(cuid())
+  id              String             @id @default(cuid())
   productId       String
-  product         Product             @relation(fields: [productId], references: [id])
-  transactionId   String?
-  transaction     Transaction?        @relation(fields: [transactionId], references: [id])
-  suratJalanId    String?
-  suratJalan      SuratJalan?         @relation(fields: [suratJalanId], references: [id])
-  supplierId      String?
-  supplier        Supplier?           @relation(fields: [supplierId], references: [id])
   type            InventoryType
-  reason          InventoryReason?
   quantity        Float
-  unitCost        Decimal?            @db.Decimal(12, 2)
   note            String?
-  createdBy       String?      // requester userId
-  person          String?      // requester name
-  createdAt       DateTime            @default(now())
-
-  status          InventoryLogStatus  @default(APPROVED)
+  createdBy       String?
+  createdAt       DateTime           @default(now())
+  person          String?
+  reason          InventoryReason?
+  unitCost        Decimal?           @db.Decimal(12, 2)
+  status          InventoryLogStatus @default(APPROVED)
   approvedBy      String?
   approverName    String?
   decidedAt       DateTime?
   rejectionReason String?
+  supplierId      String?
+  transactionId   String?
+  suratJalanId    String?
+  product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier        Supplier?          @relation(fields: [supplierId], references: [id])
+  suratJalan      SuratJalan?        @relation(fields: [suratJalanId], references: [id])
+  transaction     Transaction?       @relation(fields: [transactionId], references: [id])
 
   @@index([productId])
   @@index([supplierId, createdAt])
@@ -538,14 +426,12 @@ model InventoryLog {
 }
 
 model SuratJalan {
-  id              String            @id @default(cuid())
+  id              String           @id @default(cuid())
   transactionId   String
-  transaction     Transaction       @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   storeId         String
-  store           Store             @relation(fields: [storeId], references: [id])
-  number          String            @unique
+  number          String           @unique
   recipientName   String
-  status          SuratJalanStatus  @default(PENDING)
+  status          SuratJalanStatus @default(PENDING)
   sequence        Int
   requestedById   String?
   requestedByName String?
@@ -556,10 +442,12 @@ model SuratJalan {
   rejectedAt      DateTime?
   rejectionReason String?
   note            String?
-  items           SuratJalanItem[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   inventoryLogs   InventoryLog[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  store           Store            @relation(fields: [storeId], references: [id])
+  transaction     Transaction      @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  items           SuratJalanItem[]
 
   @@unique([transactionId, sequence])
   @@index([transactionId, status])
@@ -571,11 +459,8 @@ model SuratJalan {
 model SuratJalanItem {
   id                String          @id @default(cuid())
   suratJalanId      String
-  suratJalan        SuratJalan      @relation(fields: [suratJalanId], references: [id], onDelete: Cascade)
   transactionItemId String
-  transactionItem   TransactionItem @relation(fields: [transactionItemId], references: [id])
   productId         String
-  product           Product         @relation(fields: [productId], references: [id])
   productName       String
   quantity          Float
   unit              String?
@@ -584,6 +469,9 @@ model SuratJalanItem {
   stockAfter        Float?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+  product           Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  suratJalan        SuratJalan      @relation(fields: [suratJalanId], references: [id], onDelete: Cascade)
+  transactionItem   TransactionItem @relation(fields: [transactionItemId], references: [id])
 
   @@index([suratJalanId])
   @@index([transactionItemId])
@@ -591,26 +479,64 @@ model SuratJalanItem {
   @@map("pos_surat_jalan_items")
 }
 
-enum InventoryLogStatus {
-  PENDING
-  APPROVED
-  REJECTED
+model ShoppingRequest {
+  id              String                @id @default(cuid())
+  storeId         String
+  number          String                @unique
+  sequence        Int
+  supplierId      String?
+  status          ShoppingRequestStatus @default(DRAFT)
+  requestedByName String?
+  approvedById    String?
+  approvedByName  String?
+  approvedAt      DateTime?
+  cancelledAt     DateTime?
+  note            String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  items           ShoppingRequestItem[]
+  store           Store                 @relation(fields: [storeId], references: [id])
+  supplier        Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([status, createdAt])
+  @@index([supplierId, createdAt])
+  @@map("pos_shopping_requests")
+}
+
+model ShoppingRequestItem {
+  id                String          @id @default(cuid())
+  shoppingRequestId String
+  productId         String
+  productName       String
+  unit              String?
+  stockOnHand       Float
+  requestedQty      Float
+  approvedQty       Float?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  product           Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shoppingRequest   ShoppingRequest @relation(fields: [shoppingRequestId], references: [id], onDelete: Cascade)
+
+  @@index([shoppingRequestId])
+  @@index([productId])
+  @@map("pos_shopping_request_items")
 }
 
 model ProductPriceLog {
-  id            String                 @id @default(cuid())
+  id            String                @id @default(cuid())
   productId     String
-  product       Product                @relation(fields: [productId], references: [id])
   storeId       String
-  store         Store                  @relation(fields: [storeId], references: [id])
   field         ProductPriceLogField
-  oldValue      Decimal?               @db.Decimal(12, 2)
-  newValue      Decimal?               @db.Decimal(12, 2)
+  oldValue      Decimal?              @db.Decimal(12, 2)
+  newValue      Decimal?              @db.Decimal(12, 2)
   source        ProductPriceLogSource
   note          String?
   changedBy     String?
   changedByName String?
-  createdAt     DateTime               @default(now())
+  createdAt     DateTime              @default(now())
+  product       Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store         Store                 @relation(fields: [storeId], references: [id])
 
   @@index([storeId, createdAt])
   @@index([productId, createdAt])
@@ -619,76 +545,175 @@ model ProductPriceLog {
 }
 
 model CategoryCustomerPricingRule {
-  id           String                      @id @default(cuid())
-  storeId      String
-  store        Store                       @relation(fields: [storeId], references: [id])
-  categoryId   String
-  category     Category                    @relation(fields: [categoryId], references: [id])
-  customerType CustomerType
-  mode         CategoryCustomerPricingMode
-  value        Decimal                     @db.Decimal(12, 2)
-  isActive     Boolean                     @default(true)
-  createdBy    String?
-  createdByUser User?                      @relation("created_category_customer_pricing_rules", fields: [createdBy], references: [id])
-  updatedBy    String?
-  updatedByUser User?                      @relation("updated_category_customer_pricing_rules", fields: [updatedBy], references: [id])
-  createdAt    DateTime                    @default(now())
-  updatedAt    DateTime                    @updatedAt
+  id            String                      @id @default(cuid())
+  storeId       String
+  categoryId    String
+  customerType  CustomerType
+  mode          CategoryCustomerPricingMode
+  value         Decimal                     @db.Decimal(12, 2)
+  isActive      Boolean                     @default(true)
+  createdBy     String?
+  updatedBy     String?
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+  category      Category                    @relation(fields: [categoryId], references: [id])
+  createdByUser User?                       @relation("created_category_customer_pricing_rules", fields: [createdBy], references: [id])
+  store         Store                       @relation(fields: [storeId], references: [id])
+  updatedByUser User?                       @relation("updated_category_customer_pricing_rules", fields: [updatedBy], references: [id])
 
   @@index([storeId, isActive])
-  @@index([storeId, customerType, categoryId])
   @@index([categoryId])
+  @@index([storeId, customerType, categoryId], map: "pos_category_customer_pricing_rules_storeId_customerType_catego")
   @@map("pos_category_customer_pricing_rules")
 }
 
-enum ProductPriceLogField {
-  PRICE
-  COST_PRICE
-}
-
-enum ProductPriceLogSource {
-  MANUAL
-  IMPORT
-  API
-  SYSTEM
-}
-
 model BatchOperation {
-  id              String               @id @default(cuid())
-  type            BatchOperationType
-  status          BatchOperationStatus @default(COMMITTED)
-  storeId         String
-  store           Store                @relation(fields: [storeId], references: [id])
-  createdBy       String
-  creator         User                 @relation("created_batch_operations", fields: [createdBy], references: [id])
-  summary         Json
-  items           BatchOperationItem[]
-  createdAt       DateTime             @default(now())
-  undoneAt        DateTime?
-  undoneBy        String?
-  undoneByUser    User?                @relation("undone_batch_operations", fields: [undoneBy], references: [id])
-  undoOfBatchId   String?
-  undoOfBatch     BatchOperation?      @relation("batch_operation_undo", fields: [undoOfBatchId], references: [id])
-  undoOperations  BatchOperation[]     @relation("batch_operation_undo")
+  id                       String                    @id @default(cuid())
+  type                     BatchOperationType
+  status                   BatchOperationStatus      @default(COMMITTED)
+  storeId                  String
+  createdBy                String
+  summary                  Json
+  createdAt                DateTime                  @default(now())
+  undoneAt                 DateTime?
+  undoneBy                 String?
+  undoOfBatchId            String?
+  items                    BatchOperationItem[]
+  creator                  User                      @relation("created_batch_operations", fields: [createdBy], references: [id])
+  store                    Store                     @relation(fields: [storeId], references: [id])
+  undoOfBatch              BatchOperation?           @relation("batch_operation_undo", fields: [undoOfBatchId], references: [id])
+  undoOperations           BatchOperation[]          @relation("batch_operation_undo")
+  undoneByUser             User?                     @relation("undone_batch_operations", fields: [undoneBy], references: [id])
+  productImportPlannedRows ProductImportPlannedRow[]
+  productImportJob         ProductImportJob?
 
   @@index([storeId])
   @@index([createdAt])
   @@map("pos_batch_operations")
 }
 
+model ProductImportPlannedRow {
+  id               String         @id @default(cuid())
+  batchOperationId String
+  sourceRowNumber  Int
+  cursorIndex      Int
+  status           String         @default("PENDING")
+  sku              String
+  productId        String?
+  commitAction     String
+  rowData          Json
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  batchOperation   BatchOperation @relation(fields: [batchOperationId], references: [id], onDelete: Cascade)
+
+  @@unique([batchOperationId, sourceRowNumber], map: "pos_product_import_planned_rows_batchOperationId_sourceRowNumbe")
+  @@index([batchOperationId, status])
+  @@index([batchOperationId, cursorIndex], map: "pos_product_import_planned_rows_batchOperationId_cursorIndex_id")
+  @@map("pos_product_import_planned_rows")
+}
+
+model ProductImportJob {
+  id                String                 @id @default(cuid())
+  storeId           String
+  createdBy         String
+  batchOperationId  String                 @unique
+  status            ProductImportJobStatus @default(PENDING)
+  totalRows         Int
+  processedRows     Int                    @default(0)
+  successRows       Int                    @default(0)
+  failedRows        Int                    @default(0)
+  skippedRows       Int                    @default(0)
+  chunkSize         Int                    @default(1)
+  summary           Json
+  lastError         String?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  lastHeartbeatAt   DateTime?
+  cancelRequestedAt DateTime?
+  retainUntil       DateTime
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  batchOperation    BatchOperation         @relation(fields: [batchOperationId], references: [id], onDelete: Cascade)
+  creator           User                   @relation("created_product_import_jobs", fields: [createdBy], references: [id])
+  rows              ProductImportJobRow[]
+  store             Store                  @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, status])
+  @@index([status, lastHeartbeatAt])
+  @@index([retainUntil])
+  @@map("pos_product_import_jobs")
+}
+
+model ProductImportJobRow {
+  id            String                    @id @default(cuid())
+  jobId         String
+  rowNumber     Int
+  cursorIndex   Int
+  status        ProductImportJobRowStatus @default(PENDING)
+  attemptCount  Int                       @default(0)
+  nextAttemptAt DateTime?
+  commitAction  String
+  sku           String
+  productId     String?
+  rowData       Json
+  errorCode     String?
+  errorMessage  String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  job           ProductImportJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, rowNumber])
+  @@index([jobId, status, cursorIndex])
+  @@index([jobId, cursorIndex])
+  @@map("pos_product_import_job_rows")
+}
+
+model BulkStockImportJob {
+  id              String   @id @default(cuid())
+  storeId         String
+  createdBy       String
+  createdByName   String?
+  createdByRole   String
+  status          String   @default("PENDING")
+  phase           String   @default("QUEUED")
+  totalRows       Int
+  processedRows   Int      @default(0)
+  successRows     Int      @default(0)
+  failedRows      Int      @default(0)
+  payload         Json
+  result          Json?
+  errorCode       String?
+  errorMessage    String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  lastHeartbeatAt DateTime?
+  retainUntil     DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([storeId, status])
+  @@index([status, lastHeartbeatAt])
+  @@index([retainUntil])
+  @@map("pos_bulk_stock_import_jobs")
+}
+
 model BatchOperationItem {
   id               String                   @id @default(cuid())
   batchOperationId String
-  batchOperation   BatchOperation           @relation(fields: [batchOperationId], references: [id], onDelete: Cascade)
   productId        String?
-  product          Product?                 @relation(fields: [productId], references: [id])
   sku              String
   action           BatchOperationItemAction
   beforeSnapshot   Json?
   afterSnapshot    Json?
   inventoryLogId   String?
   createdAt        DateTime                 @default(now())
+  sourceRowNumber  Int?
+  batchOperation   BatchOperation           @relation(fields: [batchOperationId], references: [id], onDelete: Cascade)
+  product          Product?                 @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  @@unique([batchOperationId, sourceRowNumber])
   @@index([batchOperationId])
   @@index([productId])
   @@index([productId, createdAt])
@@ -698,9 +723,7 @@ model BatchOperationItem {
 model CashierShift {
   id              String      @id @default(cuid())
   cashierId       String
-  cashier         User        @relation(fields: [cashierId], references: [id])
   storeId         String
-  store           Store       @relation(fields: [storeId], references: [id])
   openingBalance  Decimal     @db.Decimal(12, 2)
   closingBalance  Decimal?    @db.Decimal(12, 2)
   expectedBalance Decimal?    @db.Decimal(12, 2)
@@ -709,35 +732,37 @@ model CashierShift {
   note            String?
   openedAt        DateTime    @default(now())
   closedAt        DateTime?
+  cashier         User        @relation(fields: [cashierId], references: [id])
+  store           Store       @relation(fields: [storeId], references: [id])
 
   @@index([cashierId])
   @@index([storeId])
   @@index([status])
+  @@index([storeId, openedAt(sort: Desc)], map: "pos_cashier_shifts_store_openedAt_desc_idx")
+  @@index([storeId, status, openedAt(sort: Desc)], map: "pos_cashier_shifts_store_status_openedAt_desc_idx")
   @@map("pos_cashier_shifts")
 }
 
 model PushSubscription {
-  id          String   @id @default(cuid())
-  endpoint    String   @unique
-  userId      String
-  role        Role
-  storeId     String?
-  auth        String?
-  p256dh      String?
-  features    Json?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id(map: "push_subscriptions_pkey") @default(dbgenerated("gen_random_uuid()")) @db.VarChar(255)
+  userId     String   @db.VarChar(255)
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  user_agent String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  storeId    String?  @db.VarChar(255)
+  isActive   Boolean  @default(true)
+  role       Role
+  features   Json?
 
   @@index([userId])
   @@index([storeId])
   @@index([role])
+  @@index([userId], map: "idx_push_subscriptions_user_id")
   @@map("pos_push_subscriptions")
 }
-
-// ============================================================
-// LEGACY TABLES (To prevent Prisma from dropping them)
-// ============================================================
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -769,6 +794,7 @@ model chat_messages_teladan {
   image_url  String?
 
   @@index([phone, created_at(sort: Desc)], map: "idx_chat_messages_phone")
+  @@index([phone, created_at(sort: Desc)], map: "idx_chat_messages_teladan_phone")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -855,10 +881,6 @@ model receipts_teladan {
   @@index([transaction_id], map: "idx_receipts_transaction_id")
 }
 
-// ============================================================
-// STORE SETTINGS (singleton — id is always "store-main")
-// ============================================================
-
 model StoreSettings {
   id        String   @id @default("store-main")
   name      String   @default("")
@@ -884,21 +906,21 @@ model RolePermission {
 }
 
 model Expense {
-  id              String          @id @default(cuid())
-  recordedById    String
-  recordedBy      User            @relation("recorded_expenses", fields: [recordedById], references: [id])
-  applicantName   String
-  category        ExpenseCategory
-  description     String?
-  amount          Decimal         @db.Decimal(12, 2)
-  changeAmount    Decimal         @default(0) @db.Decimal(12, 2)
-  occurredAt      DateTime
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  transactionId   String?
-  transaction     Transaction?    @relation(fields: [transactionId], references: [id])
-  attachmentUrl   String?
-  deletedAt       DateTime?
+  id            String          @id @default(cuid())
+  recordedById  String
+  applicantName String
+  category      ExpenseCategory
+  description   String?
+  amount        Decimal         @db.Decimal(12, 2)
+  changeAmount  Decimal         @default(0) @db.Decimal(12, 2)
+  occurredAt    DateTime
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  transactionId String?
+  attachmentUrl String?
+  deletedAt     DateTime?
+  recordedBy    User            @relation("recorded_expenses", fields: [recordedById], references: [id])
+  transaction   Transaction?    @relation(fields: [transactionId], references: [id])
 
   @@index([occurredAt])
   @@index([category])
@@ -908,3 +930,269 @@ model Expense {
   @@map("pos_expenses")
 }
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chat_sender_defense_teladan {
+  phone         String    @id
+  is_blocked    Boolean?  @default(false)
+  abuse_count   Int?      @default(0)
+  last_abuse_at DateTime? @db.Timestamptz(6)
+  last_seen_at  DateTime? @default(now()) @db.Timestamptz(6)
+  blocked_at    DateTime? @db.Timestamptz(6)
+  block_reason  String?
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([phone], map: "idx_chat_sender_defense_phone")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model companies {
+  id            String          @id @db.Uuid
+  user_id       String          @db.Uuid
+  name          String
+  contact_name  String?
+  phone         String?
+  email         String?
+  notes         String?
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @db.Timestamptz(6)
+  tender_offers tender_offers[]
+
+  @@index([user_id])
+  @@index([user_id, name])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model negotiations {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chat_id               String    @unique
+  customer_name         String?
+  last_offer_price      Decimal?  @db.Decimal
+  status                String    @default("open")
+  last_offer_message_id String?
+  closed_at             DateTime? @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([status], map: "idx_negotiations_status")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model products {
+  id            String          @id @db.Uuid
+  user_id       String          @db.Uuid
+  name          String
+  specification String?
+  notes         String?
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @db.Timestamptz(6)
+  image_path    String?
+  tender_offers tender_offers[]
+
+  @@index([user_id])
+  @@index([user_id, name])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model tender_offers {
+  id               String        @id @db.Uuid
+  user_id          String        @db.Uuid
+  product_id       String        @db.Uuid
+  company_id       String        @db.Uuid
+  offer_date       DateTime      @db.Date
+  tender_reference String?
+  offered_price    Decimal?      @db.Decimal(14, 2)
+  quantity         Decimal?      @db.Decimal(14, 2)
+  currency         String        @default("THB")
+  status           tender_status @default(draft)
+  notes            String?
+  created_at       DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime      @db.Timestamptz(6)
+  companies        companies     @relation(fields: [company_id], references: [id])
+  products         products      @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id])
+  @@index([product_id, offer_date(sort: Desc)])
+  @@index([user_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model waha_events {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_name String
+  chat_id    String?
+  message_id String?
+  payload    Json
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([chat_id, created_at(sort: Desc)], map: "idx_waha_events_chat_id_created_at")
+}
+
+enum Role {
+  OWNER
+  SALES
+  CASHIER
+  ADMIN
+}
+
+enum PaymentMethod {
+  CASH
+  DEBIT
+  CREDIT
+  QRIS
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING_APPROVAL
+  COMPLETED
+  VOIDED
+  REFUNDED
+  DP
+  DRAFT
+}
+
+enum InventoryType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum InventoryReason {
+  SALE
+  SALE_RETURN
+  RESTOCK
+  SUPPLIER_RETURN
+  WASTE
+  USAGE
+  OPNAME
+  MANUAL_ADJUSTMENT
+}
+
+enum SupplierType {
+  DISTRIBUTOR
+  MARKETPLACE
+  INDIVIDUAL
+  MANUFACTURER
+  OTHER
+}
+
+enum BatchOperationType {
+  PRODUCT_IMPORT
+  BULK_STOCK_ADJUSTMENT
+  UNDO
+}
+
+enum BatchOperationStatus {
+  COMMITTED
+  UNDONE
+  UNDO_BLOCKED
+  PENDING
+}
+
+enum BatchOperationItemAction {
+  CREATE
+  UPDATE
+  SKIP
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  UNDO
+}
+
+enum ProductImportJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+  CANCEL_REQUESTED
+  CANCELLED
+}
+
+enum ProductImportJobRowStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum ProductionStatus {
+  PRINTING
+  READY_PICKUP
+  DELIVERED
+}
+
+enum ProductionActivityEventType {
+  STATUS_CHANGE
+  PICKUP_WHATSAPP_SENT
+}
+
+enum ExpenseCategory {
+  SUPPLIES
+  UTILITIES
+  RENT
+  SALARY
+  TRANSPORT
+  MAINTENANCE
+  CASH_BOND
+  BEVERAGES
+  OTHER
+}
+
+enum CustomerType {
+  UMUM
+  AGEN
+  INDUSTRI
+  PEMERINTAH
+}
+
+enum CategoryCustomerPricingMode {
+  FLAT_DISCOUNT
+  PERCENT_DISCOUNT
+}
+
+enum SuratJalanStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REJECTED
+}
+
+enum ShoppingRequestStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+}
+
+enum InventoryLogStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ProductPriceLogField {
+  PRICE
+  COST_PRICE
+}
+
+enum ProductPriceLogSource {
+  MANUAL
+  IMPORT
+  API
+  SYSTEM
+}
+
+enum tender_status {
+  draft
+  submitted
+  accepted
+  rejected
+  expired
+}

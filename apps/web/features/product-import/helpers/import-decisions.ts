@@ -30,7 +30,8 @@ export function getRowsMissingImportDecision(
     const requiresDecision =
       Boolean(row.existingProductId) ||
       row.duplicateInFile ||
-      row.autoAction === "conflict";
+      row.autoAction === "conflict" ||
+      row.autoAction === "same_unit_price_conflict";
     const decision = getEffectiveImportDecision(row, decisions);
 
     return requiresDecision && !decision;

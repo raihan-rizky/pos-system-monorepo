@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GET, POST } from "../route";
+import { DELETE, GET, POST } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
@@ -9,6 +9,9 @@ const productCountMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindManyMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 const productCreateMock = vi.hoisted(() => vi.fn());
+const productUpdateMock = vi.hoisted(() => vi.fn());
+const productDeleteMock = vi.hoisted(() => vi.fn());
+const transactionItemCountMock = vi.hoisted(() => vi.fn());
 const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
 const txProductStockGroupFindUniqueMock = vi.hoisted(() => vi.fn());
 const txProductStockGroupCreateMock = vi.hoisted(() => vi.fn());
@@ -26,12 +29,17 @@ vi.mock("@pos/db", () => ({
       findMany: productFindManyMock,
       count: productCountMock,
       create: productCreateMock,
+      update: productUpdateMock,
+      delete: productDeleteMock,
     },
     productStockGroup: {
       findMany: productStockGroupFindManyMock,
     },
     productPriceLog: {
       createMany: productPriceLogCreateManyMock,
+    },
+    transactionItem: {
+      count: transactionItemCountMock,
     },
     $transaction: transactionMock,
   },
@@ -275,5 +283,93 @@ describe("GET /api/products", () => {
       }),
     );
     expect(body.data[0].stock).toBe(2);
+  });
+});
+
+describe("DELETE /api/products", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requirePermissionMock.mockResolvedValue({
+      id: "user-1",
+      name: "Owner User",
+      storeId: "store-main",
+    });
+    handleAuthErrorMock.mockReturnValue(null);
+    productUpdateMock.mockResolvedValue({ id: "product-1" });
+    productDeleteMock.mockResolvedValue({ id: "product-1" });
+  });
+
+  it("hard-deletes products with no transactions and soft-deletes products with transactions", async () => {
+    productFindManyMock.mockResolvedValue([{ id: "product-1" }, { id: "product-2" }]);
+    // product-1 never sold -> hard delete; product-2 sold -> soft delete
+    transactionItemCountMock
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(3);
+
+    const response = await DELETE(
+      new Request("http://localhost/api/products?ids=product-1,product-2", {
+        method: "DELETE",
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(productDeleteMock).toHaveBeenCalledWith({ where: { id: "product-1" } });
+    expect(productUpdateMock).toHaveBeenCalledWith({
+      where: { id: "product-2" },
+      data: { isActive: false },
+    });
+    expect(body.summary).toEqual({
+      total: 2,
+      hardDeleted: 1,
+      softDeleted: 1,
+      failed: 0,
+    });
+    expect(body.results).toEqual([
+      { id: "product-1", status: "hard_deleted" },
+      { id: "product-2", status: "soft_deleted" },
+    ]);
+  });
+
+  it("rejects when no ids provided", async () => {
+    const response = await DELETE(
+      new Request("http://localhost/api/products", { method: "DELETE" }),
+    );
+    expect(response.status).toBe(422);
+  });
+
+  it("rejects when some products do not belong to the store", async () => {
+    productFindManyMock.mockResolvedValue([{ id: "product-1" }]);
+
+    const response = await DELETE(
+      new Request("http://localhost/api/products?ids=product-1,product-2", {
+        method: "DELETE",
+      }),
+    );
+    expect(response.status).toBe(404);
+    expect(productDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("reports partial failures with 207 status (fail-soft)", async () => {
+    productFindManyMock.mockResolvedValue([{ id: "product-1" }, { id: "product-2" }]);
+    transactionItemCountMock.mockResolvedValue(0);
+    productDeleteMock
+      .mockResolvedValueOnce({ id: "product-1" })
+      .mockRejectedValueOnce(new Error("FK constraint"));
+
+    const response = await DELETE(
+      new Request("http://localhost/api/products?ids=product-1,product-2", {
+        method: "DELETE",
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(207);
+    expect(body.summary.failed).toBe(1);
+    expect(body.summary.hardDeleted).toBe(1);
+    expect(body.results).toEqual([
+      { id: "product-1", status: "hard_deleted" },
+      { id: "product-2", status: "error", message: "FK constraint" },
+    ]);
   });
 });

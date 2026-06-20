@@ -447,23 +447,53 @@ export default function KeuanganDashboardPage() {
                         {item.description || "Tanpa keterangan"}
                       </p>
                       {/* Mobile-only amount under description to avoid horizontal squeeze */}
-                      <p className="sm:hidden mt-1 text-sm font-semibold text-red-600 tabular-nums">
-                        {formatRupiah(item.netAmount)}
-                        {item.changeAmount > 0 && (
-                          <span className="ml-2 text-[10px] text-surface-500 font-normal">
-                            kembali {formatRupiah(item.changeAmount)}
-                          </span>
+                      <div className="sm:hidden mt-1 flex flex-row items-center gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-red-600 tabular-nums">
+                            {formatRupiah(item.netAmount)}
+                            {item.changeAmount > 0 && (
+                              <span className="ml-2 text-[10px] text-surface-500 font-normal">
+                                kembali {formatRupiah(item.changeAmount)}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        {item.attachmentUrl && (
+                          <div className="w-8 h-8 rounded bg-surface-100 overflow-hidden shrink-0 border border-surface-200 ml-auto">
+                            <img
+                              src={item.attachmentUrl.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(item.attachmentUrl)}` : item.attachmentUrl}
+                              alt="Lampiran"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                          </div>
                         )}
-                      </p>
+                      </div>
                     </div>
-                    <div className="hidden sm:block text-right shrink-0">
-                      <p className="text-sm font-semibold text-red-600 tabular-nums">
-                        {formatRupiah(item.netAmount)}
-                      </p>
-                      {item.changeAmount > 0 && (
-                        <p className="text-[10px] text-surface-500 tabular-nums">
-                          kembali {formatRupiah(item.changeAmount)}
+                    <div className="hidden sm:flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-red-600 tabular-nums">
+                          {formatRupiah(item.netAmount)}
                         </p>
+                        {item.changeAmount > 0 && (
+                          <p className="text-[10px] text-surface-500 tabular-nums">
+                            kembali {formatRupiah(item.changeAmount)}
+                          </p>
+                        )}
+                      </div>
+                      {item.attachmentUrl && (
+                        <div className="w-10 h-10 rounded bg-surface-100 overflow-hidden shrink-0 border border-surface-200">
+                          <img
+                            src={item.attachmentUrl.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(item.attachmentUrl)}` : item.attachmentUrl}
+                            alt="Lampiran"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = "none";
+                            }}
+                          />
+                        </div>
                       )}
                     </div>
                     {(canEdit || canDelete) && (

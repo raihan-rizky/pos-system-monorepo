@@ -34,6 +34,12 @@ describe("getCommitActionForResolvedRow", () => {
     ).toBe("update-price");
   });
 
+  it("keeps auto price updates price-only even when the effective decision is update", () => {
+    expect(
+      getCommitActionForResolvedRow(row({ autoAction: "auto_price_update" }), "update"),
+    ).toBe("update-price");
+  });
+
   it("maps auto variants to create variant", () => {
     expect(
       getCommitActionForResolvedRow(row({ autoAction: "auto_create_variant" })),
@@ -71,5 +77,15 @@ describe("getCommitActionForResolvedRow", () => {
     expect(
       getCommitActionForResolvedRow(row(), "update"),
     ).toBe("update");
+  });
+
+  it("only allows update or skip decisions for same-unit price conflicts", () => {
+    const conflict = row({ autoAction: "same_unit_price_conflict" });
+
+    expect(getCommitActionForResolvedRow(conflict, "update")).toBe("update-price");
+    expect(getCommitActionForResolvedRow(conflict, "skip")).toBe("skip");
+    expect(() => getCommitActionForResolvedRow(conflict)).toThrow(
+      "SAME_UNIT_PRICE_CONFLICT_ROW:2",
+    );
   });
 });

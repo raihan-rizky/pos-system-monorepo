@@ -28,7 +28,9 @@ import type { LucideIcon } from "lucide-react";
 
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { SuratJalanBundleButton } from "@/features/surat-jalan/components/SuratJalanBundleButton";
+import { Modal } from "@pos/ui";
 import { TransactionActionMenu } from "./TransactionActionMenu";
+import { TransactionCartEditor, type CartEditorItem } from "./components/TransactionCartEditor";
 import { SuratJalanCreateModal } from "@/features/surat-jalan/components/SuratJalanCreateModal";
 import {
   formatSuratJalanBundleProgress,
@@ -107,6 +109,19 @@ function EditModal({
     status: tx.status ?? "COMPLETED",
   });
 
+  const [cartItems, setCartItems] = useState<CartEditorItem[]>(
+    tx.items.map((i) => ({
+      productId: i.productId || "",
+      productName: i.productName,
+      quantity: Number(i.quantity),
+      unitPrice: Number(i.unitPrice),
+      originalUnitPrice: Number(i.originalUnitPrice || i.unitPrice),
+      appliedUnitPrice: Number(i.appliedUnitPrice || i.unitPrice),
+      subtotal: Number(i.subtotal),
+    }))
+  );
+  const [isUpdatingItems, setIsUpdatingItems] = useState(false);
+
   const [salespersons, setSalespersons] = useState<{ id: string; name: string }[]>([]);
 
   const allowedTransitions = ALLOWED_STATUS_TRANSITIONS[tx.status] ?? [];
@@ -127,7 +142,18 @@ function EditModal({
 
   const handleSave = async () => {
     setError("");
+    setIsUpdatingItems(true);
     try {
+      const itemsRes = await fetch(`/api/transactions/${tx.id}/items`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cartItems }),
+      });
+      if (!itemsRes.ok) {
+        const errData = await itemsRes.json();
+        throw new Error(errData.message || "Gagal menyimpan produk");
+      }
+
       const payload: Parameters<typeof updateTx.mutateAsync>[0] = {
         id: tx.id,
         salesName: form.salesName,
@@ -143,6 +169,8 @@ function EditModal({
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
+    } finally {
+      setIsUpdatingItems(false);
     }
   };
 
@@ -265,6 +293,13 @@ function EditModal({
             </div>
           </div>
 
+          <div className="pt-2 border-t border-surface-100">
+            <TransactionCartEditor 
+              items={cartItems} 
+              onChange={setCartItems} 
+            />
+          </div>
+
           {error && (
             <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
               {error}
@@ -283,11 +318,11 @@ function EditModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={updateTx.isPending}
+            disabled={updateTx.isPending || isUpdatingItems}
             className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold
               hover:bg-brand-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {updateTx.isPending ? "Menyimpan..." : "Simpan"}
+            {updateTx.isPending || isUpdatingItems ? "Menyimpan..." : "Simpan"}
           </button>
         </div>
       </div>
@@ -841,6 +876,7 @@ export default function HistoryPage() {
   const [rejectingTransaction, setRejectingTransaction] = useState<Transaction | null>(null);
   const [approvingDraft, setApprovingDraft] = useState<Transaction | null>(null);
   const [voidingTransaction, setVoidingTransaction] = useState<Transaction | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   const canApproveDrafts = canPerform("transaction.draft", "update");
 
@@ -1158,15 +1194,39 @@ export default function HistoryPage() {
                               {formatDate(new Date(tx.createdAt))}
                             </td>
                             <td className="py-3.5 px-4">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : isVoided ? "bg-red-50 text-red-400 line-through" : "bg-surface-100 text-surface-700"}`}>
-                                  {tx.invoiceNumber ?? tx.draftNumber ?? "—"}
-                                </span>
-                                {isBundled && (
-                                  <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                                    <Truck className="h-3 w-3" aria-hidden="true" />
-                                    Surat Jalan
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : isVoided ? "bg-red-50 text-red-400 line-through" : "bg-surface-100 text-surface-700"}`}>
+                                    {tx.invoiceNumber ?? tx.draftNumber ?? "—"}
                                   </span>
+                                  {isBundled && (
+                                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                                      <Truck className="h-3 w-3" aria-hidden="true" />
+                                      Surat Jalan
+                                    </span>
+                                  )}
+                                </div>
+                                {tx.buktiTransaksiUrls && tx.buktiTransaksiUrls.length > 0 && (
+                                  <div className="flex -space-x-1.5 overflow-hidden" title={`${tx.buktiTransaksiUrls.length} Bukti Transaksi`}>
+                                    {tx.buktiTransaksiUrls.map((url, i) => {
+                                      const resolvedUrl = url.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(url)}` : url;
+                                      return (
+                                        <img
+                                          key={i}
+                                          src={resolvedUrl}
+                                          alt={`Bukti ${i + 1}`}
+                                          className="inline-block h-6 w-6 rounded-md ring-2 ring-white object-cover bg-surface-100 border border-surface-200 cursor-pointer hover:ring-brand-500 transition-all hover:z-10 relative"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedImageUrl(resolvedUrl);
+                                          }}
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).style.display = "none";
+                                          }}
+                                        />
+                                      );
+                                    })}
+                                  </div>
                                 )}
                               </div>
                             </td>
@@ -1307,7 +1367,7 @@ export default function HistoryPage() {
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1.5">
                               <span className={`font-mono text-sm font-bold ${isVoided ? "line-through text-surface-400" : "text-brand-700"}`}>
                                 {tx.invoiceNumber ?? (tx.draftNumber ? formatDraftNumberForDisplay(tx.draftNumber) : "—")}
                               </span>
@@ -1319,6 +1379,28 @@ export default function HistoryPage() {
                                 </span>
                               )}
                             </div>
+                            {tx.buktiTransaksiUrls && tx.buktiTransaksiUrls.length > 0 && (
+                              <div className="flex -space-x-1.5 overflow-hidden mb-1">
+                                {tx.buktiTransaksiUrls.map((url, i) => {
+                                  const resolvedUrl = url.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(url)}` : url;
+                                  return (
+                                    <img
+                                      key={i}
+                                      src={resolvedUrl}
+                                      alt={`Bukti ${i + 1}`}
+                                      className="inline-block h-6 w-6 rounded-md ring-2 ring-white object-cover bg-surface-100 border border-surface-200 cursor-pointer hover:ring-brand-500 transition-all hover:z-10 relative"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedImageUrl(resolvedUrl);
+                                      }}
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = "none";
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
                             <p className="text-xs text-surface-500">{formatDate(new Date(tx.createdAt))}</p>
                             {bundleProgress && (
                               <p className="mt-1 text-[11px] font-bold text-emerald-700">
@@ -1530,6 +1612,37 @@ export default function HistoryPage() {
           onClose={() => setApprovingDraft(null)}
           onSuccess={() => setApprovingDraft(null)}
         />
+      )}
+
+      {selectedImageUrl && (
+        <Modal 
+          open={!!selectedImageUrl} 
+          onClose={() => setSelectedImageUrl(null)} 
+          title="Bukti Transaksi" 
+          size="2xl"
+        >
+          <div className="flex justify-center items-center py-4 bg-surface-50 rounded-xl">
+            <img 
+              src={selectedImageUrl} 
+              alt="Preview Bukti Transaksi" 
+              className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-sm"
+              onError={(e) => {
+                // If it fails to load here, maybe we show an error
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          </div>
+          <div className="flex justify-end mt-4">
+            <a 
+              href={selectedImageUrl} 
+              target="_blank" 
+              rel="noreferrer"
+              className="text-sm font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-xl transition-colors"
+            >
+              Buka di Tab Baru
+            </a>
+          </div>
+        </Modal>
       )}
     </>
   );

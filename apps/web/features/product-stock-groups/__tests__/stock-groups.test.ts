@@ -5,6 +5,7 @@ import {
   calculateDisplayStock,
   formatCompoundStock,
 } from "../stock-display";
+import { createProductStockGroupEnsurer } from "../product-stock-groups-service";
 import { normalizeStockGroupKey } from "../stock-grouping";
 import { applyProductStockDelta, StockMutationError } from "../stock-mutations";
 
@@ -46,6 +47,47 @@ describe("stock group helpers", () => {
 
   it("keeps ordinary stock display unchanged when conversion metadata is unavailable", () => {
     expect(formatCompoundStock({ stock: 0.97, unit: "dus" })).toBe("0.97 dus");
+  });
+
+  it("caches repeated stock group ensures inside one transaction", async () => {
+    const group = {
+      id: "group-1",
+      storeId: "store-main",
+      groupKey: "stabilo boss|cat-atk||",
+      displayName: "Stabilo Boss",
+      baseUnit: "pcs",
+      baseStock: 10,
+    };
+    const findUnique = vi.fn().mockResolvedValue(group);
+    const create = vi.fn();
+    const ensureStockGroup = createProductStockGroupEnsurer({
+      productStockGroup: { findUnique, create },
+    } as any);
+
+    const input = {
+      storeId: "store-main",
+      name: "  Stabilo   Boss ",
+      categoryId: "cat-atk",
+      material: "",
+      size: "",
+      displayName: "Stabilo Boss",
+      baseUnit: "pcs",
+      baseStock: 10,
+    };
+
+    await expect(ensureStockGroup(input)).resolves.toEqual({
+      group,
+      created: false,
+    });
+    await expect(
+      ensureStockGroup({ ...input, name: "Stabilo Boss", baseStock: 99 }),
+    ).resolves.toEqual({
+      group,
+      created: false,
+    });
+
+    expect(findUnique).toHaveBeenCalledTimes(1);
+    expect(create).not.toHaveBeenCalled();
   });
 });
 

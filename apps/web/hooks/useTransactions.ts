@@ -32,6 +32,7 @@ export interface Transaction {
   note: string | null;
   status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED, DRAFT
   createdAt: string;
+  buktiTransaksiUrls?: string[];
   debtPaymentLogs?: {
     id: string;
     createdAt: string;

@@ -1,16 +1,19 @@
-import { useState, useRef, useEffect, ReactNode } from "react";
+import { useState, useRef, useEffect, ReactNode, lazy, Suspense } from "react";
 import { 
   MoreVertical, 
   Edit2, 
   Trash2, 
   XCircle, 
   CheckCircle,
-  XCircle as RejectIcon 
+  XCircle as RejectIcon,
+  Upload,
+  Truck
 } from "lucide-react";
 import { Transaction } from "@/hooks/useTransactions";
 import { isTransactionEligibleForSuratJalan } from "@/features/surat-jalan/components/SuratJalanBundleButton";
 import { SuratJalanCreateModal } from "@/features/surat-jalan/components/SuratJalanCreateModal";
-import { Truck } from "lucide-react";
+
+const TransactionBuktiModal = lazy(() => import("@/features/transaction-history/components/TransactionBuktiModal"));
 
 interface TransactionActionMenuProps {
   tx: Transaction;
@@ -51,6 +54,7 @@ export function TransactionActionMenu({
 }: TransactionActionMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [suratJalanModalOpen, setSuratJalanModalOpen] = useState(false);
+  const [buktiModalOpen, setBuktiModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,6 +109,15 @@ export function TransactionActionMenu({
                   Ubah
                 </button>
               )}
+              {hasUpdateAction && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsOpen(false); setBuktiModalOpen(true); }}
+                  className="w-full text-left px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-700 flex items-center rounded-lg transition-colors cursor-pointer"
+                >
+                  <Upload className="mr-2 h-4 w-4 text-surface-500" />
+                  Upload Bukti Transaksi
+                </button>
+              )}
               {hasVoidAction && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setIsOpen(false); onVoid(); }}
@@ -149,6 +162,23 @@ export function TransactionActionMenu({
           transactionId={tx.id}
           onClose={() => setSuratJalanModalOpen(false)}
         />
+      )}
+      {buktiModalOpen && (
+        <Suspense fallback={null}>
+          <TransactionBuktiModal
+            open={buktiModalOpen}
+            onClose={() => setBuktiModalOpen(false)}
+            transactionId={tx.id}
+            initialUrls={tx.buktiTransaksiUrls || []}
+            onSaved={() => {
+              // Usually handled by a global invalidation or caller, but the caller 
+              // currently doesn't pass an onSaved equivalent for this. 
+              // We'll rely on global mutate or window.location.reload if needed, 
+              // but standard SWR/React Query would auto refetch.
+              window.location.reload();
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

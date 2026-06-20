@@ -51,6 +51,24 @@ export async function ensureProductStockGroup(
   return { group, created: true };
 }
 
+export function createProductStockGroupEnsurer(tx: Tx) {
+  const cache = new Map<
+    string,
+    Awaited<ReturnType<typeof ensureProductStockGroup>>
+  >();
+
+  return async (input: EnsureStockGroupInput) => {
+    const groupKey = normalizeStockGroupKey(input);
+    const cacheKey = `${input.storeId}|${groupKey}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
+    const ensured = await ensureProductStockGroup(tx, input);
+    cache.set(cacheKey, ensured);
+    return ensured;
+  };
+}
+
 export function buildStockGroupCreateData(input: {
   unitMultiplierToBase?: number | null;
   stock?: number | null;

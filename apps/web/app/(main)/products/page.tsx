@@ -6,7 +6,10 @@ import {
   useProductsPage,
   useCategories,
   useProductStats,
+  useDeleteProduct,
+  useBulkDeleteProducts,
   Product,
+  type BulkDeleteProductsResult,
 } from "@/hooks/useProducts";
 import {
   Package,
@@ -23,8 +26,12 @@ import {
   BadgeDollarSign,
   ClipboardList,
   FileSpreadsheet,
+  LoaderCircle,
   Boxes,
+  Trash2,
+  AlertCircle,
   X,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -39,9 +46,15 @@ import { usePendingInventoryLogCount } from "@/hooks/useInventoryLogs";
 import {
   shouldShowAction,
   shouldShowUpdateAction,
+  shouldShowDeleteAction,
 } from "@/features/rbac/helpers/rbac-ui";
 import { StockGroupWorkspaceModal } from "@/features/product-stock-groups/components/StockGroupWorkspace";
 import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
+import {
+  type ProductImportJobResponse,
+  useActiveProductImportJob,
+  useProductImportJobStatus,
+} from "@/features/product-import/hooks/useProductImport";
 
 const StockHistoryTab = lazy(
   () => import("@/app/(main)/inventory/StockHistoryTab"),
@@ -62,6 +75,16 @@ const CustomerCategoryPricingRulesTab = lazy(() =>
 const ProductImportDrawer = lazy(() =>
   import("@/features/product-import/components/ProductImportDrawer").then(
     (mod) => ({ default: mod.ProductImportDrawer }),
+  ),
+);
+const ProductImportProgressModal = lazy(() =>
+  import("@/features/product-import/components/ProductImportProgressModal").then(
+    (mod) => ({ default: mod.ProductImportProgressModal }),
+  ),
+);
+const BulkStockImportDrawer = lazy(() =>
+  import("@/features/bulk-stock-import/components/BulkStockImportDrawer").then(
+    (mod) => ({ default: mod.BulkStockImportDrawer }),
   ),
 );
 const BulkStockDrawer = lazy(() =>
@@ -180,9 +203,18 @@ function ProductsContent() {
   const canCreateProducts = shouldShowAction("product", "create", canPerform);
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
   const canUpdateInventory = shouldShowUpdateAction("inventory", canPerform);
+  const canDeleteProducts = shouldShowDeleteAction("product", canPerform);
+  const canSelectProducts = canUpdateInventory || canDeleteProducts;
   const canViewPriceHistory = role === "OWNER" || role === "ADMIN";
   const canManageSpecialPrices = role === "OWNER";
   const canChangePrice = canViewPriceHistory;
+
+  const deleteProductMutation = useDeleteProduct();
+  const bulkDeleteProductsMutation = useBulkDeleteProducts();
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteResult, setBulkDeleteResult] =
+    useState<BulkDeleteProductsResult | null>(null);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   // Default to grid on mobile, table on desktop. We'll manage this via state, but default "grid" is safer for initial mobile load.
@@ -211,6 +243,12 @@ function ProductsContent() {
     string | null
   >(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isBulkStockImportOpen, setIsBulkStockImportOpen] = useState(false);
+  const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
+  const [isImportProgressOpen, setIsImportProgressOpen] = useState(false);
+  const [lastObservedImportJob, setLastObservedImportJob] =
+    useState<ProductImportJobResponse | null>(null);
+  const invalidatedImportJobIdRef = useRef<string | null>(null);
   const [isBulkStockOpen, setIsBulkStockOpen] = useState(false);
   const [isBulkStockGroupOpen, setIsBulkStockGroupOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(
@@ -246,6 +284,13 @@ function ProductsContent() {
 
   const statsQuery = useProductStats(search, categoryId);
   const { data: categoriesData } = useCategories();
+  const activeImportJobQuery = useActiveProductImportJob();
+  const activeImportJob = activeImportJobQuery.data ?? null;
+  const observedImportJobId = activeImportJob?.id ?? lastObservedImportJob?.id ?? null;
+  const observedImportJobQuery = useProductImportJobStatus(
+    observedImportJobId,
+    isImportProgressOpen,
+  );
 
   const products = React.useMemo(
     () => productsData?.data ?? [],
@@ -306,6 +351,54 @@ function ProductsContent() {
     selectedProductIds.has(product.id),
   );
 
+  useEffect(() => {
+    if (activeImportJob) {
+      setLastObservedImportJob(activeImportJob);
+    }
+  }, [activeImportJob]);
+
+  useEffect(() => {
+    if (observedImportJobQuery.data) {
+      setLastObservedImportJob(observedImportJobQuery.data);
+    }
+  }, [observedImportJobQuery.data]);
+
+  useEffect(() => {
+    const job = observedImportJobQuery.data;
+    if (!job || invalidatedImportJobIdRef.current === job.id) return;
+    if (job.status !== "COMPLETED" && job.status !== "COMPLETED_WITH_ERRORS") return;
+
+    invalidatedImportJobIdRef.current = job.id;
+    productsQuery.refetch();
+    statsQuery.refetch();
+  }, [observedImportJobQuery.data, productsQuery, statsQuery]);
+
+  const importProgressJob =
+    observedImportJobQuery.data ??
+    activeImportJob ??
+    (isImportProgressOpen ? lastObservedImportJob : null);
+  const importButtonProgress =
+    activeImportJob && activeImportJob.totalRows > 0
+      ? `${activeImportJob.processedRows}/${activeImportJob.totalRows}`
+      : null;
+
+  const handleImportButtonClick = () => {
+    if (activeImportJob) {
+      setLastObservedImportJob(activeImportJob);
+      setIsImportProgressOpen(true);
+      return;
+    }
+    setIsImportMenuOpen((current) => !current);
+  };
+
+  const refreshImportStatus = async () => {
+    const activeResult = await activeImportJobQuery.refetch();
+    if (observedImportJobId) {
+      await observedImportJobQuery.refetch();
+    }
+    return activeResult;
+  };
+
   const openAdd = () => {
     if (!canCreateProducts) return;
     setEditingProductId(null);
@@ -345,6 +438,53 @@ function ProductsContent() {
   const openStockGroup = (id: string) => {
     setStockGroupId(id);
   };
+  const requestDelete = (id: string) => {
+    if (!canDeleteProducts) return;
+    deleteProductMutation.reset();
+    bulkDeleteProductsMutation.reset();
+    setDeleteTargetId(id);
+    setBulkDeleteResult(null);
+  };
+  const requestBulkDelete = () => {
+    if (!canDeleteProducts || selectedProductIds.size === 0) return;
+    deleteProductMutation.reset();
+    bulkDeleteProductsMutation.reset();
+    setBulkDeleteOpen(true);
+    setBulkDeleteResult(null);
+  };
+  const closeDeleteModal = () => {
+    if (deleteProductMutation.isPending || bulkDeleteProductsMutation.isPending) return;
+    setDeleteTargetId(null);
+    setBulkDeleteOpen(false);
+  };
+  const confirmSingleDelete = async () => {
+    if (!deleteTargetId) return;
+    try {
+      await deleteProductMutation.mutateAsync(deleteTargetId);
+      setDeleteTargetId(null);
+      setSelectedProductIds((current) => {
+        if (!current.has(deleteTargetId)) return current;
+        const next = new Set(current);
+        next.delete(deleteTargetId);
+        return next;
+      });
+    } catch {
+      // Error surfaced via mutation state in modal.
+    }
+  };
+  const confirmBulkDelete = async () => {
+    const ids = Array.from(selectedProductIds);
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteProductsMutation.mutateAsync(ids);
+      setBulkDeleteResult(result);
+      setSelectedProductIds(new Set());
+    } catch {
+      // Error surfaced via mutation state in modal.
+    }
+  };
+  const deleteTargetProduct =
+    deleteTargetId ? products.find((p) => p.id === deleteTargetId) ?? null : null;
   const toggleSelectedProduct = (id: string) => {
     setSelectedProductIds((current) => {
       const next = new Set(current);
@@ -374,23 +514,92 @@ function ProductsContent() {
               Kelola katalog, harga, dan pantau stok secara real-time.
             </p>
           </div>
-          {canCreateProducts && (
+          {(canCreateProducts || canUpdateInventory) && (
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setIsImportOpen(true)}
-                className="group relative flex items-center justify-center gap-2 px-5 py-3.5 w-full md:w-auto rounded-2xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-sm shadow-sm transition-all duration-300"
-              >
-                <FileSpreadsheet className="w-5 h-5" />
-                <span>Import</span>
-              </button>
-              <button
-                onClick={openAdd}
-                className="group relative flex items-center justify-center gap-2 px-6 py-3.5 w-full md:w-auto rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-[0_8px_20px_rgb(0,0,0,0.16)] hover:shadow-[0_12px_25px_rgb(0,0,0,0.25)] transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
-              >
-                <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                <span>Tambah Produk</span>
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={handleImportButtonClick}
+                  className={`group relative flex items-center justify-center gap-2 px-5 py-3.5 w-full md:w-auto rounded-2xl border font-bold text-sm shadow-sm transition-all duration-300 ${
+                    activeImportJob
+                      ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                  }`}
+                  aria-haspopup={!activeImportJob ? "menu" : undefined}
+                  aria-expanded={!activeImportJob ? isImportMenuOpen : undefined}
+                >
+                  {activeImportJob ? (
+                    <LoaderCircle className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="w-5 h-5" />
+                  )}
+                  <span>{activeImportJob ? "Import in progress" : "Import"}</span>
+                  {importButtonProgress && (
+                    <span className="rounded-lg bg-white/80 px-2 py-0.5 text-xs font-black tabular-nums text-blue-700 ring-1 ring-blue-100">
+                      {importButtonProgress}
+                    </span>
+                  )}
+                  {!activeImportJob && <ChevronDown className="h-4 w-4" />}
+                </button>
+                {isImportMenuOpen && !activeImportJob && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
+                  >
+                    {canCreateProducts && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsImportMenuOpen(false);
+                          setIsImportOpen(true);
+                        }}
+                        className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-slate-50"
+                      >
+                        <FileSpreadsheet className="mt-0.5 h-4 w-4 text-blue-600" />
+                        <span>
+                          <span className="block font-black text-slate-900">
+                            Import Bulk Products
+                          </span>
+                          <span className="block text-xs font-semibold text-slate-500">
+                            Add or update product catalog.
+                          </span>
+                        </span>
+                      </button>
+                    )}
+                    {canUpdateInventory && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsImportMenuOpen(false);
+                          setIsBulkStockImportOpen(true);
+                        }}
+                        className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-slate-50"
+                      >
+                        <TrendingUp className="mt-0.5 h-4 w-4 text-emerald-600" />
+                        <span>
+                          <span className="block font-black text-slate-900">
+                            Import Bulk Stock
+                          </span>
+                          <span className="block text-xs font-semibold text-slate-500">
+                            Restock or set stock from Excel.
+                          </span>
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {canCreateProducts && (
+                <button
+                  onClick={openAdd}
+                  className="group relative flex items-center justify-center gap-2 px-6 py-3.5 w-full md:w-auto rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-[0_8px_20px_rgb(0,0,0,0.16)] hover:shadow-[0_12px_25px_rgb(0,0,0,0.25)] transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+                >
+                  <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                  <span>Tambah Produk</span>
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -765,12 +974,14 @@ function ProductsContent() {
                   onUpdateStock={openStock}
                   onChangePrice={openPriceChange}
                   onViewStockGroup={openStockGroup}
+                  onDelete={requestDelete}
                   canUpdateProduct={canUpdateProducts}
                   canUpdateStock={canUpdateInventory}
                   canChangePrice={canChangePrice}
+                  canDeleteProduct={canDeleteProducts}
                   selectedProductIds={selectedProductIds}
                   onToggleProduct={
-                    canUpdateInventory ? toggleSelectedProduct : undefined
+                    canSelectProducts ? toggleSelectedProduct : undefined
                   }
                 />
               )}
@@ -783,12 +994,14 @@ function ProductsContent() {
                   onUpdateStock={openStock}
                   onChangePrice={openPriceChange}
                   onViewStockGroup={openStockGroup}
+                  onDelete={requestDelete}
                   canUpdateProduct={canUpdateProducts}
                   canUpdateStock={canUpdateInventory}
                   canChangePrice={canChangePrice}
+                  canDeleteProduct={canDeleteProducts}
                   selectedProductIds={selectedProductIds}
                   onToggleProduct={
-                    canUpdateInventory ? toggleSelectedProduct : undefined
+                    canSelectProducts ? toggleSelectedProduct : undefined
                   }
                 />
               )}
@@ -875,9 +1088,48 @@ function ProductsContent() {
           }}
         />
       )}
+      {deleteTargetId && (
+        <DeleteConfirmModal
+          title={
+            deleteTargetProduct
+              ? `Hapus "${deleteTargetProduct.name}"?`
+              : "Hapus produk?"
+          }
+          description="Produk yang pernah terjual akan disembunyikan (soft delete), bukan dihapus permanen. Produk yang belum pernah dijual akan dihapus permanen."
+          confirmLabel="Hapus"
+          isLoading={deleteProductMutation.isPending}
+          error={
+            deleteProductMutation.error
+              ? deleteProductMutation.error instanceof Error
+                ? deleteProductMutation.error.message
+                : "Gagal menghapus produk"
+              : null
+          }
+          onConfirm={confirmSingleDelete}
+          onClose={closeDeleteModal}
+        />
+      )}
+      {bulkDeleteOpen && (
+        <DeleteConfirmModal
+          title={`Hapus ${selectedProductIds.size} produk terpilih?`}
+          description="Produk yang pernah terjual akan disembunyikan (soft delete). Produk yang belum pernah dijual akan dihapus permanen."
+          confirmLabel={`Hapus ${selectedProductIds.size} Produk`}
+          isLoading={bulkDeleteProductsMutation.isPending}
+          error={
+            bulkDeleteProductsMutation.error
+              ? bulkDeleteProductsMutation.error instanceof Error
+                ? bulkDeleteProductsMutation.error.message
+                : "Gagal menghapus produk"
+              : null
+          }
+          result={bulkDeleteResult}
+          onConfirm={confirmBulkDelete}
+          onClose={closeDeleteModal}
+        />
+      )}
       {selectedProductIds.size > 0 &&
         activeTab === "products" &&
-        canUpdateInventory && (
+        canSelectProducts && (
           <div className="fixed bottom-5 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xl">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
@@ -888,7 +1140,7 @@ function ProductsContent() {
                   {selectedProductIds.size} dipilih
                 </p>
                 <p className="text-xs text-slate-500">
-                  Terapkan perubahan stok dalam satu batch.
+                  Terapkan aksi stok atau hapus dalam satu batch.
                 </p>
               </div>
             </div>
@@ -907,6 +1159,14 @@ function ProductsContent() {
               >
                 Bulk Stock
               </button>
+              {canDeleteProducts && (
+                <button
+                  onClick={requestBulkDelete}
+                  className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-bold text-white transition-colors hover:bg-red-700"
+                >
+                  Hapus ({selectedProductIds.size})
+                </button>
+              )}
               <button
                 onClick={() => setSelectedProductIds(new Set())}
                 className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
@@ -922,6 +1182,26 @@ function ProductsContent() {
           <ProductImportDrawer
             open={isImportOpen}
             onClose={() => setIsImportOpen(false)}
+          />
+        )}
+        {isBulkStockImportOpen && canUpdateInventory && (
+          <BulkStockImportDrawer
+            open={isBulkStockImportOpen}
+            onClose={() => {
+              setIsBulkStockImportOpen(false);
+              productsQuery.refetch();
+              statsQuery.refetch();
+            }}
+          />
+        )}
+        {isImportProgressOpen && (
+          <ProductImportProgressModal
+            open={isImportProgressOpen}
+            job={importProgressJob}
+            isRefreshing={activeImportJobQuery.isFetching || observedImportJobQuery.isFetching}
+            refreshError={activeImportJobQuery.error ?? observedImportJobQuery.error}
+            onRefresh={refreshImportStatus}
+            onClose={() => setIsImportProgressOpen(false)}
           />
         )}
         {isBulkStockOpen && (
@@ -959,9 +1239,11 @@ function ProductGrid({
   onUpdateStock,
   onChangePrice,
   onViewStockGroup,
+  onDelete,
   canUpdateProduct,
   canUpdateStock,
   canChangePrice,
+  canDeleteProduct = false,
   selectedProductIds = new Set(),
   onToggleProduct,
 }: {
@@ -971,9 +1253,11 @@ function ProductGrid({
   onUpdateStock: (id: string) => void;
   onChangePrice: (id: string) => void;
   onViewStockGroup?: (id: string) => void;
+  onDelete?: (id: string) => void;
   canUpdateProduct: boolean;
   canUpdateStock: boolean;
   canChangePrice: boolean;
+  canDeleteProduct?: boolean;
   selectedProductIds?: Set<string>;
   onToggleProduct?: (id: string) => void;
 }) {
@@ -1108,7 +1392,7 @@ function ProductGrid({
               </div>
             </div>
 
-            {(canChangePrice || canUpdateStock || canUpdateProduct) && (
+            {(canChangePrice || canUpdateStock || canUpdateProduct || canDeleteProduct) && (
               <div className="grid grid-cols-4 gap-2 relative z-10">
                 {p.stockGroupId && onViewStockGroup && (
                   <button
@@ -1156,6 +1440,18 @@ function ProductGrid({
                     title="Ubah Produk"
                   >
                     <Edit2 className="w-5 h-5" />
+                  </button>
+                )}
+                {canDeleteProduct && onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(p.id);
+                    }}
+                    className="flex h-10 items-center justify-center rounded-xl bg-red-50 text-red-700 shadow-sm ring-1 ring-red-100 transition-colors hover:bg-red-100"
+                    title="Hapus Produk"
+                  >
+                    <Trash2 className="w-5 h-5" />
                   </button>
                 )}
               </div>
@@ -1508,6 +1804,118 @@ function StockGroupDetailModal({
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteConfirmModal({
+  title,
+  description,
+  confirmLabel,
+  isLoading,
+  error,
+  result,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  isLoading: boolean;
+  error: string | null;
+  result?: BulkDeleteProductsResult | null;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const hasResult = Boolean(result);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <Trash2 className="h-5 w-5" />
+            </div>
+            <p className="text-sm font-black text-slate-900">{title}</p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={isLoading}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40"
+            aria-label="Tutup"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-4">
+          {!hasResult && (
+            <p className="text-sm font-medium text-slate-600">{description}</p>
+          )}
+
+          {hasResult && result && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl bg-red-50 px-2 py-3 ring-1 ring-red-100">
+                  <p className="text-lg font-black text-red-700">
+                    {result.summary.hardDeleted}
+                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-red-600">
+                    Dihapus
+                  </p>
+                </div>
+                <div className="rounded-xl bg-amber-50 px-2 py-3 ring-1 ring-amber-100">
+                  <p className="text-lg font-black text-amber-700">
+                    {result.summary.softDeleted}
+                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                    Disembunyikan
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2 py-3 ring-1 ring-slate-100">
+                  <p className="text-lg font-black text-slate-700">
+                    {result.summary.failed}
+                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Gagal
+                  </p>
+                </div>
+              </div>
+              {result.summary.failed > 0 && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                  {result.summary.failed} produk gagal dihapus. Coba lagi untuk produk yang tersisa.
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          <button
+            onClick={onClose}
+            disabled={isLoading}
+            className="min-h-11 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-40"
+          >
+            {hasResult ? "Tutup" : "Batal"}
+          </button>
+          {!hasResult && (
+            <button
+              onClick={onConfirm}
+              disabled={isLoading}
+              className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-40"
+            >
+              {isLoading ? "Menghapus..." : confirmLabel}
+            </button>
           )}
         </div>
       </div>

@@ -76,7 +76,14 @@ export const importRowCommitSchema = z.object({
   matchedStockGroupId: z.string().optional().nullable(),
   generatedSku: z.string().optional(),
   autoAction: z
-    .enum(["create", "auto_skip", "auto_price_update", "auto_create_variant", "conflict"])
+    .enum([
+      "create",
+      "auto_skip",
+      "auto_price_update",
+      "auto_create_variant",
+      "conflict",
+      "same_unit_price_conflict",
+    ])
     .optional(),
 });
 

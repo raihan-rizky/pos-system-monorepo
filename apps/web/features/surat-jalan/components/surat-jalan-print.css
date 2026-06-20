@@ -40,7 +40,7 @@
         to prevent offset when printing */
   div.fixed.inset-0,
   div[role="dialog"],
-  div[role="dialog"] > div,
+  div[role="dialog"]>div,
   .overflow-y-auto,
   .min-h-full,
   .min-h-screen {
@@ -65,7 +65,7 @@
     height: 165mm !important;
     max-height: 165mm !important;
     margin: 0 !important;
-    padding: 4mm 6mm !important;
+    padding: 10mm 6mm 4mm 10mm !important;
     border: none !important;
     box-shadow: none !important;
     background: white !important;

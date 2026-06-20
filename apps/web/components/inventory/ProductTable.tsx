@@ -1,6 +1,6 @@
 import React from "react";
 import { Product } from "@/hooks/useProducts";
-import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw, BadgeDollarSign, Boxes } from "lucide-react";
+import { Edit2, Archive, AlertCircle, TrendingUp, RefreshCw, BadgeDollarSign, Boxes, Trash2 } from "lucide-react";
 import { StockWarningBadge } from "@/features/product-stock-warnings/components";
 import { CategoryIcon } from "@/lib/category-icons";
 import { getDefaultProductImage } from "@/lib/utils";
@@ -13,9 +13,11 @@ interface ProductTableProps {
   onUpdateStock: (id: string) => void;
   onChangePrice?: (id: string) => void;
   onViewStockGroup?: (id: string) => void;
+  onDelete?: (id: string) => void;
   canUpdateProduct: boolean;
   canUpdateStock: boolean;
   canChangePrice?: boolean;
+  canDeleteProduct?: boolean;
   selectedProductIds?: Set<string>;
   onToggleProduct?: (id: string) => void;
 }
@@ -27,9 +29,11 @@ export default function ProductTable({
   onUpdateStock,
   onChangePrice,
   onViewStockGroup,
+  onDelete,
   canUpdateProduct,
   canUpdateStock,
   canChangePrice = false,
+  canDeleteProduct = false,
   selectedProductIds = new Set(),
   onToggleProduct,
 }: ProductTableProps) {
@@ -152,7 +156,7 @@ export default function ProductTable({
 
                   {/* Actions */}
                   <td className="py-3.5 px-5 align-middle text-right">
-                    {(canUpdateStock || canUpdateProduct || canChangePrice) && (
+                    {(canUpdateStock || canUpdateProduct || canChangePrice || canDeleteProduct) && (
                       <div className="flex items-center justify-end gap-1.5">
                         {canChangePrice && onChangePrice && (
                           <button
@@ -188,6 +192,15 @@ export default function ProductTable({
                             className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
                           >
                             <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDeleteProduct && onDelete && (
+                          <button
+                            onClick={() => onDelete(product.id)}
+                            title="Hapus Produk"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -285,6 +298,15 @@ export default function ProductTable({
                             title="Ubah Produk"
                           >
                             <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDeleteProduct && onDelete && (
+                          <button
+                            onClick={() => onDelete(product.id)}
+                            className="p-2.5 bg-slate-50 text-slate-500 hover:text-red-600 hover:bg-red-50 active:bg-red-100 rounded-xl transition-all cursor-pointer"
+                            title="Hapus Produk"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </div>

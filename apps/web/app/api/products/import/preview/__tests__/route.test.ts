@@ -76,4 +76,37 @@ describe("POST /api/products/import/preview", () => {
       }),
     );
   });
+
+  it("marks all same SKU/name/category/unit rows with conflicting price data as unresolved conflicts", async () => {
+    productFindManyMock.mockResolvedValue([]);
+
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File(
+        [[
+          "name,sku,category,price,stock,unit,costPrice,hargaDinas",
+          "Amplop,AMP,Jasa,1000,10,pcs,800,1500",
+          "Amplop,AMP,Jasa,1200,10,pcs,800,1500",
+        ].join("\n")],
+        "products.csv",
+        { type: "text/csv" },
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/preview", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.rows.map((row: { autoAction?: string }) => row.autoAction)).toEqual([
+      "same_unit_price_conflict",
+      "same_unit_price_conflict",
+    ]);
+    expect(body.rows.every((row: { errors: string[] }) => row.errors.length > 0)).toBe(true);
+  });
 });

@@ -361,6 +361,47 @@ export function useDeleteProduct() {
   });
 }
 
+export interface BulkDeleteProductResultItem {
+  id: string;
+  status: "hard_deleted" | "soft_deleted" | "error";
+  message?: string;
+}
+
+export interface BulkDeleteProductsResult {
+  results: BulkDeleteProductResultItem[];
+  summary: {
+    total: number;
+    hardDeleted: number;
+    softDeleted: number;
+    failed: number;
+  };
+}
+
+async function bulkDeleteProducts(ids: string[]): Promise<BulkDeleteProductsResult> {
+  const params = new URLSearchParams({ ids: ids.join(",") });
+  const res = await fetch(`/api/products?${params.toString()}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 207) {
+    const error = await res.json();
+    throw new Error(error.message || "Failed to delete products");
+  }
+  return res.json();
+}
+
+export function useBulkDeleteProducts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: bulkDeleteProducts,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
 export type InventoryReason =
   | "RESTOCK"
   | "SALE_RETURN"

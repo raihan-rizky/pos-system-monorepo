@@ -1,0 +1,23 @@
+{
+  "name": "@pos/product-import-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "once": "tsx src/index.ts --once",
+    "cleanup": "tsx src/index.ts --cleanup",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pos/db": "workspace:*",
+    "@pos/web": "workspace:*",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0",
+    "zod": "^4.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

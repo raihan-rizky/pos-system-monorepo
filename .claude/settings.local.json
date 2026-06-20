@@ -46,7 +46,12 @@
       "Bash(python3 *)",
       "Bash(python \"C:\\\\Users\\\\Unknown\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"POS inventory dashboard approval workflow\" --design-system -p \"POS Stock Approval\")",
       "Bash(powershell -Command \"\\(Get-Content 'apps\\\\web\\\\app\\\\\\(main\\)\\\\customers\\\\page.tsx' -Raw\\).Substring\\(27500, 200\\)\")",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/helpers/__tests__)",
+      "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/types)",
+      "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/repositories)",
+      "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/services)",
+      "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/api)"
     ]
   }
 }

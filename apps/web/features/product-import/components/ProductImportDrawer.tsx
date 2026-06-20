@@ -10,7 +10,9 @@ import {
   FileSpreadsheet,
   Filter,
   LoaderCircle,
+  Search,
   Upload,
+  X,
 } from "lucide-react";
 import {
   REQUIRED_IMPORT_COLUMNS,
@@ -39,9 +41,10 @@ import {
 } from "../helpers/import-core";
 import {
   getEffectiveImportDecision,
-  getRowsMissingImportDecision,
 } from "../helpers/import-decisions";
 import { buildProductImportResultSummary } from "../helpers/result-summary";
+import { filterRowsByProductImportSearch } from "../helpers/import-search";
+import { getProductImportReadiness } from "../helpers/import-readiness";
 
 type ImportStep = "upload" | "mapping" | "preview" | "result";
 
@@ -66,6 +69,8 @@ export function ProductImportDrawer({
   >({});
   const [createMissingCategories, setCreateMissingCategories] = useState(true);
   const [previewFilter, setPreviewFilter] = useState<PreviewFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [missingColDialogOpen, setMissingColDialogOpen] = useState(false);
   const [missingColData, setMissingColData] = useState<{
     missingColumns: string[];
@@ -75,6 +80,12 @@ export function ProductImportDrawer({
   const [headerLoading, setHeaderLoading] = useState(false);
   const [commitStarted, setCommitStarted] = useState(false);
   const [commitProgress, setCommitProgress] = useState(0);
+  const [commitLiveCounts, setCommitLiveCounts] = useState<{
+    processedRows: number;
+    successRows: number;
+    failedRows: number;
+    skippedRows: number;
+  } | null>(null);
   const [extractProgress, setExtractProgress] = useState<{ current: number; total: number; stage: "preprocessing" | "extracting" } | null>(null);
   const [accumulatedPreviewData, setAccumulatedPreviewData] = useState<ImportPreviewResponse | null>(null);
   const [previewRowsOverride, setPreviewRowsOverride] = useState<NormalizedImportRow[] | null>(null);
@@ -88,15 +99,49 @@ export function ProductImportDrawer({
     setPreviewRowsOverride(null);
   }, [previewData]);
 
-  // Filter rows for the preview table
-  const filteredRows = useMemo(() => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  const readiness = useMemo(
+    () => getProductImportReadiness(rows, decisions),
+    [rows, decisions],
+  );
+  const notReadyRowNumberSet = useMemo(
+    () => new Set(readiness.notReadyRowNumbers),
+    [readiness.notReadyRowNumbers],
+  );
+
+  useEffect(() => {
+    const entries = Object.entries(readiness.suggestedDecisions);
+    if (entries.length === 0) return;
+
+    setDecisions((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      for (const [key, value] of entries) {
+        if (next[key]) continue;
+        next[key] = value;
+        changed = true;
+      }
+
+      return changed ? next : current;
+    });
+  }, [readiness.suggestedDecisions]);
+
+  const filteredRowsBeforeSearch = useMemo(() => {
     if (previewFilter === "all") return rows;
     return rows.filter((row) => {
       switch (previewFilter) {
         case "ready":
-          return row.errors.length === 0 && row.warnings.length === 0;
+          return !notReadyRowNumberSet.has(row.rowNumber) && row.warnings.length === 0;
         case "errors":
-          return row.errors.length > 0 || row.autoAction === "conflict";
+          return row.errors.length > 0 || row.autoAction === "conflict" || row.autoAction === "same_unit_price_conflict";
         case "warnings":
           return row.warnings.length > 0;
         case "duplicate":
@@ -104,25 +149,20 @@ export function ProductImportDrawer({
         case "new-category":
           return row.missingCategory;
         case "unresolved":
-          return (row.existingProductId || row.duplicateInFile) && !getEffectiveImportDecision(row, decisions);
+          return notReadyRowNumberSet.has(row.rowNumber);
         default:
           return true;
       }
     });
-  }, [rows, previewFilter, decisions]);
+  }, [rows, previewFilter, notReadyRowNumberSet]);
 
-  const blockingErrors = useMemo(
-    () => rows.flatMap((row) => row.errors),
-    [rows]
-  );
-  const needsDecision = useMemo(
-    () => getRowsMissingImportDecision(rows, decisions),
-    [rows, decisions]
+  const filteredRows = useMemo(
+    () => filterRowsByProductImportSearch(filteredRowsBeforeSearch, debouncedSearchQuery),
+    [filteredRowsBeforeSearch, debouncedSearchQuery],
   );
   const canCommit =
     rows.length > 0 &&
-    blockingErrors.length === 0 &&
-    needsDecision.length === 0;
+    readiness.ok;
   const showCommitProgress = commitStarted && step === "preview";
   const cleanedRowsForExport = useMemo(() => buildCleanedImportRows(rows), [rows]);
   const cleaningLogRows = useMemo(() => buildCleaningChangeLogRows(rows), [rows]);
@@ -130,19 +170,22 @@ export function ProductImportDrawer({
   // Filter counts for badges
   const filterCounts = useMemo(() => {
     const ready = rows.filter(
-      (r) => r.errors.length === 0 && r.warnings.length === 0
+      (r) => !notReadyRowNumberSet.has(r.rowNumber) && r.warnings.length === 0
     ).length;
-    const errors = rows.filter((r) => r.errors.length > 0 || r.autoAction === "conflict").length;
+    const errors = rows.filter(
+      (r) =>
+        r.errors.length > 0 ||
+        r.autoAction === "conflict" ||
+        r.autoAction === "same_unit_price_conflict",
+    ).length;
     const warnings = rows.filter((r) => r.warnings.length > 0).length;
     const duplicate = rows.filter(
       (r) => r.duplicateInFile || Boolean(r.existingProductId)
     ).length;
     const newCategory = rows.filter((r) => r.missingCategory).length;
-    const unresolved = rows.filter(
-      (r) => (r.existingProductId || r.duplicateInFile) && !getEffectiveImportDecision(r, decisions)
-    ).length;
+    const unresolved = readiness.notReadyRowNumbers.length;
     return { all: rows.length, ready, errors, warnings, duplicate, newCategory, unresolved };
-  }, [rows, decisions]);
+  }, [rows, readiness.notReadyRowNumbers.length, notReadyRowNumberSet]);
 
   const commitSummary = useMemo(() => {
     return rows.reduce(
@@ -167,6 +210,7 @@ export function ProductImportDrawer({
         created: 0,
         updated: 0,
         skipped: 0,
+
         stockLogs: 0,
       },
     );
@@ -181,18 +225,8 @@ export function ProductImportDrawer({
   }, [commit.error, commitProgress]);
 
   useEffect(() => {
-    if (!commit.isPending) return;
-
-    const timer = window.setInterval(() => {
-      setCommitProgress((current) => {
-        if (current < 30) return current + 6;
-        if (current < 70) return current + 4;
-        if (current < 92) return current + 2;
-        return current;
-      });
-    }, 450);
-
-    return () => window.clearInterval(timer);
+    // The interval timer has been removed. 
+    // Progress is now tracked natively via the onProgress callback during commit.
   }, [commit.isPending]);
 
   const reset = () => {
@@ -202,10 +236,13 @@ export function ProductImportDrawer({
     setColumnMapping({});
     setDecisions({});
     setPreviewFilter("all");
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
     setMissingColDialogOpen(false);
     setMissingColData(null);
     setCommitStarted(false);
     setCommitProgress(0);
+    setCommitLiveCounts(null);
     setExtractProgress(null);
     setAccumulatedPreviewData(null);
     setPreviewRowsOverride(null);
@@ -246,6 +283,8 @@ export function ProductImportDrawer({
     if (!file) return;
     setDecisions({});
     setPreviewFilter("all");
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
     setCommitStarted(false);
     setCommitProgress(0);
     setPreviewRowsOverride(null);
@@ -277,6 +316,8 @@ export function ProductImportDrawer({
   const handleImageExtract = async (files: File[]) => {
     setDecisions({});
     setPreviewFilter("all");
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
     setCommitStarted(false);
     setCommitProgress(0);
     setExtractProgress({ current: 0, total: files.length, stage: "extracting" });
@@ -337,18 +378,41 @@ export function ProductImportDrawer({
     if (!canCommit) return;
 
     setCommitStarted(true);
-    setCommitProgress(8);
+    setCommitProgress(5); // Start at 5% just to show initial activity
+    setCommitLiveCounts({
+      processedRows: 0,
+      successRows: 0,
+      failedRows: 0,
+      skippedRows: 0,
+    });
     try {
       const result = await commit.mutateAsync({
         rows,
         decisions,
         createMissingCategories,
+        onProgress: (current, total, job) => {
+          // Calculate percentage based on actual chunk progress
+          const percentage = Math.floor((current / total) * 100);
+          setCommitProgress(Math.max(5, percentage)); // Ensure at least 5% start
+          setCommitLiveCounts({
+            processedRows: job.processedRows,
+            successRows: job.successRows,
+            failedRows: job.failedRows,
+            skippedRows: job.skippedRows,
+          });
+        }
       });
       if (result) {
         setCommitProgress(100);
         setStep("result");
       }
-    } catch {
+    } catch (error: unknown) {
+      const payload = error as { duplicateSkus?: string[] };
+      if (payload.duplicateSkus?.length) {
+        setPreviewFilter("unresolved");
+        setSearchQuery(payload.duplicateSkus[0] ?? "");
+        setDebouncedSearchQuery(payload.duplicateSkus[0] ?? "");
+      }
       // React Query keeps the error in commit.error for the inline message.
     }
   };
@@ -410,10 +474,51 @@ export function ProductImportDrawer({
 
           {/* Step 4: Result */}
           {step === "result" && commit.data && (
-            <BatchResultPanel
-              batchOperationId={commit.data.batchOperationId}
-              summary={buildProductImportResultSummary(commit.data)}
-            />
+            <div className="space-y-4">
+              <BatchResultPanel
+                batchOperationId={commit.data.batchOperationId}
+                summary={buildProductImportResultSummary(commit.data)}
+              />
+              {commit.data.failedRowCount > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-bold text-amber-900">
+                        {commit.data.failedRowCount} baris gagal diproses
+                      </h3>
+                      <p className="mt-1 text-sm text-amber-800">
+                        Produk lain tetap tersimpan. Perbaiki baris gagal lalu jalankan import ulang untuk baris tersebut.
+                      </p>
+                      {commit.data.failedRows?.length ? (
+                        <div className="mt-3 max-h-48 overflow-auto rounded-md border border-amber-200 bg-white">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-amber-100 text-amber-900">
+                              <tr>
+                                <th className="px-3 py-2">Row</th>
+                                <th className="px-3 py-2">SKU</th>
+                                <th className="px-3 py-2">Error</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {commit.data.failedRows.map((row) => (
+                                <tr key={`${row.rowNumber}-${row.sku}`} className="border-t border-amber-100">
+                                  <td className="px-3 py-2 font-medium text-slate-700">{row.rowNumber}</td>
+                                  <td className="px-3 py-2 text-slate-700">{row.sku}</td>
+                                  <td className="px-3 py-2 text-slate-600">
+                                    {row.errorMessage || row.errorCode || "Gagal diproses"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Step 1: Upload */}
@@ -434,7 +539,7 @@ export function ProductImportDrawer({
               />
               <p className="mt-3 text-xs text-slate-500">
                 Kolom wajib: {REQUIRED_IMPORT_COLUMNS.join(", ")}. Maksimal
-                2000 baris.
+                3000 baris.
               </p>
               <Button
                 type="button"
@@ -534,6 +639,11 @@ export function ProductImportDrawer({
                 counts={filterCounts}
                 onChange={setPreviewFilter}
               />
+              <ImportSearchBox
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onClear={() => setSearchQuery("")}
+              />
 
               {(cleanedRowsForExport.length > 0 || cleaningLogRows.length > 0) && (
                 <div className="flex flex-wrap items-center gap-2">
@@ -575,22 +685,45 @@ export function ProductImportDrawer({
                 filteredRows={filteredRows}
                 allRows={rows}
                 decisions={decisions}
+                blockersByRow={readiness.blockersByRow}
                 setDecisions={setDecisions}
               />
 
-              {blockingErrors.length > 0 && (
+              {readiness.notReadyRowNumbers.length > 0 && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  Perbaiki error baris sebelum commit.
+                  Belum siap commit: periksa {readiness.notReadyRowNumbers.length} baris yang masih memiliki blocker.
                 </div>
               )}
-              {needsDecision.length > 0 && (
+              {Object.values(readiness.blockersByRow).some((blockers) =>
+                blockers.includes("Pilih aksi sebelum commit."),
+              ) && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Pilih aksi untuk {needsDecision.length} baris SKU duplikat/yang sudah ada.
+                  Pilih aksi untuk baris yang belum memiliki keputusan sebelum commit.
+                </div>
+              )}
+              {Object.values(readiness.blockersByRow).some((blockers) =>
+                blockers.includes("SKU aktif masih duplikat."),
+              ) && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  Ada SKU aktif yang masih duplikat. Sistem memilih baris terbaik; lewati atau ubah pilihan pada baris lain.
+                </div>
+              )}
+              {Object.values(readiness.blockersByRow).some((blockers) =>
+                blockers.includes("Ada konflik harga untuk SKU dan satuan yang sama. Pilih satu update dan lewati sisanya."),
+              ) && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  Ada konflik harga untuk SKU dan satuan yang sama. Pilih satu update dan lewati sisanya.
                 </div>
               )}
               {commit.error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {(commit.error as Error).message}
+                  {(() => {
+                    const error = commit.error as Error & { duplicateSkus?: string[] };
+                    if (error.duplicateSkus?.length) {
+                      return `Commit ditolak karena SKU aktif masih duplikat: ${error.duplicateSkus.join(", ")}.`;
+                    }
+                    return error.message;
+                  })()}
                 </div>
               )}
               {showCommitProgress && (
@@ -599,9 +732,10 @@ export function ProductImportDrawer({
                   isError={Boolean(commit.error)}
                   status={commitStatus}
                   totalRows={rows.length}
-                  created={commitSummary.created}
-                  updated={commitSummary.updated}
-                  skipped={commitSummary.skipped}
+                  processedRows={commitLiveCounts?.processedRows ?? 0}
+                  successRows={commitLiveCounts?.successRows ?? 0}
+                  failedRows={commitLiveCounts?.failedRows ?? 0}
+                  skippedRows={commitLiveCounts?.skippedRows ?? 0}
                   newCategories={
                     createMissingCategories
                       ? (previewData.missingCategories?.length ?? 0)
@@ -743,7 +877,7 @@ function PreviewFilterBar({
     { id: "warnings", label: "Peringatan", count: counts.warnings, color: "bg-amber-100 text-amber-700" },
     { id: "duplicate", label: "SKU Duplikat", count: counts.duplicate, color: "bg-purple-100 text-purple-700" },
     { id: "new-category", label: "Kategori Baru", count: counts.newCategory, color: "bg-blue-100 text-blue-700" },
-    { id: "unresolved", label: "Aksi Kosong", count: counts.unresolved, color: "bg-indigo-100 text-indigo-700" },
+    { id: "unresolved", label: "Belum Siap", count: counts.unresolved, color: "bg-indigo-100 text-indigo-700" },
   ];
 
   return (
@@ -775,14 +909,55 @@ function PreviewFilterBar({
 }
 
 /* ── Preview Table ── */
+function ImportSearchBox({
+  value,
+  onChange,
+  onClear,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="relative max-w-md">
+      <label htmlFor="product-import-search" className="sr-only">
+        Cari nama produk atau SKU
+      </label>
+      <Search
+        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+        aria-hidden="true"
+      />
+      <input
+        id="product-import-search"
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Cari nama produk atau SKU"
+        className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Hapus pencarian"
+          className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function CommitProgressPanel({
   progress,
   isError,
   status,
   totalRows,
-  created,
-  updated,
-  skipped,
+  processedRows,
+  successRows,
+  failedRows,
+  skippedRows,
   newCategories,
   stockLogs,
 }: {
@@ -790,18 +965,19 @@ function CommitProgressPanel({
   isError: boolean;
   status: string;
   totalRows: number;
-  created: number;
-  updated: number;
-  skipped: number;
+  processedRows: number;
+  successRows: number;
+  failedRows: number;
+  skippedRows: number;
   newCategories: number;
   stockLogs: number;
 }) {
   const boundedProgress = Math.min(100, Math.max(0, progress));
   const details = [
-    { label: "Baris", value: totalRows },
-    { label: "Buat", value: created },
-    { label: "Diperbarui", value: updated },
-    { label: "Lewati", value: skipped },
+    { label: "Diproses", value: `${processedRows}/${totalRows}` },
+    { label: "Sukses", value: successRows },
+    { label: "Gagal", value: failedRows },
+    { label: "Lewati", value: skippedRows },
     { label: "Kategori", value: newCategories },
     { label: "Stock logs", value: stockLogs },
   ];
@@ -897,11 +1073,13 @@ function ImportPreviewTable({
   filteredRows,
   allRows,
   decisions,
+  blockersByRow,
   setDecisions,
 }: {
   filteredRows: NormalizedImportRow[];
   allRows: NormalizedImportRow[];
   decisions: Record<string, ImportRowDecision>;
+  blockersByRow: Record<number, string[]>;
   setDecisions: React.Dispatch<
     React.SetStateAction<Record<string, ImportRowDecision>>
   >;
@@ -986,7 +1164,11 @@ function ImportPreviewTable({
                   />
                 </td>
                 <td className="px-3 py-3">
-                  {row.autoAction ? (
+                  {(blockersByRow[row.rowNumber]?.length ?? 0) > 0 ? (
+                    <span className="text-red-600">
+                      {blockersByRow[row.rowNumber].join(" ")}
+                    </span>
+                  ) : row.autoAction ? (
                     <AutoActionBadge
                       action={row.autoAction}
                       reason={row.autoActionReason}
@@ -1114,6 +1296,20 @@ function ImportActionSelect({
         {hasCreatedSibling && (
           <option value="create-variant">Tambahkan varian produk dengan SKU yang berbeda</option>
         )}
+        <option value="skip">Lewati baris</option>
+      </select>
+    );
+  }
+
+  if (row.autoAction === "same_unit_price_conflict") {
+    return (
+      <select
+        value={decisions[String(row.rowNumber)] ?? ""}
+        onChange={(event) => setDecision(event.target.value as ImportRowDecision)}
+        className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-sm focus:ring-2 focus:ring-red-400 focus:outline-none"
+      >
+        <option value="">Pilih...</option>
+        <option value="update">Perbarui harga yang sudah ada</option>
         <option value="skip">Lewati baris</option>
       </select>
     );

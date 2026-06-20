@@ -22,7 +22,8 @@ export type ImportAutoAction =
   | "auto_skip"
   | "auto_price_update"
   | "auto_create_variant"
-  | "conflict";
+  | "conflict"
+  | "same_unit_price_conflict";
 export type PreviewFilter = "all" | "ready" | "errors" | "warnings" | "duplicate" | "new-category" | "unresolved";
 export type ImportCleaningStatus = "clean" | "auto_fixed" | "review_required" | "warning";
 

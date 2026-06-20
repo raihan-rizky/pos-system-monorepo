@@ -448,6 +448,7 @@ export async function POST(request: Request) {
 }
 
 // DELETE /api/products?ids=a,b,c — bulk delete by ID
+// Per-product soft/hard rule: hard delete if never sold, soft delete (isActive=false) if it has transactions.
 export async function DELETE(request: Request) {
   try {
     const user = await requirePermission("product", "delete");
@@ -476,11 +477,59 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await db.product.deleteMany({
-      where: { id: { in: productIds }, storeId },
-    });
+    // Per-product delete so each product follows the same soft/hard rule as single delete.
+    // Fail-soft: one product failing (e.g. FK conflict) is reported as an error, others still processed.
+    const results: Array<{
+      id: string;
+      status: "hard_deleted" | "soft_deleted" | "error";
+      message?: string;
+    }> = [];
 
-    return new NextResponse(null, { status: 204 });
+    for (const id of productIds) {
+      try {
+        const transactionsCount = await db.transactionItem.count({
+          where: { productId: id },
+        });
+
+        if (transactionsCount > 0) {
+          await db.product.update({
+            where: { id },
+            data: { isActive: false },
+          });
+          results.push({ id, status: "soft_deleted" });
+        } else {
+          await db.product.delete({ where: { id } });
+          results.push({ id, status: "hard_deleted" });
+        }
+      } catch (itemError) {
+        log.error(`Failed to delete product ${id}:`, itemError);
+        results.push({
+          id,
+          status: "error",
+          message:
+            itemError instanceof Error
+              ? itemError.message
+              : "Failed to delete product",
+        });
+      }
+    }
+
+    const hardDeleted = results.filter((r) => r.status === "hard_deleted").length;
+    const softDeleted = results.filter((r) => r.status === "soft_deleted").length;
+    const failed = results.filter((r) => r.status === "error").length;
+
+    return NextResponse.json(
+      {
+        results,
+        summary: {
+          total: results.length,
+          hardDeleted,
+          softDeleted,
+          failed,
+        },
+      },
+      { status: failed > 0 ? 207 : 200 }
+    );
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

@@ -9,6 +9,7 @@ import {
   parseImportFile,
 } from "@/features/product-import/helpers/import-core";
 import { resolveProductImportAutoDecisions } from "@/features/product-import/helpers/auto-decisions";
+import { applySameUnitPriceConflicts } from "@/features/product-import/helpers/same-unit-price-conflicts";
 
 import { getLogger } from "@/lib/logger";
 
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
       new Map(products.map((product) => [product.sku, { id: product.id, name: product.name }])),
       new Set(categories.map((category) => category.name.toLowerCase())),
     );
-    const rows = resolveProductImportAutoDecisions({
+    const rows = applySameUnitPriceConflicts(resolveProductImportAutoDecisions({
       rows: normalized.rows,
       existingProducts: products.map((product) => ({
         id: product.id,
@@ -158,7 +159,7 @@ export async function POST(request: Request) {
         stockGroupBaseUnit: product.stockGroup?.baseUnit ?? null,
       })),
       existingSkus: new Set(products.map((product) => product.sku)),
-    });
+    }));
     const resolvedActionCounts = countResolvedActions(rows);
 
     log.info("product.import.preview.rows_resolved", {

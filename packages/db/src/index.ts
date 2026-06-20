@@ -1,4 +1,4 @@
-﻿import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
 declare const process: {
   env: {
@@ -21,12 +21,18 @@ function normalizePooledPostgresUrl(url?: string) {
   try {
     const parsedUrl = new URL(url);
 
-    if (
-      parsedUrl.protocol.startsWith("postgres") &&
-      parsedUrl.port === "6543" &&
-      !parsedUrl.searchParams.has("pgbouncer")
-    ) {
-      parsedUrl.searchParams.set("pgbouncer", "true");
+    if (parsedUrl.protocol.startsWith("postgres")) {
+      if (parsedUrl.port === "6543" && !parsedUrl.searchParams.has("pgbouncer")) {
+        parsedUrl.searchParams.set("pgbouncer", "true");
+      }
+
+      if (
+        parsedUrl.hostname.includes("supabase.com") &&
+        !parsedUrl.searchParams.has("sslmode")
+      ) {
+        parsedUrl.searchParams.set("sslmode", "require");
+      }
+
       return parsedUrl.toString();
     }
   } catch {
@@ -104,5 +110,5 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = db;
 }
 
-export { PrismaClient };
+export { Prisma, PrismaClient };
 export * from "@prisma/client";

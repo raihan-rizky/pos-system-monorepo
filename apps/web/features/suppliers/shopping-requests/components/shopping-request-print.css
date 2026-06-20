@@ -1,0 +1,88 @@
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  /*
+   * Hide everything except the shopping request content.
+   */
+  body:has(#shopping-request-print) * {
+    visibility: hidden;
+  }
+
+  body:has(#shopping-request-print) #shopping-request-print,
+  body:has(#shopping-request-print) #shopping-request-print * {
+    visibility: visible !important;
+  }
+
+  /* Force-hide other receipts that may coexist in the DOM */
+  body:has(#shopping-request-print) #print-receipt {
+    display: none !important;
+  }
+
+  body:has(#shopping-request-print) #draft-receipt-page {
+    display: none !important;
+  }
+
+  /* Hide print:hidden utility and shopping-request specific non-print elements */
+  .print\:hidden,
+  .shopping-request-print-hide {
+    display: none !important;
+  }
+
+  /* Strip transforms, positioning, and clipping from modal ancestors
+        to prevent offset when printing */
+  div.fixed.inset-0,
+  div[role="dialog"],
+  div[role="dialog"] > div,
+  .overflow-y-auto,
+  .min-h-full,
+  .min-h-screen {
+    position: static !important;
+    transform: none !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  /* Position the shopping request on the page */
+  #shopping-request-print {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 8mm 10mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box !important;
+    transform: scale(0.96) !important;
+    transform-origin: top left !important;
+    page-break-before: avoid;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

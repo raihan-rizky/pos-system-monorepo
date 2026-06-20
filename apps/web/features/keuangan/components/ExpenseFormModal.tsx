@@ -9,8 +9,7 @@ import {
 import { CATEGORY_COLORS, CATEGORY_LABELS_ID } from "@/features/keuangan/helpers/category-meta";
 import { formatRupiah } from "@/lib/utils";
 
-const ATTACHMENT_MIME = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
 
 function jakartaToday(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -88,7 +87,8 @@ export function ExpenseFormModal({
     occurredAtInput: today,
   });
   const [submitting, setSubmitting] = useState(false);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [resolvingUrl, setResolvingUrl] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -112,33 +112,25 @@ export function ExpenseFormModal({
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleAttachment = async (file: File) => {
-    if (!ATTACHMENT_MIME.includes(file.type)) {
-      setError("Tipe file tidak didukung. Gunakan JPG, PNG, WebP, atau PDF.");
-      return;
-    }
-    if (file.size > MAX_FILE_BYTES) {
-      setError("File terlalu besar. Maksimal 5 MB.");
-      return;
-    }
-    setError(null);
-    setUploadingAttachment(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    try {
-      const res = await fetch("/api/finance/expenses/attachments", {
-        method: "POST",
-        body: fd,
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.message || "Gagal mengunggah lampiran");
-      update("attachmentUrl", body.data.url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengunggah lampiran");
-    } finally {
-      setUploadingAttachment(false);
+  const handleUrlChange = async (val: string) => {
+    update("attachmentUrl", val);
+    if (val.includes("prnt.sc") && !resolvingUrl) {
+      setResolvingUrl(true);
+      try {
+        const res = await fetch(`/api/prntsc?url=${encodeURIComponent(val)}&json=true`);
+        const data = await res.json();
+        if (data.imageUrl) {
+          update("attachmentUrl", data.imageUrl);
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        setResolvingUrl(false);
+      }
     }
   };
+
+
 
   const handleSubmit = async () => {
     setError(null);
@@ -306,43 +298,48 @@ export function ExpenseFormModal({
           </p>
         </FormField>
 
-        <FormField label="Lampiran (opsional)">
-          {form.attachmentUrl ? (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-surface-200 bg-surface-50">
-              <a
-                href={form.attachmentUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 text-xs font-medium text-brand-700 hover:underline truncate"
-              >
-                Lihat lampiran
-              </a>
-              <button
-                type="button"
-                onClick={() => update("attachmentUrl", null)}
-                className="text-xs text-red-600 hover:text-red-700 cursor-pointer"
-              >
-                Hapus
-              </button>
+        <FormField label="URL Lampiran (opsional)" error={fieldErrors.attachmentUrl}>
+          <input
+            type="url"
+            value={form.attachmentUrl || ""}
+            onChange={(e) => handleUrlChange(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-surface-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
+            placeholder="https://prnt.sc/..."
+            disabled={submitting || resolvingUrl}
+          />
+          {resolvingUrl && <p className="text-[11px] text-brand-600 mt-1 animate-pulse">Mengambil gambar otomatis dari Lightshot...</p>}
+          <p className="text-[11px] text-surface-500 mt-1">
+            <strong>Cara upload gambar:</strong> Buka <a href="https://prnt.sc/" target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">prnt.sc</a> lalu klik tombol "Browse Images" atau <i>drag</i> gambar ke halaman tersebut. Tunggu hingga proses upload selesai, lalu <i>copy</i> link yang muncul dan <i>paste</i> di sini.
+          </p>
+          {form.attachmentUrl && (
+            <div className="mt-2 rounded-lg overflow-hidden border border-surface-200 bg-surface-50 relative min-h-[200px]">
+              {form.attachmentUrl.includes("prnt.sc") ? (
+                <img
+                  src={`/api/prntsc?url=${encodeURIComponent(form.attachmentUrl)}`}
+                  alt="Lampiran Prnt.sc"
+                  className="w-full h-auto object-contain max-h-[400px]"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ) : (
+                <img
+                  src={form.attachmentUrl}
+                  alt="Lampiran"
+                  className="w-full h-auto object-contain max-h-[400px]"
+                  onError={(e) => {
+                    // Fallback to text link if image fails to load
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+              {/* Fallback link overlay in case iframe is blocked */}
+              <div className="absolute top-2 right-2">
+                 <a href={form.attachmentUrl} target="_blank" rel="noreferrer" className="text-xs bg-white border border-surface-200 px-2 py-1 rounded shadow-sm text-brand-600 hover:text-brand-700">
+                    Buka di Tab Baru
+                 </a>
+              </div>
             </div>
-          ) : (
-            <label className="flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-surface-300 bg-surface-50 cursor-pointer hover:bg-surface-100 transition-colors">
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleAttachment(f);
-                }}
-                className="hidden"
-                disabled={uploadingAttachment}
-              />
-              <span className="text-xs font-medium text-surface-600">
-                {uploadingAttachment
-                  ? "Mengunggah..."
-                  : "Tarik file atau klik untuk pilih (JPG/PNG/WebP/PDF, max 5 MB)"}
-              </span>
-            </label>
           )}
         </FormField>
 
@@ -358,7 +355,7 @@ export function ExpenseFormModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={submitting || uploadingAttachment}
+            disabled={submitting}
           >
             {submitting ? "Menyimpan..." : "Simpan"}
           </Button>

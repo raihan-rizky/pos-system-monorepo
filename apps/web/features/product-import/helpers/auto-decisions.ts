@@ -140,6 +140,15 @@ export function resolveProductImportAutoDecisions(
 
     const decision = input.decisions?.[String(row.rowNumber)] ?? input.decisions?.[row.sku];
 
+    if (decision === "skip") {
+      return {
+        ...row,
+        autoAction: "auto_skip",
+        autoActionReason: "Skipped by user.",
+        normalizedProductKey: productKey,
+      };
+    }
+
     if (
       existingSkuProduct &&
       normalizeProductDuplicateKey({

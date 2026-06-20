@@ -106,4 +106,17 @@ describe("getRowsMissingImportDecision", () => {
     expect(getRowsMissingImportDecision([conflict], { "5": "create-variant" })).toEqual([]);
     expect(getRowsMissingImportDecision([conflict], { "5": "skip" })).toEqual([]);
   });
+
+  it("requires row-level decisions for same-unit price conflicts", () => {
+    const conflict = row({
+      rowNumber: 6,
+      duplicateInFile: true,
+      autoAction: "same_unit_price_conflict",
+    });
+
+    expect(getEffectiveImportDecision(conflict, {})).toBeUndefined();
+    expect(getRowsMissingImportDecision([conflict], {})).toEqual([conflict]);
+    expect(getRowsMissingImportDecision([conflict], { "6": "update" })).toEqual([]);
+    expect(getRowsMissingImportDecision([conflict], { "6": "skip" })).toEqual([]);
+  });
 });

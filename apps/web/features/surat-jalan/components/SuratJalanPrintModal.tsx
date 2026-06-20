@@ -224,6 +224,13 @@ export const SuratJalanPrintModal: React.FC<SuratJalanPrintModalProps> = ({
                       </td>
                     </tr>
                   ))}
+                  {Array.from({ length: Math.max(0, 5 - suratJalan.items.length) }).map((_, index) => (
+                    <tr key={`empty-${index}`}>
+                      <td className="border border-black px-3 py-2 text-center">&nbsp;</td>
+                      <td className="border border-black px-3 py-2">&nbsp;</td>
+                      <td className="border border-black px-3 py-2">&nbsp;</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               <div className="mt-16 grid grid-cols-3 gap-8 text-center text-[12px]">
@@ -247,7 +254,7 @@ export const SuratJalanPrintModal: React.FC<SuratJalanPrintModalProps> = ({
           </div>
 
           {/* ── Actions Footer ── */}
-          <div className="flex flex-col gap-3 border-t border-surface-100 pt-4 sm:flex-row-reverse">
+          <div className="sticky -bottom-4 -mx-6 -mb-4 flex flex-col gap-3 border-t border-surface-100 bg-white px-6 pb-4 pt-4 sm:flex-row-reverse z-10 rounded-b-2xl">
             <Button
               variant="accent"
               size="lg"

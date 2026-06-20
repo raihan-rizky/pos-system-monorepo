@@ -17,7 +17,10 @@
     "db:generate": "pnpm --filter @pos/db generate",
     "db:seed": "pnpm --filter @pos/db seed",
     "setup": "pnpm install && pnpm db:generate && pnpm db:push",
-    "db:migrate": "pnpm --filter @pos/db exec prisma migrate deploy"
+    "db:migrate": "pnpm --filter @pos/db exec prisma migrate deploy",
+    "product-import-worker": "pnpm --filter @pos/product-import-worker start",
+    "product-import-worker:once": "pnpm --filter @pos/product-import-worker once",
+    "product-import-worker:cleanup": "pnpm --filter @pos/product-import-worker cleanup"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",

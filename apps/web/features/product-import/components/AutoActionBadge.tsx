@@ -41,6 +41,11 @@ const actionMeta: Record<
     className: "border-red-200 bg-red-50 text-red-700",
     icon: <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />,
   },
+  same_unit_price_conflict: {
+    label: "Price conflict",
+    className: "border-red-200 bg-red-50 text-red-700",
+    icon: <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />,
+  },
 };
 
 export function AutoActionBadge({

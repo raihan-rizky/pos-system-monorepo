@@ -36,6 +36,14 @@ export async function applyProductStockDelta(
     delta: number;
     allowNegative?: boolean;
     currentStock?: number;
+    productInfo?: {
+      id: string;
+      stock: number;
+      stockGroupId: string | null;
+      unitMultiplierToBase: number | null;
+      conversionNeedsReview: boolean;
+      stockGroup: { id: string; baseStock: number } | null;
+    };
   },
 ): Promise<StockMutationResult> {
   const productSelect = {
@@ -51,7 +59,8 @@ export async function applyProductStockDelta(
     typeof tx.product.findFirst !== "function" &&
     typeof tx.product.findUnique !== "function" &&
     typeof tx.product.update === "function" &&
-    input.currentStock === undefined
+    input.currentStock === undefined &&
+    input.productInfo === undefined
   ) {
     await tx.product.update({
       where: { id: input.productId },
@@ -68,8 +77,9 @@ export async function applyProductStockDelta(
       baseDelta: input.delta,
     };
   }
-  const product =
-    typeof tx.product.findFirst === "function"
+  const product = input.productInfo
+    ? input.productInfo
+    : typeof tx.product.findFirst === "function"
       ? await tx.product.findFirst({
           where: { id: input.productId, storeId: input.storeId },
           select: productSelect,
