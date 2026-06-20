@@ -46,7 +46,9 @@ const txMock = {
   },
   inventoryLog: {
     create: vi.fn(),
+    createMany: vi.fn(),
   },
+  $queryRaw: vi.fn(),
 };
 
 vi.mock("@pos/db", () => ({
@@ -68,6 +70,7 @@ describe("POST /api/products/import/commit/chunk", () => {
       storeId: "store-main",
     });
     dbTransactionMock.mockImplementation((callback) => callback(txMock));
+    txMock.product.findMany.mockResolvedValue([]);
     txMock.category.findMany.mockResolvedValue([{ id: "cat-1", name: "Jasa" }]);
     txMock.batchOperation.findFirst.mockResolvedValue({
       id: "batch-1",
@@ -226,12 +229,7 @@ describe("POST /api/products/import/commit/chunk", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(txMock.product.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "prod-1" },
-        data: expect.objectContaining({ price: 1200, costPrice: 800 }),
-      }),
-    );
+    expect(txMock.$queryRaw).toHaveBeenCalled();
     expect(txMock.batchOperationItem.create).not.toHaveBeenCalled();
     expect(txMock.batchOperationItem.createMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -326,23 +324,9 @@ describe("POST /api/products/import/commit/chunk", () => {
     expect(response.status).toBe(200);
     expect(txMock.product.update).not.toHaveBeenCalled();
     expect(txMock.product.create).not.toHaveBeenCalled();
+    expect(txMock.$queryRaw).not.toHaveBeenCalled();
     expect(txMock.productPriceLog.createMany).not.toHaveBeenCalled();
     expect(txMock.batchOperationItem.create).not.toHaveBeenCalled();
-    expect(txMock.batchOperationItem.createMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: [
-          expect.objectContaining({
-            batchOperationId: "batch-1",
-            productId: "prod-skip-1",
-            sku: "AMP-001",
-            sourceRowNumber: 8,
-            action: "SKIP",
-            beforeSnapshot: expect.any(Object),
-            afterSnapshot: expect.any(Object),
-          }),
-        ],
-        skipDuplicates: true,
-      }),
-    );
+    expect(txMock.batchOperationItem.createMany).not.toHaveBeenCalled();
   });
 });

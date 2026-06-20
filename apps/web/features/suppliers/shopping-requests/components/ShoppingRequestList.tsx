@@ -134,17 +134,13 @@ export function ShoppingRequestList({
                     {row.status !== "CANCELLED" && (
                       <Button
                         type="button"
-                        size="sm"
                         variant="secondary"
-                        onClick={async () => {
-                          const detail = await fetch(
-                            `/api/suppliers/shopping-requests/${row.id}`,
-                          ).then((r) => r.json());
-                          setPrintTarget(detail.data);
+                        onClick={() => {
+                          setPrintTarget({ ...row, items: [] } as any);
                         }}
-                        icon={<Printer className="h-4 w-4" />}
+                        className="!py-1.5 !px-3 text-sm h-auto"
                       >
-                        Print
+                        Lihat Struk
                       </Button>
                     )}
                     {row.status === "DRAFT" && (

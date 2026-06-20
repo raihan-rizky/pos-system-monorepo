@@ -51,7 +51,9 @@
       "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/types)",
       "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/repositories)",
       "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/services)",
-      "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/api)"
+      "Bash(mkdir -p D:/main_project/pos-system-monorepo/apps/web/features/suppliers/shopping-requests/api)",
+      "Bash(grep -n '$queryRaw\\\\|txMock\\\\|tx = {' 'D:\\\\main_project\\\\pos-system-monorepo\\\\apps\\\\web\\\\app\\\\api\\\\transactions\\\\[id]\\\\approve\\\\__tests__\\\\route.test.ts')",
+      "Bash(grep *)"
     ]
   }
 }

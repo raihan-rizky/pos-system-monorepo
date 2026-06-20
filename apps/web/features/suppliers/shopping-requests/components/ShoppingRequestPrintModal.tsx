@@ -55,7 +55,7 @@ export function ShoppingRequestPrintModal({
   const storePhone = storeSettings?.phone || "0254 393022";
 
   return (
-    <Modal open={open === true && detail !== null} onClose={onClose} title="Cetak Daftar Belanja" size="4xl">
+    <Modal open={open === true && detail !== null} onClose={onClose} title="Detail Daftar Belanja" size="4xl">
       <div className="space-y-6">
         <div className="shopping-request-print-hide mb-3 flex items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-surface-400" />
@@ -162,7 +162,7 @@ export function ShoppingRequestPrintModal({
           </div>
         )}
 
-        <div className="flex flex-col gap-3 border-t border-surface-100 pt-4 sm:flex-row-reverse">
+        <div className="sticky bottom-[-16px] z-10 bg-white mt-4 flex flex-col gap-3 border-t border-surface-100 pt-4 pb-4 -mx-6 px-6 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] sm:flex-row-reverse print:hidden">
           <Button
             type="button"
             variant="accent"

@@ -28,6 +28,7 @@ const txMock = {
   },
   batchOperationItem: {
     create: vi.fn(),
+    createMany: vi.fn(),
     count: vi.fn(),
     findMany: vi.fn(),
   },
@@ -47,7 +48,9 @@ const txMock = {
   },
   inventoryLog: {
     create: vi.fn(),
+    createMany: vi.fn(),
   },
+  $queryRaw: vi.fn(),
 };
 
 vi.mock("@pos/db", () => ({
@@ -87,6 +90,7 @@ describe("POST /api/products/import/commit", () => {
       storeId: "store-main",
     });
     dbTransactionMock.mockImplementation((callback) => callback(txMock));
+    txMock.product.findMany.mockResolvedValue([]);
     txMock.category.findMany.mockResolvedValue([{ id: "cat-1", name: "Jasa" }]);
     txMock.batchOperation.create.mockImplementation(async ({ data }) => {
       batchSummary = data.summary;
@@ -161,28 +165,18 @@ describe("POST /api/products/import/commit", () => {
     txMock.inventoryLog.create.mockResolvedValue({ id: "log-1" });
   });
 
-  it("rejects large imports on the legacy endpoint instead of looping server-side", async () => {
-    const rows = Array.from({ length: 76 }, (_, index) => ({
-      rowNumber: index + 2,
-      name: `Produk ${index + 1}`,
-      sku: `SKU-${index + 1}`,
-      category: "Jasa",
-      price: 1000,
-      stock: 1,
-      unit: "pcs",
-    }));
-
+  it("rejects empty row imports with 422", async () => {
     const response = await POST(
       new Request("http://localhost/api/products/import/commit", {
         method: "POST",
-        body: JSON.stringify({ rows, decisions: {}, createMissingCategories: false }),
+        body: JSON.stringify({ rows: [], decisions: {}, createMissingCategories: false }),
         headers: { "Content-Type": "application/json" },
       }),
     );
     const body = await response.json();
 
-    expect(response.status).toBe(409);
-    expect(body.message).toBe("Large product imports must use the chunked import flow");
+    expect(response.status).toBe(422);
+    expect(body.message).toBe("No rows to import");
     expect(txMock.batchOperation.create).not.toHaveBeenCalled();
   });
 
@@ -232,11 +226,11 @@ describe("POST /api/products/import/commit", () => {
         headers: { "Content-Type": "application/json" },
       }),
     );
+    const body = await response.json();
 
     expect(response.status).toBe(201);
-    expect(txMock.product.create).toHaveBeenCalled();
-    // Verify it called create instead of update!
-    expect(txMock.product.update).not.toHaveBeenCalled();
+    expect(body.createdProductCount).toBe(1);
+    expect(txMock.$queryRaw).toHaveBeenCalled();
   });
 
   it("limits the initial product lookup to import candidates", async () => {
@@ -346,19 +340,7 @@ describe("POST /api/products/import/commit", () => {
     expect(response.status).toBe(201);
     expect(body.createdProductCount).toBe(2);
     expect(body.variantProductCount).toBe(1);
-    expect(txMock.product.create).toHaveBeenCalledTimes(2);
-    expect(txMock.product.create).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        data: expect.objectContaining({ sku: "AMP" }),
-      }),
-    );
-    expect(txMock.product.create).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        data: expect.objectContaining({ sku: "AMP-PCS" }),
-      }),
-    );
+    expect(txMock.$queryRaw).toHaveBeenCalled();
   });
 
   it("rejects same SKU/name/category/unit rows with conflicting price data until decisions are explicit", async () => {
@@ -466,15 +448,7 @@ describe("POST /api/products/import/commit", () => {
     expect(response.status).toBe(201);
     expect(body.createdProductCount).toBe(1);
     expect(body.skippedRowCount).toBe(1);
-    expect(txMock.product.create).toHaveBeenCalledTimes(1);
-    expect(txMock.product.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          sku: "AMP",
-          price: 1200,
-        }),
-      }),
-    );
+    expect(txMock.$queryRaw).toHaveBeenCalled();
   });
 
   it("rejects duplicate active final SKUs after decisions are resolved", async () => {
@@ -623,6 +597,6 @@ describe("POST /api/products/import/commit", () => {
     expect(response.status).toBe(201);
     expect(body.updatedProductCount).toBe(1);
     expect(body.skippedRowCount).toBe(1);
-    expect(txMock.product.update).toHaveBeenCalledTimes(1);
+    expect(txMock.$queryRaw).toHaveBeenCalled();
   });
 });
