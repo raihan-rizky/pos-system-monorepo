@@ -13,6 +13,7 @@ import {
   Edit2,
   ChevronUp,
   ChevronDown,
+  CalendarDays,
   FileText,
   History,
   Search,
@@ -36,6 +37,10 @@ import {
   formatSuratJalanBundleProgress,
   isSuratJalanBundle,
 } from "@/features/transaction-history/helpers/surat-jalan-bundle";
+import {
+  buildTransactionHistoryQuickDateRange,
+  type TransactionHistoryQuickDateFilter,
+} from "@/features/transaction-history/helpers/date-range";
 import {
   useTransactionHistory,
   useUpdateTransaction,
@@ -82,6 +87,16 @@ const STATUS_FILTERS = [
   { value: "DRAFT", label: "Sementara" },
   { value: "VOIDED", label: "Void" },
   { value: "REFUNDED", label: "Refund" },
+];
+
+const QUICK_DATE_FILTERS: Array<{
+  value: TransactionHistoryQuickDateFilter;
+  label: string;
+  title: string;
+}> = [
+  { value: "daily", label: "Harian", title: "Transaksi hari ini" },
+  { value: "weekly", label: "Mingguan", title: "Transaksi 7 hari terakhir" },
+  { value: "monthly", label: "Bulanan", title: "Transaksi bulan berjalan" },
 ];
 
 const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -911,6 +926,8 @@ export default function HistoryPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [quickDateFilter, setQuickDateFilter] =
+    useState<TransactionHistoryQuickDateFilter | "">("");
   const [categoryId, setCategoryId] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [suratJalanOnly, setSuratJalanOnly] = useState(false);
@@ -926,6 +943,26 @@ export default function HistoryPage() {
       setDebouncedSearch(value);
       setPage(1);
     }, 300);
+  }, []);
+
+  const applyQuickDateFilter = useCallback((filter: TransactionHistoryQuickDateFilter) => {
+    const range = buildTransactionHistoryQuickDateRange(filter);
+    setQuickDateFilter(filter);
+    setDateFrom(range.dateFrom);
+    setDateTo(range.dateTo);
+    setPage(1);
+  }, []);
+
+  const handleDateFromChange = useCallback((value: string) => {
+    setQuickDateFilter("");
+    setDateFrom(value);
+    setPage(1);
+  }, []);
+
+  const handleDateToChange = useCallback((value: string) => {
+    setQuickDateFilter("");
+    setDateTo(value);
+    setPage(1);
   }, []);
 
   // Fetch data
@@ -961,6 +998,7 @@ export default function HistoryPage() {
     setDebouncedSearch("");
     setDateFrom("");
     setDateTo("");
+    setQuickDateFilter("");
     setCategoryId("");
     setStatusFilter("");
     setSuratJalanOnly(false);
@@ -1047,13 +1085,40 @@ export default function HistoryPage() {
 
             {/* Row 2: Dates + Reset */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-surface-500">
+                  <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                  Filter cepat
+                </span>
+                <div className="inline-flex rounded-xl border border-surface-200 bg-surface-50 p-1">
+                  {QUICK_DATE_FILTERS.map((filter) => {
+                    const isActive = quickDateFilter === filter.value;
+                    return (
+                      <button
+                        key={filter.value}
+                        type="button"
+                        title={filter.title}
+                        aria-pressed={isActive}
+                        onClick={() => applyQuickDateFilter(filter.value)}
+                        className={`min-h-8 rounded-lg px-3 text-xs font-bold transition-colors ${isActive
+                          ? "bg-brand-600 text-white shadow-sm"
+                          : "text-surface-600 hover:bg-white hover:text-brand-700"
+                          }`}
+                      >
+                        {filter.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="flex items-center gap-2">
                 <label className="text-xs font-medium text-surface-500 whitespace-nowrap">Dari</label>
                 <input
                   id="history-date-from"
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                  onChange={(e) => handleDateFromChange(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-surface-200 bg-surface-50 text-sm
                       focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
                 />
@@ -1064,7 +1129,7 @@ export default function HistoryPage() {
                   id="history-date-to"
                   type="date"
                   value={dateTo}
-                  onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                  onChange={(e) => handleDateToChange(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-surface-200 bg-surface-50 text-sm
                       focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
                 />

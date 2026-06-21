@@ -216,8 +216,8 @@ export function buildInvoicePdfData(
       transaction.salesperson?.name ??
       "-",
     paymentMethod: totals.paymentsList.length > 0 
-      ? totals.paymentsList.map(p => p.label).join(", ")
-      : transaction.paymentMethod === "CASH" ? "TUNAI" : transaction.paymentMethod,
+      ? totals.paymentsList.map(p => p.label === "TUNAI" ? "Tunai" : p.label).join(", ")
+      : transaction.paymentMethod === "CASH" ? "Tunai" : transaction.paymentMethod,
     date: formatIndonesianDate(
       transaction.createdAt || new Date().toISOString()
     ),
