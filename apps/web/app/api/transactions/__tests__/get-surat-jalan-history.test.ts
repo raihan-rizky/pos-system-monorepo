@@ -107,4 +107,100 @@ describe("GET /api/transactions surat jalan history", () => {
       totalQuantity: 10,
     });
   });
+
+  it("filters transaction history by customer type", async () => {
+    const { GET } = await import("../route");
+
+    const response = await GET(
+      new Request("http://localhost/api/transactions?status=DEBT_HISTORY&customerType=AGEN"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionCountMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        AND: [
+          {
+            OR: [
+              { status: "DP" },
+              {
+                status: "COMPLETED",
+                debtPaymentLogs: { some: {} },
+              },
+            ],
+          },
+          { customer: { type: "AGEN" } },
+        ],
+      },
+    });
+    expect(transactionFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          storeId: "store-main",
+          AND: [
+            {
+              OR: [
+                { status: "DP" },
+                {
+                  status: "COMPLETED",
+                  debtPaymentLogs: { some: {} },
+                },
+              ],
+            },
+            { customer: { type: "AGEN" } },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("includes walk-in transactions in the UMUM customer type filter", async () => {
+    const { GET } = await import("../route");
+
+    const response = await GET(
+      new Request("http://localhost/api/transactions?status=DEBT_HISTORY&customerType=UMUM"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionCountMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        AND: [
+          {
+            OR: [
+              { status: "DP" },
+              {
+                status: "COMPLETED",
+                debtPaymentLogs: { some: {} },
+              },
+            ],
+          },
+          {
+            OR: [{ customer: { type: "UMUM" } }, { customerId: null }],
+          },
+        ],
+      },
+    });
+    expect(transactionFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          storeId: "store-main",
+          AND: [
+            {
+              OR: [
+                { status: "DP" },
+                {
+                  status: "COMPLETED",
+                  debtPaymentLogs: { some: {} },
+                },
+              ],
+            },
+            {
+              OR: [{ customer: { type: "UMUM" } }, { customerId: null }],
+            },
+          ],
+        },
+      }),
+    );
+  });
 });

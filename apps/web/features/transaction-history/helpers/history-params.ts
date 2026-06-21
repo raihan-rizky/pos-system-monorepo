@@ -6,6 +6,7 @@ export interface TransactionHistorySearchParamsInput {
   status?: string;
   suratJalan?: "bundled";
   page?: number;
+  customerType?: string;
 }
 
 export function buildTransactionHistorySearchParams(
@@ -18,6 +19,7 @@ export function buildTransactionHistorySearchParams(
   if (params.categoryId) searchParams.set("categoryId", params.categoryId);
   if (params.status) searchParams.set("status", params.status);
   if (params.suratJalan) searchParams.set("suratJalan", params.suratJalan);
+  if (params.customerType) searchParams.set("customerType", params.customerType);
   searchParams.set("page", String(params.page || 1));
   searchParams.set("limit", "10");
   return searchParams;

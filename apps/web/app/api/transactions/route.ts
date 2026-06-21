@@ -24,6 +24,7 @@ import {
   resolveCustomPricedLine,
   type AppliedCategoryPricing,
   type CategoryPricingRule,
+  CUSTOMER_TYPES,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
@@ -144,6 +145,7 @@ export async function GET(request: Request) {
     const status = searchParams.get("status");
     const salespersonId = searchParams.get("salespersonId");
     const suratJalan = searchParams.get("suratJalan");
+    const customerType = searchParams.get("customerType");
     const { page, limit, skip } = parsePagination(searchParams, {
       defaultLimit: 10,
       maxLimit: 100,
@@ -231,6 +233,16 @@ export async function GET(request: Request) {
 
     if (suratJalan === "bundled") {
       andConditions.push({ suratJalan: { some: {} } });
+    }
+
+    if (customerType && CUSTOMER_TYPES.includes(customerType as CustomerType)) {
+      if (customerType === "UMUM") {
+        andConditions.push({
+          OR: [{ customer: { type: "UMUM" } }, { customerId: null }],
+        });
+      } else {
+        andConditions.push({ customer: { type: customerType as CustomerType } });
+      }
     }
 
     if (andConditions.length > 0) {
