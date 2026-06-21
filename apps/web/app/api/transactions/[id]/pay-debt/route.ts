@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const payDebtSchema = z.object({
   amount: z.number().positive("Jumlah harus lebih dari 0"),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).default("CASH"),
+  customerId: z.string().optional(),
   note: z.string().max(300).optional(),
   payments: z.array(z.object({
     method: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
@@ -37,7 +38,7 @@ export async function POST(
       );
     }
 
-    const { amount, note, paymentMethod, payments: rawPayments } = parsed.data;
+    const { amount, customerId, note, paymentMethod, payments: rawPayments } = parsed.data;
 
     // Resolve payments array
     const resolvedPayments = rawPayments && rawPayments.length > 0
@@ -86,6 +87,27 @@ export async function POST(
       );
     }
 
+    const debtCustomerId = transaction.customerId ?? customerId ?? null;
+
+    if (!debtCustomerId) {
+      return NextResponse.json(
+        { message: "Customer wajib dipilih untuk mencatat pembayaran piutang" },
+        { status: 422 }
+      );
+    }
+
+    const debtCustomer = await db.customer.findFirst({
+      where: { id: debtCustomerId, storeId },
+      select: { id: true },
+    });
+
+    if (!debtCustomer) {
+      return NextResponse.json(
+        { message: "Customer tidak ditemukan untuk pembayaran piutang" },
+        { status: 404 }
+      );
+    }
+
     // Process payment in a transaction
     const updated = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       const newAmountPaid = currentPaid + totalPaymentAmount;
@@ -100,6 +122,7 @@ export async function POST(
         data: {
           amountPaid: newAmountPaid,
           status: newStatus,
+          ...(transaction.customerId ? {} : { customerId: debtCustomerId }),
           // Append the manual note if provided, else keep existing note
           note: note
             ? (transaction.note ? `${transaction.note} | ${note}` : note)
@@ -107,10 +130,12 @@ export async function POST(
         },
       });
 
-      // Update customer totalDebt and totalSpent if customerId exists
-      if (transaction.customerId) {
+      // Update the customer debt ledger. For older/unlinked transactions shown
+      // by customer-name matching, attach the selected customer now so the
+      // paid-off invoice remains visible in piutang history.
+      if (debtCustomerId) {
         await tx.customer.update({
-          where: { id: transaction.customerId },
+          where: { id: debtCustomerId },
           data: {
             totalDebt: { decrement: totalPaymentAmount },
             totalSpent: { increment: totalPaymentAmount },
@@ -122,7 +147,7 @@ export async function POST(
           await tx.debtPaymentLog.createMany({
             data: resolvedPayments.map((p) => ({
               transactionId: transaction.id,
-              customerId: transaction.customerId!,
+              customerId: debtCustomerId,
               storeId,
               amount: p.amount,
               paymentMethod: p.method,

@@ -31,12 +31,22 @@ export async function GET(
     const transactions = await db.transaction.findMany({
       where: {
         storeId,
-        status: "DP",
         OR: [
-          { customerId: id },
+          { status: "DP" },
           {
-            customerId: null,
-            customerName: { equals: customer.name, mode: "insensitive" },
+            status: "COMPLETED",
+            debtPaymentLogs: { some: { customerId: id } },
+          },
+        ],
+        AND: [
+          {
+            OR: [
+              { customerId: id },
+              {
+                customerId: null,
+                customerName: { equals: customer.name, mode: "insensitive" },
+              },
+            ],
           },
         ],
       },

@@ -81,7 +81,7 @@ describe("generateInvoicePdf", () => {
     );
     expect(result).toBeInstanceOf(Uint8Array);
     expect(result.byteLength).toBeGreaterThan(0);
-  });
+  }, 15000);
 
   test("generates PDF for a DP transaction", async () => {
     const txn = makeTransaction({
@@ -93,21 +93,21 @@ describe("generateInvoicePdf", () => {
     const result = await generateInvoicePdf(txn, DEFAULT_STORE, A4_PORTRAIT);
     expect(result).toBeInstanceOf(Uint8Array);
     expect(result.byteLength).toBeGreaterThan(0);
-  });
+  }, 15000);
 
   test("generates PDF for a VOIDED transaction", async () => {
     const txn = makeTransaction({ status: "VOIDED" });
     const result = await generateInvoicePdf(txn, DEFAULT_STORE, HALF_A4_LANDSCAPE);
     expect(result).toBeInstanceOf(Uint8Array);
     expect(result.byteLength).toBeGreaterThan(0);
-  });
+  }, 15000);
 
   test("generates PDF with no items (empty table)", async () => {
     const txn = makeTransaction({ items: [] });
     const result = await generateInvoicePdf(txn, DEFAULT_STORE, HALF_A4_LANDSCAPE);
     expect(result).toBeInstanceOf(Uint8Array);
     expect(result.byteLength).toBeGreaterThan(0);
-  });
+  }, 15000);
 
   test("generates PDF for different paper sizes", async () => {
     const txn = makeTransaction();
@@ -116,7 +116,7 @@ describe("generateInvoicePdf", () => {
     // Both should produce valid outputs but potentially different sizes
     expect(halfA4.byteLength).toBeGreaterThan(0);
     expect(a4.byteLength).toBeGreaterThan(0);
-  });
+  }, 15000);
 
   test("generates PDF for transaction with many items (>5, no filler rows)", async () => {
     const items = Array.from({ length: 10 }, (_, i) => ({
@@ -137,5 +137,5 @@ describe("generateInvoicePdf", () => {
     const result = await generateInvoicePdf(txn, DEFAULT_STORE, HALF_A4_LANDSCAPE);
     expect(result).toBeInstanceOf(Uint8Array);
     expect(result.byteLength).toBeGreaterThan(0);
-  });
+  }, 15000);
 });

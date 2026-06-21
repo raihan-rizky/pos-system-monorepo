@@ -5,6 +5,7 @@ const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionUpdateMock = vi.hoisted(() => vi.fn());
+const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogCreateManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
@@ -20,6 +21,7 @@ vi.mock("@pos/db", () => ({
       findFirst: transactionFindFirstMock,
     },
     customer: {
+      findFirst: customerFindFirstMock,
       update: customerUpdateMock,
     },
     debtPaymentLog: {
@@ -51,6 +53,7 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
       status: "DP",
       amountPaid: 100000,
     });
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1" });
     customerUpdateMock.mockResolvedValue({});
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
@@ -147,5 +150,50 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
 
     expect(response.status).toBe(422);
     expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the selected customer for an unlinked DP transaction so payment history is retained", async () => {
+    transactionFindFirstMock.mockResolvedValueOnce({
+      id: "tx-dp-1",
+      status: "DP",
+      total: 200000,
+      amountPaid: 50000,
+      customerId: null,
+      note: null,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({
+          customerId: "customer-1",
+          amount: 150000,
+          paymentMethod: "TRANSFER",
+        }),
+      }),
+      { params: Promise.resolve({ id: "tx-dp-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock).toHaveBeenCalledWith({
+      where: { id: "tx-dp-1" },
+      data: expect.objectContaining({
+        amountPaid: 200000,
+        status: "COMPLETED",
+        customerId: "customer-1",
+      }),
+    });
+    expect(debtPaymentLogCreateManyMock).toHaveBeenCalledWith({
+      data: [
+        {
+          transactionId: "tx-dp-1",
+          customerId: "customer-1",
+          storeId: "store-main",
+          amount: 150000,
+          paymentMethod: "TRANSFER",
+          note: null,
+        },
+      ],
+    });
   });
 });

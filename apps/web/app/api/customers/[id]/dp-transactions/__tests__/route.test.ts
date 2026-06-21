@@ -49,15 +49,25 @@ describe("GET /api/customers/[id]/dp-transactions", () => {
       expect.objectContaining({
         where: {
           storeId: "store-main",
-          status: "DP",
           OR: [
-            { customerId: "customer-1" },
+            { status: "DP" },
             {
-              customerId: null,
-              customerName: {
-                equals: "Agen Sabar Subur",
-                mode: "insensitive",
-              },
+              status: "COMPLETED",
+              debtPaymentLogs: { some: { customerId: "customer-1" } },
+            },
+          ],
+          AND: [
+            {
+              OR: [
+                { customerId: "customer-1" },
+                {
+                  customerId: null,
+                  customerName: {
+                    equals: "Agen Sabar Subur",
+                    mode: "insensitive",
+                  },
+                },
+              ],
             },
           ],
         },

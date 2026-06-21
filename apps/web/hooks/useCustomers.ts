@@ -265,7 +265,7 @@ export interface PayTransactionDebtInput {
 }
 
 async function payTransactionDebt(input: PayTransactionDebtInput) {
-  const { transactionId, customerId: _customerId, ...body } = input;
+  const { transactionId, ...body } = input;
   const res = await fetch(`/api/transactions/${transactionId}/pay-debt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

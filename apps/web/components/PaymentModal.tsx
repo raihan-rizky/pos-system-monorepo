@@ -99,6 +99,7 @@ export function PaymentModal({
         setAmountsPaid(newAmounts);
         return prev.filter((m) => m !== method);
       }
+      if (prev.length >= 2) return prev; // Restrict max to 2
       return [...prev, method];
     });
   };
@@ -501,13 +502,17 @@ export function PaymentModal({
             {paymentMethods.map((method) => {
               const Icon = method.icon;
               const isSelected = selectedPaymentMethods.includes(method.value);
+              const isDisabled = !isSelected && selectedPaymentMethods.length >= 2;
               return (
                 <button
                   key={method.value}
                   onClick={() => togglePaymentMethod(method.value)}
+                  disabled={isDisabled}
                   className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
                     isSelected
                       ? "border-brand-500 bg-brand-50 text-brand-700"
+                      : isDisabled
+                      ? "border-surface-100 bg-surface-50 text-surface-400 opacity-50 cursor-not-allowed"
                       : "border-surface-200 bg-white text-surface-600 hover:border-brand-300 hover:bg-brand-50"
                   }`}
                 >
