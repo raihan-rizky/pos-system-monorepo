@@ -516,6 +516,8 @@ function ApproveModal({
   const multiPaymentTotal = hasMultiPayment ? tx.payments!.reduce((sum, p) => sum + Number(p.amount), 0) : 0;
 
   const total = Number(tx.total);
+  const isAlreadyLunas = (hasMultiPayment ? multiPaymentTotal : Number(tx.amountPaid)) >= total;
+
   const [amountPaidInput, setAmountPaidInput] = useState<string>(
     hasMultiPayment ? multiPaymentTotal.toString() : Number(tx.amountPaid).toString()
   );
@@ -563,15 +565,17 @@ function ApproveModal({
             <span className="text-surface-500">Total</span>
             <span className="font-bold text-brand-700">{formatRupiah(total)}</span>
           </div>
-          <label className="flex items-center gap-2 py-2 cursor-pointer border-y border-surface-200 my-1">
-            <input
-              type="checkbox"
-              checked={isPayLater}
-              onChange={(e) => setIsPayLater(e.target.checked)}
-              className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
-            />
-            <span className="text-sm font-semibold text-surface-800">Bayar Nanti (Tempo)</span>
-          </label>
+          {!isAlreadyLunas && (
+            <label className="flex items-center gap-2 py-2 cursor-pointer border-y border-surface-200 my-1">
+              <input
+                type="checkbox"
+                checked={isPayLater}
+                onChange={(e) => setIsPayLater(e.target.checked)}
+                className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
+              />
+              <span className="text-sm font-semibold text-surface-800">Bayar Nanti (Tempo)</span>
+            </label>
+          )}
           <div className={`transition-opacity duration-200 ${isPayLater ? "opacity-50 pointer-events-none" : ""}`}>
             {hasMultiPayment ? (
               <div className="py-2 border-y border-surface-200 my-2 space-y-1">
@@ -1233,7 +1237,7 @@ export default function HistoryPage() {
                                     {tx.buktiTransaksiUrls.map((url, i) => {
                                       const resolvedUrl = url.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(url)}` : url;
                                       return (
-                                        <div key={i} className="group relative z-0 hover:z-50">
+                                        <div key={i} className="group relative z-0 hover:z-[60]">
                                           <img
                                             src={resolvedUrl}
                                             alt={`Bukti ${i + 1}`}
@@ -1246,9 +1250,9 @@ export default function HistoryPage() {
                                               (e.target as HTMLImageElement).style.display = "none";
                                             }}
                                           />
-                                          <div className="absolute flex items-center justify-center w-[320px] h-[480px] left-1/2 bottom-full mb-2 -translate-x-1/2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 pointer-events-none z-50">
-                                            <div className="bg-white p-1 rounded-xl shadow-2xl border border-surface-200 shadow-black/10">
-                                              <img src={resolvedUrl} alt={`Preview ${i + 1}`} className="w-32 h-auto max-h-480 object-contain rounded-lg" />
+                                          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 pointer-events-none z-50 flex">
+                                            <div className="bg-white p-1.5 rounded-xl shadow-xl border border-surface-200 shadow-black/10 flex">
+                                              <img src={resolvedUrl} alt={`Preview ${i + 1}`} className="w-auto max-w-[300px] h-auto max-h-[420px] object-contain rounded-lg" />
                                             </div>
                                           </div>
                                         </div>

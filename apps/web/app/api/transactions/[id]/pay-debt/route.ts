@@ -55,7 +55,7 @@ export async function POST(
     // Fetch transaction
     const transaction = await db.transaction.findFirst({
       where: { id, storeId },
-      select: { id: true, status: true, total: true, amountPaid: true, customerId: true },
+      select: { id: true, status: true, total: true, amountPaid: true, customerId: true, note: true },
     });
 
     if (!transaction) {
@@ -100,9 +100,10 @@ export async function POST(
         data: {
           amountPaid: newAmountPaid,
           status: newStatus,
+          // Append the manual note if provided, else keep existing note
           note: note
-            ? `${note} | Pelunasan ${paymentSummaryStr}`
-            : `Pelunasan piutang ${paymentSummaryStr}`,
+            ? (transaction.note ? `${transaction.note} | ${note}` : note)
+            : transaction.note,
         },
       });
 

@@ -74,6 +74,42 @@ export function ReceiptModal({
 
   const storeName = storeSettings?.name || "TOKO TELADAN";
 
+  const isDP = printStatus === "DP";
+  const hasDebtLogs = transaction?.debtPaymentLogs && transaction.debtPaymentLogs.length > 0;
+  const initialPaymentIsDP = isDP || hasDebtLogs;
+
+  const paymentsList: { label: string; amountFormatted: string; subLabel?: string }[] = [];
+  
+  if (transaction?.payments && transaction.payments.length > 0) {
+    paymentsList.push(
+      ...transaction.payments.map((p) => ({
+        label: p.method === "CASH" ? "TUNAI" : p.method,
+        amountFormatted: Number(p.amount).toLocaleString("id-ID"),
+        subLabel: initialPaymentIsDP ? "DP" : undefined,
+      }))
+    );
+  } else if (Number(transaction?.amountPaid) > 0) {
+    paymentsList.push({
+      label: transaction?.paymentMethod === "CASH" ? "TUNAI" : transaction?.paymentMethod ?? "UNKNOWN",
+      amountFormatted: Number(transaction?.amountPaid).toLocaleString("id-ID"),
+      subLabel: initialPaymentIsDP ? "DP" : undefined,
+    });
+  }
+
+  if (transaction?.debtPaymentLogs && transaction.debtPaymentLogs.length > 0) {
+    paymentsList.push(
+      ...transaction.debtPaymentLogs.map((p) => ({
+        label: p.paymentMethod === "CASH" ? "TUNAI" : p.paymentMethod,
+        amountFormatted: Number(p.amount).toLocaleString("id-ID"),
+        subLabel: "pelunasan",
+      }))
+    );
+  }
+
+  const displayNote = transaction?.note 
+    ? transaction.note.replace(/(?: \| )?Pelunasan(?: piutang)? [\d.,]+ \([A-Z]+\)(?:, [\d.,]+ \([A-Z]+\))*/g, "").trim()
+    : null;
+
   // ── Dynamic scaling: measure content and shrink to fit one page ──
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -233,13 +269,16 @@ export function ReceiptModal({
                     <span className="w-24">Pembayaran</span>
                     <span className="mr-4">:</span>
                     <span>
-                      {transaction?.payments && transaction.payments.length > 0
-                        ? transaction.payments
-                            .map((p) => p.method === "CASH" ? "Tunai" : p.method)
-                            .join(", ")
-                        : transaction?.paymentMethod === "CASH"
-                          ? "Tunai"
-                          : transaction?.paymentMethod}
+                      {paymentsList.length > 0
+                        ? paymentsList.map((p, idx) => (
+                            <React.Fragment key={idx}>
+                              <span style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel === "pelunasan" ? "#047857" : "inherit") }}>
+                                {p.label}
+                              </span>
+                              {idx < paymentsList.length - 1 ? ", " : ""}
+                            </React.Fragment>
+                          ))
+                        : "-"}
                     </span>
                   </div>
                   <div className="flex">
@@ -323,10 +362,10 @@ export function ReceiptModal({
                     <span>Faktur sementara</span>
                   </div>
                 )}
-                {!isCancelled && transaction.note && (
+                {!isCancelled && displayNote && displayNote.length > 0 && (
                   <div className="text-[12px]">
                     <span className="font-bold">Catatan: </span>
-                    <span>{transaction.note}</span>
+                    <span>{displayNote}</span>
                   </div>
                 )}
               </div>
@@ -357,28 +396,40 @@ export function ReceiptModal({
                   </div>
                   {!isCancelled && (
                     <>
-                      {transaction.payments && transaction.payments.length > 0 ? (
-                        transaction.payments.map((p, idx) => (
-                          <div key={idx} className="flex w-[350px]">
-                            <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2 uppercase">
-                              {p.method === "CASH" ? "TUNAI" : p.method}
-                            </div>
-                            <div className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]">
-                              Rp{" "}
-                              {Number(p.amount).toLocaleString("id-ID")}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
+                      {paymentsList.length > 0 && (
                         <div className="flex w-[350px]">
-                          <div className="flex-1 flex items-center justify-end font-bold pr-4 py-2 uppercase">
-                            {printStatus === "DP" 
-                              ? "UANG MUKA" 
-                              : (transaction.paymentMethod === "CASH" ? "TUNAI" : transaction.paymentMethod)}
+                          <div className="flex-1 flex flex-col items-end justify-center pr-4 py-2">
+                            <div className="font-bold uppercase">
+                              {paymentsList.map((p, idx, arr) => (
+                                <React.Fragment key={idx}>
+                                  <span style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel?.toLowerCase() === "pelunasan" ? "#047857" : "inherit") }}>
+                                    {p.label}
+                                  </span>
+                                  {idx < arr.length - 1 && " / "}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                            {paymentsList.some(p => p.subLabel) && (
+                              <div className="text-[9px] uppercase mt-[-2px]">
+                                {paymentsList.filter(p => p.subLabel).map((p, idx, arr) => (
+                                  <React.Fragment key={idx}>
+                                    <span style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel?.toLowerCase() === "pelunasan" ? "#047857" : "#6b7280") }}>
+                                      {p.subLabel}
+                                    </span>
+                                    {idx < arr.length - 1 && <span className="text-gray-500"> / </span>}
+                                  </React.Fragment>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <div className="border-l border-r border-b border-black py-2 px-4 font-bold text-center w-[180px]">
-                            Rp{" "}
-                            {Number(transaction.amountPaid).toLocaleString("id-ID")}
+                          <div className="border-l border-r border-b border-black font-bold text-center w-[180px] flex items-stretch justify-center">
+                            {paymentsList.map((p, idx) => (
+                              <div key={idx} className={`flex-1 flex flex-col items-center justify-center py-2 px-1 ${idx > 0 ? "border-l border-black" : ""}`}>
+                                <span className="text-[11px] whitespace-nowrap" style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel?.toLowerCase() === "pelunasan" ? "#047857" : "inherit") }}>
+                                  Rp {p.amountFormatted}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}

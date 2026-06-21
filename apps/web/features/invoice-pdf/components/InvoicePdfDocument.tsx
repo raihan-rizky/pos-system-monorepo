@@ -435,7 +435,18 @@ export function InvoicePdfDocument({
             <View style={s.infoRow}>
               <Text style={s.infoLabelRight}>Pembayaran</Text>
               <Text style={s.infoColon}>:</Text>
-              <Text>{data.paymentMethod}</Text>
+              <Text>
+                {data.totals.paymentsList.length > 0
+                  ? data.totals.paymentsList.map((p, idx) => (
+                      <React.Fragment key={idx}>
+                        <Text style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel === "pelunasan" ? "#047857" : undefined) }}>
+                          {p.label}
+                        </Text>
+                        {idx < data.totals.paymentsList.length - 1 ? ", " : ""}
+                      </React.Fragment>
+                    ))
+                  : <Text>-</Text>}
+              </Text>
             </View>
             <View style={s.infoRow}>
               <Text style={s.infoLabelRight}>Status</Text>
@@ -541,16 +552,37 @@ export function InvoicePdfDocument({
           {/* Payment & Balance rows (only when not cancelled) */}
           {!data.isCancelled && (
             <>
-              {data.totals.paymentsList.map((payment, idx) => (
-                <View key={`payment-${idx}`} style={s.totalRow}>
-                  <View style={s.totalLabel}>
-                    <Text>{payment.label}</Text>
+              {data.totals.paymentsList.length > 0 && (
+                <View style={s.totalRow}>
+                  <View style={[s.totalLabel, { flexDirection: "column", alignItems: "flex-end", justifyContent: "center" }]}>
+                    <Text>
+                      {data.totals.paymentsList.map((p, idx, arr) => (
+                        <Text key={idx} style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel?.toLowerCase() === "pelunasan" ? "#047857" : "#000") }}>
+                          {p.label}{idx < arr.length - 1 ? " / " : ""}
+                        </Text>
+                      ))}
+                    </Text>
+                    {data.totals.paymentsList.some(p => p.subLabel) && (
+                      <Text style={{ fontSize: px(9), marginTop: px(-2), textTransform: "uppercase" }}>
+                        {data.totals.paymentsList.filter(p => p.subLabel).map((p, idx, arr) => (
+                          <Text key={idx} style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel?.toLowerCase() === "pelunasan" ? "#047857" : "#6b7280") }}>
+                            {p.subLabel}{idx < arr.length - 1 ? " / " : ""}
+                          </Text>
+                        ))}
+                      </Text>
+                    )}
                   </View>
-                  <Text style={s.paymentBox}>
-                    Rp {payment.amountFormatted}
-                  </Text>
+                  <View style={[s.paymentBox, { paddingVertical: 0, paddingHorizontal: 0 }]}>
+                    {data.totals.paymentsList.map((p, idx) => (
+                      <View key={idx} style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: px(8), borderLeftWidth: idx > 0 ? 1 : 0, borderLeftColor: "#000" }}>
+                        <Text style={{ fontSize: px(10), color: p.subLabel === "DP" ? "#b45309" : (p.subLabel?.toLowerCase() === "pelunasan" ? "#047857" : "#000") }}>
+                          Rp {p.amountFormatted}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              ))}
+              )}
               <View style={s.totalRow}>
                 <View style={s.totalLabel}>
                   <Text>{data.totals.balanceLabel}</Text>

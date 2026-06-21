@@ -40,7 +40,7 @@ export interface InvoicePdfTotals {
   balanceLabel: string;
   isCancelled: boolean;
   cancelLabel: string | null;
-  paymentsList: { label: string; amountFormatted: string }[];
+  paymentsList: { label: string; amountFormatted: string; subLabel?: string }[];
 }
 
 export interface InvoicePdfData {
@@ -91,16 +91,36 @@ export function computeTotals(transaction: Transaction): InvoicePdfTotals {
   const isRefunded = transaction.status === "REFUNDED";
   const isCancelled = isVoided || isRefunded;
   const remaining = isDP ? grandTotal - amountPaid : 0;
+  const hasDebtLogs = transaction.debtPaymentLogs && transaction.debtPaymentLogs.length > 0;
+  const initialPaymentIsDP = isDP || hasDebtLogs;
 
-  const paymentsList = (transaction.payments && transaction.payments.length > 0)
-    ? transaction.payments.map((p) => ({
+  const paymentsList: { label: string; amountFormatted: string; subLabel?: string }[] = [];
+  
+  if (transaction.payments && transaction.payments.length > 0) {
+    paymentsList.push(
+      ...transaction.payments.map((p) => ({
         label: p.method === "CASH" ? "TUNAI" : p.method,
         amountFormatted: Number(p.amount).toLocaleString("id-ID"),
+        subLabel: initialPaymentIsDP ? "DP" : undefined,
       }))
-    : [{
-        label: isDP ? "UANG MUKA" : (transaction.paymentMethod === "CASH" ? "TUNAI" : transaction.paymentMethod),
-        amountFormatted: amountPaid.toLocaleString("id-ID"),
-      }];
+    );
+  } else if (amountPaid > 0) {
+    paymentsList.push({
+      label: transaction.paymentMethod === "CASH" ? "TUNAI" : transaction.paymentMethod,
+      amountFormatted: amountPaid.toLocaleString("id-ID"),
+      subLabel: initialPaymentIsDP ? "DP" : undefined,
+    });
+  }
+
+  if (transaction.debtPaymentLogs && transaction.debtPaymentLogs.length > 0) {
+    paymentsList.push(
+      ...transaction.debtPaymentLogs.map((p) => ({
+        label: p.paymentMethod === "CASH" ? "TUNAI" : p.paymentMethod,
+        amountFormatted: Number(p.amount).toLocaleString("id-ID"),
+        subLabel: "pelunasan",
+      }))
+    );
+  }
 
   return {
     grandTotal,
@@ -195,14 +215,9 @@ export function buildInvoicePdfData(
       transaction.salesName ??
       transaction.salesperson?.name ??
       "-",
-    paymentMethod:
-      transaction.payments && transaction.payments.length > 0
-        ? transaction.payments
-            .map((p) => p.method === "CASH" ? "Tunai" : p.method)
-            .join(", ")
-        : transaction.paymentMethod === "CASH"
-          ? "Tunai"
-          : transaction.paymentMethod,
+    paymentMethod: totals.paymentsList.length > 0 
+      ? totals.paymentsList.map(p => p.label).join(", ")
+      : transaction.paymentMethod === "CASH" ? "TUNAI" : transaction.paymentMethod,
     date: formatIndonesianDate(
       transaction.createdAt || new Date().toISOString()
     ),
@@ -211,7 +226,9 @@ export function buildInvoicePdfData(
     hasSize,
     emptyRowCount,
     totals,
-    note: transaction.note,
+    note: transaction.note 
+      ? transaction.note.replace(/(?: \| )?Pelunasan(?: piutang)? [\d.,]+ \([A-Z]+\)(?:, [\d.,]+ \([A-Z]+\))*/g, "").trim() || null
+      : null,
     isCancelled: totals.isCancelled,
     isDP: transaction.status === "DP",
   };

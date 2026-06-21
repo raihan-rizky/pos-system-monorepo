@@ -89,7 +89,7 @@ export async function POST(
           status: "DP",
         },
         orderBy: { createdAt: "asc" },
-        select: { id: true, total: true, amountPaid: true },
+        select: { id: true, total: true, amountPaid: true, note: true },
       });
 
       if (dpTransaction) {
@@ -102,9 +102,10 @@ export async function POST(
             amountPaid: newAmountPaid,
             // If fully paid, mark as COMPLETED
             status: newAmountPaid >= totalAmount ? "COMPLETED" : "DP",
+            // Append the manual note if provided, else keep existing note
             note: note
-              ? `${note} | Pelunasan ${new Intl.NumberFormat("id-ID").format(amount)}`
-              : `Pelunasan piutang ${new Intl.NumberFormat("id-ID").format(amount)}`,
+              ? (dpTransaction.note ? `${dpTransaction.note} | ${note}` : note)
+              : dpTransaction.note,
           },
         });
         await tx.debtPaymentLog.create({
