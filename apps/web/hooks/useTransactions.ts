@@ -97,6 +97,7 @@ export interface TransactionHistoryParams {
   status?: string;
   suratJalan?: "bundled";
   page?: number;
+  customerType?: string;
 }
 
 interface CreateTransactionInput {
@@ -346,5 +347,6 @@ export function useRejectTransaction() {
     },
   });
 }
+
 
 

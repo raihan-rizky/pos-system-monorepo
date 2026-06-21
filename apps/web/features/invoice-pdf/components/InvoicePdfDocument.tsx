@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/alt-text */
 /**
  * @react-pdf/renderer Document component for invoice PDF.
  *

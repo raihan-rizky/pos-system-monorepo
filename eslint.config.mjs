@@ -22,6 +22,7 @@ export default [
       "**/build/**",
       "**/coverage/**",
       "packages/db/**",
+      "**/next-env.d.ts",
     ],
   },
 

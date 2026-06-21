@@ -20,6 +20,7 @@ import {
   shouldMarkConversionForReview,
 } from "@/features/product-stock-groups/product-stock-groups-service";
 import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
+import { groupProductsByNameAndCategory } from "@/features/pos-search/services/product-grouping-service";
 
 import { getLogger } from "@/lib/logger";
 
@@ -155,8 +156,11 @@ export async function GET(request: Request) {
       }),
     ]);
 
+    const rawProducts = products.map((product) => withCalculatedStock(product));
+    const groupedProducts = groupProductsByNameAndCategory(rawProducts as any);
+
     const res = apiList(
-      products.map((product) => withCalculatedStock(product)),
+      groupedProducts,
       buildPaginationMeta(total, page, limit),
     );
     res.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");

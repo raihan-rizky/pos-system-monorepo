@@ -4,10 +4,31 @@ import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tansta
 import { useDebounce } from "./useDebounce";
 import type { ProductStockStatusFilter } from "@/features/pos-search/pos-stock-filter";
 
+export interface ProductVariant {
+  id: string;
+  unit: string;
+  price: number;
+  costPrice: number | null;
+  stock: number;
+  sku: string;
+  unitMultiplierToBase?: number;
+  stockGroup?: {
+    id: string;
+    displayName: string;
+    baseUnit: string;
+    baseStock: number;
+  } | null;
+  hargaDinas: number | null;
+  barcode?: string | null;
+  size?: string | null;
+  material?: string | null;
+}
+
 export interface Product {
   id: string;
   name: string;
   sku: string;
+  barcode?: string | null;
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
@@ -33,6 +54,14 @@ export interface Product {
     icon: string | null;
     color: string | null;
   };
+  defaultVariant?: {
+    id: string;
+    unit: string;
+    price: number;
+    stock: number;
+    sku: string;
+  };
+  variants?: ProductVariant[];
 }
 
 export interface Category {
@@ -131,6 +160,14 @@ async function fetchCategories(): Promise<Category[]> {
   return json.data;
 }
 
+export function useCategories(initialData?: Category[]) {
+  return useQuery({
+    queryKey: ["categories"],
+    queryFn: fetchCategories,
+    initialData,
+  });
+}
+
 export function useProducts(
   search?: string,
   categoryId?: string,
@@ -184,6 +221,7 @@ async function fetchProductStats(
   if (!res.ok) {
     throw new Error("Failed to fetch product stats");
   }
+
   return res.json();
 }
 
@@ -191,81 +229,25 @@ export function useProductStats(search?: string, categoryId?: string) {
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
 
   return useQuery({
-    queryKey: ["products", "stats", debouncedSearch, categoryId],
+    queryKey: ["product-stats", debouncedSearch, categoryId],
     queryFn: () => fetchProductStats(debouncedSearch, categoryId),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useProductsPage(
-  search?: string,
-  categoryId?: string,
-  options: UseProductsOptions = {},
-) {
-  const {
-    page = 1,
-    limit = 100,
-    inStockOnly = false,
-    stockStatus,
-    stockGroupMinVariants,
-    initialData,
-  } = options;
-  const debouncedSearch = useDebounce(search?.trim() || "", 300);
-
-  return useQuery({
-    queryKey: [
-      "products",
-      "page",
-      debouncedSearch,
-      categoryId,
-      page,
-      limit,
-      inStockOnly,
-      stockStatus,
-      stockGroupMinVariants,
-    ],
-    queryFn: () =>
-      fetchProducts(
-        debouncedSearch,
-        categoryId,
-        page,
-        limit,
-        inStockOnly,
-        stockStatus,
-        stockGroupMinVariants,
-      ),
-    initialData:
-      debouncedSearch === "" &&
-      !categoryId &&
-      page === 1 &&
-      !inStockOnly &&
-      !stockStatus &&
-      !stockGroupMinVariants
-        ? initialData
-        : undefined,
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useCategories(initialData?: Category[]) {
-  return useQuery({
-    queryKey: ["categories"],
-    queryFn: fetchCategories,
-    initialData,
   });
 }
 
 export interface CreateProductInput {
   name: string;
   sku: string;
+  barcode?: string | null;
+  description?: string | null;
+  price: number;
   costPrice?: number | null;
   hargaDinas?: number | null;
-  price: number;
   stock: number;
-  unit: string;
   unitMultiplierToBase?: number;
+  minStock: number;
+  unit: string;
+  size?: string | null;
   categoryId: string;
-  size?: string;
   material?: string;
   imageUrl?: string;
   smallestUnitVariant?: {
@@ -442,5 +424,38 @@ export function useUpdateStock() {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-logs"] });
     },
+  });
+}
+
+export function useProductsPage(
+  search?: string,
+  categoryId?: string,
+  options: UseProductsOptions = {},
+) {
+  const { page = 1, limit = 100, inStockOnly = false, stockStatus } = options;
+  const debouncedSearch = useDebounce(search?.trim() || "", 300);
+
+  return useQuery({
+    queryKey: [
+      "products",
+      debouncedSearch,
+      categoryId,
+      page,
+      limit,
+      inStockOnly,
+      stockStatus,
+      options.stockGroupMinVariants,
+    ],
+    queryFn: () =>
+      fetchProducts(
+        debouncedSearch,
+        categoryId,
+        page,
+        limit,
+        inStockOnly,
+        stockStatus,
+        options.stockGroupMinVariants,
+      ),
+    placeholderData: keepPreviousData,
   });
 }

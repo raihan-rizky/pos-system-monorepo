@@ -20,6 +20,7 @@ import {
   canEditCustomPriceForCustomer,
   priceProductForCustomerType,
   resolveCustomPricedLine,
+  isRegularPriceFallback,
   type CategoryPricingRule,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
@@ -56,6 +57,7 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
     items: CartItem[];
+    payments?: { method: "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER"; amount: number }[];
   }) => void;
   isProcessing?: boolean;
   isSavingDraft?: boolean;
@@ -259,6 +261,7 @@ export function PaymentModal({
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
       items: pricedItems,
+      payments: selectedPaymentMethods.map(m => ({ method: m as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER", amount: amountsPaid[m] || 0 })).filter(p => p.amount > 0),
     });
   };
 
@@ -445,6 +448,21 @@ export function PaymentModal({
                   </span>
                 </div>
               )}
+              {item.lineType === "PRODUCT" &&
+                !item.appliedPricing &&
+                isRegularPriceFallback({
+                  appliedPricing: null,
+                  customerType: selectedCustomerType,
+                }) && (
+                  <div className="mt-1 text-[11px] text-amber-700">
+                    <span className="font-semibold">Harga Reguler</span>
+                    <span>
+                      {" "}
+                      — tidak ada Harga Dinas atau Harga Khusus untuk produk
+                      ini.
+                    </span>
+                  </div>
+                )}
             </div>
           ))}
         </div>

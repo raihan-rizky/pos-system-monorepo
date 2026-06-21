@@ -266,6 +266,7 @@ export function DebtTransactionsList() {
   const [page, setPage] = useState(1);
 
   const [paymentStatus, setPaymentStatus] = useState<"ALL" | "DP" | "COMPLETED">("ALL");
+  const [customerType, setCustomerType] = useState<string>("");
 
   const [payingTx, setPayingTx] = useState<Transaction | null>(null);
   const [viewingTx, setViewingTx] = useState<Transaction | null>(null);
@@ -276,11 +277,17 @@ export function DebtTransactionsList() {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     page,
+    customerType: customerType || undefined,
   });
 
   const transactions = data?.data ?? [];
   const totalItems = data?.pagination.total ?? 0;
   const totalPages = data?.pagination.totalPages ?? 1;
+  const loadingLabel = isLoading
+    ? "Memuat data piutang..."
+    : isFetching
+      ? "Memperbarui data piutang..."
+      : null;
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -388,44 +395,109 @@ export function DebtTransactionsList() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-2 text-sm text-slate-500">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => { setPaymentStatus("ALL"); setPage(1); }}
-            className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-              paymentStatus === "ALL" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            Semua
-          </button>
-          <button
-            onClick={() => { setPaymentStatus("DP"); setPage(1); }}
-            className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-              paymentStatus === "DP" ? "bg-red-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            Belum Lunas
-          </button>
-          <button
-            onClick={() => { setPaymentStatus("COMPLETED"); setPage(1); }}
-            className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-              paymentStatus === "COMPLETED" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            Lunas
-          </button>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-2 text-sm text-slate-500">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => { setPaymentStatus("ALL"); setPage(1); }}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                paymentStatus === "ALL" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Semua
+            </button>
+            <button
+              onClick={() => { setPaymentStatus("DP"); setPage(1); }}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                paymentStatus === "DP" ? "bg-red-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Belum Lunas
+            </button>
+            <button
+              onClick={() => { setPaymentStatus("COMPLETED"); setPage(1); }}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                paymentStatus === "COMPLETED" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Lunas
+            </button>
+          </div>
+
+          <div className="hidden sm:block h-6 w-px bg-slate-200"></div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => { setCustomerType(""); setPage(1); }}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                customerType === "" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Semua Tipe
+            </button>
+            <button
+              onClick={() => { setCustomerType("UMUM"); setPage(1); }}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                customerType === "UMUM" ? "bg-slate-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              UMUM
+            </button>
+            <button
+              onClick={() => { setCustomerType("AGEN"); setPage(1); }}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                customerType === "AGEN" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              AGEN
+            </button>
+            <button
+              onClick={() => { setCustomerType("INDUSTRI"); setPage(1); }}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                customerType === "INDUSTRI" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              INDUSTRI
+            </button>
+            <button
+              onClick={() => { setCustomerType("PEMERINTAH"); setPage(1); }}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                customerType === "PEMERINTAH" ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              PEMERINTAH
+            </button>
+          </div>
         </div>
+
         <div className="flex items-center gap-2">
           <span className="font-bold">{totalItems} invoice / tagihan</span>
-          {isFetching && <Loader2 className="h-4 w-4 animate-spin" />}
+          {loadingLabel && (
+            <span
+              role="status"
+              aria-live="polite"
+              className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {loadingLabel}
+            </span>
+          )}
         </div>
       </div>
 
       {/* List */}
       <div className="min-w-0 space-y-3">
         {isLoading ? (
-          <div className="flex justify-center p-8">
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex flex-col items-center justify-center rounded-[32px] border border-slate-200 bg-white/80 px-6 py-14 text-center shadow-sm"
+          >
             <Loader2 className="h-8 w-8 animate-spin text-slate-300" />
+            <h2 className="mt-5 text-lg font-black text-slate-900">Memuat data piutang</h2>
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              Sistem sedang mengambil daftar invoice dan histori pembayaran.
+            </p>
           </div>
         ) : transactions.length === 0 ? (
           <div className="rounded-[32px] border border-dashed border-slate-300 bg-white/80 px-6 py-14 text-center shadow-sm">
@@ -689,3 +761,6 @@ export function DebtTransactionsList() {
     </div>
   );
 }
+
+
+

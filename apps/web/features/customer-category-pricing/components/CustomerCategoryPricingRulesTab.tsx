@@ -63,8 +63,9 @@ export function CustomerCategoryPricingRulesTab() {
   const selectedCategory = categories.find((category) => category.id === form.categoryId);
   const zeroedProductCount = useMemo(() => {
     if (form.mode !== "FLAT_DISCOUNT" || form.value <= 0) return 0;
-    return countProductsAtOrBelowFlatDiscount(categoryProducts, form.value);
-  }, [categoryProducts, form.mode, form.value]);
+    const products = categoryProductsQuery.data?.data ?? [];
+    return countProductsAtOrBelowFlatDiscount(products, form.value);
+  }, [categoryProductsQuery.data?.data, form.mode, form.value]);
   const rules = rulesQuery.data ?? [];
   const isSaving = createRule.isPending || updateRule.isPending;
 

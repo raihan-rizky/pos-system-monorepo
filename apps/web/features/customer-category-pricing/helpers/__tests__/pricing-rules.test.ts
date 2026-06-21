@@ -8,6 +8,7 @@ import {
   canEditCustomPriceForCustomer,
   resolveCustomPricedLine,
   resolveCheckoutCustomerType,
+  isRegularPriceFallback,
   type CategoryPricingRule,
 } from "../pricing-rules";
 
@@ -128,12 +129,62 @@ describe("customer category pricing rules", () => {
     expect(priced.appliedPricing?.ruleId).toBe("rule-percent");
   });
 
+  it("treats Harga Dinas 0 as empty for PEMERINTAH", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-ink",
+        categoryName: "Tinta",
+        price: 100000,
+        hargaDinas: 0,
+      },
+      "PEMERINTAH",
+      rules,
+    );
+
+    expect(priced.unitPrice).toBe(87500);
+    expect(priced.appliedPricing?.ruleId).toBe("rule-percent");
+  });
+
   it("keeps catalog price when rule does not match", () => {
     expect(
       applyCategoryPricingRule(
         { categoryId: "cat-paper", price: 12000 },
         "INDUSTRI",
         rules[0],
+      ),
+    ).toEqual({ unitPrice: 12000, appliedPricing: null });
+  });
+
+  it("skips flat discount that drops price to zero", () => {
+    expect(
+      applyCategoryPricingRule(
+        { categoryId: "cat-paper", price: 5000 },
+        "AGEN",
+        { ...rules[0], value: 5000 },
+      ),
+    ).toEqual({ unitPrice: 5000, appliedPricing: null });
+  });
+
+  it("skips flat discount that drops price below zero", () => {
+    expect(
+      applyCategoryPricingRule(
+        { categoryId: "cat-paper", price: 5000 },
+        "AGEN",
+        { ...rules[0], value: 8000 },
+      ),
+    ).toEqual({ unitPrice: 5000, appliedPricing: null });
+  });
+
+  it("skips percent discount of 100", () => {
+    expect(
+      applyCategoryPricingRule(
+        { categoryId: "cat-paper", price: 12000 },
+        "AGEN",
+        {
+          ...rules[0],
+          mode: "PERCENT_DISCOUNT",
+          value: 100,
+        },
       ),
     ).toEqual({ unitPrice: 12000, appliedPricing: null });
   });
@@ -150,6 +201,42 @@ describe("customer category pricing rules", () => {
         8000,
       ),
     ).toBe(2);
+  });
+
+  it("detects regular price fallback for PEMERINTAH without applied pricing", () => {
+    expect(
+      isRegularPriceFallback({ appliedPricing: null, customerType: "PEMERINTAH" }),
+    ).toBe(true);
+  });
+
+  it("does not flag UMUM as regular price fallback", () => {
+    expect(
+      isRegularPriceFallback({ appliedPricing: null, customerType: "UMUM" }),
+    ).toBe(false);
+  });
+
+  it("does not flag when PEMERINTAH has applied pricing", () => {
+    expect(
+      isRegularPriceFallback({
+        appliedPricing: {
+          ruleId: "harga-dinas",
+          customerType: "PEMERINTAH",
+          categoryId: "cat-ink",
+          categoryName: "Tinta",
+          mode: "FLAT_DISCOUNT",
+          value: 1000,
+          originalUnitPrice: 100000,
+          appliedUnitPrice: 125000,
+        },
+        customerType: "PEMERINTAH",
+      }),
+    ).toBe(false);
+  });
+
+  it("flags INDUSTRI without applied pricing as regular price fallback", () => {
+    expect(
+      isRegularPriceFallback({ appliedPricing: null, customerType: "INDUSTRI" }),
+    ).toBe(true);
   });
 
   it("calculates current and custom profit with margin percentages", () => {

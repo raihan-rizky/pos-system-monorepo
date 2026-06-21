@@ -19,6 +19,7 @@ export type DraftCreateInput = {
   salespersonId?: string | null;
   isJobOrder: boolean;
   estimatedDoneAt?: string | null;
+  payments?: { method: "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER"; amount: number }[];
 };
 
 export type DraftApproveInput = {

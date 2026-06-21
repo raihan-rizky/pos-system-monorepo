@@ -82,6 +82,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
         price: Number(price),
         hargaDinas: parsedHargaDinas,
         stock: Number(stock),
+        minStock: 5,
         unit,
         categoryId,
         size: size || undefined,

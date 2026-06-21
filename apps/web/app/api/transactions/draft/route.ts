@@ -39,6 +39,10 @@ const createDraftSchema = z.object({
   salespersonId: z.string().optional().nullable(),
   isJobOrder: z.boolean().optional().default(false),
   estimatedDoneAt: z.string().optional().nullable(),
+  payments: z.array(z.object({
+    method: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
+    amount: z.number().min(0),
+  })).optional(),
 });
 
 const MAX_ATTEMPTS = 5;
@@ -78,6 +82,7 @@ export async function POST(request: Request) {
       salespersonId,
       isJobOrder,
       estimatedDoneAt,
+      payments,
     } = parsed.data;
 
     if (items.length === 0) {
@@ -167,6 +172,14 @@ export async function POST(request: Request) {
     );
     const total = Math.max(0, subtotal - discount);
 
+    const primaryPaymentMethod =
+      payments && payments.length > 0
+        ? payments.reduce(
+            (max, p) => (p.amount > max.amount ? p : max),
+            payments[0]
+          ).method
+        : "CASH";
+
     const isSalesRequest = user.role === "SALES";
     let draft: unknown = null;
 
@@ -191,7 +204,7 @@ export async function POST(request: Request) {
               discount,
               tax: 0,
               total,
-              paymentMethod: "CASH",
+              paymentMethod: primaryPaymentMethod,
               amountPaid: 0,
               change: 0,
               status: "DRAFT",
@@ -217,6 +230,16 @@ export async function POST(request: Request) {
                   subtotal: item.price * item.quantity,
                 })),
               },
+              ...(payments && payments.length > 0
+                ? {
+                    payments: {
+                      create: payments.map((p) => ({
+                        method: p.method,
+                        amount: p.amount,
+                      })),
+                    },
+                  }
+                : {}),
             },
             include: {
               items: {

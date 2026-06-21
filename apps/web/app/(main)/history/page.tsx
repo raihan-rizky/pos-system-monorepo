@@ -294,9 +294,9 @@ function EditModal({
           </div>
 
           <div className="pt-2 border-t border-surface-100">
-            <TransactionCartEditor 
-              items={cartItems} 
-              onChange={setCartItems} 
+            <TransactionCartEditor
+              items={cartItems}
+              onChange={setCartItems}
             />
           </div>
 
@@ -511,9 +511,14 @@ function ApproveModal({
 }) {
   const approveTx = useApproveTransaction();
   const [error, setError] = useState("");
-  
+
+  const hasMultiPayment = tx.payments && tx.payments.length > 0;
+  const multiPaymentTotal = hasMultiPayment ? tx.payments!.reduce((sum, p) => sum + Number(p.amount), 0) : 0;
+
   const total = Number(tx.total);
-  const [amountPaidInput, setAmountPaidInput] = useState<string>(Number(tx.amountPaid).toString());
+  const [amountPaidInput, setAmountPaidInput] = useState<string>(
+    hasMultiPayment ? multiPaymentTotal.toString() : Number(tx.amountPaid).toString()
+  );
   const [paymentMethodInput, setPaymentMethodInput] = useState<string>(tx.paymentMethod || "CASH");
   const [isPayLater, setIsPayLater] = useState<boolean>(false);
 
@@ -523,10 +528,10 @@ function ApproveModal({
   const handleApprove = async () => {
     setError("");
     try {
-      await approveTx.mutateAsync({ 
+      await approveTx.mutateAsync({
         id: tx.id,
         amountPaid: isPayLater ? 0 : parsedAmount,
-        paymentMethod: paymentMethodInput,
+        paymentMethod: hasMultiPayment ? (tx.paymentMethod || "CASH") : paymentMethodInput,
         isPayLater,
       });
       onSuccess();
@@ -568,34 +573,51 @@ function ApproveModal({
             <span className="text-sm font-semibold text-surface-800">Bayar Nanti (Tempo)</span>
           </label>
           <div className={`transition-opacity duration-200 ${isPayLater ? "opacity-50 pointer-events-none" : ""}`}>
-            <div className="flex justify-between gap-3 py-1 items-center">
-              <span className="text-surface-500">Metode</span>
-              <select
-                value={paymentMethodInput}
-                onChange={(e) => setPaymentMethodInput(e.target.value)}
-                className="px-2 py-1 bg-white border border-surface-200 rounded-md text-sm font-semibold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                disabled={isPayLater}
-              >
-                <option value="CASH">Cash</option>
-                <option value="TRANSFER">Transfer</option>
-                <option value="DEBIT">Debit</option>
-                <option value="CREDIT">Kredit</option>
-                <option value="QRIS">QRIS</option>
-              </select>
-            </div>
-            <div className="flex justify-between gap-3 py-1 items-center">
-              <span className="text-surface-500">Dibayar</span>
-              <div className="relative w-32">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-400 text-xs font-medium">Rp</span>
-                <input
-                  type="number"
-                  value={isPayLater ? 0 : amountPaidInput}
-                  onChange={(e) => setAmountPaidInput(e.target.value)}
-                  disabled={isPayLater}
-                  className="w-full pl-6 pr-2 py-1 text-right bg-white border border-surface-200 rounded-md text-sm font-bold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-surface-100 disabled:text-surface-500"
-                />
+            {hasMultiPayment ? (
+              <div className="py-2 border-y border-surface-200 my-2 space-y-1">
+                <div className="text-xs font-semibold text-surface-500 uppercase">Pembayaran dari Sales</div>
+                {tx.payments!.map((p, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-sm font-medium text-surface-900">
+                    <span>{p.method === "CASH" ? "Tunai" : p.method}</span>
+                    <span>{formatRupiah(Number(p.amount))}</span>
+                  </div>
+                ))}
+                <div className="text-xs text-brand-600 mt-2">
+                  Total Bayar: {formatRupiah(multiPaymentTotal)}
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="flex justify-between gap-3 py-1 items-center">
+                  <span className="text-surface-500">Metode</span>
+                  <select
+                    value={paymentMethodInput}
+                    onChange={(e) => setPaymentMethodInput(e.target.value)}
+                    className="px-2 py-1 bg-white border border-surface-200 rounded-md text-sm font-semibold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    disabled={isPayLater}
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="TRANSFER">Transfer</option>
+                    <option value="DEBIT">Debit</option>
+                    <option value="CREDIT">Kredit</option>
+                    <option value="QRIS">QRIS</option>
+                  </select>
+                </div>
+                <div className="flex justify-between gap-3 py-1 items-center">
+                  <span className="text-surface-500">Dibayar</span>
+                  <div className="relative w-32">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-400 text-xs font-medium">Rp</span>
+                    <input
+                      type="number"
+                      value={isPayLater ? 0 : amountPaidInput}
+                      onChange={(e) => setAmountPaidInput(e.target.value)}
+                      disabled={isPayLater}
+                      className="w-full pl-6 pr-2 py-1 text-right bg-white border border-surface-200 rounded-md text-sm font-bold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-surface-100 disabled:text-surface-500"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <div className="flex justify-between gap-3 py-1">
             <span className="text-surface-500">Status setelah setujui</span>
@@ -997,7 +1019,7 @@ export default function HistoryPage() {
                     min-w-[180px]"
               >
                 <option value="">Semua Kategori</option>
-                {categories.map((cat) => (
+                {categories.map((cat: any) => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
@@ -1207,23 +1229,29 @@ export default function HistoryPage() {
                                   )}
                                 </div>
                                 {tx.buktiTransaksiUrls && tx.buktiTransaksiUrls.length > 0 && (
-                                  <div className="flex -space-x-1.5 overflow-hidden" title={`${tx.buktiTransaksiUrls.length} Bukti Transaksi`}>
+                                  <div className="flex -space-x-1.5" title={`${tx.buktiTransaksiUrls.length} Bukti Transaksi`}>
                                     {tx.buktiTransaksiUrls.map((url, i) => {
                                       const resolvedUrl = url.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(url)}` : url;
                                       return (
-                                        <img
-                                          key={i}
-                                          src={resolvedUrl}
-                                          alt={`Bukti ${i + 1}`}
-                                          className="inline-block h-6 w-6 rounded-md ring-2 ring-white object-cover bg-surface-100 border border-surface-200 cursor-pointer hover:ring-brand-500 transition-all hover:z-10 relative"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedImageUrl(resolvedUrl);
-                                          }}
-                                          onError={(e) => {
-                                            (e.target as HTMLImageElement).style.display = "none";
-                                          }}
-                                        />
+                                        <div key={i} className="group relative z-0 hover:z-50">
+                                          <img
+                                            src={resolvedUrl}
+                                            alt={`Bukti ${i + 1}`}
+                                            className="inline-block h-8 w-8 rounded-md ring-2 ring-white object-cover bg-surface-100 border border-surface-200 cursor-pointer hover:ring-brand-500 hover:scale-110 transition-all relative z-10"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSelectedImageUrl(resolvedUrl);
+                                            }}
+                                            onError={(e) => {
+                                              (e.target as HTMLImageElement).style.display = "none";
+                                            }}
+                                          />
+                                          <div className="absolute flex items-center justify-center w-[320px] h-[480px] left-1/2 bottom-full mb-2 -translate-x-1/2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 pointer-events-none z-50">
+                                            <div className="bg-white p-1 rounded-xl shadow-2xl border border-surface-200 shadow-black/10">
+                                              <img src={resolvedUrl} alt={`Preview ${i + 1}`} className="w-32 h-auto max-h-480 object-contain rounded-lg" />
+                                            </div>
+                                          </div>
+                                        </div>
                                       );
                                     })}
                                   </div>
@@ -1386,23 +1414,29 @@ export default function HistoryPage() {
                               )}
                             </div>
                             {tx.buktiTransaksiUrls && tx.buktiTransaksiUrls.length > 0 && (
-                              <div className="flex -space-x-1.5 overflow-hidden mb-1">
+                              <div className="flex -space-x-1.5 mb-1">
                                 {tx.buktiTransaksiUrls.map((url, i) => {
                                   const resolvedUrl = url.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(url)}` : url;
                                   return (
-                                    <img
-                                      key={i}
-                                      src={resolvedUrl}
-                                      alt={`Bukti ${i + 1}`}
-                                      className="inline-block h-6 w-6 rounded-md ring-2 ring-white object-cover bg-surface-100 border border-surface-200 cursor-pointer hover:ring-brand-500 transition-all hover:z-10 relative"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedImageUrl(resolvedUrl);
-                                      }}
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).style.display = "none";
-                                      }}
-                                    />
+                                    <div key={i} className="group relative z-0 hover:z-50">
+                                      <img
+                                        src={resolvedUrl}
+                                        alt={`Bukti ${i + 1}`}
+                                        className="inline-block h-8 w-8 rounded-md ring-2 ring-white object-cover bg-surface-100 border border-surface-200 cursor-pointer hover:ring-brand-500 hover:scale-110 transition-all relative z-10"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedImageUrl(resolvedUrl);
+                                        }}
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = "none";
+                                        }}
+                                      />
+                                      <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 pointer-events-none z-50">
+                                        <div className="bg-white p-1 rounded-xl shadow-2xl border border-surface-200 shadow-black/10">
+                                          <img src={resolvedUrl} alt={`Preview ${i + 1}`} className="w-32 h-auto max-h-48 object-contain rounded-lg" />
+                                        </div>
+                                      </div>
+                                    </div>
                                   );
                                 })}
                               </div>
@@ -1627,16 +1661,16 @@ export default function HistoryPage() {
       )}
 
       {selectedImageUrl && (
-        <Modal 
-          open={!!selectedImageUrl} 
-          onClose={() => setSelectedImageUrl(null)} 
-          title="Bukti Transaksi" 
+        <Modal
+          open={!!selectedImageUrl}
+          onClose={() => setSelectedImageUrl(null)}
+          title="Bukti Transaksi"
           size="2xl"
         >
           <div className="flex justify-center items-center py-4 bg-surface-50 rounded-xl">
-            <img 
-              src={selectedImageUrl} 
-              alt="Preview Bukti Transaksi" 
+            <img
+              src={selectedImageUrl}
+              alt="Preview Bukti Transaksi"
               className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-sm"
               onError={(e) => {
                 // If it fails to load here, maybe we show an error
@@ -1645,9 +1679,9 @@ export default function HistoryPage() {
             />
           </div>
           <div className="flex justify-end mt-4">
-            <a 
-              href={selectedImageUrl} 
-              target="_blank" 
+            <a
+              href={selectedImageUrl}
+              target="_blank"
               rel="noreferrer"
               className="text-sm font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-xl transition-colors"
             >

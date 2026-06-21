@@ -605,11 +605,14 @@ export async function POST(request: Request) {
     const isDP = paymentStatus === "DP";
     const isSalesRequest = user.role === "SALES";
 
-    const amountPaidComputed = amountPaid;
-    const changeComputed = isDP ? 0 : amountPaid - total;
+    const amountPaidComputed = resolvedPayments.reduce((sum, p) => sum + p.amount, 0);
+    const changeComputed = isDP ? 0 : amountPaidComputed - total;
 
-    if (!isDP && amountPaid < total) {
-      return NextResponse.json({ message: "Pembayaran kurang" }, { status: 422 });
+    if (!isDP && amountPaidComputed < total) {
+      return NextResponse.json(
+        { message: `Pembayaran kurang dari total belanja (Total: Rp ${total.toLocaleString("id-ID")}, Terbayar: Rp ${amountPaidComputed.toLocaleString("id-ID")})` },
+        { status: 422 }
+      );
     }
 
     // Invoice number sequence is computed from the pre-fetched daily count.

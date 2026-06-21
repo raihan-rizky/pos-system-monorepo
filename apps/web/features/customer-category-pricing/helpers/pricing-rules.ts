@@ -53,6 +53,14 @@ export function resolveCheckoutCustomerType(customerType?: CustomerType | null):
   return customerType ?? "UMUM";
 }
 
+export function isRegularPriceFallback(input: {
+  appliedPricing: AppliedCategoryPricing | null;
+  customerType: CustomerType;
+}) {
+  if (input.customerType === "UMUM") return false;
+  return input.appliedPricing === null;
+}
+
 export function findMatchingCategoryPricingRule(
   rules: CategoryPricingRule[],
   input: { customerType: CustomerType; categoryId: string },
@@ -80,6 +88,10 @@ export function applyCategoryPricingRule(
       ? roundCurrency(originalUnitPrice - rule.value)
       : roundCurrency(originalUnitPrice * (1 - rule.value / 100));
 
+  if (appliedUnitPrice <= 0) {
+    return { unitPrice: originalUnitPrice, appliedPricing: null };
+  }
+
   return {
     unitPrice: appliedUnitPrice,
     appliedPricing: {
@@ -100,7 +112,11 @@ export function priceProductForCustomerType(
   customerType: CustomerType,
   rules: CategoryPricingRule[],
 ): PricedProductLine {
-  if (customerType === "PEMERINTAH" && product.hargaDinas != null) {
+  if (
+    customerType === "PEMERINTAH" &&
+    product.hargaDinas != null &&
+    product.hargaDinas > 0
+  ) {
     const originalUnitPrice = roundCurrency(product.price);
     const appliedUnitPrice = roundCurrency(product.hargaDinas);
     return {

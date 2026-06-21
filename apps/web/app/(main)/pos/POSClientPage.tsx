@@ -59,6 +59,7 @@ import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
 import { useRole } from "@/components/providers/RoleProvider";
 import { parseSearchQuery } from "@/features/pos-search/pos-search";
+import { mapProductToCartItem } from "@/features/pos-search/services/cart-mapping";
 import type { PrintingServiceOrderData } from "@/features/printing-services/components/PrintingServiceOrderModal";
 import {
   loadStockOnlyPreference,
@@ -100,6 +101,8 @@ export default function POSClientPage({
   const [activeTab, setActiveTab] = useState<"products" | "services">("products");
   const [pendingEmptyStockProduct, setPendingEmptyStockProduct] =
     useState<Product | null>(null);
+  const [pendingEmptyStockVariantId, setPendingEmptyStockVariantId] =
+    useState<string | undefined>(undefined);
   const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<{
     tone: "success" | "warning" | "danger";
@@ -182,32 +185,29 @@ export default function POSClientPage({
     [cart.items],
   );
 
-  const addProductToCart = useCallback((product: Product) => {
-    cart.addItem({
-      id: product.id,
-      name: product.name,
-      price: Number(product.price),
-      costPrice: product.costPrice,
-      hargaDinas: product.hargaDinas,
-      unit: product.unit,
-      stock: product.stock,
-      unitMultiplierToBase: product.unitMultiplierToBase,
-      stockGroup: product.stockGroup,
-      categoryId: product.category.id,
-      categoryName: product.category.name,
-    });
-  }, [cart]);
+  const addProductToCart = useCallback(
+    (product: Product, variantId?: string) => {
+      const cartItemInput = mapProductToCartItem(product, variantId);
+      cart.addItem(cartItemInput);
+    },
+    [cart],
+  );
 
-  const handleProductClick = useCallback((product: Product) => {
-    if (
-      product.stock <= 0 &&
-      (role === "CASHIER" || role === "SALES")
-    ) {
-      setPendingEmptyStockProduct(product);
-      return;
-    }
-    addProductToCart(product);
-  }, [addProductToCart, role]);
+  const handleProductClick = useCallback(
+    (product: Product, variantId?: string) => {
+      const targetVariantId = variantId || product.defaultVariant?.id || product.id;
+      const variant = product.variants?.find((v) => v.id === targetVariantId);
+      const stock = variant ? variant.stock : product.stock;
+
+      if (stock <= 0 && (role === "CASHIER" || role === "SALES")) {
+        setPendingEmptyStockProduct(product);
+        setPendingEmptyStockVariantId(variantId);
+        return;
+      }
+      addProductToCart(product, variantId);
+    },
+    [addProductToCart, role],
+  );
 
   const handleAddPrintingService = useCallback(
     (data: PrintingServiceOrderData) => {
@@ -474,9 +474,16 @@ export default function POSClientPage({
 
   const handleConfirmEmptyStockProduct = () => {
     if (!pendingEmptyStockProduct) return;
-    addProductToCart(pendingEmptyStockProduct);
+    addProductToCart(pendingEmptyStockProduct, pendingEmptyStockVariantId);
     setPendingEmptyStockProduct(null);
+    setPendingEmptyStockVariantId(undefined);
   };
+
+  const resolvedPendingVariant = useMemo(() => {
+    if (!pendingEmptyStockProduct) return null;
+    const targetVariantId = pendingEmptyStockVariantId || pendingEmptyStockProduct.defaultVariant?.id || pendingEmptyStockProduct.id;
+    return pendingEmptyStockProduct.variants?.find((v) => v.id === targetVariantId) || null;
+  }, [pendingEmptyStockProduct, pendingEmptyStockVariantId]);
 
   return (
     <>
@@ -806,7 +813,10 @@ export default function POSClientPage({
       {pendingEmptyStockProduct && (
         <Modal
           open={!!pendingEmptyStockProduct}
-          onClose={() => setPendingEmptyStockProduct(null)}
+          onClose={() => {
+            setPendingEmptyStockProduct(null);
+            setPendingEmptyStockVariantId(undefined);
+          }}
           title="Stok Kosong"
           size="sm"
         >
@@ -815,10 +825,10 @@ export default function POSClientPage({
               <AlertTriangle size={22} className="mt-0.5 shrink-0" />
               <div>
                 <p className="text-sm font-semibold">
-                  {pendingEmptyStockProduct.name}
+                  {pendingEmptyStockProduct.name} {resolvedPendingVariant ? `(${resolvedPendingVariant.unit})` : ""}
                 </p>
                 <p className="mt-1 text-sm">
-                  Stok produk ini {pendingEmptyStockProduct.stock}. Item akan
+                  Stok produk ini {resolvedPendingVariant ? resolvedPendingVariant.stock : pendingEmptyStockProduct.stock}. Item akan
                   masuk ke keranjang untuk nota penawaran, bukan pembayaran
                   langsung.
                 </p>
@@ -827,7 +837,10 @@ export default function POSClientPage({
             <div className="flex justify-end gap-3">
               <Button
                 variant="secondary"
-                onClick={() => setPendingEmptyStockProduct(null)}
+                onClick={() => {
+                  setPendingEmptyStockProduct(null);
+                  setPendingEmptyStockVariantId(undefined);
+                }}
               >
                 Batal
               </Button>

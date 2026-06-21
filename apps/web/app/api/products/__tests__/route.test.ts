@@ -284,6 +284,41 @@ describe("GET /api/products", () => {
     );
     expect(body.data[0].stock).toBe(2);
   });
+
+  it("groups products by name and category", async () => {
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "p1",
+        name: "Coffee",
+        sku: "COFFEE-DUS",
+        price: 50000,
+        stock: 10,
+        unit: "dus",
+        isActive: true,
+        category: { id: "cat1", name: "Beverage", icon: null, color: "#000" },
+      },
+      {
+        id: "p2",
+        name: "Coffee",
+        sku: "COFFEE-PCS",
+        price: 5000,
+        stock: 100,
+        unit: "pcs",
+        isActive: true,
+        category: { id: "cat1", name: "Beverage", icon: null, color: "#000" },
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/products"),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].variants).toHaveLength(2);
+    expect(body.data[0].defaultVariant.stock).toBe(100);
+  });
 });
 
 describe("DELETE /api/products", () => {
