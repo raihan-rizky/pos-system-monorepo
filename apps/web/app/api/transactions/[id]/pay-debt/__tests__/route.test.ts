@@ -4,9 +4,10 @@ import { POST } from "../route";
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
-const transactionUpdateMock = vi.hoisted(() => vi.fn());
+const txTransactionFindFirstMock = vi.hoisted(() => vi.fn());
+const transactionUpdateManyMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
-const customerUpdateMock = vi.hoisted(() => vi.fn());
+const customerUpdateManyMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogCreateManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 
@@ -22,10 +23,6 @@ vi.mock("@pos/db", () => ({
     },
     customer: {
       findFirst: customerFindFirstMock,
-      update: customerUpdateMock,
-    },
-    debtPaymentLog: {
-      createMany: debtPaymentLogCreateManyMock,
     },
     $transaction: dbTransactionMock,
   },
@@ -41,27 +38,32 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
-    transactionFindFirstMock.mockResolvedValue({
+
+    const dpRow = {
       id: "tx-dp-1",
       status: "DP",
       total: 200000,
       amountPaid: 50000,
       customerId: "customer-1",
-    });
-    transactionUpdateMock.mockResolvedValue({
-      id: "tx-dp-1",
-      status: "DP",
-      amountPaid: 100000,
-    });
+      note: null,
+    };
+    // Outer (pre-transaction) read used for validation messaging.
+    transactionFindFirstMock.mockResolvedValue({ ...dpRow });
+    // In-transaction authoritative re-read.
+    txTransactionFindFirstMock.mockResolvedValue({ ...dpRow });
+    // Optimistically guarded writes match exactly one row by default.
+    transactionUpdateManyMock.mockResolvedValue({ count: 1 });
+    customerUpdateManyMock.mockResolvedValue({ count: 1 });
     customerFindFirstMock.mockResolvedValue({ id: "customer-1" });
-    customerUpdateMock.mockResolvedValue({});
+
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
         transaction: {
-          update: transactionUpdateMock,
+          findFirst: txTransactionFindFirstMock,
+          updateMany: transactionUpdateManyMock,
         },
         customer: {
-          update: customerUpdateMock,
+          updateMany: customerUpdateManyMock,
         },
         debtPaymentLog: {
           createMany: debtPaymentLogCreateManyMock,
@@ -80,20 +82,23 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(transactionUpdateMock).toHaveBeenCalledWith({
-      where: { id: "tx-dp-1" },
-      data: expect.objectContaining({
-        amountPaid: 100000,
-        status: "DP",
-      }),
+    expect(transactionUpdateManyMock).toHaveBeenCalledTimes(1);
+    const txArgs = transactionUpdateManyMock.mock.calls[0][0];
+    expect(txArgs.where).toMatchObject({ id: "tx-dp-1", storeId: "store-main", status: "DP" });
+    expect(txArgs.data).toMatchObject({ amountPaid: 100000, status: "DP" });
+
+    expect(customerUpdateManyMock).toHaveBeenCalledTimes(1);
+    const custArgs = customerUpdateManyMock.mock.calls[0][0];
+    expect(custArgs.where).toMatchObject({
+      id: "customer-1",
+      storeId: "store-main",
+      totalDebt: { gte: 50000 },
     });
-    expect(customerUpdateMock).toHaveBeenCalledWith({
-      where: { id: "customer-1" },
-      data: expect.objectContaining({
-        totalDebt: { decrement: 50000 },
-        totalSpent: { increment: 50000 },
-      }),
+    expect(custArgs.data).toMatchObject({
+      totalDebt: { decrement: 50000 },
+      totalSpent: { increment: 50000 },
     });
+
     expect(debtPaymentLogCreateManyMock).toHaveBeenCalledWith({
       data: [
         {
@@ -109,12 +114,6 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
   });
 
   it("marks a DP transaction completed when the remaining debt is fully paid", async () => {
-    transactionUpdateMock.mockResolvedValueOnce({
-      id: "tx-dp-1",
-      status: "COMPLETED",
-      amountPaid: 200000,
-    });
-
     const response = await POST(
       new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
         method: "POST",
@@ -125,13 +124,8 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(transactionUpdateMock).toHaveBeenCalledWith({
-      where: { id: "tx-dp-1" },
-      data: expect.objectContaining({
-        amountPaid: 200000,
-        status: "COMPLETED",
-      }),
-    });
+    const txArgs = transactionUpdateManyMock.mock.calls[0][0];
+    expect(txArgs.data).toMatchObject({ amountPaid: 200000, status: "COMPLETED" });
     expect(body.transaction).toEqual({
       id: "tx-dp-1",
       amountPaid: 200000,
@@ -153,14 +147,16 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
   });
 
   it("uses the selected customer for an unlinked DP transaction so payment history is retained", async () => {
-    transactionFindFirstMock.mockResolvedValueOnce({
+    const unlinked = {
       id: "tx-dp-1",
       status: "DP",
       total: 200000,
       amountPaid: 50000,
       customerId: null,
       note: null,
-    });
+    };
+    transactionFindFirstMock.mockResolvedValueOnce({ ...unlinked });
+    txTransactionFindFirstMock.mockResolvedValueOnce({ ...unlinked });
 
     const response = await POST(
       new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
@@ -175,13 +171,11 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(transactionUpdateMock).toHaveBeenCalledWith({
-      where: { id: "tx-dp-1" },
-      data: expect.objectContaining({
-        amountPaid: 200000,
-        status: "COMPLETED",
-        customerId: "customer-1",
-      }),
+    const txArgs = transactionUpdateManyMock.mock.calls[0][0];
+    expect(txArgs.data).toMatchObject({
+      amountPaid: 200000,
+      status: "COMPLETED",
+      customerId: "customer-1",
     });
     expect(debtPaymentLogCreateManyMock).toHaveBeenCalledWith({
       data: [
@@ -195,5 +189,46 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
         },
       ],
     });
+  });
+
+  it("returns 409 when a concurrent payment already completed the transaction", async () => {
+    // In-tx re-read sees the transaction already paid off by a racing request.
+    txTransactionFindFirstMock.mockResolvedValueOnce({
+      id: "tx-dp-1",
+      status: "COMPLETED",
+      total: 200000,
+      amountPaid: 200000,
+      customerId: "customer-1",
+      note: null,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 150000, paymentMethod: "CASH" }),
+      }),
+      { params: Promise.resolve({ id: "tx-dp-1" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(transactionUpdateManyMock).not.toHaveBeenCalled();
+    expect(customerUpdateManyMock).not.toHaveBeenCalled();
+    expect(debtPaymentLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when the guarded transaction write matches no row (lost optimistic race)", async () => {
+    transactionUpdateManyMock.mockResolvedValue({ count: 0 });
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 50000, paymentMethod: "CASH" }),
+      }),
+      { params: Promise.resolve({ id: "tx-dp-1" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(customerUpdateManyMock).not.toHaveBeenCalled();
+    expect(debtPaymentLogCreateManyMock).not.toHaveBeenCalled();
   });
 });

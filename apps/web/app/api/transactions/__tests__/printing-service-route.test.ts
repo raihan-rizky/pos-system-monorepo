@@ -225,7 +225,7 @@ describe("POST /api/transactions printing service items", () => {
     });
   }, 10_000);
 
-  it("creates a regular printable invoice when sales checks out from POS", async () => {
+  it("creates a pending-approval request when sales checks out from POS", async () => {
     requireRoleMock.mockResolvedValue({
       id: "sales-1",
       role: "SALES",
@@ -235,7 +235,7 @@ describe("POST /api/transactions printing service items", () => {
     transactionCreateMock.mockResolvedValue({
       id: "txn-sales-1",
       invoiceNumber: "INV-20260523-0002",
-      status: "COMPLETED",
+      status: "PENDING_APPROVAL",
       items: [],
       salesperson: null,
     });
@@ -264,19 +264,20 @@ describe("POST /api/transactions printing service items", () => {
         data: expect.objectContaining({
           cashierId: null,
           requestedById: "sales-1",
-          status: "COMPLETED",
+          status: "PENDING_APPROVAL",
           paymentMethod: "TRANSFER",
           amountPaid: 60000,
-          change: 48000,
+          change: 0,
         }),
       }),
     );
+    // Stock must NOT be deducted at creation; approval deducts it exactly once.
     expect(queryRawMock).not.toHaveBeenCalled();
-    expect(sendRolePushEventMock).not.toHaveBeenCalled();
+    // An approval-request notification goes to OWNER/ADMIN on creation.
+    expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does not send approval notifications for sales regular invoices", async () => {
-    sendRolePushEventMock.mockRejectedValueOnce(new Error("Missing VAPID"));
+  it("sends an approval notification to owners/admins when sales submits a request", async () => {
     requireRoleMock.mockResolvedValue({
       id: "sales-1",
       role: "SALES",
@@ -286,22 +287,17 @@ describe("POST /api/transactions printing service items", () => {
     transactionCreateMock.mockResolvedValue({
       id: "txn-sales-1",
       invoiceNumber: "INV-20260523-0002",
-      status: "COMPLETED",
+      status: "PENDING_APPROVAL",
       items: [],
       salesperson: null,
     });
 
     const { POST } = await import("../route");
-    const response = await POST(
+    await POST(
       new Request("http://localhost/api/transactions", {
         method: "POST",
         body: JSON.stringify({
-          items: [
-            {
-              productId: "material-1",
-              quantity: 1,
-            },
-          ],
+          items: [{ productId: "material-1", quantity: 1 }],
           paymentMethod: "CASH",
           amountPaid: 12000,
           discount: 0,
@@ -309,8 +305,7 @@ describe("POST /api/transactions printing service items", () => {
       }),
     );
 
-    expect(response.status).toBe(201);
-    expect(sendRolePushEventMock).not.toHaveBeenCalled();
+    expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
   });
 
   it("allows zero down payment when the user explicitly selects DP", async () => {
@@ -353,7 +348,7 @@ describe("POST /api/transactions printing service items", () => {
     );
   });
 
-  it("creates a regular DP invoice when sales selects down payment", async () => {
+  it("creates a pending-approval request when sales selects down payment", async () => {
     requireRoleMock.mockResolvedValue({
       id: "sales-1",
       role: "SALES",
@@ -363,7 +358,7 @@ describe("POST /api/transactions printing service items", () => {
     transactionCreateMock.mockResolvedValue({
       id: "txn-sales-dp-1",
       invoiceNumber: "INV-20260523-0004",
-      status: "DP",
+      status: "PENDING_APPROVAL",
       items: [],
       salesperson: null,
     });
@@ -395,7 +390,7 @@ describe("POST /api/transactions printing service items", () => {
           requestedById: "sales-1",
           amountPaid: 5000,
           change: 0,
-          status: "DP",
+          status: "PENDING_APPROVAL",
         }),
       }),
     );

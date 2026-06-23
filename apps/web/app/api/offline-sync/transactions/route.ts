@@ -45,6 +45,12 @@ const syncSchema = z.object({
 type TxClient = Prisma.TransactionClient;
 type OfflineTransactionInput = z.infer<typeof offlineTransactionSchema>;
 type ServerOfflineItem = z.infer<typeof offlineItemSchema>;
+type SyncResult = {
+  clientMutationId: string;
+  status: string;
+  serverTransactionId?: string;
+  message: string;
+};
 
 export async function POST(request: Request) {
   try {
@@ -60,151 +66,44 @@ export async function POST(request: Request) {
       );
     }
 
-    const results = [];
-
+    // Process each transaction independently. A failure or unique-constraint
+    // race on one item MUST NOT abort the whole batch — sibling transactions
+    // are already committed and the client needs per-item results so it
+    // doesn't re-queue them.
+    const results: SyncResult[] = [];
     for (const offlineTx of parsed.data.transactions) {
-      const existing = await db.transaction.findUnique({
-        where: { offlineClientMutationId: offlineTx.clientMutationId },
-        select: { id: true, status: true },
-      });
-
-      if (existing) {
-        results.push({
-          clientMutationId: offlineTx.clientMutationId,
-          status: existing.status === "PENDING_APPROVAL" ? "PENDING_APPROVAL" : "SYNCED",
-          serverTransactionId: existing.id,
-          message: "Already synced",
-        });
-        continue;
-      }
-
-      const productIds = [...new Set(offlineTx.items.map((item) => item.productId))];
-      const products = await db.product.findMany({
-        where: {
-          id: { in: productIds },
-          storeId,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          price: true,
-          size: true,
-          material: true,
-          stock: true,
-        },
-      });
-      const productById = new Map(products.map((product) => [product.id, product]));
-
-      if (productById.size !== productIds.length) {
-        results.push({
-          clientMutationId: offlineTx.clientMutationId,
-          status: "FAILED_FINAL",
-          message: "One or more products were not found",
-        });
-        continue;
-      }
-
-      const serverItems: ServerOfflineItem[] = offlineTx.items.map((item) => {
-        const product = productById.get(item.productId);
-        if (!product) {
-          throw new Error("PRODUCT_NOT_FOUND");
-        }
-
-        return {
-          productId: product.id,
-          name: product.name,
-          size: item.size ?? product.size ?? null,
-          material: product.material ?? item.material ?? null,
-          price: Number(product.price),
-          quantity: item.quantity,
-        };
-      });
-      const stockByProductId = new Map(products.map((product) => [product.id, product.stock]));
-
-      const decision = buildOfflineSyncDecision(
-        {
-          clientMutationId: offlineTx.clientMutationId,
-          createdAt: offlineTx.createdAt,
-          items: serverItems,
-          discount: offlineTx.discount,
-          originalTotal: offlineTx.originalTotal,
-        },
-        {
-          now: new Date(),
-          stockByProductId,
-        },
-      );
-
-      if (decision.resultStatus === "FAILED_FINAL") {
-        results.push({
-          clientMutationId: offlineTx.clientMutationId,
-          status: "FAILED_FINAL",
-          message: "Tidak ada item yang tersedia untuk disinkronkan",
-        });
-        continue;
-      }
-
-      if (offlineTx.customerId) {
-        const customer = await db.customer.findFirst({
-          where: { id: offlineTx.customerId, storeId },
-          select: { id: true },
-        });
-        if (!customer) {
-          results.push({
-            clientMutationId: offlineTx.clientMutationId,
-            status: "FAILED_FINAL",
-            message: "Customer not found",
-          });
-          continue;
-        }
-      }
-
-      if (offlineTx.salespersonId) {
-        const salesperson = await db.salesperson.findFirst({
-          where: { id: offlineTx.salespersonId, storeId },
-          select: { id: true },
-        });
-        if (!salesperson) {
-          results.push({
-            clientMutationId: offlineTx.clientMutationId,
-            status: "FAILED_FINAL",
-            message: "Salesperson not found",
-          });
-          continue;
-        }
-      }
-
-      const serverOfflineTx: OfflineTransactionInput = {
-        ...offlineTx,
-        items: serverItems,
-      };
-      const finalDecision =
-        decision.transactionStatus === "COMPLETED" && offlineTx.amountPaid < decision.total
-          ? {
-              ...decision,
-              resultStatus: "PENDING_APPROVAL" as const,
-              transactionStatus: "PENDING_APPROVAL" as const,
-              reason: "ADJUSTED_TOTAL_CHANGED" as const,
+      try {
+        results.push(await syncOne(offlineTx, user, storeId));
+      } catch (err) {
+        if (isPrismaUniqueConstraint(err)) {
+          try {
+            const winner = await db.transaction.findUnique({
+              where: { offlineClientMutationId: offlineTx.clientMutationId },
+              select: { id: true, status: true },
+            });
+            if (winner) {
+              results.push({
+                clientMutationId: offlineTx.clientMutationId,
+                status: winner.status === "PENDING_APPROVAL" ? "PENDING_APPROVAL" : "SYNCED",
+                serverTransactionId: winner.id,
+                message: "Already synced",
+              });
+              continue;
             }
-          : decision;
-
-      const created = await createSyncedTransaction({
-        txData: serverOfflineTx,
-        decision: finalDecision,
-        user,
-        storeId,
-      });
-
-      results.push({
-        clientMutationId: offlineTx.clientMutationId,
-        status: finalDecision.resultStatus,
-        serverTransactionId: created.id,
-        message:
-          finalDecision.resultStatus === "PENDING_APPROVAL"
-            ? "Synced as pending approval"
-            : "Synced",
-      });
+          } catch (refetchErr) {
+            log.error("[offline-sync] P2002 refetch failed:", refetchErr);
+          }
+        }
+        log.error(
+          `[offline-sync] failed for ${offlineTx.clientMutationId}:`,
+          err,
+        );
+        results.push({
+          clientMutationId: offlineTx.clientMutationId,
+          status: "FAILED_FINAL",
+          message: err instanceof Error ? err.message : "Sync failed",
+        });
+      }
     }
 
     return NextResponse.json({ results });
@@ -218,6 +117,156 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+// Recognise a Prisma P2002 unique-constraint error without importing the
+// client types here (they live in @pos/db).
+function isPrismaUniqueConstraint(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === "P2002"
+  );
+}
+
+async function syncOne(
+  offlineTx: OfflineTransactionInput,
+  user: Awaited<ReturnType<typeof requirePermission>>,
+  storeId: string,
+): Promise<SyncResult> {
+  const existing = await db.transaction.findUnique({
+    where: { offlineClientMutationId: offlineTx.clientMutationId },
+    select: { id: true, status: true },
+  });
+
+  if (existing) {
+    return {
+      clientMutationId: offlineTx.clientMutationId,
+      status: existing.status === "PENDING_APPROVAL" ? "PENDING_APPROVAL" : "SYNCED",
+      serverTransactionId: existing.id,
+      message: "Already synced",
+    };
+  }
+
+  const productIds = [...new Set(offlineTx.items.map((item) => item.productId))];
+  const products = await db.product.findMany({
+    where: { id: { in: productIds }, storeId, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      size: true,
+      material: true,
+      stock: true,
+    },
+  });
+  const productById = new Map(products.map((product) => [product.id, product]));
+
+  if (productById.size !== productIds.length) {
+    return {
+      clientMutationId: offlineTx.clientMutationId,
+      status: "FAILED_FINAL",
+      message: "One or more products were not found",
+    };
+  }
+
+  const serverItems: ServerOfflineItem[] = offlineTx.items.map((item) => {
+    const product = productById.get(item.productId);
+    if (!product) {
+      throw new Error("PRODUCT_NOT_FOUND");
+    }
+    return {
+      productId: product.id,
+      name: product.name,
+      size: item.size ?? product.size ?? null,
+      material: item.material ?? product.material ?? null,
+      price: Number(product.price),
+      quantity: item.quantity,
+    };
+  });
+  const stockByProductId = new Map(products.map((product) => [product.id, product.stock]));
+
+  const decision = buildOfflineSyncDecision(
+    {
+      clientMutationId: offlineTx.clientMutationId,
+      createdAt: offlineTx.createdAt,
+      items: serverItems,
+      discount: offlineTx.discount,
+      originalTotal: offlineTx.originalTotal,
+    },
+    {
+      now: new Date(),
+      stockByProductId,
+    },
+  );
+
+  if (decision.resultStatus === "FAILED_FINAL") {
+    return {
+      clientMutationId: offlineTx.clientMutationId,
+      status: "FAILED_FINAL",
+      message: "Tidak ada item yang tersedia untuk disinkronkan",
+    };
+  }
+
+  if (offlineTx.customerId) {
+    const customer = await db.customer.findFirst({
+      where: { id: offlineTx.customerId, storeId },
+      select: { id: true },
+    });
+    if (!customer) {
+      return {
+        clientMutationId: offlineTx.clientMutationId,
+        status: "FAILED_FINAL",
+        message: "Customer not found",
+      };
+    }
+  }
+
+  if (offlineTx.salespersonId) {
+    const salesperson = await db.salesperson.findFirst({
+      where: { id: offlineTx.salespersonId, storeId },
+      select: { id: true },
+    });
+    if (!salesperson) {
+      return {
+        clientMutationId: offlineTx.clientMutationId,
+        status: "FAILED_FINAL",
+        message: "Salesperson not found",
+      };
+    }
+  }
+
+  const serverOfflineTx: OfflineTransactionInput = {
+    ...offlineTx,
+    items: serverItems,
+  };
+  const finalDecision =
+    decision.transactionStatus === "COMPLETED" && offlineTx.amountPaid < decision.total
+      ? {
+          ...decision,
+          resultStatus: "PENDING_APPROVAL" as const,
+          transactionStatus: "PENDING_APPROVAL" as const,
+          reason: "ADJUSTED_TOTAL_CHANGED" as const,
+        }
+      : decision;
+
+  const created = await createSyncedTransaction({
+    txData: serverOfflineTx,
+    decision: finalDecision,
+    user,
+    storeId,
+  });
+
+  return {
+    clientMutationId: offlineTx.clientMutationId,
+    status: finalDecision.resultStatus,
+    serverTransactionId: created.id,
+    message:
+      finalDecision.resultStatus === "PENDING_APPROVAL"
+        ? "Synced as pending approval"
+        : "Synced",
+  };
 }
 
 async function createSyncedTransaction({
@@ -334,5 +383,3 @@ function buildOfflineNote(
   const auditNote = `Offline sync: ${decision.reason}`;
   return note ? `${note} | ${auditNote}` : auditNote;
 }
-
-

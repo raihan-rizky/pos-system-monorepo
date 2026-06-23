@@ -1,3 +1,6 @@
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
 // Format Rupiah currency
 export function formatRupiah(amount: number | string): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
@@ -76,4 +79,9 @@ export function getDefaultProductImage(categoryName?: string | null): string {
   if (lowerName.includes("amplop")) return "/images/amplop-putih-polos.png";
 
   return "/images/atk_default.png";
+}
+
+// Merge tailwind classes
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
 }

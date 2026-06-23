@@ -120,7 +120,13 @@ export async function POST(request: Request) {
           productId: validatedData.productId,
           type: validatedData.type,
           reason: validatedData.reason,
-          quantity: Math.abs(validatedData.quantity),
+          // ADJUSTMENT preserves sign so approval can subtract a downward
+          // correction (e.g. OPNAME found fewer units: qty=-5 → stock -= 5).
+          // IN/OUT/WASTE etc. are directionally fixed; abs() is correct there.
+          quantity:
+            validatedData.type === "ADJUSTMENT"
+              ? validatedData.quantity
+              : Math.abs(validatedData.quantity),
           unitCost,
           note: validatedData.note,
           createdBy: user.id,

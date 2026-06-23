@@ -126,19 +126,32 @@ export async function POST(request: Request) {
     const actualClosing = Number(closingBalance);
     const discrepancy = actualClosing - summary.expectedBalance;
 
-    const closedShift = await db.cashierShift.update({
-      where: { id: shift.id },
-      data: {
-        closingBalance: actualClosing,
-        expectedBalance: summary.expectedBalance,
-        discrepancy,
-        status: "CLOSED",
-        closedAt: new Date(),
-        note: note || shift.note,
-      },
+    // Guard the write on `status: "OPEN"` so a second concurrent close (or a
+    // double-click) can't overwrite an already-closed shift's balances. The
+    // summary read above is not atomic with this write, so two requests can
+    // both pass the OPEN check; only the one whose updateMany matches the
+    // still-open row wins. A zero match means the shift was already closed.
+    const updateData = {
+      closingBalance: actualClosing,
+      expectedBalance: summary.expectedBalance,
+      discrepancy,
+      status: "CLOSED" as const,
+      closedAt: new Date(),
+      note: note || shift.note,
+    };
+    const guarded = await db.cashierShift.updateMany({
+      where: { id: shift.id, storeId, status: "OPEN" },
+      data: updateData,
     });
 
-    return NextResponse.json(closedShift, { status: 200 });
+    if (guarded.count !== 1) {
+      return NextResponse.json(
+        { message: "Shift sudah ditutup oleh permintaan lain" },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json({ ...shift, ...updateData }, { status: 200 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 
 import { getLogger } from "@/lib/logger";
+import { sendRolePushEvent } from "@/lib/push-events";
 import {
   buildCustomerUpdateArgs,
   buildInventoryLogRows,
@@ -618,7 +619,16 @@ export async function POST(request: Request) {
     const isSalesRequest = user.role === "SALES";
 
     const amountPaidComputed = resolvedPayments.reduce((sum, p) => sum + p.amount, 0);
-    const changeComputed = isDP ? 0 : amountPaidComputed - total;
+    // For SALES requests we hold the invoice open as PENDING_APPROVAL until a
+    // cashier/owner approves it; until then there is no finalized revenue and
+    // no change to return. For cashier sales we keep the legacy semantics.
+    const changeComputed =
+      isDP || isSalesRequest ? 0 : amountPaidComputed - total;
+    const finalStatus: "COMPLETED" | "DP" | "PENDING_APPROVAL" = isSalesRequest
+      ? "PENDING_APPROVAL"
+      : isDP
+        ? "DP"
+        : "COMPLETED";
 
     if (!isDP && amountPaidComputed < total) {
       return NextResponse.json(
@@ -655,7 +665,7 @@ export async function POST(request: Request) {
               paymentMethod: primaryPaymentMethod,
               amountPaid: amountPaidComputed,
               change: changeComputed,
-              status: isDP ? "DP" : "COMPLETED",
+              status: finalStatus,
               note: note || null,
               customerName: customerName || null,
               salesName: salesName || null,
@@ -864,11 +874,30 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json(transaction, { status: 201 });
-  } catch (error) {
-    const authErr = handleAuthError(error);
-    if (authErr) return authErr;
+    if (isSalesRequest) {
+      after(async () => {
+        try {
+          await sendRolePushEvent({
+            eventName: "transaction.approval_requested",
+            storeId,
+            roles: ["OWNER", "ADMIN"],
+            featureKey: "pendingTransactions",
+            payload: {
+              title: "Persetujuan Transaksi",
+              body: `${user.name ?? "Sales"} meminta persetujuan transaksi ${transaction.invoiceNumber} sejumlah Rp ${total.toLocaleString("id-ID")}`,
+              url: "/dashboard/transactions?status=PENDING_APPROVAL",
+              tag: `transaction-${transaction.id}`,
+            },
+          });
+        } catch (pushErr) {
+          log.warn("Failed to send approval-request push:", pushErr);
+        }
+      });
+    }
 
+    return NextResponse.json(transaction, { status: 201 });
+  } catch (error) {    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
     if (
       error instanceof StockMutationError &&
       error.message === "INSUFFICIENT_STOCK"

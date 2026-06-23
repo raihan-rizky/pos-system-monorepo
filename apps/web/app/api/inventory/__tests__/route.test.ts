@@ -164,4 +164,49 @@ describe("POST /api/inventory", () => {
     expect(body.status).toBe("PENDING");
     expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
   });
+
+  it("stores the signed quantity for ADJUSTMENT, not Math.abs, so approval can subtract", async () => {
+    requirePermissionMock.mockResolvedValue({
+      id: "admin-1",
+      name: "Ada",
+      role: "ADMIN",
+      storeId: "store-main",
+    });
+
+    const response = await call({
+      productId: "product-1",
+      type: "ADJUSTMENT",
+      reason: "MANUAL_ADJUSTMENT",
+      quantity: -5,
+    });
+    expect(response.status).toBe(201);
+
+    // Create stored the signed -5, not Math.abs(-5)=5.
+    const createData = inventoryLogCreateMock.mock.calls[0][0].data;
+    expect(createData.quantity).toBe(-5);
+    // ADMIN submissions do not move stock; only OWNER approval will.
+    expect(productUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("OWNER ADJUSTMENT applies the signed delta, not Math.abs", async () => {
+    requirePermissionMock.mockResolvedValue({
+      id: "owner-1",
+      name: "Boss",
+      role: "OWNER",
+      storeId: "store-main",
+    });
+
+    const response = await call({
+      productId: "product-1",
+      type: "ADJUSTMENT",
+      reason: "MANUAL_ADJUSTMENT",
+      quantity: -5,
+    });
+    expect(response.status).toBe(201);
+
+    // Stock was 20 (default mock). After signed -5 it must be 15, not 25.
+    expect(productUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { stock: 15 } }),
+    );
+  });
 });

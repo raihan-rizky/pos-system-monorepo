@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { clearClientAuthState } from "@/lib/auth/pos-session";
+import { BeamsBackground } from "@/components/ui/beams-background";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -51,8 +52,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <BeamsBackground intensity="medium">
+      <div className="w-full max-w-sm p-4 relative z-20">
         {/* Logo / Brand */}
         <div className="text-center mb-8 flex flex-col items-center">
           <img src="/images/icon.png" alt="Icon" className="w-16 h-16 mb-4 object-contain drop-shadow-lg" />
@@ -116,10 +117,10 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-slate-600 text-xs mt-6">
+        <p className="text-center text-slate-500/80 text-xs mt-6">
           POS System © {year ?? ""}
         </p>
       </div>
-    </div>
+    </BeamsBackground>
   );
 }
