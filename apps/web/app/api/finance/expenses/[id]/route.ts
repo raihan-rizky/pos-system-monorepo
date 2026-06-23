@@ -16,11 +16,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requirePermission("expense", "update");
+    const user = await requirePermission("expense", "update");
+    const storeId = user.storeId || "store-main";
     const { id } = await params;
 
-    const existing = await db.expense.findUnique({
-      where: { id },
+    const existing = await db.expense.findFirst({
+      where: { id, recordedBy: { storeId } },
       select: { id: true, deletedAt: true },
     });
     if (!existing || existing.deletedAt) {
@@ -45,8 +46,8 @@ export async function PATCH(
       typeof body.transactionId === "string" &&
       body.transactionId.length > 0
     ) {
-      const exists = await db.transaction.findUnique({
-        where: { id: body.transactionId },
+      const exists = await db.transaction.findFirst({
+        where: { id: body.transactionId, storeId },
         select: { id: true },
       });
       if (!exists) {
@@ -108,10 +109,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requirePermission("expense", "delete");
+    const user = await requirePermission("expense", "delete");
+    const storeId = user.storeId || "store-main";
     const { id } = await params;
-    const existing = await db.expense.findUnique({
-      where: { id },
+    const existing = await db.expense.findFirst({
+      where: { id, recordedBy: { storeId } },
       select: { id: true, deletedAt: true },
     });
     if (!existing) {

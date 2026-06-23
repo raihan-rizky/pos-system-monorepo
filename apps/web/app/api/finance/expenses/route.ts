@@ -37,7 +37,8 @@ function isCategory(v: string | null): v is ExpenseCategory {
 
 export async function GET(request: Request) {
   try {
-    await requirePermission("expense", "read");
+    const user = await requirePermission("expense", "read");
+    const storeId = user.storeId || "store-main";
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");
     if (monthParam && !MONTH_PATTERN.test(monthParam)) {
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
 
     const where = {
       deletedAt: null,
+      recordedBy: { storeId },
       occurredAt: { gte: range.start, lt: range.end },
       ...(category ? { category } : {}),
     } as const;
@@ -115,6 +117,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requirePermission("expense", "create");
+    const storeId = user.storeId || "store-main";
     const body = await request.json();
     const result = validateExpensePayload(body, { now: new Date() });
     if (!result.success) {
@@ -133,8 +136,8 @@ export async function POST(request: Request) {
       typeof body.transactionId === "string" &&
       body.transactionId.length > 0
     ) {
-      const exists = await db.transaction.findUnique({
-        where: { id: body.transactionId },
+      const exists = await db.transaction.findFirst({
+        where: { id: body.transactionId, storeId },
         select: { id: true },
       });
       if (!exists) {

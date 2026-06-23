@@ -27,7 +27,8 @@ function currentJakartaMonth(): string {
 
 export async function GET(request: Request) {
   try {
-    await requirePermission("expense", "read");
+    const user = await requirePermission("expense", "read");
+    const storeId = user.storeId || "store-main";
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");
     if (monthParam && !MONTH_PATTERN.test(monthParam)) {
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
       db.expense.findMany({
         where: {
           deletedAt: null,
+          recordedBy: { storeId },
           occurredAt: { gte: range.start, lt: range.end },
         },
         select: {
@@ -53,6 +55,7 @@ export async function GET(request: Request) {
       }),
       db.transaction.findMany({
         where: {
+          storeId,
           status: "COMPLETED",
           createdAt: { gte: range.start, lt: range.end },
         },

@@ -47,11 +47,11 @@ export async function GET(request: Request) {
     const range = buildReportPeriodRange(periodParam);
     const { start, end } = toJakartaBounds(range.from, range.to);
 
-    const storeId = user.storeId || undefined;
+    const storeId = user.storeId || "store-main";
     const [sales, expenses] = await Promise.all([
       db.transaction.findMany({
         where: {
-          ...(storeId ? { storeId } : {}),
+          storeId,
           status: { in: ["COMPLETED", "DP"] },
           createdAt: { gte: start, lt: end },
         },
@@ -79,6 +79,7 @@ export async function GET(request: Request) {
       db.expense.findMany({
         where: {
           deletedAt: null,
+          recordedBy: { storeId },
           occurredAt: { gte: start, lt: end },
         },
         orderBy: { occurredAt: "asc" },

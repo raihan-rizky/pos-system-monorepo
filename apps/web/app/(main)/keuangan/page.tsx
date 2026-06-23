@@ -15,7 +15,7 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from "recharts";
-import { Button } from "@pos/ui";
+import { Button, Modal } from "@pos/ui";
 import { ChevronRight, MoreVertical, Plus } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import {
@@ -106,6 +106,7 @@ export default function KeuanganDashboardPage() {
   const [editing, setEditing] = useState<ExpenseFormInitial | undefined>();
   const [page, setPage] = useState(1);
   const [filterCategory, setFilterCategory] = useState<ExpenseCategory | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   const pemasukan = useIncomeSummary(month);
   const pengeluaran = useExpenseSummary(month);
@@ -458,18 +459,20 @@ export default function KeuanganDashboardPage() {
                             )}
                           </p>
                         </div>
-                        {item.attachmentUrl && (
-                          <div className="w-8 h-8 rounded bg-surface-100 overflow-hidden shrink-0 border border-surface-200 ml-auto">
-                            <img
-                              src={item.attachmentUrl.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(item.attachmentUrl)}` : item.attachmentUrl}
+                        {item.attachmentUrl && (() => {
+                          const resolvedUrl = item.attachmentUrl.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(item.attachmentUrl)}` : item.attachmentUrl;
+                          return (
+                            <HoverImage
+                              src={resolvedUrl}
                               alt="Lampiran"
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = "none";
+                              className="w-8 h-8 ml-auto border border-surface-200 bg-surface-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedImageUrl(resolvedUrl);
                               }}
                             />
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="hidden sm:flex items-center gap-3 shrink-0">
@@ -483,18 +486,20 @@ export default function KeuanganDashboardPage() {
                           </p>
                         )}
                       </div>
-                      {item.attachmentUrl && (
-                        <div className="w-10 h-10 rounded bg-surface-100 overflow-hidden shrink-0 border border-surface-200">
-                          <img
-                            src={item.attachmentUrl.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(item.attachmentUrl)}` : item.attachmentUrl}
+                      {item.attachmentUrl && (() => {
+                        const resolvedUrl = item.attachmentUrl.includes("prnt.sc") ? `/api/prntsc?url=${encodeURIComponent(item.attachmentUrl)}` : item.attachmentUrl;
+                        return (
+                          <HoverImage
+                            src={resolvedUrl}
                             alt="Lampiran"
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = "none";
+                            className="w-10 h-10 border border-surface-200 bg-surface-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedImageUrl(resolvedUrl);
                             }}
                           />
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                     {(canEdit || canDelete) && (
                       <RowActions
@@ -545,6 +550,36 @@ export default function KeuanganDashboardPage() {
         initial={editing}
         mode={modalMode}
       />
+
+      {selectedImageUrl && (
+        <Modal
+          open={!!selectedImageUrl}
+          onClose={() => setSelectedImageUrl(null)}
+          title="Lampiran Pengeluaran"
+          size="2xl"
+        >
+          <div className="flex justify-center items-center py-4 bg-surface-50 rounded-xl">
+            <img
+              src={selectedImageUrl}
+              alt="Preview Lampiran"
+              className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-sm"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          </div>
+          <div className="flex justify-end mt-4">
+            <a
+              href={selectedImageUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-xl transition-colors"
+            >
+              Buka di Tab Baru
+            </a>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -683,6 +718,47 @@ function RowActions({
           </div>,
           document.body,
         )}
+    </div>
+  );
+}
+
+function HoverImage({ src, alt, onClick, className }: { src: string; alt: string; onClick: (e: React.MouseEvent) => void; className?: string }) {
+  const [hovered, setHovered] = useState(false);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const ref = useRef<HTMLImageElement>(null);
+
+  const handleMouseEnter = () => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      setPos({ top: rect.top + rect.height / 2, right: window.innerWidth - rect.left });
+    }
+    setHovered(true);
+  };
+
+  return (
+    <div className={`relative shrink-0 ${className || ''} rounded-md relative z-10`} onMouseLeave={() => setHovered(false)}>
+      <img
+        ref={ref}
+        src={src}
+        alt={alt}
+        className="w-full h-full object-cover cursor-pointer hover:ring-2 hover:ring-brand-500 rounded-md transition-all"
+        onClick={onClick}
+        onMouseEnter={handleMouseEnter}
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = "none";
+        }}
+      />
+      {hovered && createPortal(
+        <div 
+          className="fixed z-[100] pointer-events-none flex items-center"
+          style={{ top: pos.top, right: pos.right + 12, transform: 'translateY(-50%)' }}
+        >
+          <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-surface-200 flex animate-in fade-in duration-200">
+            <img src={src} alt="Preview Lampiran" className="w-auto max-w-[200px] sm:max-w-[300px] h-auto max-h-[300px] sm:max-h-[420px] object-contain rounded-lg shadow-sm" />
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

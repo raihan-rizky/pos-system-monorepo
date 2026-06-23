@@ -25,7 +25,8 @@ function currentJakartaMonth(): string {
 
 export async function GET(request: Request) {
   try {
-    await requirePermission("income", "read");
+    const user = await requirePermission("income", "read");
+    const storeId = user.storeId || "store-main";
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");
 
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
 
     const transactions = await db.transaction.findMany({
       where: {
+        storeId,
         status: "COMPLETED",
         createdAt: { gte: range.start, lt: range.end },
       },
