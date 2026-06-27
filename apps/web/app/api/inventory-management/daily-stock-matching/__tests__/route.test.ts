@@ -4,6 +4,8 @@ import { POST } from "../route";
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const inventoryLogCountMock = vi.hoisted(() => vi.fn());
+const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
+const batchOperationFindFirstMock = vi.hoisted(() => vi.fn());
 const inventoryTaskUpsertMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -12,8 +14,13 @@ vi.mock("@/lib/rbac/guard", () => ({
 }));
 
 vi.mock("@pos/db", () => ({
+  Prisma: {},
   db: {
-    inventoryLog: { count: inventoryLogCountMock },
+    inventoryLog: {
+      count: inventoryLogCountMock,
+      findMany: inventoryLogFindManyMock,
+    },
+    batchOperation: { findFirst: batchOperationFindFirstMock },
     inventoryTask: { upsert: inventoryTaskUpsertMock },
   },
 }));
@@ -37,6 +44,24 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
       storeId: "store-main",
     });
     inventoryLogCountMock.mockResolvedValue(0);
+    inventoryLogFindManyMock.mockResolvedValue([
+      {
+        id: "log-1",
+        productId: "product-1",
+        quantity: 2,
+        product: {
+          id: "product-1",
+          name: "Sirup Melon",
+          sku: "SRP-001",
+          unit: "botol",
+          stock: 8,
+          imageUrl: null,
+          category: { name: "Minuman", icon: null },
+          stockGroup: null,
+        },
+      },
+    ]);
+    batchOperationFindFirstMock.mockResolvedValue(null);
     inventoryTaskUpsertMock.mockResolvedValue({
       id: "task-1",
       type: "DAILY_STOCK_MATCHING",
@@ -48,7 +73,7 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
   it("submits daily stock matching when all internal stock-out logs are verified", async () => {
     const response = await post({
       now: "2026-06-25T08:00:00.000Z",
-      note: "Sesuai fisik gudang",
+      lines: [{ productId: "product-1", physicalStock: 8, note: "Sesuai fisik gudang" }],
     });
     const body = await response.json();
 
@@ -61,6 +86,7 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
           status: "APPROVED",
           product: { storeId: "store-main" },
           verification: null,
+          OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
         }),
       }),
     );
@@ -83,7 +109,8 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
         }),
       }),
     );
-    expect(body.data.periodKey).toBe("2026-06-25");
+    expect(body.data.status).toBe("SUBMITTED");
+    expect(body.data.task.periodKey).toBe("2026-06-25");
   });
 
   it("blocks daily matching while eligible stock-out logs remain unverified", async () => {
@@ -91,11 +118,13 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
 
     const response = await post({
       now: "2026-06-25T08:00:00.000Z",
+      lines: [{ productId: "product-1", physicalStock: 8 }],
     });
     const body = await response.json();
 
     expect(response.status).toBe(422);
     expect(body.unverifiedCount).toBe(2);
+    expect(inventoryLogFindManyMock).not.toHaveBeenCalled();
     expect(inventoryTaskUpsertMock).not.toHaveBeenCalled();
   });
 
@@ -108,6 +137,7 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
 
     const response = await post({
       now: "2026-06-25T08:00:00.000Z",
+      lines: [{ productId: "product-1", physicalStock: 8 }],
     });
 
     expect(response.status).toBe(403);

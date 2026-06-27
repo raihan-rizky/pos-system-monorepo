@@ -56,6 +56,20 @@ async function loadPendingMatchingBundle(storeId: string, periodKey: string) {
   });
 }
 
+async function countUnverifiedOutLogs(storeId: string, dateKey: string) {
+  const { start, end } = jakartaDayBounds(dateKey);
+  return db.inventoryLog.count({
+    where: {
+      type: "OUT",
+      status: "APPROVED",
+      createdAt: { gte: start, lt: end },
+      product: { storeId },
+      verification: null,
+      OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
+    },
+  });
+}
+
 async function buildDailyMatchingPreview(storeId: string, dateKey: string) {
   const { start, end } = jakartaDayBounds(dateKey);
   const logs = await db.inventoryLog.findMany({
@@ -161,17 +175,28 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requirePermission("inventory", "update");
-    const body = await request.json();
-    const input = matchingSchema.parse(body);
     if (!user.storeId) {
       return NextResponse.json(
         { message: "Inventory workflow requires a store-scoped user" },
         { status: 403 },
       );
     }
+    const body = await request.json();
+    const input = matchingSchema.parse(body);
     const storeId = user.storeId;
     const submittedAt = input.now ? new Date(input.now) : new Date();
     const periodKey = jakartaDateKey(submittedAt);
+
+    const unverifiedCount = await countUnverifiedOutLogs(storeId, periodKey);
+    if (unverifiedCount > 0) {
+      return NextResponse.json(
+        {
+          message: "Verify eligible stock-out logs before daily matching",
+          unverifiedCount,
+        },
+        { status: 422 },
+      );
+    }
 
     const pendingBundle = await loadPendingMatchingBundle(storeId, periodKey);
     if (pendingBundle) {

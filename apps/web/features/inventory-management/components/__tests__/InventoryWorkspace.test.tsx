@@ -168,7 +168,7 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("Keranjang Barang Rusak");
     expect(html).toContain("name=\"damagedProofUrl\"");
     expect(html).toContain("Matching Stok Harian");
-    expect(html).toContain("name=\"dailyMatchingNote\"");
+    expect(html).toContain("Submit Matching");
   });
 
 

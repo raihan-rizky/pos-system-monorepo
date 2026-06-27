@@ -45,6 +45,14 @@ vi.mock("@/hooks/useInventoryLogs", () => ({
       },
     },
   }),
+  useApproveInventoryLog: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useRejectInventoryLog: () => ({ isPending: false, mutateAsync: vi.fn() }),
+}));
+
+vi.mock("@/components/providers/RoleProvider", () => ({
+  useRole: () => ({
+    canPerform: () => true,
+  }),
 }));
 
 describe("DamagedReportsHistoryTab", () => {
