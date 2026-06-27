@@ -54,11 +54,127 @@ export function reportDamagedProduct(input: {
   );
 }
 
+export interface DailyMatchingRow {
+  productId: string;
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+    unit: string;
+    imageUrl: string | null;
+    category: { name: string; icon: string | null } | null;
+  };
+  stockBeforeOut: number;
+  totalOut: number;
+  expectedAfterStock: number;
+  logCount: number;
+}
+
+export interface DailyMatchingPreview {
+  periodKey: string;
+  rows: DailyMatchingRow[];
+  pendingBundle: null | {
+    id: string;
+    status: string;
+    summary: Record<string, unknown>;
+    items: unknown[];
+  };
+}
+
+export async function fetchDailyStockMatching(): Promise<DailyMatchingPreview> {
+  const response = await fetch("/api/inventory-management/daily-stock-matching", {
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Failed to load daily stock matching");
+  const body = (await response.json()) as { data: DailyMatchingPreview };
+  return body.data;
+}
+
 export function submitDailyStockMatching(input: {
-  note?: string | null;
+  lines: Array<{ productId: string; physicalStock: number; note?: string | null }>;
 }) {
   return postInventoryManagement(
     "/api/inventory-management/daily-stock-matching",
+    input,
+  );
+}
+
+export function approveDailyStockMatching(
+  batchId: string,
+  input: { lines?: Array<{ productId: string; physicalStock: number }> } = {},
+) {
+  return postInventoryManagement(
+    `/api/inventory-management/daily-stock-matching/${batchId}/approve`,
+    input,
+  );
+}
+
+export function cancelInventoryBundle(batchId: string) {
+  return postInventoryManagement(`/api/inventory/bulk/${batchId}/cancel`, {});
+}
+
+export interface StockGroupBulkPreview {
+  stockGroupId: string;
+  displayName: string;
+  baseUnit: string;
+  type: "OUT" | "ADJUSTMENT";
+  stockInput: { mode: "BASE" } | { mode: "VARIANT"; variantProductId: string };
+  inputValue: number;
+  beforeBaseStock: number;
+  afterBaseStock: number;
+  baseDelta: number;
+  variants: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    unit: string;
+    unitMultiplierToBase: number;
+    beforeStock: number;
+    afterStock: number;
+    delta: number;
+  }>;
+  changedVariants: StockGroupBulkPreview["variants"];
+}
+
+export function previewStockGroupBulk(input: {
+  stockGroupId: string;
+  type: "OUT" | "ADJUSTMENT";
+  stockInput: { mode: "BASE" } | { mode: "VARIANT"; variantProductId: string };
+  inputValue: number;
+  note?: string | null;
+}) {
+  return postInventoryManagement<StockGroupBulkPreview>(
+    "/api/inventory-management/stock-group-bulk",
+    { ...input, action: "preview" },
+  );
+}
+
+export function submitStockGroupBulk(input: {
+  stockGroupId: string;
+  type: "OUT" | "ADJUSTMENT";
+  stockInput: { mode: "BASE" } | { mode: "VARIANT"; variantProductId: string };
+  inputValue: number;
+  note?: string | null;
+}) {
+  return postInventoryManagement<{
+    batchOperationId: string;
+    status: "PENDING";
+    preview: StockGroupBulkPreview;
+  }>("/api/inventory-management/stock-group-bulk", {
+    ...input,
+    action: "submit",
+  });
+}
+
+export function approveStockGroupBulk(
+  batchId: string,
+  input: {
+    stockInput?: { mode: "BASE" } | { mode: "VARIANT"; variantProductId: string };
+    inputValue?: number;
+  },
+) {
+  return postInventoryManagement(
+    `/api/inventory-management/stock-group-bulk/${batchId}/approve`,
     input,
   );
 }

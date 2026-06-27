@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button, Modal } from "@pos/ui";
 import { AlertCircle, Check, PackagePlus, Pencil, RefreshCw, Save, X } from "lucide-react";
 import { useBulkBatchDetail } from "@/hooks/useInventoryLogs";
@@ -12,6 +12,12 @@ import {
   useRejectBulkAll,
   useRejectBulkItem,
 } from "../hooks/useBulkApproval";
+import {
+  approveDailyStockMatching,
+  approveStockGroupBulk,
+  previewStockGroupBulk,
+  type StockGroupBulkPreview,
+} from "@/features/inventory-management/api/inventory-management-api";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
@@ -51,6 +57,10 @@ export function BulkStockApprovalModal({
   const [rejectReason, setRejectReason] = useState("");
   const [rejectAllReason, setRejectAllReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [customInputValue, setCustomInputValue] = useState("");
+  const [customBasis, setCustomBasis] = useState("BASE");
+  const [physicalStocks, setPhysicalStocks] = useState<Record<string, string>>({});
+  const [reviewPreview, setReviewPreview] = useState<StockGroupBulkPreview | null>(null);
 
   const batch = detail.data;
   const summary = asRecord(batch?.summary);
@@ -59,6 +69,62 @@ export function BulkStockApprovalModal({
     () => batch?.items.filter((item) => item.inventoryLog?.status === "PENDING").length ?? 0,
     [batch],
   );
+  const isStockGroupBundle = batch?.type === "BULK_STOCK_GROUP_ADJUSTMENT";
+  const isDailyMatchingBundle = batch?.type === "DAILY_STOCK_MATCHING";
+  const canApproveItems = !isStockGroupBundle && !isDailyMatchingBundle;
+
+  useEffect(() => {
+    if (!batch) return;
+    const summary = asRecord(batch.summary);
+    const stockInput = asRecord(summary.stockInput);
+    setCustomInputValue(String(summary.inputValue ?? ""));
+    setCustomBasis(
+      stockInput.mode === "VARIANT"
+        ? String(stockInput.variantProductId ?? "BASE")
+        : "BASE",
+    );
+    setPhysicalStocks(
+      Object.fromEntries(
+        batch.items
+          .filter((item) => item.inventoryLog?.productId)
+          .map((item) => [
+            item.inventoryLog!.productId,
+            String(item.inventoryLog!.quantity),
+          ]),
+      ),
+    );
+  }, [batch]);
+
+  useEffect(() => {
+    if (!batch || !isStockGroupBundle || !customInputValue) {
+      setReviewPreview(null);
+      return;
+    }
+    const summary = asRecord(batch.summary);
+    const stockGroupId = String(summary.stockGroupId || "");
+    const type = summary.type === "OUT" ? "OUT" : "ADJUSTMENT";
+    if (!stockGroupId) return;
+    let cancelled = false;
+    previewStockGroupBulk({
+      stockGroupId,
+      type,
+      inputValue: Number(customInputValue),
+      stockInput:
+        customBasis === "BASE"
+          ? { mode: "BASE" }
+          : { mode: "VARIANT", variantProductId: customBasis },
+      note: typeof summary.note === "string" ? summary.note : null,
+    })
+      .then((preview) => {
+        if (!cancelled) setReviewPreview(preview);
+      })
+      .catch(() => {
+        if (!cancelled) setReviewPreview(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [batch, customBasis, customInputValue, isStockGroupBundle]);
 
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
@@ -70,6 +136,34 @@ export function BulkStockApprovalModal({
       setRejectAllReason("");
     } catch (err) {
       setError((err as Error).message);
+    }
+  };
+
+  const runCustomApprove = async () => {
+    if (!batch) return;
+    if (isStockGroupBundle) {
+      await run(() =>
+        approveStockGroupBulk(batch.id, {
+          inputValue: Number(customInputValue),
+          stockInput:
+            customBasis === "BASE"
+              ? { mode: "BASE" }
+              : { mode: "VARIANT", variantProductId: customBasis },
+        }),
+      );
+      return;
+    }
+    if (isDailyMatchingBundle) {
+      await run(() =>
+        approveDailyStockMatching(batch.id, {
+          lines: batch.items
+            .filter((item) => item.inventoryLog?.productId)
+            .map((item) => ({
+              productId: item.inventoryLog!.productId,
+              physicalStock: Number(physicalStocks[item.inventoryLog!.productId] ?? item.inventoryLog!.quantity),
+            })),
+        }),
+      );
     }
   };
 
@@ -124,16 +218,109 @@ export function BulkStockApprovalModal({
 
           {pendingCount > 0 && role !== "ADMIN" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              {(isStockGroupBundle || isDailyMatchingBundle) && (
+                <div className="mb-3 rounded-xl border border-sky-100 bg-sky-50 p-3">
+                  {isStockGroupBundle ? (
+                    <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
+                      <label className="text-xs font-bold text-slate-600">
+                        Basis Review
+                        <select
+                          value={customBasis}
+                          onChange={(event) => setCustomBasis(event.target.value)}
+                          className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                        >
+                          <option value="BASE">Stok dasar</option>
+                          {batch.items
+                            .filter((item) => item.inventoryLog?.product)
+                            .map((item) => (
+                              <option key={item.inventoryLog!.productId} value={item.inventoryLog!.productId}>
+                                {item.inventoryLog!.product.name} ({item.inventoryLog!.product.unit})
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Angka Review
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={customInputValue}
+                          onChange={(event) => setCustomInputValue(event.target.value)}
+                          className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-right text-sm font-bold"
+                        />
+                      </label>
+                      <Button
+                        type="button"
+                        onClick={runCustomApprove}
+                        loading={approveAll.isPending}
+                        icon={<Check className="h-4 w-4" />}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        Setujui Bundle
+                      </Button>
+                      {reviewPreview && (
+                        <div className="sm:col-span-3 rounded-lg border border-sky-200 bg-white p-2 text-xs text-slate-600">
+                          <p className="font-bold text-slate-800">
+                            Preview review: {reviewPreview.beforeBaseStock} {"->"} {reviewPreview.afterBaseStock} {reviewPreview.baseUnit}
+                          </p>
+                          <p className="mt-1">
+                            {reviewPreview.changedVariants.length} varian berubah dari stok terbaru.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-slate-600">
+                        Review stok fisik sebelum approve matching.
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {batch.items
+                          .filter((item) => item.inventoryLog?.product)
+                          .map((item) => (
+                            <label key={item.id} className="text-xs font-bold text-slate-600">
+                              {item.inventoryLog!.product.name}
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={physicalStocks[item.inventoryLog!.productId] ?? ""}
+                                onChange={(event) =>
+                                  setPhysicalStocks((current) => ({
+                                    ...current,
+                                    [item.inventoryLog!.productId]: event.target.value,
+                                  }))
+                                }
+                                className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-right text-sm font-bold"
+                              />
+                            </label>
+                          ))}
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={runCustomApprove}
+                        icon={<Check className="h-4 w-4" />}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        Setujui Bundle Matching
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-              <Button
-                type="button"
-                onClick={() => run(() => approveAll.mutateAsync())}
-                loading={approveAll.isPending}
-                icon={<Check className="h-4 w-4" />}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 lg:w-auto"
-              >
-                Setujui Semua
-              </Button>
+              {!isStockGroupBundle && !isDailyMatchingBundle && (
+                <Button
+                  type="button"
+                  onClick={() => run(() => approveAll.mutateAsync())}
+                  loading={approveAll.isPending}
+                  icon={<Check className="h-4 w-4" />}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 lg:w-auto"
+                >
+                  Setujui Semua
+                </Button>
+              )}
               <div className="flex flex-1 flex-col gap-2 sm:flex-row lg:max-w-xl">
                 <input
                   value={rejectAllReason}
@@ -208,7 +395,7 @@ export function BulkStockApprovalModal({
                   {log.rejectionReason && <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{log.rejectionReason}</p>}
 
                   {isPending ? (
-                    role !== "ADMIN" ? (
+                    role !== "ADMIN" && canApproveItems ? (
                       <div className="mt-3 grid grid-cols-3 gap-2">
                         <button
                           type="button"
@@ -340,7 +527,7 @@ export function BulkStockApprovalModal({
                         </td>
                         <td className="px-3 py-2">
                           {isPending ? (
-                            role !== "ADMIN" ? (
+                    role !== "ADMIN" && canApproveItems ? (
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <button
                                   type="button"

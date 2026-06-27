@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
               category: { select: { name: true, icon: true } },
             },
           },
+          supplier: { select: { id: true, name: true } },
         },
         orderBy,
         skip,

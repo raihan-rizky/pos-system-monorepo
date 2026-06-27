@@ -95,6 +95,7 @@ export async function GET(
         size: product.size,
         material: product.material,
         category: product.category,
+        imageUrl: product.imageUrl,
       })),
     });
   } catch (error) {

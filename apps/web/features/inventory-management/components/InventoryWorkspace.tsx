@@ -48,6 +48,7 @@ import { InternalStockOutModal } from "./InternalStockOutModal";
 import { InternalUseRecapPanel } from "@/features/internal-use-recap";
 import { InventorySuratJalanTab } from "./InventorySuratJalanTab";
 import { InboundReceiptTab } from "./InboundReceiptTab";
+import { StockGroupBulkPanel } from "./StockGroupBulkPanel";
 
 
 const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
@@ -1298,14 +1299,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 {activeTransaksiTab === "Surat Jalan" && <InventorySuratJalanTab />}
 
                 {activeTransaksiTab === "Bulk & Grup Stok" && (
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h2 className="text-lg font-bold text-slate-900 mb-2">Bulk & Grup Stok</h2>
-                    <p className="text-sm text-slate-500 mb-6">Kelola stock group dan penyesuaian massal.</p>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-sm text-slate-700">
-                      Fitur untuk grup stok dan import massal menggunakan otorisasi persetujuan owner.
-                    </div>
-                  </div>
+                  <StockGroupBulkPanel />
                 )}
               </div>
             )}

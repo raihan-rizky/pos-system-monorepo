@@ -27,6 +27,7 @@ export class InventoryInboundReceiptRepository
       select: {
         id: true,
         storeId: true,
+        supplierId: true,
         status: true,
         lines: {
           select: {
@@ -49,6 +50,7 @@ export class InventoryInboundReceiptRepository
     return {
       id: receipt.id,
       storeId: receipt.storeId,
+      supplierId: receipt.supplierId,
       status: receipt.status,
       lines: receipt.lines.map((line) => ({
         id: line.id,
@@ -70,6 +72,7 @@ export class InventoryInboundReceiptRepository
       productId: string;
       quantity: number;
       unitCost: number;
+      supplierId?: string | null;
       createdBy: string;
       person: string | null;
       note: string | null;
@@ -80,6 +83,7 @@ export class InventoryInboundReceiptRepository
         productId: input.productId,
         type: "IN",
         reason: "RESTOCK",
+        supplierId: input.supplierId ?? null,
         quantity: input.quantity,
         unitCost: input.unitCost,
         note: input.note,

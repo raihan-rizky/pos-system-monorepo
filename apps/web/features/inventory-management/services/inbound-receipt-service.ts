@@ -185,6 +185,7 @@ export async function approveInboundReceipt(
           productId: line.productId,
           quantity: stockQuantity,
           unitCost: line.latestCostPrice,
+          supplierId: receipt.supplierId,
           createdBy: input.user.id,
           person: input.user.name ?? null,
           note: `Inbound receipt ${receipt.id}`,

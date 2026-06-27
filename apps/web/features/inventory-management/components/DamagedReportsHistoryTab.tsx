@@ -1,8 +1,14 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, Archive, ExternalLink, ImageIcon, RefreshCw } from "lucide-react";
-import { type InventoryLog, useInventoryLogs } from "@/hooks/useInventoryLogs";
+import { AlertTriangle, Archive, Check, ExternalLink, ImageIcon, RefreshCw, X } from "lucide-react";
+import {
+  type InventoryLog,
+  useApproveInventoryLog,
+  useInventoryLogs,
+  useRejectInventoryLog,
+} from "@/hooks/useInventoryLogs";
+import { useRole } from "@/components/providers/RoleProvider";
 import { getDefaultProductImage } from "@/lib/utils";
 
 function formatDateTime(value: string) {
@@ -51,6 +57,13 @@ function cleanDamageNote(note: string | null) {
 }
 
 export function DamagedReportsHistoryTab() {
+  const { canPerform } = useRole();
+  const canApprove = canPerform("inventory.approve", "update");
+  const approveMutation = useApproveInventoryLog();
+  const rejectMutation = useRejectInventoryLog();
+  const [rejectingId, setRejectingId] = React.useState<string | null>(null);
+  const [rejectReason, setRejectReason] = React.useState("");
+  const [actionError, setActionError] = React.useState<string | null>(null);
   const { data, isLoading, isError } = useInventoryLogs({
     type: "OUT",
     reason: "WASTE",
@@ -61,6 +74,25 @@ export function DamagedReportsHistoryTab() {
   });
 
   const logs = data?.data ?? [];
+  const runApprove = async (id: string) => {
+    setActionError(null);
+    try {
+      await approveMutation.mutateAsync(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Gagal approve laporan");
+    }
+  };
+  const runReject = async (id: string) => {
+    if (!rejectReason.trim()) return;
+    setActionError(null);
+    try {
+      await rejectMutation.mutateAsync({ id, reason: rejectReason.trim() });
+      setRejectingId(null);
+      setRejectReason("");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Gagal reject laporan");
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -97,6 +129,11 @@ export function DamagedReportsHistoryTab() {
         </div>
       ) : (
         <div className="grid gap-3">
+          {actionError && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+              {actionError}
+            </div>
+          )}
           {logs.map((log) => {
             const proofImageUrl = extractResolvedProofImageUrl(log.note);
             return (
@@ -161,6 +198,59 @@ export function DamagedReportsHistoryTab() {
                     )}
                   </div>
                 </div>
+                {canApprove && log.status === "PENDING" && (
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    {rejectingId === log.id ? (
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                          value={rejectReason}
+                          onChange={(event) => setRejectReason(event.target.value)}
+                          placeholder="Alasan penolakan"
+                          className="min-h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm focus:border-rose-400 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => runReject(log.id)}
+                          disabled={!rejectReason.trim() || rejectMutation.isPending}
+                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 text-sm font-bold text-white disabled:bg-slate-300"
+                        >
+                          <X className="h-4 w-4" />
+                          Tolak
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectingId(null);
+                            setRejectReason("");
+                          }}
+                          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-600"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => runApprove(log.id)}
+                          disabled={approveMutation.isPending}
+                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:bg-slate-300"
+                        >
+                          <Check className="h-4 w-4" />
+                          Setujui
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRejectingId(log.id)}
+                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 text-sm font-bold text-rose-700 hover:bg-rose-50"
+                        >
+                          <X className="h-4 w-4" />
+                          Tolak
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </article>
             );
           })}

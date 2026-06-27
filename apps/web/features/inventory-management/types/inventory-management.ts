@@ -86,6 +86,7 @@ export interface InboundReceiptApprovalLine {
 export interface InboundReceiptForApproval {
   id: string;
   storeId: string;
+  supplierId: string | null;
   status: InboundReceiptStatus;
   lines: InboundReceiptApprovalLine[];
 }
@@ -159,6 +160,7 @@ export interface InventoryInboundReceiptRepository {
       productId: string;
       quantity: number;
       unitCost: number;
+      supplierId?: string | null;
       createdBy: string;
       person: string | null;
       note: string | null;

@@ -26,7 +26,12 @@ export async function GET(
         },
       },
     });
-    if (!batch || batch.type !== "BULK_STOCK_ADJUSTMENT") {
+    if (
+      !batch ||
+      !["BULK_STOCK_ADJUSTMENT", "BULK_STOCK_GROUP_ADJUSTMENT", "DAILY_STOCK_MATCHING"].includes(
+        batch.type,
+      )
+    ) {
       return apiError("Batch not found", 404, { code: "NotFound" });
     }
 

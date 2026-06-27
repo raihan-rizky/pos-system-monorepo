@@ -20,6 +20,7 @@ function submittedReceipt(
   return {
     id: "receipt-1",
     storeId: "store-main",
+    supplierId: null,
     status: "SUBMITTED",
     lines: [
       {

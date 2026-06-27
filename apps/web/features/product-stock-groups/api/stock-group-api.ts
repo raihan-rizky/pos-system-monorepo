@@ -21,6 +21,8 @@ export interface StockGroupDetail {
     unit: string;
     unitMultiplierToBase: number;
     conversionNeedsReview: boolean;
+    imageUrl?: string | null;
+    category?: { name: string; icon?: string | null } | null;
     stock: number;
     price: number;
     costPrice?: number | null;

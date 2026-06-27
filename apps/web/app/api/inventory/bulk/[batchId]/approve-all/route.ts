@@ -17,7 +17,7 @@ export async function POST(
     const user = await requirePermission("inventory.approve", "update");
     const { batchId } = await context.params;
     const result = await db.$transaction(async (tx) => {
-      const batch = await findBulkBatch(tx, batchId);
+      const batch = await findBulkBatch(tx, batchId, ["BULK_STOCK_ADJUSTMENT"]);
       const pendingIds = batch.items
         .map((item) => item.inventoryLogId)
         .filter((id): id is string => Boolean(id));

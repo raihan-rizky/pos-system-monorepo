@@ -19,6 +19,8 @@ export interface InventoryLog {
   approverName: string | null;
   decidedAt: string | null;
   rejectionReason: string | null;
+  supplierId?: string | null;
+  supplier?: { id: string; name: string } | null;
   product: {
     id: string;
     name: string;

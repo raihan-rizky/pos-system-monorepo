@@ -554,7 +554,7 @@ type BatchOperationForLog = NonNullable<InventoryLog["batchItem"]>["batchOperati
 
 type StockLogEntry =
   | { kind: "log"; log: InventoryLog }
-  | { kind: "bundle"; batch: BatchOperationForLog; logs: InventoryLog[] };
+  | { kind: "bundle"; batch: BatchOperationForLog; logs: InventoryLog[]; openable?: boolean };
 
 function groupBulkLogs(logs: InventoryLog[]): StockLogEntry[] {
   const entries: StockLogEntry[] = [];
@@ -562,9 +562,61 @@ function groupBulkLogs(logs: InventoryLog[]): StockLogEntry[] {
 
   for (const log of logs) {
     const batch = log.batchItem?.batchOperation;
-    const shouldBundle = batch?.type === "BULK_STOCK_ADJUSTMENT";
+    const shouldBundle =
+      batch?.type === "BULK_STOCK_ADJUSTMENT" ||
+      batch?.type === "BULK_STOCK_GROUP_ADJUSTMENT" ||
+      batch?.type === "DAILY_STOCK_MATCHING";
 
     if (!shouldBundle || !batch) {
+      if (
+        log.type === "IN" &&
+        log.reason === "RESTOCK" &&
+        log.status === "APPROVED" &&
+        log.supplierId
+      ) {
+        const dateKey = new Date(log.decidedAt || log.createdAt)
+          .toISOString()
+          .slice(0, 10);
+        const bundleId = `supplier:${log.supplierId}:${dateKey}`;
+        if (!bundled.has(bundleId)) {
+          const supplierLogs = logs.filter((candidate) => {
+            const candidateDateKey = new Date(candidate.decidedAt || candidate.createdAt)
+              .toISOString()
+              .slice(0, 10);
+            return (
+              candidate.type === "IN" &&
+              candidate.reason === "RESTOCK" &&
+              candidate.status === "APPROVED" &&
+              candidate.supplierId === log.supplierId &&
+              candidateDateKey === dateKey
+            );
+          });
+          bundled.add(bundleId);
+          entries.push({
+            kind: "bundle",
+            openable: false,
+            batch: {
+              id: bundleId,
+              status: "COMMITTED",
+              type: "SUPPLIER_DAILY_RECEIPT",
+              createdBy: log.createdBy ?? "",
+              createdAt: log.decidedAt || log.createdAt,
+              summary: {
+                productName: `Penerimaan ${log.supplier?.name ?? "Supplier"}`,
+                supplierName: log.supplier?.name ?? "Supplier",
+                note: `${supplierLogs.length} line penerimaan approved`,
+                type: "IN",
+                totalCount: supplierLogs.length,
+                pendingCount: 0,
+                approvedCount: supplierLogs.length,
+                rejectedCount: 0,
+              },
+            },
+            logs: supplierLogs,
+          });
+        }
+        continue;
+      }
       entries.push({ kind: "log", log });
       continue;
     }
@@ -574,6 +626,7 @@ function groupBulkLogs(logs: InventoryLog[]): StockLogEntry[] {
     entries.push({
       kind: "bundle",
       batch,
+      openable: true,
       logs: logs.filter((candidate) => candidate.batchItem?.batchOperation.id === batch.id),
     });
   }
@@ -640,11 +693,12 @@ function BundleDesktopRow({
   const cfg = typeConfig[summary.type];
   const canCancel = summary.createdBy === userId && summary.pending > 0;
   const countLabel = bundleCountLabel(summary);
+  const openable = entry.openable !== false;
 
   return (
     <tr
-      onClick={onOpen}
-      className="group cursor-pointer border-b border-cyan-100/70 bg-gradient-to-r from-cyan-50/90 via-white to-violet-50/70 shadow-[inset_0_0_0_1px_rgba(6,182,212,0.14),0_10px_28px_rgba(6,182,212,0.14)] transition-all duration-200 hover:from-cyan-100/80 hover:to-violet-100/70 hover:shadow-[inset_0_0_0_1px_rgba(124,58,237,0.18),0_14px_36px_rgba(124,58,237,0.18)]"
+      onClick={openable ? onOpen : undefined}
+      className={`group border-b border-cyan-100/70 bg-gradient-to-r from-cyan-50/90 via-white to-violet-50/70 shadow-[inset_0_0_0_1px_rgba(6,182,212,0.14),0_10px_28px_rgba(6,182,212,0.14)] transition-all duration-200 hover:from-cyan-100/80 hover:to-violet-100/70 hover:shadow-[inset_0_0_0_1px_rgba(124,58,237,0.18),0_14px_36px_rgba(124,58,237,0.18)] ${openable ? "cursor-pointer" : ""}`}
     >
       <td className="py-3 px-3 align-middle relative">
         <span aria-hidden="true" className="absolute left-0 top-1 bottom-1 w-1 rounded-r-full bg-gradient-to-b from-cyan-400 via-blue-500 to-violet-500 shadow-[0_0_16px_rgba(6,182,212,0.75)]" />
@@ -701,11 +755,13 @@ function BundleDesktopRow({
           >
             Batalkan
           </button>
-        ) : (
+        ) : openable ? (
           <span className="inline-flex items-center gap-1 text-xs font-bold text-cyan-700">
             Detail
             <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
           </span>
+        ) : (
+          <span className="text-xs font-bold text-slate-400">Grouped</span>
         )}
       </td>
     </tr>
@@ -727,11 +783,12 @@ function BundleMobileCard({
   const cfg = typeConfig[summary.type];
   const canCancel = summary.createdBy === userId && summary.pending > 0;
   const countLabel = bundleCountLabel(summary);
+  const openable = entry.openable !== false;
 
   return (
     <div
-      onClick={onOpen}
-      className="relative cursor-pointer overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-violet-50 p-4 shadow-[0_14px_38px_rgba(6,182,212,0.18),inset_0_0_0_1px_rgba(124,58,237,0.08)] transition-all duration-200 hover:shadow-[0_18px_46px_rgba(124,58,237,0.22),inset_0_0_0_1px_rgba(6,182,212,0.18)]"
+      onClick={openable ? onOpen : undefined}
+      className={`relative overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-violet-50 p-4 shadow-[0_14px_38px_rgba(6,182,212,0.18),inset_0_0_0_1px_rgba(124,58,237,0.08)] transition-all duration-200 hover:shadow-[0_18px_46px_rgba(124,58,237,0.22),inset_0_0_0_1px_rgba(6,182,212,0.18)] ${openable ? "cursor-pointer" : ""}`}
     >
       <span aria-hidden="true" className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-cyan-400 via-blue-500 to-violet-500 shadow-[0_0_16px_rgba(6,182,212,0.8)]" />
       <span aria-hidden="true" className="absolute right-4 top-4 h-12 w-12 rounded-full bg-cyan-300/30 blur-2xl" />
@@ -783,8 +840,8 @@ function BundleMobileCard({
           <span />
         )}
         <span className="inline-flex items-center gap-1 text-xs font-bold text-cyan-700">
-          Detail
-          <ChevronRight className="h-3.5 w-3.5" />
+          {openable ? "Detail" : "Grouped"}
+          {openable && <ChevronRight className="h-3.5 w-3.5" />}
         </span>
       </div>
     </div>

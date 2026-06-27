@@ -11,6 +11,11 @@ import { apiError } from "@/lib/api/responses";
 
 type Tx = Prisma.TransactionClient;
 type InventoryLogStatus = "PENDING" | "APPROVED" | "REJECTED";
+const STOCK_APPROVAL_BATCH_TYPES = [
+  "BULK_STOCK_ADJUSTMENT",
+  "BULK_STOCK_GROUP_ADJUSTMENT",
+  "DAILY_STOCK_MATCHING",
+] as const;
 
 export function computeAfterStock(
   type: "IN" | "OUT" | "ADJUSTMENT",
@@ -20,7 +25,11 @@ export function computeAfterStock(
   return currentStock + stockDelta(type, currentStock, quantity);
 }
 
-export async function findBulkBatch(tx: Tx, batchId: string) {
+export async function findBulkBatch(
+  tx: Tx,
+  batchId: string,
+  allowedTypes: readonly string[] = STOCK_APPROVAL_BATCH_TYPES,
+) {
   const batch = await tx.batchOperation.findUnique({
     where: { id: batchId },
     include: {
@@ -32,7 +41,7 @@ export async function findBulkBatch(tx: Tx, batchId: string) {
     },
   });
 
-  if (!batch || batch.type !== "BULK_STOCK_ADJUSTMENT") {
+  if (!batch || !allowedTypes.includes(batch.type)) {
     throw new Error("BATCH_NOT_FOUND");
   }
 

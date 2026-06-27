@@ -72,14 +72,17 @@ describe("inventory management api", () => {
   });
 
   it("submits daily stock matching to the workspace endpoint", async () => {
-    await submitDailyStockMatching({ note: "Sesuai fisik" });
+    const payload = {
+      lines: [{ productId: "product-1", physicalStock: 10, note: "Sesuai fisik" }],
+    };
+    await submitDailyStockMatching(payload);
 
     expect(fetch).toHaveBeenCalledWith(
       "/api/inventory-management/daily-stock-matching",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: "Sesuai fisik" }),
+        body: JSON.stringify(payload),
       },
     );
   });
