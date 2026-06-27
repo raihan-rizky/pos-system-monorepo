@@ -3,8 +3,10 @@ import {
   approveSuratJalan,
   createSuratJalan,
   fetchSuratJalanBundle,
+  fetchSuratJalans,
   type CreateSuratJalanInput,
 } from "../api/surat-jalan-api";
+
 
 export function suratJalanBundleKey(transactionId: string) {
   return ["surat-jalan", "bundle", transactionId] as const;
@@ -49,6 +51,28 @@ export function useApproveSuratJalan(transactionId: string) {
       });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+      queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
     },
   });
 }
+
+export function useSuratJalans(limit = 50, offset = 0) {
+  return useQuery({
+    queryKey: ["surat-jalans", limit, offset],
+    queryFn: () => fetchSuratJalans(limit, offset),
+  });
+}
+
+export function useGlobalApproveSuratJalan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (suratJalanId: string) => approveSuratJalan(suratJalanId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["surat-jalans"] });
+      queryClient.invalidateQueries({ queryKey: ["surat-jalan"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+    },
+  });
+}
+

@@ -196,7 +196,7 @@ export async function POST(request: Request) {
             payload: {
               title: "Permintaan stok baru",
               body: `${user.name || "User"} membuat permintaan stok ${validatedData.type} sebanyak ${Math.abs(validatedData.quantity)} item.`,
-              url: "/products?tab=logs",
+              url: "/inventory",
               tag: `inventory-request:${result.log.id}`,
             },
           });

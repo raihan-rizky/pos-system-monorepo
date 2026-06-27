@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const playwrightPort = process.env.PLAYWRIGHT_PORT || '3002';
+const playwrightBaseUrl = process.env.PLAYWRIGHT_BASE_URL || `http://localhost:${playwrightPort}`;
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -31,7 +34,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3002',
+    baseURL: playwrightBaseUrl,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -50,13 +53,14 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER === '1'
     ? undefined
     : {
-        command: 'node ./node_modules/next/dist/bin/next dev --port 3002',
-        url: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3002',
+        command: `node ./node_modules/next/dist/bin/next dev --port ${playwrightPort}`,
+        url: playwrightBaseUrl,
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,
         env: {
           E2E_AUTH_BYPASS: '1',
           NEXT_PUBLIC_E2E: '1',
+          NEXT_DIST_DIR: process.env.NEXT_DIST_DIR || '.next-e2e',
           COREPACK_HOME: process.env.COREPACK_HOME || '../../.corepack',
           NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321',
           NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'e2e-anon-key',

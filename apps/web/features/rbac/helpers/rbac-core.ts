@@ -1,5 +1,5 @@
 export const OWNER_ROLE = "OWNER" as const;
-export const EDITABLE_ROLES = ["ADMIN", "CASHIER", "SALES"] as const;
+export const EDITABLE_ROLES = ["ADMIN", "CASHIER", "SALES", "INVENTORY"] as const;
 export const ALL_ROLES = [OWNER_ROLE, ...EDITABLE_ROLES] as const;
 export const ACTIONS = ["create", "read", "update", "delete"] as const;
 export const PAGE_ACTION = "access" as const;
@@ -50,6 +50,8 @@ export const PAGE_TARGETS = [
   "/wa",
   "/settings",
   "/keuangan",
+  "/help",
+  "/inventory",
 ] as const;
 
 export const RESOURCE_TARGETS = [
@@ -90,6 +92,8 @@ const LEGACY_PAGE_ACCESS: Record<string, Role[]> = {
   "/wa": ["OWNER", "ADMIN"],
   "/settings": ["OWNER", "ADMIN"],
   "/keuangan": ["OWNER", "ADMIN", "CASHIER"],
+  "/help": ["OWNER", "ADMIN", "CASHIER", "SALES"],
+  "/inventory": ["OWNER", "ADMIN", "INVENTORY"],
 };
 
 const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
@@ -134,8 +138,8 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
     delete: ["OWNER", "ADMIN"],
   },
   inventory: {
-    read: ["OWNER", "ADMIN"],
-    write: ["OWNER", "ADMIN"],
+    read: ["OWNER", "ADMIN", "INVENTORY"],
+    write: ["OWNER", "ADMIN", "INVENTORY"],
     delete: ["OWNER", "ADMIN"],
   },
   "inventory.approve": {
@@ -330,5 +334,6 @@ function emptyRolePermissions(): RolePermissions {
     ADMIN: { pages: {}, resources: {} },
     CASHIER: { pages: {}, resources: {} },
     SALES: { pages: {}, resources: {} },
+    INVENTORY: { pages: {}, resources: {} },
   };
 }

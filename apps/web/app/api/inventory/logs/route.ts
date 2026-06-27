@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId");
     const type = searchParams.get("type"); // IN | OUT | ADJUSTMENT
+    const reason = searchParams.get("reason");
     const statusParam = searchParams.get("status"); // PENDING,APPROVED,REJECTED (comma-separated)
     const { page, limit, skip } = parsePagination(searchParams, {
       defaultLimit: 50,
@@ -36,6 +37,18 @@ export async function GET(request: NextRequest) {
     if (productId) where.productId = productId;
     if (type === "IN" || type === "OUT" || type === "ADJUSTMENT") {
       where.type = type;
+    }
+    if (
+      reason === "SALE" ||
+      reason === "SALE_RETURN" ||
+      reason === "RESTOCK" ||
+      reason === "SUPPLIER_RETURN" ||
+      reason === "WASTE" ||
+      reason === "USAGE" ||
+      reason === "OPNAME" ||
+      reason === "MANUAL_ADJUSTMENT"
+    ) {
+      where.reason = reason;
     }
 
     const requestedStatuses = (statusParam || "")

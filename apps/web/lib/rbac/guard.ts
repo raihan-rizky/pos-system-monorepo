@@ -121,7 +121,7 @@ export async function requireRole(...allowedRoles: Role[]) {
  * Require the current user to have a configured resource permission.
  */
 export async function requirePermission(resource: string, action: Action) {
-  const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+  const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
   const permissions = await getGlobalRolePermissions();
 
   if (!canRolePerformAction(user.role as Role, resource, action, permissions)) {

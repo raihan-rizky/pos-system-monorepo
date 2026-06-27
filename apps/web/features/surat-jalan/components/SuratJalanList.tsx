@@ -3,21 +3,109 @@ import { ChevronDown, FileCheck2 } from "lucide-react";
 import { Button } from "@pos/ui";
 import { formatDate } from "@/lib/utils";
 import { SuratJalanPrintModal } from "./SuratJalanPrintModal";
+import Link from "next/link";
 import type { SuratJalanRecord } from "../types/surat-jalan";
 import type { useApproveSuratJalan } from "../hooks/useSuratJalan";
+
+const COLOR_PALETTES = [
+  "border-l-blue-400 bg-blue-50/30",
+  "border-l-purple-400 bg-purple-50/30",
+  "border-l-emerald-400 bg-emerald-50/30",
+  "border-l-amber-400 bg-amber-50/30",
+  "border-l-rose-400 bg-rose-50/30",
+  "border-l-cyan-400 bg-cyan-50/30",
+  "border-l-indigo-400 bg-indigo-50/30",
+  "border-l-fuchsia-400 bg-fuchsia-50/30",
+];
 
 interface SuratJalanListProps {
   records: SuratJalanRecord[];
   canApprove: boolean;
   approveMutation: ReturnType<typeof useApproveSuratJalan>;
+  groupByTransaction?: boolean;
 }
 
 export const SuratJalanList: React.FC<SuratJalanListProps> = ({
   records,
   canApprove,
   approveMutation,
+  groupByTransaction = false,
 }) => {
   if (records.length === 0) return null;
+
+  if (groupByTransaction) {
+    const groups: Record<string, { transaction: NonNullable<SuratJalanRecord["transaction"]>; records: SuratJalanRecord[] }> = {};
+    const flatRecords: SuratJalanRecord[] = [];
+
+    records.forEach((r) => {
+      if (r.transaction) {
+        if (!groups[r.transaction.id]) {
+          groups[r.transaction.id] = { transaction: r.transaction, records: [] };
+        }
+        groups[r.transaction.id].records.push(r);
+      } else {
+        flatRecords.push(r);
+      }
+    });
+
+    const groupList = Object.values(groups);
+    let colorIndex = 0;
+
+    return (
+      <div className="space-y-4">
+        {groupList.map((g) => {
+          const colorClass = COLOR_PALETTES[colorIndex % COLOR_PALETTES.length];
+          colorIndex++;
+          return (
+            <div key={g.transaction.id} className={`rounded-2xl border border-surface-200 shadow-sm overflow-hidden border-l-4 ${colorClass}`}>
+              <div className="border-b border-surface-100 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-surface-500 mb-0.5">Main Invoice</div>
+                  <div className="font-semibold text-surface-900 text-sm">
+                    {g.transaction.invoiceNumber}
+                    {g.transaction.customerName && <span className="text-surface-500 font-medium"> • {g.transaction.customerName}</span>}
+                  </div>
+                </div>
+                <Link href={`/history?search=${g.transaction.invoiceNumber}`}>
+                  <Button variant="secondary" size="sm" className="bg-white hover:bg-surface-50 shadow-sm">Lihat Struk Utama</Button>
+                </Link>
+              </div>
+              <div className="divide-y divide-surface-100 bg-white">
+                {g.records.map((record) => (
+                  <SuratJalanListItem
+                    key={record.id}
+                    record={record}
+                    canApprove={canApprove}
+                    approveMutation={approveMutation}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {flatRecords.length > 0 && (
+          <div className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
+            <div className="border-b border-surface-100 bg-surface-50/50 px-5 py-4">
+              <h3 className="text-sm font-black text-surface-900 tracking-tight flex items-center gap-2">
+                <FileCheck2 className="h-4 w-4 text-brand-500" />
+                Lainnya
+              </h3>
+            </div>
+            <div className="divide-y divide-surface-100">
+              {flatRecords.map((record) => (
+                <SuratJalanListItem
+                  key={record.id}
+                  record={record}
+                  canApprove={canApprove}
+                  approveMutation={approveMutation}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">

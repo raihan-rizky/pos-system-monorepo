@@ -34,7 +34,7 @@ async function fetchWithTimeout(url: URL, init?: RequestInit) {
 
 export async function GET(request: Request) {
   try {
-    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
 
     const { searchParams } = new URL(request.url);
     const prntscUrl = parseAllowedUrl(searchParams.get("url"), PRNTSC_HOSTS);

@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import sharedConfig from "@pos/config/tailwind.config";
+import typography from "@tailwindcss/typography";
 
 const config: Config = {
   ...sharedConfig,
@@ -8,6 +9,9 @@ const config: Config = {
     "./components/**/*.{ts,tsx}",
     "./features/**/*.{ts,tsx}",
     "../../packages/ui/src/**/*.{ts,tsx}",
+  ],
+  plugins: [
+    typography,
   ],
 };
 

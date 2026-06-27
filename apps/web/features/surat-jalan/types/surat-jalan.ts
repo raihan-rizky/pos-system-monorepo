@@ -49,6 +49,11 @@ export interface SuratJalanRecord {
   createdAt: string;
   confirmedAt: string | null;
   items: SuratJalanItemRecord[];
+  transaction?: {
+    id: string;
+    invoiceNumber: string;
+    customerName: string | null;
+  };
 }
 
 export interface SuratJalanRemainingItem {

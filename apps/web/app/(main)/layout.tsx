@@ -1,5 +1,6 @@
 import React, { Suspense } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { AssistantWidget } from "@/features/ai-assistant/components/AssistantWidget";
 import MainLoading from "./loading";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -11,6 +12,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           {children}
         </Suspense>
       </div>
+      <AssistantWidget />
     </div>
   );
 }

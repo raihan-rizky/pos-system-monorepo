@@ -1,0 +1,126 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { POST } from "../route";
+
+const requirePermissionMock = vi.hoisted(() => vi.fn());
+const handleAuthErrorMock = vi.hoisted(() => vi.fn());
+const inventoryTaskUpsertMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/rbac/guard", () => ({
+  requirePermission: requirePermissionMock,
+  handleAuthError: handleAuthErrorMock,
+}));
+
+vi.mock("@pos/db", () => ({
+  db: {
+    inventoryTask: { upsert: inventoryTaskUpsertMock },
+  },
+}));
+
+function post(body: unknown) {
+  return POST(
+    new Request("http://localhost/api/inventory-management/weekly-cleaning-proof", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+describe("POST /api/inventory-management/weekly-cleaning-proof", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    handleAuthErrorMock.mockReturnValue(null);
+    requirePermissionMock.mockResolvedValue({
+      id: "inventory-1",
+      role: "INVENTORY",
+      storeId: "store-main",
+    });
+    inventoryTaskUpsertMock.mockResolvedValue({
+      id: "task-1",
+      type: "WEEKLY_CLEANING_PROOF",
+      status: "SUBMITTED",
+      periodKey: "2026-W26",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ imageUrl: "https://image.prntscr.com/image/proof.png" }),
+      }),
+    );
+  });
+
+  it("resolves a prnt.sc proof URL and submits the weekly cleaning task", async () => {
+    const response = await post({
+      proofUrl: "https://prnt.sc/abc123",
+      note: "Gudang sudah dibersihkan",
+      now: "2026-06-25T08:00:00.000Z",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "update");
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost/api/prntsc?url=https%3A%2F%2Fprnt.sc%2Fabc123&json=true",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(inventoryTaskUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          storeId_type_periodKey: {
+            storeId: "store-main",
+            type: "WEEKLY_CLEANING_PROOF",
+            periodKey: "2026-W26",
+          },
+        },
+        create: expect.objectContaining({
+          storeId: "store-main",
+          type: "WEEKLY_CLEANING_PROOF",
+          periodType: "WEEKLY",
+          periodKey: "2026-W26",
+          status: "SUBMITTED",
+          proofUrl: "https://prnt.sc/abc123",
+          resolvedProofImageUrl: "https://image.prntscr.com/image/proof.png",
+          submittedBy: "inventory-1",
+        }),
+        update: expect.objectContaining({
+          status: "SUBMITTED",
+          proofUrl: "https://prnt.sc/abc123",
+          resolvedProofImageUrl: "https://image.prntscr.com/image/proof.png",
+          submittedBy: "inventory-1",
+        }),
+      }),
+    );
+    expect(body.data.periodKey).toBe("2026-W26");
+  });
+
+  it("rejects proof when prnt.sc cannot resolve an image", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: "Image not found" }),
+    } as Response);
+
+    const response = await post({
+      proofUrl: "https://prnt.sc/missing",
+      now: "2026-06-25T08:00:00.000Z",
+    });
+
+    expect(response.status).toBe(422);
+    expect(inventoryTaskUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects users without a store scope", async () => {
+    requirePermissionMock.mockResolvedValue({
+      id: "inventory-1",
+      role: "INVENTORY",
+      storeId: null,
+    });
+
+    const response = await post({
+      proofUrl: "https://prnt.sc/abc123",
+      now: "2026-06-25T08:00:00.000Z",
+    });
+
+    expect(response.status).toBe(403);
+    expect(inventoryTaskUpsertMock).not.toHaveBeenCalled();
+  });
+});

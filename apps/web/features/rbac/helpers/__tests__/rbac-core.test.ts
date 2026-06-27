@@ -12,7 +12,7 @@ import {
 describe("RBAC permission matrix", () => {
   it("keeps owner full-access and outside editable role settings", () => {
     expect(OWNER_ROLE).toBe("OWNER");
-    expect(EDITABLE_ROLES).toEqual(["ADMIN", "CASHIER", "SALES"]);
+    expect(EDITABLE_ROLES).toEqual(["ADMIN", "CASHIER", "SALES", "INVENTORY"]);
     expect(EDITABLE_ROLES).not.toContain("OWNER");
 
     const defaults = buildDefaultRolePermissions();
@@ -90,6 +90,18 @@ describe("RBAC permission matrix", () => {
     expect(canRolePerformAction("ADMIN", "inventory.approve", "update", defaults)).toBe(false);
     expect(canRolePerformAction("CASHIER", "inventory.approve", "update", defaults)).toBe(false);
     expect(canRolePerformAction("SALES", "inventory.approve", "update", defaults)).toBe(false);
+  });
+
+  it("adds INVENTORY as an editable role with inventory workspace access but no stock approval", () => {
+    const defaults = buildDefaultRolePermissions();
+
+    expect(EDITABLE_ROLES).toEqual(["ADMIN", "CASHIER", "SALES", "INVENTORY"]);
+    expect(canRoleAccessPage("INVENTORY", "/inventory", defaults)).toBe(true);
+    expect(canRoleAccessPage("INVENTORY", "/products", defaults)).toBe(false);
+    expect(canRolePerformAction("INVENTORY", "inventory", "read", defaults)).toBe(true);
+    expect(canRolePerformAction("INVENTORY", "inventory", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("INVENTORY", "inventory", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("INVENTORY", "inventory.approve", "update", defaults)).toBe(false);
   });
 
   it("adds surat_jalan as its own configurable resource", () => {

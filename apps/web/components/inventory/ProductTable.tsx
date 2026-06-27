@@ -10,12 +10,12 @@ interface ProductTableProps {
   products: Product[];
   isLoading: boolean;
   onEdit: (id: string) => void;
-  onUpdateStock: (id: string) => void;
+  onUpdateStock?: (id: string) => void;
   onChangePrice?: (id: string) => void;
   onViewStockGroup?: (id: string) => void;
   onDelete?: (id: string) => void;
   canUpdateProduct: boolean;
-  canUpdateStock: boolean;
+  canUpdateStock?: boolean;
   canChangePrice?: boolean;
   canDeleteProduct?: boolean;
   selectedProductIds?: Set<string>;
@@ -31,7 +31,7 @@ export default function ProductTable({
   onViewStockGroup,
   onDelete,
   canUpdateProduct,
-  canUpdateStock,
+  canUpdateStock = false,
   canChangePrice = false,
   canDeleteProduct = false,
   selectedProductIds = new Set(),
@@ -176,7 +176,7 @@ export default function ProductTable({
                             <Boxes className="w-4 h-4" />
                           </button>
                         )}
-                        {canUpdateStock && (
+                        {canUpdateStock && onUpdateStock && (
                           <button
                             onClick={() => onUpdateStock(product.id)}
                             title="Ubah Stok"
@@ -282,7 +282,7 @@ export default function ProductTable({
                             <Boxes className="w-4 h-4" />
                           </button>
                         )}
-                        {canUpdateStock && (
+                        {canUpdateStock && onUpdateStock && (
                           <button
                             onClick={() => onUpdateStock(product.id)}
                             className="p-2.5 bg-slate-50 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 rounded-xl transition-all cursor-pointer"

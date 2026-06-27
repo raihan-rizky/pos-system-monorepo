@@ -90,3 +90,12 @@ export async function approveSuratJalan(
   }
   return response.json();
 }
+
+export async function fetchSuratJalans(limit = 50, offset = 0) {
+  const response = await fetch(`/api/surat-jalan?limit=${limit}&offset=${offset}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch surat jalan");
+  }
+  return response.json();
+}

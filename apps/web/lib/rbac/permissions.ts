@@ -64,6 +64,7 @@ export const DEFAULT_PAGE: Record<Role, string> = {
   ADMIN: "/dashboard",
   CASHIER: "/pos",
   SALES: "/pos",
+  INVENTORY: "/inventory",
 };
 
 export { ALL_ROLES, EDITABLE_ROLES, isValidRole };

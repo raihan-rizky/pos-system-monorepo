@@ -61,6 +61,7 @@ export interface InventoryLogsResponse {
 export type InventoryLogsParams = {
   productId?: string;
   type?: string;
+  reason?: string;
   status?: string; // comma-separated PENDING/APPROVED/REJECTED
   page?: number;
   limit?: number;
@@ -73,6 +74,7 @@ async function fetchInventoryLogs(
   const searchParams = new URLSearchParams();
   if (params.productId) searchParams.set("productId", params.productId);
   if (params.type) searchParams.set("type", params.type);
+  if (params.reason) searchParams.set("reason", params.reason);
   if (params.status) searchParams.set("status", params.status);
   if (params.page) searchParams.set("page", String(params.page));
   if (params.limit) searchParams.set("limit", String(params.limit));

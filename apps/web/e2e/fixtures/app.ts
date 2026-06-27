@@ -77,9 +77,12 @@ export async function mockApis(page: Page) {
 
     if (path === "/api/transactions" && method === "GET") {
       const salespersonId = url.searchParams.get("salespersonId");
-      const transactionRows = [transaction, jobOrder].filter((row) =>
-        salespersonId ? row.salespersonId === salespersonId : true,
-      );
+      const status = url.searchParams.get("status");
+      const transactionRows = [transaction, jobOrder].filter((row) => {
+        if (salespersonId && row.salespersonId !== salespersonId) return false;
+        if (status && row.status !== status) return false;
+        return true;
+      });
       return json(route, { data: transactionRows, pagination: { total: transactionRows.length, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     }
     if (path === "/api/transactions" && method === "POST") {

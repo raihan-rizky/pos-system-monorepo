@@ -164,6 +164,35 @@ export function useTransactions() {
   });
 }
 
+export function usePendingTransactionCount(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ["transactions", "pending-count"],
+    queryFn: async () => {
+      const res = await fetch("/api/transactions?status=PENDING_APPROVAL&limit=1&page=1");
+      if (!res.ok) throw new Error("Failed to fetch pending transaction count");
+      const json = (await res.json()) as PaginatedTransactions;
+      return json.pagination.total;
+    },
+    enabled: options.enabled ?? true,
+    staleTime: 30_000,
+  });
+}
+
+export function useUnpaidDebtTransactionCount(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ["transactions", "unpaid-debt-count"],
+    queryFn: async () => {
+      const res = await fetch("/api/transactions?status=DP&limit=1&page=1");
+      if (!res.ok) throw new Error("Failed to fetch unpaid debt count");
+      const json = (await res.json()) as PaginatedTransactions;
+      return json.pagination.total;
+    },
+    enabled: options.enabled ?? true,
+    staleTime: 30_000,
+  });
+}
+
+
 export function useTransaction(id: string | null) {
   return useQuery({
     queryKey: ["transaction", id],

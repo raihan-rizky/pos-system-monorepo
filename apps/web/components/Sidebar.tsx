@@ -5,7 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useRole } from "@/components/providers/RoleProvider";
-import { usePendingInventoryLogCount } from "@/hooks/useInventoryLogs";
+
+import { usePendingTransactionCount, useUnpaidDebtTransactionCount } from "@/hooks/useTransactions";
+import { useInventorySummary } from "@/features/inventory-management/hooks/useInventorySummary";
 import { clearClientAuthState } from "@/lib/auth/pos-session";
 import {
   BarChart3,
@@ -15,6 +17,7 @@ import {
   ChevronLeft,
   CircleDollarSign,
   Grid2X2,
+  HelpCircle,
   LogOut,
   MessageCircle,
   Package,
@@ -50,6 +53,8 @@ const icons = {
   pemasukan: <TrendingUp className={sidebarIconClass} aria-hidden="true" />,
   pengeluaran: <TrendingDown className={sidebarIconClass} aria-hidden="true" />,
   settings: <Settings className={sidebarIconClass} aria-hidden="true" />,
+  help: <HelpCircle className={sidebarIconClass} aria-hidden="true" />,
+  inventory: <Package className={sidebarIconClass} aria-hidden="true" />,
 };
 const navGroups = [
   {
@@ -70,6 +75,14 @@ const navGroups = [
       { href: "/products", label: "Produk", icon: icons.product },
       { href: "/suppliers", label: "Supplier", icon: icons.suppliers },
       { href: "/production", label: "Produksi", icon: icons.production },
+    ],
+  },
+  {
+    id: "inventory",
+    label: "Manajemen Inventaris",
+    icon: icons.inventory,
+    items: [
+      { href: "/inventory", label: "Inventaris", icon: icons.inventory },
     ],
   },
   {
@@ -110,6 +123,7 @@ const navGroups = [
       { href: "/wa", label: "WA Chat", icon: icons.wa },
       { href: "/shift", label: "Shift Kasir", icon: icons.shift },
       { href: "/settings", label: "Pengaturan", icon: icons.settings },
+      { href: "/help", label: "Bantuan", icon: icons.help },
     ],
   },
 ];
@@ -127,6 +141,7 @@ function NavItem({
   isCollapsed,
   onNavigate,
   badge,
+  badgeVariant = "amber",
 }: {
   href: string;
   label: string;
@@ -135,6 +150,7 @@ function NavItem({
   isCollapsed: boolean;
   onNavigate?: () => void;
   badge?: number;
+  badgeVariant?: "amber" | "blue" | "red";
 }) {
   const router = useRouter();
   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -176,15 +192,39 @@ function NavItem({
       {badge !== undefined && badge > 0 && (
         !isCollapsed ? (
           <span
-            aria-label={`${badge} permintaan menunggu persetujuan`}
-            className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-black"
+            aria-label={
+              label === "Riwayat"
+                ? `${badge} transaksi pending`
+                : label === "Pelanggan"
+                  ? `${badge} transaksi piutang belum lunas`
+                  : `${badge} permintaan menunggu persetujuan`
+            }
+            className={`ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-white text-[10px] font-black ${
+              badgeVariant === "blue"
+                ? "bg-blue-500"
+                : badgeVariant === "red"
+                  ? "bg-red-500"
+                  : "bg-amber-500"
+            }`}
           >
             {badge}
           </span>
         ) : (
           <span
-            aria-label={`${badge} permintaan menunggu persetujuan`}
-            className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-surface-900"
+            aria-label={
+              label === "Riwayat"
+                ? `${badge} transaksi pending`
+                : label === "Pelanggan"
+                  ? `${badge} transaksi piutang belum lunas`
+                  : `${badge} permintaan menunggu persetujuan`
+            }
+            className={`absolute top-1 right-1 w-2 h-2 rounded-full ring-2 ring-surface-900 ${
+              badgeVariant === "blue"
+                ? "bg-blue-500"
+                : badgeVariant === "red"
+                  ? "bg-red-500"
+                  : "bg-amber-500"
+            }`}
           />
         )
       )}
@@ -216,7 +256,17 @@ export function Sidebar() {
   const roleLabel = role
     ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
     : "User";
-  const { data: pendingInventoryCount = 0 } = usePendingInventoryLogCount();
+
+  const { data: inventorySummary } = useInventorySummary({
+    enabled: canAccess("/inventory"),
+  });
+  const urgentInventoryCount = inventorySummary?.urgentCount ?? 0;
+  const { data: pendingTransactionCount = 0 } = usePendingTransactionCount({
+    enabled: canAccess("/history"),
+  });
+  const { data: unpaidDebtCount = 0 } = useUnpaidDebtTransactionCount({
+    enabled: canAccess("/customers"),
+  });
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
 
@@ -321,9 +371,20 @@ export function Sidebar() {
                     isActive={pathname === item.href}
                     isCollapsed={isCollapsed}
                     badge={
-                      isOwner && item.href === "/products"
-                        ? pendingInventoryCount
-                        : undefined
+                      item.href === "/inventory"
+                        ? urgentInventoryCount
+                        : item.href === "/history"
+                          ? pendingTransactionCount
+                          : item.href === "/customers"
+                            ? unpaidDebtCount
+                            : undefined
+                    }
+                    badgeVariant={
+                      item.href === "/history"
+                        ? "blue"
+                        : item.href === "/customers"
+                          ? "red"
+                          : "amber"
                     }
                   />
                 ))}
@@ -445,6 +506,8 @@ export function Sidebar() {
                 "Kelola operasional kasir, dashboard, dan riwayat harian."}
               {activeGroupObj.id === "catalog" &&
                 "Kelola inventaris produk dan papan status antrean produksi."}
+              {activeGroupObj.id === "inventory" &&
+                "Kelola stok masuk, tugas harian, mingguan, pemakaian internal, dan rekap stok."}
               {activeGroupObj.id === "finance" &&
                 "Pantau revenue, profit, metode pembayaran, piutang, dan shift kas."}
               {activeGroupObj.id === "crm" &&

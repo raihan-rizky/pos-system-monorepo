@@ -25,6 +25,7 @@ const ROLE_LABELS: Record<EditableRole, string> = {
   ADMIN: "Admin",
   CASHIER: "Kasir",
   SALES: "Sales",
+  INVENTORY: "Inventaris",
 };
 
 export default function RbacTab() {

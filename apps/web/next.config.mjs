@@ -4,6 +4,7 @@ const { PrismaPlugin } = prismaWorkaround;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   transpilePackages: ["@pos/ui", "@pos/db", "@pos/config"],
 
   async rewrites() {

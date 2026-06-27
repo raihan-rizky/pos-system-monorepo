@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Button } from "@pos/ui";
-import { CreditCard, FileText, ShoppingCart, X } from "lucide-react";
+import { CreditCard, FileText, ShoppingCart, X, PackageMinus } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
 import type { QuotationCheckoutMode } from "@/features/nota-penawaran/helpers/quotation-rules";
@@ -17,6 +17,7 @@ interface CartSidebarProps {
   onCheckout: () => void;
   checkoutMode?: QuotationCheckoutMode;
   onClose?: () => void;
+  onInternalStockOut?: () => void;
 }
 
 export function CartSidebar({
@@ -29,6 +30,7 @@ export function CartSidebar({
   onCheckout,
   checkoutMode = "payment",
   onClose,
+  onInternalStockOut,
 }: CartSidebarProps) {
   const isQuotationMode = checkoutMode === "quotation";
 
@@ -136,15 +138,28 @@ export function CartSidebar({
               {formatRupiah(subtotal)}
             </span>
           </div>
-          <Button
-            variant="accent"
-            size="lg"
-            className="w-full"
-            onClick={onCheckout}
-          >
-            {isQuotationMode ? <FileText size={18} /> : <CreditCard size={18} />}
-            {isQuotationMode ? "Create Nota Penawaran" : "Bayar"}
-          </Button>
+          <div className="flex gap-2">
+            {onInternalStockOut && (
+              <Button
+                variant="secondary"
+                size="lg"
+                className="flex-1"
+                onClick={onInternalStockOut}
+              >
+                <PackageMinus size={18} />
+                Stock Out
+              </Button>
+            )}
+            <Button
+              variant="accent"
+              size="lg"
+              className="flex-1"
+              onClick={onCheckout}
+            >
+              {isQuotationMode ? <FileText size={18} /> : <CreditCard size={18} />}
+              {isQuotationMode ? "Create Nota Penawaran" : "Bayar"}
+            </Button>
+          </div>
         </div>
       )}
     </div>

@@ -15,7 +15,13 @@ function useDailyStats(logs: InventoryLog[]) {
     const map = new Map<string, { date: string; inQty: number; outQty: number; adjustQty: number }>();
 
     for (const log of logs) {
-      const day = new Date(log.createdAt).toISOString().slice(0, 10);
+      // Use local time for grouping instead of UTC to prevent timezone bugs
+      const d = new Date(log.createdAt);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const date = String(d.getDate()).padStart(2, "0");
+      const day = `${year}-${month}-${date}`;
+
       const entry = map.get(day) || { date: day, inQty: 0, outQty: 0, adjustQty: 0 };
 
       if (log.type === "IN") entry.inQty += log.quantity;
@@ -116,7 +122,7 @@ function TopMovers({ logs }: { logs: InventoryLog[] }) {
 }
 
 export default function StockHistoryTab() {
-  const { data, isLoading, isError } = useInventoryLogs({ limit: 100, days: 60 });
+  const { data, isLoading, isError } = useInventoryLogs({ limit: 1000, days: 60 });
   const logs = data?.data || [];
   const dailyStats = useDailyStats(logs);
 

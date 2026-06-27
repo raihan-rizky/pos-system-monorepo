@@ -24,7 +24,6 @@ import {
   Edit2,
   History,
   BadgeDollarSign,
-  ClipboardList,
   FileSpreadsheet,
   LoaderCircle,
   Boxes,
@@ -40,9 +39,7 @@ import ProductTable from "@/components/inventory/ProductTable";
 import { CategoryIcon } from "@/lib/category-icons";
 import ProductFormModal from "@/components/inventory/ProductFormModal";
 import PriceUpdateModal from "@/components/inventory/PriceUpdateModal";
-import StockUpdateModal from "@/components/inventory/StockUpdateModal";
 import { useRole } from "@/components/providers/RoleProvider";
-import { usePendingInventoryLogCount } from "@/hooks/useInventoryLogs";
 import {
   shouldShowAction,
   shouldShowUpdateAction,
@@ -56,10 +53,6 @@ import {
   useProductImportJobStatus,
 } from "@/features/product-import/hooks/useProductImport";
 
-const StockHistoryTab = lazy(
-  () => import("@/app/(main)/inventory/StockHistoryTab"),
-);
-const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
 const ProductPriceLogsTab = lazy(
   () => import("@/app/(main)/products/ProductPriceLogsTab"),
 );
@@ -102,8 +95,6 @@ type PageTab =
   | "products"
   | "prices"
   | "special-prices"
-  | "history"
-  | "logs"
   | "group-activity";
 
 function useFitText(value: string | number) {
@@ -222,26 +213,21 @@ function ProductsContent() {
 
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab = (tabParam && ["products", "prices", "special-prices", "history", "logs", "group-activity"].includes(tabParam)
+  const productTabs: PageTab[] = ["products", "prices", "special-prices", "group-activity"];
+  const initialTab = (tabParam && productTabs.includes(tabParam as PageTab)
     ? tabParam 
     : "products") as PageTab;
   const [activeTab, setActiveTab] = useState<PageTab>(initialTab);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab && ["products", "prices", "special-prices", "history", "logs", "group-activity"].includes(tab)) {
+    if (tab && productTabs.includes(tab as PageTab)) {
       setActiveTab(tab as PageTab);
     }
   }, [searchParams]);
 
-  const { data: pendingCount = 0 } = usePendingInventoryLogCount();
-
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
-  const [stockUpdateProductId, setStockUpdateProductId] = useState<
-    string | null
-  >(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isBulkStockImportOpen, setIsBulkStockImportOpen] = useState(false);
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
@@ -412,15 +398,6 @@ function ProductsContent() {
   const closeProduct = () => {
     setIsProductModalOpen(false);
     setEditingProductId(null);
-  };
-  const openStock = (id: string) => {
-    if (!canUpdateInventory) return;
-    setStockUpdateProductId(id);
-    setIsStockModalOpen(true);
-  };
-  const closeStock = () => {
-    setIsStockModalOpen(false);
-    setStockUpdateProductId(null);
   };
   const openPriceHistory = (id: string) => {
     if (!canViewPriceHistory) return;
@@ -702,17 +679,6 @@ function ProductsContent() {
                 ]
               : []),
             {
-              id: "history" as PageTab,
-              label: "Riwayat Stok",
-              icon: <History className="w-4 h-4" />,
-            },
-            {
-              id: "logs" as PageTab,
-              label: "Stock Logs",
-              icon: <ClipboardList className="w-4 h-4" />,
-              badge: pendingCount > 0 ? pendingCount : undefined,
-            },
-            {
               id: "group-activity" as PageTab,
               label: "Aktivitas Grup",
               icon: <Boxes className="w-4 h-4" />,
@@ -733,14 +699,6 @@ function ProductsContent() {
               <span className="relative z-10 flex items-center gap-2">
                 {tab.icon}
                 {tab.label}
-                {tab.badge !== undefined && (
-                  <span
-                    aria-label={`${tab.badge} permintaan menunggu persetujuan`}
-                    className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-black"
-                  >
-                    {tab.badge}
-                  </span>
-                )}
               </span>
             </button>
           ))}
@@ -756,8 +714,6 @@ function ProductsContent() {
                 </div>
               }
             >
-              {activeTab === "history" && <StockHistoryTab />}
-              {activeTab === "logs" && <StockLogsTab />}
               {activeTab === "group-activity" && (
                 <StockGroupActivityTab onOpenStockGroup={openStockGroup} />
               )}
@@ -971,12 +927,11 @@ function ProductsContent() {
                   products={processedProducts}
                   isLoading={isLoading}
                   onEdit={openEdit}
-                  onUpdateStock={openStock}
                   onChangePrice={openPriceChange}
                   onViewStockGroup={openStockGroup}
                   onDelete={requestDelete}
                   canUpdateProduct={canUpdateProducts}
-                  canUpdateStock={canUpdateInventory}
+                  canUpdateStock={false}
                   canChangePrice={canChangePrice}
                   canDeleteProduct={canDeleteProducts}
                   selectedProductIds={selectedProductIds}
@@ -991,12 +946,11 @@ function ProductsContent() {
                   products={processedProducts}
                   isLoading={isLoading}
                   onEdit={openEdit}
-                  onUpdateStock={openStock}
                   onChangePrice={openPriceChange}
                   onViewStockGroup={openStockGroup}
                   onDelete={requestDelete}
                   canUpdateProduct={canUpdateProducts}
-                  canUpdateStock={canUpdateInventory}
+                  canUpdateStock={false}
                   canChangePrice={canChangePrice}
                   canDeleteProduct={canDeleteProducts}
                   selectedProductIds={selectedProductIds}
@@ -1062,13 +1016,6 @@ function ProductsContent() {
             initialData={products.find((p) => p.id === editingProductId)}
           />
         )}
-      {isStockModalOpen && stockUpdateProductId && canUpdateInventory && (
-        <StockUpdateModal
-          isOpen={isStockModalOpen}
-          onClose={closeStock}
-          product={products.find((p) => p.id === stockUpdateProductId)!}
-        />
-      )}
       {priceUpdateProductId && canChangePrice && (
         <PriceUpdateModal
           isOpen={Boolean(priceUpdateProductId)}
@@ -1250,12 +1197,12 @@ function ProductGrid({
   products: Product[];
   isLoading: boolean;
   onEdit: (id: string) => void;
-  onUpdateStock: (id: string) => void;
+  onUpdateStock?: (id: string) => void;
   onChangePrice: (id: string) => void;
   onViewStockGroup?: (id: string) => void;
   onDelete?: (id: string) => void;
   canUpdateProduct: boolean;
-  canUpdateStock: boolean;
+  canUpdateStock?: boolean;
   canChangePrice: boolean;
   canDeleteProduct?: boolean;
   selectedProductIds?: Set<string>;
@@ -1418,7 +1365,7 @@ function ProductGrid({
                     <BadgeDollarSign className="w-5 h-5" />
                   </button>
                 )}
-                {canUpdateStock && (
+                {canUpdateStock && onUpdateStock && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
