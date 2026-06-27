@@ -12,10 +12,14 @@ import {
 } from "../helpers/chat-state";
 import { sendChatMessage } from "../api/assistantApi";
 import type { AssistantStreamFrame, Message } from "../types/assistant";
-import { Send, Info, Bot, X } from "lucide-react";
+import { Send, Info, Bot, X, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { flushSync } from "react-dom";
 import { AssistantActionLog } from "./AssistantActionLog";
+
+const CHAT_HISTORY_KEY_PREFIX = "ai_assistant_history_";
+const MAX_HISTORY_MESSAGES = 10;
+const HISTORY_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 type AssistantWidgetProps = {
   defaultOpen?: boolean;
@@ -74,6 +78,61 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const storageKey = `${CHAT_HISTORY_KEY_PREFIX}${userRole}`;
+
+  // Load history on mount or role change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.timestamp && parsed?.messages && Array.isArray(parsed.messages)) {
+          const isExpired = Date.now() - parsed.timestamp > HISTORY_TTL_MS;
+          if (!isExpired && parsed.messages.length > 0) {
+            setMessages(parsed.messages);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load AI chat history", e);
+    }
+    // Fallback if expired, missing, or error
+    setMessages(initialMessages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  // Save history on messages change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Don't save if it's just the initial empty state
+    if (messages === initialMessages && messages.length === 0) return;
+    
+    try {
+      const toSave = messages.slice(-MAX_HISTORY_MESSAGES);
+      const data = {
+        timestamp: Date.now(),
+        messages: toSave,
+      };
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Failed to save AI chat history", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, storageKey]);
+
+  const handleClearChat = () => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus riwayat chat ini?")) {
+      setMessages([]);
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (e) {
+        console.warn("Failed to clear AI chat history", e);
+      }
+    }
+  };
+
   const charCount = input.length;
   const maxChars = 2000;
   const chatRef = useRef<HTMLDivElement>(null);
@@ -238,12 +297,22 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                 <span className="px-2 py-1 text-xs font-medium bg-accent-500/10 text-accent-400 border border-accent-500/20 rounded-2xl">
                   Toko
                 </span>
-                <button
-                  onClick={() => setOpen(false)}
-                  className="p-1.5 rounded-full hover:bg-surface-700/50 transition-colors"
-                >
-                  <X className="w-4 h-4 text-surface-400" />
-                </button>
+                
+                <div className="flex items-center ml-2 border-l border-surface-600/50 pl-2 gap-1">
+                  <button
+                    onClick={handleClearChat}
+                    title="Hapus riwayat chat"
+                    className="p-1.5 rounded-full hover:bg-danger-500/20 hover:text-danger-400 text-surface-400 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setOpen(false)}
+                    className="p-1.5 rounded-full hover:bg-surface-700/50 transition-colors"
+                  >
+                    <X className="w-4 h-4 text-surface-400" />
+                  </button>
+                </div>
               </div>
             </div>
 

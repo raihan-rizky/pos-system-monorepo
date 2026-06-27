@@ -43,6 +43,7 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@pos/config": "workspace:*",
+    "@tailwindcss/typography": "^0.5.20",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

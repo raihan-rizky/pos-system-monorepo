@@ -109,7 +109,11 @@ export class InternalStockOutRepository implements InternalStockOutRepositoryCon
       data: { inventoryLogId: inventoryLog.id },
     });
 
-    await applyProductStockDelta(tx, request.productId, -request.quantity);
+    await applyProductStockDelta(tx, {
+      storeId: input.storeId,
+      productId: request.productId,
+      delta: -request.quantity,
+    });
 
     return { id: input.requestId, status: "APPROVED" };
   }

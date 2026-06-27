@@ -72,8 +72,15 @@ export async function POST(request: Request) {
       });
     }
     if (error instanceof InventoryManagementError) {
+      const codeMap: Record<string, import("@/lib/api/responses").ApiErrorCode> = {
+        STORE_REQUIRED: "Forbidden",
+        VALIDATION_ERROR: "ValidationError",
+        NOT_FOUND: "NotFound",
+        CONFLICT: "Conflict",
+        INVALID_RECEIPT_LINE: "ValidationError",
+      };
       return apiError(error.message, error.status, {
-        code: error.code,
+        code: codeMap[error.code] || "InternalError",
       });
     }
     return apiError("Failed to create internal stock-out request", 500, {
