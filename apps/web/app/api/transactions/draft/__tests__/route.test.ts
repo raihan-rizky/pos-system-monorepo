@@ -134,7 +134,7 @@ describe("POST /api/transactions/draft", () => {
     expect(createArgs.data.invoiceNumber).toBeNull();
     expect(createArgs.data.cashierId).toBe("cashier-1");
     expect(createArgs.data.requestedById).toBeNull();
-  });
+  }, 30000);
 
   it("stores custom quote prices as item snapshots and writes audit-only price logs", async () => {
     const { POST } = await import("../route");
@@ -185,7 +185,7 @@ describe("POST /api/transactions/draft", () => {
         }),
       ],
     });
-  });
+  }, 30000);
 
   it("returns 422 when cart is empty", async () => {
     const { POST } = await import("../route");

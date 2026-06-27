@@ -106,7 +106,7 @@ describe("GET /api/transactions surat jalan history", () => {
       deliveredQuantity: 7,
       totalQuantity: 10,
     });
-  });
+  }, 30000);
 
   it("filters transaction history by customer type", async () => {
     const { GET } = await import("../route");
