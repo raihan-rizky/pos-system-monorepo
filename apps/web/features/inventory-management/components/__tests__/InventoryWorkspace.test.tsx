@@ -352,11 +352,47 @@ describe("InventoryWorkspace", () => {
 
     expect(html).toContain("Risiko Stok");
     expect(html).toContain("Stok Negatif");
-    expect(html).toContain("Stok Habis");
-    expect(html).toContain("Stok Rendah");
+    expect(html).toContain("Stok Habis / Rendah");
     expect(html).toContain("Request Pending");
     expect(html).not.toContain("Penerimaan Menunggu Owner");
     expect(html).not.toContain("Inbound Menunggu");
+  });
+
+  it("replaces static post-chart cards with live operational follow-up", () => {
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace
+        initialSummary={{
+          ...baseSummary,
+          counts: {
+            ...baseSummary.counts,
+            pendingStockRequests: 4,
+            submittedInboundReceipts: 2,
+            needsRevisionReceipts: 3,
+            rejectedOwnRequests: 1,
+          },
+          chartData: {
+            ...baseSummary.chartData,
+            inboundOutbound: [
+              { day: "Senin", inbound: 10, outbound: 4 },
+              { day: "Selasa", inbound: 3, outbound: 9 },
+            ],
+          },
+        }}
+      />,
+    );
+
+    expect(html).toContain("Tindak Lanjut Operasional");
+    expect(html).toContain("Arus Stok Disetujui");
+    expect(html).toContain("Aktivitas tertinggi: Senin (14 unit)");
+    expect(html).toContain("Antrean Persetujuan");
+    expect(html).toContain("Penerimaan perlu revisi");
+    expect(html).toContain("Lihat rekap stok");
+    expect(html).toContain("Terima barang");
+    expect(html).toContain("Pemakaian internal");
+    expect(html).not.toContain("Pemakaian Internal Cepat");
+    expect(html).not.toContain("Log Stok Terverifikasi");
+    expect(html).not.toContain("Rekap Nilai Stok");
+    expect(html).not.toContain("Riwayat Surat Jalan");
   });
 
   it("keeps weekly proof status visible on the default screen", () => {

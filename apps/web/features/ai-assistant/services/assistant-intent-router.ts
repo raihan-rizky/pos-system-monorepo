@@ -1,3 +1,5 @@
+import type { AssistantToolName } from "./assistant-tool-registry";
+
 type ToolIntent =
   | { kind: "tool"; toolName: "get_low_stock_items"; input: Record<string, never> }
   | { kind: "tool"; toolName: "get_daily_sales_summary"; input: { date: string } }
@@ -17,23 +19,56 @@ type AssistantIntent =
   | { kind: "unsupported_data"; guidance: string }
   | { kind: "chat" };
 
-const POS_KEYWORDS = ["pos", "produk", "product", "stok", "stock", "inventory", "inventori", "transaksi", "transaction", "penjualan", "sales", "omzet", "revenue", "profit", "pelanggan", "customer", "supplier", "laporan", "report", "kasir", "cashier", "invoice", "nota", "surat jalan", "harga", "pembayaran", "utang", "piutang", "fitur", "menu", "aplikasi", "sistem", "cara", "bagaimana", "bantuan", "help"];
+export type FastPathIntentName = AssistantToolName | "social_static" | "out_of_scope" | "unsupported_data";
+
+const FAST_PATH_INTENT_NAMES = new Set<FastPathIntentName>([
+  "get_system_help",
+  "get_low_stock_items",
+  "get_daily_sales_summary",
+  "get_product_search",
+  "get_product_stock",
+  "get_product_price",
+  "get_customer_search",
+  "get_customer_debt_summary",
+  "get_customer_recap_summary",
+  "social_static",
+  "out_of_scope",
+  "unsupported_data",
+]);
+
+const POS_KEYWORDS = [
+  "pos", "produk", "product", "tambah produk", "sku", "harga", "kategori", "barcode", "variasi", "item", "barang",
+  "stok", "stock", "inventory", "inventori", "gudang", "opname", "stock opname", "barang masuk", "barang keluar", "stock out", "mutasi", "kartu stok",
+  "transaksi", "transaction", "kasir", "cashier", "pembayaran", "checkout", "keranjang", "diskon", "tunai", "qris", "transfer", "kredit", "debit", "struk belanja", "invoice",
+  "pelanggan", "customer", "piutang", "utang", "pembeli", "member", "membership", "tagihan", "cicilan",
+  "supplier", "pemasok", "vendor", "distributor", "pabrik", "agen",
+  "laporan", "report", "keuangan", "omzet", "revenue", "profit", "laba rugi", "penjualan", "sales", "grafik", "analisa", "statistik", "ringkasan",
+  "settings", "rbac", "role", "permission", "akses", "pengaturan", "hak akses", "admin", "pengguna", "user", "karyawan", "akun",
+  "produksi", "production", "kanban", "job order", "printing", "siap diambil", "sedang diproses", "proses", "selesai", "operator", "papan produksi",
+  "salesperson", "tim sales", "tenaga penjual", "komisi", "target", "kinerja sales", "spg", "pramuniaga",
+  "shift", "laci", "modal laci", "tutup laci", "selisih", "sesi", "uang laci", "cash drawer", "setor", "buka shift",
+  "riwayat", "history", "transaksi lama", "struk", "void", "batal", "refund", "kembali", "surat jalan", "nota", "pengiriman", "detail transaksi",
+  "fitur", "menu", "aplikasi", "sistem", "cara", "bagaimana", "bantuan", "help"
+];
 const OUT_OF_SCOPE_KEYWORDS = ["presiden", "weather", "cuaca", "politik", "resep", "sejarah", "coding", "programming", "matematika", "mathematics", "berita", "news"];
 
 function includesAny(text: string, keywords: string[]) {
   return keywords.some((keyword) => text.includes(keyword));
 }
 
-function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
+function isoDateInJakarta(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
 function cleanQuery(value: string) {
-  return value.replace(/[?!.]/g, "").trim();
-}
-
-function afterKeyword(text: string, keyword: string) {
-  return cleanQuery(text.slice(text.indexOf(keyword) + keyword.length));
+  return value.replace(/[?!.]+$/g, "").trim();
 }
 
 function titleQuery(value: string) {
@@ -44,82 +79,112 @@ function titleQuery(value: string) {
     .join(" ");
 }
 
+function hasContextDependencyOrMixedIntent(text: string) {
+  const withoutToday = text.replace(/\b(?:hari ini|today)\b/g, "");
+  return /\b(?:tadi|sebelumnya|tersebut|yang sama|lanjutkan|ulangi|koreksi|maksud saya|bukan|ini|itu)\b/.test(withoutToday)
+    || /\b(?:dan|serta|sekaligus|kemudian|lalu|plus)\b/.test(text)
+    || (text.match(/\?/g)?.length ?? 0) > 1;
+}
+
 function staticSocialReply(text: string): string | null {
-  if (/^(halo|hai|hi|hello|pagi|siang|sore|malam)\b/.test(text)) {
-    return "Halo, aku Pak Teladan — bisa dipanggil Pak Tel atau Dan. Sure, mau dibantu apa soal sistem POS hari ini?";
+  if (/^(?:halo|hai|hi|hello|pagi|siang|sore|malam)(?: pak tel(?:adan)?| dan)?[!?.]*$/.test(text)) {
+    return "Halo, aku Pak Teladan — bisa dipanggil Pak Tel atau Dan. Mau dibantu apa soal sistem POS hari ini?";
   }
-  if (/nama kamu|siapa kamu|who are you/.test(text)) {
-    return "Aku Pak Teladan, panggil aja Pak Tel atau Dan. Aku bantu jelasin fitur POS, cek data via tool, dan keep it clear gaya Jaksel.";
+  if (/^(?:nama kamu siapa|siapa kamu|who are you)[!?.]*$/.test(text)) {
+    return "Aku Pak Teladan, panggil saja Pak Tel atau Dan. Aku membantu menjelaskan fitur POS dan mengecek data melalui alat yang sesuai aksesmu.";
   }
-  if (/bisa apa|kemampuan|capability/.test(text)) {
-    return "Aku bisa bantu cek stok, produk, customer, penjualan, dan jelasin cara pakai fitur POS. Untuk data live, aku pakai tool biar based on data, bukan ngarang.";
+  if (/^(?:kamu )?(?:bisa apa|punya kemampuan apa|capability)[!?.]*$/.test(text)) {
+    return "Aku bisa membantu cek stok, produk, pelanggan, penjualan, dan menjelaskan cara memakai fitur POS. Data live selalu dicek melalui alat, bukan diperkirakan.";
   }
-  if (/makasih|terima kasih|thanks|thank you|bye|dadah/.test(text)) {
-    return "Anytime! Kalau butuh insight POS lagi, panggil Tel atau Dan aja ya.";
+  if (/^(?:makasih|terima kasih|thanks|thank you|bye|dadah)[!?.]*$/.test(text)) {
+    return "Sama-sama! Kalau butuh bantuan soal POS lagi, panggil Pak Tel atau Dan saja ya.";
   }
-  if (/joke|jokes|tebak|lawak|luc/.test(text)) {
-    return "Wah, pertanyaan bagus ini Mas. Hewan yang paling sederhana itu... Ala kadalnya! Xixixi. Gimana, garing ya? Yaudah ngopi dulu biar seger.";
+  if (/^(?:(?:kasih|beri|buatkan?) )?(?:joke|jokes|tebak-tebakan|lawakan?)(?: dong)?[!?.]*$/.test(text)) {
+    return "Wah, pertanyaan bagus ini Mas. Hewan yang paling sederhana itu... Ala kadalnya! Xixixi. Garing ya? Ngopi dulu biar segar.";
   }
   return null;
 }
 
+function capture(text: string, pattern: RegExp) {
+  const match = pattern.exec(text);
+  return match?.[1] ? titleQuery(match[1]) : "";
+}
+
+/**
+ * Returns a deterministic route only when the complete latest message is
+ * context-independent. Anything ambiguous deliberately falls back to the LLM.
+ */
 export function routeAssistantIntent(message: string, now: Date = new Date()): AssistantIntent {
-  const text = message.toLowerCase().trim();
+  const original = message.trim();
+  const text = original.toLowerCase();
+  if (!text) return { kind: "chat" };
+
   const staticReply = staticSocialReply(text);
   if (staticReply) return { kind: "social_static", reply: staticReply };
 
-  if (/lagi ngapain|cerita dong|gimana kabar|mood|gabut|ngobrol/.test(text)) {
+  if (/^(?:lagi ngapain|cerita dong|gimana kabar|mood|gabut|ngobrol)(?: dan)?[!?.]*$/.test(text)) {
     return { kind: "social_nebius" };
   }
 
-  if (/cari produk|search produk|find product/.test(text)) {
-    return { kind: "tool", toolName: "get_product_search", input: { query: titleQuery(afterKeyword(text, "produk")), limit: 10 } };
-  }
+  if (hasContextDependencyOrMixedIntent(text)) return { kind: "chat" };
 
-  if (/harga/.test(text) && /produk|product|berapa/.test(text)) {
-    return { kind: "tool", toolName: "get_product_price", input: { query: titleQuery(text.replace(/harga|produk|product|berapa/g, "")) } };
-  }
-
-  if (/stok|stock|minimum|menipis|rendah|habis/.test(text)) {
-    if (/rendah|menipis|habis|minimum/.test(text) && /(apa|mana|daftar|list|produk yang|produk apa)/.test(text)) {
-      return { kind: "tool", toolName: "get_low_stock_items", input: {} };
-    }
-    const query = titleQuery(text.replace(/cek|tolong|coba|lihat|barang|item|stok|stock|minimum|menipis|rendah|habis|berapa|produk|yang|nya/g, ""));
-    if (query) return { kind: "tool", toolName: "get_product_stock", input: { query } };
+  if (/^(?:(?:cek|lihat|tampilkan) )?(?:(?:daftar|list) )?(?:(?:produk|barang)(?: (?:apa|mana))? yang )?(?:stok(?:nya)?(?: (?:produk|barang))?|(?:produk|barang) stok(?:nya)?) (?:rendah|menipis|habis|minimum)[!?.]*$/.test(text)) {
     return { kind: "tool", toolName: "get_low_stock_items", input: {} };
   }
 
-  if (/cari customer|cari pelanggan|search customer/.test(text)) {
-    return { kind: "tool", toolName: "get_customer_search", input: { query: titleQuery(text.replace(/cari|customer|pelanggan|search/g, "")), limit: 10 } };
+  if (/^(?:ringkasan |total )?(?:omzet|revenue|penjualan|sales|pendapatan)(?: toko)? (?:hari ini|today)(?: berapa)?[!?.]*$/.test(text)) {
+    return { kind: "tool", toolName: "get_daily_sales_summary", input: { date: isoDateInJakarta(now) } };
   }
 
-  if (/piutang|debt|utang/.test(text) && /customer|pelanggan/.test(text)) {
-    const query = titleQuery(text.replace(/cek|tolong|coba|lihat|ringkasan|rekap|daftar|list|data|semua|piutang|debt|utang|customer|pelanggan|berapa|siapa/g, ""));
-    if (query) return { kind: "tool", toolName: "get_customer_debt_summary", input: { query } };
-    return { kind: "chat" };
+  const productSearch = capture(text, /^(?:cari produk|search produk|find product)\s+(.+?)[!?.]*$/);
+  if (productSearch) return { kind: "tool", toolName: "get_product_search", input: { query: productSearch, limit: 10 } };
+
+  const productStock = capture(text, /^(?:(?:cek|lihat) )?stok (?:produk |barang )?(.+?)(?: berapa)?[!?.]*$/);
+  if (productStock) return { kind: "tool", toolName: "get_product_stock", input: { query: productStock } };
+
+  const productPrice = capture(text, /^(?:(?:cek|lihat) )?harga (?:produk |barang )?(.+?)(?: berapa)?[!?.]*$/);
+  if (productPrice) return { kind: "tool", toolName: "get_product_price", input: { query: productPrice } };
+
+  const customerSearch = capture(text, /^(?:cari customer|cari pelanggan|search customer)\s+(.+?)[!?.]*$/);
+  if (customerSearch) return { kind: "tool", toolName: "get_customer_search", input: { query: customerSearch, limit: 10 } };
+
+  const customerDebt = capture(text, /^(?:(?:cek|lihat) )?(?:piutang|utang) (?:customer|pelanggan)\s+(.+?)(?: berapa)?[!?.]*$/);
+  if (customerDebt) return { kind: "tool", toolName: "get_customer_debt_summary", input: { query: customerDebt } };
+
+  const customerRecap = capture(text, /^(?:(?:cek|lihat) )?rekap (?:customer|pelanggan)\s+(.+?)[!?.]*$/);
+  if (customerRecap) return { kind: "tool", toolName: "get_customer_recap_summary", input: { query: customerRecap, preset: "30d" } };
+
+  if (/^(?:bagaimana cara|cara|bantuan|help|tolong jelaskan cara)\s+.+[!?.]*$/.test(text)) {
+    return { kind: "tool", toolName: "get_system_help", input: { query: original } };
   }
 
-  if (/rekap/.test(text) && /customer|pelanggan/.test(text)) {
-    const query = titleQuery(text.replace(/cek|tolong|coba|lihat|ringkasan|rekap|daftar|list|data|semua|customer|pelanggan|siapa/g, ""));
-    if (query) return { kind: "tool", toolName: "get_customer_recap_summary", input: { query, preset: "30d" } };
-    return { kind: "chat" };
-  }
-
-  if (/omzet|revenue|penjualan|sales|pendapatan/.test(text) && /hari ini|today|harian/.test(text)) {
-    return { kind: "tool", toolName: "get_daily_sales_summary", input: { date: isoDate(now) } };
-  }
-
-  if (/cara|bagaimana|bantuan|help|fitur|menu|pakai|menggunakan/.test(text)) {
-    return { kind: "tool", toolName: "get_system_help", input: { query: message } };
-  }
-
-  if (/supplier|pemasok/.test(text) && /(mana|berapa|terbesar|ranking|terbanyak|rekap|data|list|daftar|sering)/.test(text)) {
-    return { kind: "unsupported_data", guidance: "Sure, aku belum bisa ambil data supplier detail langsung dari tool. Kamu bisa cek menu Suppliers atau recap supplier di aplikasi. Aku bisa bantu jelasin step by step cara bacanya, tapi aku nggak akan ngarang angka atau nama supplier." };
+  if (/^(?:supplier|pemasok) (?:mana|apa|berapa|terbesar|ranking|terbanyak|yang paling sering)(?:\s+.+)?[!?.]*$/.test(text)) {
+    return {
+      kind: "unsupported_data",
+      guidance: "Pak Tel belum bisa mengambil detail peringkat supplier langsung. Silakan cek menu Suppliers atau rekap supplier; Pak Tel bisa membantu menjelaskan cara membacanya tanpa mengarang data.",
+    };
   }
 
   if (includesAny(text, OUT_OF_SCOPE_KEYWORDS) && !includesAny(text, POS_KEYWORDS)) return { kind: "out_of_scope" };
   if (!includesAny(text, POS_KEYWORDS)) return { kind: "out_of_scope" };
   return { kind: "chat" };
+}
+
+export function parseFastPathIntentAllowlist(value: string | undefined): ReadonlySet<FastPathIntentName> {
+  const enabled = new Set<FastPathIntentName>();
+  for (const candidate of value?.split(",") ?? []) {
+    const name = candidate.trim() as FastPathIntentName;
+    if (FAST_PATH_INTENT_NAMES.has(name)) enabled.add(name);
+  }
+  return enabled;
+}
+
+export function getFastPathIntentName(intent: AssistantIntent): FastPathIntentName | null {
+  if (intent.kind === "tool") return intent.toolName;
+  if (intent.kind === "social_static" || intent.kind === "out_of_scope" || intent.kind === "unsupported_data") {
+    return intent.kind;
+  }
+  return null;
 }
 
 export type { AssistantIntent };

@@ -9,6 +9,7 @@ import {
   appendUserMessage,
   completeAssistantActionLog,
   keepRecentMessages,
+  setAssistantFinalContent,
 } from "../chat-state";
 
 describe("AI assistant chat state", () => {
@@ -133,5 +134,12 @@ describe("AI assistant chat state", () => {
         }],
       },
     ]);
+  });
+
+  it("overwrites the assistant message content on final answer", () => {
+    const messages = [{ role: "assistant" as const, content: "Sesuatu yang belum selesai" }];
+    const next = setAssistantFinalContent(messages, "Jawaban final");
+
+    expect(next).toEqual([{ role: "assistant", content: "Jawaban final" }]);
   });
 });

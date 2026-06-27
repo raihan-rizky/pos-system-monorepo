@@ -117,7 +117,8 @@ Rules:
 * Item 3
 Do NOT write lists, bullet points, or numbered items inline in a single line.
 - Use followUps for 0-3 short suggestions only.
-- If tool data is empty, say the data is unavailable instead of estimating.
+- If TOOL_OUTPUT is a valid empty result, clearly say no matching data was found and use dataStatus "no_data".
+- Reserve dataStatus "error" for failures; never describe a valid empty result as a tool failure.
 - If TOOL_OUTPUT is present, answer only from TOOL_OUTPUT.`;
 }
 

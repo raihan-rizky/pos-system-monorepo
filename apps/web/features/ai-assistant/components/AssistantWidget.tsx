@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
+import { motion } from "motion/react";
 import {
   appendAssistantActionFailure,
   appendAssistantActionLogEntry,
@@ -9,8 +10,9 @@ import {
   appendAssistantRequestStatus,
   appendUserMessage,
   completeAssistantActionLog,
+  setAssistantFinalContent,
 } from "../helpers/chat-state";
-import { sendChatMessage } from "../api/assistantApi";
+import { AssistantRequestError, sendChatMessage } from "../api/assistantApi";
 import type { AssistantStreamFrame, Message } from "../types/assistant";
 import { Send, Info, Bot, X, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -39,7 +41,7 @@ function formatMetadataTime(value: string) {
 
 function progressStatusLabel(status: Extract<AssistantStreamFrame, { type: "progress" }>["status"]) {
   const labels: Record<Extract<AssistantStreamFrame, { type: "progress" }>["status"], string> = {
-    planning: "Preparing answer",
+    planning: "Processing request",
     tool_selected: "Data check selected",
     tool_running: "Checking data",
     tool_retrying: "Retrying data check",
@@ -79,6 +81,56 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const storageKey = `${CHAT_HISTORY_KEY_PREFIX}${userRole}`;
+
+  const [size, setSize] = useState<{ width?: number; height?: number }>({});
+  const isResizing = useRef(false);
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+    };
+  }, []);
+
+  const startResize = (e: React.PointerEvent, direction: "top" | "left" | "top-left") => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizing.current = true;
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    const rect = chatRef.current?.firstElementChild?.getBoundingClientRect();
+    if (!rect) return;
+
+    const startWidth = rect.width;
+    const startHeight = rect.height;
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (!isResizing.current) return;
+      const deltaX = startX - moveEvent.clientX;
+      const deltaY = startY - moveEvent.clientY;
+
+      setSize((prev) => ({
+        width: direction === "top" ? prev.width : Math.max(320, Math.min(window.innerWidth - 48, startWidth + deltaX)),
+        height: direction === "left" ? prev.height : Math.max(400, Math.min(window.innerHeight - 100, startHeight + deltaY))
+      }));
+    };
+
+    const handlePointerUp = () => {
+      isResizing.current = false;
+      document.body.style.userSelect = "";
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    document.body.style.userSelect = "none";
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+  };
 
   // Load history on mount or role change
   useEffect(() => {
@@ -124,6 +176,9 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
 
   const handleClearChat = () => {
     if (window.confirm("Apakah Anda yakin ingin menghapus riwayat chat ini?")) {
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+      setIsStreaming(false);
       setMessages([]);
       try {
         localStorage.removeItem(storageKey);
@@ -131,6 +186,11 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
         console.warn("Failed to clear AI chat history", e);
       }
     }
+  };
+
+  const handleClose = () => {
+    activeRequestRef.current?.abort();
+    setOpen(false);
   };
 
   const charCount = input.length;
@@ -178,17 +238,19 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
     setInput("");
     setError(null);
     setIsStreaming(true);
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
 
     try {
-      const stream = await sendChatMessage({ messages: requestMessages });
+      const stream = await sendChatMessage(
+        { messages: requestMessages },
+        { signal: controller.signal },
+      );
 
       for await (const parsed of stream) {
+        if (controller.signal.aborted || activeRequestRef.current !== controller) break;
         if ("type" in parsed && parsed.type === "progress") {
-          // Instantaneous milestones are immediately "done" — only genuinely
-          // long-running phases get the "active" spinner.
           const instantaneous = parsed.status === "tool_selected";
-          // Browsers may coalesce multiple SSE frames into one read. Commit
-          // each status and yield a paint before consuming the next frame.
           flushSync(() => {
             setMessages((current) => appendAssistantActionLogEntry(current, {
               label: progressStatusLabel(parsed.status),
@@ -202,7 +264,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
         if ("type" in parsed && parsed.type === "final") {
           setMessages((current) => completeAssistantActionLog(
             appendAssistantMetadata(
-              appendAssistantChunk(current, parsed.answer.answerMarkdown),
+              setAssistantFinalContent(current, parsed.answer.answerMarkdown),
               {
                 sourceLabel: parsed.answer.sourceLabel,
                 generatedAt: parsed.answer.generatedAt,
@@ -221,10 +283,31 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
         }
       }
     } catch (caught) {
-      setMessages((current) => appendAssistantActionFailure(current, "Response interrupted", new Date().toISOString()));
-      setError(caught instanceof Error ? caught.message : "AI Assistant gagal merespons");
+      if (!mountedRef.current || activeRequestRef.current !== controller) return;
+      if (controller.signal.aborted) {
+        setMessages((current) => appendAssistantActionFailure(current, "Response cancelled", new Date().toISOString()));
+        setError(null);
+        return;
+      }
+      const isRejectedRequest = caught instanceof AssistantRequestError && (caught.status === 400 || caught.status === 413);
+      const isAccessDenied = caught instanceof AssistantRequestError && (caught.status === 401 || caught.status === 403);
+      const failureLabel = isRejectedRequest
+        ? "Request needs correction"
+        : isAccessDenied
+          ? "Access denied"
+          : "Response interrupted";
+      const safeMessage = isRejectedRequest
+        ? caught.message
+        : isAccessDenied
+          ? "Sesi atau aksesmu tidak valid. Masuk kembali atau hubungi admin toko."
+          : "Respons AI terputus sebelum jawaban selesai. Silakan coba lagi.";
+      setMessages((current) => appendAssistantActionFailure(current, failureLabel, new Date().toISOString()));
+      setError(safeMessage);
     } finally {
-      setIsStreaming(false);
+      if (mountedRef.current && activeRequestRef.current === controller) {
+        activeRequestRef.current = null;
+        setIsStreaming(false);
+      }
     }
   }
 
@@ -235,7 +318,6 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
     }
   };
 
-  // Close chat when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (chatRef.current && !chatRef.current.contains(event.target as Node)) {
@@ -252,13 +334,19 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
   }, []);
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
-      {/* Floating 3D Glowing AI Logo */}
+    <motion.div
+      className="fixed bottom-24 md:bottom-6 right-4 md:right-6 z-50 flex flex-col items-end"
+      drag
+      dragMomentum={false}
+      style={{ touchAction: "none" }}
+    >
       <button
         type="button"
-        className={`floating-ai-button relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-500 transform hover:scale-105 hover:shadow-[0_0_30px_rgba(12,152,233,0.8),0_0_50px_rgba(0,121,199,0.6)] ${open ? "rotate-90" : "rotate-0"
-          }`}
-        onClick={() => setOpen((prev) => !prev)}
+        className={`floating-ai-button relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-500 transform hover:scale-105 hover:shadow-[0_0_30px_rgba(12,152,233,0.8),0_0_50px_rgba(0,121,199,0.6)] ${open ? "rotate-90" : "rotate-0"}`}
+        onClick={() => {
+          if (open) activeRequestRef.current?.abort();
+          setOpen((prev) => !prev);
+        }}
         style={{
           background: "linear-gradient(135deg, rgba(12, 152, 233, 0.8) 0%, rgba(1, 96, 161, 0.8) 100%)",
           boxShadow: "0 0 20px rgba(12, 152, 233, 0.7), 0 0 40px rgba(0, 121, 199, 0.5), 0 0 60px rgba(1, 96, 161, 0.3)",
@@ -273,15 +361,37 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
         <div className="absolute inset-0 rounded-full animate-ping opacity-20 bg-brand-500"></div>
       </button>
 
-      {/* Chat Interface */}
       {open && (
         <div
           ref={chatRef}
-          className="absolute bottom-24 right-0 w-[calc(100vw-3rem)] sm:w-[450px] transition-all duration-300 origin-bottom-right animate-scale-in"
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute bottom-24 right-0 origin-bottom-right animate-scale-in p-2"
         >
-          <div className="relative flex flex-col rounded-3xl bg-gradient-to-br from-surface-800/95 to-surface-900/95 border border-surface-600/50 shadow-2xl backdrop-blur-3xl overflow-hidden">
+          <div
+            className="relative flex flex-col rounded-3xl bg-gradient-to-br from-surface-800/95 to-surface-900/95 border border-surface-600/50 shadow-2xl backdrop-blur-3xl overflow-hidden"
+            style={{
+              width: size.width ? `${size.width}px` : "min(450px, calc(100vw - 3rem))",
+              height: size.height ? `${size.height}px` : "min(600px, 80vh)",
+              minWidth: "320px",
+              minHeight: "400px",
+              maxWidth: "90vw",
+              maxHeight: "90vh"
+            }}
+          >
+            {/* Resize Handles */}
+            <div
+              className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-50 hover:bg-brand-500/50 transition-colors"
+              onPointerDown={(e) => startResize(e, "top")}
+            />
+            <div
+              className="absolute top-0 bottom-0 left-0 w-2 cursor-ew-resize z-50 hover:bg-brand-500/50 transition-colors"
+              onPointerDown={(e) => startResize(e, "left")}
+            />
+            <div
+              className="absolute top-0 left-0 w-5 h-5 cursor-nwse-resize z-[51] hover:bg-brand-500/80 rounded-br-full transition-colors"
+              onPointerDown={(e) => startResize(e, "top-left")}
+            />
 
-            {/* Header */}
             <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-surface-700/50">
               <div className="flex items-center gap-2">
                 <div className="relative flex h-3 w-3">
@@ -307,7 +417,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                     <Trash2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => setOpen(false)}
+                    onClick={handleClose}
                     className="p-1.5 rounded-full hover:bg-surface-700/50 transition-colors"
                   >
                     <X className="w-4 h-4 text-surface-400" />
@@ -316,8 +426,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
               </div>
             </div>
 
-            {/* Messages Area */}
-            <div className="h-[55vh] max-h-[400px] sm:h-[400px] sm:max-h-none overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 scrollbar-thin scrollbar-thumb-surface-600 scrollbar-track-transparent text-sm">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 scrollbar-thin scrollbar-thumb-surface-600 scrollbar-track-transparent text-sm">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-surface-400 opacity-80 gap-3">
                   <Bot className="w-12 h-12 text-surface-600" />
@@ -337,8 +446,13 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                     : "bg-surface-700/70 text-surface-100 rounded-tl-sm border border-surface-600/30"
                     }`}>
                     {message.content ? (
-                      <div className="prose prose-sm prose-invert max-w-none leading-relaxed prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
-                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      <div className="prose prose-sm prose-invert max-w-none leading-relaxed prose-headings:text-base prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
+                        <ReactMarkdown components={{
+                          h1: ({ node, ...props }) => <h3 {...props} />,
+                          h2: ({ node, ...props }) => <h4 {...props} />,
+                          h3: ({ node, ...props }) => <h5 {...props} />,
+                          h4: ({ node, ...props }) => <h6 {...props} />,
+                        }}>{message.content}</ReactMarkdown>
                       </div>
                     ) : null}
                     {message.role === "assistant" && message.actionLog?.length ? (
@@ -370,13 +484,14 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Section */}
             <div className="relative border-t border-surface-700/50 bg-surface-800/50">
               <textarea
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 rows={2}
+                maxLength={maxChars}
+                aria-describedby="assistant-character-limit"
                 className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-transparent border-none outline-none resize-none text-sm leading-relaxed text-surface-50 placeholder-surface-500 scrollbar-none h-[60px] sm:h-[80px]"
                 placeholder="Tanya AI, share ide, atau minta bantuan..."
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -384,7 +499,6 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
               />
             </div>
 
-            {/* Controls Section */}
             <div className="px-4 pb-4 pt-1 bg-surface-800/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1 max-w-[280px]">
@@ -402,7 +516,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
 
                 <div className="flex items-center gap-3">
                   <div className="text-[10px] font-medium text-surface-500">
-                    <span>{charCount}</span>/<span className="text-surface-600">{maxChars}</span>
+                    <span className={charCount === maxChars ? "text-danger-400" : undefined}>{charCount}</span>/<span className="text-surface-600">{maxChars}</span>
                   </div>
 
                   <button
@@ -415,7 +529,6 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                 </div>
               </div>
 
-              {/* Footer Info */}
               <div className="flex items-center justify-between mt-3 pt-2 text-[10px] text-surface-500 gap-6">
                 <div className="flex items-center gap-1.5">
                   <Info className="w-3 h-3 opacity-70" />
@@ -423,10 +536,12 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                     Tekan <kbd className="px-1 py-0.5 bg-surface-800 border border-surface-600 rounded text-surface-400 font-mono text-[9px] mx-0.5">Shift + Enter</kbd> utk baris baru
                   </span>
                 </div>
+                <span id="assistant-character-limit" className="sr-only">
+                  Maksimal 2.000 karakter per pesan.
+                </span>
               </div>
             </div>
 
-            {/* Floating Overlay */}
             <div
               className="absolute inset-0 rounded-3xl pointer-events-none"
               style={{
@@ -436,6 +551,6 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

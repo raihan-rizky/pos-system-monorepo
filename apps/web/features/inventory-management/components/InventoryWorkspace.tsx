@@ -23,9 +23,6 @@ import {
   CheckSquare,
   Calendar,
   TrendingUp,
-  Smartphone,
-  ShieldCheck,
-  Coins,
   Truck,
   Layers,
   Info,
@@ -230,6 +227,53 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     pendingRequests: initialSummary.counts.pendingStockRequests,
   };
   const dailyChecklistRemaining = initialSummary.counts.dailyChecklistRemaining ?? 0;
+  const sevenDayMovement = React.useMemo(() => {
+    const movements = initialSummary.chartData?.inboundOutbound ?? [];
+    const totals = movements.reduce(
+      (result, movement) => ({
+        inbound: result.inbound + movement.inbound,
+        outbound: result.outbound + movement.outbound,
+      }),
+      { inbound: 0, outbound: 0 },
+    );
+    const busiestDay = movements.reduce<{
+      day: string;
+      volume: number;
+    } | null>((current, movement) => {
+      const volume = movement.inbound + movement.outbound;
+      return !current || volume > current.volume
+        ? { day: movement.day, volume }
+        : current;
+    }, null);
+
+    return {
+      ...totals,
+      net: totals.inbound - totals.outbound,
+      busiestDay: busiestDay && busiestDay.volume > 0 ? busiestDay : null,
+    };
+  }, [initialSummary.chartData?.inboundOutbound]);
+  const approvalQueueTotal =
+    initialSummary.counts.pendingStockRequests +
+    initialSummary.counts.submittedInboundReceipts;
+  const correctionQueueTotal =
+    initialSummary.counts.needsRevisionReceipts +
+    initialSummary.counts.rejectedOwnRequests;
+
+  const openTransactionTab = React.useCallback(
+    (tab: (typeof TRANSAKSI_TABS)[number]) => {
+      setActiveTransaksiTab(tab);
+      setActiveTab("Transaksi");
+    },
+    [],
+  );
+
+  const openHistoryTab = React.useCallback(
+    (tab: (typeof RIWAYAT_TABS)[number]) => {
+      setActiveRiwayatTab(tab);
+      setActiveTab("Riwayat");
+    },
+    [],
+  );
 
   const dailyFixedTasks = [
     {
@@ -625,31 +669,12 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
 
       {activeTab === "Ringkasan" && (
         <>
-          <section className="grid gap-4 p-4 md:grid-cols-3 md:p-6">
-            <SummaryMetric
-              label="Stok Negatif"
-              value={stockRiskCounts.negative}
-              icon={AlertTriangle}
-              colorVariant="rose"
-            />
-            <SummaryMetric
-              label="Stok Habis"
-              value={stockRiskCounts.out}
-              icon={PackageOpen}
-              colorVariant="amber"
-            />
-            <SummaryMetric
-              label="Stok Rendah"
-              value={stockRiskCounts.low}
-              icon={TrendingUp}
-              colorVariant="blue"
-            />
-          </section>
+
 
       {(statusMessage || errorMessage) && (
         <div
           role="status"
-          className={`mx-4 mb-4 rounded-lg border px-4 py-3 text-sm font-bold md:mx-6 ${
+          className={`mx-4 mt-4 mb-4 rounded-lg border px-4 py-3 text-sm font-bold md:mx-6 md:mt-6 ${
             errorMessage
               ? "border-rose-200 bg-rose-50 text-rose-700"
               : "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -660,7 +685,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       )}
 
       {/* Main Dashboard Grid */}
-      <section className="grid gap-6 px-4 pb-6 md:grid-cols-3 md:px-6">
+      <section className="grid gap-6 px-4 pt-4 pb-6 md:grid-cols-3 md:px-6 md:pt-6">
         {/* Status Checklist / Tasks */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -980,72 +1005,222 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
           </div>
         </div>
 
-        {/* Info widgets */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
-              <Smartphone className="h-5 w-5" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Pemakaian Internal Cepat
-            </h3>
+        {/* Data-driven operational follow-up */}
+        <section
+          aria-labelledby="operational-follow-up-title"
+          className="space-y-4 md:col-span-3"
+        >
+          <div>
+            <h2
+              id="operational-follow-up-title"
+              className="flex items-center gap-2 text-base font-bold text-slate-900"
+            >
+              <Activity className="h-5 w-5 text-slate-700" />
+              Tindak Lanjut Operasional
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Angka aktual yang dapat langsung ditelusuri ke workflow terkait.
+            </p>
           </div>
-          <p className="mt-2.5 text-xs text-slate-600 leading-relaxed">
-            OWNER diproses langsung; ADMIN dan INVENTORY masuk antrean approval.
-          </p>
-        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Log Stok Terverifikasi
-            </h3>
-          </div>
-          <p className="mt-2.5 text-xs text-slate-600 leading-relaxed">
-            Log OUT/internal-use yang sudah diverifikasi tampil di sini.
-          </p>
-        </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Pergerakan 7 hari
+                  </p>
+                  <h3 className="mt-1 text-sm font-bold text-slate-900">
+                    Arus Stok Disetujui
+                  </h3>
+                </div>
+                <Activity className="h-5 w-5 text-indigo-600" />
+              </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-amber-50 text-amber-700 rounded-xl">
-              <Coins className="h-5 w-5" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">Rekap Nilai Stok</h3>
-          </div>
-          <p className="mt-2.5 text-xs text-slate-600 leading-relaxed">
-            Ringkasan kuantitas dan nilai stok mengikuti data produk terkini.
-          </p>
-        </div>
+              <dl className="mt-5 grid grid-cols-3 gap-2">
+                <div className="rounded-xl bg-emerald-50 p-3">
+                  <dt className="text-[10px] font-black uppercase text-emerald-700">Masuk</dt>
+                  <dd className="mt-1 text-xl font-black tabular-nums text-emerald-950">
+                    {sevenDayMovement.inbound.toLocaleString("id-ID")}
+                  </dd>
+                </div>
+                <div className="rounded-xl bg-rose-50 p-3">
+                  <dt className="text-[10px] font-black uppercase text-rose-700">Keluar</dt>
+                  <dd className="mt-1 text-xl font-black tabular-nums text-rose-950">
+                    {sevenDayMovement.outbound.toLocaleString("id-ID")}
+                  </dd>
+                </div>
+                <div className="rounded-xl bg-slate-100 p-3">
+                  <dt className="text-[10px] font-black uppercase text-slate-600">Neto</dt>
+                  <dd className="mt-1 text-xl font-black tabular-nums text-slate-950">
+                    {sevenDayMovement.net > 0 ? "+" : ""}
+                    {sevenDayMovement.net.toLocaleString("id-ID")}
+                  </dd>
+                </div>
+              </dl>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-50 text-blue-700 rounded-xl">
-              <Truck className="h-5 w-5" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Riwayat Surat Jalan
-            </h3>
-          </div>
-          <p className="mt-2.5 text-xs text-slate-600 leading-relaxed">
-            Default menampilkan entri Surat Jalan yang memengaruhi stok.
-          </p>
-        </div>
+              <p className="mt-4 text-xs text-slate-500">
+                {sevenDayMovement.busiestDay
+                  ? `Aktivitas tertinggi: ${sevenDayMovement.busiestDay.day} (${sevenDayMovement.busiestDay.volume.toLocaleString("id-ID")} unit).`
+                  : "Belum ada pergerakan stok yang disetujui pada periode ini."}
+              </p>
+              <button
+                type="button"
+                onClick={() => openHistoryTab("Rekap Stok")}
+                className="mt-auto flex items-center justify-between pt-5 text-left text-xs font-black text-indigo-700 hover:text-indigo-900"
+              >
+                Lihat rekap stok
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </article>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow md:col-span-2">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-violet-50 text-violet-700 rounded-xl">
-              <Layers className="h-5 w-5" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">Bulk & Grup Stok</h3>
+            <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Menunggu keputusan
+                  </p>
+                  <h3 className="mt-1 text-sm font-bold text-slate-900">
+                    Antrean Persetujuan
+                  </h3>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-black ${
+                  approvalQueueTotal > 0
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}>
+                  {approvalQueueTotal}
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => openHistoryTab("Log Stok")}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-left hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <span>
+                    <span className="block text-xs font-bold text-slate-800">Permintaan stok</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Buka log untuk review status</span>
+                  </span>
+                  <span className="text-lg font-black tabular-nums text-slate-950">
+                    {initialSummary.counts.pendingStockRequests}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openTransactionTab("Penerimaan Barang")}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-left hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <span>
+                    <span className="block text-xs font-bold text-slate-800">Penerimaan diajukan</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Periksa barang masuk</span>
+                  </span>
+                  <span className="text-lg font-black tabular-nums text-slate-950">
+                    {initialSummary.counts.submittedInboundReceipts}
+                  </span>
+                </button>
+              </div>
+            </article>
+
+            <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Memerlukan perbaikan
+                  </p>
+                  <h3 className="mt-1 text-sm font-bold text-slate-900">
+                    Koreksi Terbuka
+                  </h3>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-black ${
+                  correctionQueueTotal > 0
+                    ? "bg-rose-100 text-rose-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}>
+                  {correctionQueueTotal}
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => openTransactionTab("Penerimaan Barang")}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-left hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <span>
+                    <span className="block text-xs font-bold text-slate-800">Penerimaan perlu revisi</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Lengkapi lalu ajukan kembali</span>
+                  </span>
+                  <span className="text-lg font-black tabular-nums text-slate-950">
+                    {initialSummary.counts.needsRevisionReceipts}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openHistoryTab("Log Stok")}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-left hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <span>
+                    <span className="block text-xs font-bold text-slate-800">Permintaan saya ditolak</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Baca alasan penolakan</span>
+                  </span>
+                  <span className="text-lg font-black tabular-nums text-slate-950">
+                    {initialSummary.counts.rejectedOwnRequests}
+                  </span>
+                </button>
+              </div>
+            </article>
           </div>
-          <p className="mt-2.5 text-xs text-slate-600 leading-relaxed">
-            Import stok massal dan aktivitas grup stok tetap menggunakan workflow approval yang sama.
-          </p>
-        </div>
+
+          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-slate-100 p-2 text-slate-700">
+                <Layers className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Mulai workflow inventaris</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Catat transaksi baru atau lanjutkan ke area pengelolaan yang tepat.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              <button
+                type="button"
+                onClick={() => setActiveModal("inbound")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
+              >
+                <Plus className="h-4 w-4" />
+                Terima barang
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveModal("internalStockOut")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              >
+                <PackageOpen className="h-4 w-4" />
+                Pemakaian internal
+              </button>
+              <button
+                type="button"
+                onClick={() => openTransactionTab("Surat Jalan")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              >
+                <Truck className="h-4 w-4" />
+                Surat jalan
+              </button>
+              <button
+                type="button"
+                onClick={() => openTransactionTab("Bulk & Grup Stok")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              >
+                <Layers className="h-4 w-4" />
+                Bulk & grup
+              </button>
+            </div>
+          </div>
+        </section>
       </section>
       </>
       )}

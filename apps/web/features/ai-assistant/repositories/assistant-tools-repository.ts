@@ -104,13 +104,20 @@ export async function getDailySalesSummary({
 }
 
 const HELP_DOCS = [
-  { file: "products.md", keywords: ["produk", "product", "tambah produk", "sku"] },
-  { file: "inventory.md", keywords: ["stok", "stock", "inventory", "inventori"] },
-  { file: "pos.md", keywords: ["transaksi", "pos", "kasir", "pembayaran"] },
-  { file: "customers.md", keywords: ["customer", "pelanggan", "piutang", "utang"] },
-  { file: "suppliers.md", keywords: ["supplier", "pemasok"] },
-  { file: "reports.md", keywords: ["laporan", "report", "keuangan", "omzet", "revenue", "profit"] },
-  { file: "settings-rbac.md", keywords: ["settings", "rbac", "role", "permission", "akses"] },
+  { file: "products.md", keywords: ["produk", "product", "tambah produk", "sku", "harga", "kategori", "barcode", "variasi", "item", "barang"] },
+  { file: "inventory.md", keywords: ["stok", "stock", "inventory", "inventori", "gudang", "opname", "stock opname", "barang masuk", "barang keluar", "stock out", "mutasi", "kartu stok"] },
+  { file: "pos.md", keywords: ["transaksi", "pos", "kasir", "pembayaran", "checkout", "keranjang", "diskon", "tunai", "qris", "transfer", "kredit", "debit", "struk belanja"] },
+  { file: "customers.md", keywords: ["customer", "pelanggan", "piutang", "utang", "pembeli", "member", "membership", "tagihan", "cicilan"] },
+  { file: "suppliers.md", keywords: ["supplier", "pemasok", "vendor", "distributor", "pabrik", "agen"] },
+  { file: "reports.md", keywords: ["laporan", "report", "keuangan", "omzet", "revenue", "profit", "laba rugi", "penjualan", "grafik", "analisa", "statistik", "ringkasan"] },
+  { file: "keuangan.md", keywords: ["keuangan", "cash flow", "arus kas", "pengeluaran", "expense", "biaya"] },
+  { file: "financial-report.md", keywords: ["laporan keuangan", "financial report", "omzet", "laba kotor", "hpp", "gross profit", "loss stok"] },
+  { file: "settings-rbac.md", keywords: ["settings", "rbac", "role", "permission", "akses", "pengaturan", "hak akses", "admin", "pengguna", "user", "karyawan", "akun"] },
+  { file: "production.md", keywords: ["produksi", "production", "kanban", "job order", "printing", "siap diambil", "sedang diproses", "proses", "selesai", "operator", "papan produksi"] },
+  { file: "salespersons.md", keywords: ["sales", "salesperson", "tim sales", "tenaga penjual", "komisi", "target", "kinerja sales", "spg", "pramuniaga"] },
+  { file: "shift.md", keywords: ["shift", "laci", "modal laci", "tutup laci", "selisih", "kasir", "sesi", "uang laci", "cash drawer", "setor", "buka shift"] },
+  { file: "history.md", keywords: ["riwayat", "history", "transaksi lama", "struk", "void", "batal", "refund", "kembali", "surat jalan", "nota", "pengiriman", "detail transaksi", "pending"] },
+  { file: "faq.md", keywords: ["faq", "pertanyaan", "masalah", "cara", "bagaimana", "solusi", "error", "salah", "kenapa", "mengapa", "langkah", "panduan", "proses", "tahap", "tutorial", "tambah produk", "ubah harga", "harga khusus", "harga dinas", "import", "grup stok", "pos", "kasir", "pending", "surat jalan", "bukti transaksi", "upload", "lampiran", "buka shift", "tutup shift", "tambah pelanggan", "bayar piutang", "pelunasan", "cicilan", "barang rusak", "tugas mingguan", "penerimaan barang", "inbound", "daftar belanja", "shopping request", "pengeluaran", "ekspor laporan", "info toko", "rbac", "hak akses", "kanban", "sales"] },
 ];
 
 function readHelpDoc(file: string) {

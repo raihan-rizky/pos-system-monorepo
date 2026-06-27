@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   Settings,
@@ -26,6 +26,29 @@ interface AccordionItem {
   icon: React.ReactNode;
   steps: Step[];
 }
+
+const ROLE_DESCRIPTIONS: Record<string, { desc: string; resps: string[] }> = {
+  OWNER: {
+    desc: "Pemilik atau pengelola utama sistem dengan akses penuh ke seluruh fitur dan pengaturan toko.",
+    resps: ["Mengelola pengaturan sistem dan hak akses (RBAC)", "Melihat laporan keuangan dan performa bisnis secara keseluruhan", "Menyetujui permintaan inventaris, daftar belanja, dan transaksi"]
+  },
+  ADMIN: {
+    desc: "Administrator toko yang bertugas mengelola katalog produk, data pelanggan, dan operasional harian.",
+    resps: ["Mengelola data produk, supplier, dan pelanggan", "Membuat daftar belanja untuk stok", "Mengelola pengeluaran operasional"]
+  },
+  CASHIER: {
+    desc: "Staf kasir yang bertugas melayani transaksi pembayaran langsung dengan pelanggan di area toko.",
+    resps: ["Memulai dan mengakhiri shift kasir harian", "Memproses transaksi penjualan (POS)", "Menerima pembayaran cicilan dan memproses retur barang"]
+  },
+  SALES: {
+    desc: "Tenaga penjual di lapangan yang melayani pelanggan, mengambil pesanan, dan mengurus pengiriman barang.",
+    resps: ["Melayani pelanggan dan memilih pesanan produk", "Menyerahkan tagihan dan uang ke kasir", "Membuat dan mencetak Surat Jalan (Delivery Order)"]
+  },
+  INVENTORY: {
+    desc: "Staf gudang yang bertanggung jawab atas ketersediaan stok fisik barang dan proses produksi.",
+    resps: ["Mencatat penerimaan barang dan barang rusak", "Melakukan pengecekan stok fisik harian dan mingguan", "Memantau papan produksi (Kanban) dan jadwal pengiriman"]
+  }
+};
 
 const ROLE_CONTENT: Record<string, AccordionItem[]> = {
   OWNER: [
@@ -81,7 +104,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Menyetujui daftar belanja (Purchase Requests) yang diajukan sebelum proses pembelian dilakukan ke supplier.",
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Daftar Belanja", description: "Buka menu samping (sidebar) sebelah kiri, klik menu 'Inventaris' (ikon paket), lalu pilih tab 'Transaksi' -> klik sub-tab 'Penerimaan Barang' / 'Daftar Belanja'.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Buka Daftar Belanja", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Katalog', klik menu 'Supplier' (ikon truk), lalu pilih tab 'Daftar Belanja'.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Periksa Permintaan", description: "Klik pada baris dokumen pengajuan belanja di dalam tabel untuk membuka pop-up rincian nama barang, jumlah kuantitas, estimasi harga satuan, dan supplier tujuan.", icon: <Package className="w-8 h-8" /> },
         { title: "Beri Keputusan", description: "Klik tombol 'Setujui' (Approve) di pojok kanan bawah modal untuk mengesahkan pembelian, atau tombol 'Tolak' (Reject) dengan memasukkan catatan penolakan jika tidak disetujui.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
@@ -106,6 +129,102 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Tim Sales", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Pelanggan', lalu klik menu 'Sales' (ikon tag).", icon: <Users className="w-8 h-8" /> },
         { title: "Lihat Diagram & Ranking", description: "Perhatikan dashboard visual di bagian atas halaman yang menampilkan grafik batang pencapaian omzet bulanan dan daftar peringkat sales terbaik.", icon: <TrendingUp className="w-8 h-8" /> },
         { title: "Analisis Detail Transaksi", description: "Gulir ke tabel sales di bawah, lalu klik nama sales yang ingin Anda evaluasi untuk memunculkan pop-up daftar seluruh nota penjualan yang diselesaikannya.", icon: <FileText className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-approval-transaksi",
+      title: "Approval Transaksi Pending",
+      description: "Menyetujui atau menolak transaksi pesanan pending yang diajukan oleh Tim Sales di lapangan.",
+      icon: <ShieldCheck className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Filter Transaksi Pending", description: "Buka menu 'Riwayat' di sidebar kiri. Gunakan filter status 'Pending' pada bagian atas tabel (baris transaksi pending akan berwarna biru).", icon: <Search className="w-8 h-8" /> },
+        { title: "Klik Aksi Approval", description: "Klik tombol 'Setujui' atau 'Tolak' langsung di sebelah kanan baris transaksi (atau melalui tombol titik tiga '...').", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Tentukan Metode & Jumlah", description: "Pada modal approval, pilih metode pembayaran (Cash, Transfer, Debit, Kredit, atau QRIS) dan masukkan nominal bayar. Jika tempo, pilih opsi 'Bayar Nanti (Tempo)'.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Konfirmasi", description: "Klik tombol hijau 'Setujui' untuk memfinalisasi transaksi dan mengurangi stok produk secara resmi. Jika menolak, klik 'Tolak' untuk membatalkan (VOID).", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-export-reports",
+      title: "Ekspor Laporan Keuangan (Excel & PDF)",
+      description: "Unduh data laporan keuangan dan arus kas dalam format dokumen siap cetak (PDF) atau tabel data mentah (Excel).",
+      icon: <FileText className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },
+        { title: "Buka Menu Ekspor", description: "Di pojok kanan atas halaman, klik tombol 'Ekspor'.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Periode Ekspor", description: "Tentukan cakupan waktu ekspor: Harian (hari ini), Mingguan (7 hari terakhir), atau Bulanan (bulan berjalan). Berkas akan otomatis terunduh.", icon: <History className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-expenses",
+      title: "Mengelola Pengeluaran & Bukti Transaksi",
+      description: "Mencatat dan mengelola pengeluaran operasional toko serta mengunggah bukti nota/struk belanja digital.",
+      icon: <DollarSign className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Menu Keuangan", description: "Dari sidebar kiri, buka menu 'Keuangan' (di bawah kategori Keuangan).", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Tambah Pengeluaran", description: "Klik tombol 'Tambah Pengeluaran' di bagian atas. Isi nama pemohon, pilih kategori, jumlah nominal, dan deskripsi tambahan.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Unggah Bukti (prnt.sc)", description: "Unggah foto nota belanja ke situs gratis prnt.sc. Setelah selesai, salin link URL gambar yang dihasilkan (misal: https://prnt.sc/...).", icon: <FileText className="w-8 h-8" /> },
+        { title: "Tempel Link & Simpan", description: "Tempel link tersebut pada kolom 'URL Lampiran' di form pengeluaran, periksa pratinjau gambarnya, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-shopping-request",
+      title: "Membuat Daftar Belanja (Shopping Request)",
+      description: "Membuat daftar kebutuhan belanja barang toko ke supplier sebelum diajukan untuk disetujui (Approved).",
+      icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Tab Daftar Belanja", description: "Masuk ke menu 'Supplier' di sidebar, lalu klik tab 'Daftar Belanja' di bagian atas.", icon: <Truck className="w-8 h-8" /> },
+        { title: "Buat Pengajuan", description: "Klik tombol 'Buat Daftar Belanja'. Pilih supplier tujuan pada menu dropdown jika sudah ditentukan.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Tambah Produk", description: "Gunakan kolom 'Cari & Tambah Produk' untuk mencari dan memasukkan barang kebutuhan belanja.", icon: <Package className="w-8 h-8" /> },
+        { title: "Atur Jumlah & Simpan", description: "Isi nominal jumlah kebutuhan (requested quantity) per produk, ketik catatan internal bila perlu, lalu klik 'Simpan Draft Belanja'.", icon: <Settings className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-change-price",
+      title: "Mengubah Harga Produk & HPP",
+      description: "Melakukan perubahan harga jual produk secara langsung atau melalui pengeditan detail produk.",
+      icon: <DollarSign className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Tab Produk", description: "Masuk ke menu 'Produk' di sidebar, pastikan Anda berada di tab 'Produk'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Ubah Harga Langsung", description: "Klik tombol aksi 'Ubah Harga' di kolom paling kanan tabel produk untuk mengubah harga jual secara langsung.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pantau Riwayat", description: "Buka tab 'Riwayat Harga' di bagian atas halaman untuk memantau grafik dan log perubahan harga barang dari waktu ke waktu.", icon: <History className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-special-pricing",
+      title: "Mengatur Harga Grup Pelanggan (Harga Khusus)",
+      description: "Menetapkan aturan diskon/harga khusus per kategori produk untuk grup pelanggan tertentu (Agen, Industri, Dinas/Pemerintah).",
+      icon: <DollarSign className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Tab Harga Khusus", description: "Buka menu 'Produk' di sidebar, lalu klik tab 'Harga Khusus' di bagian atas (hanya diakses oleh Owner).", icon: <Settings className="w-8 h-8" /> },
+        { title: "Isi Aturan Harga", description: "Di kolom aturan sebelah kanan, pilih Tipe Pelanggan (AGEN, INDUSTRI, PEMERINTAH [Dinas]), kategori produk, dan mode diskon (persen atau rupiah).", icon: <FileText className="w-8 h-8" /> },
+        { title: "Masukkan Nilai Diskon", description: "Masukkan nominal atau persentase diskon yang ingin diberikan untuk grup tersebut, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Hasil Transaksi POS", description: "Diskon akan otomatis memotong harga produk di kasir (POS) saat transaksi dibuat untuk pelanggan dengan grup tipe tersebut.", icon: <ShoppingCart className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-import-products",
+      title: "Import Massal Produk & Stok (Excel)",
+      description: "Menambah katalog produk atau memperbarui kuantitas stok dalam jumlah besar secara sekaligus menggunakan file Excel.",
+      icon: <FileText className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, periksa ringkasan data, lalu klik simpan untuk memulai import massal.", icon: <Settings className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-stock-group",
+      title: "Mengatur Grup Stok (Stock Group)",
+      description: "Mengelompokkan produk-produk variasi atau kemasan berbeda agar berbagi satu stok fisik yang sama di gudang.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
+        { title: "Pantau Log Grup", description: "Setiap mutasi stok di salah satu produk anggota akan otomatis mengubah stok produk lain dalam grup tersebut secara real-time.", icon: <History className="w-8 h-8" /> },
       ]
     }
   ],
@@ -152,6 +271,78 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Pelanggan", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Pelanggan', lalu klik menu 'Pelanggan' (ikon kontak).", icon: <Users className="w-8 h-8" /> },
         { title: "Input Data Pelanggan", description: "Klik tombol hitam '+ Pelanggan Baru' di kanan atas tabel. Isi form pop-up Nama lengkap, No Handphone, dan Alamat, kemudian klik tombol 'Simpan'.", icon: <FileText className="w-8 h-8" /> },
         { title: "Lihat Detail Profil", description: "Pada tabel daftar pelanggan, klik nama pelanggan yang dituju. Ini akan membuka halaman profil pelanggan lengkap dengan tab 'Riwayat Transaksi' dan catatan sisa piutang/tempo belanja mereka.", icon: <History className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-expenses",
+      title: "Mengelola Pengeluaran & Bukti Transaksi",
+      description: "Mencatat pengeluaran operasional toko serta mengunggah bukti nota/struk belanja digital.",
+      icon: <DollarSign className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Halaman Keuangan", description: "Buka menu 'Keuangan' di sidebar kiri. Klik tombol 'Tambah Pengeluaran' di bagian atas.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Isi Data Pengeluaran", description: "Ketik nama pemohon, pilih kategori pengeluaran, masukkan jumlah nominal, dan keterangan pengeluaran.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Upload Bukti Gambar", description: "Unggah foto nota belanja ke prnt.sc. Tunggu hingga selesai dan salin link URL gambar yang dihasilkan.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Tempel Link & Simpan", description: "Tempel link URL prnt.sc ke kolom 'URL Lampiran', lalu klik 'Simpan' untuk memproses pengeluaran.", icon: <Settings className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-export-reports",
+      title: "Ekspor Laporan Keuangan (Excel & PDF)",
+      description: "Unduh data laporan keuangan dan arus kas dalam format dokumen siap cetak (PDF) atau tabel data mentah (Excel).",
+      icon: <FileText className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },
+        { title: "Buka Menu Ekspor", description: "Di pojok kanan atas halaman, klik tombol 'Ekspor'.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Periode Ekspor", description: "Tentukan cakupan waktu ekspor: Harian (hari ini), Mingguan (7 hari terakhir), atau Bulanan (bulan berjalan). Berkas akan otomatis terunduh.", icon: <History className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-shopping-request",
+      title: "Membuat Daftar Belanja (Shopping Request)",
+      description: "Membuat daftar kebutuhan belanja barang toko ke supplier sebelum diajukan untuk disetujui (Approved).",
+      icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Tab Daftar Belanja", description: "Masuk ke menu 'Supplier' di sidebar, lalu klik tab 'Daftar Belanja' di bagian atas.", icon: <Truck className="w-8 h-8" /> },
+        { title: "Buat Pengajuan", description: "Klik tombol 'Buat Daftar Belanja'. Pilih supplier tujuan pada menu dropdown jika sudah ditentukan.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Tambah Produk", description: "Gunakan kolom 'Cari & Tambah Produk' untuk mencari dan memasukkan barang kebutuhan belanja.", icon: <Package className="w-8 h-8" /> },
+        { title: "Atur Jumlah & Simpan", description: "Isi nominal jumlah kebutuhan (requested quantity) per produk, ketik catatan internal bila perlu, lalu klik 'Simpan Draft Belanja'.", icon: <Settings className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-change-price",
+      title: "Mengubah Harga Produk & HPP",
+      description: "Melakukan perubahan harga jual produk secara langsung atau melalui pengeditan detail produk.",
+      icon: <DollarSign className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Tab Produk", description: "Masuk ke menu 'Produk' di sidebar, pastikan Anda berada di tab 'Produk'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Ubah Harga Langsung", description: "Klik tombol aksi 'Ubah Harga' di kolom paling kanan tabel produk untuk mengubah harga jual secara langsung.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pantau Riwayat", description: "Buka tab 'Riwayat Harga' di bagian atas halaman untuk memantau grafik dan log perubahan harga barang dari waktu ke waktu.", icon: <History className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-import-products",
+      title: "Import Massal Produk & Stok (Excel)",
+      description: "Menambah katalog produk atau memperbarui kuantitas stok dalam jumlah besar secara sekaligus menggunakan file Excel.",
+      icon: <FileText className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, periksa ringkasan data, lalu klik simpan untuk memulai import massal.", icon: <Settings className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-stock-group",
+      title: "Mengatur Grup Stok (Stock Group)",
+      description: "Mengelompokkan produk-produk variasi atau kemasan berbeda agar berbagi satu stok fisik yang sama di gudang.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
+        { title: "Pantau Log Grup", description: "Setiap mutasi stok di salah satu produk anggota akan otomatis mengubah stok produk lain dalam grup tersebut secara real-time.", icon: <History className="w-8 h-8" /> },
       ]
     }
   ],
@@ -235,6 +426,30 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Menyetujui Pending Transaksi", description: "Pada baris transaksi pending yang sesuai, klik ikon titik tiga ('Aksi Lainnya') di ujung kanan, pilih 'Setujui', lalu pada modal yang muncul tentukan metode pembayaran dan jumlah bayar sebelum mengklik tombol hijau 'Setujui'.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Tutup Shift", description: "Di akhir hari, klik profil Anda di pojok kanan atas, klik 'Tutup Shift'. Hitung dan ketik nominal uang fisik di laci saat itu, lalu klik tombol merah 'Konfirmasi Akhiri Shift'.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
+    },
+    {
+      id: "cashier-piutang-tab",
+      title: "Mencatat Pembayaran Piutang (Tab Piutang)",
+      description: "Membantu pelanggan mencatat cicilan atau melunasi sisa piutang mereka langsung melalui tab Piutang di halaman Pelanggan.",
+      icon: <DollarSign className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Halaman Pelanggan", description: "Buka menu samping 'Pelanggan' (di bawah kategori Pelanggan), lalu klik tab 'Piutang' di bagian atas.", icon: <Users className="w-8 h-8" /> },
+        { title: "Cari Invoice Piutang", description: "Cari nomor invoice atau nama pelanggan yang ingin membayar piutang, lalu klik tombol 'Bayar Piutang' di kolom Aksi.", icon: <Search className="w-8 h-8" /> },
+        { title: "Pilih Metode Pembayaran", description: "Pilih satu atau beberapa metode pembayaran sekaligus (Tunai, QRIS, Debit, atau Transfer) dan masukkan nominal uang yang dibayarkan.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Selesaikan Pembayaran", description: "Tambahkan catatan pembayaran jika diperlukan (misal bank pengirim), lalu klik 'Proses Pembayaran' untuk melunasi/mengurangi piutang.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "cashier-upload-bukti",
+      title: "Mengunggah Bukti Transaksi (Pembayaran)",
+      description: "Mengunggah foto struk transfer bank atau bukti pembayaran non-tunai lainnya ke dalam sistem transaksi.",
+      icon: <FileText className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Menu Riwayat", description: "Masuk ke menu 'Riwayat' di sidebar kiri. Temukan transaksi yang ingin dilampirkan buktinya.", icon: <History className="w-8 h-8" /> },
+        { title: "Pilih Upload Bukti", description: "Klik tombol titik tiga '...' di baris transaksi target, lalu pilih menu 'Upload Bukti Transaksi'.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Unggah Gambar ke prnt.sc", description: "Buka situs prnt.sc di browser. Unggah foto bukti transfer bank pelanggan, lalu salin URL link gambar yang dihasilkan.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Tempel Link & Simpan", description: "Tempel tautan prnt.sc ke kolom 'URL Lampiran' di modal, klik tombol '+ Tambah Gambar Lain' jika ada struk tambahan, lalu klik 'Simpan'.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
     }
   ],
   SALES: [
@@ -250,25 +465,40 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "sales-invoice",
+      title: "Mencetak Invoice / Struk",
+      description: "Mencetak dokumen invoice untuk diberikan kepada pelanggan sebagai bukti tagihan atau bukti pembayaran.",
+      icon: <FileText className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Riwayat Transaksi", description: "Buka menu samping (sidebar) sebelah kiri, pilih kategori 'Operasi', dan klik menu 'Riwayat'.", icon: <History className="w-8 h-8" /> },
+        { title: "Pilih Transaksi", description: "Cari dan klik transaksi yang ingin Anda cetak invoice-nya pada tabel.", icon: <Search className="w-8 h-8" /> },
+        { title: "Cetak Invoice", description: "Pada rincian transaksi di sebelah kanan, klik ikon printer atau tombol 'Cetak Invoice' di sudut kanan atas panel.", icon: <FileText className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "sales-sj",
-      title: "Membuat Surat Jalan",
-      description: "Saat mengirim barang pesanan ke pelanggan, Surat Jalan berfungsi sebagai bukti pengiriman resmi. Pastikan semua barang telah sesuai sebelum mencetak dokumen ini.",
+      title: "Membuat Surat Jalan (Delivery Order)",
+      description: "Membuat dokumen pengiriman resmi untuk transaksi berstatus Lunas (Completed) atau DP yang berisi produk fisik.",
       icon: <Truck className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Cari Transaksi", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Operasi', klik menu 'Riwayat'. Ketikkan nama pelanggan atau cari kode transaksi di tabel.", icon: <History className="w-8 h-8" /> },
-        { title: "Buka Menu Surat Jalan", description: "Klik transaksi yang dituju untuk membuka panel rincian di sebelah kanan. Klik tombol opsi titik tiga di pojok kanan atas panel detail, lalu klik 'Buat Surat Jalan'.", icon: <Truck className="w-8 h-8" /> },
-        { title: "Cetak Dokumen Fisik", description: "Pada halaman pratinjau surat jalan yang terbuka, klik tombol biru 'Cetak Surat Jalan' di pojok atas untuk menyambungkan ke printer dan mencetaknya.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Buka Cetak Surat Jalan", description: "Di halaman Riwayat Transaksi, cari transaksi lunas/DP. Klik tombol aksi titik tiga '...' di ujung kanan, pilih 'Cetak Surat Jalan'.", icon: <History className="w-8 h-8" /> },
+        { title: "Mulai Buat Baru", description: "Pada modal Surat Jalan yang terbuka, klik tombol 'Buat Surat Jalan' (atau 'Buat Surat Jalan Baru').", icon: <Truck className="w-8 h-8" /> },
+        { title: "Isi Jumlah & Detail Kurir", description: "Masukkan jumlah barang yang dikirim saat ini untuk tiap item. Isi detail pengiriman seperti kurir, pengemudi, pelat kendaraan, dan nama penerima.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Simpan & Cetak", description: "Klik tombol simpan/proses. Surat jalan baru akan tersimpan di sistem dan siap dicetak sebagai lampiran fisik pengiriman.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
     {
       id: "sales-alur-kerja",
       title: "Alur Kerja Sales",
-      description: "Siklus kerja tenaga penjual di lapangan, mulai dari mencari pesanan hingga pengiriman barang.",
+      description: "Siklus operasional tenaga penjual dalam melayani pembeli hingga proses pembayaran ke kasir.",
       icon: <Users className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Koleksi Order (POS Draft)", description: "Di halaman POS, masukkan barang pesanan pelanggan ke keranjang, lalu klik tombol 'Simpan Draft' di bawah keranjang kanan agar terekam di sistem.", icon: <ShoppingCart className="w-8 h-8" /> },
-        { title: "Ubah Draft Menjadi Tagihan", description: "Pergi ke menu 'Riwayat' di sidebar kiri. Klik draft transaksi yang ingin diproses, buka detailnya, lalu klik tombol 'Proses ke Tagihan' (tentukan status pembayaran tempo jika piutang).", icon: <FileText className="w-8 h-8" /> },
-        { title: "Buat & Cetak Surat Jalan", description: "Pada detail invoice transaksi tersebut di menu 'Riwayat', klik tombol titik tiga di sudut kanan atas panel rincian, klik 'Buat Surat Jalan', kemudian klik 'Cetak Surat Jalan'.", icon: <Truck className="w-8 h-8" /> },
+        { title: "Melayani Pelanggan", description: "Menyambut dan membantu pelanggan untuk mencari barang yang mereka butuhkan.", icon: <Users className="w-8 h-8" /> },
+        { title: "Memilih Produk", description: "Memilih dan memasukkan produk-produk sesuai keinginan pelanggan ke dalam sistem.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Mengirim Permintaan Pembayaran", description: "Mengirimkan rekap permintaan pembayaran pesanan melalui sistem.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Mencetak 2 Invoice", description: "Mencetak 2 rangkap invoice tagihan pesanan dari sistem.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Menyerahkan Invoice ke Pelanggan", description: "Memberikan satu rangkap invoice kepada pelanggan sebagai bukti pesanan.", icon: <Users className="w-8 h-8" /> },
+        { title: "Menyerahkan Uang & Invoice ke Kasir", description: "Menyerahkan rangkap invoice kedua beserta uang pembayaran dari pelanggan kepada Kasir untuk diproses (Checkout).", icon: <DollarSign className="w-8 h-8" /> },
       ]
     }
   ],
@@ -290,8 +520,8 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Verifikasi Mutasi Log", description: "Buka menu 'Inventaris' di sidebar. Klik tab 'Riwayat' -> sub-tab 'Log Stok' di pagi hari untuk memastikan mutasi stok harian berjalan sesuai catatan.", icon: <History className="w-8 h-8" /> },
-        { title: "Input Penerimaan Barang", description: "Saat kiriman supplier datang, klik tombol hitam '+ Input / Transaksi' di kanan atas halaman, klik 'Penerimaan Barang'. Isikan detail item barang, nomor surat jalan supplier, kuantitas fisik, lalu klik 'Simpan'.", icon: <Package className="w-8 h-8" /> },
-        { title: "Catat Barang Pecah/Rusak", description: "Jika ditemukan produk rusak, klik tombol '+ Input / Transaksi' -> 'Laporkan Barang Rusak'. Masukkan kode barang, kuantitas yang rusak, isi alasan penyesuaian, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Input Penerimaan Barang", description: "Saat kiriman supplier datang, klik tombol hitam 'Input / Transaksi' di kanan atas halaman, klik 'Penerimaan Barang'. Isikan detail item barang, nomor surat jalan supplier, kuantitas fisik, lalu klik 'Simpan'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Catat Barang Pecah/Rusak", description: "Jika ditemukan produk rusak, klik tombol 'Input / Transaksi' -> 'Laporkan Barang Rusak'. Masukkan kode barang, kuantitas yang rusak, isi alasan penyesuaian, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -301,8 +531,8 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Cek Tugas Aktif", description: "Buka menu 'Inventaris' di sidebar kiri, lalu klik tab 'Tugas' di bagian atas halaman untuk melihat checklist tugas harian.", icon: <ShoppingCart className="w-8 h-8" /> },
-        { title: "Lakukan Matching Stok", description: "Klik tugas 'Pencocokan Stok Harian' (atau tombol '+ Input / Transaksi' -> 'Cocokkan Stok (Harian)'). Cocokkan stok fisik di gudang dengan angka sistem, isi form kecocokan, lalu klik 'Simpan'.", icon: <History className="w-8 h-8" /> },
-        { title: "Input Laporan Kerusakan", description: "Klik tugas 'Laporan Barang Rusak' (atau '+ Input / Transaksi' -> 'Laporkan Barang Rusak'), cari produk reject hari ini, ketik kuantitas rusak, dan klik tombol 'Kirim'.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Lakukan Matching Stok", description: "Klik tugas 'Matching Stok Harian' (atau tombol 'Input / Transaksi' -> 'Cocokkan Stok (Harian)'). Cocokkan stok fisik di gudang dengan angka sistem, isi form kecocokan, lalu klik 'Simpan'.", icon: <History className="w-8 h-8" /> },
+        { title: "Input Laporan Kerusakan", description: "Klik tugas 'Laporan Barang Rusak' (atau 'Input / Transaksi' -> 'Laporkan Barang Rusak'), cari produk reject hari ini, ketik kuantitas rusak, dan klik tombol 'Kirim'.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Verifikasi Log OUT", description: "Klik tugas 'Log OUT Belum Diverifikasi' (atau klik tab 'Riwayat' -> 'Log Stok'), periksa daftar barang keluar hari ini, lalu klik tombol 'Verifikasi' pada kolom aksi log yang sesuai.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
@@ -313,18 +543,82 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Tugas Mingguan", description: "Buka menu 'Inventaris' di sidebar kiri, klik tab 'Tugas' di bagian atas halaman, lalu pilih sub-tab 'Tugas Mingguan'.", icon: <Package className="w-8 h-8" /> },
-        { title: "Upload Bukti Kebersihan", description: "Klik tugas 'Proof Kebersihan Gudang' (atau tombol '+ Input / Transaksi' -> 'Proof Kebersihan (Mingguan)'). Klik tombol 'Pilih File/Foto', unggah foto kondisi kebersihan rak gudang terupdate, lalu klik 'Submit'.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Stock Opname & Rekonsiliasi", description: "Lakukan perhitungan stok fisik rak gudang. Jika ada selisih, klik '+ Input / Transaksi' -> 'Stock Out Internal' (jika menyusut) atau 'Penerimaan Barang' (jika berlebih) senilai jumlah selisih agar data stok sistem kembali akurat setelah disetujui Owner.", icon: <Users className="w-8 h-8" /> },
+        { title: "Upload Bukti Kebersihan", description: "Klik tugas 'Proof Kebersihan Gudang' (atau tombol 'Input / Transaksi' -> 'Proof Kebersihan (Mingguan)'). Klik tombol 'Pilih File/Foto', unggah foto kondisi kebersihan rak gudang terupdate, lalu klik 'Submit'.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Stock Opname & Rekonsiliasi", description: "Lakukan perhitungan stok fisik rak gudang. Jika ada selisih, klik 'Input / Transaksi' -> 'Stock Out Internal' (jika menyusut) atau 'Penerimaan Barang' (jika berlebih) senilai jumlah selisih agar data stok sistem kembali akurat setelah disetujui Owner.", icon: <Users className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "inventory-production",
+      title: "Memantau & Mengelola Produksi (Kanban)",
+      description: "Memantau dan merubah status pengerjaan pesanan cetak (Job Order) pelanggan menggunakan Papan Kanban Produksi.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Halaman Produksi", description: "Buka menu samping 'Produksi' (di bawah kategori Operasi) untuk menampilkan Papan Kanban Produksi.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Ubah Status Pesanan", description: "Pindahkan kartu Job Order antar kolom (Baru -> Sedang Diproses -> Siap Diambil -> Selesai) dengan melakukan seret-lepas (drag-and-drop).", icon: <Settings className="w-8 h-8" /> },
+        { title: "Kirim Notifikasi Ambil", description: "Ketika pesanan dipindahkan ke kolom 'Siap Diambil', klik tombol WhatsApp pada kartu pesanan untuk mengirim notifikasi penjemputan barang ke nomor pelanggan.", icon: <Users className="w-8 h-8" /> },
+        { title: "Lihat Riwayat Aktivitas", description: "Buka tab 'Aktivitas' di sebelah tab 'Kanban' untuk mencari riwayat pergerakan status pesanan berdasarkan nama pelanggan atau nomor invoice.", icon: <History className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "inventory-bulk-stock-import",
+      title: "Import Stok Massal (Excel)",
+      description: "Memperbarui kuantitas stok barang di gudang dalam jumlah besar secara sekaligus menggunakan file Excel.",
+      icon: <FileText className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Import Bulk Stock", description: "Pilih 'Import Bulk Stock' untuk masuk ke halaman penyesuaian kuantitas stok dari berkas Excel.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Upload Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda yang berisi kolom kode barang/SKU dan kuantitas stok.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Mapping & Selesai", description: "Lakukan pemetaan kolom, verifikasi ringkasan item, lalu klik proses untuk memperbarui stok barang secara massal.", icon: <Settings className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "inventory-stock-group",
+      title: "Mengatur Grup Stok (Stock Group)",
+      description: "Mengelompokkan produk-produk variasi atau kemasan berbeda agar berbagi satu stok fisik yang sama di gudang.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
+        { title: "Pantau Log Grup", description: "Setiap mutasi stok di salah satu produk anggota akan otomatis mengubah stok produk lain dalam grup tersebut secara real-time.", icon: <History className="w-8 h-8" /> },
       ]
     }
   ]
 };
 
-export default function HelpContent({ targetRole }: { targetRole: Role }) {
-  const content = ROLE_CONTENT[targetRole] || [];
-  const [openId, setOpenId] = useState<string | null>(content[0]?.id || null);
+function searchInContent(item: AccordionItem, query: string): boolean {
+  if (!query) return true;
+  const lowerQuery = query.toLowerCase();
 
-  if (content.length === 0) {
+  // Search in title
+  if (item.title.toLowerCase().includes(lowerQuery)) return true;
+
+  // Search in description
+  if (item.description?.toLowerCase().includes(lowerQuery)) return true;
+
+  // Search in steps
+  return item.steps.some(
+    (step) =>
+      step.title.toLowerCase().includes(lowerQuery) ||
+      step.description.toLowerCase().includes(lowerQuery)
+  );
+}
+
+export default function HelpContent({ targetRole, searchQuery = "" }: { targetRole: Role; searchQuery?: string }) {
+  const allContent = ROLE_CONTENT[targetRole] || [];
+  const content = useMemo(() => {
+    if (!searchQuery) return allContent;
+    return allContent.filter((item) => searchInContent(item, searchQuery));
+  }, [allContent, searchQuery]);
+
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  // Auto-expand first item when search or role changes
+  useEffect(() => {
+    setOpenId(content[0]?.id ?? null);
+  }, [content]);
+
+  if (allContent.length === 0) {
     return (
       <div className="p-8 text-center text-surface-500 bg-surface-50 rounded-2xl border border-surface-200">
         Belum ada panduan khusus untuk peran ini.
@@ -332,9 +626,34 @@ export default function HelpContent({ targetRole }: { targetRole: Role }) {
     );
   }
 
+  if (searchQuery && content.length === 0) {
+    return (
+      <div className="p-8 text-center text-surface-500 bg-surface-50 rounded-2xl border border-surface-200">
+        <Search className="w-12 h-12 mx-auto mb-3 text-surface-300" />
+        <p className="font-semibold text-surface-700 mb-1">Tidak ada hasil</p>
+        <p className="text-sm">Coba kata kunci lain atau periksa ejaan Anda.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {content.map((item) => (
+      {!searchQuery && ROLE_DESCRIPTIONS[targetRole] && (
+        <div className="bg-brand-50 border border-brand-100 rounded-2xl p-5 mb-2">
+          <p className="text-brand-800 font-medium mb-3">{ROLE_DESCRIPTIONS[targetRole].desc}</p>
+          <div className="bg-white/60 rounded-xl p-4">
+            <h3 className="text-sm font-bold text-brand-900 mb-2">Tanggung Jawab Utama:</h3>
+            <ul className="list-disc list-inside space-y-1.5 text-sm text-brand-700">
+              {ROLE_DESCRIPTIONS[targetRole].resps.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {content.map((item) => (
         <div key={item.id} className="bg-white border border-surface-200 rounded-2xl overflow-hidden shadow-sm transition-all duration-200">
           <button
             onClick={() => setOpenId(openId === item.id ? null : item.id)}
@@ -366,6 +685,7 @@ export default function HelpContent({ targetRole }: { targetRole: Role }) {
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 }

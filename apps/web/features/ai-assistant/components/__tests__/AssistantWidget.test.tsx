@@ -18,6 +18,8 @@ describe("AssistantWidget", () => {
     expect(html).toContain("Tanya AI");
     expect(html).toContain("Pak Teladan");
     expect(html).toContain("Halo, saya siap membantu");
+    expect(html).toContain('maxLength="2000"');
+    expect(html).toContain("Maksimal 2.000 karakter per pesan.");
   });
 
   it("renders source metadata under AI messages", () => {
@@ -52,7 +54,7 @@ describe("AssistantWidget", () => {
             actionLog: [
               {
                 id: "step-1",
-                label: "Preparing answer",
+                label: "Processing request",
                 status: "done",
                 occurredAt: "2026-06-26T10:15:00.000Z",
               },
@@ -90,7 +92,7 @@ describe("AssistantWidget", () => {
               },
               {
                 id: "planning-1",
-                label: "Preparing answer",
+                label: "Processing request",
                 status: "active",
                 occurredAt: "2026-06-27T01:00:01.000Z",
               },
@@ -103,6 +105,6 @@ describe("AssistantWidget", () => {
     expect(html).toContain('aria-expanded="true"');
     expect(html).toContain('aria-label="Proses AI"');
     expect(html).toContain("Request sent");
-    expect(html).toContain("Preparing answer");
+    expect(html).toContain("Processing request");
   });
 });

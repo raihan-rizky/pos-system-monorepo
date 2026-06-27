@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { HelpCircle, ShieldCheck, ShoppingCart, Truck, Package, Users, Warehouse } from "lucide-react";
+import { HelpCircle, Search, ShieldCheck, ShoppingCart, Truck, Users, Warehouse, X } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import HelpContent from "@/features/help-documentation/components/HelpContent";
 import type { Role } from "@/features/rbac/helpers/rbac-core";
@@ -19,11 +19,12 @@ export default function HelpPage() {
   const currentRole = role || "OWNER";
   const isSuperUser = currentRole === "OWNER" || currentRole === "ADMIN";
   const [activeTab, setActiveTab] = useState<Role>(currentRole);
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-surface-50 min-h-screen">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20">
-        
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-extrabold text-surface-900 tracking-tight flex items-center gap-3">
@@ -35,20 +36,43 @@ export default function HelpPage() {
           <p className="text-sm text-surface-500 mt-1">
             Panduan lengkap penggunaan fitur sesuai dengan peran (role) Anda.
           </p>
+
+          {/* Search Bar */}
+          <div className="relative mt-6">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+              <input
+                type="text"
+                placeholder="Cari panduan, fitur, atau kata kunci..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-12 py-3 rounded-xl border border-surface-200 bg-white text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Content Layout */}
-        <div className="flex flex-col sm:flex-row gap-6">
+        <div className="flex flex-col gap-6">
           {isSuperUser && (
-            <nav className="flex sm:flex-col gap-1 sm:w-48 shrink-0 overflow-x-auto">
+            <nav className="flex flex-row flex-nowrap sm:flex-wrap gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden">
               {ALL_ROLES.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2.5 px-6 sm:px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold transition-all duration-150 cursor-pointer w-full text-left whitespace-nowrap
+                  className={`flex items-center justify-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap
                     ${activeTab === tab.id
-                      ? "bg-white shadow border border-surface-200 text-brand-600"
-                      : "text-surface-600 hover:bg-white/60 hover:text-surface-900"
+                      ? "bg-brand-600 text-white shadow-md border border-brand-700"
+                      : "bg-white border border-surface-200 text-surface-600 hover:bg-surface-50 hover:text-surface-900 shadow-sm"
                     }`}
                 >
                   {tab.icon}
@@ -58,8 +82,8 @@ export default function HelpPage() {
             </nav>
           )}
 
-          <div className="flex-1">
-            <HelpContent targetRole={isSuperUser ? activeTab : currentRole} />
+          <div className="w-full">
+            <HelpContent targetRole={isSuperUser ? activeTab : currentRole} searchQuery={searchQuery} />
           </div>
         </div>
 

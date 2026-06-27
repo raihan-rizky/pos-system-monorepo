@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeAssistantIntent } from "../assistant-intent-router";
+import { parseFastPathIntentAllowlist, routeAssistantIntent } from "../assistant-intent-router";
 
 describe("routeAssistantIntent", () => {
   it("routes low-stock questions to get_low_stock_items", () => {
@@ -7,6 +7,13 @@ describe("routeAssistantIntent", () => {
       kind: "tool",
       toolName: "get_low_stock_items",
       input: {},
+    });
+  });
+
+  it("routes the inventory template to get_low_stock_items", () => {
+    expect(routeAssistantIntent("Cek stok barang menipis")).toMatchObject({
+      kind: "tool",
+      toolName: "get_low_stock_items",
     });
   });
 
@@ -102,5 +109,19 @@ describe("routeAssistantIntent", () => {
   it("blocks unrelated questions as out of scope", () => {
     expect(routeAssistantIntent("siapa presiden amerika?"))
       .toEqual({ kind: "out_of_scope" });
+  });
+
+  it.each([
+    "cek stok yang tadi",
+    "harga Kertas A4 dan cek stoknya",
+    "maksud saya harga Kertas F4",
+    "stok produk ini berapa?",
+  ])("falls back for contextual or mixed input: %s", (message) => {
+    expect(routeAssistantIntent(message)).toEqual({ kind: "chat" });
+  });
+
+  it("accepts only known allowlist values", () => {
+    expect([...parseFastPathIntentAllowlist(" social_static,unknown,get_low_stock_items ")])
+      .toEqual(["social_static", "get_low_stock_items"]);
   });
 });

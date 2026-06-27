@@ -102,7 +102,7 @@ test("shows assistant progress while the response is still streaming", async ({ 
     await page.locator("textarea").fill("Cek stok rendah");
     await page.locator("textarea").press("Enter");
 
-    await expect(page.getByText("Preparing answer", { exact: true })).toBeVisible();
+    await expect(page.getByText("Processing request", { exact: true })).toBeVisible();
     await expect(page.getByText("Checking data", { exact: true })).toBeVisible();
     await expect(page.getByText("Preparing response", { exact: true })).toBeVisible();
     await expect(page.getByText("Progress selesai dengan benar.", { exact: true })).toBeVisible();

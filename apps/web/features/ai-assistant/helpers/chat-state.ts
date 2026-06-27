@@ -16,6 +16,18 @@ export function appendAssistantChunk(messages: Message[], content: string): Mess
   return [...messages, { role: "assistant", content }];
 }
 
+export function setAssistantFinalContent(messages: Message[], content: string): Message[] {
+  const last = messages[messages.length - 1];
+  if (last?.role === "assistant") {
+    return [
+      ...messages.slice(0, -1),
+      { ...last, content },
+    ];
+  }
+
+  return [...messages, { role: "assistant", content }];
+}
+
 export function appendAssistantMetadata(
   messages: Message[],
   metadata: AssistantMessageMetadata,

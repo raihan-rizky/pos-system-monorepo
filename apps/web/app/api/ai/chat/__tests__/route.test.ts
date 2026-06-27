@@ -82,6 +82,7 @@ describe("POST /api/ai/chat", () => {
     vi.resetModules();
     process.env.NEBIUS_API_KEY = "test-nebius-key";
     process.env.NEBIUS_MODEL = "test-nebius-model";
+    delete process.env.AI_FAST_PATH_INTENTS;
     getCurrentUserMock.mockResolvedValue({
       id: "user-1",
       username: "owner",
@@ -135,7 +136,7 @@ describe("POST /api/ai/chat", () => {
       }),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
-  });
+  }, 15_000);
 
   it("sends role-filtered JSON schema tools to Nebius", async () => {
     getCurrentUserMock.mockResolvedValue({
@@ -263,5 +264,55 @@ describe("POST /api/ai/chat", () => {
     const response = await POST(makeRequest({ messages: "bad" }));
 
     expect(response.status).toBe(400);
+  });
+
+  it("uses one provider call for an allowlisted deterministic tool", async () => {
+    process.env.AI_FAST_PATH_INTENTS = "get_low_stock_items";
+    openAIChatCreateMock.mockResolvedValueOnce(finalAnswer("Fast stock answer."));
+    const { POST } = await import("../route");
+
+    const response = await POST(makeRequest({ messages: [{ role: "user", content: "produk apa yang stoknya rendah?" }] }));
+    const body = await readStream(response);
+
+    expect(response.status).toBe(200);
+    expect(getLowStockItemsMock).toHaveBeenCalledTimes(1);
+    expect(openAIChatCreateMock).toHaveBeenCalledTimes(1);
+    expect(body).toContain("Fast stock answer");
+  });
+
+  it("uses zero provider calls for an allowlisted static intent", async () => {
+    process.env.AI_FAST_PATH_INTENTS = "social_static";
+    const { POST } = await import("../route");
+
+    const response = await POST(makeRequest({ messages: [{ role: "user", content: "halo" }] }));
+    const body = await readStream(response);
+
+    expect(response.status).toBe(200);
+    expect(openAIConstructorMock).not.toHaveBeenCalled();
+    expect(openAIChatCreateMock).not.toHaveBeenCalled();
+    expect(body).toContain("Pak Teladan");
+  });
+
+  it("rejects messages above the visible composer limit", async () => {
+    const { POST } = await import("../route");
+
+    const response = await POST(makeRequest({
+      messages: [{ role: "user", content: "a".repeat(2_001) }],
+    }));
+
+    expect(response.status).toBe(400);
+    expect(openAIChatCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects request bodies above the abuse limit", async () => {
+    const { POST } = await import("../route");
+
+    const response = await POST(makeRequest({
+      messages: Array.from({ length: 100 }, () => ({ role: "user", content: "a".repeat(2_000) })),
+      padding: "a".repeat(70_000),
+    }));
+
+    expect(response.status).toBe(413);
+    expect(openAIChatCreateMock).not.toHaveBeenCalled();
   });
 });

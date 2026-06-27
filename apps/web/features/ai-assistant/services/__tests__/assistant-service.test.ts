@@ -314,6 +314,80 @@ describe("AssistantService", () => {
     resolveModelResponse({ choices: [{ message: { content: "no tool" } }] });
   });
 
+  it("forwards provider content deltas before the final structured answer", async () => {
+    const streamedAnswer = {
+      answerMarkdown: "Real streaming answer",
+      dataStatus: "no_tool_used",
+      sourceLabel: "Pak Teladan",
+      generatedAt: "2026-06-27T01:00:01.000Z",
+      followUps: [],
+    };
+    const fragments = [
+      '{"answerMarkdown":"Real ',
+      'streaming answer","dataStatus":"no_tool_used",',
+      '"sourceLabel":"Pak Teladan","generatedAt":"2026-06-27T01:00:01.000Z","followUps":[]}',
+    ];
+    const providerStream = {
+      async *[Symbol.asyncIterator]() {
+        for (const content of fragments) {
+          yield { choices: [{ delta: { content } }] };
+        }
+      },
+    };
+    const create = vi.fn()
+      .mockResolvedValueOnce({ choices: [{ message: { content: "no tool" } }] })
+      .mockResolvedValueOnce(providerStream);
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "OWNER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "jelaskan sistem POS" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create.mock.calls[1][0]).toMatchObject({ stream: true });
+    expect(body).toContain('"message":{"role":"assistant","content":"Real "}');
+    expect(body).toContain('"message":{"role":"assistant","content":"streaming answer"}');
+    expect(body).toContain(JSON.stringify({ type: "final", answer: streamedAnswer }));
+  });
+
+  it("aborts the provider request when the response consumer cancels", async () => {
+    let providerAborted = false;
+    const create = vi.fn((_body, options: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener("abort", () => {
+        providerAborted = true;
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        reject(error);
+      }, { once: true });
+    }));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+    });
+    const response = service.toResponseStream({
+      role: "OWNER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "jelaskan sistem POS" }],
+      signal: new AbortController().signal,
+    });
+    const reader = response.body!.getReader();
+
+    await reader.read();
+    await reader.cancel();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(providerAborted).toBe(true);
+  });
+
   it("disables reverse-proxy buffering for progress events", () => {
     const response = service.toResponseStream({
       role: "OWNER",
@@ -446,5 +520,100 @@ describe("AssistantService", () => {
 
     expect(create).toHaveBeenCalledTimes(3);
     expect(body).toContain("Jawaban sudah valid");
+  });
+
+  it("returns an allowlisted static response without calling the model", async () => {
+    const create = vi.fn();
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      fastPathIntents: new Set(["social_static"] as const),
+      client: { chat: { completions: { create } } } as any,
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "OWNER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "halo" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create).not.toHaveBeenCalled();
+    expect(body).toContain("Pak Teladan");
+    expect(body).toContain('"dataStatus":"no_tool_used"');
+  });
+
+  it("executes an allowlisted deterministic tool with one model call", async () => {
+    const create = vi.fn().mockResolvedValueOnce(finalAnswer("Stok rendah ditemukan."));
+    toolsRepository.getLowStockItems.mockResolvedValue({
+      items: [],
+      generatedAt: "2026-06-26T10:00:00.000Z",
+    });
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      fastPathIntents: new Set(["get_low_stock_items"] as const),
+      client: { chat: { completions: { create } } } as any,
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "OWNER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "produk apa yang stoknya rendah?" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(toolsRepository.getLowStockItems).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(body).toContain("Stok rendah ditemukan");
+  });
+
+  it("keeps contextual requests on the two-call model fallback", async () => {
+    const create = vi.fn()
+      .mockResolvedValueOnce({ choices: [{ message: { content: "no tool" } }] })
+      .mockResolvedValueOnce(finalAnswer("Jawaban kontekstual."));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      fastPathIntents: new Set(["get_product_stock"] as const),
+      client: { chat: { completions: { create } } } as any,
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "OWNER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "cek stok yang tadi" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(toolsRepository.getProductStock).not.toHaveBeenCalled();
+    expect(body).toContain("Jawaban kontekstual");
+  });
+
+  it("keeps RBAC fail-closed on an allowlisted direct tool", async () => {
+    const create = vi.fn();
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      fastPathIntents: new Set(["get_daily_sales_summary"] as const),
+      client: { chat: { completions: { create } } } as any,
+      now: () => new Date("2026-06-26T10:00:00Z"),
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "CASHIER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "omzet hari ini berapa?" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create).not.toHaveBeenCalled();
+    expect(toolsRepository.getDailySalesSummary).not.toHaveBeenCalled();
+    expect(body).toContain("tidak punya akses");
   });
 });
