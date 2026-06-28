@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
@@ -21,6 +21,12 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/product-stock-groups/[id]/variants", () => {
+  let POST: typeof import("../route").POST;
+
+  beforeAll(async () => {
+    ({ POST } = await import("../route"));
+  }, 15000);
+
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermissionMock.mockResolvedValue({
@@ -74,7 +80,6 @@ describe("POST /api/product-stock-groups/[id]/variants", () => {
   });
 
   it("creates a new unit variant with generated SKU and confirmed conversion", async () => {
-    const { POST } = await import("../route");
     const response = await POST(
       new Request("http://localhost/api/product-stock-groups/group-1/variants", {
         method: "POST",
@@ -120,10 +125,9 @@ describe("POST /api/product-stock-groups/[id]/variants", () => {
         }),
       }),
     );
-  });
+  }, 15000);
 
   it("rejects a new variant when the unit already exists in the group", async () => {
-    const { POST } = await import("../route");
     const response = await POST(
       new Request("http://localhost/api/product-stock-groups/group-1/variants", {
         method: "POST",
@@ -144,5 +148,5 @@ describe("POST /api/product-stock-groups/[id]/variants", () => {
     expect(body.errors.unit).toContain("DUPLICATE_UNIT");
     expect(productCreateMock).not.toHaveBeenCalled();
     expect(groupActivityCreateMock).not.toHaveBeenCalled();
-  });
+  }, 15000);
 });

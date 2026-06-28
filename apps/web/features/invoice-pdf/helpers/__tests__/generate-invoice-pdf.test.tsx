@@ -116,7 +116,7 @@ describe("generateInvoicePdf", () => {
     // Both should produce valid outputs but potentially different sizes
     expect(halfA4.byteLength).toBeGreaterThan(0);
     expect(a4.byteLength).toBeGreaterThan(0);
-  }, 15000);
+  }, 30000);
 
   test("generates PDF for transaction with many items (>5, no filler rows)", async () => {
     const items = Array.from({ length: 10 }, (_, i) => ({

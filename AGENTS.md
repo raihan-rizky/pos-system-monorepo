@@ -45,6 +45,7 @@ If you add or update dependencies remember to:
 - **Always update the documentation file** when you fix a bug.
 - **The name of documentation MUST be in format {filename}-{date}.md**
 - **Make sure the documentation is always up to date**
+- **Always update the Bantuan (Help) page content** in [HelpContent.tsx](file:///d:/main_project/pos-system-monorepo/apps/web/features/help-documentation/components/HelpContent.tsx) whenever a new feature is added, ensuring the user-facing help documentation is always kept in sync.
 
 ---
 
