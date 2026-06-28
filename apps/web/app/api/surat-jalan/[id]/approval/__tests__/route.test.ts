@@ -5,7 +5,8 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const suratJalanFindFirstMock = vi.hoisted(() => vi.fn());
 const suratJalanUpdateMock = vi.hoisted(() => vi.fn());
-const productUpdateMock = vi.hoisted(() => vi.fn());
+const productFindFirstMock = vi.hoisted(() => vi.fn());
+const productUpdateManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -34,7 +35,15 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
-    productUpdateMock.mockResolvedValue({});
+    productFindFirstMock.mockImplementation(async ({ where }) => ({
+      id: where.id,
+      stock: 10,
+      stockGroupId: null,
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      stockGroup: null,
+    }));
+    productUpdateManyMock.mockResolvedValue({ count: 1 });
     inventoryLogCreateManyMock.mockResolvedValue({ count: 1 });
     suratJalanUpdateMock.mockImplementation(async ({ data }) => ({
       id: "sj-2",
@@ -48,7 +57,8 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
           update: suratJalanUpdateMock,
         },
         product: {
-          update: productUpdateMock,
+          findFirst: productFindFirstMock,
+          updateMany: productUpdateManyMock,
         },
         inventoryLog: {
           createMany: inventoryLogCreateManyMock,
@@ -71,9 +81,9 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
 
     expect(response.status).toBe(200);
     expect(body.status).toBe("CONFIRMED");
-    expect(productUpdateMock).toHaveBeenCalledWith({
-      where: { id: "product-paper" },
-      data: { stock: { decrement: 3 } },
+    expect(productUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: "product-paper", storeId: "store-main", stock: { gte: 3 } },
+      data: { stock: { increment: -3 } },
     });
     expect(suratJalanUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({

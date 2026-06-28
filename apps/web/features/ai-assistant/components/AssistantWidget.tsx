@@ -544,13 +544,17 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
 
             <div className="px-4 pb-4 pt-1 bg-surface-800/50">
               <div className="flex items-center justify-between">
-                <div className="flex flex-wrap items-center gap-2 scrollbar-none py-1 flex-1 min-w-0">
+                <div
+                  className="-mx-1 flex flex-1 min-w-0 snap-x snap-mandatory flex-nowrap items-center gap-2 overflow-x-auto px-1 py-1 [-webkit-overflow-scrolling:touch] [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden"
+                  aria-label="Prompt cepat"
+                >
                   {templateQuestions.map((q, i) => (
                     <button
                       key={i}
+                      type="button"
                       onClick={() => setInput(q)}
                       disabled={isStreaming}
-                      className="whitespace-nowrap px-3 py-1.5 text-[11px] font-medium rounded-full bg-surface-800/80 border border-surface-700/50 text-surface-300 hover:text-surface-100 hover:bg-surface-700 hover:border-surface-600 transition-all duration-200 disabled:opacity-50"
+                      className="snap-start shrink-0 whitespace-nowrap rounded-full border border-surface-700/60 bg-surface-800/80 px-3.5 py-1.5 text-[11px] font-medium text-surface-300 shadow-sm transition-all duration-200 hover:border-surface-600 hover:bg-surface-700 hover:text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-400/50 disabled:opacity-50"
                     >
                       {q}
                     </button>

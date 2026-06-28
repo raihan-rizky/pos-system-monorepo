@@ -7,7 +7,8 @@ const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionUpdateMock = vi.hoisted(() => vi.fn());
 const suratJalanCountMock = vi.hoisted(() => vi.fn());
 const suratJalanCreateMock = vi.hoisted(() => vi.fn());
-const productUpdateMock = vi.hoisted(() => vi.fn());
+const productFindFirstMock = vi.hoisted(() => vi.fn());
+const productUpdateManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -64,7 +65,15 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
       items: [],
     }));
     transactionUpdateMock.mockResolvedValue({});
-    productUpdateMock.mockResolvedValue({});
+    productFindFirstMock.mockImplementation(async ({ where }) => ({
+      id: where.id,
+      stock: where.id === "product-paper" ? 10 : 13,
+      stockGroupId: null,
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      stockGroup: null,
+    }));
+    productUpdateManyMock.mockResolvedValue({ count: 1 });
     inventoryLogCreateManyMock.mockResolvedValue({ count: 4 });
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
@@ -77,7 +86,8 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
           create: suratJalanCreateMock,
         },
         product: {
-          update: productUpdateMock,
+          findFirst: productFindFirstMock,
+          updateMany: productUpdateManyMock,
         },
         inventoryLog: {
           createMany: inventoryLogCreateManyMock,
@@ -111,13 +121,13 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
       where: { id: "txn-1" },
       data: { stockManagedBySuratJalan: true },
     });
-    expect(productUpdateMock).toHaveBeenCalledWith({
-      where: { id: "product-paper" },
+    expect(productUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: "product-paper", storeId: "store-main" },
       data: { stock: { increment: 10 } },
     });
-    expect(productUpdateMock).toHaveBeenCalledWith({
-      where: { id: "product-paper" },
-      data: { stock: { decrement: 4 } },
+    expect(productUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: "product-paper", storeId: "store-main", stock: { gte: 4 } },
+      data: { stock: { increment: -4 } },
     });
     expect(suratJalanCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -193,7 +203,7 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
     expect(response.status).toBe(201);
     expect(body.status).toBe("PENDING");
     expect(body.sequence).toBe(2);
-    expect(productUpdateMock).not.toHaveBeenCalled();
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
     expect(transactionUpdateMock).not.toHaveBeenCalled();
     expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
   });

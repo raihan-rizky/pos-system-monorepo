@@ -12,6 +12,9 @@ const getProductPriceMock = vi.hoisted(() => vi.fn());
 const getCustomerSearchMock = vi.hoisted(() => vi.fn());
 const getCustomerDebtSummaryMock = vi.hoisted(() => vi.fn());
 const getCustomerRecapSummaryMock = vi.hoisted(() => vi.fn());
+const getSupplierSearchMock = vi.hoisted(() => vi.fn());
+const getTopProductsMock = vi.hoisted(() => vi.fn());
+const getPendingTransactionsMock = vi.hoisted(() => vi.fn());
 const openAIConstructorMock = vi.hoisted(() =>
   vi.fn().mockImplementation(function OpenAI() {
     return {
@@ -42,6 +45,9 @@ vi.mock("@/features/ai-assistant/repositories/assistant-tools-repository", () =>
   getCustomerSearch: getCustomerSearchMock,
   getCustomerDebtSummary: getCustomerDebtSummaryMock,
   getCustomerRecapSummary: getCustomerRecapSummaryMock,
+  getSupplierSearch: getSupplierSearchMock,
+  getTopProducts: getTopProductsMock,
+  getPendingTransactions: getPendingTransactionsMock,
 }));
 
 const makeRequest = (body: unknown) =>
@@ -113,6 +119,9 @@ describe("POST /api/ai/chat", () => {
     getCustomerSearchMock.mockResolvedValue({ items: [], total: 0, generatedAt: "2026-06-26T10:00:00.000Z" });
     getCustomerDebtSummaryMock.mockResolvedValue({ match: null, candidates: [], generatedAt: "2026-06-26T10:00:00.000Z" });
     getCustomerRecapSummaryMock.mockResolvedValue({ match: null, candidates: [], generatedAt: "2026-06-26T10:00:00.000Z" });
+    getSupplierSearchMock.mockResolvedValue({ items: [], total: 0, generatedAt: "2026-06-26T10:00:00.000Z" });
+    getTopProductsMock.mockResolvedValue({ date: "2026-06-26", items: [], generatedAt: "2026-06-26T10:00:00.000Z" });
+    getPendingTransactionsMock.mockResolvedValue({ items: [], total: 0, generatedAt: "2026-06-26T10:00:00.000Z" });
   });
 
   it("uses Nebius API key, base URL, and model from env", async () => {
