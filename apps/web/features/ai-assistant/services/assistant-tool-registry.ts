@@ -6,10 +6,13 @@ import {
   getCustomerSearch,
   getDailySalesSummary,
   getLowStockItems,
+  getPendingTransactions,
   getProductPrice,
   getProductSearch,
   getProductStock,
+  getSupplierSearch,
   getSystemHelp,
+  getTopProducts,
 } from "../repositories/assistant-tools-repository";
 
 export type AssistantToolName =
@@ -21,7 +24,10 @@ export type AssistantToolName =
   | "get_product_price"
   | "get_customer_search"
   | "get_customer_debt_summary"
-  | "get_customer_recap_summary";
+  | "get_customer_recap_summary"
+  | "get_supplier_search"
+  | "get_top_products"
+  | "get_pending_transactions";
 
 export type JsonObjectSchema = {
   type: "object";
@@ -40,6 +46,9 @@ export interface AssistantToolsRepository {
   getCustomerSearch(input: { storeId: string; query: string; limit: number }): Promise<unknown>;
   getCustomerDebtSummary(input: { storeId: string; query: string }): Promise<unknown>;
   getCustomerRecapSummary(input: { storeId: string; query: string }): Promise<unknown>;
+  getSupplierSearch(input: { query: string; limit: number }): Promise<unknown>;
+  getTopProducts(input: { storeId: string; date: string }): Promise<unknown>;
+  getPendingTransactions(input: { storeId: string; limit: number }): Promise<unknown>;
 }
 
 type ToolContext = {
@@ -58,6 +67,7 @@ export interface AssistantToolDefinition {
   retry: {
     maxAttempts: number;
   };
+  errorCodes: string[];
   sourceLabel: string;
   execute(input: unknown, context: ToolContext): Promise<unknown>;
   shapeOutput(raw: unknown): unknown;
@@ -98,6 +108,9 @@ const defaultToolsRepository: AssistantToolsRepository = {
   getCustomerSearch,
   getCustomerDebtSummary,
   getCustomerRecapSummary,
+  getSupplierSearch,
+  getTopProducts,
+  getPendingTransactions,
 };
 
 const emptyJsonSchema: JsonObjectSchema = {
@@ -143,7 +156,7 @@ export function createAssistantToolRegistry(
   return [
     createTool({
       name: "get_system_help",
-      description: "Search official in-app help docs for POS workflows, menus, role permissions, and feature usage. Use before giving manual step-by-step guidance.",
+      description: "Search official in-app help docs for POS workflows, menus, role permissions, and feature usage. USE for: cara pakai fitur, langkah-langkah, menu apa, hak akses. DO NOT USE for: live store data queries.",
       allowedRoles: allStoreRoles,
       requiresStore: false,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
@@ -155,6 +168,7 @@ export function createAssistantToolRegistry(
       }).strict(),
       parametersJsonSchema: queryJsonSchema("User's exact question about POS features, workflow, menus, or app usage."),
       retry: { maxAttempts: 2 },
+      errorCodes: ["DOC_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Dokumentasi bantuan",
       execute: (input) => repository.getSystemHelp(input as { query: string }),
       shapeOutput: (raw) => {
@@ -168,7 +182,7 @@ export function createAssistantToolRegistry(
     }),
     createTool({
       name: "get_low_stock_items",
-      description: "Return store-scoped products where stock is less than or equal to minimum stock. Use for broad questions like stok rendah, stok menipis, barang habis, or minimum stock lists.",
+      description: "Return ALL products where stock ≤ minimum stock for the store. USE for: stok rendah, stok menipis, barang habis, daftar minimum stok. DO NOT USE for: checking one specific product's stock (use get_product_stock instead).",
       allowedRoles: ["OWNER", "ADMIN", "INVENTORY"],
       requiresStore: true,
       inputSchema: z.object({}).strict(),
@@ -184,6 +198,7 @@ export function createAssistantToolRegistry(
       }).strict(),
       parametersJsonSchema: emptyJsonSchema,
       retry: { maxAttempts: 2 },
+      errorCodes: ["STORE_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Alat stok rendah",
       execute: (_input, context) => repository.getLowStockItems({ storeId: context.storeId!, limit: 50 }),
       shapeOutput: (raw) => {
@@ -198,8 +213,8 @@ export function createAssistantToolRegistry(
     }),
     createTool({
       name: "get_daily_sales_summary",
-      description: "Return store-scoped completed sales metrics for one exact business date: revenue, gross profit, and transaction count. Requires YYYY-MM-DD date.",
-      allowedRoles: ["OWNER"],
+      description: "Return completed sales metrics (revenue, gross profit, transaction count) for one exact business date. USE for: omzet hari ini, penjualan tanggal X, ringkasan sales. Requires date in YYYY-MM-DD. DO NOT USE for: top products or multi-date ranges.",
+      allowedRoles: ["OWNER", "ADMIN"],
       requiresStore: true,
       inputSchema: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format") }).strict(),
       outputSchema: z.object({
@@ -223,16 +238,26 @@ export function createAssistantToolRegistry(
         },
       },
       retry: { maxAttempts: 2 },
+      errorCodes: ["INVALID_DATE", "STORE_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Alat ringkasan penjualan",
       execute: (input, context) => {
         const { date } = input as { date: string };
         return repository.getDailySalesSummary({ storeId: context.storeId!, date });
       },
-      shapeOutput: (raw) => withKind("daily_sales_summary", raw as Record<string, unknown>),
+      shapeOutput: (raw) => {
+        const v = raw as Record<string, unknown>;
+        return withKind("daily_sales_summary", {
+          date: typeof v.date === "string" ? v.date : "",
+          revenue: typeof v.revenue === "number" ? v.revenue : 0,
+          grossProfit: typeof v.grossProfit === "number" ? v.grossProfit : 0,
+          transactionCount: typeof v.transactionCount === "number" ? v.transactionCount : 0,
+          generatedAt: typeof v.generatedAt === "string" ? v.generatedAt : new Date().toISOString(),
+        });
+      },
     }),
     createTool({
       name: "get_product_search",
-      description: "Search active products by keyword, SKU, or barcode. Use when the user is discovering products or the item name is ambiguous.",
+      description: "Search active products by keyword, SKU, or barcode. USE for: cari produk X, find item, nama produk tidak jelas. DO NOT USE if user asks about stock level of a known product (use get_product_stock) or price (use get_product_price).",
       allowedRoles: productRoles,
       requiresStore: true,
       inputSchema: z.object({
@@ -247,16 +272,24 @@ export function createAssistantToolRegistry(
       }).strict(),
       parametersJsonSchema: searchJsonSchema("General product keyword, SKU, or barcode. Use for discovery when the exact item is unknown."),
       retry: { maxAttempts: 2 },
+      errorCodes: ["STORE_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Alat produk",
       execute: (input, context) => {
         const { query, limit } = input as { query: string; limit: number };
         return repository.getProductSearch({ storeId: context.storeId!, query, limit });
       },
-      shapeOutput: (raw) => withKind("product_search", raw as Record<string, unknown>),
+      shapeOutput: (raw) => {
+        const v = raw as { items?: unknown[]; total?: number; generatedAt?: string };
+        return withKind("product_search", {
+          items: Array.isArray(v.items) ? v.items : [],
+          total: typeof v.total === "number" ? v.total : 0,
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
     }),
     createTool({
       name: "get_product_stock",
-      description: "Return stock details for one specific product query. Do not use for broad low-stock questions; use get_low_stock_items instead.",
+      description: "Return stock level for one specific named product. USE for: stok [produk X] berapa, cek stok [nama]. DO NOT USE for broad low-stock lists (use get_low_stock_items) or when product name is unknown (use get_product_search first) or when user asks about price (use get_product_price).",
       allowedRoles: productRoles,
       requiresStore: true,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
@@ -268,16 +301,24 @@ export function createAssistantToolRegistry(
       }).strict(),
       parametersJsonSchema: queryJsonSchema("One specific product name, SKU, or barcode. Use get_low_stock_items for broad low-stock questions."),
       retry: { maxAttempts: 2 },
+      errorCodes: ["NOT_FOUND", "STORE_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Alat produk",
       execute: (input, context) => {
         const { query } = input as { query: string };
         return repository.getProductStock({ storeId: context.storeId!, query });
       },
-      shapeOutput: (raw) => withKind("product_stock", raw as Record<string, unknown>),
+      shapeOutput: (raw) => {
+        const v = raw as { match?: unknown; candidates?: unknown[]; generatedAt?: string };
+        return withKind("product_stock", {
+          match: v.match ?? null,
+          candidates: Array.isArray(v.candidates) ? v.candidates : undefined,
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
     }),
     createTool({
       name: "get_product_price",
-      description: "Return selling price and product context for one specific product query.",
+      description: "Return selling price for one specific named product. USE for: harga [produk X] berapa, harga jual. DO NOT USE when product name is unknown (use get_product_search first) or when user asks about stock (use get_product_stock).",
       allowedRoles: productRoles,
       requiresStore: true,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
@@ -289,16 +330,24 @@ export function createAssistantToolRegistry(
       }).strict(),
       parametersJsonSchema: queryJsonSchema("One specific product name, SKU, or barcode."),
       retry: { maxAttempts: 2 },
+      errorCodes: ["NOT_FOUND", "STORE_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Alat produk",
       execute: (input, context) => {
         const { query } = input as { query: string };
         return repository.getProductPrice({ storeId: context.storeId!, query });
       },
-      shapeOutput: (raw) => withKind("product_price", raw as Record<string, unknown>),
+      shapeOutput: (raw) => {
+        const v = raw as { match?: unknown; candidates?: unknown[]; generatedAt?: string };
+        return withKind("product_price", {
+          match: v.match ?? null,
+          candidates: Array.isArray(v.candidates) ? v.candidates : undefined,
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
     }),
     createTool({
       name: "get_customer_search",
-      description: "Search customers by name, phone, company, or email. Use when the customer is ambiguous or the user asks to find a customer.",
+      description: "Search customers by name, phone, company, or email. USE for: cari pelanggan X, find customer, nama tidak jelas. DO NOT USE when customer is known and user wants debt/recap data (use get_customer_debt_summary or get_customer_recap_summary directly).",
       allowedRoles: customerRoles,
       requiresStore: true,
       inputSchema: z.object({
@@ -313,16 +362,24 @@ export function createAssistantToolRegistry(
       }).strict(),
       parametersJsonSchema: searchJsonSchema("Customer name, phone, company, or email. Use for discovery before a customer-specific summary."),
       retry: { maxAttempts: 2 },
+      errorCodes: ["STORE_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Alat customer",
       execute: (input, context) => {
         const { query, limit } = input as { query: string; limit: number };
         return repository.getCustomerSearch({ storeId: context.storeId!, query, limit });
       },
-      shapeOutput: (raw) => withKind("customer_search", raw as Record<string, unknown>),
+      shapeOutput: (raw) => {
+        const v = raw as { items?: unknown[]; total?: number; generatedAt?: string };
+        return withKind("customer_search", {
+          items: Array.isArray(v.items) ? v.items : [],
+          total: typeof v.total === "number" ? v.total : 0,
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
     }),
     createTool({
       name: "get_customer_debt_summary",
-      description: "Return debt context for one specific customer. Never use for global all-customer debt ranking or totals.",
+      description: "Return outstanding debt for one specific customer. USE for: piutang [pelanggan X], utang [nama], tagihan belum lunas. DO NOT USE for all-customer debt rankings or totals (not supported).",
       allowedRoles: customerRoles,
       requiresStore: true,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
@@ -334,16 +391,24 @@ export function createAssistantToolRegistry(
       }).strict(),
       parametersJsonSchema: queryJsonSchema("One specific customer name, phone, company, or email. Not for all-customer debt lists."),
       retry: { maxAttempts: 2 },
+      errorCodes: ["NOT_FOUND", "STORE_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Alat customer",
       execute: (input, context) => {
         const { query } = input as { query: string };
         return repository.getCustomerDebtSummary({ storeId: context.storeId!, query });
       },
-      shapeOutput: (raw) => withKind("customer_debt_summary", raw as Record<string, unknown>),
+      shapeOutput: (raw) => {
+        const v = raw as { match?: unknown; candidates?: unknown[]; generatedAt?: string };
+        return withKind("customer_debt_summary", {
+          match: v.match ?? null,
+          candidates: Array.isArray(v.candidates) ? v.candidates : undefined,
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
     }),
     createTool({
       name: "get_customer_recap_summary",
-      description: "Return the latest 30-day transaction recap for one specific customer.",
+      description: "Return 30-day transaction recap (total orders, revenue, debt paid) for one specific customer. USE for: rekap [pelanggan X], ringkasan transaksi pelanggan, riwayat belanja. DO NOT USE for global customer lists.",
       allowedRoles: customerRoles,
       requiresStore: true,
       inputSchema: z.object({
@@ -381,12 +446,136 @@ export function createAssistantToolRegistry(
         },
       },
       retry: { maxAttempts: 2 },
+      errorCodes: ["NOT_FOUND", "STORE_NOT_FOUND", "TIMEOUT"],
       sourceLabel: "Alat customer",
       execute: (input, context) => {
         const { query } = input as { query: string };
         return repository.getCustomerRecapSummary({ storeId: context.storeId!, query });
       },
-      shapeOutput: (raw) => withKind("customer_recap_summary", raw as Record<string, unknown>),
+      shapeOutput: (raw) => {
+        const v = raw as { match?: unknown; candidates?: unknown[]; generatedAt?: string };
+        return withKind("customer_recap_summary", {
+          match: v.match ?? null,
+          candidates: Array.isArray(v.candidates) ? v.candidates : undefined,
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
+    }),
+    createTool({
+      name: "get_supplier_search",
+      description: "Search active suppliers by name, phone, or contact person. USE for: cari supplier X, info pemasok, kontak distributor. DO NOT USE for supplier performance rankings (not supported).",
+      allowedRoles: ["OWNER", "ADMIN"],
+      requiresStore: false,
+      inputSchema: z.object({
+        query: z.string().min(1),
+        limit: z.number().int().min(1).max(10).default(10),
+      }).strict(),
+      outputSchema: z.object({
+        kind: z.literal("supplier_search"),
+        generatedAt: generatedAtSchema,
+        items: z.array(z.object({
+          id: z.string(),
+          name: z.string(),
+          type: z.string(),
+          phone: z.string().nullable().optional(),
+          contactPerson: z.string().nullable().optional(),
+          address: z.string().nullable().optional(),
+        })),
+        total: z.number(),
+      }).strict(),
+      parametersJsonSchema: searchJsonSchema("Supplier name, phone, or contact person."),
+      retry: { maxAttempts: 2 },
+      errorCodes: ["NOT_FOUND", "TIMEOUT"],
+      sourceLabel: "Alat supplier",
+      execute: (input) => {
+        const { query, limit } = input as { query: string; limit: number };
+        return repository.getSupplierSearch({ query, limit });
+      },
+      shapeOutput: (raw) => {
+        const v = raw as { items?: unknown[]; total?: number; generatedAt?: string };
+        return withKind("supplier_search", {
+          items: Array.isArray(v.items) ? v.items : [],
+          total: typeof v.total === "number" ? v.total : 0,
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
+    }),
+    createTool({
+      name: "get_top_products",
+      description: "Return top 10 best-selling products by revenue for one business date. USE for: produk terlaris, best seller hari ini, penjualan produk tertinggi tanggal X. DO NOT USE for general sales summary (use get_daily_sales_summary).",
+      allowedRoles: ["OWNER", "ADMIN"],
+      requiresStore: true,
+      inputSchema: z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format"),
+      }).strict(),
+      outputSchema: z.object({
+        kind: z.literal("top_products"),
+        generatedAt: generatedAtSchema,
+        date: z.string(),
+        items: z.array(z.object({
+          productId: z.string().nullable(),
+          productName: z.string(),
+          quantitySold: z.number(),
+          revenue: z.number(),
+        })),
+      }).strict(),
+      parametersJsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["date"],
+        properties: {
+          date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Business date in YYYY-MM-DD format." },
+        },
+      },
+      retry: { maxAttempts: 2 },
+      errorCodes: ["INVALID_DATE", "STORE_NOT_FOUND", "TIMEOUT"],
+      sourceLabel: "Alat produk terlaris",
+      execute: (input, context) => {
+        const { date } = input as { date: string };
+        return repository.getTopProducts({ storeId: context.storeId!, date });
+      },
+      shapeOutput: (raw) => {
+        const v = raw as { date?: string; items?: unknown[]; generatedAt?: string };
+        return withKind("top_products", {
+          date: typeof v.date === "string" ? v.date : "",
+          items: Array.isArray(v.items) ? v.items : [],
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
+    }),
+    createTool({
+      name: "get_pending_transactions",
+      description: "Return transactions with status PENDING_APPROVAL, DP (partial payment), or DRAFT. USE for: transaksi pending, belum lunas, DP, draft transaksi. DO NOT USE for completed transaction history (not supported here).",
+      allowedRoles: ["OWNER", "ADMIN", "CASHIER"],
+      requiresStore: true,
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({
+        kind: z.literal("pending_transactions"),
+        generatedAt: generatedAtSchema,
+        items: z.array(z.object({
+          id: z.string(),
+          invoiceNumber: z.string().nullable().optional(),
+          status: z.string(),
+          total: z.number(),
+          customerName: z.string().nullable().optional(),
+          createdAt: z.string(),
+          isJobOrder: z.boolean(),
+        })),
+        total: z.number(),
+      }).strict(),
+      parametersJsonSchema: emptyJsonSchema,
+      retry: { maxAttempts: 2 },
+      errorCodes: ["STORE_NOT_FOUND", "TIMEOUT"],
+      sourceLabel: "Alat transaksi pending",
+      execute: (_input, context) => repository.getPendingTransactions({ storeId: context.storeId!, limit: 20 }),
+      shapeOutput: (raw) => {
+        const v = raw as { items?: unknown[]; total?: number; generatedAt?: string };
+        return withKind("pending_transactions", {
+          items: Array.isArray(v.items) ? v.items : [],
+          total: typeof v.total === "number" ? v.total : 0,
+          generatedAt: v.generatedAt ?? new Date().toISOString(),
+        });
+      },
     }),
   ];
 }

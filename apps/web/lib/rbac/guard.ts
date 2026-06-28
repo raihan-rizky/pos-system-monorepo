@@ -149,7 +149,7 @@ export async function getCurrentUser() {
   if (!username) return null;
 
   return db.user.findFirst({
-    where: { username },
+    where: { username, isActive: true },
     select: {
       id: true,
       username: true,

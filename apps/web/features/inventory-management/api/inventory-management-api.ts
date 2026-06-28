@@ -193,9 +193,29 @@ export interface CreateInboundReceiptInput {
   }>;
 }
 
+export interface InboundReceiptListLine {
+  id: string;
+  productNameSnapshot: string | null;
+  skuSnapshot: string | null;
+  unitSnapshot: string | null;
+  expectedQuantity: number;
+  receivedQuantity: number;
+  status: string;
+  note: string | null;
+}
+
+export interface InboundReceiptListItem {
+  id: string;
+  status: InboundReceiptStatus;
+  createdAt: string;
+  supplier: { name: string } | null;
+  note: string | null;
+  lines: InboundReceiptListLine[];
+}
+
 export async function fetchInboundReceipts(input: {
   status?: InboundReceiptStatus;
-} = {}) {
+} = {}): Promise<InboundReceiptListItem[]> {
   const params = new URLSearchParams();
   if (input.status) params.set("status", input.status);
   const url = `/api/inventory-management/inbound-receipts${params.size ? `?${params}` : ""}`;
@@ -203,7 +223,7 @@ export async function fetchInboundReceipts(input: {
   if (!response.ok) {
     throw new Error("Failed to load inbound receipts");
   }
-  const body = (await response.json()) as { data: unknown[] };
+  const body = (await response.json()) as { data: InboundReceiptListItem[] };
   return body.data;
 }
 

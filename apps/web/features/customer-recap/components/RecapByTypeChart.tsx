@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/customers";
 import type { CustomerRecapData } from "../types/customer-recap";
+import { ChartAiInsightButton } from "@/features/chart-ai-insight/ChartAiInsightButton";
 
 interface RecapByTypeChartProps {
   rows: CustomerRecapData["byType"];
@@ -32,12 +33,20 @@ export function RecapByTypeChart({ rows }: RecapByTypeChartProps) {
 
   return (
     <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
-      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-        Tipe Pelanggan
-      </p>
-      <h3 className="mt-1 text-sm font-black text-slate-900">
-        Omzet dan piutang per tipe
-      </h3>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+            Tipe Pelanggan
+          </p>
+          <h3 className="mt-1 text-sm font-black text-slate-900">
+            Omzet dan piutang per tipe
+          </h3>
+        </div>
+        <ChartAiInsightButton
+          chartTitle="Omzet & Piutang per Tipe Pelanggan"
+          chartContext={JSON.stringify(data)}
+        />
+      </div>
       <div className="mt-4 h-64 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ left: 12, right: 12 }}>

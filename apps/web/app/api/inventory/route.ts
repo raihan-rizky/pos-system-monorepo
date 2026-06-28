@@ -147,7 +147,10 @@ export async function POST(request: Request) {
         productId: validatedData.productId,
         type: validatedData.type,
         reason: validatedData.reason,
-        quantity: Math.abs(validatedData.quantity),
+        quantity:
+          validatedData.type === "ADJUSTMENT"
+            ? validatedData.quantity
+            : Math.abs(validatedData.quantity),
         beforeStock: product.stock,
         stockDelta,
       });

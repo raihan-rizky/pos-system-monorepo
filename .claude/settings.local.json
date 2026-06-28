@@ -55,7 +55,10 @@
       "Bash(grep -n '$queryRaw\\\\|txMock\\\\|tx = {' 'D:\\\\main_project\\\\pos-system-monorepo\\\\apps\\\\web\\\\app\\\\api\\\\transactions\\\\[id]\\\\approve\\\\__tests__\\\\route.test.ts')",
       "Bash(grep *)",
       "Bash(npx vitest *)",
-      "Bash(pnpm *)"
+      "Bash(pnpm *)",
+      "Bash(findstr /i \"InventoryWorkspace\\\\|InboundReceiptTab\\\\|InventorySuratJalan\\\\|StockGroupBulk\\\\|error TS\")",
+      "Bash(git checkout *)",
+      "Bash(node *)"
     ]
   }
 }

@@ -11,10 +11,11 @@ import {
   appendUserMessage,
   completeAssistantActionLog,
   setAssistantFinalContent,
+  setAssistantFollowUps,
 } from "../helpers/chat-state";
 import { AssistantRequestError, sendChatMessage } from "../api/assistantApi";
 import type { AssistantStreamFrame, Message } from "../types/assistant";
-import { Send, Info, Bot, X, Trash2 } from "lucide-react";
+import { Send, Info, Bot, X, Trash2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { flushSync } from "react-dom";
 import { AssistantActionLog } from "./AssistantActionLog";
@@ -41,11 +42,11 @@ function formatMetadataTime(value: string) {
 
 function progressStatusLabel(status: Extract<AssistantStreamFrame, { type: "progress" }>["status"]) {
   const labels: Record<Extract<AssistantStreamFrame, { type: "progress" }>["status"], string> = {
-    planning: "Processing request",
-    tool_selected: "Data check selected",
-    tool_running: "Checking data",
-    tool_retrying: "Retrying data check",
-    answer_generating: "Preparing response",
+    planning: "Memproses permintaan",
+    tool_selected: "Memilih sumber data",
+    tool_running: "Mengecek data",
+    tool_retrying: "Mencoba ulang cek data",
+    answer_generating: "Menyiapkan jawaban",
   };
 
   return labels[status];
@@ -80,6 +81,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const storageKey = `${CHAT_HISTORY_KEY_PREFIX}${userRole}`;
 
   const [size, setSize] = useState<{ width?: number; height?: number }>({});
@@ -175,16 +177,15 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
   }, [messages, storageKey]);
 
   const handleClearChat = () => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus riwayat chat ini?")) {
-      activeRequestRef.current?.abort();
-      activeRequestRef.current = null;
-      setIsStreaming(false);
-      setMessages([]);
-      try {
-        localStorage.removeItem(storageKey);
-      } catch (e) {
-        console.warn("Failed to clear AI chat history", e);
-      }
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    setIsStreaming(false);
+    setShowClearConfirm(false);
+    setMessages([]);
+    try {
+      localStorage.removeItem(storageKey);
+    } catch (e) {
+      console.warn("Failed to clear AI chat history", e);
     }
   };
 
@@ -197,6 +198,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
   const maxChars = 2000;
   const chatRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastMessage = messages[messages.length - 1];
   const showTypingIndicator = isStreaming && !(lastMessage?.role === "assistant" && lastMessage.actionLog?.length);
 
@@ -227,6 +229,10 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(180, textareaRef.current.scrollHeight)}px`;
+    }
   };
 
   async function handleSend() {
@@ -262,15 +268,18 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
           continue;
         }
         if ("type" in parsed && parsed.type === "final") {
-          setMessages((current) => completeAssistantActionLog(
-            appendAssistantMetadata(
-              setAssistantFinalContent(current, parsed.answer.answerMarkdown),
-              {
-                sourceLabel: parsed.answer.sourceLabel,
-                generatedAt: parsed.answer.generatedAt,
-                sourceRefs: parsed.answer.sourceRefs,
-              },
+          setMessages((current) => setAssistantFollowUps(
+            completeAssistantActionLog(
+              appendAssistantMetadata(
+                setAssistantFinalContent(current, parsed.answer.answerMarkdown),
+                {
+                  sourceLabel: parsed.answer.sourceLabel,
+                  generatedAt: parsed.answer.generatedAt,
+                  sourceRefs: parsed.answer.sourceRefs,
+                },
+              ),
             ),
+            parsed.answer.followUps ?? [],
           ));
           continue;
         }
@@ -292,10 +301,10 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
       const isRejectedRequest = caught instanceof AssistantRequestError && (caught.status === 400 || caught.status === 413);
       const isAccessDenied = caught instanceof AssistantRequestError && (caught.status === 401 || caught.status === 403);
       const failureLabel = isRejectedRequest
-        ? "Request needs correction"
+        ? "Permintaan butuh perbaikan"
         : isAccessDenied
-          ? "Access denied"
-          : "Response interrupted";
+          ? "Akses ditolak"
+          : "Respons terputus";
       const safeMessage = isRejectedRequest
         ? caught.message
         : isAccessDenied
@@ -409,16 +418,33 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                 </span>
                 
                 <div className="flex items-center ml-2 border-l border-surface-600/50 pl-2 gap-1">
-                  <button
-                    onClick={handleClearChat}
-                    title="Hapus riwayat chat"
-                    className="p-1.5 rounded-full hover:bg-danger-500/20 hover:text-danger-400 text-surface-400 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {showClearConfirm ? (
+                    <>
+                      <button
+                        onClick={handleClearChat}
+                        className="px-2 py-1 text-[10px] font-semibold rounded-md bg-danger-500/20 text-danger-300 hover:bg-danger-500/30 transition-colors"
+                      >
+                        Hapus
+                      </button>
+                      <button
+                        onClick={() => setShowClearConfirm(false)}
+                        className="px-2 py-1 text-[10px] font-semibold rounded-md bg-surface-700/50 text-surface-300 hover:bg-surface-600/50 transition-colors"
+                      >
+                        Batal
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setShowClearConfirm(true)}
+                      title="Hapus riwayat chat"
+                      className="p-1.5 rounded-full hover:bg-danger-500/20 hover:text-danger-400 text-surface-400 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={handleClose}
-                    className="p-1.5 rounded-full hover:bg-surface-700/50 transition-colors"
+                    className="p-1.5 rounded-full hover:bg-surface-700/50 transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4 text-surface-400" />
                   </button>
@@ -464,6 +490,22 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                       </div>
                     ) : null}
                   </div>
+                  {message.role === "assistant" && message.followUps?.length ? (
+                    <div className="mt-2 flex max-w-full flex-wrap gap-2">
+                      {message.followUps.map((followUp) => (
+                        <button
+                          key={followUp}
+                          type="button"
+                          onClick={() => setInput(followUp)}
+                          disabled={isStreaming}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1.5 text-[11px] font-medium text-brand-200 transition-colors duration-200 hover:border-brand-400/60 hover:bg-brand-500/20 focus:outline-none focus:ring-2 focus:ring-brand-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Sparkles className="h-3 w-3" aria-hidden="true" />
+                          {followUp}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))}
               {showTypingIndicator ? (
@@ -486,22 +528,23 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
 
             <div className="relative border-t border-surface-700/50 bg-surface-800/50">
               <textarea
+                ref={textareaRef}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 rows={2}
                 maxLength={maxChars}
                 aria-describedby="assistant-character-limit"
-                className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-transparent border-none outline-none resize-none text-sm leading-relaxed text-surface-50 placeholder-surface-500 scrollbar-none h-[60px] sm:h-[80px]"
+                className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-transparent border-none outline-none resize-none text-sm leading-relaxed text-surface-50 placeholder-surface-500 scrollbar-none"
                 placeholder="Tanya AI, share ide, atau minta bantuan..."
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none", minHeight: "60px" }}
                 disabled={isStreaming}
               />
             </div>
 
             <div className="px-4 pb-4 pt-1 bg-surface-800/50">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1 max-w-[280px]">
+                <div className="flex flex-wrap items-center gap-2 scrollbar-none py-1 flex-1 min-w-0">
                   {templateQuestions.map((q, i) => (
                     <button
                       key={i}

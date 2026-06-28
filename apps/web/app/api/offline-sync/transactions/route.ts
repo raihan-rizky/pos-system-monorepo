@@ -187,12 +187,15 @@ async function syncOne(
   });
   const stockByProductId = new Map(products.map((product) => [product.id, product.stock]));
 
+  const subtotalFromServer = serverItems.reduce((s, i) => s + i.price * i.quantity, 0);
+  const cappedDiscount = Math.min(offlineTx.discount ?? 0, subtotalFromServer);
+
   const decision = buildOfflineSyncDecision(
     {
       clientMutationId: offlineTx.clientMutationId,
       createdAt: offlineTx.createdAt,
       items: serverItems,
-      discount: offlineTx.discount,
+      discount: cappedDiscount,
       originalTotal: offlineTx.originalTotal,
     },
     {

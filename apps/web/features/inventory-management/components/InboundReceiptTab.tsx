@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import { Loader2, PackageOpen, CheckCircle, Clock, XCircle, AlertTriangle } from "lucide-react";
-import { fetchInboundReceipts } from "../api/inventory-management-api";
+import { fetchInboundReceipts, type InboundReceiptListItem } from "../api/inventory-management-api";
 
 export const InboundReceiptTab: React.FC = () => {
-  const [receipts, setReceipts] = useState<any[]>([]);
+  const [receipts, setReceipts] = useState<InboundReceiptListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -78,12 +78,14 @@ export const InboundReceiptTab: React.FC = () => {
                 {receipts.map((receipt) => {
                   let StatusIcon = Clock;
                   let statusColor = "bg-slate-100 text-slate-700";
-                  const statusText = receipt.status;
 
                   if (receipt.status === "APPROVED") {
                     StatusIcon = CheckCircle;
                     statusColor = "bg-emerald-100 text-emerald-700";
-                  } else if (receipt.status === "DRAFT" || receipt.status === "SUBMITTED") {
+                  } else if (receipt.status === "DRAFT") {
+                    StatusIcon = Clock;
+                    statusColor = "bg-slate-100 text-slate-600";
+                  } else if (receipt.status === "SUBMITTED") {
                     StatusIcon = Clock;
                     statusColor = "bg-amber-100 text-amber-700";
                   } else if (receipt.status === "REJECTED" || receipt.status === "CANCELLED") {
@@ -94,6 +96,15 @@ export const InboundReceiptTab: React.FC = () => {
                     statusColor = "bg-orange-100 text-orange-700";
                   }
 
+                  const STATUS_LABELS: Record<string, string> = {
+                    DRAFT: "Draft",
+                    SUBMITTED: "Diajukan",
+                    APPROVED: "Disetujui",
+                    REJECTED: "Ditolak",
+                    CANCELLED: "Dibatalkan",
+                    NEEDS_REVISION: "Perlu Revisi",
+                  };
+                  const statusText = STATUS_LABELS[receipt.status] ?? receipt.status;
                   const totalItems = receipt.lines?.length || 0;
 
                   return (
@@ -151,7 +162,7 @@ export const InboundReceiptTab: React.FC = () => {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-slate-600">
-                                  {receipt.lines?.map((line: any) => (
+                                  {receipt.lines?.map((line) => (
                                     <tr key={line.id}>
                                       <td className="px-3 py-2">
                                         <div className="font-bold text-slate-800">{line.productNameSnapshot || 'Produk'}</div>

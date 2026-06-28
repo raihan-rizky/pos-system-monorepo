@@ -5,6 +5,8 @@ import { parseFastPathIntentAllowlist } from "@/features/ai-assistant/services/a
 import type { UserRole } from "@/features/ai-assistant/types/assistant";
 import { getCurrentUser } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
+import { captureException } from "@/lib/error-boundary";
+import { unifiedConfig } from "@/lib/config/unifiedConfig";
 
 // Force dynamic rendering — SSE streams must never be statically cached or buffered.
 export const dynamic = "force-dynamic";
@@ -70,12 +72,12 @@ async function timed<T>(operation: () => Promise<T>) {
 }
 
 function getNebiusConfig() {
-  const apiKey = process.env.NEBIUS_API_KEY?.trim();
+  const apiKey = unifiedConfig.ai.nebiusApiKey;
   if (!apiKey) {
     throw new Error("NEBIUS_API_KEY is not configured. Add it to apps/web/.env.local and restart the dev server.");
   }
 
-  const model = process.env.NEBIUS_MODEL?.trim();
+  const model = unifiedConfig.ai.nebiusModel;
   if (!model) {
     throw new Error("NEBIUS_MODEL is not configured. Add it to apps/web/.env.local and restart the dev server.");
   }
@@ -128,7 +130,7 @@ export async function POST(req: NextRequest) {
     });
 
     const { apiKey, model } = getNebiusConfig();
-    const fastPathIntents = parseFastPathIntentAllowlist(process.env.AI_FAST_PATH_INTENTS);
+    const fastPathIntents = parseFastPathIntentAllowlist(unifiedConfig.ai.fastPathIntents);
     requestLog.info("assistant.http.service.initialized", {
       model,
       fastPathIntentCount: fastPathIntents.size,
@@ -168,6 +170,7 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
+    captureException(error, { requestId, route: "/api/ai/chat" });
     requestLog.error("assistant.http.failed", {
       errorName: error instanceof Error ? error.name : "UnknownError",
       totalDurationMs: Date.now() - requestStartedAt,

@@ -1,3 +1,18 @@
+export interface StockGroupOption {
+  id: string;
+  displayName: string;
+  baseUnit: string;
+  baseStock: number;
+  variantCount: number;
+}
+
+export async function fetchStockGroups(signal?: AbortSignal): Promise<StockGroupOption[]> {
+  const response = await fetch("/api/product-stock-groups?limit=100&minVariants=2", { signal });
+  if (!response.ok) throw new Error("Gagal memuat grup stok");
+  const body = (await response.json()) as { data?: StockGroupOption[] };
+  return body.data ?? [];
+}
+
 export interface StockGroupDetail {
   id: string;
   displayName: string;
@@ -74,8 +89,8 @@ export interface AddVariantPayload {
   note?: string;
 }
 
-export async function fetchStockGroupDetail(groupId: string): Promise<StockGroupDetail> {
-  const response = await fetch(`/api/product-stock-groups/${groupId}`);
+export async function fetchStockGroupDetail(groupId: string, signal?: AbortSignal): Promise<StockGroupDetail> {
+  const response = await fetch(`/api/product-stock-groups/${groupId}`, { signal });
   if (!response.ok) throw new Error("Gagal memuat stok unit");
   return response.json();
 }

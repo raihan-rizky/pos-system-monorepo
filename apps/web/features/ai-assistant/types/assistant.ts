@@ -20,6 +20,7 @@ export interface Message {
   content: string;
   metadata?: AssistantMessageMetadata;
   actionLog?: AssistantActionLogEntry[];
+  followUps?: string[];
 }
 
 export interface PageContext {

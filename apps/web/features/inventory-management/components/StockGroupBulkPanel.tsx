@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Boxes, RefreshCw, Send } from "lucide-react";
 import { Button } from "@pos/ui";
 import { getDefaultProductImage } from "@/lib/utils";
@@ -9,21 +9,13 @@ import {
   submitStockGroupBulk,
   type StockGroupBulkPreview,
 } from "../api/inventory-management-api";
-import { fetchStockGroupDetail, type StockGroupDetail } from "@/features/product-stock-groups/api/stock-group-api";
-
-interface StockGroupOption {
-  id: string;
-  displayName: string;
-  baseUnit: string;
-  baseStock: number;
-  variantCount: number;
-}
+import { fetchStockGroupDetail, fetchStockGroups, type StockGroupDetail, type StockGroupOption } from "@/features/product-stock-groups/api/stock-group-api";
 
 function formatQty(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-export function StockGroupBulkPanel() {
+export const StockGroupBulkPanel: React.FC = () => {
   const [groups, setGroups] = useState<StockGroupOption[]>([]);
   const [groupId, setGroupId] = useState("");
   const [detail, setDetail] = useState<StockGroupDetail | null>(null);
@@ -38,14 +30,19 @@ export function StockGroupBulkPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const groupsAbortRef = useRef<AbortController | null>(null);
+  const detailAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    groupsAbortRef.current?.abort();
+    const ac = new AbortController();
+    groupsAbortRef.current = ac;
     setIsLoadingGroups(true);
-    fetch("/api/product-stock-groups?limit=100&minVariants=2")
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((body) => setGroups(body.data ?? []))
+    fetchStockGroups(ac.signal)
+      .then(setGroups)
       .catch(() => setError("Gagal memuat grup stok."))
-      .finally(() => setIsLoadingGroups(false));
+      .finally(() => { if (!ac.signal.aborted) setIsLoadingGroups(false); });
+    return () => ac.abort();
   }, []);
 
   useEffect(() => {
@@ -53,16 +50,23 @@ export function StockGroupBulkPanel() {
       setDetail(null);
       return;
     }
+    detailAbortRef.current?.abort();
+    const ac = new AbortController();
+    detailAbortRef.current = ac;
     setIsLoadingDetail(true);
     setError(null);
-    fetchStockGroupDetail(groupId)
+    fetchStockGroupDetail(groupId, ac.signal)
       .then((data) => {
+        if (ac.signal.aborted) return;
         setDetail(data);
         setVariantProductId(data.variants[0]?.id ?? "");
         setInputValue(formatQty(data.baseStock));
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat detail grup"))
-      .finally(() => setIsLoadingDetail(false));
+      .catch((err) => {
+        if (!ac.signal.aborted) setError(err instanceof Error ? err.message : "Gagal memuat detail grup");
+      })
+      .finally(() => { if (!ac.signal.aborted) setIsLoadingDetail(false); });
+    return () => ac.abort();
   }, [groupId]);
 
   const stockInput = useMemo(
@@ -186,7 +190,7 @@ export function StockGroupBulkPanel() {
                   type === mode ? "bg-slate-900 text-white" : "bg-white text-slate-600"
                 }`}
               >
-                {mode}
+                {mode === "ADJUSTMENT" ? "Penyesuaian" : "Keluarkan"}
               </button>
             ))}
           </div>
@@ -344,4 +348,6 @@ export function StockGroupBulkPanel() {
       </div>
     </div>
   );
-}
+};
+
+export default StockGroupBulkPanel;

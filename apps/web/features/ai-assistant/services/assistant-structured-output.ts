@@ -98,33 +98,51 @@ export function buildSafeAnswer(input: {
 }
 
 export function buildFinalAnswerInstruction() {
-  return `Return exactly one JSON object that matches this schema:
+  return `## TASK
+Compose one JSON object as the final answer to the user. Do NOT wrap it in markdown fences or add any text before/after.
+
+## OUTPUT SCHEMA
 {
-  "answerMarkdown": "string",
-  "dataStatus": "live_data | help_docs | no_data | error | no_tool_used",
-  "sourceLabel": "string",
-  "sourceRefs": ["string"],
-  "generatedAt": "string",
-  "followUps": ["string"]
+  "answerMarkdown": string,       // full user-facing answer in Indonesian
+  "dataStatus": enum,             // see DATASTATUS RULES below
+  "sourceLabel": string,          // human-readable source (e.g. "Alat stok rendah", "Dokumentasi bantuan")
+  "sourceRefs": string[],         // optional — doc filenames or tool IDs; omit if empty
+  "generatedAt": string,          // ISO timestamp from TOOL_OUTPUT.generatedAt, or now()
+  "followUps": string[]           // 0–3 follow-up suggestions; see FOLLOWUP RULES below
 }
 
-Rules:
-- Do not wrap the JSON in markdown fences.
-- Use answerMarkdown for the complete user-facing answer in Indonesian.
-- ALWAYS format lists, bullet points, or multiple items in answerMarkdown using proper Markdown lists with separate lines. Use the newline character to separate each item so it looks like:
-* Item 1
-* Item 2
-* Item 3
-Do NOT write lists, bullet points, or numbered items inline in a single line.
-- Use followUps for 0-3 short suggestions only.
-- If TOOL_OUTPUT is a valid empty result, clearly say no matching data was found and use dataStatus "no_data".
-- Reserve dataStatus "error" for failures; never describe a valid empty result as a tool failure.
-- If TOOL_OUTPUT is present, answer only from TOOL_OUTPUT.`;
+## DATASTATUS RULES (pick exactly one)
+- "live_data"     → TOOL_OUTPUT is present and contains real store data
+- "help_docs"     → TOOL_OUTPUT is present and contains documentation markdown
+- "no_data"       → TOOL_OUTPUT is a valid empty result (empty items array, null match)
+- "error"         → tool failed, was blocked by RBAC, or structured output could not be generated
+- "no_tool_used"  → answered from model knowledge without any tool (greetings, how-to without tool, etc.)
+
+## GROUNDING RULES
+- If TOOL_OUTPUT is present: base answerMarkdown ONLY on TOOL_OUTPUT. Do NOT add facts, names, numbers, or prices not in TOOL_OUTPUT.
+- If TOOL_OUTPUT is absent: answer from identity/capability knowledge only. Do NOT invent store data.
+- Empty result (zero items / null match) is NOT an error — use "no_data" and state clearly nothing was found.
+
+## FORMATTING RULES
+- Answer in Indonesian. Match the informal/friendly tone of Pak Teladan.
+- Do NOT use # or ## headings. Use ### or **bold** at most.
+- Format every list as separate Markdown lines, never inline. Example:
+  * Item A
+  * Item B
+- For numbers/prices/stock: use Markdown table or bullet list, not paragraphs.
+- Keep answers concise — this is a small chat widget.
+
+## FOLLOWUP RULES
+- 0 follow-ups for error, RBAC, or out-of-scope answers.
+- 1–3 follow-ups for data answers. Each must be a natural next question the user would actually ask, under 80 characters, in Indonesian.
+- Do NOT repeat what was just answered. Do NOT write meta-questions like "Mau tahu lebih lanjut?".`;
 }
 
 export function buildStructuredRepairInstruction(validationError: string) {
-  return `Your previous response did not match the required JSON schema.
-Validation error: ${validationError}
+  return `## REPAIR REQUIRED
+Your previous response failed JSON schema validation.
 
-Re-emit exactly one valid JSON object. Do not include markdown fences or explanation.`;
+Error: ${validationError}
+
+Fix the specific field that caused the error and re-emit exactly one valid JSON object. No markdown fences, no explanation — only the JSON.`;
 }

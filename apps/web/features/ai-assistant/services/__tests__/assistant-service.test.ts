@@ -11,6 +11,9 @@ const toolsRepository = {
   getCustomerSearch: vi.fn(),
   getCustomerDebtSummary: vi.fn(),
   getCustomerRecapSummary: vi.fn(),
+  getSupplierSearch: vi.fn(),
+  getTopProducts: vi.fn(),
+  getPendingTransactions: vi.fn(),
 };
 
 const finalAnswer = (answerMarkdown = "Ini jawabannya.") => ({
@@ -53,9 +56,9 @@ describe("AssistantService", () => {
 
   it("initializes with role-aware strict scope system prompt", () => {
     const prompt = service.buildSystemPrompt("OWNER");
-    expect(prompt).toContain("Store Owner");
-    expect(prompt).toContain("sistem POS ini");
-    expect(prompt).toContain("Jangan jawab di luar");
+    expect(prompt).toContain("Pemilik Toko");
+    expect(prompt).toContain("sistem POS Teladan");
+    expect(prompt).toContain("Tolak pertanyaan di luar");
     expect(prompt).toContain("Pak Teladan");
     expect(prompt).toContain("Tel");
     expect(prompt).toContain("Dan");
@@ -67,8 +70,8 @@ describe("AssistantService", () => {
     const cashierPrompt = service.buildSystemPrompt("CASHIER");
 
     expect(ownerPrompt).not.toBe(cashierPrompt);
-    expect(cashierPrompt).toContain("Cashier");
-    expect(ownerPrompt).toContain("Owner");
+    expect(cashierPrompt).toContain("Kasir");
+    expect(ownerPrompt).toContain("Pemilik Toko");
   });
 
   it("enforces RBAC at tool level - CASHIER cannot access sales data", () => {
@@ -86,7 +89,7 @@ describe("AssistantService", () => {
     expect(toolNames).toContain("get_low_stock_items");
     expect(toolNames).toContain("get_system_help");
     expect(tools.find((tool) => tool.name === "get_product_stock")?.description)
-      .toContain("broad low-stock questions");
+      .toContain("broad low-stock lists");
   });
 
   it("exposes role-filtered JSON schema tool contracts", () => {
@@ -95,7 +98,7 @@ describe("AssistantService", () => {
 
     expect(tools.map((tool) => tool.name)).not.toContain("get_daily_sales_summary");
     expect(stockTool).toEqual(expect.objectContaining({
-      description: expect.stringContaining("specific product"),
+      description: expect.stringContaining("specific named product"),
       parameters: expect.objectContaining({
         type: "object",
         additionalProperties: false,

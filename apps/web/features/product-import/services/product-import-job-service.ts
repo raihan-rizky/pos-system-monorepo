@@ -327,10 +327,11 @@ export async function retryProductImportJob(jobId: string, user: ProductImportAc
   });
 }
 
-export async function claimNextProductImportJob() {
+export async function claimNextProductImportJob(storeId: string) {
   const staleBefore = new Date(Date.now() - PRODUCT_IMPORT_JOB_STALE_MS);
   const candidate = await db.productImportJob.findFirst({
     where: {
+      storeId,
       OR: [
         { status: "PENDING" },
         { status: "RUNNING", OR: [{ lastHeartbeatAt: null }, { lastHeartbeatAt: { lt: staleBefore } }] },
@@ -686,8 +687,8 @@ export async function processProductImportJob(jobId: string) {
   });
 }
 
-export async function processNextProductImportJob() {
-  const job = await claimNextProductImportJob();
+export async function processNextProductImportJob(storeId: string) {
+  const job = await claimNextProductImportJob(storeId);
   if (!job) return null;
   return processProductImportJob(job.id);
 }

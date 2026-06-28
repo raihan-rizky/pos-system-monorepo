@@ -49,6 +49,7 @@ import { InternalUseRecapPanel } from "@/features/internal-use-recap";
 import { InventorySuratJalanTab } from "./InventorySuratJalanTab";
 import { InboundReceiptTab } from "./InboundReceiptTab";
 import { StockGroupBulkPanel } from "./StockGroupBulkPanel";
+import { ChartAiInsightButton } from "@/features/chart-ai-insight/ChartAiInsightButton";
 
 
 const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
@@ -560,8 +561,12 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-black text-amber-800">
-              {initialSummary.urgentCount} tugas urgent
+            <div className={`rounded-xl border px-4 py-2 text-sm font-black ${
+              initialSummary.urgentCount > 0
+                ? "border-amber-200 bg-amber-50 text-amber-800"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}>
+              {initialSummary.urgentCount > 0 ? `${initialSummary.urgentCount} tugas urgent` : "Semua selesai"}
             </div>
 
             {/* Consolidate input workflows to a single dropdown button */}
@@ -668,14 +673,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
         </div>
       </div>
 
-      {activeTab === "Ringkasan" && (
-        <>
-
-
       {(statusMessage || errorMessage) && (
         <div
           role="status"
-          className={`mx-4 mt-4 mb-4 rounded-lg border px-4 py-3 text-sm font-bold md:mx-6 md:mt-6 ${
+          className={`mx-4 mt-4 rounded-lg border px-4 py-3 text-sm font-bold md:mx-6 md:mt-4 ${
             errorMessage
               ? "border-rose-200 bg-rose-50 text-rose-700"
               : "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -685,8 +686,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
         </div>
       )}
 
+      {activeTab === "Ringkasan" && (
+        <>
       {/* Main Dashboard Grid */}
-      <section className="grid gap-6 px-4 pt-4 pb-6 md:grid-cols-3 md:px-6 md:pt-6">
+      <section className="mx-auto w-full max-w-[96rem] grid gap-6 px-4 pt-4 pb-6 md:grid-cols-3 md:px-6 md:pt-6">
         {/* Status Checklist / Tasks */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -925,7 +928,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
         {/* Charts Section */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2 flex flex-col">
           <div className="flex items-center gap-1.5 mb-4">
-            <h2 className="text-base font-bold text-slate-900">Volume Inbound vs Outbound (7 Hari)</h2>
+            <h2 className="text-base font-bold text-slate-900 flex-1">Volume Inbound vs Outbound (7 Hari)</h2>
             <div className="group relative flex items-center">
               <Info className="h-4 w-4 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
               <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-56 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-100">
@@ -935,6 +938,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 </div>
               </div>
             </div>
+            <ChartAiInsightButton
+              chartTitle="Volume Inbound vs Outbound (7 Hari)"
+              chartContext={JSON.stringify(initialSummary.chartData?.inboundOutbound ?? [])}
+            />
           </div>
           <div className="h-64 w-full flex-1">
             <ResponsiveContainer width="100%" height="100%">

@@ -514,7 +514,7 @@ async function applyBulkProductInserts(tx: Tx, inserts: BulkProductInsert[]) {
   `;
 }
 
-async function applyBulkProductUpdates(tx: Tx, updates: BulkProductUpdate[]) {
+async function applyBulkProductUpdates(tx: Tx, updates: BulkProductUpdate[], storeId: string) {
   if (updates.length === 0) return;
 
   const ids = updates.map((r) => r.id);
@@ -564,6 +564,7 @@ async function applyBulkProductUpdates(tx: Tx, updates: BulkProductUpdate[]) {
       "imageUrl", "categoryId", "stockGroupId"
     )
     WHERE p.id = v.id
+      AND p."storeId" = ${storeId}
   `;
 }
 
@@ -1015,7 +1016,7 @@ async function processResolvedRows(input: {
   // --- Bulk execution phase ---
   await applyBulkStockGroupUpdates(input.tx, bulkStockGroupUpdates);
   await applyBulkProductInserts(input.tx, bulkProductInserts);
-  await applyBulkProductUpdates(input.tx, bulkProductUpdates);
+  await applyBulkProductUpdates(input.tx, bulkProductUpdates, input.storeId);
   await applyBulkPriceUpdates(input.tx, bulkPriceUpdates);
 
   if (inventoryLogsToCreate.length > 0) {

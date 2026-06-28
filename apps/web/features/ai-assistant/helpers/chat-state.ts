@@ -115,6 +115,12 @@ export function appendAssistantRequestStatus(messages: Message[], occurredAt: st
   });
 }
 
+export function setAssistantFollowUps(messages: Message[], followUps: string[]): Message[] {
+  const last = messages[messages.length - 1];
+  if (last?.role !== "assistant") return messages;
+  return [...messages.slice(0, -1), { ...last, followUps }];
+}
+
 export function keepRecentMessages(messages: Message[]): Message[] {
   return messages.length > 20 ? messages.slice(-20) : messages;
 }

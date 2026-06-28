@@ -168,6 +168,123 @@ export async function PATCH(
       );
     }
 
+    // ── Void reversal: restore stock, reverse inventory logs & customer analytics ──
+    if (status === "VOIDED" && VOID_REVERSIBLE.has(existingTransaction.status)) {
+      // Run entire void (update + side-effects) atomically
+      await db.$transaction(async (tx) => {
+        const voidedTx = await tx.transaction.update({
+          where: { id },
+          data: updateData,
+          select: {
+            id: true,
+            invoiceNumber: true,
+            customerId: true,
+            total: true,
+            amountPaid: true,
+            status: true,
+            items: {
+              select: {
+                productId: true,
+                productName: true,
+                quantity: true,
+                unitCost: true,
+              },
+            },
+          },
+        });
+
+        const productItems = voidedTx.items.filter(
+          (item): item is typeof item & { productId: string } =>
+            item.productId !== null,
+        );
+
+        // 1. Restore stock
+        await applyProductStockDeltas(tx as any, {
+          storeId,
+          items: productItems.map((item) => ({
+            productId: item.productId,
+            delta: item.quantity,
+          })),
+          allowNegative: true,
+        });
+
+        // 2. Inventory log entries
+        if (productItems.length > 0) {
+          await tx.inventoryLog.createMany({
+            data: productItems.map((item) => ({
+              productId: item.productId,
+              type: "IN" as const,
+              reason: "SALE_RETURN" as const,
+              quantity: item.quantity,
+              unitCost: item.unitCost === null || item.unitCost === undefined
+                ? null
+                : Number(item.unitCost.toString()),
+              note: `Void transaksi ${voidedTx.invoiceNumber} - ${item.productName}`,
+              createdBy: user.id,
+              person: user.name ?? null,
+            })),
+          });
+        }
+
+        // 3. Reverse customer analytics
+        if (voidedTx.customerId) {
+          const existingCustomer = await tx.customer.findUnique({
+            where: { id: voidedTx.customerId },
+            select: { totalSpent: true, totalOrders: true, totalDebt: true },
+          });
+
+          if (existingCustomer) {
+            const total = Number(voidedTx.total);
+            const amountPaid = Math.min(Number(voidedTx.amountPaid), total);
+            const wasDp = existingTransaction.status === "DP";
+            const debtDecrement = wasDp ? Math.max(0, total - amountPaid) : 0;
+
+            await tx.customer.update({
+              where: { id: voidedTx.customerId },
+              data: {
+                totalSpent: Math.max(0, Number(existingCustomer.totalSpent) - amountPaid),
+                totalOrders: Math.max(0, existingCustomer.totalOrders - 1),
+                ...(debtDecrement > 0
+                  ? { totalDebt: Math.max(0, Number(existingCustomer.totalDebt) - debtDecrement) }
+                  : {}),
+              },
+            });
+          }
+        }
+
+        return voidedTx;
+      });
+
+      const updated = await db.transaction.findUniqueOrThrow({
+        where: { id },
+        include: {
+          items: {
+            select: {
+              id: true,
+              productName: true,
+              size: true,
+              material: true,
+              quantity: true,
+              unitPrice: true,
+              pricingRuleId: true,
+              pricingCustomerType: true,
+              pricingCategoryId: true,
+              pricingCategoryName: true,
+              pricingMode: true,
+              pricingValue: true,
+              originalUnitPrice: true,
+              appliedUnitPrice: true,
+              subtotal: true,
+              productId: true,
+              unitCost: true,
+            },
+          },
+          cashier: { select: { name: true } },
+        },
+      });
+      return NextResponse.json(updated);
+    }
+
     const updated = await db.transaction.update({
       where: { id },
       data: updateData,
@@ -196,101 +313,6 @@ export async function PATCH(
         cashier: { select: { name: true } },
       },
     });
-
-    // ── Void reversal: restore stock, reverse inventory logs & customer analytics ──
-    if (status === "VOIDED" && VOID_REVERSIBLE.has(existingTransaction.status)) {
-      const voidedTx = await db.transaction.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          invoiceNumber: true,
-          customerId: true,
-          total: true,
-          amountPaid: true,
-          status: true,
-          items: {
-            select: {
-              productId: true,
-              productName: true,
-              quantity: true,
-              unitCost: true,
-            },
-          },
-        },
-      });
-
-      if (voidedTx) {
-        after(async () => {
-          try {
-            const productItems = voidedTx.items.filter(
-              (item): item is typeof item & { productId: string } =>
-                item.productId !== null,
-            );
-
-            // 1. Restore stock for each product item
-            await applyProductStockDeltas(db as any, {
-              storeId,
-              items: productItems.map((item) => ({
-                productId: item.productId,
-                delta: item.quantity,
-              })),
-              allowNegative: true,
-            });
-
-            // 2. Create void reversal inventory log entries (IN type, SALE_RETURN reason)
-            const voidInventoryRows = productItems.map((item) => ({
-              productId: item.productId,
-              type: "IN" as const,
-              reason: "SALE_RETURN" as const,
-              quantity: item.quantity,
-              unitCost: item.unitCost === null || item.unitCost === undefined
-                ? null
-                : Number(item.unitCost.toString()),
-              note: `Void transaksi ${voidedTx.invoiceNumber} - ${item.productName}`,
-              createdBy: user.id,
-              person: user.name ?? null,
-            }));
-
-            if (voidInventoryRows.length > 0) {
-              await db.inventoryLog.createMany({ data: voidInventoryRows });
-            }
-
-            // 3. Reverse customer analytics (guard against negative values)
-            if (voidedTx.customerId) {
-              const existingCustomer = await db.customer.findUnique({
-                where: { id: voidedTx.customerId },
-                select: { totalSpent: true, totalOrders: true, totalDebt: true },
-              });
-
-              if (existingCustomer) {
-                const total = Number(voidedTx.total);
-                const amountPaid = Math.min(Number(voidedTx.amountPaid), total);
-                const wasDp = existingTransaction.status === "DP";
-                const debtDecrement = wasDp
-                  ? Math.max(0, total - amountPaid)
-                  : 0;
-
-                await db.customer.update({
-                  where: { id: voidedTx.customerId },
-                  data: {
-                    totalSpent: Math.max(0, Number(existingCustomer.totalSpent) - amountPaid),
-                    totalOrders: Math.max(0, existingCustomer.totalOrders - 1),
-                    ...(debtDecrement > 0
-                      ? { totalDebt: Math.max(0, Number(existingCustomer.totalDebt) - debtDecrement) }
-                      : {}),
-                  },
-                });
-              }
-            }
-          } catch (sideEffectError) {
-            log.error(
-              `Void reversal side effects failed for ${voidedTx?.invoiceNumber}:`,
-              sideEffectError,
-            );
-          }
-        });
-      }
-    }
 
     return NextResponse.json(updated);
   } catch (error: any) {
@@ -357,79 +379,73 @@ export async function DELETE(
       });
 
       if (txToRevert) {
-        // Restore stock for each product item
         const productItems = txToRevert.items.filter(
           (item): item is typeof item & { productId: string } =>
             item.productId !== null,
         );
 
-        if (productItems.length > 0) {
-          await applyProductStockDeltas(db as any, {
-            storeId,
-            items: productItems.map((item) => ({
-              productId: item.productId,
-              delta: item.quantity,
-            })),
-            allowNegative: true,
-          });
+        // Delete + stock restore + log + customer update — all atomic
+        await db.$transaction(async (tx: Prisma.TransactionClient) => {
+          await tx.transactionItem.deleteMany({ where: { transactionId: id } });
+          await tx.transaction.delete({ where: { id } });
 
-          // Create inventory log entries for the restoration
-          const voidInventoryRows = productItems.map((item) => ({
-            productId: item.productId,
-            type: "IN" as const,
-            reason: "SALE_RETURN" as const,
-            quantity: item.quantity,
-            unitCost:
-              item.unitCost === null || item.unitCost === undefined
-                ? null
-                : Number(item.unitCost.toString()),
-            note: `Delete transaksi ${txToRevert.invoiceNumber} - ${item.productName}`,
-            createdBy: user.id,
-            person: user.name ?? null,
-          }));
+          if (productItems.length > 0) {
+            await applyProductStockDeltas(tx as any, {
+              storeId,
+              items: productItems.map((item) => ({
+                productId: item.productId,
+                delta: item.quantity,
+              })),
+              allowNegative: true,
+            });
 
-          await db.inventoryLog.createMany({ data: voidInventoryRows });
-        }
-
-        // Reverse customer analytics
-        if (txToRevert.customerId) {
-          const existingCustomer = await db.customer.findUnique({
-            where: { id: txToRevert.customerId },
-            select: { totalSpent: true, totalOrders: true, totalDebt: true },
-          });
-
-          if (existingCustomer) {
-            const total = Number(txToRevert.total);
-            const amountPaid = Math.min(Number(txToRevert.amountPaid), total);
-            const wasDp = txToRevert.status === "DP";
-            const debtDecrement = wasDp
-              ? Math.max(0, total - amountPaid)
-              : 0;
-
-            await db.customer.update({
-              where: { id: txToRevert.customerId },
-              data: {
-                totalSpent: Math.max(
-                  0,
-                  Number(existingCustomer.totalSpent) - amountPaid,
-                ),
-                totalOrders: Math.max(0, existingCustomer.totalOrders - 1),
-                ...(debtDecrement > 0
-                  ? {
-                      totalDebt: Math.max(
-                        0,
-                        Number(existingCustomer.totalDebt) - debtDecrement,
-                      ),
-                    }
-                  : {}),
-              },
+            await tx.inventoryLog.createMany({
+              data: productItems.map((item) => ({
+                productId: item.productId,
+                type: "IN" as const,
+                reason: "SALE_RETURN" as const,
+                quantity: item.quantity,
+                unitCost:
+                  item.unitCost === null || item.unitCost === undefined
+                    ? null
+                    : Number(item.unitCost.toString()),
+                note: `Delete transaksi ${txToRevert.invoiceNumber} - ${item.productName}`,
+                createdBy: user.id,
+                person: user.name ?? null,
+              })),
             });
           }
-        }
+
+          if (txToRevert.customerId) {
+            const existingCustomer = await tx.customer.findUnique({
+              where: { id: txToRevert.customerId },
+              select: { totalSpent: true, totalOrders: true, totalDebt: true },
+            });
+
+            if (existingCustomer) {
+              const total = Number(txToRevert.total);
+              const amountPaid = Math.min(Number(txToRevert.amountPaid), total);
+              const wasDp = txToRevert.status === "DP";
+              const debtDecrement = wasDp ? Math.max(0, total - amountPaid) : 0;
+
+              await tx.customer.update({
+                where: { id: txToRevert.customerId },
+                data: {
+                  totalSpent: Math.max(0, Number(existingCustomer.totalSpent) - amountPaid),
+                  totalOrders: Math.max(0, existingCustomer.totalOrders - 1),
+                  ...(debtDecrement > 0
+                    ? { totalDebt: Math.max(0, Number(existingCustomer.totalDebt) - debtDecrement) }
+                    : {}),
+                },
+              });
+            }
+          }
+        });
+        return new NextResponse(null, { status: 204 });
       }
     }
 
-    // Delete items first (referential integrity), then the transaction
+    // No stock to restore — just delete atomically
     await db.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.transactionItem.deleteMany({ where: { transactionId: id } });
       await tx.transaction.delete({ where: { id } });

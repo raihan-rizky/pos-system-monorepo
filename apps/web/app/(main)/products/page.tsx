@@ -33,6 +33,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ImagePlus,
 } from "lucide-react";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import ProductTable from "@/components/inventory/ProductTable";
@@ -88,6 +89,11 @@ const BulkStockDrawer = lazy(() =>
 const BulkStockGroupDrawer = lazy(() =>
   import("@/features/product-stock-groups/components/BulkStockGroupDrawer").then(
     (mod) => ({ default: mod.BulkStockGroupDrawer }),
+  ),
+);
+const BulkPhotoImportDrawer = lazy(() =>
+  import("@/features/product-import/components/BulkPhotoImportDrawer").then(
+    (mod) => ({ default: mod.BulkPhotoImportDrawer }),
   ),
 );
 
@@ -237,6 +243,7 @@ function ProductsContent() {
   const invalidatedImportJobIdRef = useRef<string | null>(null);
   const [isBulkStockOpen, setIsBulkStockOpen] = useState(false);
   const [isBulkStockGroupOpen, setIsBulkStockGroupOpen] = useState(false);
+  const [isBulkPhotoImportOpen, setIsBulkPhotoImportOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(
     new Set(),
   );
@@ -560,6 +567,27 @@ function ProductsContent() {
                           </span>
                           <span className="block text-xs font-semibold text-slate-500">
                             Restock or set stock from Excel.
+                          </span>
+                        </span>
+                      </button>
+                    )}
+                    {canUpdateProducts && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsImportMenuOpen(false);
+                          setIsBulkPhotoImportOpen(true);
+                        }}
+                        className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-slate-50"
+                      >
+                        <ImagePlus className="mt-0.5 h-4 w-4 text-purple-600" />
+                        <span>
+                          <span className="block font-black text-slate-900">
+                            Import Foto Produk
+                          </span>
+                          <span className="block text-xs font-semibold text-slate-500">
+                            Upload foto dari folder berdasarkan SKU.
                           </span>
                         </span>
                       </button>
@@ -1171,6 +1199,15 @@ function ProductsContent() {
               statsQuery.refetch();
             }}
             products={selectedProducts}
+          />
+        )}
+        {isBulkPhotoImportOpen && (
+          <BulkPhotoImportDrawer
+            open={isBulkPhotoImportOpen}
+            onClose={() => {
+              setIsBulkPhotoImportOpen(false);
+              productsQuery.refetch();
+            }}
           />
         )}
       </Suspense>

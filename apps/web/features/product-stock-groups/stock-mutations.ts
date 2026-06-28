@@ -54,29 +54,6 @@ export async function applyProductStockDelta(
     conversionNeedsReview: true,
     stockGroup: { select: { id: true, baseStock: true } },
   };
-  if (
-    tx.product &&
-    typeof tx.product.findFirst !== "function" &&
-    typeof tx.product.findUnique !== "function" &&
-    typeof tx.product.update === "function" &&
-    input.currentStock === undefined &&
-    input.productInfo === undefined
-  ) {
-    await tx.product.update({
-      where: { id: input.productId },
-      data:
-        input.delta > 0
-          ? { stock: { increment: input.delta } }
-          : { stock: { decrement: Math.abs(input.delta) } },
-    });
-    return {
-      productId: input.productId,
-      stockGroupId: null,
-      beforeStock: 0,
-      afterStock: input.delta,
-      baseDelta: input.delta,
-    };
-  }
   const product = input.productInfo
     ? input.productInfo
     : typeof tx.product.findFirst === "function"
@@ -289,6 +266,19 @@ export async function applyProductStockDeltas(
           productId: values[0]?.[0] ?? "",
         });
       }
+      return [];
+    }
+    if (values.every(([, delta]) => delta > 0)) {
+      const productIds = values.map(([productId]) => productId);
+      const quantities = values.map(([, delta]) => delta);
+      await (tx as any).$queryRaw`
+        UPDATE pos_products AS p
+        SET stock = p.stock + v.qty
+        FROM unnest(${productIds}::text[], ${quantities}::float8[])
+          AS v(id, qty)
+        WHERE p.id = v.id
+          AND p."storeId" = ${input.storeId}
+      `;
       return [];
     }
   }

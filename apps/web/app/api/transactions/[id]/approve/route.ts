@@ -48,6 +48,9 @@ export async function POST(
       return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
     }
 
+    if (transaction.status === "COMPLETED" || transaction.status === "VOIDED") {
+      return NextResponse.json({ message: "Transaksi sudah selesai" }, { status: 409 });
+    }
     const isSalesRequestedInvoice =
       Boolean(transaction.requestedById) && !transaction.cashierId;
     if (transaction.status !== "PENDING_APPROVAL" && !isSalesRequestedInvoice) {

@@ -270,6 +270,77 @@ export async function getCustomerRecapSummary({ storeId, query, now = new Date()
   };
 }
 
+export async function getSupplierSearch({ query, limit = 10 }: { query: string; limit?: number }) {
+  const suppliers = await db.supplier.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { name: { contains: query, mode: "insensitive" } },
+        { phone: { contains: query, mode: "insensitive" } },
+        { contactPerson: { contains: query, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, name: true, type: true, phone: true, contactPerson: true, address: true },
+    orderBy: { name: "asc" },
+    take: limit,
+  });
+  return { items: suppliers, total: suppliers.length, generatedAt: new Date().toISOString() };
+}
+
+export async function getTopProducts({ storeId, date }: { storeId: string; date: string }) {
+  const { start, end } = startAndEndOfDate(date);
+  const items = await db.transactionItem.groupBy({
+    by: ["productId", "productName"],
+    where: {
+      transaction: { storeId, status: "COMPLETED", createdAt: { gte: start, lte: end } },
+      productId: { not: null },
+    },
+    _sum: { quantity: true, subtotal: true },
+    orderBy: { _sum: { subtotal: "desc" } },
+    take: 10,
+  });
+  return {
+    date,
+    items: items.map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      quantitySold: item._sum.quantity ?? 0,
+      revenue: toNumber(item._sum.subtotal as DecimalLike),
+    })),
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+export async function getPendingTransactions({ storeId, limit = 20 }: { storeId: string; limit?: number }) {
+  const transactions = await db.transaction.findMany({
+    where: { storeId, status: { in: ["PENDING_APPROVAL", "DP", "DRAFT"] } },
+    select: {
+      id: true,
+      invoiceNumber: true,
+      status: true,
+      total: true,
+      customerName: true,
+      createdAt: true,
+      isJobOrder: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return {
+    items: transactions.map((t) => ({
+      id: t.id,
+      invoiceNumber: t.invoiceNumber,
+      status: t.status,
+      total: toNumber(t.total as DecimalLike),
+      customerName: t.customerName,
+      createdAt: t.createdAt.toISOString(),
+      isJobOrder: t.isJobOrder,
+    })),
+    total: transactions.length,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 export async function getSystemHelp({ query }: { query: string }) {
   const normalized = query.toLowerCase();
   const matches = HELP_DOCS.filter((doc) =>

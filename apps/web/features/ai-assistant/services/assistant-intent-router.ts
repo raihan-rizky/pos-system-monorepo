@@ -9,7 +9,10 @@ type ToolIntent =
   | { kind: "tool"; toolName: "get_product_price"; input: { query: string } }
   | { kind: "tool"; toolName: "get_customer_search"; input: { query: string; limit: number } }
   | { kind: "tool"; toolName: "get_customer_debt_summary"; input: { query: string } }
-  | { kind: "tool"; toolName: "get_customer_recap_summary"; input: { query: string; preset: "30d" } };
+  | { kind: "tool"; toolName: "get_customer_recap_summary"; input: { query: string; preset: "30d" } }
+  | { kind: "tool"; toolName: "get_supplier_search"; input: { query: string; limit: number } }
+  | { kind: "tool"; toolName: "get_top_products"; input: { date: string } }
+  | { kind: "tool"; toolName: "get_pending_transactions"; input: Record<string, never> };
 
 type AssistantIntent =
   | ToolIntent
@@ -31,6 +34,9 @@ const FAST_PATH_INTENT_NAMES = new Set<FastPathIntentName>([
   "get_customer_search",
   "get_customer_debt_summary",
   "get_customer_recap_summary",
+  "get_supplier_search",
+  "get_top_products",
+  "get_pending_transactions",
   "social_static",
   "out_of_scope",
   "unsupported_data",
@@ -156,6 +162,17 @@ export function routeAssistantIntent(message: string, now: Date = new Date()): A
 
   if (/^(?:bagaimana cara|cara|bantuan|help|tolong jelaskan cara)\s+.+[!?.]*$/.test(text)) {
     return { kind: "tool", toolName: "get_system_help", input: { query: original } };
+  }
+
+  const supplierSearch = capture(text, /^(?:cari supplier|cari pemasok|search supplier)\s+(.+?)[!?.]*$/);
+  if (supplierSearch) return { kind: "tool", toolName: "get_supplier_search", input: { query: supplierSearch, limit: 10 } };
+
+  if (/^(?:(?:cek|lihat|tampilkan) )?(?:(?:daftar|list) )?(?:transaksi )?(?:pending|belum lunas|belum selesai|dp|draft)[!?.]*$/.test(text)) {
+    return { kind: "tool", toolName: "get_pending_transactions", input: {} };
+  }
+
+  if (/^(?:produk|barang) (?:terlaris|best seller|paling laku|paling banyak terjual)(?: hari ini| today)?[!?.]*$/.test(text)) {
+    return { kind: "tool", toolName: "get_top_products", input: { date: isoDateInJakarta(now) } };
   }
 
   if (/^(?:supplier|pemasok) (?:mana|apa|berapa|terbesar|ranking|terbanyak|yang paling sering)(?:\s+.+)?[!?.]*$/.test(text)) {

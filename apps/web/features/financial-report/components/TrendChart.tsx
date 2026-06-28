@@ -14,6 +14,7 @@ import {
 import { TrendingUp } from "lucide-react";
 import { formatRupiah, formatRupiahCompact } from "@/lib/utils";
 import type { TrendSeries } from "@/features/financial-report/helpers/report-core";
+import { ChartAiInsightButton } from "@/features/chart-ai-insight/ChartAiInsightButton";
 
 interface TrendChartProps {
   trend: TrendSeries | undefined;
@@ -130,7 +131,7 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(
             className="w-1.5 h-5 rounded-full bg-brand-500"
             aria-hidden="true"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold text-surface-900">
               Tren Omzet, Cost & Laba Kotor
             </h2>
@@ -140,6 +141,12 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(
               </p>
             )}
           </div>
+          {trend && hasData && (
+            <ChartAiInsightButton
+              chartTitle="Tren Omzet, Cost & Laba Kotor"
+              chartContext={JSON.stringify(trend.points.slice(-14))}
+            />
+          )}
         </header>
 
         <div className="px-3 py-4 md:px-5">

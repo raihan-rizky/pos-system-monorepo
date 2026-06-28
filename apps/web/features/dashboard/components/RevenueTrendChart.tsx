@@ -4,6 +4,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 import { formatRupiah } from "@/lib/utils";
 import type { RevenueChartPoint } from "../types";
+import { ChartAiInsightButton } from "@/features/chart-ai-insight/ChartAiInsightButton";
 
 const ResponsiveContainer = dynamic(
   () => import("recharts").then((m) => m.ResponsiveContainer),
@@ -58,7 +59,14 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
       );
     }
     return (
-      <div className="h-[300px] w-full">
+      <div className="relative">
+        <div className="absolute right-0 top-0 z-10">
+          <ChartAiInsightButton
+            chartTitle="Tren Revenue 7 Hari"
+            chartContext={JSON.stringify(data)}
+          />
+        </div>
+        <div className="h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%" minHeight={300}>
           <AreaChart
             data={data}
@@ -132,6 +140,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
             />
           </AreaChart>
         </ResponsiveContainer>
+        </div>
       </div>
     );
   },

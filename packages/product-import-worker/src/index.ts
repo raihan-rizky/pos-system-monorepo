@@ -5,6 +5,12 @@ const productImportJobs = await import(
 const POLL_INTERVAL_MS = Number(process.env.PRODUCT_IMPORT_WORKER_POLL_MS ?? 2_000);
 const ERROR_BACKOFF_MS = Number(process.env.PRODUCT_IMPORT_WORKER_ERROR_BACKOFF_MS ?? 30_000);
 
+function getWorkerStoreId() {
+  const storeId = process.env.PRODUCT_IMPORT_WORKER_STORE_ID;
+  if (!storeId) throw new Error("PRODUCT_IMPORT_WORKER_STORE_ID env var is required");
+  return storeId;
+}
+
 let stopping = false;
 
 function log(message: string, meta?: Record<string, unknown>) {
@@ -22,7 +28,7 @@ async function sleep(ms: number) {
 }
 
 async function runOnce() {
-  const job = await productImportJobs.processNextProductImportJob();
+  const job = await productImportJobs.processNextProductImportJob(getWorkerStoreId());
   if (job) {
     log("job.processed", { jobId: job.id, status: job.status });
     return true;
