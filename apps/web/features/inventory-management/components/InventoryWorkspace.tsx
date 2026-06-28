@@ -49,7 +49,10 @@ import { InternalUseRecapPanel } from "@/features/internal-use-recap";
 import { InventorySuratJalanTab } from "./InventorySuratJalanTab";
 import { InboundReceiptTab } from "./InboundReceiptTab";
 import { StockGroupBulkPanel } from "./StockGroupBulkPanel";
+import { InventoryDaySessionPanel } from "./InventoryDaySessionPanel";
+import { InventoryDaySessionHistory } from "./InventoryDaySessionHistory";
 import { ChartAiInsightButton } from "@/features/chart-ai-insight/ChartAiInsightButton";
+import type { InventoryDaySessionPreview } from "../api/inventory-management-api";
 
 
 const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
@@ -122,6 +125,8 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   const [checklistItems, setChecklistItems] = React.useState<TaskChecklistItem[]>([]);
   const [checklistError, setChecklistError] = React.useState<string | null>(null);
   const [editingChecklistId, setEditingChecklistId] = React.useState<string | null>(null);
+  const [daySessionPreview, setDaySessionPreview] =
+    React.useState<InventoryDaySessionPreview | null>(null);
 
   const activeChecklistPeriodType = activeTugasTab === "Tugas Harian" ? "DAILY" : "WEEKLY";
   const activeChecklistPeriodKey =
@@ -129,6 +134,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       ? initialSummary.period.dateKey
       : initialSummary.period.weekKey;
   const canManageChecklist = canPerform("inventory", "delete");
+  const isDayCheckedIn =
+    daySessionPreview?.session?.status === "CHECKED_IN" ||
+    daySessionPreview?.session?.status === "CHECKED_OUT";
+  const isDaySessionLoaded = daySessionPreview !== null;
 
   const loadChecklistItems = React.useCallback(async () => {
     if (activeTab !== "Tugas") return;
@@ -690,8 +699,12 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
 
       {activeTab === "Ringkasan" && (
         <>
+      <div className="mx-auto w-full max-w-[96rem] px-4 pt-4 md:px-6 md:pt-6">
+        <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
+      </div>
+
       {/* Main Dashboard Grid */}
-      <section className="mx-auto w-full max-w-[96rem] grid gap-6 px-4 pt-4 pb-6 md:grid-cols-3 md:px-6 md:pt-6">
+      <section className="mx-auto w-full max-w-[96rem] grid gap-6 px-4 pt-4 pb-6 md:grid-cols-3 md:px-6">
         {/* Status Checklist / Tasks */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -1307,8 +1320,25 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               </div>
             }
           >
-            {activeTab === "Tugas" && (
+            {activeTab === "Tugas" && (!isDaySessionLoaded || !isDayCheckedIn) && (
               <div className="space-y-4">
+                <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
+                {isDaySessionLoaded && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm">
+                    <h2 className="text-base font-bold text-amber-950">
+                      Check in diperlukan sebelum membuka Tugas.
+                    </h2>
+                    <p className="mt-2 text-sm text-amber-800">
+                      Selesaikan Morning Check untuk membuka tugas harian inventaris.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "Tugas" && isDaySessionLoaded && isDayCheckedIn && (
+              <div className="space-y-4">
+                <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
                 <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto w-max">
                   {TUGAS_TABS.map((tab) => (
                     <button
@@ -1400,7 +1430,12 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
 
                 {activeRiwayatTab === "Laporan Barang Rusak" && <DamagedReportsHistoryTab />}
 
-                {activeRiwayatTab === "Riwayat Tugas Harian" && renderTaskHistory("DAILY")}
+                {activeRiwayatTab === "Riwayat Tugas Harian" && (
+                  <div className="space-y-4">
+                    <InventoryDaySessionHistory />
+                    {renderTaskHistory("DAILY")}
+                  </div>
+                )}
 
                 {activeRiwayatTab === "Riwayat Tugas Mingguan" && renderTaskHistory("WEEKLY")}
               </div>

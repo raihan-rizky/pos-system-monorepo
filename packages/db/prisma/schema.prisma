@@ -29,6 +29,8 @@ model User {
   productImportJobs                   ProductImportJob[]            @relation("created_product_import_jobs")
   productionActivityLogs              ProductionActivityLog[]       @relation("production_activity_actor")
   inventoryTasksSubmitted             InventoryTask[]               @relation("inventory_task_submitter")
+  inventoryDaySessionsCheckedIn       InventoryDaySession[]         @relation("inventory_day_session_checkin")
+  inventoryDaySessionsCheckedOut      InventoryDaySession[]         @relation("inventory_day_session_checkout")
   inventoryTaskChecklistCreated       InventoryTaskChecklistItem[]  @relation("inventory_task_checklist_creator")
   inventoryTaskChecklistUpdated       InventoryTaskChecklistItem[]  @relation("inventory_task_checklist_updater")
   inventoryTaskChecklistCompleted     InventoryTaskChecklistItem[]  @relation("inventory_task_checklist_completer")
@@ -62,6 +64,8 @@ model Store {
   priceLogs                    ProductPriceLog[]
   productImportJobs            ProductImportJob[]
   inventoryTasks               InventoryTask[]
+  inventoryDaySessions          InventoryDaySession[]
+  inventoryProductionMaterials  InventoryProductionMaterial[]
   inventoryTaskChecklistItems   InventoryTaskChecklistItem[]
   inventoryInboundReceipts     InventoryInboundReceipt[]
   inventoryLogVerifications    InventoryLogVerification[]
@@ -116,6 +120,7 @@ model Product {
   batchItems              BatchOperationItem[]
   inventoryInboundLines    InventoryInboundReceiptLine[]
   inventoryLogs           InventoryLog[]
+  inventoryProductionMaterials InventoryProductionMaterial[]
   internalStockOutRequests InternalStockOutRequest[]
   priceLogs               ProductPriceLog[]
   shoppingRequestItems    ShoppingRequestItem[]
@@ -499,6 +504,48 @@ model InventoryTask {
   @@index([storeId, type, status])
   @@index([submittedBy, submittedAt])
   @@map("pos_inventory_tasks")
+}
+
+model InventoryDaySession {
+  id                   String    @id @default(cuid())
+  storeId              String
+  periodKey            String
+  status               String    @default("NOT_CHECKED_IN")
+  morningCheckSnapshot Json?
+  checkOutSnapshot     Json?
+  checkInById          String?
+  checkInByName        String?
+  checkedInAt          DateTime?
+  checkOutById         String?
+  checkOutByName       String?
+  checkedOutAt         DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  store                Store     @relation(fields: [storeId], references: [id])
+  checkInBy            User?     @relation("inventory_day_session_checkin", fields: [checkInById], references: [id])
+  checkOutBy           User?     @relation("inventory_day_session_checkout", fields: [checkOutById], references: [id])
+
+  @@unique([storeId, periodKey])
+  @@index([storeId, status, periodKey])
+  @@index([checkInById, checkedInAt])
+  @@index([checkOutById, checkedOutAt])
+  @@map("pos_inventory_day_sessions")
+}
+
+model InventoryProductionMaterial {
+  id          String   @id @default(cuid())
+  storeId     String
+  productId   String
+  source      String   @default("PINNED")
+  isPinned    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  store       Store    @relation(fields: [storeId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, productId])
+  @@index([storeId, isPinned])
+  @@map("pos_inventory_production_materials")
 }
 
 model InventoryTaskChecklistItem {

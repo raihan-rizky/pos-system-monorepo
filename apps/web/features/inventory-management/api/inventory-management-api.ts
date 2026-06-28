@@ -113,6 +113,107 @@ export function cancelInventoryBundle(batchId: string) {
   return postInventoryManagement(`/api/inventory/bulk/${batchId}/cancel`, {});
 }
 
+export interface InventoryDaySessionProduct {
+  id: string;
+  name: string;
+  sku: string;
+  stock: number;
+  minStock: number;
+  unit: string;
+}
+
+export interface InventoryDaySessionRecord {
+  id: string;
+  storeId: string;
+  periodKey: string;
+  status: "NOT_CHECKED_IN" | "CHECKED_IN" | "CHECKED_OUT" | string;
+  morningCheckSnapshot: unknown | null;
+  checkOutSnapshot: unknown | null;
+  checkInByName: string | null;
+  checkedInAt: string | null;
+  checkOutByName: string | null;
+  checkedOutAt: string | null;
+}
+
+export interface InventoryDaySessionPreview {
+  dateKey: string;
+  session: InventoryDaySessionRecord | null;
+  stockRisk: {
+    negative: InventoryDaySessionProduct[];
+    outOfStock: InventoryDaySessionProduct[];
+    lowStock: InventoryDaySessionProduct[];
+  };
+  productionMaterials: Array<{
+    source: "PINNED" | "AUTO";
+    product: InventoryDaySessionProduct;
+  }>;
+  workspaceSafetyItems: Array<{ id: string; label: string }>;
+  completion: InventoryDayCompletion;
+}
+
+export interface InventoryDayCompletion {
+  dateKey: string;
+  weekKey: string;
+  isSaturday: boolean;
+  tasks: Array<{ id: string; label: string; completed: boolean; required: boolean }>;
+  blockers: string[];
+}
+
+export async function fetchInventoryDaySession(): Promise<InventoryDaySessionPreview> {
+  const response = await fetch("/api/inventory-management/day-session", {
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Failed to load inventory day session");
+  const body = (await response.json()) as { data: InventoryDaySessionPreview };
+  return body.data;
+}
+
+export function checkInInventoryDay(input: {
+  stockRiskAcknowledged: boolean;
+  materialCounts: Array<{ productId: string; actualQuantity: number; note?: string | null }>;
+  safetyChecks: Array<{ id: string; checked: boolean }>;
+}) {
+  return postInventoryManagement<InventoryDaySessionRecord>(
+    "/api/inventory-management/day-session/check-in",
+    input,
+  );
+}
+
+export async function checkOutInventoryDay(input: { note?: string | null }) {
+  const response = await fetch("/api/inventory-management/day-session/check-out", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    data?: InventoryDaySessionRecord;
+    message?: string;
+    blockers?: string[];
+    completion?: InventoryDayCompletion;
+  };
+
+  if (!response.ok) {
+    const error = new Error(payload.message || "Failed to check out inventory day") as Error & {
+      blockers?: string[];
+      completion?: InventoryDayCompletion;
+    };
+    error.blockers = payload.blockers;
+    error.completion = payload.completion;
+    throw error;
+  }
+
+  return payload.data as InventoryDaySessionRecord;
+}
+
+export async function fetchInventoryDaySessionHistory(): Promise<InventoryDaySessionRecord[]> {
+  const response = await fetch("/api/inventory-management/day-session/history", {
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Failed to load inventory day session history");
+  const body = (await response.json()) as { data: InventoryDaySessionRecord[] };
+  return body.data;
+}
+
 export interface StockGroupBulkPreview {
   stockGroupId: string;
   displayName: string;

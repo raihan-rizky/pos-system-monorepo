@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { HelpCircle, Search, ShieldCheck, ShoppingCart, Truck, Users, Warehouse, X } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { HelpCircle, Search, ShieldCheck, ShoppingCart, Truck, Users, Warehouse, X, Bot } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import HelpContent from "@/features/help-documentation/components/HelpContent";
 import type { Role } from "@/features/rbac/helpers/rbac-core";
@@ -18,8 +18,22 @@ export default function HelpPage() {
   const { role } = useRole();
   const currentRole = role || "OWNER";
   const isSuperUser = currentRole === "OWNER" || currentRole === "ADMIN";
-  const [activeTab, setActiveTab] = useState<Role>(currentRole);
+  const [activeTab, setActiveTab] = useState<Role | "AI_ASSISTANT">(currentRole);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const visibleTabs = useMemo(() => {
+    const rolesMapped = ALL_ROLES.map((r) => ({
+      id: r.id as Role | "AI_ASSISTANT",
+      label: r.label,
+      icon: r.icon,
+    }));
+    const aiTab = { id: "AI_ASSISTANT" as const, label: "AI Assistant", icon: <Bot className="w-4 h-4" /> };
+    if (isSuperUser) {
+      return [...rolesMapped, aiTab];
+    }
+    const currentTab = rolesMapped.find((tab) => tab.id === currentRole);
+    return currentTab ? [currentTab, aiTab] : [aiTab];
+  }, [currentRole, isSuperUser]);
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-surface-50 min-h-screen">
@@ -63,27 +77,25 @@ export default function HelpPage() {
 
         {/* Content Layout */}
         <div className="flex flex-col gap-6">
-          {isSuperUser && (
-            <nav className="flex flex-row flex-nowrap sm:flex-wrap gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden">
-              {ALL_ROLES.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center justify-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap
-                    ${activeTab === tab.id
-                      ? "bg-brand-600 text-white shadow-md border border-brand-700"
-                      : "bg-white border border-surface-200 text-surface-600 hover:bg-surface-50 hover:text-surface-900 shadow-sm"
-                    }`}
-                >
-                  {tab.icon}
-                  <span>{tab.label}</span>
-                </button>
-              ))}
-            </nav>
-          )}
+          <nav className="flex flex-row flex-nowrap sm:flex-wrap gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden">
+            {visibleTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center justify-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap
+                  ${activeTab === tab.id
+                    ? "bg-brand-600 text-white shadow-md border border-brand-700"
+                    : "bg-white border border-surface-200 text-surface-600 hover:bg-surface-50 hover:text-surface-900 shadow-sm"
+                  }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </nav>
 
           <div className="w-full">
-            <HelpContent targetRole={isSuperUser ? activeTab : currentRole} searchQuery={searchQuery} />
+            <HelpContent targetRole={activeTab} searchQuery={searchQuery} />
           </div>
         </div>
 

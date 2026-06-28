@@ -59,6 +59,13 @@ export function jakartaWeekKey(date: Date): string {
   return `${weekYear}-W${String(weekNumber).padStart(2, "0")}`;
 }
 
+export function isJakartaSaturday(date: Date): boolean {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Jakarta",
+    weekday: "short",
+  }).format(date) === "Sat";
+}
+
 export function buildInventoryUrgentCount(
   role: Role,
   counts: InventoryUrgentCounts,

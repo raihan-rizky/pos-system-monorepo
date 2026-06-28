@@ -236,7 +236,7 @@ describe("InventoryWorkspace", () => {
     expect(html).not.toContain("Status Tugas Operasional");
   });
 
-  it("renders daily task work queue with fixed tasks and manual checklist controls", () => {
+  it("blocks the daily task work queue until inventory check in", () => {
     const html = renderToStaticMarkup(
       <InventoryWorkspace
         initialSummary={{
@@ -261,11 +261,10 @@ describe("InventoryWorkspace", () => {
       />,
     );
 
-    expect(html).toContain("Matching Stok Harian");
-    expect(html).toContain("Laporan Barang Rusak");
-    expect(html).toContain("Log OUT Belum Diverifikasi");
-    expect(html).toContain("Checklist Manual Harian");
-    expect(html).toContain("Tambah tugas");
+    expect(html).toContain("Check In / Check Out");
+    expect(html).toContain("Memuat status inventaris");
+    expect(html).not.toContain("Checklist Manual Harian");
+    expect(html).not.toContain("Tambah tugas");
   });
 
   it("renders fixed operational task history tabs in the riwayat tab", () => {

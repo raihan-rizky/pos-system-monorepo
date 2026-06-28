@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildInventoryUrgentCount,
   classifyStockTask,
+  isJakartaSaturday,
   jakartaDateKey,
   jakartaWeekKey,
 } from "../inventory-management-rules";
@@ -19,6 +20,11 @@ describe("inventory management rules", () => {
 
     expect(jakartaDateKey(utcLateNight)).toBe("2026-06-25");
     expect(jakartaWeekKey(utcLateNight)).toBe("2026-W26");
+  });
+
+  it("detects Saturday using Asia/Jakarta business time for weekly check-out rules", () => {
+    expect(isJakartaSaturday(new Date("2026-06-26T18:00:00.000Z"))).toBe(true);
+    expect(isJakartaSaturday(new Date("2026-06-27T18:00:00.000Z"))).toBe(false);
   });
 
   it("uses owner approval work for owner urgent badges", () => {
