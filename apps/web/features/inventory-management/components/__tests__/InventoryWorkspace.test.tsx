@@ -320,6 +320,7 @@ describe("InventoryWorkspace", () => {
             dailyMatchingIncomplete: true,
             damagedReportsPending: 1,
             dailyChecklistRemaining: 3,
+            pendingSuratJalan: 2,
           },
         }}
       />,
@@ -328,6 +329,8 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("Pusat Kerja Hari Ini");
     expect(html).toContain("Checklist Manual Hari Ini");
     expect(html).toContain("3 belum selesai");
+    expect(html).toContain("Verifikasi Surat Jalan");
+    expect(html).toContain("2 perlu verifikasi");
     expect(html).toContain("Verifikasi dulu");
     expect(html.indexOf("Pusat Kerja Hari Ini")).toBeLessThan(
       html.indexOf("Volume Inbound vs Outbound (7 Hari)"),
@@ -367,6 +370,7 @@ describe("InventoryWorkspace", () => {
             ...baseSummary.counts,
             pendingStockRequests: 4,
             submittedInboundReceipts: 2,
+            pendingSuratJalan: 3,
             needsRevisionReceipts: 3,
             rejectedOwnRequests: 1,
           },
@@ -385,10 +389,13 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("Arus Stok Disetujui");
     expect(html).toContain("Aktivitas tertinggi: Senin (14 unit)");
     expect(html).toContain("Antrean Persetujuan");
+    expect(html).toContain("Surat Jalan pending");
+    expect(html).toContain("Verifikasi pengiriman stok keluar");
     expect(html).toContain("Penerimaan perlu revisi");
     expect(html).toContain("Lihat rekap stok");
     expect(html).toContain("Terima barang");
     expect(html).toContain("Pemakaian internal");
+    expect(html).toContain("Verifikasi SJ");
     expect(html).not.toContain("Pemakaian Internal Cepat");
     expect(html).not.toContain("Log Stok Terverifikasi");
     expect(html).not.toContain("Rekap Nilai Stok");

@@ -27,13 +27,14 @@ describe("inventory management rules", () => {
         pendingStockRequests: 2,
         unverifiedOutLogs: 5,
         submittedInboundReceipts: 3,
+        pendingSuratJalan: 2,
         weeklyProofMissing: true,
         dailyMatchingIncomplete: true,
         damagedReportsPending: 4,
         needsRevisionReceipts: 7,
         rejectedOwnRequests: 9,
       }),
-    ).toBe(9);
+    ).toBe(11);
   });
 
   it("uses operational work for inventory urgent badges", () => {

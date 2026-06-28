@@ -20,6 +20,7 @@ export interface InventoryUrgentCounts {
   damagedReportsPending: number;
   needsRevisionReceipts: number;
   rejectedOwnRequests: number;
+  pendingSuratJalan?: number;
 }
 
 export function classifyStockTask(input: StockTaskInput): StockTaskKind {
@@ -66,6 +67,7 @@ export function buildInventoryUrgentCount(
     return (
       counts.pendingStockRequests +
       counts.submittedInboundReceipts +
+      (counts.pendingSuratJalan ?? 0) +
       counts.damagedReportsPending
     );
   }

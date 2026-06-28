@@ -92,6 +92,12 @@ export class InventoryManagementRepository implements InventorySummaryRepository
     });
   }
 
+  async countPendingSuratJalan(storeId: string): Promise<number> {
+    return db.suratJalan.count({
+      where: { storeId, status: "PENDING" },
+    });
+  }
+
   async countNegativeStockProducts(storeId: string): Promise<number> {
     return db.product.count({
       where: { storeId, isActive: true, stock: { lt: 0 } },

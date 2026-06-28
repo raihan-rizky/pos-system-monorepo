@@ -14,6 +14,7 @@ function makeRepository(
     countPendingDamagedReports: async () => 4,
     countNeedsRevisionReceipts: async () => 7,
     countRejectedRequestsForUser: async () => 9,
+    countPendingSuratJalan: async () => 2,
     countNegativeStockProducts: async () => 1,
     countOutOfStockProducts: async () => 6,
     countLowStockProducts: async () => 12,
@@ -34,8 +35,9 @@ describe("inventory management service", () => {
       now: new Date("2026-06-25T03:00:00.000Z"),
     });
 
-    expect(summary.urgentCount).toBe(9);
+    expect(summary.urgentCount).toBe(11);
     expect(summary.period.dateKey).toBe("2026-06-25");
+    expect(summary.counts.pendingSuratJalan).toBe(2);
   });
 
   it("returns inventory urgent count from operational task queues", async () => {

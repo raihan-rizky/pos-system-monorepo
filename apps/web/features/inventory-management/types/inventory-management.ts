@@ -15,6 +15,7 @@ export interface InventorySummaryCounts {
   damagedReportsPending: number;
   needsRevisionReceipts: number;
   rejectedOwnRequests: number;
+  pendingSuratJalan?: number;
   negativeStockProducts?: number;
   outOfStockProducts?: number;
   lowStockProducts?: number;
@@ -51,6 +52,7 @@ export interface InventorySummaryRepository {
   countPendingDamagedReports(storeId: string): Promise<number>;
   countNeedsRevisionReceipts(storeId: string): Promise<number>;
   countRejectedRequestsForUser(storeId: string, userId: string): Promise<number>;
+  countPendingSuratJalan(storeId: string): Promise<number>;
   countNegativeStockProducts(storeId: string): Promise<number>;
   countOutOfStockProducts(storeId: string): Promise<number>;
   countLowStockProducts(storeId: string): Promise<number>;

@@ -227,6 +227,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     out: initialSummary.counts.outOfStockProducts ?? 0,
     low: initialSummary.counts.lowStockProducts ?? 0,
     pendingRequests: initialSummary.counts.pendingStockRequests,
+    pendingSuratJalan: initialSummary.counts.pendingSuratJalan ?? 0,
   };
   const dailyChecklistRemaining = initialSummary.counts.dailyChecklistRemaining ?? 0;
   const sevenDayMovement = React.useMemo(() => {
@@ -256,7 +257,8 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   }, [initialSummary.chartData?.inboundOutbound]);
   const approvalQueueTotal =
     initialSummary.counts.pendingStockRequests +
-    initialSummary.counts.submittedInboundReceipts;
+    initialSummary.counts.submittedInboundReceipts +
+    stockRiskCounts.pendingSuratJalan;
   const correctionQueueTotal =
     initialSummary.counts.needsRevisionReceipts +
     initialSummary.counts.rejectedOwnRequests;
@@ -847,6 +849,44 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               >
                 {dailyChecklistRemaining > 0
                   ? `${dailyChecklistRemaining} belum selesai`
+                : "Selesai"}
+              </span>
+            </button>
+
+            {/* Surat Jalan verification */}
+            <button
+              type="button"
+              onClick={() => openTransactionTab("Surat Jalan")}
+              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-all cursor-pointer text-left active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-2 rounded-lg ${
+                    stockRiskCounts.pendingSuratJalan > 0
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}
+                >
+                  <Truck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Verifikasi Surat Jalan
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Setujui pengiriman pending sebelum stok keluar dianggap final
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                  stockRiskCounts.pendingSuratJalan > 0
+                    ? "bg-indigo-100 text-indigo-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {stockRiskCounts.pendingSuratJalan > 0
+                  ? `${stockRiskCounts.pendingSuratJalan} perlu verifikasi`
                   : "Selesai"}
               </span>
             </button>
@@ -861,7 +901,11 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
           </h2>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md hover:border-blue-300 hover:ring-1 hover:ring-blue-100 transition-all duration-300 relative overflow-hidden flex flex-col justify-center cursor-pointer">
+            <button
+              type="button"
+              onClick={() => openHistoryTab("Log Stok")}
+              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:shadow-md hover:border-blue-300 hover:ring-1 hover:ring-blue-100 transition-all duration-300 relative overflow-hidden flex flex-col justify-center cursor-pointer"
+            >
               <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-blue-50 group-hover:scale-150 transition-transform duration-500" />
               <div className="relative z-10 flex items-center justify-between mb-1.5">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Request Pending</span>
@@ -870,9 +914,13 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               <span className="relative z-10 text-3xl font-black text-slate-900 group-hover:text-blue-600 transition-colors">
                 {stockRiskCounts.pendingRequests}
               </span>
-            </div>
+            </button>
             
-            <div className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md hover:border-amber-300 hover:ring-1 hover:ring-amber-100 transition-all duration-300 relative overflow-hidden flex flex-col justify-center cursor-pointer">
+            <button
+              type="button"
+              onClick={() => openHistoryTab("Rekap Stok")}
+              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:shadow-md hover:border-amber-300 hover:ring-1 hover:ring-amber-100 transition-all duration-300 relative overflow-hidden flex flex-col justify-center cursor-pointer"
+            >
               <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-amber-50 group-hover:scale-150 transition-transform duration-500" />
               <div className="relative z-10 flex items-center justify-between mb-1.5">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Stok Negatif</span>
@@ -881,9 +929,13 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               <span className="relative z-10 text-3xl font-black text-slate-900 group-hover:text-amber-600 transition-colors">
                 {stockRiskCounts.negative}
               </span>
-            </div>
+            </button>
 
-            <div className="col-span-2 group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md hover:border-violet-300 hover:ring-1 hover:ring-violet-100 transition-all duration-300 relative overflow-hidden flex flex-col justify-center cursor-pointer">
+            <button
+              type="button"
+              onClick={() => openHistoryTab("Rekap Stok")}
+              className="col-span-2 group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:shadow-md hover:border-violet-300 hover:ring-1 hover:ring-violet-100 transition-all duration-300 relative overflow-hidden flex flex-col justify-center cursor-pointer"
+            >
               <div className="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-violet-50 to-transparent group-hover:w-full transition-all duration-500" />
               <div className="relative z-10 flex items-center justify-between w-full">
                 <div>
@@ -899,7 +951,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                    <PackageOpen className="h-5 w-5" />
                 </div>
               </div>
-            </div>
+            </button>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1128,6 +1180,19 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                     {initialSummary.counts.submittedInboundReceipts}
                   </span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => openTransactionTab("Surat Jalan")}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-left hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <span>
+                    <span className="block text-xs font-bold text-slate-800">Surat Jalan pending</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Verifikasi pengiriman stok keluar</span>
+                  </span>
+                  <span className="text-lg font-black tabular-nums text-slate-950">
+                    {stockRiskCounts.pendingSuratJalan}
+                  </span>
+                </button>
               </div>
             </article>
 
@@ -1216,7 +1281,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 <Truck className="h-4 w-4" />
-                Surat jalan
+                Verifikasi SJ
               </button>
               <button
                 type="button"
