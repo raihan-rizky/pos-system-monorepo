@@ -40,6 +40,10 @@ const confirmedSuratJalan: SuratJalanRecord = {
   sequence: 1,
   requestedByName: "Cashier",
   approvedByName: "Cashier",
+  markingStatus: "UNMARKED",
+  markedByName: null,
+  markedAt: null,
+  markingNote: null,
   createdAt: "2026-06-14T04:00:00.000Z",
   confirmedAt: "2026-06-14T04:05:00.000Z",
   items: [

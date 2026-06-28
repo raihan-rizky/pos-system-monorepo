@@ -4,7 +4,9 @@ import {
   createSuratJalan,
   fetchSuratJalanBundle,
   fetchSuratJalans,
+  markSuratJalan,
   type CreateSuratJalanInput,
+  type MarkSuratJalanInput,
 } from "../api/surat-jalan-api";
 
 
@@ -72,6 +74,18 @@ export function useGlobalApproveSuratJalan() {
       queryClient.invalidateQueries({ queryKey: ["surat-jalan"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+    },
+  });
+}
+
+export function useGlobalMarkSuratJalan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: MarkSuratJalanInput) => markSuratJalan(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["surat-jalans"] });
+      queryClient.invalidateQueries({ queryKey: ["surat-jalan"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-management", "summary"] });
     },
   });
 }

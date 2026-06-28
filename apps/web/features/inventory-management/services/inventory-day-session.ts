@@ -159,6 +159,7 @@ export async function buildInventoryDayCompletion(
     unverifiedOutLogs,
     damagedReportsPending,
     dailyChecklistRemaining,
+    unmarkedSuratJalan,
     weeklyProof,
   ] = await Promise.all([
     loadInventoryDaySession(storeId, dateKey),
@@ -191,6 +192,9 @@ export async function buildInventoryDayCompletion(
         periodKey: dateKey,
         isCompleted: false,
       },
+    }),
+    db.suratJalan.count({
+      where: { storeId, markingStatus: "UNMARKED" },
     }),
     db.inventoryTask.findUnique({
       where: {
@@ -233,6 +237,12 @@ export async function buildInventoryDayCompletion(
       id: "manual-checklist",
       label: "Checklist manual harian selesai",
       completed: dailyChecklistRemaining === 0,
+      required: true,
+    },
+    {
+      id: "surat-jalan-marking",
+      label: "Semua Surat Jalan sudah dimarking atau diberi catatan pengecualian",
+      completed: unmarkedSuratJalan === 0,
       required: true,
     },
     {

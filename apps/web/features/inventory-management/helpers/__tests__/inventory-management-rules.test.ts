@@ -54,7 +54,8 @@ describe("inventory management rules", () => {
         damagedReportsPending: 4,
         needsRevisionReceipts: 7,
         rejectedOwnRequests: 9,
+        unmarkedSuratJalan: 6,
       }),
-    ).toBe(23);
+    ).toBe(29);
   });
 });

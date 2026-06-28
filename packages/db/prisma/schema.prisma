@@ -586,6 +586,11 @@ model SuratJalan {
   requestedByName String?
   approvedById    String?
   approvedByName  String?
+  markingStatus   SuratJalanMarkingStatus @default(UNMARKED)
+  markedById      String?
+  markedByName    String?
+  markedAt        DateTime?
+  markingNote     String?
   confirmedAt     DateTime?
   cancelledAt     DateTime?
   rejectedAt      DateTime?
@@ -601,6 +606,7 @@ model SuratJalan {
   @@unique([transactionId, sequence])
   @@index([transactionId, status])
   @@index([storeId, createdAt])
+  @@index([storeId, markingStatus])
   @@index([status, createdAt])
   @@map("pos_surat_jalan")
 }
@@ -1458,6 +1464,16 @@ enum SuratJalanStatus {
   CONFIRMED
   CANCELLED
   REJECTED
+}
+
+enum SuratJalanMarkingStatus {
+  UNMARKED
+  COMPLETED
+  NOT_DELIVERED
+  NEEDS_SIGNATURE
+  NEEDS_FOLLOW_UP
+  POSTPONED
+  NOT_RELEVANT
 }
 
 enum ShoppingRequestStatus {

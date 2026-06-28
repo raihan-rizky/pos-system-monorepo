@@ -385,6 +385,10 @@ function toPlannerSuratJalan(suratJalan: {
   sequence: number;
   requestedByName: string | null;
   approvedByName: string | null;
+  markingStatus: string;
+  markedByName: string | null;
+  markedAt: Date | null;
+  markingNote: string | null;
   createdAt: Date;
   confirmedAt: Date | null;
   items: Array<{
@@ -407,6 +411,10 @@ function toPlannerSuratJalan(suratJalan: {
     sequence: suratJalan.sequence,
     requestedByName: suratJalan.requestedByName,
     approvedByName: suratJalan.approvedByName,
+    markingStatus: suratJalan.markingStatus as SuratJalanRecord["markingStatus"],
+    markedByName: suratJalan.markedByName,
+    markedAt: suratJalan.markedAt?.toISOString() ?? null,
+    markingNote: suratJalan.markingNote,
     createdAt: suratJalan.createdAt.toISOString(),
     confirmedAt: suratJalan.confirmedAt?.toISOString() ?? null,
     items: suratJalan.items.map((item) => ({

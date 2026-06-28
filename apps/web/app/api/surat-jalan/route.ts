@@ -59,6 +59,10 @@ export async function GET(request: Request) {
       sequence: sj.sequence,
       requestedByName: sj.requestedByName,
       approvedByName: sj.approvedByName,
+      markingStatus: sj.markingStatus,
+      markedByName: sj.markedByName,
+      markedAt: sj.markedAt,
+      markingNote: sj.markingNote,
       createdAt: sj.createdAt,
       confirmedAt: sj.confirmedAt,
       transaction: {

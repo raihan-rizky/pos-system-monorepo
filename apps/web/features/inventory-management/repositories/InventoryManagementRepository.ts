@@ -98,6 +98,12 @@ export class InventoryManagementRepository implements InventorySummaryRepository
     });
   }
 
+  async countUnmarkedSuratJalan(storeId: string): Promise<number> {
+    return db.suratJalan.count({
+      where: { storeId, markingStatus: "UNMARKED" },
+    });
+  }
+
   async countNegativeStockProducts(storeId: string): Promise<number> {
     return db.product.count({
       where: { storeId, isActive: true, stock: { lt: 0 } },

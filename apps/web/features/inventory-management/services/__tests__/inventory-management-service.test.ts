@@ -15,6 +15,7 @@ function makeRepository(
     countNeedsRevisionReceipts: async () => 7,
     countRejectedRequestsForUser: async () => 9,
     countPendingSuratJalan: async () => 2,
+    countUnmarkedSuratJalan: async () => 6,
     countNegativeStockProducts: async () => 1,
     countOutOfStockProducts: async () => 6,
     countLowStockProducts: async () => 12,
@@ -47,8 +48,9 @@ describe("inventory management service", () => {
       now: new Date("2026-06-25T03:00:00.000Z"),
     });
 
-    expect(summary.urgentCount).toBe(23);
+    expect(summary.urgentCount).toBe(29);
     expect(summary.counts.unverifiedOutLogs).toBe(5);
+    expect(summary.counts.unmarkedSuratJalan).toBe(6);
   });
 
   it("returns stock risk and daily checklist counts for the command center", async () => {

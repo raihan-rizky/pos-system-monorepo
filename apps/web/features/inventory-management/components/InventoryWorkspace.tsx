@@ -237,6 +237,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     low: initialSummary.counts.lowStockProducts ?? 0,
     pendingRequests: initialSummary.counts.pendingStockRequests,
     pendingSuratJalan: initialSummary.counts.pendingSuratJalan ?? 0,
+    unmarkedSuratJalan: initialSummary.counts.unmarkedSuratJalan ?? 0,
   };
   const dailyChecklistRemaining = initialSummary.counts.dailyChecklistRemaining ?? 0;
   const sevenDayMovement = React.useMemo(() => {
@@ -866,7 +867,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               </span>
             </button>
 
-            {/* Surat Jalan verification */}
+            {/* Surat Jalan marking */}
             <button
               type="button"
               onClick={() => openTransactionTab("Surat Jalan")}
@@ -875,7 +876,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               <div className="flex items-center gap-3">
                 <div
                   className={`p-2 rounded-lg ${
-                    stockRiskCounts.pendingSuratJalan > 0
+                    stockRiskCounts.unmarkedSuratJalan > 0
                       ? "bg-indigo-100 text-indigo-700"
                       : "bg-emerald-100 text-emerald-700"
                   }`}
@@ -884,22 +885,22 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">
-                    Verifikasi Surat Jalan
+                    Marking Surat Jalan
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Setujui pengiriman pending sebelum stok keluar dianggap final
+                    Tandai status kirim, tanda tangan, dan catatan pengecualian
                   </p>
                 </div>
               </div>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                  stockRiskCounts.pendingSuratJalan > 0
+                  stockRiskCounts.unmarkedSuratJalan > 0
                     ? "bg-indigo-100 text-indigo-800"
                     : "bg-emerald-100 text-emerald-800"
                 }`}
               >
-                {stockRiskCounts.pendingSuratJalan > 0
-                  ? `${stockRiskCounts.pendingSuratJalan} perlu verifikasi`
+                {stockRiskCounts.unmarkedSuratJalan > 0
+                  ? `${stockRiskCounts.unmarkedSuratJalan} belum dimarking`
                   : "Selesai"}
               </span>
             </button>
@@ -1008,7 +1009,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               chartContext={JSON.stringify(initialSummary.chartData?.inboundOutbound ?? [])}
             />
           </div>
-          <div className="h-64 w-full flex-1">
+          <div className="h-64 w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={initialSummary.chartData?.inboundOutbound ?? []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -1018,8 +1019,8 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                   cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar dataKey="inbound" name="Inbound" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={32} />
-                <Bar dataKey="outbound" name="Outbound" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={32} />
+                <Bar dataKey="inbound" name="Inbound" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                <Bar dataKey="outbound" name="Outbound" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -1199,8 +1200,8 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                   className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-left hover:border-slate-200 hover:bg-slate-100"
                 >
                   <span>
-                    <span className="block text-xs font-bold text-slate-800">Surat Jalan pending</span>
-                    <span className="mt-0.5 block text-[11px] text-slate-500">Verifikasi pengiriman stok keluar</span>
+                    <span className="block text-xs font-bold text-slate-800">Surat Jalan pending approval</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Approve pengiriman stok keluar</span>
                   </span>
                   <span className="text-lg font-black tabular-nums text-slate-950">
                     {stockRiskCounts.pendingSuratJalan}
@@ -1294,7 +1295,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 <Truck className="h-4 w-4" />
-                Verifikasi SJ
+                Marking SJ
               </button>
               <button
                 type="button"

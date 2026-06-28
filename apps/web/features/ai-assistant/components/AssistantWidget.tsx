@@ -351,7 +351,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
     >
       <button
         type="button"
-        className={`floating-ai-button relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-500 transform hover:scale-105 hover:shadow-[0_0_30px_rgba(12,152,233,0.8),0_0_50px_rgba(0,121,199,0.6)] ${open ? "rotate-90" : "rotate-0"}`}
+        className={`floating-ai-button relative w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-all duration-500 transform hover:scale-105 hover:shadow-[0_0_30px_rgba(12,152,233,0.8),0_0_50px_rgba(0,121,199,0.6)] ${open ? "rotate-90" : "rotate-0"}`}
         onClick={() => {
           if (open) activeRequestRef.current?.abort();
           setOpen((prev) => !prev);
@@ -365,7 +365,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
         <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/20 to-transparent opacity-30"></div>
         <div className="absolute inset-0 rounded-full border-2 border-white/10"></div>
         <div className="relative z-10">
-          {open ? <X className="w-8 h-8 text-white" /> : <Bot className="w-8 h-8 text-white" />}
+          {open ? <X className="w-6 h-6 md:w-8 md:h-8 text-white" /> : <Bot className="w-6 h-6 md:w-8 md:h-8 text-white" />}
         </div>
         <div className="absolute inset-0 rounded-full animate-ping opacity-20 bg-brand-500"></div>
       </button>

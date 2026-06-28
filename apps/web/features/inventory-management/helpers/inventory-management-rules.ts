@@ -21,6 +21,7 @@ export interface InventoryUrgentCounts {
   needsRevisionReceipts: number;
   rejectedOwnRequests: number;
   pendingSuratJalan?: number;
+  unmarkedSuratJalan?: number;
 }
 
 export function classifyStockTask(input: StockTaskInput): StockTaskKind {
@@ -84,7 +85,8 @@ export function buildInventoryUrgentCount(
     (counts.weeklyProofMissing ? 1 : 0) +
     (counts.dailyMatchingIncomplete ? 1 : 0) +
     counts.needsRevisionReceipts +
-    counts.rejectedOwnRequests;
+    counts.rejectedOwnRequests +
+    (counts.unmarkedSuratJalan ?? 0);
 
   if (role === "INVENTORY" || role === "ADMIN") return operationalCount;
 

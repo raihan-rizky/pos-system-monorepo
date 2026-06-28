@@ -6,9 +6,7 @@ const POLL_INTERVAL_MS = Number(process.env.PRODUCT_IMPORT_WORKER_POLL_MS ?? 2_0
 const ERROR_BACKOFF_MS = Number(process.env.PRODUCT_IMPORT_WORKER_ERROR_BACKOFF_MS ?? 30_000);
 
 function getWorkerStoreId() {
-  const storeId = process.env.PRODUCT_IMPORT_WORKER_STORE_ID;
-  if (!storeId) throw new Error("PRODUCT_IMPORT_WORKER_STORE_ID env var is required");
-  return storeId;
+  return process.env.PRODUCT_IMPORT_WORKER_STORE_ID ?? "store-main";
 }
 
 let stopping = false;

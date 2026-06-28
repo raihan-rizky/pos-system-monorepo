@@ -4,6 +4,15 @@ export type SuratJalanStatus =
   | "CANCELLED"
   | "REJECTED";
 
+export type SuratJalanMarkingStatus =
+  | "UNMARKED"
+  | "COMPLETED"
+  | "NOT_DELIVERED"
+  | "NEEDS_SIGNATURE"
+  | "NEEDS_FOLLOW_UP"
+  | "POSTPONED"
+  | "NOT_RELEVANT";
+
 export type SuratJalanProgressStatus =
   | "NONE"
   | "IN_PROGRESS"
@@ -46,6 +55,10 @@ export interface SuratJalanRecord {
   sequence: number;
   requestedByName: string | null;
   approvedByName: string | null;
+  markingStatus: SuratJalanMarkingStatus;
+  markedByName: string | null;
+  markedAt: string | null;
+  markingNote: string | null;
   createdAt: string;
   confirmedAt: string | null;
   items: SuratJalanItemRecord[];

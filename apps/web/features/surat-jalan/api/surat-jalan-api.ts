@@ -1,4 +1,5 @@
 import type {
+  SuratJalanMarkingStatus,
   SuratJalanProgress,
   SuratJalanRecord,
   SuratJalanRemainingItem,
@@ -50,6 +51,12 @@ export interface CreateSuratJalanInput {
   note?: string | null;
 }
 
+export interface MarkSuratJalanInput {
+  suratJalanId: string;
+  markingStatus: Exclude<SuratJalanMarkingStatus, "UNMARKED">;
+  markingNote?: string | null;
+}
+
 export async function fetchSuratJalanBundle(
   transactionId: string,
 ): Promise<SuratJalanBundle> {
@@ -87,6 +94,24 @@ export async function approveSuratJalan(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || "Failed to approve surat jalan");
+  }
+  return response.json();
+}
+
+export async function markSuratJalan(
+  input: MarkSuratJalanInput,
+): Promise<SuratJalanRecord> {
+  const response = await fetch(`/api/surat-jalan/${input.suratJalanId}/marking`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      markingStatus: input.markingStatus,
+      markingNote: input.markingNote ?? null,
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to mark surat jalan");
   }
   return response.json();
 }
