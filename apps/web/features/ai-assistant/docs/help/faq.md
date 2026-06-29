@@ -176,6 +176,32 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 5. Masukkan nominal kuantitas barang yang ingin diajukan (*requested quantity*) sesuai unitnya.
 6. Tulis keterangan pendukung pada kolom **Catatan Internal** bila perlu, lalu klik **Simpan Draft Belanja**.
 
+### Q27: Bagaimana cara melakukan Check In dan Check Out (Day Session) bagi Staf Gudang?
+**A:** Staf gudang wajib mengelola operasional harian melalui alur sesi (Day Session):
+1. **Buka Sesi (Check In):** Buka halaman **Inventaris** (`/inventory`). Di awal hari kerja, halaman ini akan meminta Anda melakukan **Check In (Morning Check)**. Anda perlu mengisi formulir Morning Check yang mencakup:
+   - Meninjau risiko stok menipis/habis.
+   - Mengisi jumlah fisik dari **Bahan Produksi Utama** (Key Production Materials) yang terhitung di gudang.
+   - Mencentang daftar kepatuhan area kerja & keselamatan (**Workspace & Safety**).
+   Setelah formulir lengkap, geser tombol konfirmasi untuk masuk kerja. Tab **Tugas** akan terbuka setelah Check In selesai.
+2. **Tutup Sesi (Check Out):** Di akhir hari kerja, buka kembali ringkasan sesi di halaman **Inventaris**, lalu klik **Check Out**.
+   - Sistem akan memvalidasi apakah semua Tugas Harian (seperti penyesuaian stok atau verifikasi log) sudah selesai.
+   - Pada hari Sabtu, Anda juga diwajibkan mengunggah berkas **Proof Kebersihan** (Tugas Mingguan) sebelum bisa menutup sesi.
+   - Check Out akan mencatat ringkasan (snapshot) pekerjaan hari tersebut ke dalam riwayat. Riwayat sesi dapat dipantau di tab **Riwayat > Riwayat Tugas Harian** (sub-tab **Check Out**).
+
+### Q28: Bagaimana cara melakukan marking pada Surat Jalan (Delivery Order)?
+**A:** Alur marking menggantikan verifikasi Surat Jalan untuk pencatatan internal gudang:
+1. Buka halaman **Inventaris** (`/inventory`), pilih tab **Ringkasan** (atau tab **Transaksi > Surat Jalan**).
+2. Temukan dokumen Surat Jalan yang berstatus **UNMARKED** (belum ditandai) pada antrean penanganan gudang.
+3. Klik tombol **Marking** pada baris Surat Jalan tersebut.
+4. Pada modal yang muncul, pilih salah satu status penanganan:
+   - **Selesai (COMPLETED):** Surat jalan telah ditandatangani penerima, barang dikirim lengkap, dan stok sesuai.
+   - **Belum Dikirim (NOT_DELIVERED):** Barang belum dikirim ke pelanggan. (Memerlukan catatan).
+   - **Perlu Tanda Tangan (NEEDS_SIGNATURE):** Pengiriman selesai, namun bukti tanda tangan fisik belum lengkap. (Memerlukan catatan).
+   - **Perlu Follow Up (NEEDS_FOLLOW_UP):** Ada masalah pengiriman yang perlu ditindaklanjuti. (Memerlukan catatan).
+   - **Ditunda (POSTPONED):** Pemeriksaan barang ditunda. (Memerlukan catatan).
+   - **Tidak Relevan (NOT_RELEVANT):** Surat jalan salah input atau tidak relevan untuk gudang. (Memerlukan catatan).
+5. Klik **Simpan**. Surat Jalan dengan status pengecualian wajib menyertakan alasan pada kolom catatan yang disediakan. **Catatan:** Sesi Check Out harian staf gudang akan terblokir jika masih ada Surat Jalan berstatus **UNMARKED** di antrean.
+
 ---
 
 ## 📌 Topik: Keuangan & Pengaturan
@@ -206,10 +232,13 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 ### Q22: Bagaimana pemilik toko mengatur hak akses atau izin bagi admin, kasir, dan staf gudang?
 **A:** Pengaturan hak akses (RBAC) hanya dapat diakses oleh **OWNER**:
 1. Buka sidebar **Lainnya > Pengaturan** (`/settings`), lalu pilih tab **RBAC**.
-2. Tentukan izin untuk masing-masing peran (ADMIN, CASHIER, SALES, INVENTORY) dalam dua lapisan:
+2. Periksa ringkasan statistik peran pada **Ringkasan Role** (menampilkan jumlah halaman aktif, aksi aktif, custom permission, dan total peringatan sensitif).
+3. Bandingkan izin modul secara terpusat melalui tabel **Matrix Modul**.
+4. Sesuaikan izin untuk masing-masing peran (ADMIN, CASHIER, SALES, INVENTORY) dalam dua lapisan di panel editor:
    - **Akses Halaman:** Menentukan apakah role boleh membuka halaman tertentu (seperti `/products`, `/customers`, atau `/inventory`).
-   - **Aksi Resource:** Menentukan izin `create`, `read`, `update`, dan `delete` untuk resource tertentu (seperti transaksi, produk, pengeluaran, dll).
-3. Setelah mengubah checkbox, klik **Simpan**. Perubahan akan langsung diterapkan di sistem.
+   - **Aksi Resource:** Menentukan izin `create`, `read`, `update`, dan `delete` untuk resource tertentu.
+5. Klik tombol **Review & Simpan** di pojok kanan atas.
+6. Tinjau log ringkasan perubahan pada modal yang muncul. Jika terdapat perubahan pada permission sensitif (misalnya keuangan, RBAC, nomor WhatsApp, HPP, atau approval), Anda wajib memberikan konfirmasi persetujuan tambahan sebelum data disimpan secara resmi.
 
 ---
 

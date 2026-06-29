@@ -5,7 +5,7 @@ import {
   ProductPriceLogField,
   ProductPriceLogSource,
 } from "@pos/db";
-import { requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 
@@ -15,7 +15,7 @@ const VALID_SOURCES = new Set(["MANUAL", "IMPORT", "API", "SYSTEM"]);
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireRole("OWNER", "ADMIN");
+    const user = await requirePermission("product.price_log", "read");
     const storeId = user.storeId || "store-main";
     const { searchParams } = new URL(request.url);
     const { page, limit, skip } = parsePagination(searchParams, {

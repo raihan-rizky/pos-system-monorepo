@@ -21,6 +21,32 @@ export interface InventoryDaySessionCompletion {
   blockers: string[];
 }
 
+export interface InventoryCheckOutSnapshotInput {
+  storeId: string;
+  dateKey: string;
+  now: Date;
+  note?: string | null;
+  exceptionNotes?: Record<string, string>;
+  completion: InventoryDaySessionCompletion;
+  morningCheckSnapshot: unknown;
+}
+
+function jakartaDayBounds(dateKey: string): { start: Date; end: Date } {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const startUtc = Date.UTC(year, month - 1, day, -7, 0, 0, 0);
+  const endUtc = Date.UTC(year, month - 1, day + 1, -7, 0, 0, 0);
+  return { start: new Date(startUtc), end: new Date(endUtc) };
+}
+
+function sumQuantities(
+  logs: Array<{ quantity: number; type: string; reason: string | null }>,
+  predicate: (log: { type: string; reason: string | null }) => boolean,
+) {
+  return logs
+    .filter(predicate)
+    .reduce((total, log) => total + log.quantity, 0);
+}
+
 export async function loadStockRiskItems(storeId: string, take = 8) {
   const select = {
     id: true,
@@ -129,20 +155,29 @@ export async function loadInventoryDaySession(storeId: string, dateKey: string) 
 
 export async function buildInventoryDaySessionPreview(storeId: string, now = new Date()) {
   const dateKey = jakartaDateKey(now);
-  const [session, stockRisk, productionMaterials, completion] = await Promise.all([
+  const [session, productionMaterials, completion] = await Promise.all([
     loadInventoryDaySession(storeId, dateKey),
-    loadStockRiskItems(storeId),
     loadProductionMaterials(storeId),
     buildInventoryDayCompletion(storeId, dateKey, now),
   ]);
+  const checkOutPreview = await buildInventoryCheckOutSnapshot({
+    storeId,
+    dateKey,
+    now,
+    note: null,
+    exceptionNotes: {},
+    completion,
+    morningCheckSnapshot: session?.morningCheckSnapshot ?? null,
+  });
 
   return {
     dateKey,
     session,
-    stockRisk,
+    stockRisk: checkOutPreview.stockRisk,
     productionMaterials,
     workspaceSafetyItems: WORKSPACE_SAFETY_ITEMS,
     completion,
+    checkOutPreview,
   };
 }
 
@@ -261,5 +296,106 @@ export async function buildInventoryDayCompletion(
     blockers: tasks
       .filter((task) => task.required && !task.completed)
       .map((task) => task.label),
+  };
+}
+
+export async function buildInventoryCheckOutSnapshot(input: InventoryCheckOutSnapshotInput) {
+  const { start, end } = jakartaDayBounds(input.dateKey);
+  const [
+    stockRisk,
+    approvedLogs,
+    pendingRequestCount,
+    submittedInboundReceipts,
+    needsRevisionReceipts,
+    pendingSuratJalan,
+    unmarkedSuratJalan,
+    dailyChecklistRemaining,
+    unverifiedOutLogs,
+    damagedReportsPending,
+  ] = await Promise.all([
+    loadStockRiskItems(input.storeId),
+    db.inventoryLog.findMany({
+      where: {
+        status: "APPROVED",
+        createdAt: { gte: start, lt: end },
+        product: { storeId: input.storeId },
+      },
+      select: { type: true, reason: true, quantity: true },
+    }),
+    db.inventoryLog.count({
+      where: {
+        status: "PENDING",
+        product: { storeId: input.storeId },
+      },
+    }),
+    db.inventoryInboundReceipt.count({
+      where: { storeId: input.storeId, status: "SUBMITTED" },
+    }),
+    db.inventoryInboundReceipt.count({
+      where: { storeId: input.storeId, status: "NEEDS_REVISION" },
+    }),
+    db.suratJalan.count({
+      where: { storeId: input.storeId, status: "PENDING" },
+    }),
+    db.suratJalan.count({
+      where: { storeId: input.storeId, markingStatus: "UNMARKED" },
+    }),
+    db.inventoryTaskChecklistItem.count({
+      where: {
+        storeId: input.storeId,
+        periodType: "DAILY",
+        periodKey: input.dateKey,
+        isCompleted: false,
+      },
+    }),
+    db.inventoryLog.count({
+      where: {
+        type: "OUT",
+        status: "APPROVED",
+        createdAt: { gte: start, lt: end },
+        product: { storeId: input.storeId },
+        verification: null,
+        OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
+      },
+    }),
+    db.inventoryLog.count({
+      where: { status: "PENDING", reason: "WASTE", product: { storeId: input.storeId } },
+    }),
+  ]);
+
+  return {
+    checkedOutAt: input.now.toISOString(),
+    note: input.note || null,
+    exceptionNotes: input.exceptionNotes ?? {},
+    completion: input.completion,
+    stockRisk,
+    movementSummary: {
+      stockInQuantity: sumQuantities(approvedLogs, (log) => log.type === "IN"),
+      stockOutQuantity: sumQuantities(approvedLogs, (log) => log.type === "OUT"),
+      internalUseQuantity: sumQuantities(
+        approvedLogs,
+        (log) => log.type === "OUT" && log.reason === "USAGE",
+      ),
+      damagedQuantity: sumQuantities(
+        approvedLogs,
+        (log) => log.type === "OUT" && log.reason === "WASTE",
+      ),
+      adjustmentQuantity: sumQuantities(
+        approvedLogs,
+        (log) => log.type === "ADJUSTMENT" || log.reason === "MANUAL_ADJUSTMENT",
+      ),
+      approvedLogCount: approvedLogs.length,
+      pendingRequestCount,
+    },
+    workflowSummary: {
+      submittedInboundReceipts,
+      needsRevisionReceipts,
+      pendingSuratJalan,
+      unmarkedSuratJalan,
+      dailyChecklistRemaining,
+      unverifiedOutLogs,
+      damagedReportsPending,
+    },
+    morningCheckSnapshot: input.morningCheckSnapshot,
   };
 }

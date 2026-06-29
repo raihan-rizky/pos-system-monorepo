@@ -11,7 +11,7 @@ import {
 } from "@/hooks/useInventoryLogs";
 import { useRole } from "@/components/providers/RoleProvider";
 import { useCancelBulkBatch } from "@/features/bulk-stock-approval/hooks/useBulkApproval";
-import { InternalUseRecapPanel } from "@/features/internal-use-recap";
+
 import {
   PackagePlus,
   PackageMinus,
@@ -185,11 +185,11 @@ export default function StockLogsTab() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex w-full min-w-0 flex-col gap-5">
       {/* ── Toolbar ── */}
-      <div className="flex flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">60 Hari Terakhir</span>
             {pagination && (
@@ -204,7 +204,7 @@ export default function StockLogsTab() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
             <Filter className="w-4 h-4 text-slate-400 shrink-0" />
             {[
               { id: "", label: "Semua tipe" },
@@ -215,7 +215,7 @@ export default function StockLogsTab() {
               <button
                 key={f.id}
                 onClick={() => { setTypeFilter(f.id); setPage(1); }}
-                className={`min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${typeFilter === f.id
+                className={`min-h-9 flex-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer sm:flex-none ${typeFilter === f.id
                   ? "bg-slate-900 text-white shadow-md"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
@@ -230,7 +230,7 @@ export default function StockLogsTab() {
         <div
           role="tablist"
           aria-label="Filter status"
-          className="inline-flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 self-start"
+          className="flex w-full flex-wrap gap-1 self-start rounded-xl border border-slate-200 bg-slate-50 p-1 sm:inline-flex sm:w-auto"
         >
           {STATUS_FILTERS.map((f) => {
             const active = statusFilterId === f.id;
@@ -241,7 +241,7 @@ export default function StockLogsTab() {
                 role="tab"
                 aria-selected={active}
                 onClick={() => { setStatusFilterId(f.id); setPage(1); }}
-                className={`min-h-8 inline-flex items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${active
+                className={`flex min-h-8 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:inline-flex sm:flex-none ${active
                   ? "bg-white text-brand-700 shadow-sm"
                   : "text-slate-500 hover:text-slate-900"
                   }`}
@@ -258,7 +258,7 @@ export default function StockLogsTab() {
         </div>
       </div>
 
-      <InternalUseRecapPanel />
+
 
       {actionError && (
         <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -410,7 +410,7 @@ export default function StockLogsTab() {
           </div>
 
           {/* ── Mobile Cards ── */}
-          <div className="flex flex-col gap-3 md:hidden">
+          <div className="flex min-w-0 flex-col gap-3 md:hidden">
             {entries.map((entry) => {
               if (entry.kind === "bundle") {
                 return (
@@ -431,12 +431,12 @@ export default function StockLogsTab() {
               return (
                 <div
                   key={log.id}
-                  className={`relative bg-white rounded-2xl p-4 border ${isPending ? "border-amber-200" : "border-slate-100"} shadow-[0_2px_12px_rgba(0,0,0,0.03)] ${isRejected ? "opacity-70" : ""}`}
+                  className={`relative min-w-0 overflow-hidden bg-white rounded-2xl p-4 border ${isPending ? "border-amber-200" : "border-slate-100"} shadow-[0_2px_12px_rgba(0,0,0,0.03)] ${isRejected ? "opacity-70" : ""}`}
                 >
                   {isPending && (
                     <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-1 bg-amber-400 rounded-r" />
                   )}
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
                         <img src={log.product.imageUrl || getDefaultProductImage(log.product.category?.name)} alt="" className="w-full h-full object-cover rounded-xl" />
@@ -446,7 +446,7 @@ export default function StockLogsTab() {
                         <p className="text-[10px] text-slate-400 font-bold">{relativeTime(log.createdAt)}</p>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="shrink-0 text-right">
                       <span className={`text-base font-black tabular-nums ${isPending ? "text-slate-700" :
                         isRejected ? "text-slate-400 line-through" :
                           log.type === "IN" ? "text-emerald-600" :
@@ -478,7 +478,7 @@ export default function StockLogsTab() {
                   </div>
 
                   {(isPending && (isOwner || canCancel)) && (
-                    <div className="mt-3 pt-3 border-t border-slate-50 flex gap-2 flex-wrap">
+                    <div className="mt-3 flex min-w-0 flex-wrap gap-2 border-t border-slate-50 pt-3">
                       <RowActions
                         log={log}
                         isOwner={isOwner}
@@ -792,8 +792,8 @@ function BundleMobileCard({
     >
       <span aria-hidden="true" className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-cyan-400 via-blue-500 to-violet-500 shadow-[0_0_16px_rgba(6,182,212,0.8)]" />
       <span aria-hidden="true" className="absolute right-4 top-4 h-12 w-12 rounded-full bg-cyan-300/30 blur-2xl" />
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-100 text-cyan-700 shadow-[0_0_18px_rgba(6,182,212,0.28)]">
             <PackagePlus className="h-5 w-5" />
           </div>
@@ -824,7 +824,7 @@ function BundleMobileCard({
         <p className="text-xs font-medium text-slate-600">Pemohon: {summary.requester}</p>
         {summary.note && <p className="mt-1 text-xs text-slate-500">{summary.note}</p>}
       </div>
-      <div className="mt-3 flex items-center justify-between gap-2">
+      <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
         {canCancel ? (
           <button
             type="button"
@@ -874,12 +874,12 @@ function RowActions({
   }
   if (isOwner) {
     return (
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
         <button
           type="button"
           onClick={onApprove}
           disabled={isApproving || isRejecting}
-          className={`inline-flex items-center justify-center gap-1 ${compact ? "min-h-8" : "min-h-9 flex-1"} px-2.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40`}
+          className={`inline-flex items-center justify-center gap-1 ${compact ? "min-h-8" : "min-h-9 flex-1"} min-w-0 px-2.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40`}
         >
           <Check className="w-3.5 h-3.5" />
           Setuju
@@ -888,7 +888,7 @@ function RowActions({
           type="button"
           onClick={onStartReject}
           disabled={isApproving || isRejecting}
-          className={`inline-flex items-center justify-center gap-1 ${compact ? "min-h-8" : "min-h-9 flex-1"} px-2.5 rounded-lg text-xs font-bold bg-white text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40`}
+          className={`inline-flex items-center justify-center gap-1 ${compact ? "min-h-8" : "min-h-9 flex-1"} min-w-0 px-2.5 rounded-lg text-xs font-bold bg-white text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40`}
         >
           <X className="w-3.5 h-3.5" />
           Tolak
@@ -901,7 +901,7 @@ function RowActions({
       <button
         type="button"
         onClick={onCancel}
-        className={`inline-flex items-center justify-center ${compact ? "min-h-8" : "min-h-9"} px-2.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40`}
+        className={`inline-flex min-w-0 items-center justify-center ${compact ? "min-h-8" : "min-h-9"} px-2.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40`}
       >
         Batalkan
       </button>
@@ -936,14 +936,14 @@ function RejectComposer({
         maxLength={500}
         className="w-full px-3 py-2 rounded-xl border border-red-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 resize-none"
       />
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-slate-400">{reason.length}/500</p>
-        <div className="flex gap-2">
+        <div className="flex min-w-0 flex-1 justify-end gap-2 sm:flex-none">
           <button
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="min-h-9 px-3 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-9 min-w-0 px-3 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Batal
           </button>
@@ -951,7 +951,7 @@ function RejectComposer({
             type="button"
             onClick={onSubmit}
             disabled={isSubmitting}
-            className="min-h-9 px-3 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-9 min-w-0 px-3 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Menolak…" : "Tolak Permintaan"}
           </button>

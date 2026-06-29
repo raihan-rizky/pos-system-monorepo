@@ -22,7 +22,7 @@ function statusIcon(entry: AssistantActionLogEntry) {
 }
 
 export function AssistantActionLog({ entries }: AssistantActionLogProps) {
-  const [expanded, setExpanded] = useState(() => entries.some((entry) => entry.status === "active"));
+  const [expanded, setExpanded] = useState(false);
   if (entries.length === 0) return null;
 
   const latest = entries[entries.length - 1];

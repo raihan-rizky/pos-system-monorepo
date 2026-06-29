@@ -6,6 +6,24 @@ export interface AssistantMessageMetadata {
   sourceRefs?: string[];
 }
 
+export interface AssistantWorkflowStepPayload {
+  id: string;
+  title: string;
+  description: string;
+  route?: string;
+  actionLabel?: string;
+  iconKey?: string;
+}
+
+export interface AssistantWorkflowPayload {
+  id: string;
+  title: string;
+  route?: string;
+  actionLabel?: string;
+  sourceRef: string;
+  steps: AssistantWorkflowStepPayload[];
+}
+
 export type AssistantActionLogStatus = "active" | "done" | "failed";
 
 export interface AssistantActionLogEntry {
@@ -21,6 +39,7 @@ export interface Message {
   metadata?: AssistantMessageMetadata;
   actionLog?: AssistantActionLogEntry[];
   followUps?: string[];
+  workflow?: AssistantWorkflowPayload;
 }
 
 export interface PageContext {
@@ -41,12 +60,14 @@ export interface ChatResponse {
 }
 
 export interface StructuredAssistantAnswer {
+  responseKind?: "text" | "workflow";
   answerMarkdown: string;
   dataStatus: "live_data" | "help_docs" | "no_data" | "error" | "no_tool_used";
   sourceLabel: string;
   sourceRefs?: string[];
   generatedAt: string;
   followUps: string[];
+  workflow?: AssistantWorkflowPayload;
 }
 
 export type AssistantStreamFrame =

@@ -103,12 +103,16 @@ export function Providers({
   role,
   userId,
   userName,
+  storeId,
+  authorizationFingerprint,
   permissions,
 }: { 
   children: React.ReactNode;
   role: Role | null;
   userId: string | null;
   userName: string | null;
+  storeId: string | null;
+  authorizationFingerprint: string | null;
   permissions: RolePermissions;
 }) {
   const isIdleReady = useIdleReady(Boolean(role));
@@ -129,7 +133,14 @@ export function Providers({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RoleProvider role={role} userId={userId} userName={userName} permissions={permissions}>
+      <RoleProvider
+        role={role}
+        userId={userId}
+        userName={userName}
+        storeId={storeId}
+        authorizationFingerprint={authorizationFingerprint}
+        permissions={permissions}
+      >
         <AppBootstrap enabled={isIdleReady}>{children}</AppBootstrap>
         <DeferredAppServices enabled={isIdleReady} />
       </RoleProvider>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AssistantWorkflowPayload } from "../types/assistant";
 
 export const structuredAssistantAnswerSchema = z.object({
   answerMarkdown: z.string().min(1),
@@ -9,7 +10,10 @@ export const structuredAssistantAnswerSchema = z.object({
   followUps: z.array(z.string().min(1).max(120)).max(3).default([]),
 }).strict();
 
-export type StructuredAssistantAnswer = z.infer<typeof structuredAssistantAnswerSchema>;
+export type StructuredAssistantAnswer = z.infer<typeof structuredAssistantAnswerSchema> & {
+  responseKind?: "text" | "workflow";
+  workflow?: AssistantWorkflowPayload;
+};
 
 export const structuredAssistantAnswerJsonSchema = {
   type: "object",

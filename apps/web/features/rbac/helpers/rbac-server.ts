@@ -16,12 +16,7 @@ let permissionCache:
     }
   | null = null;
 
-export async function getGlobalRolePermissions(): Promise<RolePermissions> {
-  const now = Date.now();
-  if (permissionCache && now - permissionCache.cachedAt < CACHE_TTL_MS) {
-    return permissionCache.permissions;
-  }
-
+async function loadGlobalRolePermissions(): Promise<RolePermissions> {
   const rows = await db.rolePermission.findMany({
     select: {
       role: true,
@@ -32,8 +27,18 @@ export async function getGlobalRolePermissions(): Promise<RolePermissions> {
     },
   });
 
-  const permissions =
-    rows.length > 0 ? normalizeRolePermissions(rows as PermissionEntry[]) : buildDefaultRolePermissions();
+  return rows.length > 0
+    ? normalizeRolePermissions(rows as PermissionEntry[])
+    : buildDefaultRolePermissions();
+}
+
+export async function getGlobalRolePermissions(): Promise<RolePermissions> {
+  const now = Date.now();
+  if (permissionCache && now - permissionCache.cachedAt < CACHE_TTL_MS) {
+    return permissionCache.permissions;
+  }
+
+  const permissions = await loadGlobalRolePermissions();
 
   permissionCache = {
     permissions,
@@ -41,6 +46,10 @@ export async function getGlobalRolePermissions(): Promise<RolePermissions> {
   };
 
   return permissions;
+}
+
+export async function getFreshGlobalRolePermissions(): Promise<RolePermissions> {
+  return loadGlobalRolePermissions();
 }
 
 export async function getGlobalRolePermissionEntries(): Promise<EditablePermissionEntry[]> {

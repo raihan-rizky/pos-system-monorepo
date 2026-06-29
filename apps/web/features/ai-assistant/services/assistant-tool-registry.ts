@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  canRolePerformAction,
+  type ResourceAction,
+  type RolePermissions,
+} from "@/features/rbac/helpers/rbac-core";
 import type { UserRole } from "../types/assistant";
 import {
   getCustomerDebtSummary,
@@ -60,6 +65,8 @@ export interface AssistantToolDefinition {
   name: AssistantToolName;
   description: string;
   allowedRoles: UserRole[];
+  requiredCapabilities: Array<{ resource: string; action: ResourceAction }>;
+  requiredAnyCapabilities?: Array<{ resource: string; action: ResourceAction; roles?: UserRole[] }>;
   requiresStore: boolean;
   inputSchema: z.ZodSchema;
   outputSchema: z.ZodSchema;
@@ -158,6 +165,7 @@ export function createAssistantToolRegistry(
       name: "get_system_help",
       description: "Search official in-app help docs for POS workflows, menus, role permissions, and feature usage. USE for: cara pakai fitur, langkah-langkah, menu apa, hak akses. DO NOT USE for: live store data queries.",
       allowedRoles: allStoreRoles,
+      requiredCapabilities: [],
       requiresStore: false,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
       outputSchema: z.object({
@@ -184,6 +192,7 @@ export function createAssistantToolRegistry(
       name: "get_low_stock_items",
       description: "Return ALL products where stock ≤ minimum stock for the store. USE for: stok rendah, stok menipis, barang habis, daftar minimum stok. DO NOT USE for: checking one specific product's stock (use get_product_stock instead).",
       allowedRoles: ["OWNER", "ADMIN", "INVENTORY"],
+      requiredCapabilities: [{ resource: "inventory", action: "read" }],
       requiresStore: true,
       inputSchema: z.object({}).strict(),
       outputSchema: z.object({
@@ -215,6 +224,7 @@ export function createAssistantToolRegistry(
       name: "get_daily_sales_summary",
       description: "Return completed sales metrics (revenue, gross profit, transaction count) for one exact business date. USE for: omzet hari ini, penjualan tanggal X, ringkasan sales. Requires date in YYYY-MM-DD. DO NOT USE for: top products or multi-date ranges.",
       allowedRoles: ["OWNER", "ADMIN"],
+      requiredCapabilities: [{ resource: "financial-report", action: "read" }],
       requiresStore: true,
       inputSchema: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format") }).strict(),
       outputSchema: z.object({
@@ -259,6 +269,11 @@ export function createAssistantToolRegistry(
       name: "get_product_search",
       description: "Search active products by keyword, SKU, or barcode. USE for: cari produk X, find item, nama produk tidak jelas. DO NOT USE if user asks about stock level of a known product (use get_product_stock) or price (use get_product_price).",
       allowedRoles: productRoles,
+      requiredCapabilities: [],
+      requiredAnyCapabilities: [
+        { resource: "product", action: "read" },
+        { resource: "inventory", action: "read", roles: ["INVENTORY"] },
+      ],
       requiresStore: true,
       inputSchema: z.object({
         query: z.string().min(1),
@@ -291,6 +306,11 @@ export function createAssistantToolRegistry(
       name: "get_product_stock",
       description: "Return stock level for one specific named product. USE for: stok [produk X] berapa, cek stok [nama]. DO NOT USE for broad low-stock lists (use get_low_stock_items) or when product name is unknown (use get_product_search first) or when user asks about price (use get_product_price).",
       allowedRoles: productRoles,
+      requiredCapabilities: [],
+      requiredAnyCapabilities: [
+        { resource: "product", action: "read" },
+        { resource: "inventory", action: "read", roles: ["INVENTORY"] },
+      ],
       requiresStore: true,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
       outputSchema: z.object({
@@ -320,6 +340,11 @@ export function createAssistantToolRegistry(
       name: "get_product_price",
       description: "Return selling price for one specific named product. USE for: harga [produk X] berapa, harga jual. DO NOT USE when product name is unknown (use get_product_search first) or when user asks about stock (use get_product_stock).",
       allowedRoles: productRoles,
+      requiredCapabilities: [],
+      requiredAnyCapabilities: [
+        { resource: "product", action: "read" },
+        { resource: "inventory", action: "read", roles: ["INVENTORY"] },
+      ],
       requiresStore: true,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
       outputSchema: z.object({
@@ -349,6 +374,7 @@ export function createAssistantToolRegistry(
       name: "get_customer_search",
       description: "Search customers by name, phone, company, or email. USE for: cari pelanggan X, find customer, nama tidak jelas. DO NOT USE when customer is known and user wants debt/recap data (use get_customer_debt_summary or get_customer_recap_summary directly).",
       allowedRoles: customerRoles,
+      requiredCapabilities: [{ resource: "customer", action: "read" }],
       requiresStore: true,
       inputSchema: z.object({
         query: z.string().min(1),
@@ -381,6 +407,7 @@ export function createAssistantToolRegistry(
       name: "get_customer_debt_summary",
       description: "Return outstanding debt for one specific customer. USE for: piutang [pelanggan X], utang [nama], tagihan belum lunas. DO NOT USE for all-customer debt rankings or totals (not supported).",
       allowedRoles: customerRoles,
+      requiredCapabilities: [{ resource: "customer", action: "read" }],
       requiresStore: true,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
       outputSchema: z.object({
@@ -410,6 +437,7 @@ export function createAssistantToolRegistry(
       name: "get_customer_recap_summary",
       description: "Return 30-day transaction recap (total orders, revenue, debt paid) for one specific customer. USE for: rekap [pelanggan X], ringkasan transaksi pelanggan, riwayat belanja. DO NOT USE for global customer lists.",
       allowedRoles: customerRoles,
+      requiredCapabilities: [{ resource: "customer", action: "read" }],
       requiresStore: true,
       inputSchema: z.object({
         query: z.string().min(1),
@@ -465,6 +493,7 @@ export function createAssistantToolRegistry(
       name: "get_supplier_search",
       description: "Search active suppliers by name, phone, or contact person. USE for: cari supplier X, info pemasok, kontak distributor. DO NOT USE for supplier performance rankings (not supported).",
       allowedRoles: ["OWNER", "ADMIN"],
+      requiredCapabilities: [{ resource: "supplier", action: "read" }],
       requiresStore: false,
       inputSchema: z.object({
         query: z.string().min(1),
@@ -504,6 +533,7 @@ export function createAssistantToolRegistry(
       name: "get_top_products",
       description: "Return top 10 best-selling products by revenue for one business date. USE for: produk terlaris, best seller hari ini, penjualan produk tertinggi tanggal X. DO NOT USE for general sales summary (use get_daily_sales_summary).",
       allowedRoles: ["OWNER", "ADMIN"],
+      requiredCapabilities: [{ resource: "transaction", action: "read" }],
       requiresStore: true,
       inputSchema: z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format"),
@@ -547,6 +577,7 @@ export function createAssistantToolRegistry(
       name: "get_pending_transactions",
       description: "Return transactions with status PENDING_APPROVAL, DP (partial payment), or DRAFT. USE for: transaksi pending, belum lunas, DP, draft transaksi. DO NOT USE for completed transaction history (not supported here).",
       allowedRoles: ["OWNER", "ADMIN", "CASHIER"],
+      requiredCapabilities: [{ resource: "transaction", action: "read" }],
       requiresStore: true,
       inputSchema: z.object({}).strict(),
       outputSchema: z.object({
@@ -580,12 +611,30 @@ export function createAssistantToolRegistry(
   ];
 }
 
-export function getToolsForRole(role: UserRole, repository?: AssistantToolsRepository) {
-  return createAssistantToolRegistry(repository).filter((tool) => tool.allowedRoles.includes(role));
+export function isToolPermittedForRole(
+  tool: AssistantToolDefinition,
+  role: UserRole,
+  permissions?: RolePermissions,
+) {
+  return tool.allowedRoles.includes(role)
+    && tool.requiredCapabilities.every((capability) =>
+      canRolePerformAction(role, capability.resource, capability.action, permissions)
+    )
+    && (
+      !tool.requiredAnyCapabilities?.length
+      || tool.requiredAnyCapabilities.some((capability) =>
+        (!capability.roles || capability.roles.includes(role)) &&
+        canRolePerformAction(role, capability.resource, capability.action, permissions)
+      )
+    );
 }
 
-export function getOpenAiToolsForRole(role: UserRole, repository?: AssistantToolsRepository) {
-  return getToolsForRole(role, repository).map((tool) => ({
+export function getToolsForRole(role: UserRole, repository?: AssistantToolsRepository, permissions?: RolePermissions) {
+  return createAssistantToolRegistry(repository).filter((tool) => isToolPermittedForRole(tool, role, permissions));
+}
+
+export function getOpenAiToolsForRole(role: UserRole, repository?: AssistantToolsRepository, permissions?: RolePermissions) {
+  return getToolsForRole(role, repository, permissions).map((tool) => ({
     type: "function" as const,
     function: {
       name: tool.name,
@@ -595,8 +644,8 @@ export function getOpenAiToolsForRole(role: UserRole, repository?: AssistantTool
   }));
 }
 
-export function findToolForRole(role: UserRole, name: string, repository?: AssistantToolsRepository) {
-  return getToolsForRole(role, repository).find((tool) => tool.name === name);
+export function findToolForRole(role: UserRole, name: string, repository?: AssistantToolsRepository, permissions?: RolePermissions) {
+  return getToolsForRole(role, repository, permissions).find((tool) => tool.name === name);
 }
 
 export function isRetriableToolError(error: unknown) {

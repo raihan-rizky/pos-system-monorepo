@@ -80,7 +80,7 @@ export default function LoginPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="kasir1"
+                placeholder="kasir"
                 className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white
                   placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2
                   focus:ring-brand-500/40 focus:border-brand-500/40 transition-all"

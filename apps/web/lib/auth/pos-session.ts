@@ -2,6 +2,7 @@ export const POS_IDENTITY_COOKIE_NAMES = [
   "x-pos-role",
   "x-pos-user-id",
   "x-pos-user-name",
+  "x-pos-store-id",
 ] as const;
 
 export function isSupabaseAuthCookieName(name: string): boolean {

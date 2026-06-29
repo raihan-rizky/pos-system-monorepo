@@ -84,6 +84,16 @@ describe("RBAC permission matrix", () => {
     expect(canRolePerformAction("OWNER", "rbac", "delete", normalized)).toBe(true);
   });
 
+  it("ignores persisted permissions for unknown pages and resources", () => {
+    const normalized = normalizeRolePermissions([
+      { role: "ADMIN", scope: "page", target: "/unknown", action: "access", allowed: true },
+      { role: "ADMIN", scope: "resource", target: "product.typo", action: "read", allowed: true },
+    ]);
+
+    expect(normalized.ADMIN.pages).not.toHaveProperty("/unknown");
+    expect(normalized.ADMIN.resources).not.toHaveProperty("product.typo");
+  });
+
   it("restricts inventory.approve to OWNER by default", () => {
     const defaults = buildDefaultRolePermissions();
     expect(canRolePerformAction("OWNER", "inventory.approve", "update", defaults)).toBe(true);
@@ -114,6 +124,16 @@ describe("RBAC permission matrix", () => {
     expect(canRolePerformAction("SALES", "surat_jalan", "read", defaults)).toBe(true);
     expect(canRolePerformAction("CASHIER", "surat_jalan", "update", defaults)).toBe(false);
     expect(canRolePerformAction("SALES", "surat_jalan", "update", defaults)).toBe(false);
+  });
+
+  it("keeps product price logs as a configurable admin-only resource by default", () => {
+    const defaults = buildDefaultRolePermissions();
+
+    expect(canRolePerformAction("OWNER", "product.price_log", "read", defaults)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "product.price_log", "read", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "product.price_log", "read", defaults)).toBe(false);
+    expect(canRolePerformAction("SALES", "product.price_log", "read", defaults)).toBe(false);
+    expect(canRolePerformAction("INVENTORY", "product.price_log", "read", defaults)).toBe(false);
   });
 
   it("ignores persisted editable-role grants for owner-locked inventory approval", () => {

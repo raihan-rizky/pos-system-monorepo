@@ -58,6 +58,35 @@ describe("/api/push/subscriptions", () => {
     expect(queryRawMock).toHaveBeenCalledTimes(1);
   });
 
+  it("allows INVENTORY users to manage their own subscription", async () => {
+    const { POST } = await import("../route");
+    requireRoleMock.mockResolvedValue({
+      id: "inventory-1",
+      role: "INVENTORY",
+      storeId: "store-main",
+    });
+    queryRawMock.mockResolvedValue([{ id: "sub-inventory", isActive: true }]);
+
+    const response = await POST(
+      request("POST", {
+        endpoint: "https://fcm.googleapis.com/fcm/send/inventory",
+        keys: {
+          auth: "auth-key",
+          p256dh: "p256dh-key",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(requireRoleMock).toHaveBeenCalledWith(
+      "OWNER",
+      "ADMIN",
+      "CASHIER",
+      "SALES",
+      "INVENTORY",
+    );
+  });
+
   it("disables the current user's subscription through explicit SQL update", async () => {
     const { DELETE } = await import("../route");
     executeRawMock.mockResolvedValue(1);

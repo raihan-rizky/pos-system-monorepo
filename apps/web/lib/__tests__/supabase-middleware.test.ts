@@ -29,6 +29,7 @@ describe("updateSession", () => {
         id: "admin-1",
         name: "Admin User",
         role: "ADMIN",
+        storeId: "store-1",
         isActive: true,
       },
       error: null,
@@ -48,6 +49,7 @@ describe("updateSession", () => {
     expect(response.cookies.get("x-pos-role")?.value).toBe("ADMIN");
     expect(response.cookies.get("x-pos-user-id")?.value).toBe("admin-1");
     expect(response.cookies.get("x-pos-user-name")?.value).toBe("Admin User");
+    expect(response.cookies.get("x-pos-store-id")?.value).toBe("store-1");
   });
 
   it("redirects page requests once when POS identity cookies are missing on first login", async () => {
@@ -59,5 +61,21 @@ describe("updateSession", () => {
     expect(response.headers.get("location")).toBe("http://localhost/pos");
     expect(response.cookies.get("x-pos-role")?.value).toBe("ADMIN");
     expect(response.cookies.get("x-pos-user-id")?.value).toBe("admin-1");
+    expect(response.cookies.get("x-pos-store-id")?.value).toBe("store-1");
+  });
+
+  it("fails closed for page requests when POS identity cannot be verified", async () => {
+    maybeSingleMock.mockRejectedValueOnce(new Error("database unavailable"));
+    const request = new NextRequest("http://localhost/dashboard", {
+      headers: {
+        cookie:
+          "x-pos-role=OWNER; x-pos-user-id=owner-1; x-pos-user-name=Owner%20User",
+      },
+    });
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(503);
+    await expect(response.text()).resolves.toContain("Unable to verify access");
   });
 });

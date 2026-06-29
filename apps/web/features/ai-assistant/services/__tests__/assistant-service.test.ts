@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssistantService } from "../assistant-service";
+import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const toolsRepository = {
   getLowStockItems: vi.fn(),
@@ -25,6 +26,28 @@ const finalAnswer = (answerMarkdown = "Ini jawabannya.") => ({
         sourceLabel: "Alat stok rendah",
         generatedAt: "2026-06-26T10:00:00.000Z",
         followUps: [],
+      }),
+    },
+  }],
+});
+
+const workflowSelection = (workflowId: string) => ({
+  choices: [{
+    message: {
+      content: JSON.stringify({
+        action: "select_workflow",
+        workflowId,
+      }),
+    },
+  }],
+});
+
+const workflowClarification = (question = "Panduan mana yang ingin dibuka?") => ({
+  choices: [{
+    message: {
+      content: JSON.stringify({
+        action: "clarify",
+        question,
       }),
     },
   }],
@@ -107,6 +130,24 @@ describe("AssistantService", () => {
     }));
   });
 
+  it("removes tools when fresh effective RBAC resource permission is revoked", () => {
+    const permissions = buildDefaultRolePermissions();
+    permissions.ADMIN.resources.product.read = false;
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      rolePermissions: permissions,
+    });
+
+    const tools = service.buildToolsForRole("ADMIN");
+    const toolNames = tools.map((tool) => tool.name);
+
+    expect(toolNames).not.toContain("get_product_search");
+    expect(toolNames).not.toContain("get_product_stock");
+    expect(toolNames).not.toContain("get_product_price");
+  });
+
   it("INVENTORY role has access to stock tools only", () => {
     const tools = service.buildToolsForRole("INVENTORY");
     const toolNames = tools.map((t) => t.name);
@@ -122,6 +163,24 @@ describe("AssistantService", () => {
 
     expect(result).toMatchObject({ ok: false, error: "Unauthorized", error_code: "RBAC_DENIED" });
     expect(toolsRepository.getDailySalesSummary).not.toHaveBeenCalled();
+  });
+
+  it("rejects execution when fresh effective RBAC resource permission is revoked", async () => {
+    const permissions = buildDefaultRolePermissions();
+    permissions.ADMIN.resources.product.read = false;
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      rolePermissions: permissions,
+    });
+
+    const result = await service.executeTool("ADMIN", "store-1", "get_product_price", {
+      query: "A4",
+    });
+
+    expect(result).toMatchObject({ ok: false, error: "Unauthorized", error_code: "RBAC_DENIED" });
+    expect(toolsRepository.getProductPrice).not.toHaveBeenCalled();
   });
 
   it("calls low-stock repository for allowed inventory role", async () => {
@@ -391,6 +450,39 @@ describe("AssistantService", () => {
     expect(providerAborted).toBe(true);
   });
 
+  it("returns a safe timeout answer when the hard assistant deadline expires", async () => {
+    let providerAborted = false;
+    const create = vi.fn((_body, options: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener("abort", () => {
+        providerAborted = true;
+        const error = new Error("deadline exceeded");
+        error.name = "AbortError";
+        reject(error);
+      }, { once: true });
+    }));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+      assistantDeadlineMs: 25,
+    } as any);
+
+    const body = await Promise.race([
+      readStream(service.toResponseStream({
+        role: "OWNER",
+        storeId: "store-1",
+        messages: [{ role: "user", content: "jelaskan sistem POS" }],
+        signal: new AbortController().signal,
+      })),
+      new Promise<string>((resolve) => setTimeout(() => resolve("timed_out_without_answer"), 100)),
+    ]);
+
+    expect(providerAborted).toBe(true);
+    expect(body).toContain("batas waktu");
+    expect(body).toContain('"dataStatus":"error"');
+  });
+
   it("disables reverse-proxy buffering for progress events", () => {
     const response = service.toResponseStream({
       role: "OWNER",
@@ -618,5 +710,167 @@ describe("AssistantService", () => {
     expect(create).not.toHaveBeenCalled();
     expect(toolsRepository.getDailySalesSummary).not.toHaveBeenCalled();
     expect(body).toContain("tidak punya akses");
+  });
+
+  it("returns a permitted guided workflow deterministically without a provider call", async () => {
+    const create = vi.fn();
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+      now: () => new Date("2026-06-29T08:00:00.000Z"),
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "ADMIN",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "Bagaimana cara menambahkan produk baru ke katalog toko?" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create).not.toHaveBeenCalled();
+    expect(body).toContain('"responseKind":"workflow"');
+    expect(body).toContain('"id":"faq-q01-add-product"');
+    expect(body).toContain('"route":"/products"');
+    expect(body).toContain("Tambah Produk");
+  });
+
+  it("returns deterministic access guidance for a restricted guided workflow", async () => {
+    const create = vi.fn();
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+      now: () => new Date("2026-06-29T08:00:00.000Z"),
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "CASHIER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "cara tambah produk baru" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create).not.toHaveBeenCalled();
+    expect(body).toContain("akses");
+    expect(body).not.toContain('"workflow"');
+  });
+
+  it("uses constrained workflow selection for unresolved how-to requests", async () => {
+    const create = vi.fn()
+      .mockResolvedValueOnce(workflowSelection("faq-q01-add-product"))
+      .mockResolvedValueOnce(finalAnswer("Jawaban generik ini tidak boleh dipakai."));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+      now: () => new Date("2026-06-29T08:00:00.000Z"),
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "ADMIN",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "cara memakai fitur toko untuk input barang baru yang belum ada" }],
+      signal: new AbortController().signal,
+    }));
+
+    const selectionRequest = create.mock.calls[0][0];
+    const selectionPrompt = JSON.stringify(selectionRequest.messages);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(selectionRequest).toMatchObject({
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "assistant_workflow_selection",
+        },
+      },
+    });
+    expect(selectionPrompt).toContain("faq-q01-add-product");
+    expect(selectionPrompt).not.toContain("Buka katalog produk");
+    expect(body).toContain('"responseKind":"workflow"');
+    expect(body).toContain('"id":"faq-q01-add-product"');
+    expect(body).toContain("Tambah Produk");
+    expect(body).not.toContain("Jawaban generik ini tidak boleh dipakai.");
+  });
+
+  it("only exposes permitted workflow IDs in fallback selection prompts", async () => {
+    const create = vi.fn().mockResolvedValueOnce(workflowClarification("Sebutkan menu yang mau dipandu ya."));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+      now: () => new Date("2026-06-29T08:00:00.000Z"),
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "CASHIER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "cara pakai fitur aplikasi toko" }],
+      signal: new AbortController().signal,
+    }));
+
+    const selectionPrompt = JSON.stringify(create.mock.calls[0][0].messages);
+
+    expect(selectionPrompt).toContain("faq-q06-pos-sale");
+    expect(selectionPrompt).not.toContain("faq-q01-add-product");
+    expect(selectionPrompt).not.toContain("faq-q22-manage-rbac");
+    expect(body).toContain("Sebutkan menu yang mau dipandu ya.");
+    expect(body).not.toContain('"workflow"');
+  });
+
+  it("rejects workflow selection IDs outside the permitted set", async () => {
+    const create = vi.fn()
+      .mockResolvedValueOnce(workflowSelection("faq-q22-manage-rbac"))
+      .mockResolvedValueOnce(finalAnswer("Jangan jawab dari model umum."));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+      now: () => new Date("2026-06-29T08:00:00.000Z"),
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "CASHIER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "cara pakai fitur aplikasi toko" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(body).toContain("belum yakin panduan mana");
+    expect(body).not.toContain('"responseKind":"workflow"');
+    expect(body).not.toContain("Buka tab RBAC");
+    expect(body).not.toContain("Jangan jawab dari model umum.");
+  });
+
+  it("recognizes Indonesian inventory wording for constrained workflow selection", async () => {
+    const create = vi.fn()
+      .mockResolvedValueOnce(workflowSelection("faq-q27-inventory-day-session"))
+      .mockResolvedValueOnce(finalAnswer("Jawaban inventori umum tidak boleh dipakai."));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+      now: () => new Date("2026-06-29T08:00:00.000Z"),
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "INVENTORY",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "cara pakai inventori harian" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(body).toContain('"id":"faq-q27-inventory-day-session"');
+    expect(body).toContain("Check In");
+    expect(body).not.toContain("Jawaban inventori umum tidak boleh dipakai.");
   });
 });

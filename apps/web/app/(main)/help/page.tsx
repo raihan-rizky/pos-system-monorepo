@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { HelpCircle, Search, ShieldCheck, ShoppingCart, Truck, Users, Warehouse, X, Bot } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { useRole } from "@/components/providers/RoleProvider";
 import HelpContent from "@/features/help-documentation/components/HelpContent";
 import type { Role } from "@/features/rbac/helpers/rbac-core";
@@ -78,24 +79,46 @@ export default function HelpPage() {
         {/* Content Layout */}
         <div className="flex flex-col gap-6">
           <nav className="flex flex-row flex-nowrap sm:flex-wrap gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden">
-            {visibleTabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center justify-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap
-                  ${activeTab === tab.id
-                    ? "bg-brand-600 text-white shadow-md border border-brand-700"
-                    : "bg-white border border-surface-200 text-surface-600 hover:bg-surface-50 hover:text-surface-900 shadow-sm"
-                  }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            ))}
+            {visibleTabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative flex items-center justify-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-colors duration-200
+                    ${isActive
+                      ? "text-white"
+                      : "bg-white border border-surface-200 text-surface-600 hover:bg-surface-50 hover:text-surface-900 shadow-sm"
+                    }`}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="activeHelpTab"
+                      className="absolute inset-0 bg-brand-600 rounded-full border border-brand-700 shadow-md z-0"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2">
+                    {tab.icon}
+                    <span>{tab.label}</span>
+                  </span>
+                </button>
+              );
+            })}
           </nav>
 
-          <div className="w-full">
-            <HelpContent targetRole={activeTab} searchQuery={searchQuery} />
+          <div className="w-full overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                <HelpContent targetRole={activeTab} searchQuery={searchQuery} />
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
 

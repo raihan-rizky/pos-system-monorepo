@@ -64,6 +64,7 @@ export const RESOURCE_TARGETS = [
   "production",
   "customer",
   "product",
+  "product.price_log",
   "supplier",
   "inventory",
   "inventory.approve",
@@ -131,6 +132,11 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
     read: ["OWNER", "ADMIN", "CASHIER", "SALES"],
     write: ["OWNER", "ADMIN"],
     delete: ["OWNER", "ADMIN"],
+  },
+  "product.price_log": {
+    read: ["OWNER", "ADMIN"],
+    write: [],
+    delete: [],
   },
   supplier: {
     read: ["OWNER", "ADMIN"],
@@ -241,14 +247,21 @@ export function normalizeRolePermissions(entries: PermissionEntry[]): RolePermis
   for (const entry of entries) {
     if (!isEditableRole(entry.role)) continue;
 
-    if (entry.scope === PAGE_SCOPE && entry.action === PAGE_ACTION) {
-      permissions[entry.role].pages[normalizePageTarget(entry.target)] = entry.allowed;
+    const pageTarget = normalizePageTarget(entry.target);
+
+    if (
+      entry.scope === PAGE_SCOPE &&
+      entry.action === PAGE_ACTION &&
+      isKnownPageTarget(pageTarget)
+    ) {
+      permissions[entry.role].pages[pageTarget] = entry.allowed;
       continue;
     }
 
     if (
       entry.scope === RESOURCE_SCOPE &&
       isResourceAction(entry.action) &&
+      isKnownResourceTarget(entry.target) &&
       !isOwnerLockedResource(entry.target)
     ) {
       permissions[entry.role].resources[entry.target] ??= {
@@ -318,6 +331,14 @@ export function isValidRole(value: string): value is Role {
 
 export function isResourceAction(value: string): value is ResourceAction {
   return (ACTIONS as readonly string[]).includes(value);
+}
+
+export function isKnownPageTarget(target: string): boolean {
+  return (PAGE_TARGETS as readonly string[]).includes(target);
+}
+
+export function isKnownResourceTarget(target: string): boolean {
+  return (RESOURCE_TARGETS as readonly string[]).includes(target);
 }
 
 export function isOwnerLockedResource(target: string): boolean {

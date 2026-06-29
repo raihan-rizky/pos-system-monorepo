@@ -3,12 +3,14 @@ import { NextRequest } from "next/server";
 import { GET } from "../route";
 
 const requireRoleMock = vi.hoisted(() => vi.fn());
+const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const productPriceLogFindManyMock = vi.hoisted(() => vi.fn());
 const productPriceLogCountMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requireRole: requireRoleMock,
+  requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
 }));
 
@@ -31,18 +33,25 @@ describe("GET /api/products/price-logs", () => {
       role: "OWNER",
       storeId: "store-main",
     });
+    requirePermissionMock.mockResolvedValue({
+      id: "user-1",
+      name: "Owner User",
+      role: "OWNER",
+      storeId: "store-main",
+    });
     handleAuthErrorMock.mockReturnValue(null);
     productPriceLogFindManyMock.mockResolvedValue([]);
     productPriceLogCountMock.mockResolvedValue(0);
   });
 
-  it("requires OWNER or ADMIN because HPP is sensitive", async () => {
+  it("requires configurable product price-log read permission", async () => {
     const request = new NextRequest("http://localhost/api/products/price-logs");
 
     const response = await GET(request);
 
     expect(response.status).toBe(200);
-    expect(requireRoleMock).toHaveBeenCalledWith("OWNER", "ADMIN");
+    expect(requirePermissionMock).toHaveBeenCalledWith("product.price_log", "read");
+    expect(requireRoleMock).not.toHaveBeenCalled();
   });
 
   it("returns paginated logs filtered by product, field, and source", async () => {

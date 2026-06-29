@@ -14,6 +14,8 @@ interface RoleContextType {
   role: Role | null;
   userId: string | null;
   userName: string | null;
+  storeId: string | null;
+  authorizationFingerprint: string | null;
   canAccess: (path: string) => boolean;
   canPerform: (resource: string, action: Action) => boolean;
 }
@@ -22,6 +24,8 @@ const RoleContext = createContext<RoleContextType>({
   role: null,
   userId: null,
   userName: null,
+  storeId: null,
+  authorizationFingerprint: null,
   canAccess: () => false,
   canPerform: () => false,
 });
@@ -35,6 +39,8 @@ interface RoleProviderProps {
   role: Role | null;
   userId: string | null;
   userName: string | null;
+  storeId?: string | null;
+  authorizationFingerprint?: string | null;
   permissions?: RolePermissions;
 }
 
@@ -43,6 +49,8 @@ export function RoleProvider({
   role,
   userId,
   userName,
+  storeId = null,
+  authorizationFingerprint = null,
   permissions = buildDefaultRolePermissions(),
 }: RoleProviderProps) {
   const canAccess = (path: string) => {
@@ -56,7 +64,7 @@ export function RoleProvider({
   };
 
   return (
-    <RoleContext.Provider value={{ role, userId, userName, canAccess, canPerform }}>
+    <RoleContext.Provider value={{ role, userId, userName, storeId, authorizationFingerprint, canAccess, canPerform }}>
       {children}
     </RoleContext.Provider>
   );

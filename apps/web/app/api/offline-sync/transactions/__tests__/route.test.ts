@@ -137,9 +137,9 @@ describe("POST /api/offline-sync/transactions", () => {
       },
       {
         clientMutationId: "offline-2",
-        status: "SYNCED",
+        status: "PENDING_APPROVAL",
         serverTransactionId: "tx-2",
-        message: "Synced",
+        message: "Synced as pending approval",
       },
     ]);
   });

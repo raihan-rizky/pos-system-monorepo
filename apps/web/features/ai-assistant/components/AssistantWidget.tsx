@@ -12,22 +12,27 @@ import {
   completeAssistantActionLog,
   setAssistantFinalContent,
   setAssistantFollowUps,
+  setAssistantWorkflowPayload,
 } from "../helpers/chat-state";
+import { buildAssistantHistoryKey, sanitizeAssistantHistoryRecord } from "../helpers/chat-history";
 import { AssistantRequestError, sendChatMessage } from "../api/assistantApi";
 import type { AssistantStreamFrame, Message } from "../types/assistant";
-import { Send, Info, Bot, X, Trash2, Sparkles } from "lucide-react";
+import { Send, Info, Bot, X, Trash2, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { flushSync } from "react-dom";
 import { AssistantActionLog } from "./AssistantActionLog";
+import { AssistantWorkflowMessage } from "./AssistantWorkflowMessage";
+import { useRole } from "@/components/providers/RoleProvider";
 
-const CHAT_HISTORY_KEY_PREFIX = "ai_assistant_history_";
 const MAX_HISTORY_MESSAGES = 10;
-const HISTORY_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 type AssistantWidgetProps = {
   defaultOpen?: boolean;
   initialMessages?: Message[];
   userRole?: string;
+  userId?: string | null;
+  storeId?: string | null;
+  authorizationFingerprint?: string | null;
 };
 
 function formatMetadataTime(value: string) {
@@ -75,19 +80,78 @@ function waitForStatusPaint() {
   });
 }
 
-export function AssistantWidget({ defaultOpen = false, initialMessages = [], userRole = "ADMIN" }: AssistantWidgetProps) {
+export function AssistantWidget({
+  defaultOpen = false,
+  initialMessages = [],
+  userRole,
+  userId,
+  storeId,
+  authorizationFingerprint,
+}: AssistantWidgetProps) {
+  const roleContext = useRole();
+  const effectiveRole = userRole ?? roleContext.role ?? "ADMIN";
+  const effectiveUserId = userId ?? roleContext.userId;
+  const effectiveStoreId = storeId ?? roleContext.storeId;
+  const effectiveAuthorizationFingerprint = authorizationFingerprint ?? roleContext.authorizationFingerprint;
   const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const storageKey = `${CHAT_HISTORY_KEY_PREFIX}${userRole}`;
+  const storageKey = buildAssistantHistoryKey({
+    userId: effectiveUserId,
+    role: effectiveRole,
+    storeId: effectiveStoreId,
+    authorizationFingerprint: effectiveAuthorizationFingerprint,
+  });
 
   const [size, setSize] = useState<{ width?: number; height?: number }>({});
   const isResizing = useRef(false);
   const activeRequestRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
+  const checkScrollLimits = () => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      setShowLeftArrow(scrollLeft > 1);
+      setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
+    }
+  };
+
+  const handleScroll = (direction: "left" | "right") => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      const scrollAmount = 160;
+      el.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      checkScrollLimits();
+      window.addEventListener("resize", checkScrollLimits);
+      el.addEventListener("scroll", checkScrollLimits);
+
+      const observer = new MutationObserver(checkScrollLimits);
+      observer.observe(el, { childList: true, subtree: true });
+
+      return () => {
+        window.removeEventListener("resize", checkScrollLimits);
+        el.removeEventListener("scroll", checkScrollLimits);
+        observer.disconnect();
+      };
+    }
+  }, [open]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -140,13 +204,10 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.timestamp && parsed?.messages && Array.isArray(parsed.messages)) {
-          const isExpired = Date.now() - parsed.timestamp > HISTORY_TTL_MS;
-          if (!isExpired && parsed.messages.length > 0) {
-            setMessages(parsed.messages);
-            return;
-          }
+        const parsed = sanitizeAssistantHistoryRecord(JSON.parse(saved));
+        if (parsed && parsed.messages.length > 0) {
+          setMessages(parsed.messages);
+          return;
         }
       }
     } catch (e) {
@@ -213,7 +274,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
   }, [messages, open, isStreaming]);
 
   const templateQuestions = useMemo(() => {
-    switch (userRole?.toUpperCase()) {
+    switch (effectiveRole?.toUpperCase()) {
       case "INVENTORY":
         return ["Cek stok barang menipis", "Barang terlaris minggu ini", "Buat jadwal opname"];
       case "SALES":
@@ -225,7 +286,7 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
       default:
         return ["Bantu saya cek stok", "Ringkasan penjualan hari ini", "Cek surat jalan pending"];
     }
-  }, [userRole]);
+  }, [effectiveRole]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
@@ -270,13 +331,16 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
         if ("type" in parsed && parsed.type === "final") {
           setMessages((current) => setAssistantFollowUps(
             completeAssistantActionLog(
-              appendAssistantMetadata(
-                setAssistantFinalContent(current, parsed.answer.answerMarkdown),
-                {
-                  sourceLabel: parsed.answer.sourceLabel,
-                  generatedAt: parsed.answer.generatedAt,
-                  sourceRefs: parsed.answer.sourceRefs,
-                },
+              setAssistantWorkflowPayload(
+                appendAssistantMetadata(
+                  setAssistantFinalContent(current, parsed.answer.answerMarkdown),
+                  {
+                    sourceLabel: parsed.answer.sourceLabel,
+                    generatedAt: parsed.answer.generatedAt,
+                    sourceRefs: parsed.answer.sourceRefs,
+                  },
+                ),
+                parsed.answer.workflow,
               ),
             ),
             parsed.answer.followUps ?? [],
@@ -341,6 +405,25 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el) return;
+
+    const stopPropagation = (e: Event) => {
+      e.stopPropagation();
+    };
+
+    el.addEventListener("pointerdown", stopPropagation);
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("touchstart", stopPropagation);
+
+    return () => {
+      el.removeEventListener("pointerdown", stopPropagation);
+      el.removeEventListener("mousedown", stopPropagation);
+      el.removeEventListener("touchstart", stopPropagation);
+    };
+  }, [open]);
 
   return (
     <motion.div
@@ -481,6 +564,9 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                         }}>{message.content}</ReactMarkdown>
                       </div>
                     ) : null}
+                    {message.role === "assistant" && message.workflow ? (
+                      <AssistantWorkflowMessage workflow={message.workflow} />
+                    ) : null}
                     {message.role === "assistant" && message.actionLog?.length ? (
                       <AssistantActionLog entries={message.actionLog} />
                     ) : null}
@@ -543,8 +629,20 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
             </div>
 
             <div className="px-4 pb-4 pt-1 bg-surface-800/50">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-1">
+                {showLeftArrow && (
+                  <button
+                    type="button"
+                    onClick={() => handleScroll("left")}
+                    aria-label="Geser kiri"
+                    className="shrink-0 p-1 rounded-full text-surface-400 hover:text-surface-100 hover:bg-surface-700/60 transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                )}
+
                 <div
+                  ref={scrollContainerRef}
                   className="-mx-1 flex flex-1 min-w-0 snap-x snap-mandatory flex-nowrap items-center gap-2 overflow-x-auto px-1 py-1 [-webkit-overflow-scrolling:touch] [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden"
                   aria-label="Prompt cepat"
                 >
@@ -560,6 +658,17 @@ export function AssistantWidget({ defaultOpen = false, initialMessages = [], use
                     </button>
                   ))}
                 </div>
+
+                {showRightArrow && (
+                  <button
+                    type="button"
+                    onClick={() => handleScroll("right")}
+                    aria-label="Geser kanan"
+                    className="shrink-0 p-1 rounded-full text-surface-400 hover:text-surface-100 hover:bg-surface-700/60 transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
 
                 <div className="flex items-center gap-3">
                   <div className="text-[10px] font-medium text-surface-500">

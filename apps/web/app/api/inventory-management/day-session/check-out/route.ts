@@ -3,16 +3,27 @@ import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { jakartaDateKey } from "@/features/inventory-management/helpers/inventory-management-rules";
 import {
+  buildInventoryCheckOutSnapshot,
   buildInventoryDayCompletion,
   loadInventoryDaySession,
-  loadStockRiskItems,
 } from "@/features/inventory-management/services/inventory-day-session";
 import { apiError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
 const checkOutSchema = z.object({
   note: z.string().trim().max(500).optional().nullable(),
+  exceptionNotes: z.record(z.string(), z.string().trim().min(10).max(300)).optional().default({}),
 });
+
+function findMissingExceptionTaskIds(
+  completion: Awaited<ReturnType<typeof buildInventoryDayCompletion>>,
+  exceptionNotes: Record<string, string>,
+) {
+  return completion.tasks
+    .filter((task) => task.required && !task.completed)
+    .map((task) => task.id)
+    .filter((taskId) => !exceptionNotes[taskId]?.trim());
+}
 
 export async function POST(request: Request) {
   try {
@@ -33,24 +44,31 @@ export async function POST(request: Request) {
       });
     }
 
-    const [completion, stockRisk] = await Promise.all([
-      buildInventoryDayCompletion(user.storeId, dateKey, now),
-      loadStockRiskItems(user.storeId),
-    ]);
-    if (completion.blockers.length > 0) {
+    const completion = await buildInventoryDayCompletion(user.storeId, dateKey, now);
+    const missingExceptionTaskIds = findMissingExceptionTaskIds(
+      completion,
+      input.exceptionNotes,
+    );
+    if (missingExceptionTaskIds.length > 0) {
       return apiError("Daily tasks are not complete", 409, {
         code: "Conflict",
-        extra: { blockers: completion.blockers, completion },
+        extra: {
+          blockers: completion.blockers,
+          completion,
+          missingExceptionTaskIds,
+        },
       });
     }
 
-    const snapshot = {
-      checkedOutAt: now.toISOString(),
-      note: input.note || null,
+    const snapshot = await buildInventoryCheckOutSnapshot({
+      storeId: user.storeId,
+      dateKey,
+      now,
+      note: input.note,
+      exceptionNotes: input.exceptionNotes,
       completion,
-      stockRisk,
       morningCheckSnapshot: session.morningCheckSnapshot,
-    } as unknown as Prisma.InputJsonObject;
+    }) as unknown as Prisma.InputJsonObject;
 
     const data = await db.inventoryDaySession.update({
       where: { id: session.id },

@@ -157,11 +157,11 @@ async function main() {
   });
 
   const cashier = await prisma.user.upsert({
-    where: { username: "kasir1" },
+    where: { username: "kasir" },
     update: { role: "CASHIER" },
     create: {
-      username: "kasir1",
-      name: "Kasir 1",
+      username: "kasir",
+      name: "Kasir",
       role: "CASHIER",
       password: "kasir123",
       storeId: store.id,
@@ -169,11 +169,11 @@ async function main() {
   });
 
   const sales = await prisma.user.upsert({
-    where: { username: "sales1" },
+    where: { username: "sales" },
     update: { role: "SALES" },
     create: {
-      username: "sales1",
-      name: "Sales 1",
+      username: "sales",
+      name: "Sales",
       role: "SALES",
       password: "sales123",
       storeId: store.id,

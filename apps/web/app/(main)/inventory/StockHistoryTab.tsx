@@ -43,7 +43,8 @@ function MiniBarChart({ data }: { data: { date: string; inQty: number; outQty: n
   const displayData = data.slice(-14);
 
   return (
-    <div className="flex items-end gap-1.5 h-40 px-2">
+    <div className="overflow-x-auto pb-2">
+      <div className="flex items-end gap-1.5 h-40 px-2 min-w-[500px]">
       {displayData.map((d) => (
         <div key={d.date} className="flex-1 flex flex-col items-center gap-1 min-w-0">
           {/* Bars */}
@@ -65,6 +66,7 @@ function MiniBarChart({ data }: { data: { date: string; inQty: number; outQty: n
           </span>
         </div>
       ))}
+      </div>
     </div>
   );
 }
@@ -161,7 +163,7 @@ export default function StockHistoryTab() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex w-full min-w-0 flex-col gap-6">
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="relative overflow-hidden rounded-2xl p-5 bg-emerald-50/60 border border-emerald-100/60">

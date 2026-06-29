@@ -11,18 +11,6 @@ import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { apiError } from "@/lib/api/responses";
 
-// Short-lived in-memory cache for POS user lookups (survives across requests in the same worker)
-const POS_USER_CACHE_TTL = 60_000; // 60 seconds
-type CachedUser = {
-  id: string;
-  username: string;
-  name: string;
-  role: string;
-  storeId: string | null;
-  isActive: boolean;
-  cachedAt: number;
-};
-const posUserCache = new Map<string, CachedUser>();
 /**
  * Custom error for authentication/authorization failures.
  */
@@ -68,45 +56,30 @@ export async function requireRole(...allowedRoles: Role[]) {
   }
 
   // Resolve Supabase auth user → pos_users record
-  // The username is the email prefix (e.g., "kasir1" from "kasir1@pos.local")
+  // The username is the email prefix (e.g., "kasir" from "kasir@pos.local")
   const username = user.email?.split("@")[0];
 
   if (!username) {
     throw new AuthError(401, "Invalid user identity");
   }
 
-  // Check in-memory cache first to avoid a DB round-trip
-  const now = Date.now();
-  const cached = posUserCache.get(username);
-  let posUser: CachedUser | null = null;
-
-  if (cached && now - cached.cachedAt < POS_USER_CACHE_TTL) {
-    posUser = cached;
-  } else {
-    const dbUser = await db.user.findFirst({
-      where: { username },
-      select: {
-        id: true,
-        username: true,
-        name: true,
-        role: true,
-        storeId: true,
-        isActive: true,
-      },
-    });
-
-    if (dbUser) {
-      posUser = { ...dbUser, cachedAt: now };
-      posUserCache.set(username, posUser);
-    }
-  }
+  const posUser = await db.user.findFirst({
+    where: { username },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      role: true,
+      storeId: true,
+      isActive: true,
+    },
+  });
 
   if (!posUser) {
     throw new AuthError(401, "User not found in POS system");
   }
 
   if (!posUser.isActive) {
-    posUserCache.delete(username); // Evict deactivated users immediately
     throw new AuthError(403, "Account deactivated");
   }
 

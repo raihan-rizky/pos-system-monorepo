@@ -25,7 +25,7 @@ const unsubscribeSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
     const body = await request.json();
     const parsed = subscriptionSchema.safeParse(body);
 
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
     const parsed = unsubscribeSchema.safeParse(await request.json());
 
     if (!parsed.success) {

@@ -26,7 +26,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-surface-50 min-h-screen">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20">
+      <div className="max-w-[1600px] px-4 md:px-8 pt-6 pb-20">
 
         {/* Header */}
         <div className="mb-8">
@@ -43,7 +43,7 @@ export default function SettingsPage() {
         <div className="flex flex-col sm:flex-row gap-6">
 
           {/* Tab Pills */}
-          <nav className="flex sm:flex-col gap-1 sm:w-48 shrink-0 overflow-x-scroll">
+          <nav className="flex sm:flex-col gap-1 sm:w-48 shrink-0 overflow-x-auto">
             {visibleTabs.map(tab => (
               <button
                 key={tab.id}

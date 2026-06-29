@@ -75,7 +75,7 @@ describe("AssistantWidget", () => {
     expect(html).not.toContain("get_low_stock_items");
   });
 
-  it("expands an active status log so live progress is visible", () => {
+  it("keeps status log collapsed by default even if active", () => {
     const html = renderToStaticMarkup(
       <AssistantWidget
         defaultOpen
@@ -102,9 +102,89 @@ describe("AssistantWidget", () => {
       />,
     );
 
-    expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain('aria-label="Proses AI"');
-    expect(html).toContain("Request sent");
-    expect(html).toContain("Processing request");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain('aria-label="Proses AI"');
+    expect(html).not.toContain("Request sent"); // Should be hidden because collapsed
+    expect(html).toContain("Processing request"); // Still visible as latest status in summary label
+  });
+
+  it("renders workflow payloads under assistant answers", () => {
+    const html = renderToStaticMarkup(
+      <AssistantWidget
+        defaultOpen
+        initialMessages={[
+          {
+            role: "assistant",
+            content: "Ikuti alur aman ini ya.",
+            workflow: {
+              id: "faq-q01-add-product",
+              title: "Tambah produk baru",
+              route: "/products",
+              actionLabel: "Buka Produk",
+              sourceRef: "docs/help/faq.md#q1",
+              steps: [
+                {
+                  id: "faq-q01-add-product-step-1",
+                  title: "Buka katalog",
+                  description: "Masuk ke halaman Produk.",
+                  route: "/products",
+                  actionLabel: "Buka Produk",
+                  iconKey: "package",
+                },
+              ],
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(html).toContain("Tambah produk baru");
+    expect(html).toContain("Buka katalog");
+    expect(html).toContain('href="/products"');
+  });
+
+  it("renders workflow above status progress log when both are present", () => {
+    const html = renderToStaticMarkup(
+      <AssistantWidget
+        defaultOpen
+        initialMessages={[
+          {
+            role: "assistant",
+            content: "Ikuti alur aman ini ya.",
+            actionLog: [
+              {
+                id: "step-1",
+                label: "Processing request",
+                status: "done",
+                occurredAt: "2026-06-26T10:15:00.000Z",
+              },
+            ],
+            workflow: {
+              id: "faq-q01-add-product",
+              title: "Tambah produk baru",
+              route: "/products",
+              actionLabel: "Buka Produk",
+              sourceRef: "docs/help/faq.md#q1",
+              steps: [
+                {
+                  id: "faq-q01-add-product-step-1",
+                  title: "Buka katalog",
+                  description: "Masuk ke halaman Produk.",
+                  route: "/products",
+                  actionLabel: "Buka Produk",
+                  iconKey: "package",
+                },
+              ],
+            },
+          },
+        ]}
+      />,
+    );
+
+    const workflowIndex = html.indexOf("Tambah produk baru");
+    const statusIndex = html.indexOf("Status");
+    expect(workflowIndex).toBeGreaterThan(-1);
+    expect(statusIndex).toBeGreaterThan(-1);
+    expect(workflowIndex).toBeLessThan(statusIndex);
   });
 });

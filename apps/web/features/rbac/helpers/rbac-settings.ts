@@ -3,6 +3,8 @@ import {
   PAGE_SCOPE,
   RESOURCE_SCOPE,
   isEditableRole,
+  isKnownPageTarget,
+  isKnownResourceTarget,
   isOwnerLockedResource,
   isResourceAction,
   normalizePageTarget,
@@ -92,11 +94,22 @@ function parsePermissionEntry(raw: RawPermissionPayload): EditablePermissionEntr
     throw new Error("Invalid permission allowed value");
   }
 
+  const target =
+    raw.scope === PAGE_SCOPE ? normalizePageTarget(raw.target) : raw.target;
+
+  if (raw.scope === PAGE_SCOPE && !isKnownPageTarget(target)) {
+    throw new Error("Invalid permission target");
+  }
+
+  if (raw.scope === RESOURCE_SCOPE && !isKnownResourceTarget(target)) {
+    throw new Error("Invalid permission target");
+  }
+
   const action = raw.action as PermissionAction;
   const entry: PermissionEntry = {
     role: raw.role,
     scope: raw.scope,
-    target: raw.scope === PAGE_SCOPE ? normalizePageTarget(raw.target) : raw.target,
+    target,
     action,
     allowed: raw.allowed,
   };

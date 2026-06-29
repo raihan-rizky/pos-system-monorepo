@@ -21,6 +21,22 @@ describe("RBAC settings persistence helpers", () => {
     ).toThrow("Invalid permission action");
   });
 
+  it("rejects page permissions for unknown pages", () => {
+    expect(() =>
+      parseRolePermissionPayload([
+        { role: "ADMIN", scope: "page", target: "/unknown", action: "access", allowed: true },
+      ]),
+    ).toThrow("Invalid permission target");
+  });
+
+  it("rejects resource permissions for unknown resources", () => {
+    expect(() =>
+      parseRolePermissionPayload([
+        { role: "ADMIN", scope: "resource", target: "product.typo", action: "read", allowed: true },
+      ]),
+    ).toThrow("Invalid permission target");
+  });
+
   it("accepts editable role page and CRUD resource permissions", () => {
     const parsed = parseRolePermissionPayload([
       { role: "ADMIN", scope: "page", target: "/products", action: "access", allowed: true },

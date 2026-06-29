@@ -16,6 +16,7 @@ describe("POST /api/auth/clear-session", () => {
       { name: "sb-project-ref-auth-token", value: "owner-token" },
       { name: "sb-project-ref-auth-token.0", value: "owner-token-chunk" },
       { name: "x-pos-role", value: "OWNER" },
+      { name: "x-pos-store-id", value: "store-1" },
       { name: "sidebar_collapsed", value: "true" },
     ]);
   });
@@ -27,6 +28,7 @@ describe("POST /api/auth/clear-session", () => {
     expect(response.cookies.get("x-pos-role")?.value).toBe("");
     expect(response.cookies.get("x-pos-user-id")?.value).toBe("");
     expect(response.cookies.get("x-pos-user-name")?.value).toBe("");
+    expect(response.cookies.get("x-pos-store-id")?.value).toBe("");
     expect(response.cookies.get("sb-project-ref-auth-token")?.value).toBe("");
     expect(response.cookies.get("sb-project-ref-auth-token.0")?.value).toBe("");
     expect(response.cookies.get("sidebar_collapsed")).toBeUndefined();

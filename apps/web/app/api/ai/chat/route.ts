@@ -4,6 +4,7 @@ import { AssistantService } from "@/features/ai-assistant/services/assistant-ser
 import { parseFastPathIntentAllowlist } from "@/features/ai-assistant/services/assistant-intent-router";
 import type { UserRole } from "@/features/ai-assistant/types/assistant";
 import { getCurrentUser } from "@/lib/rbac/guard";
+import { getFreshGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { getLogger } from "@/lib/logger";
 import { captureException } from "@/lib/error-boundary";
 import { unifiedConfig } from "@/lib/config/unifiedConfig";
@@ -129,6 +130,25 @@ export async function POST(req: NextRequest) {
       hasPageContext: Boolean(validation.data.pageContext),
     });
 
+    let rolePermissions: Awaited<ReturnType<typeof getFreshGlobalRolePermissions>>;
+    let permissionLoadDurationMs = 0;
+    try {
+      const permissions = await timed(() => getFreshGlobalRolePermissions());
+      rolePermissions = permissions.value;
+      permissionLoadDurationMs = permissions.durationMs;
+      requestLog.info("assistant.http.permissions.loaded", {
+        permissionLoadDurationMs,
+      });
+    } catch (error) {
+      requestLog.error("assistant.http.permissions.failed", {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
+      return NextResponse.json(
+        { error: "Maaf, akses AI belum bisa diverifikasi. Silakan coba lagi sebentar lagi." },
+        { status: 503 },
+      );
+    }
+
     const { apiKey, model } = getNebiusConfig();
     const fastPathIntents = parseFastPathIntentAllowlist(unifiedConfig.ai.fastPathIntents);
     requestLog.info("assistant.http.service.initialized", {
@@ -147,12 +167,13 @@ export async function POST(req: NextRequest) {
       messages: validation.data.messages,
       pageContext: validation.data.pageContext,
       signal: req.signal,
+      rolePermissions,
       telemetry: {
         requestId,
         requestStartedAt,
         authDurationMs: auth.durationMs,
         bodyParseDurationMs: parsedBody.durationMs,
-        validationDurationMs,
+        validationDurationMs: validationDurationMs + permissionLoadDurationMs,
         requestBytes: parsedBody.value.requestBytes,
       },
     });

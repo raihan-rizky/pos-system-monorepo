@@ -149,6 +149,7 @@ export interface InventoryDaySessionPreview {
   }>;
   workspaceSafetyItems: Array<{ id: string; label: string }>;
   completion: InventoryDayCompletion;
+  checkOutPreview?: InventoryCheckOutSnapshot;
 }
 
 export interface InventoryDayCompletion {
@@ -157,6 +158,33 @@ export interface InventoryDayCompletion {
   isSaturday: boolean;
   tasks: Array<{ id: string; label: string; completed: boolean; required: boolean }>;
   blockers: string[];
+}
+
+export interface InventoryCheckOutSnapshot {
+  checkedOutAt: string;
+  note: string | null;
+  exceptionNotes: Record<string, string>;
+  completion: InventoryDayCompletion;
+  stockRisk: InventoryDaySessionPreview["stockRisk"];
+  movementSummary: {
+    stockInQuantity: number;
+    stockOutQuantity: number;
+    internalUseQuantity: number;
+    damagedQuantity: number;
+    adjustmentQuantity: number;
+    approvedLogCount: number;
+    pendingRequestCount: number;
+  };
+  workflowSummary: {
+    submittedInboundReceipts: number;
+    needsRevisionReceipts: number;
+    pendingSuratJalan: number;
+    unmarkedSuratJalan: number;
+    dailyChecklistRemaining: number;
+    unverifiedOutLogs: number;
+    damagedReportsPending: number;
+  };
+  morningCheckSnapshot: unknown | null;
 }
 
 export async function fetchInventoryDaySession(): Promise<InventoryDaySessionPreview> {
@@ -179,7 +207,10 @@ export function checkInInventoryDay(input: {
   );
 }
 
-export async function checkOutInventoryDay(input: { note?: string | null }) {
+export async function checkOutInventoryDay(input: {
+  note?: string | null;
+  exceptionNotes?: Record<string, string>;
+}) {
   const response = await fetch("/api/inventory-management/day-session/check-out", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -190,15 +221,18 @@ export async function checkOutInventoryDay(input: { note?: string | null }) {
     message?: string;
     blockers?: string[];
     completion?: InventoryDayCompletion;
+    missingExceptionTaskIds?: string[];
   };
 
   if (!response.ok) {
     const error = new Error(payload.message || "Failed to check out inventory day") as Error & {
       blockers?: string[];
       completion?: InventoryDayCompletion;
+      missingExceptionTaskIds?: string[];
     };
     error.blockers = payload.blockers;
     error.completion = payload.completion;
+    error.missingExceptionTaskIds = payload.missingExceptionTaskIds;
     throw error;
   }
 

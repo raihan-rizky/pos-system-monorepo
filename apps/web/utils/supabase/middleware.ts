@@ -15,6 +15,7 @@ const log = getLogger("supabase-middleware");
 const ROLE_COOKIE = "x-pos-role";
 const USER_ID_COOKIE = "x-pos-user-id";
 const USER_NAME_COOKIE = "x-pos-user-name";
+const STORE_ID_COOKIE = "x-pos-store-id";
 
 function getPosIdentityCookieOptions() {
   return {
@@ -31,11 +32,13 @@ function setPosIdentityCookies(
   role: Role,
   userId: string,
   userName: string,
+  storeId: string | null,
 ) {
   const cookieOptions = getPosIdentityCookieOptions();
   response.cookies.set(ROLE_COOKIE, role, cookieOptions);
   response.cookies.set(USER_ID_COOKIE, userId, cookieOptions);
   response.cookies.set(USER_NAME_COOKIE, userName, cookieOptions);
+  response.cookies.set(STORE_ID_COOKIE, storeId ?? "", cookieOptions);
 }
 
 function isProtectedPageRequest(pathname: string) {
@@ -52,10 +55,12 @@ export async function updateSession(request: NextRequest) {
     const role = (request.cookies.get(ROLE_COOKIE)?.value || "OWNER") as Role;
     const userId = request.cookies.get(USER_ID_COOKIE)?.value || "e2e-user";
     const userName = request.cookies.get(USER_NAME_COOKIE)?.value || "E2E Owner";
+    const storeId = request.cookies.get(STORE_ID_COOKIE)?.value || "store-main";
 
     request.cookies.set(ROLE_COOKIE, role);
     request.cookies.set(USER_ID_COOKIE, userId);
     request.cookies.set(USER_NAME_COOKIE, userName);
+    request.cookies.set(STORE_ID_COOKIE, storeId);
 
     const response = NextResponse.next({ request });
     const cookieOptions = {
@@ -69,6 +74,7 @@ export async function updateSession(request: NextRequest) {
     response.cookies.set(ROLE_COOKIE, role, cookieOptions);
     response.cookies.set(USER_ID_COOKIE, userId, cookieOptions);
     response.cookies.set(USER_NAME_COOKIE, userName, cookieOptions);
+    response.cookies.set(STORE_ID_COOKIE, storeId, cookieOptions);
 
     if (
       !request.nextUrl.pathname.startsWith("/api/") &&
@@ -150,7 +156,7 @@ export async function updateSession(request: NextRequest) {
       const { data: posUser } = username
         ? await supabase
             .from("pos_users")
-            .select("id, name, role, isActive")
+            .select("id, name, role, storeId, isActive")
             .eq("username", username)
             .maybeSingle()
         : { data: null };
@@ -159,12 +165,14 @@ export async function updateSession(request: NextRequest) {
         role = posUser.role as Role;
         const hadFreshIdentityCookies =
           request.cookies.get(ROLE_COOKIE)?.value === role &&
-          request.cookies.get(USER_ID_COOKIE)?.value === posUser.id;
+          request.cookies.get(USER_ID_COOKIE)?.value === posUser.id &&
+          request.cookies.get(STORE_ID_COOKIE)?.value === (posUser.storeId ?? "");
 
         request.cookies.set(ROLE_COOKIE, role);
         request.cookies.set(USER_ID_COOKIE, posUser.id);
         request.cookies.set(USER_NAME_COOKIE, posUser.name);
-        setPosIdentityCookies(supabaseResponse, role, posUser.id, posUser.name);
+        request.cookies.set(STORE_ID_COOKIE, posUser.storeId ?? "");
+        setPosIdentityCookies(supabaseResponse, role, posUser.id, posUser.name, posUser.storeId ?? null);
         log.info("role.resolved", { username, role });
 
         if (isProtectedPageRequest(request.nextUrl.pathname)) {
@@ -183,7 +191,7 @@ export async function updateSession(request: NextRequest) {
             const url = request.nextUrl.clone();
             url.pathname = DEFAULT_PAGE[role];
             const redirectResponse = NextResponse.redirect(url);
-            setPosIdentityCookies(redirectResponse, role, posUser.id, posUser.name);
+            setPosIdentityCookies(redirectResponse, role, posUser.id, posUser.name, posUser.storeId ?? null);
             return redirectResponse;
           }
 
@@ -194,6 +202,7 @@ export async function updateSession(request: NextRequest) {
               role,
               posUser.id,
               posUser.name,
+              posUser.storeId ?? null,
             );
             return redirectResponse;
           }
@@ -223,9 +232,7 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.json({ error: "Unable to verify access" }, { status: 503 });
       }
       log.error("role.resolve.failed", { error, path: request.nextUrl.pathname });
-      if (!role) {
-        return supabaseResponse;
-      }
+      return new NextResponse("Unable to verify access", { status: 503 });
     }
 
   }

@@ -18,6 +18,7 @@ import {
   Bot,
   Sparkles
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import HelpDiagramStepper, { Step } from "./HelpDiagramStepper";
 import type { Role } from "@/features/rbac/helpers/rbac-core";
 
@@ -51,12 +52,12 @@ const ROLE_DESCRIPTIONS: Record<string, { desc: string; resps: string[] }> = {
     resps: ["Mencatat penerimaan barang dan barang rusak", "Melakukan pengecekan stok fisik harian dan mingguan", "Memantau papan produksi (Kanban) dan jadwal pengiriman"]
   },
   AI_ASSISTANT: {
-    desc: "Kenalan yuk dengan Pak Teladan, asisten AI pintar yang siap membantu memudahkan operasional toko Anda! Dari memantau stok hingga cek omzet harian, Anda bisa tanya langsung ke Pak Teladan lewat tombol robot biru di pojok kanan bawah layar.",
+    desc: "Kenalan dulu yuk sama Pak Teladan! Asisten AI pintar yang siap sedia bantuin operasional toko biar makin gampang. Mulai dari ngecek stok barang sampai intip omzet harian, tinggal tanya aja ke Pak Teladan lewat tombol robot biru di pojok kanan bawah layar ya. Kalau pertanyaanmu bisa cocok ke beberapa panduan, Pak Teladan akan minta klarifikasi singkat dulu biar langkahnya tepat.",
     resps: [
-      "Menjawab panduan cara pakai menu dan fitur sistem secara langsung",
-      "Mengecek sisa stok barang, info harga produk, dan daftar produk terlaris",
-      "Mencari kontak supplier (pemasok) dan profil data pelanggan",
-      "Menyajikan ringkasan keuangan harian toko, tagihan piutang, dan rekap belanja pelanggan"
+      "Ngasih tau cara pakai menu dan fitur sistem secara instan, gak usah bingung lagi!",
+      "Ngecek sisa stok barang, info harga produk, sampai daftar produk paling laris manis",
+      "Nyari kontak supplier (pemasok) dan profil pelanggan dalam sekejap",
+      "Ngerangkum keuangan harian toko, tagihan piutang pelanggan, sampai rekap belanja mereka"
     ]
   }
 };
@@ -66,13 +67,15 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-rbac",
       title: "Mengelola Akses (RBAC)",
-      description: "Menu ini dipakai untuk mengatur siapa saja yang boleh membuka halaman tertentu atau melakukan aksi di aplikasi. Kamu bisa atur akses per role biar sistem tetap aman dan rapi.",
+      description: "Menu ini dipakai untuk mengatur siapa saja yang boleh membuka halaman tertentu atau melakukan aksi di aplikasi. Tampilan ringkasan role dan matrix modul membantu Owner melihat perubahan permission sebelum disimpan.",
       icon: <ShieldCheck className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Pengaturan", description: "Buka menu samping (sidebar) sebelah kiri layar, gulir ke paling bawah lalu klik menu 'Pengaturan' (ikon gerigi) untuk masuk ke halaman pengaturan utama.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Buka Tab RBAC", description: "Pada halaman pengaturan yang terbuka, lihat menu navigasi vertikal di sebelah kiri, kemudian klik tab 'RBAC' (hanya terlihat oleh Owner) untuk menampilkan tabel daftar peran pengguna.", icon: <Users className="w-8 h-8" /> },
-        { title: "Pilih Role & Atur Izin", description: "Klik tombol peran di baris atas (Admin, Kasir, Sales, atau Inventaris). Pada tabel 'Akses Halaman' dan 'Aksi Resource' yang muncul di bawah, centang kotak (checkbox) untuk memberikan izin, atau hapus centang untuk mencabut izin akses.", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Simpan Perubahan", description: "Setelah selesai mencentang izin yang diinginkan, klik tombol 'Simpan' berwarna biru yang berada di pojok kanan atas halaman.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Buka Tab RBAC", description: "Pada halaman pengaturan yang terbuka, klik tab 'RBAC' (hanya terlihat oleh Owner). Owner selalu punya akses penuh dan tidak ikut diedit.", icon: <Users className="w-8 h-8" /> },
+        { title: "Baca Ringkasan Role", description: "Lihat kartu ringkasan Admin, Kasir, Sales, dan Inventaris untuk mengetahui jumlah halaman, aksi, custom permission, dan perubahan sensitif pada tiap role.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Bandingkan Matrix Modul", description: "Gunakan matrix modul untuk membandingkan akses antar role. Matrix ini adalah ringkasan konfigurasi permission, bukan bukti enforcement route atau API.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Atur Izin per Modul", description: "Pilih role dan modul yang ingin diubah, lalu centang akses halaman atau aksi resource yang dibutuhkan. Status 'Belum disimpan' muncul saat ada perubahan lokal.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Review & Konfirmasi", description: "Klik 'Review & Simpan' untuk melihat daftar perubahan. Perubahan sensitif seperti RBAC, finance, WhatsApp, HPP, dan approval harus dikonfirmasi sebelum tersimpan.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {
@@ -169,7 +172,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-expenses",
       title: "Mengelola Pengeluaran & Bukti Transaksi",
-      description: "Catat semua biaya operasional tokomu di sini dan jangan lupa lampirkan foto struk belanjanya biar pembukuan rapi.",
+      description: "Catat semua biaya operasional toko di sini dan jangan lupa lampirkan foto struk belanjanya biar pembukuan rapi.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Menu Keuangan", description: "Dari sidebar kiri, buka menu 'Keuangan' (di bawah kategori Keuangan).", icon: <DollarSign className="w-8 h-8" /> },
@@ -287,7 +290,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "admin-expenses",
       title: "Mengelola Pengeluaran & Bukti Transaksi",
-      description: "Catat semua pengeluaran operasional tokomu di sini dan jangan lupa lampirkan foto struk belanjanya biar pembukuan rapi.",
+      description: "Catat semua pengeluaran operasional toko di sini dan jangan lupa lampirkan foto struk belanjanya biar pembukuan rapi.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Halaman Keuangan", description: "Buka menu 'Keuangan' di sidebar kiri. Klik tombol 'Tambah Pengeluaran' di bagian atas.", icon: <DollarSign className="w-8 h-8" /> },
@@ -530,7 +533,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Alur kerja harian orang gudang dari mulai cek log mutasi, terima kiriman barang masuk, hingga lapor barang rusak.",
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Verifikasi Mutasi Log", description: "Buka menu 'Inventaris' di sidebar. Klik tab 'Riwayat' -> sub-tab 'Log Stok' di pagi hari untuk memastikan mutasi stok harian berjalan sesuai catatan.", icon: <History className="w-8 h-8" /> },
+        { title: "Verifikasi Mutasi Log", description: "Buka menu 'Inventaris' di sidebar. Klik tab 'Riwayat' -> sub-tab 'Log Stok' di pagi hari untuk memastikan mutasi stok harian berjalan sesuai catatan. Di layar HP, geser bar sub-tab Riwayat secara horizontal dan baca log sebagai kartu ringkas.", icon: <History className="w-8 h-8" /> },
         { title: "Input Penerimaan Barang", description: "Saat kiriman supplier datang, klik tombol hitam 'Input / Transaksi' di kanan atas halaman, klik 'Penerimaan Barang'. Isikan detail item barang, nomor surat jalan supplier, kuantitas fisik, lalu klik 'Simpan'.", icon: <Package className="w-8 h-8" /> },
         { title: "Catat Barang Pecah/Rusak", description: "Jika ditemukan produk rusak, klik tombol 'Input / Transaksi' -> 'Laporkan Barang Rusak'. Masukkan kode barang, kuantitas yang rusak, isi alasan penyesuaian, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
       ]
@@ -538,10 +541,10 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "inventory-tugas-harian",
       title: "Menyelesaikan Tugas Harian",
-      description: "Cek daftar pekerjaan harianmu di sini, seperti mencocokkan stok fisik harian dan memverifikasi log keluar barang.",
+      description: "Cek daftar pekerjaan harianmu di sini, seperti mencocokkan stok fisik harian dan memverifikasi log keluar barang. Catatan: Anda wajib melakukan Check In terlebih dahulu pada widget harian agar panel tugas harian (Pusat Kerja Hari Ini) tidak terkunci/buram.",
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Cek Tugas Aktif", description: "Buka menu 'Inventaris' di sidebar kiri, lalu klik tab 'Tugas' di bagian atas halaman untuk melihat checklist tugas harian.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Cek Tugas Aktif", description: "Lakukan Check In terlebih dahulu pada widget harian. Buka menu 'Inventaris' di sidebar kiri, lalu klik tab 'Tugas' di bagian atas halaman untuk melihat checklist tugas harian.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Lakukan Matching Stok", description: "Klik tugas 'Matching Stok Harian' (atau tombol 'Input / Transaksi' -> 'Cocokkan Stok (Harian)'). Cocokkan stok fisik di gudang dengan angka sistem, isi form kecocokan, lalu klik 'Simpan'.", icon: <History className="w-8 h-8" /> },
         { title: "Input Laporan Kerusakan", description: "Klik tugas 'Laporan Barang Rusak' (atau 'Input / Transaksi' -> 'Laporkan Barang Rusak'), cari produk reject hari ini, ketik kuantitas rusak, dan klik tombol 'Kirim'.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Verifikasi Log OUT", description: "Klik tugas 'Log OUT Belum Diverifikasi' (atau klik tab 'Riwayat' -> 'Log Stok'), periksa daftar barang keluar hari ini, lalu klik tombol 'Verifikasi' pada kolom aksi log yang sesuai.", icon: <Settings className="w-8 h-8" /> },
@@ -599,122 +602,123 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "ai-assistant-system-help",
       title: "Tanya Cara Pakai Fitur & Menu POS",
-      description: "Bingung cara pakai menu tertentu atau ingin tahu apa saja hak akses akun Anda? Tanya saja ke Pak Teladan! Asisten AI akan membacakan dokumentasi bantuan dan menjelaskan langkah-langkahnya untuk Anda.",
+      description: "Bingung cara pakai menu tertentu atau mau tahu apa aja hak akses akunmu? Tanya aja langsung ke Pak Teladan. Untuk panduan operasional FAQ, jawabannya tampil sebagai diagram langkah yang aman sesuai akses role kamu.",
       icon: <Bot className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Klik Tombol Robot", description: "Ketuk tombol mengambang robot berwarna biru (Pak Teladan) di pojok kanan bawah layar.", icon: <Bot className="w-8 h-8" /> },
-        { title: "Ketik Pertanyaan", description: "Tulis pertanyaan Anda dengan bahasa santai. Contoh: 'Bagaimana cara mendaftarkan barang baru?' atau 'Kasir bisa akses menu apa saja?'.", icon: <Search className="w-8 h-8" /> },
-        { title: "Dapatkan Panduan Instan", description: "Pak Teladan akan merangkum langkah-langkah penggunaan fitur atau batasan akses menu yang Anda tanyakan.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Klik Tombol Robot", description: "Pencet tombol robot bulat warna biru (Pak Teladan) yang ngambang di pojok kanan bawah layar.", icon: <Bot className="w-8 h-8" /> },
+        { title: "Ketik Pertanyaan", description: "Tulis pertanyaanmu pakai bahasa santai sehari-hari. Contoh: 'Cara tambah barang gimana sih?' atau 'Kasir bisa buka menu apa aja?'.", icon: <Search className="w-8 h-8" /> },
+        { title: "Baca Diagram Langkah", description: "Kalau pertanyaanmu cocok dengan panduan FAQ, Pak Teladan menampilkan stepper berisi langkah terpercaya, sumber FAQ, dan tombol buka halaman yang sesuai aksesmu.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Tetap Kamu yang Konfirmasi", description: "Pak Teladan cuma bantu navigasi dan penjelasan. Ia tidak mengisi form, menekan tombol, atau menyimpan data operasional secara otomatis.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-product-price",
-      title: "Cek Harga Jual Barang secara Instan",
-      description: "Ingin tahu harga jual suatu barang dengan cepat tanpa perlu mencarinya secara manual di menu produk? Cukup tanyakan langsung namanya pada Pak Teladan.",
+      title: "Cek Harga Jual Barang Super Cepat",
+      description: "Pengen tahu harga jual suatu barang tanpa perlu ribet nyari manual di menu produk? Tinggal tanya aja nama barangnya ke Pak Teladan.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Tanyakan Harga", description: "Tanyakan harga barang tertentu ke Pak Teladan, misalnya: 'Berapa harga semen gresik?' atau 'Tolong cek harga pipa PVC 2 inch'.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Proses Pencarian", description: "AI akan langsung mencarikan data harga jual aktif dari katalog produk toko Anda secara real-time.", icon: <Search className="w-8 h-8" /> },
-        { title: "Hasil Tampilan", description: "Harga jual terupdate akan langsung muncul di obrolan beserta detail nama barang dan satuannya.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Tanyakan Harga", description: "Tanya aja harga barang yang kamu mau ke Pak Teladan, contohnya: 'Berapa sih harga semen gresik?' atau 'Cek harga pipa PVC 2 inch dong'.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Proses Pencarian", description: "Pak Teladan bakal langsung gercep nyari data harga jual terupdate dari katalog tokomu.", icon: <Search className="w-8 h-8" /> },
+        { title: "Hasil Tampilan", description: "Harga jual terbarunya langsung muncul di layar chat lengkap dengan detail nama barang dan satuannya.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-product-stock",
-      title: "Cek Sisa Stok Barang di Gudang",
-      description: "Butuh info sisa persediaan fisik suatu barang? Tidak perlu pergi ke gudang atau membuka laporan stok, Pak Teladan bisa langsung mengeceknya untuk Anda.",
+      title: "Intip Sisa Stok Barang di Gudang",
+      description: "Butuh info sisa stok barang? Gak usah repot-repot ke gudang atau buka laporan stok yang panjang, Pak Teladan bisa langsung cek stoknya buat kamu.",
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Tanyakan Stok", description: "Kirim pesan tentang stok barang, misalnya: 'Cek stok semen tiga roda' atau 'Apakah stok cat Avian masih ada?'.", icon: <Warehouse className="w-8 h-8" /> },
-        { title: "Pengecekan Data", description: "Asisten AI memeriksa persediaan barang tersebut di gudang database secara real-time.", icon: <Search className="w-8 h-8" /> },
-        { title: "Tampilan Stok", description: "Sisa kuantitas stok terupdate beserta satuannya (misal: sak, pcs, dus) akan langsung ditampilkan.", icon: <Package className="w-8 h-8" /> },
+        { title: "Tanyakan Stok", description: "Kirim chat nanyain stok barang, misalnya: 'Stok semen tiga roda sisa berapa?' atau 'Cat Avian masih ada gak ya?'.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Pengecekan Data", description: "Pak Teladan bakal langsung meluncur buat meriksa sisa stok barang itu di database gudang secara real-time.", icon: <Search className="w-8 h-8" /> },
+        { title: "Tampilan Stok", description: "Jumlah sisa stok paling baru beserta satuannya (kayak sak, pcs, atau dus) bakalan langsung muncul di chat.", icon: <Package className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-low-stock",
-      title: "Cari Barang yang Stoknya Hampir Habis",
-      description: "Untuk menghindari kehabisan barang di toko, Anda bisa meminta asisten AI menyajikan daftar produk apa saja yang kuantitas stoknya sudah menyentuh batas minimum stok.",
+      title: "Cari Barang yang Stoknya Mau Habis",
+      description: "Biar gak kecolongan kehabisan barang di toko, kamu bisa minta Pak Teladan buat ngelist barang apa aja yang stoknya udah tipis dan hampir habis.",
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Minta Daftar Stok Tipis", description: "Ketik pesan seperti: 'Produk apa saja yang stoknya menipis?' atau 'Tampilkan barang yang perlu dibeli lagi'.", icon: <Warehouse className="w-8 h-8" /> },
-        { title: "Penyaringan Otomatis", description: "AI akan menyaring seluruh produk yang stok fisiknya saat ini kurang dari atau sama dengan batas minimal stok gudang.", icon: <Search className="w-8 h-8" /> },
-        { title: "Tabel Stok Rendah", description: "Daftar barang berstok tipis akan tersaji rapi sehingga Anda bisa segera membuat daftar belanja ke supplier.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Minta Daftar Stok Tipis", description: "Ketik aja chat kayak: 'Stok barang apa aja nih yang udah mau abis?' atau 'List barang yang harus di-restock dong'.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Penyaringan Otomatis", description: "Pak Teladan bakal langsung nyaring produk-produk yang stoknya udah di bawah batas minimal gudang.", icon: <Search className="w-8 h-8" /> },
+        { title: "Tabel Stok Rendah", description: "Daftar barang berstok tipis bakal tersaji rapi, jadi kamu bisa gercep bikin daftar belanja ke supplier!", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-daily-sales",
-      title: "Lihat Omzet Penjualan Toko",
-      description: "Pantau pencapaian toko Anda dari mana saja! Asisten AI dapat menghitung total pendapatan (omzet), jumlah transaksi yang selesai, hingga laba kotor pada tanggal tertentu.",
+      title: "Pantau Omzet & Cuan Toko",
+      description: "Pantau performa tokomu dari mana aja dengan gampang! Pak Teladan bisa bantu hitung total omzet harian, jumlah transaksi, sampai laba kotor toko.",
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Tanyakan Penjualan", description: "Tulis tanggal penjualan yang ingin Anda pantau. Contoh: 'Berapa omzet hari ini?' atau 'Tampilkan ringkasan penjualan kemarin'.", icon: <TrendingUp className="w-8 h-8" /> },
-        { title: "Perhitungan Data", description: "Pak Teladan akan merangkum seluruh nota penjualan yang berstatus selesai (Lunas/DP) pada tanggal tersebut.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Laporan Ringkas", description: "Anda akan menerima rincian total omzet uang masuk, laba kotor, serta jumlah transaksi yang berhasil diproses.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Tanyakan Penjualan", description: "Tanya aja omzet pada tanggal tertentu, misalnya: 'Hari ini dapet omzet berapa?' atau 'Rangkuman penjualan kemarin dong'.", icon: <TrendingUp className="w-8 h-8" /> },
+        { title: "Perhitungan Data", description: "Pak Teladan bakal langsung ngumpulin semua data nota penjualan yang udah beres (Lunas atau DP) di tanggal itu.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Laporan Ringkas", description: "Kamu bakal dapet rincian total omzet uang masuk, laba kotor, dan total transaksi yang sukses diproses hari itu.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-top-products",
-      title: "Cari Barang Paling Laku (Best Seller)",
-      description: "Ketahui produk-produk apa saja yang menjadi penyumbang omzet terbesar atau paling diminati oleh pelanggan pada hari atau tanggal tertentu.",
+      title: "Cek Produk Paling Laris Manis",
+      description: "Mau tau produk apa aja yang paling laku keras atau jadi penyumbang cuan terbesar buat tokomu? Tanya langsung aja ke Pak Teladan.",
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Tanyakan Best Seller", description: "Ketik pertanyaan seperti: 'Apa produk terlaris hari ini?' atau 'Tampilkan 10 barang paling laku kemarin'.", icon: <ShoppingCart className="w-8 h-8" /> },
-        { title: "Analisis Penjualan", description: "AI akan menyusun urutan produk berdasarkan jumlah kuantitas yang terjual dan total omzet yang dihasilkan.", icon: <Search className="w-8 h-8" /> },
-        { title: "Daftar Terlaris", description: "Daftar 10 produk terbaik beserta jumlah unit terjual akan ditampilkan untuk membantu Anda merencanakan stok.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Tanyakan Best Seller", description: "Ketik pertanyaan kayak: 'Hari ini barang apa yang paling laris?' atau 'Cari produk best seller minggu ini dong'.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Analisis Penjualan", description: "Pak Teladan bakal langsung mengurutkan barang-barang berdasarkan jumlah yang paling banyak terjual.", icon: <Search className="w-8 h-8" /> },
+        { title: "Daftar Terlaris", description: "Daftar produk paling laku bakal ditampilkan biar kamu bisa gampang ngerencanain stok barang ke depannya.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-supplier-search",
-      title: "Cari Kontak & Alamat Pemasok (Supplier)",
-      description: "Butuh menghubungi pemasok barang dengan cepat? Mintalah asisten AI untuk mencarikan kontak penanggung jawab (PIC) beserta alamat supplier Anda.",
+      title: "Cari Kontak & Alamat Supplier",
+      description: "Butuh hubungi supplier buru-buru? Minta Pak Teladan aja buat nyariin nomor HP penanggung jawab (PIC) beserta alamat lengkap supplier tokomu.",
       icon: <Truck className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Tanyakan Kontak Supplier", description: "Ketik nama supplier yang Anda cari, misalnya: 'Cari kontak supplier semen' atau 'Tampilkan detail alamat PT Logam Mulia'.", icon: <Truck className="w-8 h-8" /> },
-        { title: "Pencarian Pemasok", description: "AI memindai daftar supplier aktif yang terdaftar di sistem toko Anda.", icon: <Search className="w-8 h-8" /> },
-        { title: "Info Kontak Tampil", description: "Nama PIC, nomor telepon/WhatsApp, dan alamat pengiriman supplier akan langsung ditampilkan.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Tanyakan Kontak Supplier", description: "Ketik nama supplier yang kamu cari, misalnya: 'Cari kontak supplier semen' atau 'Alamat PT Logam Mulia di mana ya?'.", icon: <Truck className="w-8 h-8" /> },
+        { title: "Pencarian Pemasok", description: "Pak Teladan bakal gercep nyisir daftar supplier aktif yang terdaftar di database toko.", icon: <Search className="w-8 h-8" /> },
+        { title: "Info Kontak Tampil", description: "Nama PIC, nomor HP/WhatsApp, dan alamat lengkap si supplier langsung keliatan di obrolan chat.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-customer-search",
-      title: "Cari Nomor Telepon & Profil Pelanggan",
-      description: "Temukan data profil pelanggan setia Anda untuk mengecek nomor WhatsApp atau nama perusahaan tempat mereka bekerja secara instan.",
+      title: "Cari Kontak & Profil Pelanggan",
+      description: "Mau nyari info kontak pelanggan setia? Tanya Pak Teladan aja buat cek nomor WhatsApp atau nama perusahaan mereka dalam sekejap.",
       icon: <Users className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Tanyakan Pelanggan", description: "Cari berdasarkan nama atau nomor telepon. Contoh: 'Cari pelanggan bernama Budi' atau 'Tampilkan profil PT Maju Jaya'.", icon: <Users className="w-8 h-8" /> },
-        { title: "Pemindaian Data", description: "AI mencari data di dalam database manajemen pelanggan (CRM) toko.", icon: <Search className="w-8 h-8" /> },
-        { title: "Detail Pelanggan", description: "Hasil pencarian berupa nama lengkap, nomor HP, nama instansi/perusahaan, dan status keanggotaan akan ditampilkan.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Tanyakan Pelanggan", description: "Tanya aja nama atau nomor HP-nya, contoh: 'Cari pelanggan namanya Budi dong' atau 'PT Maju Jaya nomor teleponnya berapa?'.", icon: <Users className="w-8 h-8" /> },
+        { title: "Pemindaian Data", description: "Pak Teladan bakal langsung nyari data pelanggan tersebut di sistem database pelanggan (CRM) toko.", icon: <Search className="w-8 h-8" /> },
+        { title: "Detail Pelanggan", description: "Hasilnya berupa nama lengkap, nomor HP, nama instansi/toko, dan status member-nya bakalan langsung ditampilkan.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-customer-debt",
-      title: "Cek Sisa Utang (Piutang) Pelanggan",
-      description: "Pantau sisa tagihan belanja tempo dari pelanggan tertentu agar tagihan dapat ditagih tepat waktu tanpa ada yang terlewat.",
+      title: "Cek Sisa Utang/Bon Pelanggan",
+      description: "Pantau sisa tagihan belanja tempo pelanggan biar gampang nagihnya dan gak ada bon yang kelupaan atau terlewat.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Tanyakan Piutang", description: "Tulis nama pelanggan yang ingin Anda cek utangnya. Contoh: 'Berapa total piutang Pak Bambang?' atau 'Apakah PT Jaya Baru punya utang belum lunas?'.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Cek Invoice Belum Lunas", description: "AI menelusuri riwayat transaksi tempo pelanggan bersangkutan yang masih berstatus 'Belum Lunas' (Pending/DP).", icon: <Search className="w-8 h-8" /> },
-        { title: "Total Tagihan", description: "Jumlah sisa nominal piutang yang wajib dibayarkan akan ditampilkan dengan jelas di layar chat.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Tanyakan Piutang", description: "Tulis aja nama pelanggan yang mau kamu cek utangnya. Contoh: 'Bon Pak Bambang sisa berapa?' atau 'PT Jaya Baru ada utang gak ya?'.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Cek Invoice Belum Lunas", description: "Pak Teladan bakal langsung nelusurin riwayat nota-nota belanja tempo pelanggan yang statusnya masih 'Belum Lunas'.", icon: <Search className="w-8 h-8" /> },
+        { title: "Total Tagihan", description: "Jumlah sisa nominal piutang yang harus dibayar bakalan langsung keliatan jelas di layar obrolan.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-customer-recap",
-      title: "Lihat Ringkasan Belanja Pelanggan 30 Hari Terakhir",
-      description: "Dapatkan analisis singkat mengenai keaktifan belanja pelanggan selama sebulan ke belakang untuk mengetahui loyalitas mereka.",
+      title: "Cek Rekap Belanja Bulanan Pelanggan",
+      description: "Pengen tau seberapa sering pelanggan setiamu belanja sebulan terakhir? Cari tahu tingkat keaktifan dan loyalitas mereka lewat Pak Teladan.",
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Minta Rekap Belanja", description: "Ketik perintah rekap, contoh: 'Rekap belanja Pak Andi selama 30 hari terakhir' atau 'Bagaimana riwayat belanja Toko Makmur?'.", icon: <History className="w-8 h-8" /> },
-        { title: "Kompilasi Riwayat", description: "Pak Teladan mengumpulkan data total pesanan dibuat, jumlah uang belanja masuk, dan piutang yang sudah dicicil dalam 30 hari terakhir.", icon: <Search className="w-8 h-8" /> },
-        { title: "Laporan Loyalitas", description: "Rangkuman transaksi disajikan sehingga Anda mengetahui seberapa besar kontribusi belanja pelanggan tersebut.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Minta Rekap Belanja", description: "Ketik aja pesan kayak: 'Rekap belanja Pak Andi sebulan ini dong' atau 'Gimana riwayat belanjanya Toko Makmur?'.", icon: <History className="w-8 h-8" /> },
+        { title: "Kompilasi Riwayat", description: "Pak Teladan bakal ngerangkum total orderan, jumlah uang masuk, dan sisa piutang mereka dalam 30 hari belakangan.", icon: <Search className="w-8 h-8" /> },
+        { title: "Laporan Loyalitas", description: "Rangkuman belanjanya langsung tersaji rapi biar kamu tau seberapa setia pelanggan tersebut.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {
       id: "ai-assistant-pending-tx",
-      title: "Lihat Daftar Transaksi Tertunda (Pending & Draft)",
-      description: "Periksa kembali pesanan pelanggan yang pembayarannya masih tertunda (Pending Approval), transaksi cicilan (DP), atau nota yang masih disimpan sebagai Draft.",
+      title: "Cek Transaksi Pending & Draft",
+      description: "Periksa lagi transaksi pelanggan yang nunggu disetujui (Pending Approval), transaksi cicilan (DP), atau nota yang disimpen jadi Draft.",
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Tanyakan Transaksi Pending", description: "Kirim pesan seperti: 'Tampilkan transaksi yang masih pending' atau 'Apakah ada nota draft hari ini?'.", icon: <History className="w-8 h-8" /> },
-        { title: "Penyaringan Status", description: "AI mengelompokkan transaksi aktif yang belum diselesaikan atau sedang menunggu persetujuan (approval) kasir/owner.", icon: <Search className="w-8 h-8" /> },
-        { title: "Daftar Transaksi", description: "Daftar nomor nota invoice, status transaksi, nama pelanggan, dan nominal belanja akan muncul untuk segera ditindaklanjuti.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Tanyakan Transaksi Pending", description: "Kirim chat kayak: 'Ada transaksi pending gak hari ini?' atau 'Tunjukin list nota draft dong'.", icon: <History className="w-8 h-8" /> },
+        { title: "Penyaringan Status", description: "Pak Teladan langsung nyaring nota-nota aktif yang nunggu persetujuan kasir/owner atau yang masih draft.", icon: <Search className="w-8 h-8" /> },
+        { title: "Daftar Transaksi", description: "Daftar nomor nota, status, nama pelanggan, dan total nominal belanjanya langsung muncul biar bisa langsung kamu proses.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     }
   ]
@@ -739,7 +743,7 @@ function searchInContent(item: AccordionItem, query: string): boolean {
 }
 
 export default function HelpContent({ targetRole, searchQuery = "" }: { targetRole: Role | "AI_ASSISTANT"; searchQuery?: string }) {
-  const allContent = ROLE_CONTENT[targetRole] || [];
+  const allContent = useMemo(() => ROLE_CONTENT[targetRole] || [], [targetRole]);
   const content = useMemo(() => {
     if (!searchQuery) return allContent;
     return allContent.filter((item) => searchInContent(item, searchQuery));
@@ -804,19 +808,26 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
               />
             </button>
 
-            <div
-              className={`transition-all duration-300 ease-in-out overflow-hidden ${openId === item.id ? "max-h-[800px] opacity-100 border-t border-surface-100" : "max-h-0 opacity-0"
-                }`}
-            >
-              <div className="p-6">
-                {item.description && (
-                  <p className="text-surface-600 mb-6 leading-relaxed">
-                    {item.description}
-                  </p>
-                )}
-                <HelpDiagramStepper steps={item.steps} />
-              </div>
-            </div>
+            <AnimatePresence initial={false}>
+              {openId === item.id && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="overflow-hidden border-t border-surface-100"
+                >
+                  <div className="p-6">
+                    {item.description && (
+                      <p className="text-surface-600 mb-6 leading-relaxed">
+                        {item.description}
+                      </p>
+                    )}
+                    <HelpDiagramStepper steps={item.steps} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ))}
       </div>

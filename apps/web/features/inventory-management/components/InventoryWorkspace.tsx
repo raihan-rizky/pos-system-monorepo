@@ -103,11 +103,13 @@ const PRIORITY_CLASSES: Record<InventoryTaskPriority, string> = {
 export interface InventoryWorkspaceProps {
   initialSummary: InventorySummary;
   defaultTab?: typeof MAIN_TABS[number];
+  initialDaySessionPreview?: InventoryDaySessionPreview | null;
 }
 
 export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   initialSummary,
   defaultTab,
+  initialDaySessionPreview,
 }) => {
   const { canPerform } = useRole();
   const [activeTab, setActiveTab] = React.useState<typeof MAIN_TABS[number]>(
@@ -126,7 +128,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   const [checklistError, setChecklistError] = React.useState<string | null>(null);
   const [editingChecklistId, setEditingChecklistId] = React.useState<string | null>(null);
   const [daySessionPreview, setDaySessionPreview] =
-    React.useState<InventoryDaySessionPreview | null>(null);
+    React.useState<InventoryDaySessionPreview | null>(initialDaySessionPreview ?? null);
 
   const activeChecklistPeriodType = activeTugasTab === "Tugas Harian" ? "DAILY" : "WEEKLY";
   const activeChecklistPeriodKey =
@@ -561,7 +563,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   };
 
   return (
-    <main className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto bg-slate-50">
+    <main className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-slate-50">
       <div className="border-b border-slate-200 bg-white px-4 py-4 md:px-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -707,7 +709,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       {/* Main Dashboard Grid */}
       <section className="mx-auto w-full max-w-[96rem] grid gap-6 px-4 pt-4 pb-6 md:grid-cols-3 md:px-6">
         {/* Status Checklist / Tasks */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <CheckSquare className="h-5 w-5 text-slate-700" />
             Pusat Kerja Hari Ini
@@ -716,7 +718,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             Fokus pekerjaan inventaris untuk {initialSummary.period.dateKey}.
           </p>
 
-          <div className="mt-6 space-y-4">
+          <div className={`mt-6 space-y-4 ${isDaySessionLoaded && !isDayCheckedIn ? "filter blur-[4px] pointer-events-none select-none" : ""}`}>
             {/* Daily Matching */}
             <button 
               type="button"
@@ -905,6 +907,18 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               </span>
             </button>
           </div>
+
+          {isDaySessionLoaded && !isDayCheckedIn && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/75 backdrop-blur-[1px] p-6 text-center">
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 max-w-sm shadow-lg animate-in fade-in zoom-in-95 duration-200">
+                <AlertTriangle className="h-10 w-10 text-amber-600 mx-auto mb-3" />
+                <h3 className="text-base font-bold text-amber-950">Check In Diperlukan</h3>
+                <p className="mt-2 text-xs font-medium text-amber-800 leading-relaxed">
+                  Check in terlebih dahulu sebelum menyelesaikan tugas harian.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quick info panel / shortcuts */}
@@ -1340,7 +1354,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             {activeTab === "Tugas" && isDaySessionLoaded && isDayCheckedIn && (
               <div className="space-y-4">
                 <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
-                <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto w-max">
+                <div className="flex w-full max-w-full gap-2 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-max">
                   {TUGAS_TABS.map((tab) => (
                     <button
                       key={tab}
@@ -1372,7 +1386,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             
             {activeTab === "Transaksi" && (
               <div className="space-y-4">
-                <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto w-max">
+                <div className="flex w-full max-w-full gap-2 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-max">
                   {TRANSAKSI_TABS.map((tab) => (
                     <button
                       key={tab}
@@ -1408,8 +1422,8 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             )}
 
             {activeTab === "Riwayat" && (
-              <div className="space-y-4">
-                <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto w-max">
+              <div className="min-w-0 space-y-4">
+                <div className="flex w-full max-w-full gap-2 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-max">
                   {RIWAYAT_TABS.map((tab) => (
                     <button
                       key={tab}

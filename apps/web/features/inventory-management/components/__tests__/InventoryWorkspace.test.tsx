@@ -297,6 +297,59 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("Laporan Barang Rusak");
   });
 
+  it("keeps the riwayat sub-tabs constrained on mobile", () => {
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace initialSummary={baseSummary} defaultTab="Riwayat" />,
+    );
+
+    expect(html).toContain("flex w-full max-w-full gap-2 overflow-x-auto");
+    expect(html).toContain("sm:w-max");
+    expect(html).not.toContain("overflow-x-auto w-max");
+  });
+
+  it("uses responsive navigation tabs containers for Tasks and Transaksi tabs on mobile", () => {
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace initialSummary={baseSummary} defaultTab="Transaksi" />,
+    );
+    expect(html).toContain("flex w-full max-w-full gap-2 overflow-x-auto");
+    expect(html).toContain("sm:w-max");
+    expect(html).not.toContain("overflow-x-auto w-max");
+  });
+
+  it("adds overflow-x-hidden to the main element to prevent overall page stretch on mobile", () => {
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace initialSummary={baseSummary} />,
+    );
+    expect(html).toContain("overflow-x-hidden");
+  });
+
+  it("blocks and blurs the daily command center when the session is loaded but not checked in", () => {
+    const mockPreview = {
+      dateKey: "2026-06-29",
+      session: null,
+      stockRisk: { negative: [], outOfStock: [], lowStock: [] },
+      productionMaterials: [],
+      workspaceSafetyItems: [],
+      completion: {
+        dateKey: "2026-06-29",
+        weekKey: "2026-W26",
+        isSaturday: false,
+        tasks: [],
+        blockers: [],
+      },
+    };
+
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace
+        initialSummary={baseSummary}
+        initialDaySessionPreview={mockPreview}
+      />,
+    );
+
+    expect(html).toContain("blur-[4px]");
+    expect(html).toContain("Check in terlebih dahulu sebelum menyelesaikan tugas harian.");
+  });
+
   it("keeps pemakaian internal recap without the old internal stock-out review panel", () => {
     const html = renderToStaticMarkup(
       <InventoryWorkspace initialSummary={baseSummary} defaultTab="Transaksi" />,

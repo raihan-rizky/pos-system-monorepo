@@ -10,6 +10,7 @@ import {
   completeAssistantActionLog,
   keepRecentMessages,
   setAssistantFinalContent,
+  setAssistantWorkflowPayload,
 } from "../chat-state";
 
 describe("AI assistant chat state", () => {
@@ -141,5 +142,28 @@ describe("AI assistant chat state", () => {
     const next = setAssistantFinalContent(messages, "Jawaban final");
 
     expect(next).toEqual([{ role: "assistant", content: "Jawaban final" }]);
+  });
+
+  it("attaches a workflow payload to the last assistant message", () => {
+    const next = setAssistantWorkflowPayload(
+      [{ role: "assistant", content: "Ikuti alur ini." }],
+      {
+        id: "faq-q01-add-product",
+        title: "Tambah produk baru",
+        route: "/products",
+        actionLabel: "Buka Produk",
+        sourceRef: "docs/help/faq.md#q1",
+        steps: [{
+          id: "faq-q01-add-product-step-1",
+          title: "Buka katalog",
+          description: "Buka halaman produk.",
+          route: "/products",
+          actionLabel: "Buka Produk",
+          iconKey: "package",
+        }],
+      },
+    );
+
+    expect(next[0].workflow?.id).toBe("faq-q01-add-product");
   });
 });

@@ -1,8 +1,26 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi } from "vitest";
 import React from "react";
 import { generateInvoicePdf } from "../generate-invoice-pdf";
 import type { Transaction } from "@/hooks/useTransactions";
 import type { StoreSettings } from "../invoice-pdf-data";
+
+const pdfMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    toBlob: vi.fn(async () => new Blob([new Uint8Array([37, 80, 68, 70])])),
+  })),
+);
+
+vi.mock("@react-pdf/renderer", () => ({
+  pdf: pdfMock,
+  StyleSheet: {
+    create: (styles: unknown) => styles,
+  },
+  Document: "Document",
+  Image: "Image",
+  Page: "Page",
+  Text: "Text",
+  View: "View",
+}));
 
 /* ── Fixtures ───────────────────────────────────────────────────── */
 
@@ -116,7 +134,7 @@ describe("generateInvoicePdf", () => {
     // Both should produce valid outputs but potentially different sizes
     expect(halfA4.byteLength).toBeGreaterThan(0);
     expect(a4.byteLength).toBeGreaterThan(0);
-  }, 30000);
+  }, 15000);
 
   test("generates PDF for transaction with many items (>5, no filler rows)", async () => {
     const items = Array.from({ length: 10 }, (_, i) => ({

@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { UserRole } from "../types/assistant";
+import { buildDefaultRolePermissions, type RolePermissions } from "@/features/rbac/helpers/rbac-core";
 import { getLogger, type Logger } from "@/lib/logger";
 import {
   buildFinalAnswerInstruction,
@@ -23,6 +24,16 @@ import {
   type AssistantIntent,
   type FastPathIntentName,
 } from "./assistant-intent-router";
+import {
+  getPermittedWorkflows,
+  matchAssistantWorkflow,
+} from "../workflows/assistant-workflow-matcher";
+import type { AssistantWorkflowDefinition } from "../workflows/workflow-catalog";
+import {
+  renderWorkflowAccessDeniedAnswer,
+  renderWorkflowAnswer,
+  renderWorkflowClarificationAnswer,
+} from "../workflows/assistant-response-renderers";
 
 const log = getLogger("services:assistant");
 let activeAssistantRequests = 0;
@@ -55,11 +66,13 @@ interface AssistantServiceConfig {
   client?: OpenAI;
   toolsRepository?: AssistantToolsRepository;
   fastPathIntents?: ReadonlySet<FastPathIntentName>;
+  rolePermissions?: RolePermissions;
   now?: () => Date;
   toolRetry?: {
     maxAttempts?: number;
     delayMs?: number;
   };
+  assistantDeadlineMs?: number;
 }
 
 type AssistantRequestTelemetry = {
@@ -74,8 +87,12 @@ type AssistantRequestTelemetry = {
 type ModelStage = "planning" | "tool_repair" | "final" | "final_repair";
 type TrackModelCall = <T>(stage: ModelStage, call: () => Promise<T>) => Promise<T>;
 
+type WorkflowSelectionResult =
+  | { action: "select_workflow"; workflowId: string }
+  | { action: "clarify"; question: string };
+
 type RunMetrics = {
-  routeKind: "model_fallback" | "static_fast_path" | "tool_fast_path";
+  routeKind: "model_fallback" | "static_fast_path" | "tool_fast_path" | "workflow_fast_path" | "workflow_model_selection";
   intent: string;
   outcome: "success" | "error" | "cancelled";
   shadowAgreement: "tool_match" | "tool_mismatch" | "not_comparable" | "no_candidate";
@@ -103,6 +120,29 @@ const NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1/";
 // Keep the first frame above common intermediary buffering thresholds so the
 // browser can observe the planning event before the model request finishes.
 const SSE_INITIAL_PADDING = `: ${" ".repeat(8192)}\n`;
+const DEFAULT_WORKFLOW_CLARIFICATION = "Maaf, Pak Tel belum yakin panduan mana yang kamu maksud. Sebutkan menu atau tujuan langkahnya ya.";
+const DEFAULT_ASSISTANT_DEADLINE_MS = 8_000;
+
+const assistantWorkflowSelectionJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["action", "workflowId", "question"],
+  properties: {
+    action: {
+      type: "string",
+      enum: ["select_workflow", "clarify"],
+      description: "Select a permitted workflow ID, or ask a short clarification question.",
+    },
+    workflowId: {
+      type: "string",
+      description: "Permitted workflow ID when action is select_workflow. Empty string when action is clarify.",
+    },
+    question: {
+      type: "string",
+      description: "Indonesian clarification question when action is clarify. Empty string when selecting a workflow.",
+    },
+  },
+} as const;
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -120,6 +160,48 @@ function getCompletionMessage(response: any) {
 function getCompletionContent(response: any) {
   const content = getCompletionMessage(response).content;
   return typeof content === "string" ? content : "";
+}
+
+function isWorkflowHelpRequest(message: string) {
+  const text = message.toLowerCase();
+  if (!text.trim()) return false;
+  if (/\b(?:dan|serta|sekaligus|kemudian|lalu|plus)\b/.test(text) || (text.match(/\?/g)?.length ?? 0) > 1) {
+    return false;
+  }
+
+  const helpIntent = /\b(?:cara|bagaimana|bantuan|help|panduan|langkah|tutorial|pakai|memakai|menggunakan|gunakan|buka|menu|fitur|alur|proses)\b/.test(text);
+  const posDomain = /\b(?:pos|produk|barang|stok|stock|inventory|inventori|inventaris|gudang|transaksi|kasir|pelanggan|customer|supplier|keuangan|laporan|settings|pengaturan|akses|role|produksi|sales|shift|riwayat|surat jalan|nota|invoice|aplikasi|sistem|toko)\b/.test(text);
+
+  return helpIntent && posDomain;
+}
+
+function workflowSelectionPromptItems(workflows: AssistantWorkflowDefinition[]) {
+  return workflows.map((workflow) => ({
+    id: workflow.id,
+    title: workflow.title,
+    aliases: workflow.aliases,
+    route: workflow.route,
+    actionLabel: workflow.actionLabel,
+  }));
+}
+
+function parseWorkflowSelection(content: string): WorkflowSelectionResult | null {
+  try {
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    if (parsed.action === "select_workflow" && typeof parsed.workflowId === "string" && parsed.workflowId.trim()) {
+      return { action: "select_workflow", workflowId: parsed.workflowId.trim() };
+    }
+
+    if (parsed.action === "clarify" && typeof parsed.question === "string" && parsed.question.trim()) {
+      return { action: "clarify", question: parsed.question.trim().slice(0, 180) };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 function validationMessage(error: unknown) {
@@ -340,20 +422,20 @@ ${roleContext[role]}
 - List selalu di baris terpisah (bukan inline). Angka/data: tabel singkat atau bullet list.`;
   }
 
-  buildToolsForRole(role: UserRole) {
-    return getToolsForRole(role, this.config.toolsRepository);
+  buildToolsForRole(role: UserRole, permissions = this.config.rolePermissions) {
+    return getToolsForRole(role, this.config.toolsRepository, permissions);
   }
 
-  buildJsonSchemaToolsForRole(role: UserRole) {
-    return this.buildToolsForRole(role).map((tool) => ({
+  buildJsonSchemaToolsForRole(role: UserRole, permissions = this.config.rolePermissions) {
+    return this.buildToolsForRole(role, permissions).map((tool) => ({
       name: tool.name,
       description: tool.description,
       parameters: tool.parametersJsonSchema,
     }));
   }
 
-  buildOpenAiToolsForRole(role: UserRole) {
-    return getOpenAiToolsForRole(role, this.config.toolsRepository);
+  buildOpenAiToolsForRole(role: UserRole, permissions = this.config.rolePermissions) {
+    return getOpenAiToolsForRole(role, this.config.toolsRepository, permissions);
   }
 
   async executeTool(
@@ -363,8 +445,9 @@ ${roleContext[role]}
     input: unknown,
     onRetry?: () => void,
     requestId?: string,
+    permissions = this.config.rolePermissions,
   ): Promise<ToolExecutionResult> {
-    const tool = findToolForRole(role, toolName, this.config.toolsRepository);
+    const tool = findToolForRole(role, toolName, this.config.toolsRepository, permissions);
     const toolLog = log.child({ requestId, role, toolName: tool?.name ?? "unknown" });
     toolLog.info("assistant.tool.requested");
     if (!tool) {
@@ -446,6 +529,7 @@ ${roleContext[role]}
     toolName: string,
     input: unknown,
     requestId?: string,
+    permissions = this.config.rolePermissions,
   ): AsyncGenerator<ProgressEvent, ToolExecutionResult> {
     const progressQueue: ProgressEvent[] = [];
     let wakeConsumer: (() => void) | null = null;
@@ -461,7 +545,7 @@ ${roleContext[role]}
     const execution = this.executeTool(role, storeId, toolName, input, () => {
       progressQueue.push({ type: "progress", status: "tool_retrying", toolName });
       wake();
-    }, requestId)
+    }, requestId, permissions)
       .then((value) => {
         result = value;
       })
@@ -497,24 +581,48 @@ ${roleContext[role]}
     messages: ChatMessage[];
     pageContext?: PageContext;
     signal: AbortSignal;
+    rolePermissions?: RolePermissions;
     telemetry?: AssistantRequestTelemetry;
   }) {
     const streamController = new AbortController();
-    const forwardRequestAbort = () => streamController.abort(input.signal.reason);
+    const operationController = new AbortController();
+    let deadlineExceeded = false;
+    const forwardRequestAbort = () => {
+      operationController.abort(input.signal.reason);
+      streamController.abort(input.signal.reason);
+    };
     if (input.signal.aborted) {
       forwardRequestAbort();
     } else {
       input.signal.addEventListener("abort", forwardRequestAbort, { once: true });
     }
-    const finalize = () => input.signal.removeEventListener("abort", forwardRequestAbort);
-    const streamInput = { ...input, signal: streamController.signal };
+    const deadlineMs = this.config.assistantDeadlineMs ?? DEFAULT_ASSISTANT_DEADLINE_MS;
+    const deadlineTimer = setTimeout(() => {
+      deadlineExceeded = true;
+      operationController.abort(new DOMException("Assistant request deadline exceeded", "TimeoutError"));
+    }, deadlineMs);
+    const finalize = () => {
+      clearTimeout(deadlineTimer);
+      input.signal.removeEventListener("abort", forwardRequestAbort);
+    };
+    const streamInput = {
+      ...input,
+      signal: operationController.signal,
+      deadlineExceeded: () => deadlineExceeded,
+    };
     return sseResponseFromEvents(
       this.run(streamInput),
       streamController.signal,
       input.telemetry?.requestId,
       {
-        cancel: () => streamController.abort(),
-        finalize,
+        cancel: () => {
+          operationController.abort();
+          streamController.abort();
+        },
+        finalize: () => {
+          operationController.abort();
+          finalize();
+        },
       },
     );
   }
@@ -525,7 +633,9 @@ ${roleContext[role]}
     messages: ChatMessage[];
     pageContext?: PageContext;
     signal: AbortSignal;
+    rolePermissions?: RolePermissions;
     telemetry?: AssistantRequestTelemetry;
+    deadlineExceeded?: () => boolean;
   }): AsyncIterable<ProgressEvent> {
     const requestStartedAt = input.telemetry?.requestStartedAt ?? Date.now();
     const concurrencyAtStart = ++activeAssistantRequests;
@@ -536,6 +646,12 @@ ${roleContext[role]}
     });
     const recentMessages = input.messages.slice(-20);
     const latestUserMessage = [...recentMessages].reverse().find((item) => item.role === "user")?.content ?? "";
+    const rolePermissions = input.rolePermissions ?? this.config.rolePermissions ?? buildDefaultRolePermissions();
+    const workflowMatch = matchAssistantWorkflow({
+      message: latestUserMessage,
+      role: input.role,
+      permissions: rolePermissions,
+    });
     requestLog.info("assistant.request.started", {
       messageCount: recentMessages.length,
       contextCharacters: recentMessages.reduce((total, message) => total + message.content.length, 0),
@@ -545,9 +661,14 @@ ${roleContext[role]}
     const routingStartedAt = Date.now();
     const candidate = routeAssistantIntent(latestUserMessage, this.config.now?.() ?? new Date());
     const candidateName = getFastPathIntentName(candidate);
+    const workflowIntent = workflowMatch.kind === "matched" || workflowMatch.kind === "denied"
+      ? workflowMatch.workflow.id
+      : workflowMatch.kind === "ambiguous"
+        ? "workflow_ambiguous"
+        : null;
     const metrics: RunMetrics = {
       routeKind: "model_fallback",
-      intent: candidateName ?? candidate.kind,
+      intent: workflowIntent ?? candidateName ?? candidate.kind,
       outcome: "error",
       shadowAgreement: candidateName ? "not_comparable" : "no_candidate",
       modelCalls: 0,
@@ -565,6 +686,7 @@ ${roleContext[role]}
     requestLog.info("assistant.routing.completed", {
       intent: metrics.intent,
       candidateKind: candidate.kind,
+      workflowMatchKind: workflowMatch.kind,
       durationMs: metrics.routingDurationMs,
     });
     const trackModelCall: TrackModelCall = async (stage, call) => {
@@ -614,7 +736,7 @@ ${roleContext[role]}
       toolName?: string,
     ): Extract<ProgressEvent, { type: "progress" }> => {
       const safeToolName = toolName
-        ? findToolForRole(input.role, toolName, this.config.toolsRepository)?.name ?? "unknown"
+        ? findToolForRole(input.role, toolName, this.config.toolsRepository, rolePermissions)?.name ?? "unknown"
         : undefined;
       requestLog.info("assistant.stream.progress", { status, toolName: safeToolName });
       return { type: "progress", status, toolName };
@@ -622,7 +744,7 @@ ${roleContext[role]}
     const forwardedProgressEvent = (event: ProgressEvent) => {
       if ("type" in event && event.type === "progress") {
         const safeToolName = event.toolName
-          ? findToolForRole(input.role, event.toolName, this.config.toolsRepository)?.name ?? "unknown"
+          ? findToolForRole(input.role, event.toolName, this.config.toolsRepository, rolePermissions)?.name ?? "unknown"
           : undefined;
         requestLog.info("assistant.stream.progress", { status: event.status, toolName: safeToolName });
       }
@@ -638,6 +760,89 @@ ${roleContext[role]}
         intent: metrics.intent,
         fastPathEnabled,
       });
+
+      if (workflowMatch.kind === "matched") {
+        metrics.routeKind = "workflow_fast_path";
+        requestLog.info("assistant.path.selected", {
+          routeKind: metrics.routeKind,
+          workflowId: workflowMatch.workflow.id,
+        });
+        metrics.outcome = "success";
+        yield finalEvent(renderWorkflowAnswer(
+          workflowMatch.workflow,
+          (this.config.now?.() ?? new Date()).toISOString(),
+        ));
+        return;
+      }
+
+      if (workflowMatch.kind === "denied") {
+        metrics.routeKind = "workflow_fast_path";
+        metrics.failureCategory = "rbac";
+        requestLog.info("assistant.path.selected", {
+          routeKind: metrics.routeKind,
+          workflowId: workflowMatch.workflow.id,
+          reason: "workflow_rbac_denied",
+        });
+        metrics.outcome = "success";
+        yield finalEvent(renderWorkflowAccessDeniedAnswer(
+          workflowMatch.workflow,
+          (this.config.now?.() ?? new Date()).toISOString(),
+        ));
+        return;
+      }
+
+      const workflowSelectionCandidates = workflowMatch.kind === "ambiguous"
+        ? workflowMatch.candidates
+        : workflowMatch.kind === "none" && isWorkflowHelpRequest(latestUserMessage)
+          ? getPermittedWorkflows(input.role, rolePermissions)
+          : [];
+      if (workflowSelectionCandidates.length > 0) {
+        metrics.routeKind = "workflow_model_selection";
+        requestLog.info("assistant.path.selected", {
+          routeKind: metrics.routeKind,
+          candidateCount: workflowSelectionCandidates.length,
+          workflowMatchKind: workflowMatch.kind,
+        });
+
+        const selectionResponse = await trackModelCall("planning", () => this.requestWorkflowSelection({
+          latestUserMessage,
+          pageContext: input.pageContext,
+          workflows: workflowSelectionCandidates,
+          signal: input.signal,
+        }));
+        const selection = parseWorkflowSelection(getCompletionContent(selectionResponse));
+        const selectedWorkflow = selection?.action === "select_workflow"
+          ? workflowSelectionCandidates.find((workflow) => workflow.id === selection.workflowId)
+          : undefined;
+
+        if (selectedWorkflow) {
+          metrics.intent = selectedWorkflow.id;
+          metrics.outcome = "success";
+          requestLog.info("assistant.workflow.selection.completed", {
+            outcome: "selected",
+            workflowId: selectedWorkflow.id,
+          });
+          yield finalEvent(renderWorkflowAnswer(
+            selectedWorkflow,
+            (this.config.now?.() ?? new Date()).toISOString(),
+          ));
+          return;
+        }
+
+        const clarificationQuestion = selection?.action === "clarify"
+          ? selection.question
+          : DEFAULT_WORKFLOW_CLARIFICATION;
+        requestLog.info("assistant.workflow.selection.completed", {
+          outcome: selection?.action === "select_workflow" ? "invalid_selection" : "clarify",
+          selectedWorkflowId: selection?.action === "select_workflow" ? selection.workflowId : undefined,
+        });
+        metrics.outcome = "success";
+        yield finalEvent(renderWorkflowClarificationAnswer(
+          clarificationQuestion,
+          (this.config.now?.() ?? new Date()).toISOString(),
+        ));
+        return;
+      }
 
       if (fastPathEnabled && (
         candidate.kind === "social_static"
@@ -668,6 +873,7 @@ ${roleContext[role]}
           candidate.toolName,
           candidate.input,
           input.telemetry?.requestId,
+          rolePermissions,
         );
         let directStep = await directExecution.next();
         while (!directStep.done) {
@@ -711,7 +917,7 @@ ${roleContext[role]}
 
       const toolSelection = await trackModelCall(
         "planning",
-        () => this.requestToolSelection(input.role, planningMessages, input.signal),
+        () => this.requestToolSelection(input.role, planningMessages, input.signal, rolePermissions),
       );
       const message = getCompletionMessage(toolSelection);
       const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
@@ -749,7 +955,7 @@ ${roleContext[role]}
       let toolCall = toolCalls[0];
       let toolName = toolCall?.function?.name;
       requestLog.info("assistant.tool.selected", {
-        toolName: findToolForRole(input.role, toolName, this.config.toolsRepository)?.name ?? "unknown",
+        toolName: findToolForRole(input.role, toolName, this.config.toolsRepository, rolePermissions)?.name ?? "unknown",
         selectionSource: "model",
       });
       yield progressEvent("tool_selected", toolName);
@@ -759,7 +965,7 @@ ${roleContext[role]}
         args = parseToolArguments(toolCall?.function?.arguments);
       } catch {
         requestLog.warn("assistant.tool.arguments.invalid", {
-          toolName: findToolForRole(input.role, toolName, this.config.toolsRepository)?.name ?? "unknown",
+          toolName: findToolForRole(input.role, toolName, this.config.toolsRepository, rolePermissions)?.name ?? "unknown",
           selectionSource: "model",
         });
         args = {};
@@ -774,6 +980,7 @@ ${roleContext[role]}
         toolName,
         args,
         input.telemetry?.requestId,
+        rolePermissions,
       );
       let executionStep = await execution.next();
       while (!executionStep.done) {
@@ -783,7 +990,7 @@ ${roleContext[role]}
       metrics.toolDurationMs += Date.now() - toolStartedAt;
       let toolResult = executionStep.value;
       requestLog.info("assistant.tool.completed", {
-        toolName: findToolForRole(input.role, toolName, this.config.toolsRepository)?.name ?? "unknown",
+        toolName: findToolForRole(input.role, toolName, this.config.toolsRepository, rolePermissions)?.name ?? "unknown",
         durationMs: Date.now() - toolStartedAt,
         outcome: toolResult.ok ? "success" : toolFailureCategory(toolResult.error_code),
       });
@@ -796,6 +1003,7 @@ ${roleContext[role]}
           toolName,
           validationError,
           input.signal,
+          rolePermissions,
         ));
         const repairedCalls = Array.isArray(getCompletionMessage(repaired).tool_calls) ? getCompletionMessage(repaired).tool_calls : [];
         requestLog.info("assistant.tool.repair.completed", { toolCallCount: repairedCalls.length });
@@ -806,13 +1014,13 @@ ${roleContext[role]}
             args = parseToolArguments(toolCall?.function?.arguments);
           } catch {
             requestLog.warn("assistant.tool.arguments.invalid", {
-              toolName: findToolForRole(input.role, toolName, this.config.toolsRepository)?.name ?? "unknown",
+              toolName: findToolForRole(input.role, toolName, this.config.toolsRepository, rolePermissions)?.name ?? "unknown",
               selectionSource: "repair",
             });
             args = {};
           }
           requestLog.info("assistant.tool.selected", {
-            toolName: findToolForRole(input.role, toolName, this.config.toolsRepository)?.name ?? "unknown",
+            toolName: findToolForRole(input.role, toolName, this.config.toolsRepository, rolePermissions)?.name ?? "unknown",
             selectionSource: "repair",
           });
           yield progressEvent("tool_selected", toolName);
@@ -825,6 +1033,7 @@ ${roleContext[role]}
             toolName,
             args,
             input.telemetry?.requestId,
+            rolePermissions,
           );
           executionStep = await execution.next();
           while (!executionStep.done) {
@@ -834,7 +1043,7 @@ ${roleContext[role]}
           metrics.toolDurationMs += Date.now() - toolStartedAt;
           toolResult = executionStep.value;
           requestLog.info("assistant.tool.completed", {
-            toolName: findToolForRole(input.role, toolName, this.config.toolsRepository)?.name ?? "unknown",
+            toolName: findToolForRole(input.role, toolName, this.config.toolsRepository, rolePermissions)?.name ?? "unknown",
             durationMs: Date.now() - toolStartedAt,
             outcome: toolResult.ok ? "success" : toolFailureCategory(toolResult.error_code),
             repaired: true,
@@ -860,6 +1069,19 @@ ${roleContext[role]}
       metrics.outcome = "success";
     } catch (error) {
       metrics.outcome = input.signal.aborted ? "cancelled" : "error";
+      if (input.deadlineExceeded?.()) {
+        metrics.outcome = "success";
+        metrics.failureCategory = "provider";
+        requestLog.warn("assistant.request.deadline_exceeded", {
+          totalDurationMs: Date.now() - requestStartedAt,
+        });
+        yield finalEvent(buildSafeAnswer({
+          answerMarkdown: "Maaf Kak, jawaban AI melewati batas waktu aman. Silakan coba lagi dengan pertanyaan yang lebih spesifik.",
+          dataStatus: "error",
+          sourceLabel: "Timeout AI",
+        }));
+        return;
+      }
       if (!input.signal.aborted && metrics.failureCategory === "none") metrics.failureCategory = "provider";
       requestLog.error("assistant.request.failed", {
         outcome: metrics.outcome,
@@ -942,16 +1164,59 @@ ${roleContext[role]}
     ];
   }
 
+  private requestWorkflowSelection(input: {
+    latestUserMessage: string;
+    pageContext?: PageContext;
+    workflows: AssistantWorkflowDefinition[];
+    signal: AbortSignal;
+  }) {
+    return this.getClient().chat.completions.create({
+      model: this.config.model,
+      temperature: 0,
+      messages: [
+        {
+          role: "system" as const,
+          content: `## TUGAS
+Pilih satu panduan operasional POS dari daftar ALLOWED_WORKFLOWS, atau minta klarifikasi singkat dalam Bahasa Indonesia.
+
+## BATASAN WAJIB
+- Hanya boleh memilih workflowId yang ada di ALLOWED_WORKFLOWS.
+- Jangan menulis langkah operasional, ringkasan tutorial, angka toko, atau data aplikasi.
+- Jika tidak yakin, gunakan action "clarify".
+- Untuk action "select_workflow", isi workflowId dan kosongkan question.
+- Untuk action "clarify", kosongkan workflowId dan isi question.`,
+        },
+        {
+          role: "user" as const,
+          content: JSON.stringify({
+            latestUserMessage: input.latestUserMessage,
+            pageContext: input.pageContext ?? null,
+            allowedWorkflows: workflowSelectionPromptItems(input.workflows),
+          }),
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "assistant_workflow_selection",
+          strict: true,
+          schema: assistantWorkflowSelectionJsonSchema,
+        },
+      },
+    } as any, { signal: input.signal });
+  }
+
   private requestToolSelection(
     role: UserRole,
     messages: ReturnType<AssistantService["buildPlanningMessages"]>,
     signal: AbortSignal,
+    permissions?: RolePermissions,
   ) {
     return this.getClient().chat.completions.create({
       model: this.config.model,
       temperature: 0.1,
       messages,
-      tools: this.buildOpenAiToolsForRole(role) as any,
+      tools: this.buildOpenAiToolsForRole(role, permissions) as any,
       tool_choice: "auto",
     } as any, { signal });
   }
@@ -962,6 +1227,7 @@ ${roleContext[role]}
     toolName: string,
     error: string,
     signal: AbortSignal,
+    permissions?: RolePermissions,
   ) {
     return this.getClient().chat.completions.create({
       model: this.config.model,
@@ -973,7 +1239,7 @@ ${roleContext[role]}
           content: `## PERBAIKAN ARGUMEN TOOL\nPanggilan sebelumnya ke tool "${toolName}" gagal validasi:\n\nError: ${error}\n\nPilih satu tool yang valid dengan argumen yang benar, atau jawab tanpa tool jika tidak ada tool yang berlaku.`,
         },
       ],
-      tools: this.buildOpenAiToolsForRole(role) as any,
+      tools: this.buildOpenAiToolsForRole(role, permissions) as any,
       tool_choice: "auto",
     } as any, { signal });
   }

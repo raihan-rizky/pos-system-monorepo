@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const getCurrentUserMock = vi.hoisted(() => vi.fn());
 const openAIChatCreateMock = vi.hoisted(() => vi.fn());
@@ -15,6 +16,7 @@ const getCustomerRecapSummaryMock = vi.hoisted(() => vi.fn());
 const getSupplierSearchMock = vi.hoisted(() => vi.fn());
 const getTopProductsMock = vi.hoisted(() => vi.fn());
 const getPendingTransactionsMock = vi.hoisted(() => vi.fn());
+const getFreshGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
 const openAIConstructorMock = vi.hoisted(() =>
   vi.fn().mockImplementation(function OpenAI() {
     return {
@@ -29,6 +31,10 @@ const openAIConstructorMock = vi.hoisted(() =>
 
 vi.mock("@/lib/rbac/guard", () => ({
   getCurrentUser: getCurrentUserMock,
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({
+  getFreshGlobalRolePermissions: getFreshGlobalRolePermissionsMock,
 }));
 
 vi.mock("openai", () => ({
@@ -89,6 +95,7 @@ describe("POST /api/ai/chat", () => {
     process.env.NEBIUS_API_KEY = "test-nebius-key";
     process.env.NEBIUS_MODEL = "test-nebius-model";
     delete process.env.AI_FAST_PATH_INTENTS;
+    getFreshGlobalRolePermissionsMock.mockResolvedValue(buildDefaultRolePermissions());
     getCurrentUserMock.mockResolvedValue({
       id: "user-1",
       username: "owner",
@@ -169,6 +176,33 @@ describe("POST /api/ai/chat", () => {
     expect(toolNames).toContain("get_product_price");
     expect(toolNames).not.toContain("get_daily_sales_summary");
     expect(firstCall.tools[0].function.parameters.additionalProperties).toBe(false);
+  });
+
+  it("filters provider-visible tools by fresh effective RBAC resource permissions", async () => {
+    const permissions = buildDefaultRolePermissions();
+    permissions.ADMIN.resources.product.read = false;
+    getFreshGlobalRolePermissionsMock.mockResolvedValue(permissions);
+    getCurrentUserMock.mockResolvedValue({
+      id: "user-admin",
+      username: "admin",
+      name: "Admin User",
+      role: "ADMIN",
+      storeId: "store-1",
+      isActive: true,
+    });
+    openAIChatCreateMock
+      .mockResolvedValueOnce({ choices: [{ message: { content: "no tool" } }] })
+      .mockResolvedValueOnce(finalAnswer("Akses produk belum tersedia."));
+    const { POST } = await import("../route");
+
+    const response = await POST(makeRequest({ messages: [{ role: "user", content: "cek harga A4" }] }));
+    await readStream(response);
+
+    const firstCall = openAIChatCreateMock.mock.calls[0][0];
+    const toolNames = firstCall.tools.map((tool: any) => tool.function.name);
+    expect(toolNames).not.toContain("get_product_search");
+    expect(toolNames).not.toContain("get_product_stock");
+    expect(toolNames).not.toContain("get_product_price");
   });
 
   it("executes one model-selected tool and returns progress plus final answer frames", async () => {
@@ -300,6 +334,44 @@ describe("POST /api/ai/chat", () => {
     expect(openAIConstructorMock).not.toHaveBeenCalled();
     expect(openAIChatCreateMock).not.toHaveBeenCalled();
     expect(body).toContain("Pak Teladan");
+  });
+
+  it("uses fresh RBAC permissions for deterministic guided workflows", async () => {
+    const permissions = buildDefaultRolePermissions();
+    permissions.ADMIN.resources.product.create = false;
+    getFreshGlobalRolePermissionsMock.mockResolvedValue(permissions);
+    getCurrentUserMock.mockResolvedValue({
+      id: "user-admin",
+      username: "admin",
+      name: "Admin User",
+      role: "ADMIN",
+      storeId: "store-1",
+      isActive: true,
+    });
+    const { POST } = await import("../route");
+
+    const response = await POST(makeRequest({
+      messages: [{ role: "user", content: "Bagaimana cara menambahkan produk baru ke katalog toko?" }],
+    }));
+    const body = await readStream(response);
+
+    expect(response.status).toBe(200);
+    expect(getFreshGlobalRolePermissionsMock).toHaveBeenCalledTimes(1);
+    expect(openAIChatCreateMock).not.toHaveBeenCalled();
+    expect(body).toContain("akses");
+    expect(body).not.toContain('"workflow"');
+  });
+
+  it("fails closed when fresh RBAC permissions cannot be loaded", async () => {
+    getFreshGlobalRolePermissionsMock.mockRejectedValue(new Error("database unavailable"));
+    const { POST } = await import("../route");
+
+    const response = await POST(makeRequest({ messages: [{ role: "user", content: "halo" }] }));
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json.error).toContain("akses AI");
+    expect(openAIChatCreateMock).not.toHaveBeenCalled();
   });
 
   it("rejects messages above the visible composer limit", async () => {

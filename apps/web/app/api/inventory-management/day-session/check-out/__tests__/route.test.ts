@@ -7,6 +7,7 @@ const updateMock = vi.hoisted(() => vi.fn());
 const loadInventoryDaySessionMock = vi.hoisted(() => vi.fn());
 const buildInventoryDayCompletionMock = vi.hoisted(() => vi.fn());
 const loadStockRiskItemsMock = vi.hoisted(() => vi.fn());
+const buildInventoryCheckOutSnapshotMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -26,6 +27,7 @@ vi.mock("@/features/inventory-management/services/inventory-day-session", () => 
   loadInventoryDaySession: loadInventoryDaySessionMock,
   buildInventoryDayCompletion: buildInventoryDayCompletionMock,
   loadStockRiskItems: loadStockRiskItemsMock,
+  buildInventoryCheckOutSnapshot: buildInventoryCheckOutSnapshotMock,
 }));
 
 function post(body: unknown = {}) {
@@ -71,6 +73,44 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
       outOfStock: [],
       lowStock: [{ id: "paper-a3", name: "Kertas A3", stock: 2, minStock: 5, unit: "rim" }],
     });
+    buildInventoryCheckOutSnapshotMock.mockImplementation(
+      async ({ note, exceptionNotes }: { note?: string | null; exceptionNotes?: Record<string, string> }) => ({
+        checkedOutAt: "2026-06-28T10:00:00.000Z",
+        note: note || null,
+        exceptionNotes: exceptionNotes ?? {},
+        completion: {
+          dateKey: "2026-06-28",
+          weekKey: "2026-W26",
+          isSaturday: false,
+          tasks: completeTasks,
+          blockers: [],
+        },
+        stockRisk: {
+          negative: [],
+          outOfStock: [],
+          lowStock: [{ id: "paper-a3", name: "Kertas A3", stock: 2, minStock: 5, unit: "rim" }],
+        },
+        movementSummary: {
+          stockInQuantity: 12,
+          stockOutQuantity: 4,
+          internalUseQuantity: 3,
+          damagedQuantity: 1,
+          adjustmentQuantity: 2,
+          approvedLogCount: 5,
+          pendingRequestCount: 1,
+        },
+        workflowSummary: {
+          submittedInboundReceipts: 2,
+          needsRevisionReceipts: 1,
+          pendingSuratJalan: 3,
+          unmarkedSuratJalan: 0,
+          dailyChecklistRemaining: 0,
+          unverifiedOutLogs: 0,
+          damagedReportsPending: 0,
+        },
+        morningCheckSnapshot: { materialCounts: [] },
+      }),
+    );
     updateMock.mockResolvedValue({
       id: "session-1",
       status: "CHECKED_OUT",
@@ -96,6 +136,15 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
           stockRisk: expect.objectContaining({
             lowStock: [expect.objectContaining({ id: "paper-a3" })],
           }),
+          movementSummary: expect.objectContaining({
+            stockInQuantity: 12,
+            stockOutQuantity: 4,
+            internalUseQuantity: 3,
+          }),
+          workflowSummary: expect.objectContaining({
+            submittedInboundReceipts: 2,
+            pendingSuratJalan: 3,
+          }),
           morningCheckSnapshot: { materialCounts: [] },
         }),
       }),
@@ -112,7 +161,7 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it("rejects check-out while required daily task blockers remain", async () => {
+  it("rejects check-out while required daily task blockers remain without guided exception notes", async () => {
     buildInventoryDayCompletionMock.mockResolvedValue({
       dateKey: "2026-06-28",
       weekKey: "2026-W26",
@@ -128,7 +177,40 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
 
     expect(response.status).toBe(409);
     expect(body.blockers).toEqual(["Matching stok harian tersubmit"]);
+    expect(body.missingExceptionTaskIds).toEqual(["daily-matching"]);
     expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("allows check-out with unresolved required blockers when each blocker has a guided exception note", async () => {
+    buildInventoryDayCompletionMock.mockResolvedValue({
+      dateKey: "2026-06-28",
+      weekKey: "2026-W26",
+      isSaturday: false,
+      tasks: [
+        { id: "daily-matching", label: "Matching stok harian tersubmit", completed: false, required: true },
+      ],
+      blockers: ["Matching stok harian tersubmit"],
+    });
+
+    const response = await post({
+      note: "Tutup shift dengan pengecualian",
+      exceptionNotes: {
+        "daily-matching": "Matching fisik dilanjutkan besok karena toko sudah tutup.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          checkOutSnapshot: expect.objectContaining({
+            exceptionNotes: {
+              "daily-matching": "Matching fisik dilanjutkan besok karena toko sudah tutup.",
+            },
+          }),
+        }),
+      }),
+    );
   });
 
   it("treats Saturday weekly proof as a required blocker when incomplete", async () => {

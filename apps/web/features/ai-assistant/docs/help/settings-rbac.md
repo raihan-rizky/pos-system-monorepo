@@ -21,6 +21,11 @@ OWNER selalu memiliki akses penuh dan permission OWNER tidak dapat diedit. Pada 
 
 Akses halaman saja tidak otomatis memberi izin menjalankan aksi backend, dan izin resource saja tidak otomatis menampilkan halaman. Keduanya harus konsisten. Permission `inventory.approve` dikunci untuk OWNER dan tidak dapat didelegasikan kepada role lain.
 
-Setelah mengubah checkbox, klik **Simpan**. Perubahan diterapkan oleh backend dan memengaruhi sidebar, tombol aksi, serta endpoint yang dilindungi.
+### Fitur Pengaturan RBAC Baru
+Sistem menyediakan antarmuka modern bagi Owner untuk mengelola hak akses:
+- **Ringkasan Role:** Kartu statistik di bagian atas yang menampilkan jumlah halaman aktif, aksi aktif, custom permission, dan total peringatan sensitif untuk masing-masing role.
+- **Matrix Modul:** Tabel ringkasan yang membandingkan hak akses (halaman dan aksi) di seluruh role untuk semua modul sistem. Membantu meninjau izin secara cepat dan terpusat.
+- **Review & Simpan:** Ketika ada perubahan izin lokal, sistem akan menampilkan status "Belum disimpan". Mengklik "Review & Simpan" membuka modal log ringkasan perubahan.
+- **Konfirmasi Perubahan Sensitif:** Jika perubahan melibatkan permission sensitif (seperti data keuangan, RBAC, nomor WhatsApp, HPP, atau approval), Owner wajib memberikan konfirmasi persetujuan tambahan sebelum data disimpan secara permanen ke database backend.
 
 Pak Teladan mengikuti role pengguna dan hanya menerima tool yang diizinkan untuk role tersebut. Pak Teladan tidak memiliki tool untuk membaca konfigurasi RBAC saat ini atau mengubah Info Toko, WhatsApp, notifikasi, Offline Sync, maupun permission.
