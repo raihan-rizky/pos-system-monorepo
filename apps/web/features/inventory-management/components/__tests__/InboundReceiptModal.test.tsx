@@ -83,6 +83,10 @@ describe("InboundReceiptModal", () => {
               approvedReceivedQuantity: 2,
               submittedReservedQuantity: 3,
               remainingQuantity: 5,
+              hasActiveReceipt: false,
+              activeReceiptCount: 0,
+              activeReceiptStatuses: [],
+              isFullyReceived: false,
             },
           ],
         }}
@@ -97,5 +101,59 @@ describe("InboundReceiptModal", () => {
     expect(html).toContain("name=\"inboundLines.item-1.receivedQuantity\"");
     expect(html).not.toContain("name=\"inboundSupplierId\"");
     expect(html).not.toContain("name=\"inboundProductId\"");
+  });
+
+  it("shows active receipt badges and completion state in a custom invoice picker", () => {
+    const html = renderToStaticMarkup(
+      <InboundReceiptModal
+        open
+        onClose={vi.fn()}
+        initialSummary={initialSummary}
+        onSuccess={vi.fn()}
+        receivingQueue={{
+          items: [
+            {
+              shoppingRequestId: "shopping-1",
+              shoppingRequestNumber: "DPB-202606-001",
+              supplierName: "Supplier A",
+              itemId: "item-1",
+              productId: "product-1",
+              productName: "Produk A",
+              unit: "pcs",
+              expectedQuantity: 10,
+              approvedReceivedQuantity: 10,
+              submittedReservedQuantity: 0,
+              remainingQuantity: 0,
+              hasActiveReceipt: true,
+              activeReceiptCount: 1,
+              activeReceiptStatuses: ["APPROVED"],
+              isFullyReceived: true,
+            },
+            {
+              shoppingRequestId: "shopping-2",
+              shoppingRequestNumber: "DPB-202606-002",
+              supplierName: "Supplier B",
+              itemId: "item-2",
+              productId: "product-2",
+              productName: "Produk B",
+              unit: "pcs",
+              expectedQuantity: 7,
+              approvedReceivedQuantity: 0,
+              submittedReservedQuantity: 0,
+              remainingQuantity: 7,
+              hasActiveReceipt: false,
+              activeReceiptCount: 0,
+              activeReceiptStatuses: [],
+              isFullyReceived: false,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(html).toContain("Sudah dibuat");
+    expect(html).toContain("Sudah lengkap");
+    expect(html).toContain("DPB-202606-002");
+    expect(html).not.toContain("<select name=\"inboundShoppingRequestId\"");
   });
 });

@@ -49,6 +49,42 @@ describe("RBAC settings persistence helpers", () => {
     expect(parsed).toHaveLength(5);
   });
 
+  it("accepts granular inbound receipt decision resources for editable roles", () => {
+    const parsed = parseRolePermissionPayload([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "inventory.inbound_receipt.approve",
+        action: "update",
+        allowed: true,
+      },
+      {
+        role: "INVENTORY",
+        scope: "resource",
+        target: "inventory.inbound_receipt.revise",
+        action: "update",
+        allowed: true,
+      },
+    ]);
+
+    expect(parsed).toEqual([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "inventory.inbound_receipt.approve",
+        action: "update",
+        allowed: true,
+      },
+      {
+        role: "INVENTORY",
+        scope: "resource",
+        target: "inventory.inbound_receipt.revise",
+        action: "update",
+        allowed: true,
+      },
+    ]);
+  });
+
   it("ignores OWNER-locked resources from the submitted settings matrix", () => {
     const parsed = parseRolePermissionPayload([
       {

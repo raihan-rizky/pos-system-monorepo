@@ -52,12 +52,15 @@ describe("POST /api/inventory-management/inbound-receipts/[id]/approve", () => {
     });
   });
 
-  it("requires owner approval permission and returns the approved receipt", async () => {
+  it("requires inbound receipt approve permission and returns the approved receipt", async () => {
     const response = await post();
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(requirePermissionMock).toHaveBeenCalledWith("inventory.approve", "update");
+    expect(requirePermissionMock).toHaveBeenCalledWith(
+      "inventory.inbound_receipt.approve",
+      "update",
+    );
     expect(approveInboundReceiptMock).toHaveBeenCalledWith(
       expect.objectContaining({
         user: expect.objectContaining({ id: "owner-1" }),

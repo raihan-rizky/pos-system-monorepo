@@ -224,6 +224,77 @@ export class InventoryInboundReceiptRepository
     return { id: input.receiptId, status: "SUBMITTED" as const };
   }
 
+  async findReceiptForEdit(
+    tx: Tx,
+    input: { storeId: string; receiptId: string },
+  ) {
+    const receipt = await tx.inventoryInboundReceipt.findFirst({
+      where: { id: input.receiptId, storeId: input.storeId },
+      select: {
+        id: true,
+        storeId: true,
+        status: true,
+        submittedBy: true,
+      },
+    });
+    if (!receipt) return null;
+    return receipt;
+  }
+
+  async updateReceiptDraft(
+    tx: Tx,
+    input: {
+      storeId: string;
+      receiptId: string;
+      note?: string | null;
+      lines: Array<{
+        id: string;
+        productId: string;
+        expectedQuantity: number;
+        receivedQuantity: number;
+        status: InboundReceiptLineStatus;
+        note?: string | null;
+      }>;
+    },
+  ) {
+    const updatedReceipt = await tx.inventoryInboundReceipt.updateMany({
+      where: {
+        id: input.receiptId,
+        storeId: input.storeId,
+        status: { in: ["DRAFT", "NEEDS_REVISION"] },
+      },
+      data: {
+        note: input.note ?? null,
+      },
+    });
+    if (updatedReceipt.count !== 1) {
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
+
+    for (const line of input.lines) {
+      const updatedLine = await tx.inventoryInboundReceiptLine.updateMany({
+        where: {
+          id: line.id,
+          receiptId: input.receiptId,
+          productId: line.productId,
+        },
+        data: {
+          status: line.status,
+          expectedQuantity: line.expectedQuantity,
+          receivedQuantity: line.receivedQuantity,
+          expectedQuantitySnapshot: line.expectedQuantity,
+          receivedQuantitySnapshot: line.receivedQuantity,
+          note: line.note ?? null,
+        },
+      });
+      if (updatedLine.count !== 1) {
+        throw new Error("INBOUND_RECEIPT_CONFLICT");
+      }
+    }
+
+    return { id: input.receiptId, status: "NEEDS_REVISION" as const };
+  }
+
   async createInboundReceiptDraft(
     tx: Tx,
     input: CreateInboundReceiptDraftInput,

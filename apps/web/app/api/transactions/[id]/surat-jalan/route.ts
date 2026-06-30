@@ -49,16 +49,26 @@ export async function GET(
         include: {
           customer: { select: { type: true } },
           salesperson: { select: { name: true } },
+          payments: {
+            select: { amount: true, method: true },
+          },
+          debtPaymentLogs: {
+            select: { id: true, createdAt: true, amount: true, paymentMethod: true },
+            orderBy: { createdAt: "desc" },
+          },
           items: {
             include: {
               product: {
                 select: {
+                  imageUrl: true,
                   stock: true,
                   unit: true,
                   unitMultiplierToBase: true,
+                  category: { select: { name: true } },
                   stockGroup: { select: { baseStock: true } },
                 },
               },
+              printingService: { select: { unit: true } },
             },
           },
           suratJalan: {
@@ -83,29 +93,59 @@ export async function GET(
         transaction: {
           id: transaction.id,
           invoiceNumber: transaction.invoiceNumber,
+          draftNumber: transaction.draftNumber ?? null,
           status: transaction.status,
           customerName: transaction.customerName,
-          customerId: transaction.customerId,
+          customerId: transaction.customerId ?? null,
           customerType: transaction.customer?.type ?? null,
           createdAt: transaction.createdAt.toISOString(),
+          subtotal: Number(transaction.subtotal ?? 0),
+          discount: Number(transaction.discount ?? 0),
+          tax: Number(transaction.tax ?? 0),
           total: Number(transaction.total),
-          paymentMethod: transaction.paymentMethod,
-          amountPaid: Number(transaction.amountPaid),
-          change: Number(transaction.change),
-          note: transaction.note,
-          salesName: transaction.salesName,
+          paymentMethod: transaction.paymentMethod ?? "CASH",
+          amountPaid: Number(transaction.amountPaid ?? 0),
+          change: Number(transaction.change ?? 0),
+          note: transaction.note ?? null,
+          salesName: transaction.salesName ?? null,
+          salespersonId: transaction.salespersonId ?? null,
           salesperson: transaction.salesperson ? { name: transaction.salesperson.name } : null,
           stockManagedBySuratJalan: transaction.stockManagedBySuratJalan,
+          payments: (transaction.payments ?? []).map((payment) => ({
+            amount: Number(payment.amount),
+            method: payment.method,
+          })),
+          debtPaymentLogs: (transaction.debtPaymentLogs ?? []).map((payment) => ({
+            id: payment.id,
+            createdAt: payment.createdAt.toISOString(),
+            amount: Number(payment.amount),
+            paymentMethod: payment.paymentMethod,
+          })),
           items: transaction.items.map((item) => ({
             id: item.id,
+            productId: item.productId,
             printingServiceId: item.printingServiceId,
+            rawMaterialProductId: item.rawMaterialProductId,
             productName: item.productName,
             size: item.size,
             material: item.material,
+            serviceNote: item.serviceNote,
+            rawMaterialQuantity: item.rawMaterialQuantity === null || item.rawMaterialQuantity === undefined
+              ? null
+              : Number(item.rawMaterialQuantity),
+            rawMaterialUnit: item.rawMaterialUnit,
             quantity: item.quantity,
-            unit: item.product?.unit ?? null,
+            unit: item.product?.unit ?? item.printingService?.unit ?? item.rawMaterialUnit ?? null,
             unitPrice: Number(item.unitPrice),
             subtotal: Number(item.subtotal),
+            product: item.product
+              ? {
+                unit: item.product.unit,
+                imageUrl: item.product.imageUrl,
+                category: item.product.category,
+              }
+              : null,
+            printingService: item.printingService,
           })),
         },
         eligibility: getSuratJalanEligibility({

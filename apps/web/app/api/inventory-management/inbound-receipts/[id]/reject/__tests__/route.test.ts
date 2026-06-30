@@ -49,12 +49,15 @@ describe("POST /api/inventory-management/inbound-receipts/[id]/reject", () => {
     });
   });
 
-  it("requires approval permission and sends the rejection reason to the service", async () => {
+  it("requires inbound receipt reject permission and sends the rejection reason to the service", async () => {
     const response = await post({ rejectionReason: "Invoice tidak sesuai" });
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(requirePermissionMock).toHaveBeenCalledWith("inventory.approve", "update");
+    expect(requirePermissionMock).toHaveBeenCalledWith(
+      "inventory.inbound_receipt.reject",
+      "update",
+    );
     expect(rejectInboundReceiptMock).toHaveBeenCalledWith(
       expect.objectContaining({
         receiptId: "receipt-1",

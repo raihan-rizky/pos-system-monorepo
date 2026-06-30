@@ -264,6 +264,7 @@ function pad(label: string, amount: number): SheetRow {
 export function buildReportSheetData(
   rows: ReportRow[],
   footer: ReportFooter,
+  categories: ReportCategorySummary[] = [],
 ): SheetRow[] {
   const out: SheetRow[] = [];
   out.push([...REPORT_HEADER]);
@@ -275,6 +276,23 @@ export function buildReportSheetData(
   out.push(pad("", 0).map(() => "")); // visual separator before per-method rows
   for (const method of PAYMENT_METHODS) {
     out.push(pad(method, footer.byMethod[method]));
+  }
+  if (categories.length > 0) {
+    out.push([]);
+    out.push(["Revenue per Kategori Produk", "", "", "", "", "", "", ""]);
+    out.push(["Kategori Produk", "Transaksi", "", "", "", "", "Revenue", ""]);
+    for (const category of categories) {
+      out.push([
+        category.categoryName,
+        category.transactionCount,
+        "",
+        "",
+        "",
+        "",
+        category.revenue,
+        "",
+      ]);
+    }
   }
   return out;
 }

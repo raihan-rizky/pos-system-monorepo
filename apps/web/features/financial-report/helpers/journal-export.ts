@@ -86,7 +86,11 @@ function thinBorder() {
 
 export async function exportReportXlsx(input: ExportInput): Promise<void> {
   const XLSX = (await import("xlsx-js-style")) as typeof import("xlsx-js-style");
-  const sheetData = buildReportSheetData(input.rows, input.footer);
+  const sheetData = buildReportSheetData(
+    input.rows,
+    input.footer,
+    input.categories ?? [],
+  );
   const titleRow: (string | number)[] = [
     periodTitle(input.period, input.from, input.to),
   ];
@@ -144,6 +148,14 @@ export async function exportReportXlsx(input: ExportInput): Promise<void> {
   const methodSeparator = totalsEnd + 1;
   const methodStart = methodSeparator + 1;
   const methodEnd = methodStart + 4; // 5 methods
+  const hasCategories = Boolean(input.categories && input.categories.length > 0);
+  const categorySeparator = methodEnd + 1;
+  const categoryTitle = categorySeparator + 1;
+  const categoryHeader = categoryTitle + 1;
+  const categoryStart = categoryHeader + 1;
+  const categoryEnd = hasCategories
+    ? categoryStart + (input.categories?.length ?? 0) - 1
+    : categoryStart - 1;
 
   // Header row styling
   for (let c = 0; c <= lastCol; c++) {
@@ -249,6 +261,68 @@ export async function exportReportXlsx(input: ExportInput): Promise<void> {
       s: { r, c: 0 },
       e: { r, c: 5 },
     });
+  }
+
+  if (hasCategories) {
+    for (let c = 0; c <= lastCol; c++) {
+      setStyle(categoryTitle, c, {
+        font: {
+          name: "Calibri",
+          sz: 12,
+          bold: true,
+          color: { rgb: COLOR.titleText },
+        },
+        fill: { patternType: "solid", fgColor: { rgb: COLOR.separator } },
+        alignment: { horizontal: "left", vertical: "center" },
+        border: thinBorder(),
+      });
+    }
+    (ws["!merges"] as { s: { r: number; c: number }; e: { r: number; c: number } }[]).push({
+      s: { r: categoryTitle, c: 0 },
+      e: { r: categoryTitle, c: lastCol },
+    });
+
+    for (let c = 0; c <= lastCol; c++) {
+      setStyle(categoryHeader, c, {
+        font: {
+          name: "Calibri",
+          sz: 10,
+          bold: true,
+          color: { rgb: COLOR.brandText },
+        },
+        fill: { patternType: "solid", fgColor: { rgb: COLOR.brand } },
+        alignment: {
+          horizontal: c === 1 || c === 6 ? "right" : "left",
+          vertical: "center",
+        },
+        border: thinBorder(),
+        ...(c === 6 ? { numFmt: NUM_FMT } : {}),
+      });
+    }
+
+    for (let r = categoryStart; r <= categoryEnd; r++) {
+      const isOdd = (r - categoryStart) % 2 === 1;
+      for (let c = 0; c <= lastCol; c++) {
+        const style: Record<string, unknown> = {
+          font: {
+            name: "Calibri",
+            sz: 10,
+            bold: c === 0 || c === 6,
+            color: { rgb: COLOR.titleText },
+          },
+          alignment: {
+            horizontal: c === 1 || c === 6 ? "right" : "left",
+            vertical: "center",
+          },
+          border: thinBorder(),
+          ...(c === 6 ? { numFmt: NUM_FMT } : {}),
+        };
+        if (isOdd) {
+          style.fill = { patternType: "solid", fgColor: { rgb: COLOR.zebra } };
+        }
+        setStyle(r, c, style);
+      }
+    }
   }
 
   // Freeze the header row and the title rows

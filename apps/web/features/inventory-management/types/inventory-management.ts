@@ -146,10 +146,21 @@ export interface ReceivingQueueItem {
   approvedReceivedQuantity: number;
   submittedReservedQuantity: number;
   remainingQuantity: number;
+  hasActiveReceipt: boolean;
+  activeReceiptCount: number;
+  activeReceiptStatuses: InboundReceiptStatus[];
+  isFullyReceived: boolean;
 }
 
 export interface ReceivingQueueResult {
   items: ReceivingQueueItem[];
+}
+
+export interface InboundReceiptForEdit {
+  id: string;
+  storeId: string;
+  status: InboundReceiptStatus;
+  submittedBy: string | null;
 }
 
 export interface InventoryInboundReceiptRepository {
@@ -209,6 +220,26 @@ export interface InventoryInboundReceiptRepository {
       receiptId: string;
       submittedBy: string;
       submittedAt: Date;
+    },
+  ): Promise<InboundReceiptMutationResult>;
+  findReceiptForEdit(
+    tx: unknown,
+    input: { storeId: string; receiptId: string },
+  ): Promise<InboundReceiptForEdit | null>;
+  updateReceiptDraft(
+    tx: unknown,
+    input: {
+      storeId: string;
+      receiptId: string;
+      note?: string | null;
+      lines: Array<{
+        id: string;
+        productId: string;
+        expectedQuantity: number;
+        receivedQuantity: number;
+        status: InboundReceiptLineStatus;
+        note?: string | null;
+      }>;
     },
   ): Promise<InboundReceiptMutationResult>;
   createInboundReceiptDraft(

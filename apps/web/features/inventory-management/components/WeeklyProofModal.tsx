@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Modal, Button } from "@pos/ui";
 import { AlertCircle } from "lucide-react";
+import { getPrntScProxyUrl } from "@/lib/prntsc";
 import { submitWeeklyCleaningProof } from "../api/inventory-management-api";
 import type { InventorySummary } from "../types/inventory-management";
 
@@ -23,10 +24,12 @@ export function WeeklyProofModal({
   const [note, setNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const trimmedProofUrl = proofUrl.trim();
+  const proofPreviewUrl = getPrntScProxyUrl(trimmedProofUrl);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!proofUrl) {
+    if (!trimmedProofUrl) {
       setError("Link prnt.sc wajib diisi.");
       return;
     }
@@ -35,7 +38,7 @@ export function WeeklyProofModal({
 
     try {
       await submitWeeklyCleaningProof({
-        proofUrl,
+        proofUrl: trimmedProofUrl,
         note: note || null,
       });
       onSuccess("Proof kebersihan gudang berhasil dikirim.");
@@ -97,6 +100,18 @@ export function WeeklyProofModal({
             placeholder="https://prnt.sc/..."
             className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400 transition-colors"
           />
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            Buka prnt.sc, unggah foto kebersihan, lalu tempel link hasil upload di sini.
+          </p>
+          {proofPreviewUrl && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+              <img
+                src={proofPreviewUrl}
+                alt="Preview bukti kebersihan gudang"
+                className="max-h-56 w-full object-contain"
+              />
+            </div>
+          )}
         </div>
 
         <div>

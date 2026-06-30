@@ -3,6 +3,7 @@ import { z } from "zod";
 import { InventoryInboundReceiptRepository } from "@/features/inventory-management/repositories/InventoryInboundReceiptRepository";
 import {
   InventoryManagementError,
+  createAndSubmitInboundReceipt,
   createInboundReceipt,
 } from "@/features/inventory-management/services/inbound-receipt-service";
 import type {
@@ -40,6 +41,7 @@ const lineSchema = z.object({
 const createSchema = z.object({
   supplierId: z.string().min(1).optional().nullable(),
   shoppingRequestId: z.string().min(1).optional().nullable(),
+  submitImmediately: z.boolean().optional(),
   note: z.string().trim().max(500).optional().nullable(),
   lines: z.array(lineSchema).min(1),
 });
@@ -80,11 +82,14 @@ export async function POST(request: Request) {
   try {
     const user = await requirePermission("inventory", "update");
     const input = createSchema.parse(await request.json());
-    const data = await createInboundReceipt({
+    const serviceInput = {
       repository: new InventoryInboundReceiptRepository(),
       user: user as InventoryManagementUser & { name?: string | null },
       input,
-    });
+    };
+    const data = input.submitImmediately
+      ? await createAndSubmitInboundReceipt(serviceInput)
+      : await createInboundReceipt(serviceInput);
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {

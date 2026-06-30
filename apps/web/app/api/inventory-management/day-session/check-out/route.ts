@@ -12,8 +12,16 @@ import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
 const checkOutSchema = z.object({
   note: z.string().trim().max(500).optional().nullable(),
-  exceptionNotes: z.record(z.string(), z.string().trim().min(10).max(300)).optional().default({}),
+  exceptionNotes: z.record(z.string(), z.string().trim().max(300)).optional().default({}),
 });
+
+function normalizeExceptionNotes(exceptionNotes: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(exceptionNotes)
+      .map(([taskId, note]) => [taskId, note.trim()] as const)
+      .filter(([, note]) => note.length > 0),
+  );
+}
 
 function findMissingExceptionTaskIds(
   completion: Awaited<ReturnType<typeof buildInventoryDayCompletion>>,
@@ -35,6 +43,7 @@ export async function POST(request: Request) {
     }
 
     const input = checkOutSchema.parse(await request.json().catch(() => ({})));
+    const exceptionNotes = normalizeExceptionNotes(input.exceptionNotes);
     const now = new Date();
     const dateKey = jakartaDateKey(now);
     const session = await loadInventoryDaySession(user.storeId, dateKey);
@@ -47,7 +56,7 @@ export async function POST(request: Request) {
     const completion = await buildInventoryDayCompletion(user.storeId, dateKey, now);
     const missingExceptionTaskIds = findMissingExceptionTaskIds(
       completion,
-      input.exceptionNotes,
+      exceptionNotes,
     );
     if (missingExceptionTaskIds.length > 0) {
       return apiError("Daily tasks are not complete", 409, {
@@ -65,7 +74,7 @@ export async function POST(request: Request) {
       dateKey,
       now,
       note: input.note,
-      exceptionNotes: input.exceptionNotes,
+      exceptionNotes,
       completion,
       morningCheckSnapshot: session.morningCheckSnapshot,
     }) as unknown as Prisma.InputJsonObject;

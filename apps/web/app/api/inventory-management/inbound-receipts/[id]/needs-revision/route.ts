@@ -18,7 +18,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("inventory.approve", "update");
+    const user = await requirePermission("inventory.inbound_receipt.revise", "update");
     const body = needsRevisionSchema.safeParse(await request.json().catch(() => ({})));
     if (!body.success) {
       return apiError("Revision reason is required", 422, {

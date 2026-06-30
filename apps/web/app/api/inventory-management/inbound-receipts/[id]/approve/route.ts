@@ -13,7 +13,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("inventory.approve", "update");
+    const user = await requirePermission("inventory.inbound_receipt.approve", "update");
     const { id } = await context.params;
     const data = await approveInboundReceipt({
       repository: new InventoryInboundReceiptRepository(),

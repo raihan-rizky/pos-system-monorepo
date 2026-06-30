@@ -42,10 +42,12 @@ describe("POST /api/inventory-management/weekly-cleaning-proof", () => {
     });
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ imageUrl: "https://image.prntscr.com/image/proof.png" }),
-      }),
+      vi.fn().mockResolvedValue(
+        new Response(
+          '<meta property="og:image" content="https://image.prntscr.com/image/proof.png">',
+          { status: 200 },
+        ),
+      ),
     );
   });
 
@@ -60,8 +62,12 @@ describe("POST /api/inventory-management/weekly-cleaning-proof", () => {
     expect(response.status).toBe(200);
     expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "update");
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost/api/prntsc?url=https%3A%2F%2Fprnt.sc%2Fabc123&json=true",
-      expect.objectContaining({ cache: "no-store" }),
+      "https://prnt.sc/abc123",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "User-Agent": expect.stringContaining("Mozilla"),
+        }),
+      }),
     );
     expect(inventoryTaskUpsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -94,10 +100,9 @@ describe("POST /api/inventory-management/weekly-cleaning-proof", () => {
   });
 
   it("rejects proof when prnt.sc cannot resolve an image", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: "Image not found" }),
-    } as Response);
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response("<html>missing image</html>", { status: 200 }),
+    );
 
     const response = await post({
       proofUrl: "https://prnt.sc/missing",

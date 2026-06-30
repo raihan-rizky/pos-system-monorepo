@@ -66,6 +66,7 @@ export function SupplierImportDrawer({
     unknownColumns: string[];
     suggestions: Record<string, string>;
   } | null>(null);
+  const [previewErrorMessage, setPreviewErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<{
     createdSupplierCount: number;
     updatedSupplierCount: number;
@@ -114,6 +115,7 @@ export function SupplierImportDrawer({
     setHeaderLoading(false);
     setMissingColDialogOpen(false);
     setMissingColData(null);
+    setPreviewErrorMessage(null);
     setResult(null);
     preview.reset();
     commit.reset();
@@ -125,7 +127,11 @@ export function SupplierImportDrawer({
   };
 
   const runPreview = async (mapping?: ColumnMapping) => {
-    if (!file) return;
+    if (!file) {
+      setPreviewErrorMessage("Pilih file supplier terlebih dahulu.");
+      return;
+    }
+    setPreviewErrorMessage(null);
     setDecisions({});
     setSelectedExistingSupplierIds({});
     setPreviewFilter("all");
@@ -143,7 +149,9 @@ export function SupplierImportDrawer({
         });
         setMissingColDialogOpen(true);
         if (step === "upload") setStep("mapping");
+        return;
       }
+      setPreviewErrorMessage(err.message || "Preview supplier gagal. Coba lagi.");
     }
   };
 
@@ -252,9 +260,14 @@ export function SupplierImportDrawer({
             <ColumnMappingStep
               rawHeaders={rawHeaders}
               mapping={columnMapping}
-              onMappingChange={setColumnMapping}
+              onMappingChange={(nextMapping) => {
+                setColumnMapping(nextMapping);
+                setPreviewErrorMessage(null);
+              }}
               onConfirm={() => void runPreview(columnMapping)}
               onBack={() => setStep("upload")}
+              isPreviewing={preview.isPending}
+              previewErrorMessage={previewErrorMessage}
             />
           )}
 

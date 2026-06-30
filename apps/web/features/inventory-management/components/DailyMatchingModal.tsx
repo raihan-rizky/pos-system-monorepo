@@ -12,6 +12,13 @@ import {
   submitDailyStockMatching,
   type DailyMatchingPreview,
 } from "../api/inventory-management-api";
+import {
+  getDailyMatchingRowStatus,
+  parseDailyMatchingStockInput,
+  summarizeDailyMatchingStatuses,
+  type DailyMatchingRowStatus,
+} from "../helpers/daily-matching-status";
+import { getDailyMatchingWindowStatus } from "../helpers/inventory-management-rules";
 import type { InventorySummary } from "../types/inventory-management";
 
 interface DailyMatchingModalProps {
@@ -25,6 +32,13 @@ function formatQty(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
+function rowStatusClass(status: DailyMatchingRowStatus) {
+  if (status === "matched") return "border-emerald-100 bg-emerald-50/60";
+  if (status === "different") return "border-rose-100 bg-rose-50/60";
+  if (status === "invalid") return "border-amber-100 bg-amber-50/70";
+  return "border-slate-100";
+}
+
 export function DailyMatchingModal({
   open,
   onClose,
@@ -36,6 +50,8 @@ export function DailyMatchingModal({
   const [preview, setPreview] = useState<DailyMatchingPreview | null>(null);
   const [physicalStocks, setPhysicalStocks] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [checkedProductIds, setCheckedProductIds] = useState<Record<string, true>>({});
+  const [matchingWindowNow, setMatchingWindowNow] = useState(() => new Date());
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +71,7 @@ export function DailyMatchingModal({
         ),
       );
       setNotes({});
+      setCheckedProductIds({});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat matching stok");
     } finally {
@@ -67,25 +84,66 @@ export function DailyMatchingModal({
     void load();
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    setMatchingWindowNow(new Date());
+    const intervalId = window.setInterval(() => {
+      setMatchingWindowNow(new Date());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [open]);
+
+  const matchingWindowStatus = useMemo(
+    () => getDailyMatchingWindowStatus(matchingWindowNow),
+    [matchingWindowNow],
+  );
+
   const rows = preview?.rows ?? [];
   const enrichedRows = useMemo(
     () =>
       rows.map((row) => {
-        const physicalStock = Number(physicalStocks[row.productId] ?? "");
-        const difference = Number.isFinite(physicalStock)
-          ? physicalStock - row.expectedAfterStock
-          : 0;
-        return { ...row, physicalStock, difference };
+        const stockInput = physicalStocks[row.productId] ?? "";
+        const physicalStock = parseDailyMatchingStockInput(stockInput);
+        const difference =
+          physicalStock === null ? null : physicalStock - row.expectedAfterStock;
+        const matchingStatus = getDailyMatchingRowStatus({
+          expectedStock: row.expectedAfterStock,
+          physicalStockInput: stockInput,
+          isChecked: Boolean(checkedProductIds[row.productId]),
+        });
+        return { ...row, physicalStock, difference, matchingStatus };
       }),
-    [physicalStocks, rows],
+    [checkedProductIds, physicalStocks, rows],
   );
-  const differentRows = enrichedRows.filter((row) => Math.abs(row.difference) > 1e-9);
+  const differentRows = enrichedRows.filter(
+    (row) => row.difference !== null && Math.abs(row.difference) > 1e-9,
+  );
+  const invalidRows = enrichedRows.filter((row) => row.matchingStatus === "invalid");
+  const matchingStatusSummary = useMemo(
+    () => summarizeDailyMatchingStatuses(enrichedRows.map((row) => row.matchingStatus)),
+    [enrichedRows],
+  );
   const missingNotes = differentRows.filter(
     (row) => !(notes[row.productId] ?? "").trim(),
   );
 
+  const markRowChecked = (productId: string) => {
+    setCheckedProductIds((current) =>
+      current[productId] ? current : { ...current, [productId]: true },
+    );
+  };
+
   const handleSubmit = async () => {
     if (!preview) return;
+    if (!matchingWindowStatus.isOpen) {
+      setError(matchingWindowStatus.message);
+      return;
+    }
+    if (invalidRows.length > 0) {
+      setError("Isi stok gudang yang belum valid sebelum submit matching.");
+      return;
+    }
     if (missingNotes.length > 0) {
       setError("Catatan wajib diisi untuk produk yang selisih.");
       return;
@@ -96,7 +154,7 @@ export function DailyMatchingModal({
       await submitDailyStockMatching({
         lines: enrichedRows.map((row) => ({
           productId: row.productId,
-          physicalStock: row.physicalStock,
+          physicalStock: row.physicalStock ?? row.expectedAfterStock,
           note: notes[row.productId]?.trim() || null,
         })),
       });
@@ -184,6 +242,16 @@ export function DailyMatchingModal({
           </div>
         )}
 
+        {!matchingWindowStatus.isOpen && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{matchingWindowStatus.message}</span>
+          </div>
+        )}
+
         {preview?.pendingBundle && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <p className="font-bold">Matching hari ini sedang menunggu approval.</p>
@@ -225,8 +293,31 @@ export function DailyMatchingModal({
             Tidak ada log OUT approved untuk dimatching hari ini.
           </div>
         ) : (
+          <>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-bold text-slate-900">Ringkasan pengecekan stok gudang</p>
+              {matchingStatusSummary.checkedCount === 0 ? (
+                <p className="text-xs font-semibold text-slate-500">
+                  Belum ada stok gudang yang dicek.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2 text-xs font-black">
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-700">
+                    {matchingStatusSummary.matchedCount} sesuai
+                  </span>
+                  <span className="rounded-full bg-rose-100 px-2.5 py-1 text-rose-700">
+                    {matchingStatusSummary.differentCount} selisih
+                  </span>
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-700">
+                    {matchingStatusSummary.invalidCount} belum valid
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
           <div className="max-h-[58vh] overflow-auto rounded-xl border border-slate-200">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="sticky top-0 bg-white shadow-sm">
                 <tr className="border-b border-slate-100 text-[11px] font-black uppercase tracking-wider text-slate-400">
                   <th className="px-3 py-3">Produk</th>
@@ -234,16 +325,21 @@ export function DailyMatchingModal({
                   <th className="px-3 py-3 text-right">Total OUT</th>
                   <th className="px-3 py-3 text-right">Ekspektasi</th>
                   <th className="px-3 py-3 text-right">Stok Gudang</th>
+                  <th className="px-3 py-3">Status</th>
                   <th className="px-3 py-3 text-right">Selisih</th>
                   <th className="px-3 py-3">Catatan</th>
                 </tr>
               </thead>
               <tbody>
                 {enrichedRows.map((row) => {
-                  const hasDifference = Math.abs(row.difference) > 1e-9;
+                  const hasDifference =
+                    row.difference !== null && Math.abs(row.difference) > 1e-9;
                   const noteMissing = hasDifference && !(notes[row.productId] ?? "").trim();
                   return (
-                    <tr key={row.productId} className="border-b border-slate-100">
+                    <tr
+                      key={row.productId}
+                      className={`border-b transition-colors ${rowStatusClass(row.matchingStatus)}`}
+                    >
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
@@ -276,21 +372,48 @@ export function DailyMatchingModal({
                           min="0"
                           step="0.01"
                           value={physicalStocks[row.productId] ?? ""}
+                          onFocus={() => markRowChecked(row.productId)}
                           onChange={(event) =>
+                            {
+                              markRowChecked(row.productId);
                             setPhysicalStocks((current) => ({
                               ...current,
                               [row.productId]: event.target.value,
-                            }))
+                            }));
+                            }
                           }
                           className="ml-auto block h-10 w-28 rounded-lg border border-slate-200 px-2 text-right text-sm font-bold focus:border-slate-400 focus:outline-none"
                         />
+                      </td>
+                      <td className="px-3 py-3">
+                        {row.matchingStatus === "matched" && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-700">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Sesuai
+                          </span>
+                        )}
+                        {row.matchingStatus === "different" && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700">
+                            <XCircle className="h-3.5 w-3.5" />
+                            Selisih
+                          </span>
+                        )}
+                        {row.matchingStatus === "invalid" && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-700">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Belum valid
+                          </span>
+                        )}
+                        {row.matchingStatus === "unchecked" && (
+                          <span className="text-xs font-semibold text-slate-400">-</span>
+                        )}
                       </td>
                       <td
                         className={`px-3 py-3 text-right font-black tabular-nums ${
                           hasDifference ? "text-rose-600" : "text-emerald-600"
                         }`}
                       >
-                        {formatQty(row.difference)}
+                        {row.difference === null ? "-" : formatQty(row.difference)}
                       </td>
                       <td className="px-3 py-3">
                         <input
@@ -315,11 +438,13 @@ export function DailyMatchingModal({
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         <div className="flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-semibold text-slate-500">
             {differentRows.length} produk selisih. {missingNotes.length} catatan wajib belum diisi.
+            {invalidRows.length > 0 ? ` ${invalidRows.length} stok gudang belum valid.` : ""}
           </p>
           <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
@@ -329,7 +454,13 @@ export function DailyMatchingModal({
               <Button
                 type="button"
                 onClick={handleSubmit}
-                disabled={isSubmitting || isLoading || rows.length === 0}
+                disabled={
+                  isSubmitting ||
+                  isLoading ||
+                  rows.length === 0 ||
+                  invalidRows.length > 0 ||
+                  !matchingWindowStatus.isOpen
+                }
                 className="bg-slate-900 text-white hover:bg-slate-800"
               >
                 {isSubmitting ? "Memproses..." : "Submit Matching"}

@@ -8,6 +8,10 @@
 
 import type { Transaction } from "@/hooks/useTransactions";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
+import {
+  buildReceiptPaymentLines,
+  type ReceiptPaymentLine,
+} from "@/lib/receipt-payment-lines";
 
 /* ── Types ──────────────────────────────────────────────────────── */
 
@@ -40,7 +44,7 @@ export interface InvoicePdfTotals {
   balanceLabel: string;
   isCancelled: boolean;
   cancelLabel: string | null;
-  paymentsList: { label: string; amountFormatted: string; subLabel?: string }[];
+  paymentsList: ReceiptPaymentLine[];
 }
 
 export interface InvoicePdfData {
@@ -91,36 +95,7 @@ export function computeTotals(transaction: Transaction): InvoicePdfTotals {
   const isRefunded = transaction.status === "REFUNDED";
   const isCancelled = isVoided || isRefunded;
   const remaining = isDP ? grandTotal - amountPaid : 0;
-  const hasDebtLogs = transaction.debtPaymentLogs && transaction.debtPaymentLogs.length > 0;
-  const initialPaymentIsDP = isDP || hasDebtLogs;
-
-  const paymentsList: { label: string; amountFormatted: string; subLabel?: string }[] = [];
-  
-  if (transaction.payments && transaction.payments.length > 0) {
-    paymentsList.push(
-      ...transaction.payments.map((p) => ({
-        label: p.method === "CASH" ? "TUNAI" : p.method,
-        amountFormatted: Number(p.amount).toLocaleString("id-ID"),
-        subLabel: initialPaymentIsDP ? "DP" : undefined,
-      }))
-    );
-  } else if (amountPaid > 0) {
-    paymentsList.push({
-      label: transaction.paymentMethod === "CASH" ? "TUNAI" : transaction.paymentMethod,
-      amountFormatted: amountPaid.toLocaleString("id-ID"),
-      subLabel: initialPaymentIsDP ? "DP" : undefined,
-    });
-  }
-
-  if (transaction.debtPaymentLogs && transaction.debtPaymentLogs.length > 0) {
-    paymentsList.push(
-      ...transaction.debtPaymentLogs.map((p) => ({
-        label: p.paymentMethod === "CASH" ? "TUNAI" : p.paymentMethod,
-        amountFormatted: Number(p.amount).toLocaleString("id-ID"),
-        subLabel: "pelunasan",
-      }))
-    );
-  }
+  const paymentsList = buildReceiptPaymentLines(transaction);
 
   return {
     grandTotal,

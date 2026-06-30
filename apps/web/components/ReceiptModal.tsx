@@ -10,6 +10,10 @@ import type { Transaction } from "@/hooks/useTransactions";
 import { useStoreSettings } from "@/hooks/useSettings";
 import { StatusBanner } from "./StatusBanner";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
+import {
+  buildReceiptPaymentLines,
+  getReceiptPrintStatus,
+} from "@/lib/receipt-payment-lines";
 import "./receipt-print.css";
 
 /** Default page height in px (165mm ≈ 623px at 96dpi). */
@@ -56,13 +60,7 @@ export function ReceiptModal({
   const items = React.useMemo(() => transaction?.items || [], [transaction?.items]);
   const isDraft = transaction?.status === "DRAFT";
 
-  const isPending = transaction?.status === "PENDING_APPROVAL";
-  const printStatus =
-    isPending && Number(transaction?.amountPaid ?? 0) > 0
-      ? Number(transaction?.amountPaid ?? 0) < Number(transaction?.total ?? 0)
-        ? "DP"
-        : "COMPLETED"
-      : transaction?.status;
+  const printStatus = getReceiptPrintStatus(transaction);
   const isVoided = transaction?.status === "VOIDED";
   const isRefunded = transaction?.status === "REFUNDED";
   const isCancelled = isVoided || isRefunded;
@@ -74,37 +72,10 @@ export function ReceiptModal({
 
   const storeName = storeSettings?.name || "TOKO TELADAN";
 
-  const isDP = printStatus === "DP";
-  const hasDebtLogs = transaction?.debtPaymentLogs && transaction.debtPaymentLogs.length > 0;
-  const initialPaymentIsDP = isDP || hasDebtLogs;
-
-  const paymentsList: { label: string; amountFormatted: string; subLabel?: string }[] = [];
-
-  if (transaction?.payments && transaction.payments.length > 0) {
-    paymentsList.push(
-      ...transaction.payments.map((p) => ({
-        label: p.method === "CASH" ? "TUNAI" : p.method,
-        amountFormatted: Number(p.amount).toLocaleString("id-ID"),
-        subLabel: initialPaymentIsDP ? "DP" : undefined,
-      }))
-    );
-  } else if (Number(transaction?.amountPaid) > 0) {
-    paymentsList.push({
-      label: transaction?.paymentMethod === "CASH" ? "TUNAI" : transaction?.paymentMethod ?? "UNKNOWN",
-      amountFormatted: Number(transaction?.amountPaid).toLocaleString("id-ID"),
-      subLabel: initialPaymentIsDP ? "DP" : undefined,
-    });
-  }
-
-  if (transaction?.debtPaymentLogs && transaction.debtPaymentLogs.length > 0) {
-    paymentsList.push(
-      ...transaction.debtPaymentLogs.map((p) => ({
-        label: p.paymentMethod === "CASH" ? "TUNAI" : p.paymentMethod,
-        amountFormatted: Number(p.amount).toLocaleString("id-ID"),
-        subLabel: "pelunasan",
-      }))
-    );
-  }
+  const paymentsList = React.useMemo(
+    () => buildReceiptPaymentLines(transaction, printStatus),
+    [transaction, printStatus],
+  );
 
   const displayNote = transaction?.note
     ? transaction.note.replace(/(?: \| )?Pelunasan(?: piutang)? [\d.,]+ \([A-Z]+\)(?:, [\d.,]+ \([A-Z]+\))*/g, "").trim()

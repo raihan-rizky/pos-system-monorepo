@@ -317,7 +317,6 @@ export async function GET(request: Request) {
             debtPaymentLogs: {
               select: { id: true, createdAt: true, amount: true, paymentMethod: true },
               orderBy: { createdAt: "desc" },
-              take: 1,
             },
           },
         }),
@@ -342,8 +341,26 @@ export async function GET(request: Request) {
         totalQuantity,
       };
 
-      const { suratJalan: _suratJalan, ...transactionPayload } = transaction;
-      return { ...transactionPayload, suratJalanSummary: summary };
+      const {
+        suratJalan: _suratJalan,
+        payments,
+        debtPaymentLogs,
+        ...transactionPayload
+      } = transaction;
+      return {
+        ...transactionPayload,
+        payments: (payments ?? []).map((payment) => ({
+          amount: Number(payment.amount),
+          method: payment.method,
+        })),
+        debtPaymentLogs: (debtPaymentLogs ?? []).map((payment) => ({
+          id: payment.id,
+          createdAt: payment.createdAt.toISOString(),
+          amount: Number(payment.amount),
+          paymentMethod: payment.paymentMethod,
+        })),
+        suratJalanSummary: summary,
+      };
     });
 
     return apiList(

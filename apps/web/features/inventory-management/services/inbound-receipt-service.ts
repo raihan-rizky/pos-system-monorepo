@@ -6,6 +6,7 @@ import type {
   CreateInboundReceiptDraftInput,
   InboundReceiptLineStatus,
   InboundReceiptMutationResult,
+  InboundReceiptStatus,
   InventoryInboundReceiptRepository,
   InventoryManagementUser,
   ReceivingQueueResult,
@@ -41,6 +42,20 @@ interface NeedsRevisionInboundReceiptInput extends InboundReceiptServiceInput {
   revisionReason: string;
 }
 
+interface UpdateAndSubmitInboundReceiptInput extends InboundReceiptServiceInput {
+  input: {
+    note?: string | null;
+    lines: Array<{
+      id: string;
+      productId: string;
+      expectedQuantity: number;
+      receivedQuantity: number;
+      status: InboundReceiptLineStatus;
+      note?: string | null;
+    }>;
+  };
+}
+
 export interface GetReceivingQueueInput {
   repository: InventoryInboundReceiptRepository;
   user: InventoryManagementUser & { name?: string | null };
@@ -64,6 +79,13 @@ export interface CreateInboundReceiptServiceInput {
     }>;
   };
 }
+
+const ACTIVE_RECEIPT_STATUSES: ReadonlySet<InboundReceiptStatus> = new Set([
+  "DRAFT",
+  "SUBMITTED",
+  "NEEDS_REVISION",
+  "APPROVED",
+]);
 
 function requireStoreId(user: InventoryManagementUser): string {
   if (!user.storeId) {
@@ -116,6 +138,22 @@ export async function getReceivingQueue(
             }),
           0,
         );
+      const activeReceiptStatuses = row.receiptLines.reduce<InboundReceiptStatus[]>(
+        (statuses, line) => {
+          if (
+            ACTIVE_RECEIPT_STATUSES.has(line.receiptStatus) &&
+            !statuses.includes(line.receiptStatus)
+          ) {
+            statuses.push(line.receiptStatus);
+          }
+          return statuses;
+        },
+        [],
+      );
+      const remainingQuantity = Math.max(
+        0,
+        row.expectedQuantity - approvedReceivedQuantity - submittedReservedQuantity,
+      );
 
       return {
         shoppingRequestId: row.shoppingRequestId,
@@ -128,10 +166,13 @@ export async function getReceivingQueue(
         expectedQuantity: row.expectedQuantity,
         approvedReceivedQuantity,
         submittedReservedQuantity,
-        remainingQuantity: Math.max(
-          0,
-          row.expectedQuantity - approvedReceivedQuantity - submittedReservedQuantity,
-        ),
+        remainingQuantity,
+        hasActiveReceipt: activeReceiptStatuses.length > 0,
+        activeReceiptCount: row.receiptLines.filter((line) =>
+          ACTIVE_RECEIPT_STATUSES.has(line.receiptStatus),
+        ).length,
+        activeReceiptStatuses,
+        isFullyReceived: remainingQuantity <= 0,
       };
     }),
   };
@@ -226,6 +267,111 @@ export async function submitInboundReceipt(
         submittedAt: new Date(),
       }),
     );
+  } catch (error) {
+    if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
+      throw new InventoryManagementError(
+        "CONFLICT",
+        "Inbound receipt status changed before submission",
+        409,
+      );
+    }
+    throw error;
+  }
+}
+
+export async function updateAndSubmitInboundReceipt(
+  input: UpdateAndSubmitInboundReceiptInput,
+): Promise<InboundReceiptMutationResult> {
+  const storeId = requireStoreId(input.user);
+  if (input.input.lines.length === 0) {
+    throw new InventoryManagementError(
+      "VALIDATION_ERROR",
+      "Inbound receipt requires at least one line",
+      422,
+    );
+  }
+
+  const lines = input.input.lines.map((line) => {
+    if (!line.id) {
+      throw new InventoryManagementError(
+        "VALIDATION_ERROR",
+        "Inbound receipt line id is required",
+        422,
+      );
+    }
+    if (
+      line.expectedQuantity <= 0 ||
+      line.receivedQuantity < 0 ||
+      !Number.isFinite(line.expectedQuantity) ||
+      !Number.isFinite(line.receivedQuantity)
+    ) {
+      throw new InventoryManagementError(
+        "VALIDATION_ERROR",
+        "Inbound receipt quantities are invalid",
+        422,
+      );
+    }
+    const note = line.note?.trim() || null;
+    if (requiresInboundLineNote(line.status) && !note) {
+      throw new InventoryManagementError(
+        "VALIDATION_ERROR",
+        "Inbound receipt line note is required",
+        422,
+      );
+    }
+
+    return {
+      id: line.id,
+      productId: line.productId,
+      expectedQuantity: line.expectedQuantity,
+      receivedQuantity: line.receivedQuantity,
+      status: line.status,
+      note,
+    };
+  });
+
+  try {
+    return await input.repository.runInTransaction(async (tx) => {
+      const receipt = await input.repository.findReceiptForEdit(tx, {
+        storeId,
+        receiptId: input.receiptId,
+      });
+      if (!receipt) {
+        throw new InventoryManagementError(
+          "NOT_FOUND",
+          "Inbound receipt not found",
+          404,
+        );
+      }
+      if (receipt.status !== "DRAFT" && receipt.status !== "NEEDS_REVISION") {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          `Inbound receipt is ${receipt.status}`,
+          409,
+        );
+      }
+      if (receipt.submittedBy !== input.user.id) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Only the receipt creator can revise this inbound receipt",
+          409,
+        );
+      }
+
+      await input.repository.updateReceiptDraft(tx, {
+        storeId,
+        receiptId: input.receiptId,
+        note: input.input.note?.trim() || null,
+        lines,
+      });
+
+      return input.repository.markReceiptSubmitted(tx, {
+        storeId,
+        receiptId: input.receiptId,
+        submittedBy: input.user.id,
+        submittedAt: new Date(),
+      });
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
       throw new InventoryManagementError(
@@ -351,4 +497,80 @@ export async function createInboundReceipt(
       lines,
     }),
   );
+}
+
+export async function createAndSubmitInboundReceipt(
+  input: CreateInboundReceiptServiceInput,
+): Promise<InboundReceiptMutationResult> {
+  const storeId = requireStoreId(input.user);
+  if (input.input.lines.length === 0) {
+    throw new InventoryManagementError(
+      "VALIDATION_ERROR",
+      "Inbound receipt requires at least one line",
+      422,
+    );
+  }
+
+  const lines: CreateInboundReceiptDraftInput["lines"] = input.input.lines.map(
+    (line) => {
+      if (
+        line.expectedQuantity <= 0 ||
+        line.receivedQuantity < 0 ||
+        !Number.isFinite(line.expectedQuantity) ||
+        !Number.isFinite(line.receivedQuantity)
+      ) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Inbound receipt quantities are invalid",
+          422,
+        );
+      }
+      const note = line.note?.trim() || null;
+      if (requiresInboundLineNote(line.status) && !note) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Inbound receipt line note is required",
+          422,
+        );
+      }
+
+      return {
+        productId: line.productId,
+        shoppingRequestItemId: line.shoppingRequestItemId ?? null,
+        expectedQuantity: line.expectedQuantity,
+        receivedQuantity: line.receivedQuantity,
+        status: line.status,
+        note,
+      };
+    },
+  );
+
+  try {
+    return await input.repository.runInTransaction(async (tx) => {
+      const draft = await input.repository.createInboundReceiptDraft(tx, {
+        storeId,
+        createdBy: input.user.id,
+        supplierId: input.input.supplierId ?? null,
+        shoppingRequestId: input.input.shoppingRequestId ?? null,
+        note: input.input.note?.trim() || null,
+        lines,
+      });
+
+      return input.repository.markReceiptSubmitted(tx, {
+        storeId,
+        receiptId: draft.id,
+        submittedBy: input.user.id,
+        submittedAt: new Date(),
+      });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
+      throw new InventoryManagementError(
+        "CONFLICT",
+        "Inbound receipt status changed before submission",
+        409,
+      );
+    }
+    throw error;
+  }
 }

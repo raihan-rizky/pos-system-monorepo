@@ -1,4 +1,5 @@
 import React from "react";
+import { ReceiptModal } from "@/components/ReceiptModal";
 import { SuratJalanList } from "@/features/surat-jalan/components/SuratJalanList";
 import {
   useGlobalApproveSuratJalan,
@@ -12,6 +13,7 @@ import type {
   SuratJalanMarkingStatus,
   SuratJalanRecord,
 } from "@/features/surat-jalan/types/surat-jalan";
+import type { Transaction as ReceiptTransaction } from "@/hooks/useTransactions";
 
 const MARKING_OPTIONS: Array<{
   status: Exclude<SuratJalanMarkingStatus, "UNMARKED">;
@@ -88,6 +90,9 @@ export const InventorySuratJalanTab: React.FC = () => {
     React.useState<Exclude<SuratJalanMarkingStatus, "UNMARKED">>("COMPLETED");
   const [markingNote, setMarkingNote] = React.useState("");
   const [markingError, setMarkingError] = React.useState<string | null>(null);
+  const [viewingMainReceipt, setViewingMainReceipt] = React.useState<
+    NonNullable<SuratJalanRecord["transaction"]> | null
+  >(null);
 
   if (isLoading) {
     return (
@@ -361,8 +366,17 @@ export const InventorySuratJalanTab: React.FC = () => {
           canApprove={canApprove}
           approveMutation={approveMutation as unknown as ReturnType<typeof useApproveSuratJalan>}
           groupByTransaction={true}
+          onViewMainReceipt={setViewingMainReceipt}
         />
       </div>
+
+      {viewingMainReceipt && (
+        <ReceiptModal
+          open={Boolean(viewingMainReceipt)}
+          onClose={() => setViewingMainReceipt(null)}
+          transaction={viewingMainReceipt as unknown as ReceiptTransaction}
+        />
+      )}
     </div>
   );
 };

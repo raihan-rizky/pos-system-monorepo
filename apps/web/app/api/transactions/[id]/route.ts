@@ -47,6 +47,13 @@ export async function GET(
       include: {
         cashier: { select: { name: true } },
         salesperson: { select: { name: true } },
+        payments: {
+          select: { amount: true, method: true },
+        },
+        debtPaymentLogs: {
+          select: { id: true, createdAt: true, amount: true, paymentMethod: true },
+          orderBy: { createdAt: "desc" },
+        },
         items: {
           include: {
             product: {
@@ -74,6 +81,16 @@ export async function GET(
     return NextResponse.json({
       ...transaction,
       createdAt,
+      payments: (transaction.payments ?? []).map((payment) => ({
+        amount: Number(payment.amount),
+        method: payment.method,
+      })),
+      debtPaymentLogs: (transaction.debtPaymentLogs ?? []).map((payment) => ({
+        id: payment.id,
+        createdAt: toIsoString(payment.createdAt) ?? createdAt,
+        amount: Number(payment.amount),
+        paymentMethod: payment.paymentMethod,
+      })),
       items: transaction.items.map((item) => ({
         ...item,
         createdAt:

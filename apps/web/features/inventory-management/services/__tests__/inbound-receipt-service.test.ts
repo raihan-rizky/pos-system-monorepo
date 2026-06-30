@@ -2,14 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   InventoryManagementError,
   approveInboundReceipt,
+  createAndSubmitInboundReceipt,
   createInboundReceipt,
   getReceivingQueue,
   needsRevisionInboundReceipt,
   rejectInboundReceipt,
   submitInboundReceipt,
+  updateAndSubmitInboundReceipt,
 } from "../inbound-receipt-service";
 import type {
   InboundReceiptForApproval,
+  InboundReceiptStatus,
   InventoryInboundReceiptRepository,
   ReceivingQueueRepositoryRow,
 } from "../../types/inventory-management";
@@ -91,6 +94,16 @@ function createRepository(
       id: "receipt-1",
       status: "SUBMITTED" as const,
     })),
+    findReceiptForEdit: vi.fn(async () => ({
+      id: "receipt-1",
+      storeId: "store-main",
+      status: "NEEDS_REVISION" as InboundReceiptStatus,
+      submittedBy: "inventory-1",
+    })),
+    updateReceiptDraft: vi.fn(async () => ({
+      id: "receipt-1",
+      status: "NEEDS_REVISION" as const,
+    })),
     createInboundReceiptDraft: vi.fn(async () => ({
       id: "receipt-1",
       status: "DRAFT" as const,
@@ -129,6 +142,44 @@ describe("inbound receipt service", () => {
         remainingQuantity: 5,
       }),
     ]);
+  });
+
+  it("marks invoices with active inbound receipts for the picker badge", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.listReceivingQueue).mockResolvedValueOnce([
+      {
+        shoppingRequestId: "shopping-1",
+        shoppingRequestNumber: "DPB-202606-001",
+        supplierName: "Supplier A",
+        itemId: "item-1",
+        productId: "product-1",
+        productName: "Produk A",
+        unit: "pcs",
+        expectedQuantity: 10,
+        receiptLines: [
+          { receiptStatus: "DRAFT", lineStatus: "RECEIVED", receivedQuantity: 2 },
+          { receiptStatus: "NEEDS_REVISION", lineStatus: "PARTIAL", receivedQuantity: 3 },
+          { receiptStatus: "REJECTED", lineStatus: "OVER_RECEIVED", receivedQuantity: 8 },
+        ],
+      },
+    ]);
+
+    const result = await getReceivingQueue({
+      repository,
+      user: {
+        id: "inventory-1",
+        name: "Ira",
+        role: "INVENTORY",
+        storeId: "store-main",
+      },
+    });
+
+    expect(result.items[0]).toMatchObject({
+      hasActiveReceipt: true,
+      activeReceiptCount: 2,
+      activeReceiptStatuses: ["DRAFT", "NEEDS_REVISION"],
+      isFullyReceived: false,
+    });
   });
 
   it("rejects unscoped users before loading receiving queue", async () => {
@@ -274,6 +325,94 @@ describe("inbound receipt service", () => {
         receiptId: "receipt-1",
       }),
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+  });
+
+  it("updates creator-owned needs-revision receipts and submits them again", async () => {
+    const repository = createRepository();
+
+    const result = await updateAndSubmitInboundReceipt({
+      repository,
+      user: {
+        id: "inventory-1",
+        name: "Ira",
+        role: "INVENTORY",
+        storeId: "store-main",
+      },
+      receiptId: "receipt-1",
+      input: {
+        note: "Sudah dicek ulang",
+        lines: [
+          {
+            id: "line-1",
+            productId: "product-1",
+            expectedQuantity: 10,
+            receivedQuantity: 8,
+            status: "PARTIAL",
+            note: "Kurang 2",
+          },
+        ],
+      },
+    });
+
+    expect(result.status).toBe("SUBMITTED");
+    expect(repository.updateReceiptDraft).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        receiptId: "receipt-1",
+        note: "Sudah dicek ulang",
+        lines: [
+          expect.objectContaining({
+            id: "line-1",
+            status: "PARTIAL",
+            note: "Kurang 2",
+          }),
+        ],
+      }),
+    );
+    expect(repository.markReceiptSubmitted).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        receiptId: "receipt-1",
+        submittedBy: "inventory-1",
+      }),
+    );
+  });
+
+  it("blocks non-creators from editing needs-revision receipts", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.findReceiptForEdit).mockResolvedValueOnce({
+      id: "receipt-1",
+      storeId: "store-main",
+      status: "NEEDS_REVISION",
+      submittedBy: "inventory-2",
+    });
+
+    await expect(
+      updateAndSubmitInboundReceipt({
+        repository,
+        user: {
+          id: "inventory-1",
+          name: "Ira",
+          role: "INVENTORY",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+        input: {
+          lines: [
+            {
+              id: "line-1",
+              productId: "product-1",
+              expectedQuantity: 10,
+              receivedQuantity: 8,
+              status: "PARTIAL",
+              note: "Kurang 2",
+            },
+          ],
+        },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+    expect(repository.updateReceiptDraft).not.toHaveBeenCalled();
+    expect(repository.markReceiptSubmitted).not.toHaveBeenCalled();
   });
 
   it("rejects unscoped users before repository writes", async () => {
@@ -430,6 +569,48 @@ describe("inbound receipt service", () => {
             note: "Kurang 2",
           }),
         ],
+      }),
+    );
+  });
+
+  it("creates and submits an inbound receipt in one transaction", async () => {
+    const repository = createRepository();
+
+    const result = await createAndSubmitInboundReceipt({
+      repository,
+      user: {
+        id: "inventory-1",
+        name: "Ira",
+        role: "INVENTORY",
+        storeId: "store-main",
+      },
+      input: {
+        shoppingRequestId: "shopping-1",
+        lines: [
+          {
+            productId: "product-1",
+            expectedQuantity: 10,
+            receivedQuantity: 10,
+            status: "RECEIVED",
+          },
+        ],
+      },
+    });
+
+    expect(result.status).toBe("SUBMITTED");
+    expect(repository.runInTransaction).toHaveBeenCalledTimes(1);
+    expect(repository.createInboundReceiptDraft).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        storeId: "store-main",
+        createdBy: "inventory-1",
+      }),
+    );
+    expect(repository.markReceiptSubmitted).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        receiptId: "receipt-1",
+        submittedBy: "inventory-1",
       }),
     );
   });

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Button } from "@pos/ui";
-import { ArrowRight, Check, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, LoaderCircle, X } from "lucide-react";
 
 import {
   IMPORT_COLUMNS,
@@ -18,6 +18,8 @@ interface ColumnMappingStepProps {
   onMappingChange: (mapping: ColumnMapping) => void;
   onConfirm: () => void;
   onBack: () => void;
+  isPreviewing?: boolean;
+  previewErrorMessage?: string | null;
 }
 
 export function ColumnMappingStep({
@@ -26,6 +28,8 @@ export function ColumnMappingStep({
   onMappingChange,
   onConfirm,
   onBack,
+  isPreviewing = false,
+  previewErrorMessage = null,
 }: ColumnMappingStepProps) {
   const missingRequired = getMissingRequiredColumns(mapping);
   const mappedValues = new Set(Object.values(mapping).filter(Boolean));
@@ -128,16 +132,28 @@ export function ColumnMappingStep({
         </div>
       )}
 
+      {previewErrorMessage && (
+        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{previewErrorMessage}</span>
+        </div>
+      )}
+
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button type="button" variant="secondary" onClick={onBack}>
           Kembali
         </Button>
         <Button
           type="button"
-          disabled={missingRequired.length > 0}
+          disabled={missingRequired.length > 0 || isPreviewing}
           onClick={onConfirm}
+          icon={
+            isPreviewing ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : undefined
+          }
         >
-          Lanjut ke Preview
+          {isPreviewing ? "Membuat Preview..." : "Lanjut ke Preview"}
         </Button>
       </div>
     </div>

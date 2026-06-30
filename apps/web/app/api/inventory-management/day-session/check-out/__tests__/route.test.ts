@@ -213,6 +213,62 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     );
   });
 
+  it("allows check-out with a short non-empty guided exception note", async () => {
+    buildInventoryDayCompletionMock.mockResolvedValue({
+      dateKey: "2026-06-28",
+      weekKey: "2026-W26",
+      isSaturday: false,
+      tasks: [
+        { id: "daily-matching", label: "Matching stok harian tersubmit", completed: false, required: true },
+      ],
+      blockers: ["Matching stok harian tersubmit"],
+    });
+
+    const response = await post({
+      note: "Tutup shift dengan pengecualian",
+      exceptionNotes: {
+        "daily-matching": "Besok",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          checkOutSnapshot: expect.objectContaining({
+            exceptionNotes: {
+              "daily-matching": "Besok",
+            },
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("returns task-specific blockers instead of generic validation for blank exception notes", async () => {
+    buildInventoryDayCompletionMock.mockResolvedValue({
+      dateKey: "2026-06-28",
+      weekKey: "2026-W26",
+      isSaturday: false,
+      tasks: [
+        { id: "daily-matching", label: "Matching stok harian tersubmit", completed: false, required: true },
+      ],
+      blockers: ["Matching stok harian tersubmit"],
+    });
+
+    const response = await post({
+      exceptionNotes: {
+        "daily-matching": "",
+      },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.blockers).toEqual(["Matching stok harian tersubmit"]);
+    expect(body.missingExceptionTaskIds).toEqual(["daily-matching"]);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
   it("treats Saturday weekly proof as a required blocker when incomplete", async () => {
     buildInventoryDayCompletionMock.mockResolvedValue({
       dateKey: "2026-06-27",

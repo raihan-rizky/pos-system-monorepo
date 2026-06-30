@@ -3,7 +3,6 @@ import { ChevronDown, FileCheck2 } from "lucide-react";
 import { Button } from "@pos/ui";
 import { formatDate } from "@/lib/utils";
 import { SuratJalanPrintModal } from "./SuratJalanPrintModal";
-import Link from "next/link";
 import type { SuratJalanRecord } from "../types/surat-jalan";
 import type { useApproveSuratJalan } from "../hooks/useSuratJalan";
 
@@ -23,6 +22,7 @@ interface SuratJalanListProps {
   canApprove: boolean;
   approveMutation: ReturnType<typeof useApproveSuratJalan>;
   groupByTransaction?: boolean;
+  onViewMainReceipt?: (transaction: NonNullable<SuratJalanRecord["transaction"]>) => void;
 }
 
 export const SuratJalanList: React.FC<SuratJalanListProps> = ({
@@ -30,6 +30,7 @@ export const SuratJalanList: React.FC<SuratJalanListProps> = ({
   canApprove,
   approveMutation,
   groupByTransaction = false,
+  onViewMainReceipt,
 }) => {
   if (records.length === 0) return null;
 
@@ -60,15 +61,22 @@ export const SuratJalanList: React.FC<SuratJalanListProps> = ({
             <div key={g.transaction.id} className={`rounded-2xl border border-surface-200 shadow-sm overflow-hidden border-l-4 ${colorClass}`}>
               <div className="border-b border-surface-100 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-surface-500 mb-0.5">Main Invoice</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-surface-500 mb-0.5">Invoice Utama</div>
                   <div className="font-semibold text-surface-900 text-sm">
                     {g.transaction.invoiceNumber}
                     {g.transaction.customerName && <span className="text-surface-500 font-medium"> • {g.transaction.customerName}</span>}
                   </div>
                 </div>
-                <Link href={`/history?search=${g.transaction.invoiceNumber}`}>
-                  <Button variant="secondary" size="sm" className="bg-white hover:bg-surface-50 shadow-sm">Lihat Struk Utama</Button>
-                </Link>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="bg-white hover:bg-surface-50 shadow-sm"
+                  disabled={!onViewMainReceipt}
+                  onClick={() => onViewMainReceipt?.(g.transaction)}
+                >
+                  Lihat Struk Utama
+                </Button>
               </div>
               <div className="divide-y divide-surface-100 bg-white">
                 {g.records.map((record) => (

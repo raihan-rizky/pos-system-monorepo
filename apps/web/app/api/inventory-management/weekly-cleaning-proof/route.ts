@@ -3,39 +3,13 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { jakartaWeekKey } from "@/features/inventory-management/helpers/inventory-management-rules";
+import { isPrntScUrl, resolvePrntScImageUrl } from "@/lib/prntsc";
 
 const proofSchema = z.object({
   proofUrl: z.string().url(),
   note: z.string().trim().max(500).optional().nullable(),
   now: z.string().datetime().optional(),
 });
-
-function isPrntScUrl(rawUrl: string) {
-  try {
-    const parsed = new URL(rawUrl);
-    return (
-      parsed.protocol === "https:" &&
-      (parsed.hostname === "prnt.sc" || parsed.hostname === "www.prnt.sc")
-    );
-  } catch {
-    return false;
-  }
-}
-
-async function resolvePrntScImage(requestUrl: string, proofUrl: string) {
-  const origin = new URL(requestUrl).origin;
-  const response = await fetch(
-    `${origin}/api/prntsc?url=${encodeURIComponent(proofUrl)}&json=true`,
-    { cache: "no-store" },
-  );
-
-  if (!response.ok) return null;
-
-  const payload = (await response.json().catch(() => null)) as {
-    imageUrl?: string;
-  } | null;
-  return payload?.imageUrl ?? null;
-}
 
 export async function POST(request: Request) {
   try {
@@ -57,10 +31,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const resolvedProofImageUrl = await resolvePrntScImage(
-      request.url,
-      input.proofUrl,
-    );
+    const resolvedProofImageUrl = await resolvePrntScImageUrl(input.proofUrl);
     if (!resolvedProofImageUrl) {
       return NextResponse.json(
         { message: "Proof image could not be resolved" },

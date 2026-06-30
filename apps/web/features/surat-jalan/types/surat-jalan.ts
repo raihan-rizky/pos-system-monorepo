@@ -47,6 +47,63 @@ export interface SuratJalanItemRecord {
   stockAfter: number | null;
 }
 
+export interface SuratJalanReceiptTransactionItem {
+  id: string;
+  productId?: string | null;
+  printingServiceId: string | null;
+  rawMaterialProductId?: string | null;
+  productName: string;
+  size: string | null;
+  material: string | null;
+  serviceNote?: string | null;
+  rawMaterialQuantity?: number | null;
+  rawMaterialUnit?: string | null;
+  quantity: number;
+  unit: string | null;
+  unitPrice: number;
+  subtotal: number;
+  product?: {
+    unit: string;
+    imageUrl?: string | null;
+    category?: { name: string } | null;
+  } | null;
+  printingService?: { unit: string } | null;
+}
+
+export interface SuratJalanReceiptTransaction {
+  id: string;
+  invoiceNumber: string | null;
+  draftNumber?: string | null;
+  subtotal?: number;
+  discount?: number;
+  tax?: number;
+  total: number;
+  paymentMethod: string;
+  amountPaid: number;
+  change: number;
+  customerId?: string | null;
+  customerName: string | null;
+  customerType?: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH" | null;
+  salesName: string | null;
+  salespersonId?: string | null;
+  salesperson: { name: string } | null;
+  note: string | null;
+  status: string;
+  createdAt: string;
+  stockManagedBySuratJalan?: boolean;
+  payments?: {
+    amount: number;
+    method: string;
+  }[];
+  debtPaymentLogs?: {
+    id: string;
+    createdAt: string;
+    amount: number;
+    paymentMethod: string;
+  }[];
+  items: SuratJalanReceiptTransactionItem[];
+}
+
 export interface SuratJalanRecord {
   id: string;
   number: string;
@@ -62,11 +119,7 @@ export interface SuratJalanRecord {
   createdAt: string;
   confirmedAt: string | null;
   items: SuratJalanItemRecord[];
-  transaction?: {
-    id: string;
-    invoiceNumber: string;
-    customerName: string | null;
-  };
+  transaction?: SuratJalanReceiptTransaction;
 }
 
 export interface SuratJalanRemainingItem {

@@ -1,52 +1,30 @@
 import { NextResponse } from "next/server";
 import { handleAuthError, requireRole } from "@/lib/rbac/guard";
+import {
+  extractPrntScImageUrl,
+  fetchWithPrntScTimeout,
+  parsePrntScImageUrl,
+  parsePrntScPageUrl,
+  PRNTSC_USER_AGENT,
+} from "@/lib/prntsc";
 
-const PRNTSC_HOSTS = new Set(["prnt.sc", "www.prnt.sc"]);
-const ALLOWED_IMAGE_HOSTS = new Set(["image.prntscr.com", "prnt.sc", "www.prnt.sc", "img.lightshot.app"]);
-const REQUEST_TIMEOUT_MS = 8_000;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-
-function parseAllowedUrl(rawUrl: string | null, allowedHosts: Set<string>) {
-  if (!rawUrl) return null;
-
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.protocol !== "https:") return null;
-    if (!allowedHosts.has(parsed.hostname.toLowerCase())) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-async function fetchWithTimeout(url: URL, init?: RequestInit) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 export async function GET(request: Request) {
   try {
     await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
 
     const { searchParams } = new URL(request.url);
-    const prntscUrl = parseAllowedUrl(searchParams.get("url"), PRNTSC_HOSTS);
+    const prntscUrl = parsePrntScPageUrl(searchParams.get("url"));
     const wantsJson = searchParams.get("json") === "true";
 
     if (!prntscUrl) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 
-    const res = await fetchWithTimeout(prntscUrl, {
+    const res = await fetchWithPrntScTimeout(prntscUrl.toString(), {
       headers: {
-        "User-Agent": USER_AGENT,
+        "User-Agent": PRNTSC_USER_AGENT,
       },
     });
 
@@ -55,10 +33,10 @@ export async function GET(request: Request) {
     }
 
     const html = await res.text();
-    const match = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i) || html.match(/<meta\s+name="twitter:image:src"\s+content="([^"]+)"/i);
+    const rawImageUrl = extractPrntScImageUrl(html);
 
-    if (match && match[1]) {
-      const imageUrl = parseAllowedUrl(match[1], ALLOWED_IMAGE_HOSTS);
+    if (rawImageUrl) {
+      const imageUrl = parsePrntScImageUrl(rawImageUrl);
 
       if (!imageUrl) {
         return NextResponse.json({ error: "Unsupported image URL" }, { status: 422 });
@@ -68,9 +46,9 @@ export async function GET(request: Request) {
         return NextResponse.json({ imageUrl: imageUrl.toString() });
       }
 
-      const imgRes = await fetchWithTimeout(imageUrl, {
+      const imgRes = await fetchWithPrntScTimeout(imageUrl.toString(), {
         headers: {
-          "User-Agent": USER_AGENT,
+          "User-Agent": PRNTSC_USER_AGENT,
           "Referer": prntscUrl.toString(),
         }
       });

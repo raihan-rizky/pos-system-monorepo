@@ -3,29 +3,46 @@ import { z } from "zod";
 import { InventoryInboundReceiptRepository } from "@/features/inventory-management/repositories/InventoryInboundReceiptRepository";
 import {
   InventoryManagementError,
-  rejectInboundReceipt,
+  updateAndSubmitInboundReceipt,
 } from "@/features/inventory-management/services/inbound-receipt-service";
 import type { InventoryManagementUser } from "@/features/inventory-management/types/inventory-management";
 import { apiError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
-const rejectSchema = z.object({
-  rejectionReason: z.string().trim().min(1),
+const lineSchema = z.object({
+  id: z.string().min(1),
+  productId: z.string().min(1),
+  expectedQuantity: z.number().positive(),
+  receivedQuantity: z.number().min(0),
+  status: z.enum([
+    "RECEIVED",
+    "PARTIAL",
+    "MISSING",
+    "DAMAGED",
+    "MISMATCH",
+    "OVER_RECEIVED",
+  ]),
+  note: z.string().trim().max(500).optional().nullable(),
 });
 
-export async function POST(
+const updateSchema = z.object({
+  note: z.string().trim().max(500).optional().nullable(),
+  lines: z.array(lineSchema).min(1),
+});
+
+export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("inventory.inbound_receipt.reject", "update");
-    const body = rejectSchema.parse(await request.json());
+    const user = await requirePermission("inventory", "update");
+    const input = updateSchema.parse(await request.json());
     const { id } = await context.params;
-    const data = await rejectInboundReceipt({
+    const data = await updateAndSubmitInboundReceipt({
       repository: new InventoryInboundReceiptRepository(),
       user: user as InventoryManagementUser & { name?: string | null },
       receiptId: id,
-      rejectionReason: body.rejectionReason,
+      input,
     });
 
     return NextResponse.json({ data });
@@ -50,7 +67,7 @@ export async function POST(
                 : "ValidationError",
       });
     }
-    return apiError("Failed to reject inbound receipt", 500, {
+    return apiError("Failed to update inbound receipt", 500, {
       code: "InternalError",
     });
   }

@@ -4,7 +4,10 @@ import React, { useState, Suspense } from "react";
 import { Truck } from "lucide-react";
 import { Modal, Button } from "@pos/ui";
 import { useRole } from "@/components/providers/RoleProvider";
+import { ReceiptModal } from "@/components/ReceiptModal";
+import type { Transaction as ReceiptTransaction } from "@/hooks/useTransactions";
 import { useSuspenseSuratJalanBundle, useApproveSuratJalan } from "../hooks/useSuratJalan";
+import type { SuratJalanRecord } from "../types/surat-jalan";
 
 import { SuratJalanHeader } from "./SuratJalanHeader";
 import { SuratJalanStats } from "./SuratJalanStats";
@@ -49,6 +52,9 @@ const SuratJalanCreateModalContent: React.FC<SuratJalanCreateModalContentProps> 
   const { data: bundle } = useSuspenseSuratJalanBundle(transactionId);
   const approveMutation = useApproveSuratJalan(transactionId);
   const [isCreating, setIsCreating] = useState(false);
+  const [viewingMainReceipt, setViewingMainReceipt] = useState<
+    NonNullable<SuratJalanRecord["transaction"]> | null
+  >(null);
 
   return (
     <div className="space-y-6">
@@ -61,6 +67,7 @@ const SuratJalanCreateModalContent: React.FC<SuratJalanCreateModalContentProps> 
           records={bundle.suratJalan} 
           canApprove={canPerform("surat_jalan", "update")}
           approveMutation={approveMutation}
+          onViewMainReceipt={setViewingMainReceipt}
         />
       )}
 
@@ -80,6 +87,14 @@ const SuratJalanCreateModalContent: React.FC<SuratJalanCreateModalContentProps> 
           transactionId={transactionId} 
           bundle={bundle} 
           onCancel={() => setIsCreating(false)} 
+        />
+      )}
+
+      {viewingMainReceipt && (
+        <ReceiptModal
+          open={Boolean(viewingMainReceipt)}
+          onClose={() => setViewingMainReceipt(null)}
+          transaction={viewingMainReceipt as unknown as ReceiptTransaction}
         />
       )}
     </div>

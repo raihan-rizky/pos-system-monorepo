@@ -394,4 +394,54 @@ describe("buildReportSheetData", () => {
     const cashRow = sheet.find((r) => r[0] === "CASH" && r !== sheet[1]);
     expect(cashRow?.[6]).toBe(100_000);
   });
+
+  it("includes revenue per product category in the main Excel sheet data", () => {
+    const rows = [
+      {
+        tanggal: "2026-05-20",
+        invoice: "INV-1",
+        person: "Ari",
+        products: "Banner",
+        categories: "Cetak",
+        status: "Pemasukan" as const,
+        amount: 150_000,
+        method: "CASH",
+      },
+    ];
+    const footer = buildReportFooter(rows);
+    const sheet = buildReportSheetData(rows, footer, [
+      { categoryName: "Cetak", transactionCount: 1, revenue: 150_000 },
+    ]);
+
+    expect(sheet).toContainEqual([
+      "Revenue per Kategori Produk",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+    expect(sheet).toContainEqual([
+      "Kategori Produk",
+      "Transaksi",
+      "",
+      "",
+      "",
+      "",
+      "Revenue",
+      "",
+    ]);
+    expect(sheet).toContainEqual([
+      "Cetak",
+      1,
+      "",
+      "",
+      "",
+      "",
+      150_000,
+      "",
+    ]);
+  });
 });

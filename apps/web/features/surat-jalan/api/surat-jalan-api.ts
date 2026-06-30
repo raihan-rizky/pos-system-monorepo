@@ -1,38 +1,15 @@
 import type {
   SuratJalanMarkingStatus,
   SuratJalanProgress,
+  SuratJalanReceiptTransaction,
   SuratJalanRecord,
   SuratJalanRemainingItem,
 } from "../types/surat-jalan";
 
 export interface SuratJalanBundle {
-  transaction: {
-    id: string;
-    invoiceNumber: string | null;
-    status: string;
-    customerName: string | null;
-    customerId: string | null;
+  transaction: SuratJalanReceiptTransaction & {
     customerType: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH" | null;
-    createdAt: string;
-    total: number;
-    paymentMethod: string;
-    amountPaid: number;
-    change: number;
-    note: string | null;
-    salesName: string | null;
-    salesperson: { name: string } | null;
     stockManagedBySuratJalan: boolean;
-    items: {
-      id: string;
-      printingServiceId: string | null;
-      productName: string;
-      size: string | null;
-      material: string | null;
-      quantity: number;
-      unit: string | null;
-      unitPrice: number;
-      subtotal: number;
-    }[];
   };
   eligibility: { eligible: true; reason: null } | {
     eligible: false;

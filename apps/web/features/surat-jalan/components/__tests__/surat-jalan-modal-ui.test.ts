@@ -12,6 +12,10 @@ const componentSource = readFileSync(
   join(process.cwd(), "features/surat-jalan/components/SuratJalanForm.tsx"),
   "utf8",
 );
+const listSource = readFileSync(
+  join(process.cwd(), "features/surat-jalan/components/SuratJalanList.tsx"),
+  "utf8",
+);
 const quantityTableSource = readFileSync(
   join(process.cwd(), "features/surat-jalan/components/SuratJalanQuantityTable.tsx"),
   "utf8",
@@ -27,6 +31,14 @@ describe("SuratJalanCreateModal UI contract", () => {
     expect(componentSource).not.toContain("Main Invoice");
     expect(componentSource).toContain("setInvoicePreviewOpen");
     expect(componentSource).toContain("aria-expanded={invoicePreviewOpen}");
+  });
+
+  it("opens the main receipt preview from grouped Surat Jalan rows without redirecting to history", () => {
+    expect(listSource).toContain("Lihat Struk Utama");
+    expect(listSource).toContain("onViewMainReceipt");
+    expect(listSource).not.toContain("/history?search=");
+    expect(componentSource).toContain("viewingMainReceipt");
+    expect(componentSource).toContain("<ReceiptModal");
   });
 
   it("uses restricted customer selection for penerima", () => {
