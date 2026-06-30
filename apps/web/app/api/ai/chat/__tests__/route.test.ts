@@ -17,6 +17,7 @@ const getSupplierSearchMock = vi.hoisted(() => vi.fn());
 const getTopProductsMock = vi.hoisted(() => vi.fn());
 const getPendingTransactionsMock = vi.hoisted(() => vi.fn());
 const getFreshGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
+const enforceRateLimitMock = vi.hoisted(() => vi.fn());
 const openAIConstructorMock = vi.hoisted(() =>
   vi.fn().mockImplementation(function OpenAI() {
     return {
@@ -35,6 +36,10 @@ vi.mock("@/lib/rbac/guard", () => ({
 
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({
   getFreshGlobalRolePermissions: getFreshGlobalRolePermissionsMock,
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  enforceRateLimit: enforceRateLimitMock,
 }));
 
 vi.mock("openai", () => ({
@@ -95,6 +100,7 @@ describe("POST /api/ai/chat", () => {
     process.env.NEBIUS_API_KEY = "test-nebius-key";
     process.env.NEBIUS_MODEL = "test-nebius-model";
     delete process.env.AI_FAST_PATH_INTENTS;
+    enforceRateLimitMock.mockReturnValue(null);
     getFreshGlobalRolePermissionsMock.mockResolvedValue(buildDefaultRolePermissions());
     getCurrentUserMock.mockResolvedValue({
       id: "user-1",
@@ -153,6 +159,23 @@ describe("POST /api/ai/chat", () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   }, 15_000);
+
+  it("returns 429 when the chat route rate limit is exceeded", async () => {
+    enforceRateLimitMock.mockReturnValueOnce(
+      Response.json(
+        { message: "Terlalu banyak permintaan. Coba lagi sebentar lagi." },
+        { status: 429 },
+      ),
+    );
+    const { POST } = await import("../route");
+
+    const response = await POST(makeRequest({ messages: [{ role: "user", content: "halo" }] }));
+    const json = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(json.message).toContain("Terlalu banyak permintaan");
+    expect(getCurrentUserMock).not.toHaveBeenCalled();
+  });
 
   it("sends role-filtered JSON schema tools to Nebius", async () => {
     getCurrentUserMock.mockResolvedValue({

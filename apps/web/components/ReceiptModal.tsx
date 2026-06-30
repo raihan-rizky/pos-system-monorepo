@@ -79,7 +79,7 @@ export function ReceiptModal({
   const initialPaymentIsDP = isDP || hasDebtLogs;
 
   const paymentsList: { label: string; amountFormatted: string; subLabel?: string }[] = [];
-  
+
   if (transaction?.payments && transaction.payments.length > 0) {
     paymentsList.push(
       ...transaction.payments.map((p) => ({
@@ -106,7 +106,7 @@ export function ReceiptModal({
     );
   }
 
-  const displayNote = transaction?.note 
+  const displayNote = transaction?.note
     ? transaction.note.replace(/(?: \| )?Pelunasan(?: piutang)? [\d.,]+ \([A-Z]+\)(?:, [\d.,]+ \([A-Z]+\))*/g, "").trim()
     : null;
 
@@ -271,13 +271,13 @@ export function ReceiptModal({
                     <span>
                       {paymentsList.length > 0
                         ? paymentsList.map((p, idx) => (
-                            <React.Fragment key={idx}>
-                              <span style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel === "pelunasan" ? "#047857" : "inherit") }}>
-                                {p.label}
-                              </span>
-                              {idx < paymentsList.length - 1 ? ", " : ""}
-                            </React.Fragment>
-                          ))
+                          <React.Fragment key={idx}>
+                            <span style={{ color: p.subLabel === "DP" ? "#b45309" : (p.subLabel === "pelunasan" ? "#047857" : "inherit") }}>
+                              {p.label}
+                            </span>
+                            {idx < paymentsList.length - 1 ? ", " : ""}
+                          </React.Fragment>
+                        ))
                         : "-"}
                     </span>
                   </div>

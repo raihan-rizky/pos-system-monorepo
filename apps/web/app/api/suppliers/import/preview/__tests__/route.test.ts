@@ -69,11 +69,20 @@ describe("POST /api/suppliers/import/preview", () => {
     expect(body.code).toBe("UnsupportedMediaType");
     expect(previewSupplierImportMock).not.toHaveBeenCalled();
   });
+
+  it("rejects oversized import files before supplier preview parsing", async () => {
+    const response = await POST(requestWithFile("supplier.xlsx", new Uint8Array(5 * 1024 * 1024 + 1)));
+    const body = await response.json();
+
+    expect(response.status).toBe(413);
+    expect(body.message).toContain("terlalu besar");
+    expect(previewSupplierImportMock).not.toHaveBeenCalled();
+  });
 });
 
-function requestWithFile(name: string): Request {
+function requestWithFile(name: string, content: BlobPart = "name\nCV Sinar"): Request {
   const formData = new FormData();
-  formData.set("file", new File(["name\nCV Sinar"], name));
+  formData.set("file", new File([content], name));
   return new Request("http://localhost/api/suppliers/import/preview", {
     method: "POST",
     body: formData,

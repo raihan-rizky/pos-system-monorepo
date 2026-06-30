@@ -30,7 +30,7 @@
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.14.0",
     "motion": "^12.40.0",
-    "next": "^15.5.15",
+    "next": "^15.5.18",
     "openai": "^6.38.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -9,6 +9,11 @@ import {
   parseImportFile,
 } from "@/features/customer-import/helpers/import-core";
 import { apiError } from "@/lib/api/responses";
+import {
+  IMPORT_FILE_TOO_LARGE_MESSAGE,
+  isImportFileTooLarge,
+} from "@/lib/import-file-size";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("api:customers:import:preview");
@@ -16,6 +21,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:customers:import:preview",
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     const user = await requirePermission("customer", "create");
     const formData = await request.formData();
@@ -45,6 +57,19 @@ export async function POST(request: Request) {
       });
     }
 
+    if (isImportFileTooLarge(file)) {
+      log.warn("customer.import.preview.file_too_large", {
+        userId: user.id,
+        storeId: user.storeId || "store-main",
+        fileName: file.name,
+        fileSizeBytes: file.size,
+      });
+      return apiError(IMPORT_FILE_TOO_LARGE_MESSAGE, 413, {
+        code: "PayloadTooLarge",
+        errors: { file: [IMPORT_FILE_TOO_LARGE_MESSAGE] },
+      });
+    }
+
     const mappingRaw = formData.get("columnMapping");
     let columnMapping: ColumnMapping | undefined;
     try {
@@ -66,7 +91,7 @@ export async function POST(request: Request) {
       mappedColumnCount: columnMapping ? Object.values(columnMapping).filter(Boolean).length : 0,
     });
 
-    const { headers, records } = parseImportFile(
+    const { headers, records } = await parseImportFile(
       await file.arrayBuffer(),
       columnMapping,
     );

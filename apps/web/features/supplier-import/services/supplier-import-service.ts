@@ -24,7 +24,7 @@ export async function previewSupplierImport(input: {
   buffer: ArrayBuffer;
   columnMapping?: ColumnMapping;
 }): Promise<SupplierImportPreviewResponse> {
-  const parsed = parseImportFile(input.buffer, input.columnMapping);
+  const parsed = await parseImportFile(input.buffer, input.columnMapping);
   const { missingColumns, unknownColumns, suggestions } =
     buildMissingColumnResponse(parsed.headers);
 

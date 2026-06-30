@@ -3,6 +3,7 @@ import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const log = getLogger("api:wa:media:id");
 export const dynamic = "force-dynamic";
@@ -65,10 +66,17 @@ function resolveWahaFileUrl({
  *     The browser never touches WAHA directly â€” no CORS, no credentials leakage.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const startTime = performance.now();
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:wa:media",
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { id } = await params;
 
   log.info(`[WA/Media] GET request â€” id=${id}`);

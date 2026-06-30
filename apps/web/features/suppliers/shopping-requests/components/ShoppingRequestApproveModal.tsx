@@ -103,18 +103,23 @@ export function ShoppingRequestApproveModal({
             ))}
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={onClose}>
-              Tutup
-            </Button>
-            <Button
-              type="button"
-              loading={approve.isPending}
-              onClick={handleApprove}
-              icon={<CheckCircle2 className="h-4 w-4" />}
-            >
-              Approve
-            </Button>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex justify-end gap-2 w-full">
+              <Button type="button" variant="secondary" onClick={onClose}>
+                Tutup
+              </Button>
+              <Button
+                type="button"
+                loading={approve.isPending}
+                onClick={handleApprove}
+                icon={<CheckCircle2 className="h-4 w-4" />}
+              >
+                Approve
+              </Button>
+            </div>
+            <span className="text-[10px] text-slate-500 mr-2 font-medium">
+              Aksi ini tidak akan mengubah stok
+            </span>
           </div>
         </div>
       )}

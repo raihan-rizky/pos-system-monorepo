@@ -99,7 +99,9 @@ export const SuratJalanQuantityTable: React.FC<SuratJalanQuantityTableProps> = (
                       />
                       {invalid && (
                         <div className="mt-1 text-xs font-medium text-red-600">
-                          Melebihi sisa/stok.
+                          {quantities[item.transactionItemId] > item.remainingQuantity
+                            ? "Jumlah dikirim melebihi sisa barang."
+                            : "Stok gudang tidak mencukupi."}
                         </div>
                       )}
                     </>

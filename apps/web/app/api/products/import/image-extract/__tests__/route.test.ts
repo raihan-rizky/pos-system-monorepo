@@ -107,6 +107,24 @@ describe("POST /api/products/import/image-extract", () => {
     expect(json.message).toContain("Invalid file type");
   });
 
+  it("returns 413 before OCR when an uploaded image exceeds the size limit", async () => {
+    const formData = new FormData();
+    formData.append("image_0", new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: "image/jpeg" }));
+
+    const req = new NextRequest("http://localhost/api/products/import/image-extract", {
+      method: "POST",
+      body: formData,
+    });
+
+    const response = await POST(req);
+    const json = await response.json();
+
+    expect(response.status).toBe(413);
+    expect(json.message).toContain("Image file too large");
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(openAIConstructorMock).not.toHaveBeenCalled();
+  });
+
   it("calls EasyOCR and returns products if successful", async () => {
     // Mock successful EasyOCR response
     const mockOcrResponse = {

@@ -820,20 +820,25 @@ export function PaymentModal({
             Batal
           </Button>
           {onSaveDraft && (
-            <button
-              type="button"
-              id="payment-save-draft"
-              onClick={handleSaveDraft}
-              disabled={!canSaveDraft}
-              className="sm:flex-1 inline-flex items-center justify-center gap-2 min-h-12 px-4 rounded-xl
-                bg-slate-700 text-white text-sm font-semibold cursor-pointer
-                hover:bg-slate-800 transition-colors duration-200
-                disabled:opacity-60 disabled:cursor-not-allowed
-                focus:outline-none focus:ring-2 focus:ring-slate-500/50"
-            >
-              <FileClock className="h-4 w-4" aria-hidden="true" />
-              {isSavingDraft || createCustomer.isPending ? "Menyimpan..." : "Faktur Sementara"}
-            </button>
+            <div className="sm:flex-1 flex flex-col items-center gap-1">
+              <button
+                type="button"
+                id="payment-save-draft"
+                onClick={handleSaveDraft}
+                disabled={!canSaveDraft}
+                className="w-full inline-flex items-center justify-center gap-2 min-h-12 px-4 rounded-xl
+                  bg-slate-700 text-white text-sm font-semibold cursor-pointer
+                  hover:bg-slate-800 transition-colors duration-200
+                  disabled:opacity-60 disabled:cursor-not-allowed
+                  focus:outline-none focus:ring-2 focus:ring-slate-500/50"
+              >
+                <FileClock className="h-4 w-4" aria-hidden="true" />
+                {isSavingDraft || createCustomer.isPending ? "Menyimpan..." : "Faktur Sementara"}
+              </button>
+              <span className="text-[10px] text-surface-500 text-center font-medium">
+                Aksi ini tidak akan mengubah stok
+              </span>
+            </div>
           )}
           <Button
             variant="accent"

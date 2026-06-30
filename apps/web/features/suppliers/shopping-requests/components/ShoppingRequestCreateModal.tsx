@@ -193,18 +193,23 @@ export function ShoppingRequestCreateModal({
           </label>
         </section>
 
-        <footer className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={close}>
-            Tutup
-          </Button>
-          <Button
-            type="button"
-            loading={createRequest.isPending}
-            disabled={!canSave}
-            onClick={save}
-          >
-            Simpan Draft Belanja
-          </Button>
+        <footer className="flex flex-col items-end gap-1 pt-2">
+          <div className="flex justify-end gap-2 w-full">
+            <Button type="button" variant="secondary" onClick={close}>
+              Tutup
+            </Button>
+            <Button
+              type="button"
+              loading={createRequest.isPending}
+              disabled={!canSave}
+              onClick={save}
+            >
+              Simpan Draft Belanja
+            </Button>
+          </div>
+          <span className="text-[10px] text-slate-500 mr-2 font-medium">
+            Aksi ini tidak akan mengubah stok
+          </span>
         </footer>
       </div>
     </Modal>

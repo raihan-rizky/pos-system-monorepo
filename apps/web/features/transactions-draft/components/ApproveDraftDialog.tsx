@@ -229,15 +229,20 @@ export function ApproveDraftDialog({
         </div>
 
         <div className="px-6 pb-6 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            id="approve-draft-cancel"
-            onClick={handleCancelDraft}
-            disabled={isPending}
-            className="text-xs font-semibold text-red-600 hover:text-red-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            Batalkan Nota
-          </button>
+          <div className="flex flex-col items-start">
+            <button
+              type="button"
+              id="approve-draft-cancel"
+              onClick={handleCancelDraft}
+              disabled={isPending}
+              className="text-xs font-semibold text-red-600 hover:text-red-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              Batalkan Nota
+            </button>
+            <span className="text-[10px] text-surface-500 mt-1 font-medium">
+              Aksi ini tidak akan mengubah stok
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <button
               type="button"

@@ -9,6 +9,7 @@ export default defineConfig({
       "features/**/__tests__/**/*.test.ts",
       "features/**/__tests__/**/*.test.tsx",
       "app/**/__tests__/**/*.test.ts",
+      "app/**/__tests__/**/*.test.tsx",
       "lib/**/__tests__/**/*.test.ts",
     ],
     pool: "threads",

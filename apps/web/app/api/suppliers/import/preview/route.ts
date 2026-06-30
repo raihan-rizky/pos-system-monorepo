@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
+import {
+  IMPORT_FILE_TOO_LARGE_MESSAGE,
+  isImportFileTooLarge,
+} from "@/lib/import-file-size";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import type { ColumnMapping } from "@/features/supplier-import/types";
 import {
   SupplierImportMissingColumnsError,
@@ -14,6 +19,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:suppliers:import:preview",
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     const user = await requirePermission("supplier", "create");
     const formData = await request.formData();
@@ -30,6 +42,13 @@ export async function POST(request: Request) {
     if (!fileName.endsWith(".csv") && !fileName.endsWith(".xlsx")) {
       return apiError("Only .csv and .xlsx files are supported", 415, {
         code: "UnsupportedMediaType",
+      });
+    }
+
+    if (isImportFileTooLarge(file)) {
+      return apiError(IMPORT_FILE_TOO_LARGE_MESSAGE, 413, {
+        code: "PayloadTooLarge",
+        errors: { file: [IMPORT_FILE_TOO_LARGE_MESSAGE] },
       });
     }
 

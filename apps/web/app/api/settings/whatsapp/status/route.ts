@@ -3,12 +3,20 @@ import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const log = getLogger("api:settings:whatsapp:status");
 export const dynamic = "force-dynamic";
 
 // GET /api/settings/whatsapp/status
-export async function GET() {
+export async function GET(request: Request) {
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:settings:whatsapp:status",
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     await requirePermission("whatsapp", "read");
     if (!isWaConfigured()) {

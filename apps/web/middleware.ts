@@ -22,10 +22,6 @@ export async function middleware(request: NextRequest) {
     path: request.nextUrl.pathname,
   });
 
-  // Forward request id to downstream handlers via a request header
-  const forwardedHeaders = new Headers(request.headers);
-  forwardedHeaders.set("x-request-id", requestId);
-
   const startedAt = Date.now();
   log.debug("middleware.start");
 
@@ -34,7 +30,9 @@ export async function middleware(request: NextRequest) {
     response = await updateSession(request);
   } catch (error) {
     log.error("middleware.failed", { error, durationMs: Date.now() - startedAt });
-    const fallback = NextResponse.next({ request: { headers: forwardedHeaders } });
+    const fallback = request.nextUrl.pathname.startsWith("/api/")
+      ? NextResponse.json({ error: "Unable to verify access" }, { status: 503 })
+      : new NextResponse("Unable to verify access", { status: 503 });
     fallback.headers.set("x-request-id", requestId);
     return fallback;
   }

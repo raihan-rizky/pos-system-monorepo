@@ -3,6 +3,7 @@ import { getWahaConfig, isWaConfigured, WahaChat } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const log = getLogger("api:wa:contacts");
 export const dynamic = "force-dynamic";
@@ -13,8 +14,15 @@ export const dynamic = "force-dynamic";
  * Fetches from /api/{session}/chats/overview?merge=true&limit=20 which includes
  * contact name, profile picture, and last message in a single call.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const startTime = performance.now();
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:wa:contacts",
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   log.info(`[WA/Contacts] GET request received`);
 
   if (!isWaConfigured()) {

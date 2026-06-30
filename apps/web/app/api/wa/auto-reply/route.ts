@@ -4,6 +4,7 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 import { getLogger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const log = getLogger("api:wa:auto-reply");
 export const dynamic = "force-dynamic";
@@ -12,7 +13,14 @@ const toggleAutoReplySchema = z.object({
   enable: z.boolean(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:wa:auto-reply:get",
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     await requirePermission("whatsapp", "read");
 
@@ -59,6 +67,13 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const rateLimited = enforceRateLimit(req, {
+    namespace: "api:wa:auto-reply:put",
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     await requirePermission("whatsapp", "update");
 

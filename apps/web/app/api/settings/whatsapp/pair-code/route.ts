@@ -3,6 +3,7 @@ import { getWahaConfig, isWaConfigured } from "@/lib/whatsapp";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const log = getLogger("api:settings:whatsapp:pair-code");
 export const dynamic = "force-dynamic";
@@ -37,6 +38,13 @@ function parseJsonObject(text: string): Record<string, unknown> {
 }
 
 export async function POST(request: Request) {
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:settings:whatsapp:pair-code",
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     await requirePermission("whatsapp", "update");
     if (!isWaConfigured()) {

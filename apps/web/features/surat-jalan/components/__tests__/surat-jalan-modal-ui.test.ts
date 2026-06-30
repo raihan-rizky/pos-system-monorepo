@@ -47,4 +47,10 @@ describe("SuratJalanCreateModal UI contract", () => {
       "{item.remainingQuantity}/{item.invoiceQuantity}",
     );
   });
+
+  it("shows specific and localized error messages instead of generic one", () => {
+    expect(quantityTableSource).not.toContain("Melebihi sisa/stok.");
+    expect(quantityTableSource).toContain("Jumlah dikirim melebihi sisa barang.");
+    expect(quantityTableSource).toContain("Stok gudang tidak mencukupi.");
+  });
 });

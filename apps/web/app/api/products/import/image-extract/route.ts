@@ -6,8 +6,11 @@ import type { ExtractedProduct } from "../../../../../features/product-import/ty
 import OpenAI from "openai";
 
 import { getLogger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const log = getLogger("api:products:import:image-extract");
+const MAX_IMAGE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
 interface EasyOCRWord {
   text?: unknown;
   score?: unknown;
@@ -25,6 +28,13 @@ interface EasyOCRResponse {
 }
 
 export async function POST(req: NextRequest) {
+  const rateLimited = enforceRateLimit(req, {
+    namespace: "api:products:import:image-extract",
+    limit: 10,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     const user = await requirePermission("product", "create");
     const storeId = user.storeId || "store-main";
@@ -53,6 +63,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { message: `Invalid file type ${file.type}. Only JPG, PNG, and WebP are allowed.` },
           { status: 415 }
+        );
+      }
+
+      if (file.size > MAX_IMAGE_FILE_SIZE_BYTES) {
+        return NextResponse.json(
+          { message: "Image file too large. Maximum size is 5 MB." },
+          { status: 413 },
         );
       }
     }

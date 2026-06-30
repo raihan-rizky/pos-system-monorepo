@@ -8,6 +8,7 @@ import { getFreshGlobalRolePermissions } from "@/features/rbac/helpers/rbac-serv
 import { getLogger } from "@/lib/logger";
 import { captureException } from "@/lib/error-boundary";
 import { unifiedConfig } from "@/lib/config/unifiedConfig";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // Force dynamic rendering — SSE streams must never be statically cached or buffered.
 export const dynamic = "force-dynamic";
@@ -88,6 +89,13 @@ function getNebiusConfig() {
 
 export async function POST(req: NextRequest) {
   const requestStartedAt = Date.now();
+  const rateLimited = enforceRateLimit(req, {
+    namespace: "api:ai:chat",
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   const requestId = req.headers.get("x-request-id") ?? undefined;
   const requestLog = log.child({ requestId, method: "POST", path: "/api/ai/chat" });
   requestLog.info("assistant.http.received", {

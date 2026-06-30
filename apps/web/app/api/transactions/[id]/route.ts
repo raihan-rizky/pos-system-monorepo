@@ -49,7 +49,13 @@ export async function GET(
         salesperson: { select: { name: true } },
         items: {
           include: {
-            product: { select: { unit: true } },
+            product: {
+              select: {
+                unit: true,
+                imageUrl: true,
+                category: { select: { name: true } },
+              },
+            },
             printingService: { select: { unit: true } },
           },
         },

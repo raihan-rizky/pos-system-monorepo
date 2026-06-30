@@ -51,7 +51,7 @@ function isProtectedPageRequest(pathname: string) {
 }
 
 export async function updateSession(request: NextRequest) {
-  if (process.env.E2E_AUTH_BYPASS === "1") {
+  if (process.env.NODE_ENV !== "production" && process.env.E2E_AUTH_BYPASS === "1") {
     const role = (request.cookies.get(ROLE_COOKIE)?.value || "OWNER") as Role;
     const userId = request.cookies.get(USER_ID_COOKIE)?.value || "e2e-user";
     const userName = request.cookies.get(USER_NAME_COOKIE)?.value || "E2E Owner";

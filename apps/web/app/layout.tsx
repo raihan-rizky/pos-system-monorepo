@@ -71,7 +71,7 @@ export default async function RootLayout({
   const rawUserName = cookieStore.get("x-pos-user-name")?.value;
   const userName = rawUserName ? decodeURIComponent(rawUserName) : null;
   const permissions =
-    process.env.E2E_AUTH_BYPASS === "1"
+    process.env.NODE_ENV !== "production" && process.env.E2E_AUTH_BYPASS === "1"
       ? buildDefaultRolePermissions()
       : await getGlobalRolePermissions().catch((error) => {
           log.error("[RootLayout] Failed to load RBAC settings", error);

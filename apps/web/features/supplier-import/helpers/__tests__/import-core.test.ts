@@ -8,7 +8,7 @@ import {
 import type { ExistingSupplierMatch } from "../../types";
 
 describe("supplier import preprocessing", () => {
-  it("removes empty rows before preview and preserves source row numbers", () => {
+  it("removes empty rows before preview and preserves source row numbers", async () => {
     const buffer = workbookBuffer([
       ["name", "type", "phone"],
       ["CV Sinar", "distributor", "0812"],
@@ -16,7 +16,7 @@ describe("supplier import preprocessing", () => {
       ["PT Pabrik", "", ""],
     ]);
 
-    const parsed = parseImportFile(buffer);
+    const parsed = await parseImportFile(buffer);
 
     expect(parsed.removedEmptyRowCount).toBe(1);
     expect(parsed.records.map((record) => record.rowNumber)).toEqual([2, 4]);

@@ -10,6 +10,7 @@ import {
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const log = getLogger("api:wa:messages");
 export const dynamic = "force-dynamic";
@@ -33,6 +34,13 @@ function extractFromMe(id: string | { _serialized: string; fromMe?: boolean } | 
  */
 export async function GET(request: Request) {
   const startTime = performance.now();
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:wa:messages:get",
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { searchParams } = new URL(request.url);
   const phoneParam = searchParams.get("phone");
   const chatIdParam = searchParams.get("chatId");
@@ -253,6 +261,13 @@ const sendWaMessageSchema = z.object({
 
 export async function POST(request: Request) {
   const startTime = performance.now();
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:wa:messages:post",
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   log.info(`[WA/SendMsg] POST request received`);
 
   if (!isWaConfigured()) {

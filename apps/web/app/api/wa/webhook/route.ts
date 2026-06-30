@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import { getLogger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const log = getLogger("api:wa:webhook");
 export const dynamic = "force-dynamic";
@@ -17,6 +18,13 @@ function isAuthorizedWebhook(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:wa:webhook",
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     if (!isAuthorizedWebhook(request)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });

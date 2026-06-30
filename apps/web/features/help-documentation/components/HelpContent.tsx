@@ -225,7 +225,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
         { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, periksa ringkasan data, lalu klik simpan untuk memulai import massal.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
@@ -343,7 +343,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
         { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, periksa ringkasan data, lalu klik simpan untuk memulai import massal.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
@@ -548,6 +548,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Lakukan Matching Stok", description: "Klik tugas 'Matching Stok Harian' (atau tombol 'Input / Transaksi' -> 'Cocokkan Stok (Harian)'). Cocokkan stok fisik di gudang dengan angka sistem, isi form kecocokan, lalu klik 'Simpan'.", icon: <History className="w-8 h-8" /> },
         { title: "Input Laporan Kerusakan", description: "Klik tugas 'Laporan Barang Rusak' (atau 'Input / Transaksi' -> 'Laporkan Barang Rusak'), cari produk reject hari ini, ketik kuantitas rusak, dan klik tombol 'Kirim'.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Verifikasi Log OUT", description: "Klik tugas 'Log OUT Belum Diverifikasi' (atau klik tab 'Riwayat' -> 'Log Stok'), periksa daftar barang keluar hari ini, lalu klik tombol 'Verifikasi' pada kolom aksi log yang sesuai.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Check Out Inventaris", description: "Di akhir hari, buka widget Check In / Check Out lalu klik 'Check Out'. Periksa ringkasan pergerakan stok, status dokumen, dan workflow. Jika masih ada tugas wajib yang belum selesai, isi alasan pengecualian per kategori sebelum klik 'Tutup Hari'.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {
@@ -581,7 +582,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Import Bulk Stock", description: "Pilih 'Import Bulk Stock' untuk masuk ke halaman penyesuaian kuantitas stok dari berkas Excel.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Upload Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda yang berisi kolom kode barang/SKU dan kuantitas stok.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Upload Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda yang berisi kolom kode barang/SKU dan kuantitas stok. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
         { title: "Mapping & Selesai", description: "Lakukan pemetaan kolom, verifikasi ringkasan item, lalu klik proses untuk memperbarui stok barang secara massal.", icon: <Settings className="w-8 h-8" /> },
       ]
     },

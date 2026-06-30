@@ -72,7 +72,11 @@ export interface Transaction {
     originalUnitPrice?: number | null;
     appliedUnitPrice?: number | null;
     subtotal: number;
-    product?: { unit: string } | null;
+    product?: {
+      unit: string;
+      imageUrl?: string | null;
+      category?: { name: string } | null;
+    } | null;
     printingService?: { unit: string } | null;
   }[];
 }

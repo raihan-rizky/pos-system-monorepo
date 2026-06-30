@@ -54,6 +54,9 @@ export const SuratJalanHeader: React.FC<SuratJalanHeaderProps> = ({
             <p className="mt-1.5 truncate text-sm font-medium text-surface-500">
               {bundle.transaction.customerName || "Umum"} <span className="mx-1 text-surface-300">•</span> {formatDate(new Date(bundle.transaction.createdAt))}
             </p>
+            <div className="mt-2 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5 inline-flex items-center gap-1">
+              Invoice utama ini tidak lagi mengubah stok
+            </div>
           </div>
           <div className="text-left sm:text-right sm:pl-6 sm:border-l sm:border-surface-100">
             <p className="text-xs font-bold uppercase tracking-widest text-surface-400">

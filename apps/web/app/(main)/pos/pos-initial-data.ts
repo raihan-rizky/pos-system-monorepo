@@ -8,7 +8,7 @@ const POS_PAGE_SIZE = 24;
 
 export async function loadPOSInitialData(): Promise<POSInitialData> {
   try {
-    if (process.env.E2E_AUTH_BYPASS === "1") {
+    if (process.env.NODE_ENV !== "production" && process.env.E2E_AUTH_BYPASS === "1") {
       return {
         products: null,
         categories: [],

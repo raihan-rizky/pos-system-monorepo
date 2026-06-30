@@ -284,7 +284,13 @@ export async function GET(request: Request) {
                 originalUnitPrice: true,
                 appliedUnitPrice: true,
                 subtotal: true,
-                product: { select: { unit: true } },
+                product: {
+                  select: {
+                    unit: true,
+                    imageUrl: true,
+                    category: { select: { name: true } },
+                  },
+                },
                 printingService: { select: { unit: true } },
               },
             },
@@ -750,7 +756,13 @@ export async function POST(request: Request) {
                   originalUnitPrice: true,
                   appliedUnitPrice: true,
                   subtotal: true,
-                  product: { select: { unit: true } },
+                  product: {
+                    select: {
+                      unit: true,
+                      imageUrl: true,
+                      category: { select: { name: true } },
+                    },
+                  },
                   printingService: { select: { unit: true } },
                 },
               },

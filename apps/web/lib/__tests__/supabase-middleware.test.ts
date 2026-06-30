@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 
@@ -34,6 +34,10 @@ describe("updateSession", () => {
       },
       error: null,
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("refreshes POS identity cookies for the current Supabase user even when stale owner cookies exist", async () => {
@@ -77,5 +81,18 @@ describe("updateSession", () => {
 
     expect(response.status).toBe(503);
     await expect(response.text()).resolves.toContain("Unable to verify access");
+  });
+
+  it("does not allow E2E auth bypass in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("E2E_AUTH_BYPASS", "1");
+    getUserMock.mockResolvedValueOnce({ data: { user: null } });
+    const request = new NextRequest("https://pos.example.com/api/products");
+
+    const response = await updateSession(request);
+
+    expect(getUserMock).toHaveBeenCalled();
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: "Unauthorized" });
   });
 });

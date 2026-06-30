@@ -278,15 +278,21 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
           <Button variant="secondary" size="lg" onClick={onClose} disabled={isSaving}>
             Batal
           </Button>
-          <Button
-            variant="accent"
-            size="lg"
-            onClick={handleSubmit}
-            loading={isSaving}
-            icon={<FileText size={18} />}
-          >
-            Simpan Nota Penawaran
-          </Button>
+          <div className="flex flex-col items-center gap-1">
+            <Button
+              variant="accent"
+              size="lg"
+              onClick={handleSubmit}
+              loading={isSaving}
+              icon={<FileText size={18} />}
+              className="w-full"
+            >
+              Simpan Nota Penawaran
+            </Button>
+            <span className="text-[10px] text-surface-500 text-center font-medium">
+              Aksi ini tidak akan mengubah stok
+            </span>
+          </div>
         </div>
       </div>
     </Modal>

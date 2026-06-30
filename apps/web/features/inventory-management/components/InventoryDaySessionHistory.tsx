@@ -15,7 +15,7 @@ function getSnapshotTasks(snapshot: unknown) {
   const completion = asRecord(asRecord(snapshot).completion);
   const tasks = completion.tasks;
   return Array.isArray(tasks)
-    ? tasks.filter((task): task is { label: string; completed: boolean; required: boolean } => {
+    ? tasks.filter((task): task is { id?: string; label: string; completed: boolean; required: boolean } => {
         const record = asRecord(task);
         return typeof record.label === "string";
       })
@@ -44,6 +44,9 @@ function getCheckOutSummary(snapshot: unknown) {
   const record = asRecord(snapshot);
   const completion = asRecord(record.completion);
   const stockRisk = asRecord(record.stockRisk);
+  const movementSummary = asRecord(record.movementSummary);
+  const workflowSummary = asRecord(record.workflowSummary);
+  const exceptionNotesRecord = asRecord(record.exceptionNotes);
   const morningCheck = asRecord(record.morningCheckSnapshot);
   const materialCounts = getArray(morningCheck.materialCounts).map(asRecord);
   const productionMaterials = getArray(morningCheck.productionMaterials).map(asRecord);
@@ -62,6 +65,34 @@ function getCheckOutSummary(snapshot: unknown) {
       outOfStock: getArray(stockRisk.outOfStock).map(asRecord),
       lowStock: getArray(stockRisk.lowStock).map(asRecord),
     },
+    movementSummary: {
+      stockInQuantity: getNumber(movementSummary.stockInQuantity),
+      stockOutQuantity: getNumber(movementSummary.stockOutQuantity),
+      internalUseQuantity: getNumber(movementSummary.internalUseQuantity),
+      damagedQuantity: getNumber(movementSummary.damagedQuantity),
+      adjustmentQuantity: getNumber(movementSummary.adjustmentQuantity),
+      approvedLogCount: getNumber(movementSummary.approvedLogCount),
+      pendingRequestCount: getNumber(movementSummary.pendingRequestCount),
+    },
+    workflowSummary: {
+      submittedInboundReceipts: getNumber(workflowSummary.submittedInboundReceipts),
+      needsRevisionReceipts: getNumber(workflowSummary.needsRevisionReceipts),
+      pendingSuratJalan: getNumber(workflowSummary.pendingSuratJalan),
+      unmarkedSuratJalan: getNumber(workflowSummary.unmarkedSuratJalan),
+      dailyChecklistRemaining: getNumber(workflowSummary.dailyChecklistRemaining),
+      unverifiedOutLogs: getNumber(workflowSummary.unverifiedOutLogs),
+      damagedReportsPending: getNumber(workflowSummary.damagedReportsPending),
+    },
+    exceptionNotes: Object.entries(exceptionNotesRecord)
+      .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0)
+      .map(([taskId, note]) => {
+        const task = getSnapshotTasks(snapshot).find((item) => item.id === taskId);
+        return {
+          taskId,
+          label: task?.label ?? taskId,
+          note,
+        };
+      }),
     materialCounts,
     productionMaterials,
     safetyChecks,
@@ -281,7 +312,7 @@ function CheckInHistoryList({
   );
 }
 
-function CheckOutHistoryList({
+export function CheckOutHistoryList({
   records,
   expandedId,
   onToggle,
@@ -369,6 +400,32 @@ function CheckOutHistoryList({
 
                     <div className="mt-3 grid gap-3 lg:grid-cols-2">
                       <section className="rounded-xl bg-white p-3">
+                        <SectionTitle icon={<Boxes className="h-3.5 w-3.5" />} label="Pergerakan Stok" />
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <MetricRow label="Stok masuk" value={formatNumber(summary.movementSummary.stockInQuantity)} suffix="unit" />
+                          <MetricRow label="Stok keluar" value={formatNumber(summary.movementSummary.stockOutQuantity)} suffix="unit" />
+                          <MetricRow label="Pemakaian internal" value={formatNumber(summary.movementSummary.internalUseQuantity)} suffix="unit" />
+                          <MetricRow label="Barang rusak" value={formatNumber(summary.movementSummary.damagedQuantity)} suffix="unit" />
+                          <MetricRow label="Penyesuaian stok" value={formatNumber(summary.movementSummary.adjustmentQuantity)} suffix="unit" />
+                          <MetricRow label="Log approved" value={formatNumber(summary.movementSummary.approvedLogCount)} />
+                          <MetricRow label="Request pending" value={formatNumber(summary.movementSummary.pendingRequestCount)} />
+                        </div>
+                      </section>
+
+                      <section className="rounded-xl bg-white p-3">
+                        <SectionTitle icon={<ClipboardCheck className="h-3.5 w-3.5" />} label="Status Workflow" />
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <MetricRow label="Penerimaan tunggu owner" value={formatNumber(summary.workflowSummary.submittedInboundReceipts)} />
+                          <MetricRow label="Penerimaan revisi" value={formatNumber(summary.workflowSummary.needsRevisionReceipts)} />
+                          <MetricRow label="Surat Jalan pending" value={formatNumber(summary.workflowSummary.pendingSuratJalan)} />
+                          <MetricRow label="Surat Jalan belum marking" value={formatNumber(summary.workflowSummary.unmarkedSuratJalan)} />
+                          <MetricRow label="Checklist tersisa" value={formatNumber(summary.workflowSummary.dailyChecklistRemaining)} />
+                          <MetricRow label="OUT belum verifikasi" value={formatNumber(summary.workflowSummary.unverifiedOutLogs)} />
+                          <MetricRow label="Laporan rusak pending" value={formatNumber(summary.workflowSummary.damagedReportsPending)} />
+                        </div>
+                      </section>
+
+                      <section className="rounded-xl bg-white p-3">
                         <SectionTitle icon={<ClipboardCheck className="h-3.5 w-3.5" />} label="Cleared Daily Task" />
                         <div className="mt-2 grid gap-2">
                           {summary.tasks.map((task) => (
@@ -441,12 +498,25 @@ function CheckOutHistoryList({
                       </section>
                     </div>
 
-                    {(summary.blockers.length > 0 || summary.note) && (
+                    {(summary.blockers.length > 0 || summary.exceptionNotes.length > 0 || summary.note) && (
                       <div className="mt-3 rounded-xl bg-white p-3">
                         {summary.blockers.length > 0 && (
                           <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
                             <span className="font-bold">Blocker saat penutupan: </span>
                             {summary.blockers.join(", ")}
+                          </div>
+                        )}
+                        {summary.exceptionNotes.length > 0 && (
+                          <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                            <div className="font-bold">Alasan Pengecualian</div>
+                            <div className="mt-2 space-y-2">
+                              {summary.exceptionNotes.map((item) => (
+                                <div key={item.taskId}>
+                                  <span className="font-semibold">{item.label}: </span>
+                                  {item.note}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                         {summary.note && (
@@ -465,6 +535,30 @@ function CheckOutHistoryList({
         )}
       </div>
     </>
+  );
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function MetricRow({
+  label,
+  value,
+  suffix,
+}: {
+  label: string;
+  value: string;
+  suffix?: string;
+}) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-3 py-2">
+      <div className="text-[11px] font-black uppercase text-slate-400">{label}</div>
+      <div className="mt-1 text-lg font-black tabular-nums text-slate-900">
+        {value}
+        {suffix ? <span className="ml-1 text-xs font-bold text-slate-500">{suffix}</span> : null}
+      </div>
+    </div>
   );
 }
 

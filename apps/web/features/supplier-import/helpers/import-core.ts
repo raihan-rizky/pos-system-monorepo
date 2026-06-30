@@ -1,5 +1,5 @@
-import * as XLSX from "xlsx";
 import { z } from "zod";
+import { parseSpreadsheetMatrix } from "@/lib/server/spreadsheet-parser";
 
 import {
   SUPPLIER_TYPES,
@@ -88,17 +88,15 @@ export function normalizeSupplierName(value: unknown): string {
 export function parseImportFile(
   buffer: ArrayBuffer,
   columnMapping?: ColumnMapping,
-): ParsedSupplierImportFile {
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) {
-    return { headers: [], records: [], removedEmptyRowCount: 0 };
-  }
+): Promise<ParsedSupplierImportFile> {
+  return parseSupplierImportFile(buffer, columnMapping);
+}
 
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: "",
-  });
+async function parseSupplierImportFile(
+  buffer: ArrayBuffer,
+  columnMapping?: ColumnMapping,
+): Promise<ParsedSupplierImportFile> {
+  const matrix = await parseSpreadsheetMatrix(buffer);
   const rawHeaders = (matrix[0] ?? [])
     .map((header) => String(header ?? "").trim())
     .filter(Boolean);
