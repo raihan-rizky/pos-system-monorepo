@@ -121,7 +121,7 @@ const NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1/";
 // browser can observe the planning event before the model request finishes.
 const SSE_INITIAL_PADDING = `: ${" ".repeat(8192)}\n`;
 const DEFAULT_WORKFLOW_CLARIFICATION = "Maaf, Pak Tel belum yakin panduan mana yang kamu maksud. Sebutkan menu atau tujuan langkahnya ya.";
-const DEFAULT_ASSISTANT_DEADLINE_MS = 8_000;
+const DEFAULT_ASSISTANT_DEADLINE_MS = 60_000;
 
 const assistantWorkflowSelectionJsonSchema = {
   type: "object",
