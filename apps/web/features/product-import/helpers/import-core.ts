@@ -1,9 +1,7 @@
-import * as XLSX from "xlsx";
 import { z } from "zod";
 import {
   IMPORT_COLUMNS,
   REQUIRED_IMPORT_COLUMNS,
-  type ColumnMapping,
   type ImportPreviewResponse,
   type ImportCleaningFix,
   type NormalizedImportRow,
@@ -219,48 +217,6 @@ function applyImportCleaning(rows: NormalizedImportRow[], warnings: string[]) {
       }
     }
   }
-}
-
-function parseWorkbookRows(buffer: ArrayBuffer, columnMapping?: ColumnMapping) {
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return { headers: [] as string[], records: [] as Record<string, unknown>[] };
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
-
-  const rawHeaders = (matrix[0] ?? []).map((h) => String(h ?? "").trim()).filter(Boolean);
-
-  // Apply column mapping if provided; otherwise auto-normalize via aliases
-  const normalizedHeaders = rawHeaders.map((raw) => {
-    if (columnMapping && raw in columnMapping) {
-      return columnMapping[raw] || ""; // "" means unmapped/ignored
-    }
-    return normalizeHeader(raw);
-  });
-
-  const records = matrix.slice(1).filter((row) => row.some((cell) => normalizeValue(cell))).map((row) => {
-    const record: Record<string, unknown> = {};
-    normalizedHeaders.forEach((header, index) => {
-      if (header) record[header] = row[index];
-    });
-    return record;
-  });
-  return { headers: normalizedHeaders.filter(Boolean), records };
-}
-
-/**
- * Extract raw (unmapped) headers from a file buffer — used client-side for the
- * column-mapping step.
- */
-export function extractRawHeaders(buffer: ArrayBuffer): string[] {
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return [];
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
-  return (matrix[0] ?? []).map((h) => String(h ?? "").trim()).filter(Boolean);
-}
-
-export function parseImportFile(buffer: ArrayBuffer, columnMapping?: ColumnMapping) {
-  return parseWorkbookRows(buffer, columnMapping);
 }
 
 export function buildMissingColumnResponse(headers: string[]) {

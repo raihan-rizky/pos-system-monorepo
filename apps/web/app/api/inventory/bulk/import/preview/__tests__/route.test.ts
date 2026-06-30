@@ -89,6 +89,17 @@ describe("POST /api/inventory/bulk/import/preview", () => {
     expect(body.missingColumns).toEqual(["category", "unit"]);
     expect(findActiveProductsForStockImportMock).not.toHaveBeenCalled();
   });
+
+  it("rejects oversized import files before parsing stock rows", async () => {
+    const response = await POST(request(
+      new File([new Uint8Array(5 * 1024 * 1024 + 1)], "stock-import.xlsx"),
+    ));
+    const body = await response.json();
+
+    expect(response.status).toBe(413);
+    expect(body.message).toContain("terlalu besar");
+    expect(findActiveProductsForStockImportMock).not.toHaveBeenCalled();
+  });
 });
 
 function request(file: File) {

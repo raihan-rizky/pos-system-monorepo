@@ -6,10 +6,15 @@ import type { ColumnMapping } from "@/features/product-import/types";
 import {
   buildMissingColumnResponse,
   normalizeImportRows,
-  parseImportFile,
 } from "@/features/product-import/helpers/import-core";
+import { parseImportFile } from "@/features/product-import/helpers/import-file.server";
 import { resolveProductImportAutoDecisions } from "@/features/product-import/helpers/auto-decisions";
 import { applySameUnitPriceConflicts } from "@/features/product-import/helpers/same-unit-price-conflicts";
+import {
+  IMPORT_FILE_TOO_LARGE_MESSAGE,
+  isImportFileTooLarge,
+} from "@/lib/import-file-size";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 import { getLogger } from "@/lib/logger";
 
@@ -30,6 +35,13 @@ function countResolvedActions(rows: Array<{ autoAction?: string; generatedSku?: 
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:products:import:preview",
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     const user = await requirePermission("product", "create");
     const formData = await request.formData();
@@ -54,6 +66,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Only .csv and .xlsx files are supported" }, { status: 415 });
     }
 
+    if (isImportFileTooLarge(file)) {
+      log.warn("product.import.preview.file_too_large", {
+        userId: user.id,
+        storeId: user.storeId || "store-main",
+        fileName: file.name,
+        fileSizeBytes: file.size,
+      });
+      return NextResponse.json(
+        { message: IMPORT_FILE_TOO_LARGE_MESSAGE },
+        { status: 413 },
+      );
+    }
+
     // Optional column mapping from the client
     const mappingRaw = formData.get("columnMapping");
     const columnMapping: ColumnMapping | undefined = mappingRaw
@@ -71,7 +96,7 @@ export async function POST(request: Request) {
       mappedColumnCount: columnMapping ? Object.values(columnMapping).filter(Boolean).length : 0,
     });
 
-    const { headers, records } = parseImportFile(await file.arrayBuffer(), columnMapping);
+    const { headers, records } = await parseImportFile(await file.arrayBuffer(), columnMapping);
     const { missingColumns, unknownColumns, suggestions } = buildMissingColumnResponse(headers);
 
     log.info("product.import.preview.file_parsed", {

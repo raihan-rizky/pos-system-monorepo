@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-
 export const BULK_STOCK_IMPORT_COLUMNS = [
   "name",
   "category",
@@ -153,43 +151,6 @@ export function buildMissingBulkStockColumns(headers: string[]) {
 function normalizeValue(value: unknown) {
   if (value === undefined || value === null) return "";
   return String(value).trim();
-}
-
-export function parseBulkStockImportFile(
-  buffer: ArrayBuffer,
-  columnMapping?: BulkStockColumnMapping,
-) {
-  const workbook = XLSX.read(buffer, { type: "array", raw: true });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return { headers: [] as string[], records: [] as Record<string, unknown>[] };
-
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: "",
-    raw: true,
-    rawNumbers: false,
-  });
-  const rawHeaders = (matrix[0] ?? []).map((header) =>
-    String(header ?? "").trim(),
-  );
-  const headers = rawHeaders.map((rawHeader) => {
-    if (columnMapping && rawHeader in columnMapping) {
-      return columnMapping[rawHeader] || "";
-    }
-    return normalizeBulkStockHeader(rawHeader);
-  });
-  const records = matrix
-    .slice(1)
-    .filter((row) => row.some((cell) => normalizeValue(cell)))
-    .map((row) => {
-      const record: Record<string, unknown> = {};
-      headers.forEach((header, index) => {
-        if (header) record[header] = row[index];
-      });
-      return record;
-    });
-
-  return { headers: headers.filter(Boolean), records };
 }
 
 export function normalizeBulkStockImportRows(

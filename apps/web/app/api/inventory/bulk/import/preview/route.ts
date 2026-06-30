@@ -4,11 +4,16 @@ import { z } from "zod";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import {
+  IMPORT_FILE_TOO_LARGE_MESSAGE,
+  isImportFileTooLarge,
+} from "@/lib/import-file-size";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import {
   BULK_STOCK_IMPORT_COLUMNS,
   buildMissingBulkStockColumns,
-  parseBulkStockImportFile,
   type BulkStockColumnMapping,
 } from "@/features/bulk-stock-import/helpers/import-core";
+import { parseBulkStockImportFile } from "@/features/bulk-stock-import/helpers/import-file.server";
 import { bulkStockImportRepository } from "@/features/bulk-stock-import/repositories/BulkStockImportRepository";
 import { previewBulkStockImport } from "@/features/bulk-stock-import/services/bulk-stock-import-service";
 
@@ -23,6 +28,13 @@ const columnMappingSchema = z.record(
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
+  const rateLimited = enforceRateLimit(request, {
+    namespace: "api:inventory:bulk-import:preview",
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     const user = await requirePermission("inventory", "update");
     const formData = await request.formData();
@@ -39,12 +51,19 @@ export async function POST(request: Request) {
       );
     }
 
+    if (isImportFileTooLarge(file)) {
+      return NextResponse.json(
+        { message: IMPORT_FILE_TOO_LARGE_MESSAGE },
+        { status: 413 },
+      );
+    }
+
     const mappingRaw = formData.get("columnMapping");
     const columnMapping = mappingRaw
       ? (columnMappingSchema.parse(JSON.parse(String(mappingRaw))) as BulkStockColumnMapping)
       : undefined;
 
-    const parsed = parseBulkStockImportFile(await file.arrayBuffer(), columnMapping);
+    const parsed = await parseBulkStockImportFile(await file.arrayBuffer(), columnMapping);
     const missingColumns = buildMissingBulkStockColumns(parsed.headers);
     if (missingColumns.length > 0) {
       return NextResponse.json(

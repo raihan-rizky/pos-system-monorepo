@@ -77,6 +77,27 @@ describe("POST /api/products/import/preview", () => {
     );
   });
 
+  it("rejects oversized import files before parsing reference data", async () => {
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File([new Uint8Array(5 * 1024 * 1024 + 1)], "products.xlsx"),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/preview", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(413);
+    expect(body.message).toContain("terlalu besar");
+    expect(productFindManyMock).not.toHaveBeenCalled();
+    expect(categoryFindManyMock).not.toHaveBeenCalled();
+  });
+
   it("marks all same SKU/name/category/unit rows with conflicting price data as unresolved conflicts", async () => {
     productFindManyMock.mockResolvedValue([]);
 

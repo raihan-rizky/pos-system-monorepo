@@ -25,6 +25,10 @@ vi.mock("@/components/providers/RoleProvider", () => ({
   }),
 }));
 
+vi.mock("@/features/bulk-stock-approval/hooks/useBulkApproval", () => ({
+  useCancelBulkBatch: () => ({ isPending: false }),
+}));
+
 vi.mock("@/features/internal-use-recap/hooks/useInternalUseRecap", () => ({
   useInternalUseRecap: () => ({
     data: {

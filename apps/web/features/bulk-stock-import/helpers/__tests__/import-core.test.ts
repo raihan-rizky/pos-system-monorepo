@@ -9,8 +9,8 @@ import {
   buildMissingBulkStockColumns,
   normalizeBulkStockHeader,
   normalizeBulkStockImportRows,
-  parseBulkStockImportFile,
 } from "../import-core";
+import { parseBulkStockImportFile } from "../import-file.server";
 
 const products = [
   {
@@ -48,7 +48,7 @@ const products = [
 ];
 
 describe("bulk stock import core", () => {
-  it("parses workbook rows with stock import aliases", () => {
+  it("parses workbook rows with stock import aliases", async () => {
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.aoa_to_sheet([
       ["Name Product", "Kategori", "Satuan", "Stok"],
@@ -57,7 +57,9 @@ describe("bulk stock import core", () => {
     XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1");
     const buffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
 
-    expect(parseBulkStockImportFile(buffer)).toEqual({
+    const parsed = await parseBulkStockImportFile(buffer);
+
+    expect(parsed).toEqual({
       headers: ["name", "category", "unit", "stock"],
       records: [
         {
@@ -70,14 +72,16 @@ describe("bulk stock import core", () => {
     });
   });
 
-  it("parses semicolon CSV rows with Indonesian number formats", () => {
+  it("parses semicolon CSV rows with Indonesian number formats", async () => {
     const csv = [
       "sku;name;category;stock;unit;costPrice;price;minStock",
       "A-001;Acco plastik Joyko;ATK;182,00;Dus;7.600,00;12.000,00;50,00",
     ].join("\n");
     const buffer = new TextEncoder().encode(csv).buffer;
 
-    expect(parseBulkStockImportFile(buffer)).toEqual({
+    const parsed = await parseBulkStockImportFile(buffer);
+
+    expect(parsed).toEqual({
       headers: [
         "sku",
         "name",
@@ -108,7 +112,7 @@ describe("bulk stock import core", () => {
           name: "Acco plastik Joyko",
           category: "ATK",
           unit: "Dus",
-          stock: parseBulkStockImportFile(buffer).records[0].stock,
+          stock: parsed.records[0].stock,
         },
       ],
       [
@@ -131,7 +135,7 @@ describe("bulk stock import core", () => {
     );
   });
 
-  it("keeps cell alignment when the sheet contains blank header columns", () => {
+  it("keeps cell alignment when the sheet contains blank header columns", async () => {
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.aoa_to_sheet([
       ["Name Product", "", "Kategori", "Satuan", "Stok"],
@@ -140,7 +144,9 @@ describe("bulk stock import core", () => {
     XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1");
     const buffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
 
-    expect(parseBulkStockImportFile(buffer).records[0]).toEqual({
+    const parsed = await parseBulkStockImportFile(buffer);
+
+    expect(parsed.records[0]).toEqual({
       name: "Kertas HVS A4",
       category: "ATK",
       unit: "Rim",
