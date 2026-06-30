@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as inventoryApi from "../inventory-management-api";
 import {
   approveInboundReceipt,
   createInboundReceipt,
@@ -7,6 +8,7 @@ import {
   needsRevisionInboundReceipt,
   rejectInboundReceipt,
   submitInboundReceipt,
+  updateAndSubmitInboundReceipt,
   submitDailyStockMatching,
   reportDamagedProduct,
   submitWeeklyCleaningProof,
@@ -87,6 +89,104 @@ describe("inventory management api", () => {
     );
   });
 
+  it("loads the dedicated OUT log verification queue", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: { periodKey: "2026-06-30", items: [] },
+        pagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
+      }),
+    } as Response);
+    const fetchQueue = (
+      inventoryApi as typeof inventoryApi & {
+        fetchOutLogVerificationQueue?: (input: {
+          dateKey: string;
+          page?: number;
+        }) => Promise<unknown>;
+      }
+    ).fetchOutLogVerificationQueue;
+
+    const result = await fetchQueue?.({ dateKey: "2026-06-30", page: 1 });
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/inventory-management/log-verifications?dateKey=2026-06-30&page=1",
+    );
+    expect(result).toEqual({
+      data: { periodKey: "2026-06-30", items: [] },
+      pagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
+    });
+  });
+
+  it("transitions OUT verification and correction through feature-local helpers", async () => {
+    const api = inventoryApi as typeof inventoryApi & {
+      setOutLogVerificationStatus?: (
+        inventoryLogId: string,
+        status: "VERIFIED" | "MISMATCH",
+      ) => Promise<unknown>;
+      createOutLogCorrection?: (input: Record<string, unknown>) => Promise<unknown>;
+      approveOutLogCorrection?: (id: string) => Promise<unknown>;
+      rejectOutLogCorrection?: (id: string, reason: string) => Promise<unknown>;
+    };
+
+    await api.setOutLogVerificationStatus?.("log-1", "MISMATCH");
+    await api.createOutLogCorrection?.({
+      inventoryLogId: "log-1",
+      correctedProductId: "product-2",
+      correctedQuantity: 3,
+      correctedReason: "USAGE",
+      correctedNote: "Data yang benar",
+    });
+    await api.approveOutLogCorrection?.("correction-1");
+    await api.rejectOutLogCorrection?.("correction-2", "Bukti belum cukup");
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/inventory-management/log-verifications",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          inventoryLogId: "log-1",
+          status: "MISMATCH",
+        }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/inventory-management/log-verifications",
+      expect.objectContaining({
+        body: JSON.stringify({
+          action: "CREATE_CORRECTION",
+          inventoryLogId: "log-1",
+          correctedProductId: "product-2",
+          correctedQuantity: 3,
+          correctedReason: "USAGE",
+          correctedNote: "Data yang benar",
+        }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/inventory-management/log-verifications",
+      expect.objectContaining({
+        body: JSON.stringify({
+          action: "APPROVE_CORRECTION",
+          correctionRequestId: "correction-1",
+        }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      "/api/inventory-management/log-verifications",
+      expect.objectContaining({
+        body: JSON.stringify({
+          action: "REJECT_CORRECTION",
+          correctionRequestId: "correction-2",
+          reason: "Bukti belum cukup",
+        }),
+      }),
+    );
+  });
+
   it("throws the server message when a workspace submission fails", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
@@ -130,6 +230,7 @@ describe("inventory management api", () => {
     await createInboundReceipt({
       supplierId: "supplier-1",
       shoppingRequestId: "shopping-1",
+      submitImmediately: true,
       note: "Invoice A",
       lines: [
         {
@@ -145,11 +246,41 @@ describe("inventory management api", () => {
     await approveInboundReceipt("receipt-1");
     await needsRevisionInboundReceipt("receipt-1", "Perlu cek ulang");
     await rejectInboundReceipt("receipt-2", "Tidak cocok");
+    await updateAndSubmitInboundReceipt("receipt-3", {
+      note: "Sudah dicek ulang",
+      lines: [
+        {
+          id: "line-1",
+          productId: "product-1",
+          expectedQuantity: 10,
+          receivedQuantity: 8,
+          status: "PARTIAL",
+          note: "Kurang 2",
+        },
+      ],
+    });
 
     expect(fetch).toHaveBeenNthCalledWith(
       1,
       "/api/inventory-management/inbound-receipts",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          supplierId: "supplier-1",
+          shoppingRequestId: "shopping-1",
+          submitImmediately: true,
+          note: "Invoice A",
+          lines: [
+            {
+              productId: "product-1",
+              expectedQuantity: 10,
+              receivedQuantity: 8,
+              status: "PARTIAL",
+              note: "Kurang 2",
+            },
+          ],
+        }),
+      }),
     );
     expect(fetch).toHaveBeenNthCalledWith(
       2,
@@ -175,6 +306,26 @@ describe("inventory management api", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ rejectionReason: "Tidak cocok" }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      6,
+      "/api/inventory-management/inbound-receipts/receipt-3",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({
+          note: "Sudah dicek ulang",
+          lines: [
+            {
+              id: "line-1",
+              productId: "product-1",
+              expectedQuantity: 10,
+              receivedQuantity: 8,
+              status: "PARTIAL",
+              note: "Kurang 2",
+            },
+          ],
+        }),
       }),
     );
   });

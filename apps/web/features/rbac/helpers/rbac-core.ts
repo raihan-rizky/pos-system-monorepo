@@ -68,6 +68,10 @@ export const RESOURCE_TARGETS = [
   "supplier",
   "inventory",
   "inventory.approve",
+  "inventory.out_log.verify",
+  "inventory.inbound_receipt.approve",
+  "inventory.inbound_receipt.reject",
+  "inventory.inbound_receipt.revise",
   "shift",
   "salesperson",
   "settings",
@@ -196,6 +200,12 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
 const RESOURCE_GRANULAR_ACCESS: Partial<
   Record<string, Record<ResourceAction, Role[]>>
 > = {
+  "inventory.out_log.verify": {
+    read: ["OWNER", "ADMIN", "INVENTORY"],
+    create: [],
+    update: ["OWNER", "ADMIN", "INVENTORY"],
+    delete: [],
+  },
   "transaction.draft": {
     read: ["OWNER", "ADMIN", "CASHIER", "SALES"],
     create: ["OWNER", "ADMIN", "CASHIER", "SALES"],

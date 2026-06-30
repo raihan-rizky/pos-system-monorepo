@@ -1,5 +1,6 @@
 import { db } from "@pos/db";
 import type { InventorySummaryRepository } from "../types/inventory-management";
+import { unresolvedOutLogVerificationWhere } from "../helpers/inventory-management-rules";
 
 function jakartaDayBounds(dateKey: string): { start: Date; end: Date } {
   const [year, month, day] = dateKey.split("-").map(Number);
@@ -26,8 +27,7 @@ export class InventoryManagementRepository implements InventorySummaryRepository
         status: "APPROVED",
         createdAt: { gte: start, lt: end },
         product: { storeId },
-        verification: null,
-        OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
+        ...unresolvedOutLogVerificationWhere(),
       },
     });
   }
@@ -195,8 +195,7 @@ export class InventoryManagementRepository implements InventorySummaryRepository
           status: "APPROVED",
           createdAt: { gte: start, lt: end },
           product: { storeId },
-          verification: null,
-          OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
+          ...unresolvedOutLogVerificationWhere(),
         },
         include: {
           product: { select: { id: true, name: true, sku: true } },

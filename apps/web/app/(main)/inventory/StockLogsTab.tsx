@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useInventoryLogs";
 import { useRole } from "@/components/providers/RoleProvider";
 import { useCancelBulkBatch } from "@/features/bulk-stock-approval/hooks/useBulkApproval";
+import { OutLogVerificationBadge } from "@/features/inventory-management/components/OutLogVerificationPanel";
 
 import {
   PackagePlus,
@@ -89,6 +90,28 @@ function statusLabel(status: InventoryLogStatus): string {
   if (status === "PENDING") return "Pending";
   if (status === "APPROVED") return "Disetujui";
   return "Ditolak";
+}
+
+function getOutLogVerificationState(log: InventoryLog) {
+  if (log.type !== "OUT") return null;
+  return log.verificationState ?? null;
+}
+
+function outLogVerificationRowClass(
+  state: NonNullable<InventoryLog["verificationState"]> | null,
+) {
+  if (!state) return "border-slate-50";
+  if (state === "VERIFIED") return "border-emerald-200 bg-emerald-50/30";
+  if (state === "MISMATCH" || state === "CORRECTION_REJECTED") {
+    return "border-rose-200 bg-rose-50/30";
+  }
+  if (state === "CORRECTION_PENDING") {
+    return "border-amber-200 bg-amber-50/30";
+  }
+  if (state === "READY_FOR_REVIEW") {
+    return "border-sky-200 bg-sky-50/30";
+  }
+  return "border-slate-200 bg-slate-50/40";
 }
 
 export default function StockLogsTab() {
@@ -321,9 +344,10 @@ export default function StockLogsTab() {
                   const isRejected = log.status === "REJECTED";
                   const canCancel = isPending && log.createdBy === userId;
                   const rowMuted = isRejected ? "opacity-60" : "";
+                  const outLogVerificationState = getOutLogVerificationState(log);
                   return (
                     <React.Fragment key={log.id}>
-                      <tr className={`group border-b border-slate-50 hover:bg-blue-50/30 transition-colors duration-150 ${rowMuted}`}>
+                      <tr className={`group border-b hover:bg-blue-50/30 transition-colors duration-150 ${outLogVerificationRowClass(outLogVerificationState)} ${rowMuted}`}>
                         <td className="py-3 px-3 align-middle relative">
                           {isPending && (
                             <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />
@@ -331,6 +355,11 @@ export default function StockLogsTab() {
                           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusPillClass(log.status)}`}>
                             {statusLabel(log.status)}
                           </span>
+                          {outLogVerificationState && (
+                            <div className="mt-1">
+                              <OutLogVerificationBadge state={outLogVerificationState} />
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-3 align-middle">
                           <p className="text-sm font-semibold text-slate-900 tabular-nums">{formatDate(log.createdAt)}</p>
@@ -428,10 +457,11 @@ export default function StockLogsTab() {
               const isPending = log.status === "PENDING";
               const isRejected = log.status === "REJECTED";
               const canCancel = isPending && log.createdBy === userId;
+              const outLogVerificationState = getOutLogVerificationState(log);
               return (
                 <div
                   key={log.id}
-                  className={`relative min-w-0 overflow-hidden bg-white rounded-2xl p-4 border ${isPending ? "border-amber-200" : "border-slate-100"} shadow-[0_2px_12px_rgba(0,0,0,0.03)] ${isRejected ? "opacity-70" : ""}`}
+                  className={`relative min-w-0 overflow-hidden rounded-2xl p-4 border ${outLogVerificationState ? outLogVerificationRowClass(outLogVerificationState) : isPending ? "border-amber-200 bg-white" : "border-slate-100 bg-white"} shadow-[0_2px_12px_rgba(0,0,0,0.03)] ${isRejected ? "opacity-70" : ""}`}
                 >
                   {isPending && (
                     <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-1 bg-amber-400 rounded-r" />
@@ -464,6 +494,9 @@ export default function StockLogsTab() {
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusPillClass(log.status)}`}>
                       {statusLabel(log.status)}
                     </span>
+                    {outLogVerificationState && (
+                      <OutLogVerificationBadge state={outLogVerificationState} />
+                    )}
                   </div>
 
                   <div className="mt-2 pt-2 border-t border-slate-50 space-y-1">

@@ -39,6 +39,7 @@ import type { InventorySummary } from "../types/inventory-management";
 import { useRole } from "@/components/providers/RoleProvider";
 import { sortTaskChecklistItems } from "../helpers/task-checklist";
 import type { InventoryTaskPriority } from "../helpers/task-checklist";
+import { getDailyMatchingWindowStatus } from "../helpers/inventory-management-rules";
 
 import { DailyMatchingModal } from "./DailyMatchingModal";
 import { WeeklyProofModal } from "./WeeklyProofModal";
@@ -51,8 +52,15 @@ import { InboundReceiptTab } from "./InboundReceiptTab";
 import { StockGroupBulkPanel } from "./StockGroupBulkPanel";
 import { InventoryDaySessionPanel } from "./InventoryDaySessionPanel";
 import { InventoryDaySessionHistory } from "./InventoryDaySessionHistory";
+import { OutLogVerificationPanel } from "./OutLogVerificationPanel";
 import { ChartAiInsightButton } from "@/features/chart-ai-insight/ChartAiInsightButton";
 import type { InventoryDaySessionPreview } from "../api/inventory-management-api";
+
+export {
+  OutLogVerificationBadge,
+  OutLogVerificationRow,
+} from "./OutLogVerificationPanel";
+export { OutLogVerificationPanel };
 
 
 const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
@@ -111,15 +119,19 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   defaultTab,
   initialDaySessionPreview,
 }) => {
-  const { canPerform } = useRole();
+  const { canPerform, userId } = useRole();
   const [activeTab, setActiveTab] = React.useState<typeof MAIN_TABS[number]>(
     defaultTab ?? "Ringkasan"
   );
   const [activeTugasTab, setActiveTugasTab] = React.useState<typeof TUGAS_TABS[number]>("Tugas Harian");
   const [activeTransaksiTab, setActiveTransaksiTab] = React.useState<typeof TRANSAKSI_TABS[number]>("Penerimaan Barang");
   const [activeRiwayatTab, setActiveRiwayatTab] = React.useState<typeof RIWAYAT_TABS[number]>("Log Stok");
+  const [activeTaskPanel, setActiveTaskPanel] = React.useState<
+    "out-log-verification" | null
+  >(null);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [matchingWindowNow, setMatchingWindowNow] = React.useState(() => new Date());
   const [activeModal, setActiveModal] = React.useState<
     "matching" | "weeklyProof" | "damaged" | "inbound" | "internalStockOut" | null
   >(null);
@@ -140,6 +152,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     daySessionPreview?.session?.status === "CHECKED_IN" ||
     daySessionPreview?.session?.status === "CHECKED_OUT";
   const isDaySessionLoaded = daySessionPreview !== null;
+  const dailyMatchingWindowStatus = React.useMemo(
+    () => getDailyMatchingWindowStatus(matchingWindowNow),
+    [matchingWindowNow],
+  );
 
   const loadChecklistItems = React.useCallback(async () => {
     if (activeTab !== "Tugas") return;
@@ -161,6 +177,14 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   React.useEffect(() => {
     void loadChecklistItems();
   }, [loadChecklistItems]);
+
+  React.useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setMatchingWindowNow(new Date());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const handleSuccess = (message: string) => {
     setStatusMessage(message);
@@ -291,14 +315,34 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     [],
   );
 
+  const openDailyMatchingModal = React.useCallback(() => {
+    if (!dailyMatchingWindowStatus.isOpen) {
+      setErrorMessage(dailyMatchingWindowStatus.message);
+      setStatusMessage(null);
+      return;
+    }
+    setActiveModal("matching");
+  }, [dailyMatchingWindowStatus]);
+
+  const openOutLogVerificationPanel = React.useCallback(() => {
+    setActiveTugasTab("Tugas Harian");
+    setActiveTaskPanel("out-log-verification");
+    setActiveTab("Tugas");
+  }, []);
+
   const dailyFixedTasks = [
     {
       title: "Matching Stok Harian",
       detail: `Periode: ${initialSummary.period.dateKey}`,
-      status: initialSummary.counts.dailyMatchingIncomplete ? "Belum selesai" : "Selesai",
+      status: initialSummary.counts.dailyMatchingIncomplete
+        ? dailyMatchingWindowStatus.isOpen
+          ? "Belum selesai"
+          : dailyMatchingWindowStatus.badgeLabel
+        : "Selesai",
       isDone: !initialSummary.counts.dailyMatchingIncomplete,
-      action: "Buka matching",
-      onClick: () => setActiveModal("matching"),
+      action: dailyMatchingWindowStatus.isOpen ? "Buka matching" : dailyMatchingWindowStatus.badgeLabel,
+      onClick: openDailyMatchingModal,
+      isDisabled: !dailyMatchingWindowStatus.isOpen,
       icon: Calendar,
     },
     {
@@ -315,11 +359,8 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       detail: `${initialSummary.counts.unverifiedOutLogs} log perlu verifikasi`,
       status: initialSummary.counts.unverifiedOutLogs > 0 ? "Perlu verifikasi" : "Selesai",
       isDone: initialSummary.counts.unverifiedOutLogs === 0,
-      action: "Buka log stok",
-      onClick: () => {
-        setActiveTab("Riwayat");
-        setActiveRiwayatTab("Log Stok");
-      },
+      action: "Verifikasi sekarang",
+      onClick: openOutLogVerificationPanel,
       icon: LogOut,
     },
   ];
@@ -357,12 +398,18 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       <div className="mt-5 grid gap-3">
         {activeFixedTasks.map((task) => {
           const Icon = task.icon;
+          const isTaskDisabled = Boolean("isDisabled" in task && task.isDisabled);
           return (
             <button
               key={task.title}
               type="button"
               onClick={task.onClick}
-              className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/70 p-4 text-left transition hover:bg-slate-100"
+              disabled={isTaskDisabled}
+              className={`flex w-full items-center justify-between gap-4 rounded-xl border border-slate-100 p-4 text-left transition ${
+                isTaskDisabled
+                  ? "cursor-not-allowed bg-slate-50/70 opacity-70"
+                  : "bg-slate-50/70 hover:bg-slate-100"
+              }`}
             >
               <div className="flex min-w-0 items-center gap-3">
                 <div
@@ -605,13 +652,29 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setActiveModal("matching");
+                        openDailyMatchingModal();
                         setIsDropdownOpen(false);
                       }}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 cursor-pointer transition-colors"
+                      disabled={!dailyMatchingWindowStatus.isOpen}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-bold transition-colors ${
+                        dailyMatchingWindowStatus.isOpen
+                          ? "cursor-pointer text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                          : "cursor-not-allowed text-slate-400"
+                      }`}
                     >
-                      <Check className="h-4 w-4 text-emerald-500" />
-                      <span>Cocokkan Stok (Harian)</span>
+                      <Check
+                        className={`h-4 w-4 ${
+                          dailyMatchingWindowStatus.isOpen
+                            ? "text-emerald-500"
+                            : "text-slate-300"
+                        }`}
+                      />
+                      <span>
+                        Cocokkan Stok (Harian)
+                        {!dailyMatchingWindowStatus.isOpen
+                          ? ` - ${dailyMatchingWindowStatus.badgeLabel}`
+                          : ""}
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -722,8 +785,13 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             {/* Daily Matching */}
             <button 
               type="button"
-              onClick={() => setActiveModal("matching")}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-all cursor-pointer text-left active:scale-[0.99]"
+              onClick={openDailyMatchingModal}
+              disabled={!dailyMatchingWindowStatus.isOpen}
+              className={`w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 transition-all text-left ${
+                dailyMatchingWindowStatus.isOpen
+                  ? "bg-slate-50/50 hover:bg-slate-100 cursor-pointer active:scale-[0.99]"
+                  : "bg-slate-50/50 cursor-not-allowed opacity-70"
+              }`}
             >
               <div className="flex items-center gap-3">
                 <div
@@ -750,15 +818,24 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                     Verifikasi dulu
                   </span>
                 )}
+                {!dailyMatchingWindowStatus.isOpen && (
+                  <span className="hidden rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 sm:inline">
+                    {dailyMatchingWindowStatus.badgeLabel}
+                  </span>
+                )}
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                     initialSummary.counts.dailyMatchingIncomplete
-                      ? "bg-amber-100 text-amber-800"
+                      ? dailyMatchingWindowStatus.isOpen
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-slate-100 text-slate-600"
                       : "bg-emerald-100 text-emerald-800"
                   }`}
                 >
                   {initialSummary.counts.dailyMatchingIncomplete
-                    ? "Belum match"
+                    ? dailyMatchingWindowStatus.isOpen
+                      ? "Belum match"
+                      : "Terkunci"
                     : "Selesai"}
                 </span>
               </div>
@@ -767,10 +844,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             {/* Unverified OUT logs */}
             <button 
               type="button"
-              onClick={() => {
-                setActiveTab("Riwayat");
-                setActiveRiwayatTab("Log Stok");
-              }}
+              onClick={openOutLogVerificationPanel}
               className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-all cursor-pointer text-left active:scale-[0.99]"
             >
               <div className="flex items-center gap-3">
@@ -802,6 +876,11 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 >
                   {initialSummary.counts.unverifiedOutLogs > 0 ? "Verifikasi dulu" : "Selesai"}
                 </span>
+                {initialSummary.counts.unverifiedOutLogs > 0 && (
+                  <span className="ml-2 hidden text-xs font-bold text-slate-500 sm:inline">
+                    Verifikasi sekarang
+                  </span>
+                )}
               </div>
             </button>
 
@@ -829,6 +908,44 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                   {initialSummary.counts.damagedReportsPending} pending
                 </span>
               </div>
+            </button>
+
+            {/* Inbound receipt revisions */}
+            <button
+              type="button"
+              onClick={() => openTransactionTab("Penerimaan Barang")}
+              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-all cursor-pointer text-left active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-2 rounded-lg ${
+                    initialSummary.counts.needsRevisionReceipts > 0
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}
+                >
+                  <Pencil className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Revisi Penerimaan Barang
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Filter Perlu Revisi lalu ajukan ulang
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                  initialSummary.counts.needsRevisionReceipts > 0
+                    ? "bg-rose-100 text-rose-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {initialSummary.counts.needsRevisionReceipts > 0
+                  ? `${initialSummary.counts.needsRevisionReceipts} perlu revisi`
+                  : "Selesai"}
+              </span>
             </button>
 
             {/* Manual checklist */}
@@ -1358,7 +1475,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                   {TUGAS_TABS.map((tab) => (
                     <button
                       key={tab}
-                      onClick={() => setActiveTugasTab(tab)}
+                      onClick={() => {
+                        setActiveTugasTab(tab);
+                        setActiveTaskPanel(null);
+                      }}
                       className={`shrink-0 rounded-lg px-4 py-1.5 text-sm font-bold transition-all ${
                         activeTugasTab === tab
                           ? "bg-white text-slate-900 shadow-sm"
@@ -1370,10 +1490,23 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                   ))}
                 </div>
                 {activeTugasTab === "Tugas Harian" && (
-                  <>
-                    {renderFixedTaskQueue()}
-                    {renderChecklistPanel()}
-                  </>
+                  activeTaskPanel === "out-log-verification" ? (
+                    <OutLogVerificationPanel
+                      dateKey={initialSummary.period.dateKey}
+                      canVerify={canPerform("inventory.out_log.verify", "update")}
+                      canApprove={canPerform("inventory.approve", "update")}
+                      currentUserId={userId}
+                      onBack={() => setActiveTaskPanel(null)}
+                      onChanged={() =>
+                        handleSuccess("Status verifikasi Log OUT diperbarui.")
+                      }
+                    />
+                  ) : (
+                    <>
+                      {renderFixedTaskQueue()}
+                      {renderChecklistPanel()}
+                    </>
+                  )
                 )}
                 {activeTugasTab === "Tugas Mingguan" && (
                   <>

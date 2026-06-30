@@ -1,8 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { OutLogVerificationState } from "@/features/inventory-management/helpers/inventory-management-rules";
 
 export type InventoryLogStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type InventoryLogCorrectionStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELLED";
 
 export interface InventoryLog {
   id: string;
@@ -19,6 +25,29 @@ export interface InventoryLog {
   approverName: string | null;
   decidedAt: string | null;
   rejectionReason: string | null;
+  verificationState?: OutLogVerificationState;
+  verification?: { status: "UNVERIFIED" | "VERIFIED" | "MISMATCH" } | null;
+  latestCorrection?: {
+    id: string;
+    status: InventoryLogCorrectionStatus;
+    correctedProductId: string;
+    correctedQuantity: number;
+    correctedReason: string;
+    correctedNote: string | null;
+    requestedBy: string;
+    decidedBy: string | null;
+    decidedAt: string | null;
+    rejectionReason: string | null;
+    correctedProduct?: {
+      id: string;
+      name: string;
+      sku: string;
+      unit: string;
+      stock: number;
+      imageUrl: string | null;
+      category: { name: string; icon: string | null } | null;
+    } | null;
+  } | null;
   supplierId?: string | null;
   supplier?: { id: string; name: string } | null;
   product: {

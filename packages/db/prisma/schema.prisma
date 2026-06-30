@@ -37,6 +37,8 @@ model User {
   inboundReceiptsSubmitted            InventoryInboundReceipt[]      @relation("inventory_inbound_submitter")
   inboundReceiptsApproved             InventoryInboundReceipt[]      @relation("inventory_inbound_approver")
   inventoryLogVerifications           InventoryLogVerification[]     @relation("inventory_log_verifier")
+  inventoryLogCorrectionsRequested    InventoryLogCorrectionRequest[] @relation("inventory_log_correction_requester")
+  inventoryLogCorrectionsDecided      InventoryLogCorrectionRequest[] @relation("inventory_log_correction_decider")
   internalStockOutRequestsCreated     InternalStockOutRequest[]      @relation("internal_stock_out_requester")
   internalStockOutRequestsApproved    InternalStockOutRequest[]      @relation("internal_stock_out_approver")
   internalStockOutRequestsRejected    InternalStockOutRequest[]      @relation("internal_stock_out_rejector")
@@ -69,6 +71,7 @@ model Store {
   inventoryTaskChecklistItems   InventoryTaskChecklistItem[]
   inventoryInboundReceipts     InventoryInboundReceipt[]
   inventoryLogVerifications    InventoryLogVerification[]
+  inventoryLogCorrections      InventoryLogCorrectionRequest[]
   internalStockOutRequests     InternalStockOutRequest[]
   productStockGroups           ProductStockGroup[]
   productionActivityLogs       ProductionActivityLog[]
@@ -120,6 +123,7 @@ model Product {
   batchItems              BatchOperationItem[]
   inventoryInboundLines    InventoryInboundReceiptLine[]
   inventoryLogs           InventoryLog[]
+  inventoryLogCorrections InventoryLogCorrectionRequest[] @relation("inventory_log_corrected_product")
   inventoryProductionMaterials InventoryProductionMaterial[]
   internalStockOutRequests InternalStockOutRequest[]
   priceLogs               ProductPriceLog[]
@@ -449,6 +453,8 @@ model InventoryLog {
   suratJalanId    String?
   product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   verification    InventoryLogVerification?
+  correctionRequests InventoryLogCorrectionRequest[] @relation("inventory_log_correction_source")
+  correctionMovements InventoryLogCorrectionMovement[]
   supplier        Supplier?          @relation(fields: [supplierId], references: [id])
   suratJalan      SuratJalan?        @relation(fields: [suratJalanId], references: [id])
   transaction     Transaction?       @relation(fields: [transactionId], references: [id])
@@ -480,6 +486,49 @@ model InventoryLogVerification {
   @@index([storeId, status, updatedAt])
   @@index([verifiedBy, verifiedAt])
   @@map("pos_inventory_log_verifications")
+}
+
+model InventoryLogCorrectionRequest {
+  id                 String                       @id @default(cuid())
+  storeId            String
+  inventoryLogId     String
+  correctedProductId String
+  correctedQuantity  Float
+  correctedReason    InventoryReason
+  correctedNote      String?
+  status             InventoryLogCorrectionStatus @default(PENDING)
+  requestedBy        String
+  decidedBy          String?
+  decidedAt          DateTime?
+  rejectionReason    String?
+  version            Int                          @default(1)
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  store              Store                        @relation(fields: [storeId], references: [id])
+  inventoryLog       InventoryLog                 @relation("inventory_log_correction_source", fields: [inventoryLogId], references: [id], onDelete: Cascade)
+  correctedProduct   Product                      @relation("inventory_log_corrected_product", fields: [correctedProductId], references: [id])
+  requester          User                         @relation("inventory_log_correction_requester", fields: [requestedBy], references: [id])
+  decider            User?                        @relation("inventory_log_correction_decider", fields: [decidedBy], references: [id])
+  movements          InventoryLogCorrectionMovement[]
+
+  @@index([storeId, status, createdAt])
+  @@index([inventoryLogId, status, createdAt])
+  @@index([correctedProductId])
+  @@index([requestedBy, createdAt])
+  @@map("pos_inventory_log_correction_requests")
+}
+
+model InventoryLogCorrectionMovement {
+  id                  String                             @id @default(cuid())
+  correctionRequestId String
+  inventoryLogId      String                             @unique
+  kind                InventoryLogCorrectionMovementKind
+  createdAt           DateTime                           @default(now())
+  correctionRequest   InventoryLogCorrectionRequest      @relation(fields: [correctionRequestId], references: [id], onDelete: Cascade)
+  inventoryLog        InventoryLog                       @relation(fields: [inventoryLogId], references: [id], onDelete: Cascade)
+
+  @@index([correctionRequestId, kind])
+  @@map("pos_inventory_log_correction_movements")
 }
 
 model InventoryTask {
@@ -1382,6 +1431,19 @@ enum BatchOperationType {
   BULK_STOCK_GROUP_ADJUSTMENT
   DAILY_STOCK_MATCHING
   UNDO
+}
+
+enum InventoryLogCorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum InventoryLogCorrectionMovementKind {
+  NET
+  REVERSAL
+  REPLACEMENT
 }
 
 enum BatchOperationStatus {

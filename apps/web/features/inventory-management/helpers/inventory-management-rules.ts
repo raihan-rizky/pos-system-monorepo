@@ -24,6 +24,96 @@ export interface InventoryUrgentCounts {
   unmarkedSuratJalan?: number;
 }
 
+export type OutLogVerificationState =
+  | "UNVERIFIED"
+  | "VERIFIED"
+  | "MISMATCH"
+  | "CORRECTION_PENDING"
+  | "CORRECTION_REJECTED"
+  | "READY_FOR_REVIEW";
+
+export function resolveOutLogVerificationState(input: {
+  verificationStatus: "UNVERIFIED" | "VERIFIED" | "MISMATCH" | null;
+  correctionStatus: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | null;
+}): OutLogVerificationState {
+  if (
+    input.verificationStatus === "MISMATCH" &&
+    input.correctionStatus === "PENDING"
+  ) {
+    return "CORRECTION_PENDING";
+  }
+  if (
+    input.verificationStatus === "MISMATCH" &&
+    input.correctionStatus === "REJECTED"
+  ) {
+    return "CORRECTION_REJECTED";
+  }
+  if (
+    input.verificationStatus === "MISMATCH" &&
+    input.correctionStatus === "APPROVED"
+  ) {
+    return "READY_FOR_REVIEW";
+  }
+
+  return input.verificationStatus ?? "UNVERIFIED";
+}
+
+export interface OutLogCorrectionMovement {
+  productId: string;
+  delta: number;
+  kind: "NET" | "REVERSAL" | "REPLACEMENT";
+}
+
+export function calculateOutLogCorrectionMovements(input: {
+  originalProductId: string;
+  originalQuantity: number;
+  correctedProductId: string;
+  correctedQuantity: number;
+}): OutLogCorrectionMovement[] {
+  if (input.originalProductId === input.correctedProductId) {
+    const delta = input.originalQuantity - input.correctedQuantity;
+    return delta === 0
+      ? []
+      : [{ productId: input.originalProductId, delta, kind: "NET" }];
+  }
+
+  return [
+    {
+      productId: input.originalProductId,
+      delta: input.originalQuantity,
+      kind: "REVERSAL",
+    },
+    {
+      productId: input.correctedProductId,
+      delta: -input.correctedQuantity,
+      kind: "REPLACEMENT",
+    },
+  ];
+}
+
+export function unresolvedOutLogVerificationWhere() {
+  return {
+    AND: [
+      { OR: [{ reason: "USAGE" as const }, { reason: "MANUAL_ADJUSTMENT" as const }] },
+      {
+        OR: [
+          { verification: null },
+          {
+            verification: {
+              status: { in: ["UNVERIFIED" as const, "MISMATCH" as const] },
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export const DAILY_MATCHING_WINDOW_LABEL = "15:00-20:00 WIB";
+
+const DAILY_MATCHING_START_SECONDS = 15 * 60 * 60;
+const DAILY_MATCHING_END_SECONDS = 20 * 60 * 60;
+
 export function classifyStockTask(input: StockTaskInput): StockTaskKind {
   if (input.stock < 0) return "NEGATIVE_STOCK";
   if (input.stock === 0) return "OUT_OF_STOCK";
@@ -65,6 +155,50 @@ export function isJakartaSaturday(date: Date): boolean {
     timeZone: "Asia/Jakarta",
     weekday: "short",
   }).format(date) === "Sat";
+}
+
+function jakartaSecondsSinceMidnight(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  const second = Number(parts.find((part) => part.type === "second")?.value ?? 0);
+
+  return hour * 60 * 60 + minute * 60 + second;
+}
+
+export function isDailyMatchingWindowOpen(date: Date = new Date()): boolean {
+  const seconds = jakartaSecondsSinceMidnight(date);
+  return (
+    seconds >= DAILY_MATCHING_START_SECONDS &&
+    seconds <= DAILY_MATCHING_END_SECONDS
+  );
+}
+
+export function getDailyMatchingWindowStatus(date: Date = new Date()) {
+  const seconds = jakartaSecondsSinceMidnight(date);
+  const isOpen =
+    seconds >= DAILY_MATCHING_START_SECONDS &&
+    seconds <= DAILY_MATCHING_END_SECONDS;
+
+  return {
+    isOpen,
+    label: DAILY_MATCHING_WINDOW_LABEL,
+    badgeLabel: isOpen
+      ? "Sedang dibuka"
+      : seconds < DAILY_MATCHING_START_SECONDS
+        ? "Buka 15:00 WIB"
+        : "Tutup 20:00 WIB",
+    message: isOpen
+      ? "Matching stok harian sedang bisa dikerjakan."
+      : `Matching stok harian hanya dibuka pukul ${DAILY_MATCHING_WINDOW_LABEL}.`,
+  };
 }
 
 export function buildInventoryUrgentCount(

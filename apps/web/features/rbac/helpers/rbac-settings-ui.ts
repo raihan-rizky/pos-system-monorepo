@@ -187,7 +187,13 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     label: "Approval Inventory",
     description: "Persetujuan perubahan stok dan penerimaan.",
     pageTargets: [],
-    resourceTargets: ["inventory.approve"],
+    resourceTargets: [
+      "inventory.approve",
+      "inventory.out_log.verify",
+      "inventory.inbound_receipt.approve",
+      "inventory.inbound_receipt.reject",
+      "inventory.inbound_receipt.revise",
+    ],
     sensitivity: "critical",
   },
   {

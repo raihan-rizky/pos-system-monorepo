@@ -33,11 +33,29 @@ describe("FAQ workflow catalog", () => {
     }
   });
 
-  it("keeps inbound receipt approval guidance aligned with owner-locked RBAC", () => {
+  it("keeps inbound receipt guidance aligned with submit, revision, and granular decision RBAC", () => {
     const inbound = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 17);
 
     expect(inbound).toBeDefined();
-    expect(JSON.stringify(inbound)).toContain("OWNER");
+    const serializedInbound = JSON.stringify(inbound);
+    expect(serializedInbound).toContain("Ajukan ke Owner");
+    expect(serializedInbound).toContain("Sudah dibuat");
+    expect(serializedInbound).toContain("Perlu Revisi");
+    expect(serializedInbound).toContain("inventory.inbound_receipt.approve");
+    expect(serializedInbound).toContain("inventory.inbound_receipt.reject");
+    expect(serializedInbound).toContain("inventory.inbound_receipt.revise");
     expect(JSON.stringify(inbound)).not.toContain("admin dengan izin `inventory.approve`");
+  });
+
+  it("keeps inventory daily workflow aligned with Log OUT verification RBAC and correction flow", () => {
+    const inventoryWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 30);
+
+    expect(inventoryWorkflow).toBeDefined();
+    const serializedWorkflow = JSON.stringify(inventoryWorkflow);
+    expect(serializedWorkflow).toContain("Log OUT Belum Diverifikasi");
+    expect(serializedWorkflow).toContain("Setujui");
+    expect(serializedWorkflow).toContain("Perlu Koreksi");
+    expect(serializedWorkflow).toContain("tombol Koreksi");
+    expect(serializedWorkflow).toContain("inventory.out_log.verify");
   });
 });

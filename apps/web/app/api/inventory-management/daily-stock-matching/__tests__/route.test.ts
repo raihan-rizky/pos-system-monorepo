@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { POST } from "../route";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GET, POST } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
@@ -37,6 +37,8 @@ function post(body: unknown) {
 describe("POST /api/inventory-management/daily-stock-matching", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-25T08:00:00.000Z"));
     handleAuthErrorMock.mockReturnValue(null);
     requirePermissionMock.mockResolvedValue({
       id: "inventory-1",
@@ -70,6 +72,10 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("submits daily stock matching when all internal stock-out logs are verified", async () => {
     const response = await post({
       now: "2026-06-25T08:00:00.000Z",
@@ -85,8 +91,15 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
           type: "OUT",
           status: "APPROVED",
           product: { storeId: "store-main" },
-          verification: null,
-          OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
+          AND: [
+            { OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }] },
+            {
+              OR: [
+                { verification: null },
+                { verification: { status: { in: ["UNVERIFIED", "MISMATCH"] } } },
+              ],
+            },
+          ],
         }),
       }),
     );
@@ -126,6 +139,101 @@ describe("POST /api/inventory-management/daily-stock-matching", () => {
     expect(body.unverifiedCount).toBe(2);
     expect(inventoryLogFindManyMock).not.toHaveBeenCalled();
     expect(inventoryTaskUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("builds matching rows from an approved and re-verified correction", async () => {
+    inventoryLogFindManyMock.mockResolvedValue([
+      {
+        id: "log-1",
+        productId: "product-wrong",
+        quantity: 10,
+        verification: { status: "VERIFIED" },
+        correctionRequests: [
+          {
+            status: "APPROVED",
+            correctedProductId: "product-right",
+            correctedQuantity: 4,
+            correctedProduct: {
+              id: "product-right",
+              name: "Tinta Hitam",
+              sku: "INK-001",
+              unit: "botol",
+              stock: 6,
+              imageUrl: null,
+              category: { name: "Tinta", icon: null },
+              stockGroup: null,
+            },
+          },
+        ],
+        product: {
+          id: "product-wrong",
+          name: "Kertas A4",
+          sku: "A4-001",
+          unit: "rim",
+          stock: 20,
+          imageUrl: null,
+          category: { name: "Kertas", icon: null },
+          stockGroup: null,
+        },
+      },
+    ]);
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/inventory-management/daily-stock-matching?now=2026-06-25T08:00:00.000Z",
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.rows).toEqual([
+      expect.objectContaining({
+        productId: "product-right",
+        totalOut: 4,
+        expectedAfterStock: 6,
+        stockBeforeOut: 10,
+      }),
+    ]);
+  });
+
+  it("rejects daily matching before 15:00 WIB", async () => {
+    vi.setSystemTime(new Date("2026-06-25T07:59:59.000Z"));
+
+    const response = await post({
+      now: "2026-06-25T07:59:59.000Z",
+      lines: [{ productId: "product-1", physicalStock: 8 }],
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.message).toContain("15:00-20:00 WIB");
+    expect(inventoryLogCountMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts daily matching exactly at 20:00 WIB", async () => {
+    vi.setSystemTime(new Date("2026-06-25T13:00:00.000Z"));
+
+    const response = await post({
+      now: "2026-06-25T13:00:00.000Z",
+      lines: [{ productId: "product-1", physicalStock: 8 }],
+    });
+
+    expect(response.status).toBe(200);
+    expect(inventoryTaskUpsertMock).toHaveBeenCalled();
+  });
+
+  it("rejects daily matching after 20:00 WIB", async () => {
+    vi.setSystemTime(new Date("2026-06-25T13:00:01.000Z"));
+
+    const response = await post({
+      now: "2026-06-25T13:00:01.000Z",
+      lines: [{ productId: "product-1", physicalStock: 8 }],
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.message).toContain("15:00-20:00 WIB");
+    expect(inventoryLogCountMock).not.toHaveBeenCalled();
   });
 
   it("rejects users without a store scope", async () => {

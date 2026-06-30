@@ -24,6 +24,24 @@ Pada layar HP, sub-tab **Riwayat** dapat digeser horizontal agar semua pilihan t
 
 Menu **Input / Transaksi** menyediakan **Cocokkan Stok (Harian)**, **Proof Kebersihan (Mingguan)**, **Laporkan Barang Rusak**, **Penerimaan Barang**, dan **Stock Out Internal**.
 
+### Verifikasi Log OUT
+Verifikasi Log OUT adalah pengecekan kebenaran catatan barang keluar, bukan matching stok fisik. Buka **Tugas > Tugas Harian > Log OUT Belum Diverifikasi** setelah Check In.
+
+- Klik **Setujui** jika produk, qty, alasan, dan catatan sudah benar. Badge baris menjadi **Sesuai**.
+- Klik **Perlu Koreksi** jika ada data yang salah. Badge dan warna baris menjadi **Perlu Koreksi**, lalu tombol **Koreksi** tersedia di antrean verifikasi.
+- Form koreksi dapat memperbaiki produk, qty, alasan, dan catatan. Koreksi menunggu approval maker-checker; pembuat koreksi tidak boleh menyetujui koreksinya sendiri.
+- Setelah koreksi disetujui, baris masuk status **Siap Dicek Ulang** dan harus disetujui ulang sebelum dianggap selesai.
+- **Log Stok** hanya menampilkan warna dan badge status verifikasi. Tombol **Setujui**, **Perlu Koreksi**, dan **Koreksi** hanya ada di antrean verifikasi Log OUT.
+- Matching stok harian dan Check Out tetap diblokir selama masih ada Log OUT yang belum final **Sesuai**.
+
+### Matching Stok Harian
+Matching stok harian hanya dibuka pukul **15:00-20:00 WIB**. Di luar jam tersebut, tombol tugas dan menu **Cocokkan Stok (Harian)** dikunci, dan submit endpoint juga menolak pengiriman.
+
+Saat modal dibuka, klik input **Stok Gudang** pada setiap baris yang dicek. Sistem otomatis menampilkan indikator:
+- **Sesuai**: stok gudang sama dengan ekspektasi sistem.
+- **Selisih**: stok gudang berbeda dari ekspektasi, sehingga catatan wajib diisi.
+- **Belum valid**: input stok gudang kosong/tidak valid dan tombol **Submit Matching** diblokir.
+
 ### Alur Sesi Harian (Check In & Check Out)
 Staf gudang mengelola operasional harian melalui sesi:
 1. **Check In (Morning Check):** Dilakukan di awal hari kerja sebelum mengakses tab Tugas. Terdiri dari peninjauan risiko stok, perhitungan bahan produksi utama, dan checklist pemeriksaan area kerja & keselamatan (Workspace & Safety).

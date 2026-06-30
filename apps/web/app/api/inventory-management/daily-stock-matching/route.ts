@@ -3,7 +3,12 @@ import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 
 import { productSnapshot } from "@/features/batch-operations/helpers/snapshots";
-import { jakartaDateKey } from "@/features/inventory-management/helpers/inventory-management-rules";
+import {
+  DAILY_MATCHING_WINDOW_LABEL,
+  isDailyMatchingWindowOpen,
+  jakartaDateKey,
+  unresolvedOutLogVerificationWhere,
+} from "@/features/inventory-management/helpers/inventory-management-rules";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
@@ -64,8 +69,7 @@ async function countUnverifiedOutLogs(storeId: string, dateKey: string) {
       status: "APPROVED",
       createdAt: { gte: start, lt: end },
       product: { storeId },
-      verification: null,
-      OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
+      ...unresolvedOutLogVerificationWhere(),
     },
   });
 }
@@ -86,6 +90,20 @@ async function buildDailyMatchingPreview(storeId: string, dateKey: string) {
           stockGroup: true,
         },
       },
+      verification: { select: { status: true } },
+      correctionRequests: {
+        where: { status: "APPROVED" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: {
+          correctedProduct: {
+            include: {
+              category: { select: { name: true, icon: true } },
+              stockGroup: true,
+            },
+          },
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -97,14 +115,24 @@ async function buildDailyMatchingPreview(storeId: string, dateKey: string) {
   }>();
 
   for (const log of logs) {
-    const row = grouped.get(log.productId) ?? {
-      product: log.product,
+    const approvedCorrection =
+      log.verification?.status === "VERIFIED"
+        ? log.correctionRequests?.[0]
+        : null;
+    const effectiveProduct =
+      approvedCorrection?.correctedProduct ?? log.product;
+    const effectiveProductId =
+      approvedCorrection?.correctedProductId ?? log.productId;
+    const effectiveQuantity =
+      approvedCorrection?.correctedQuantity ?? log.quantity;
+    const row = grouped.get(effectiveProductId) ?? {
+      product: effectiveProduct,
       totalOut: 0,
       logCount: 0,
     };
-    row.totalOut += log.quantity;
+    row.totalOut += effectiveQuantity;
     row.logCount += 1;
-    grouped.set(log.productId, row);
+    grouped.set(effectiveProductId, row);
   }
 
   const rows = Array.from(grouped.values()).map((row) => {
@@ -184,8 +212,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     const input = matchingSchema.parse(body);
     const storeId = user.storeId;
-    const submittedAt = input.now ? new Date(input.now) : new Date();
-    const periodKey = jakartaDateKey(submittedAt);
+    const submittedAt = new Date();
+    const periodDate = input.now ? new Date(input.now) : submittedAt;
+    const periodKey = jakartaDateKey(periodDate);
+
+    if (!isDailyMatchingWindowOpen(submittedAt)) {
+      return NextResponse.json(
+        {
+          message: `Matching stok harian hanya bisa disubmit pukul ${DAILY_MATCHING_WINDOW_LABEL}.`,
+        },
+        { status: 422 },
+      );
+    }
 
     const unverifiedCount = await countUnverifiedOutLogs(storeId, periodKey);
     if (unverifiedCount > 0) {

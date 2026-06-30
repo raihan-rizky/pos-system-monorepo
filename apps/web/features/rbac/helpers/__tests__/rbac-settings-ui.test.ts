@@ -87,6 +87,40 @@ describe("RBAC settings UI helpers", () => {
     );
   });
 
+  it("groups inbound receipt decision permissions under critical inventory approval", async () => {
+    const { RBAC_PERMISSION_MODULES, buildPermissionChanges } = await import("../rbac-settings-ui");
+    const approvalModule = RBAC_PERMISSION_MODULES.find((module) => module.id === "inventory-approval");
+    const permissions = buildDefaultRolePermissions();
+    permissions.ADMIN.resources["inventory.inbound_receipt.reject"].update = true;
+
+    expect(approvalModule?.resourceTargets).toEqual(
+      expect.arrayContaining([
+        "inventory.inbound_receipt.approve",
+        "inventory.inbound_receipt.reject",
+        "inventory.inbound_receipt.revise",
+      ]),
+    );
+    expect(buildPermissionChanges(permissions)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          target: "inventory.inbound_receipt.reject",
+          moduleId: "inventory-approval",
+          sensitivity: "critical",
+          requiresConfirmation: true,
+        }),
+      ]),
+    );
+  });
+
+  it("shows OUT log verification in the inventory approval module", async () => {
+    const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
+    const approvalModule = RBAC_PERMISSION_MODULES.find(
+      (module) => module.id === "inventory-approval",
+    );
+
+    expect(approvalModule?.resourceTargets).toContain("inventory.out_log.verify");
+  });
+
   it("explains page and resource mismatch warnings in practical language", async () => {
     const { buildModuleWarnings } = await import("../rbac-settings-ui");
     const permissions = buildDefaultRolePermissions();

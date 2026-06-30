@@ -1,7 +1,9 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { InventoryWorkspace } from "../InventoryWorkspace";
+import * as inventoryWorkspaceModule from "../InventoryWorkspace";
+
+const { InventoryWorkspace } = inventoryWorkspaceModule;
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<any>();
@@ -78,6 +80,230 @@ vi.mock("@pos/ui", async (importOriginal) => {
 });
 
 describe("InventoryWorkspace", () => {
+  it("shows a correction badge and action for a mismatched OUT log", () => {
+    const OutLogVerificationRow = (
+      inventoryWorkspaceModule as typeof inventoryWorkspaceModule & {
+        OutLogVerificationRow?: React.ComponentType<any>;
+      }
+    ).OutLogVerificationRow;
+    const html = OutLogVerificationRow
+      ? renderToStaticMarkup(
+          <OutLogVerificationRow
+            item={{
+              id: "log-1",
+              quantity: 4,
+              reason: "USAGE",
+              note: "Dipakai produksi",
+              person: "Rina",
+              createdAt: "2026-06-30T02:00:00.000Z",
+              verificationState: "MISMATCH",
+              product: {
+                id: "product-1",
+                name: "Kertas A4",
+                sku: "A4-001",
+                unit: "rim",
+                stock: 12,
+                imageUrl: null,
+                category: { name: "Kertas", icon: null },
+              },
+              verification: { status: "MISMATCH" },
+              latestCorrection: null,
+            }}
+            canVerify
+            onSetStatus={() => undefined}
+            onOpenCorrection={() => undefined}
+          />,
+        )
+      : "";
+
+    expect(html).toContain("Perlu Koreksi");
+    expect(html).toContain("Koreksi");
+    expect(html).toContain("border-rose-200");
+  });
+
+  it("shows verification color and badge without actions in Stock Log mode", () => {
+    const OutLogVerificationRow = (
+      inventoryWorkspaceModule as typeof inventoryWorkspaceModule & {
+        OutLogVerificationRow?: React.ComponentType<any>;
+      }
+    ).OutLogVerificationRow;
+    const html = OutLogVerificationRow
+      ? renderToStaticMarkup(
+          <OutLogVerificationRow
+            mode="history"
+            item={{
+              id: "log-1",
+              quantity: 4,
+              reason: "USAGE",
+              note: "Dipakai produksi",
+              person: "Rina",
+              createdAt: "2026-06-30T02:00:00.000Z",
+              verificationState: "MISMATCH",
+              product: {
+                id: "product-1",
+                name: "Kertas A4",
+                sku: "A4-001",
+                unit: "rim",
+                stock: 12,
+                imageUrl: null,
+                category: { name: "Kertas", icon: null },
+              },
+              verification: { status: "MISMATCH" },
+              latestCorrection: null,
+            }}
+            canVerify
+            onSetStatus={() => undefined}
+            onOpenCorrection={() => undefined}
+          />,
+        )
+      : "";
+
+    expect(html).toContain("Perlu Koreksi");
+    expect(html).toContain("border-rose-200");
+    expect(html).not.toContain(">Koreksi</button>");
+  });
+
+  it("shows Setujui and Perlu Koreksi as opposing queue actions", () => {
+    const OutLogVerificationRow = inventoryWorkspaceModule.OutLogVerificationRow;
+    const item = {
+      id: "log-1",
+      quantity: 4,
+      reason: "USAGE",
+      note: "Dipakai produksi",
+      person: "Rina",
+      createdAt: "2026-06-30T02:00:00.000Z",
+      product: {
+        id: "product-1",
+        name: "Kertas A4",
+        sku: "A4-001",
+        unit: "rim",
+        stock: 12,
+        imageUrl: null,
+        category: { name: "Kertas", icon: null },
+      },
+      verification: null,
+      latestCorrection: null,
+    } as const;
+
+    const unverifiedHtml = renderToStaticMarkup(
+      <OutLogVerificationRow
+        item={{ ...item, verificationState: "UNVERIFIED" }}
+        canVerify
+        onSetStatus={() => undefined}
+        onOpenCorrection={() => undefined}
+      />,
+    );
+    const verifiedHtml = renderToStaticMarkup(
+      <OutLogVerificationRow
+        item={{
+          ...item,
+          verificationState: "VERIFIED",
+          verification: { status: "VERIFIED" },
+        }}
+        canVerify
+        onSetStatus={() => undefined}
+        onOpenCorrection={() => undefined}
+      />,
+    );
+
+    expect(unverifiedHtml).toContain("Setujui");
+    expect(unverifiedHtml).toContain("Perlu Koreksi");
+    expect(verifiedHtml).toContain("Sesuai");
+    expect(verifiedHtml).toContain("Perlu Koreksi");
+  });
+
+  it("shows dedicated labels and review action for correction lifecycle states", () => {
+    const OutLogVerificationRow = inventoryWorkspaceModule.OutLogVerificationRow;
+    const baseItem = {
+      id: "log-1",
+      quantity: 4,
+      reason: "USAGE",
+      note: "Dipakai produksi",
+      person: "Rina",
+      createdAt: "2026-06-30T02:00:00.000Z",
+      product: {
+        id: "product-1",
+        name: "Kertas A4",
+        sku: "A4-001",
+        unit: "rim",
+        stock: 12,
+        imageUrl: null,
+        category: { name: "Kertas", icon: null },
+      },
+      verification: { status: "MISMATCH" },
+      latestCorrection: null,
+    } as const;
+
+    const pendingHtml = renderToStaticMarkup(
+      <OutLogVerificationRow
+        item={{ ...baseItem, verificationState: "CORRECTION_PENDING" }}
+        canVerify
+        onSetStatus={() => undefined}
+        onOpenCorrection={() => undefined}
+      />,
+    );
+    const readyHtml = renderToStaticMarkup(
+      <OutLogVerificationRow
+        item={{ ...baseItem, verificationState: "READY_FOR_REVIEW" }}
+        canVerify
+        onSetStatus={() => undefined}
+        onOpenCorrection={() => undefined}
+      />,
+    );
+
+    expect(pendingHtml).toContain("Menunggu Approval");
+    expect(pendingHtml).not.toContain(">Setujui</button>");
+    expect(readyHtml).toContain("Siap Dicek Ulang");
+    expect(readyHtml).toContain("Setujui");
+    expect(readyHtml).toContain("Perlu Koreksi");
+  });
+
+  it("renders the dedicated daily OUT verification panel with progress", () => {
+    const OutLogVerificationPanel = (
+      inventoryWorkspaceModule as typeof inventoryWorkspaceModule & {
+        OutLogVerificationPanel?: React.ComponentType<any>;
+      }
+    ).OutLogVerificationPanel;
+    const html = OutLogVerificationPanel
+      ? renderToStaticMarkup(
+          <OutLogVerificationPanel
+            dateKey="2026-06-30"
+            initialItems={[
+              {
+                id: "log-1",
+                quantity: 4,
+                reason: "USAGE",
+                note: "Dipakai produksi",
+                person: "Rina",
+                createdAt: "2026-06-30T02:00:00.000Z",
+                verificationState: "UNVERIFIED",
+                product: {
+                  id: "product-1",
+                  name: "Kertas A4",
+                  sku: "A4-001",
+                  unit: "rim",
+                  stock: 12,
+                  imageUrl: null,
+                  category: { name: "Kertas", icon: null },
+                },
+                verification: null,
+                latestCorrection: null,
+              },
+            ]}
+            canVerify
+            canApprove={false}
+            currentUserId="inventory-1"
+            onBack={() => undefined}
+            onChanged={() => undefined}
+          />,
+        )
+      : "";
+
+    expect(html).toContain("Verifikasi Log OUT");
+    expect(html).toContain("1 belum selesai");
+    expect(html).toContain("Setujui");
+  });
+
   const baseSummary = {
     urgentCount: 0,
     counts: {
@@ -384,9 +610,73 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("Marking Surat Jalan");
     expect(html).toContain("2 belum dimarking");
     expect(html).toContain("Verifikasi dulu");
+    expect(html).toContain("Verifikasi sekarang");
     expect(html.indexOf("Pusat Kerja Hari Ini")).toBeLessThan(
       html.indexOf("Volume Inbound vs Outbound (7 Hari)"),
     );
+  });
+
+  it("routes the fixed Log OUT task to the verification queue wording", () => {
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace
+        initialSummary={{
+          ...baseSummary,
+          counts: {
+            ...baseSummary.counts,
+            unverifiedOutLogs: 2,
+          },
+        }}
+        defaultTab="Tugas"
+        initialDaySessionPreview={{
+          dateKey: "2026-06-30",
+          session: {
+            id: "session-1",
+            storeId: "store-main",
+            periodKey: "2026-06-30",
+            status: "CHECKED_IN",
+            morningCheckSnapshot: null,
+            checkOutSnapshot: null,
+            checkInByName: "Rina",
+            checkedInAt: "2026-06-30T01:00:00.000Z",
+            checkOutByName: null,
+            checkedOutAt: null,
+          },
+          stockRisk: { negative: [], outOfStock: [], lowStock: [] },
+          productionMaterials: [],
+          workspaceSafetyItems: [],
+          completion: {
+            dateKey: "2026-06-30",
+            weekKey: "2026-W26",
+            isSaturday: false,
+            tasks: [],
+            blockers: [],
+          },
+        }}
+      />,
+    );
+
+    expect(html).toContain("Log OUT Belum Diverifikasi");
+    expect(html).toContain("Verifikasi sekarang");
+    expect(html).not.toContain("Buka log stok");
+  });
+
+  it("surfaces needs-revision inbound receipts as an urgent daily task", () => {
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace
+        initialSummary={{
+          ...baseSummary,
+          urgentCount: 2,
+          counts: {
+            ...baseSummary.counts,
+            needsRevisionReceipts: 2,
+          },
+        }}
+      />,
+    );
+
+    expect(html).toContain("Revisi Penerimaan Barang");
+    expect(html).toContain("2 perlu revisi");
+    expect(html).toContain("Filter Perlu Revisi lalu ajukan ulang");
   });
 
   it("replaces duplicate operational KPIs with stock risk KPIs", () => {

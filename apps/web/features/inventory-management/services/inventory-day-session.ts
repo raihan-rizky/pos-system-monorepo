@@ -3,6 +3,7 @@ import {
   isJakartaSaturday,
   jakartaDateKey,
   jakartaWeekKey,
+  unresolvedOutLogVerificationWhere,
 } from "../helpers/inventory-management-rules";
 
 export const WORKSPACE_SAFETY_ITEMS = [
@@ -213,8 +214,7 @@ export async function buildInventoryDayCompletion(
         type: "OUT",
         status: "APPROVED",
         product: { storeId },
-        verification: null,
-        OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
+        ...unresolvedOutLogVerificationWhere(),
       },
     }),
     db.inventoryLog.count({
@@ -354,8 +354,7 @@ export async function buildInventoryCheckOutSnapshot(input: InventoryCheckOutSna
         status: "APPROVED",
         createdAt: { gte: start, lt: end },
         product: { storeId: input.storeId },
-        verification: null,
-        OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
+        ...unresolvedOutLogVerificationWhere(),
       },
     }),
     db.inventoryLog.count({

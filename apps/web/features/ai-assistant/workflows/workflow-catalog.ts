@@ -316,8 +316,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka tab Tugas", description: "Di halaman Inventaris, buka tab Tugas. Check In mungkin diperlukan lebih dulu." },
       { title: "Pilih tugas mingguan", description: "Temukan tugas seperti Proof Kebersihan Gudang." },
-      { title: "Unggah bukti", description: "Klik tugas atau tombol aksi, lalu unggah foto bukti kebersihan rak gudang." },
-      { title: "Submit tugas", description: "Klik Submit agar tugas tercatat selesai." },
+      { title: "Unggah bukti", description: "Klik tugas atau tombol aksi, unggah foto ke prnt.sc, lalu tempel link hasil upload pada form proof." },
+      { title: "Submit tugas", description: "Cek pratinjau gambar, lalu klik Submit Proof agar tugas tercatat selesai." },
     ],
   }),
   workflow({
@@ -330,11 +330,11 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "package-plus",
     requiredCapabilities: [{ resource: "inventory", action: "update" }],
     steps: [
-      { title: "Buka Input / Transaksi", description: "Di halaman Inventaris, pilih menu Input / Transaksi lalu Penerimaan Barang." },
-      { title: "Isi dokumen", description: "Lengkapi sumber barang, supplier, nomor dokumen, atau surat jalan terkait." },
-      { title: "Tambahkan produk", description: "Masukkan produk yang datang beserta kuantitas fisiknya." },
-      { title: "Ajukan draf", description: "Klik Submit atau Ajukan setelah draf lengkap." },
-      { title: "Tunggu approval OWNER", description: "Pengajuan tidak langsung menambah stok. Stok baru bertambah setelah disetujui oleh OWNER yang memiliki inventory.approve." },
+      { title: "Buka Penerimaan Barang", description: "Di halaman Inventaris, buka tab Transaksi lalu pilih Penerimaan Barang." },
+      { title: "Pilih invoice daftar belanja", description: "Klik Terima barang, lalu pilih invoice dari daftar belanja. Opsi berwarna membantu membedakan invoice yang belum dipakai, punya badge Sudah dibuat, atau sudah lengkap diterima." },
+      { title: "Isi kuantitas fisik", description: "Periksa item invoice, isi jumlah barang yang benar-benar datang, dan tambahkan catatan jika ada selisih atau kondisi khusus." },
+      { title: "Ajukan ke Owner", description: "Klik Ajukan ke Owner. Pengajuan belum menambah stok sampai ada keputusan dari role yang memiliki izin RBAC granular inventory.inbound_receipt.approve, inventory.inbound_receipt.reject, atau inventory.inbound_receipt.revise." },
+      { title: "Tangani Perlu Revisi", description: "Jika owner memilih Minta Revisi, buka filter Perlu Revisi, klik Edit & Ajukan, perbaiki data, lalu ajukan ulang." },
     ],
   }),
   workflow({
@@ -383,7 +383,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Laporan Keuangan", description: "Masuk ke halaman Laporan Keuangan." },
       { title: "Klik Ekspor", description: "Di kanan atas halaman, klik tombol Ekspor." },
-      { title: "Pilih format", description: "Pilih Excel untuk data tabel atau PDF untuk dokumen siap cetak." },
+      { title: "Pilih format", description: "Pilih Excel untuk data tabel, termasuk revenue per kategori produk, atau PDF untuk dokumen siap cetak." },
       { title: "Pilih periode", description: "Tentukan Harian, Mingguan, atau Bulanan. Berkas akan mengikuti periode ekspor yang dipilih." },
     ],
   }),
@@ -496,7 +496,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Selesaikan Check In", description: "Isi Morning Check: risiko stok, hitung bahan produksi utama, dan checklist area kerja serta keselamatan." },
       { title: "Kerjakan tugas harian", description: "Setelah Check In selesai, tab Tugas terbuka untuk pekerjaan harian inventaris." },
       { title: "Mulai Check Out", description: "Di akhir hari, buka ringkasan sesi dan klik Check Out." },
-      { title: "Penuhi syarat penutupan", description: "Pastikan tugas harian selesai. Pada Sabtu, unggah Proof Kebersihan sebelum menutup sesi." },
+      { title: "Penuhi syarat penutupan", description: "Pastikan tugas harian selesai. Pada Sabtu, tempel link prnt.sc Proof Kebersihan sebelum menutup sesi." },
     ],
   }),
   workflow({
@@ -552,10 +552,16 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     route: "/inventory",
     actionLabel: "Buka Inventaris",
     iconKey: "warehouse",
-    requiredCapabilities: [{ resource: "inventory", action: "update" }],
+    requiredCapabilities: [
+      { resource: "inventory", action: "update" },
+      { resource: "inventory.out_log.verify", action: "update" },
+    ],
     steps: [
-      { title: "Verifikasi Mutasi Log", description: "Di pagi hari, cek tab Riwayat lalu pilih sub-tab Log Stok untuk memastikan mutasi stok harian berjalan sesuai catatan." },
-      { title: "Input Penerimaan Barang", description: "Saat barang dari supplier datang, klik tombol Input / Transaksi di kanan atas halaman, lalu pilih Penerimaan Barang." },
+      { title: "Verifikasi Log OUT Belum Diverifikasi", description: "Setelah Check In, buka tab Tugas lalu Tugas Harian dan klik Log OUT Belum Diverifikasi. Verifikasi ini mengecek kebenaran catatan Log OUT, bukan matching stok fisik." },
+      { title: "Beri keputusan Log OUT", description: "Klik Setujui jika catatan sudah benar. Klik Perlu Koreksi jika produk, qty, alasan, atau catatan perlu diperbaiki; baris berubah warna dan badge menjadi Perlu Koreksi." },
+      { title: "Ajukan koreksi bila perlu", description: "Pada baris Perlu Koreksi, gunakan tombol Koreksi untuk mengisi data yang benar. Koreksi menunggu approval maker-checker sebelum baris siap dicek ulang dan disetujui." },
+      { title: "Matching Stok Harian", description: "Pukul 15:00-20:00 WIB, buka Matching Stok Harian. Klik input Stok Gudang per baris; indikator hijau berarti sesuai, merah berarti selisih, dan kuning berarti belum valid. Baris selisih wajib memakai catatan sebelum Submit Matching." },
+      { title: "Input Penerimaan Barang", description: "Saat barang dari supplier datang, buka tab Transaksi lalu Penerimaan Barang. Pilih invoice daftar belanja, cek badge Sudah dibuat atau Sudah lengkap, isi kuantitas fisik, lalu Ajukan ke Owner." },
       { title: "Catat Barang Pecah/Rusak", description: "Jika ada barang rusak, pilih menu Input / Transaksi lalu Laporkan Barang Rusak untuk mencatat penyesuaian stok." },
     ],
   }),

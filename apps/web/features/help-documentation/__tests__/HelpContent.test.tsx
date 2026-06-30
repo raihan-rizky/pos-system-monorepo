@@ -32,4 +32,27 @@ describe('HelpContent', () => {
     expect(html).toContain('Pantau Omzet &amp; Cuan Toko');
     expect(html).toContain('Cek Transaksi Pending &amp; Draft');
   });
+
+  it('documents the updated inbound receipt submission and revision flow', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="INVENTORY" searchQuery="Ajukan ke Owner" />
+    );
+
+    expect(html).toContain('Ajukan ke Owner');
+    expect(html).toContain('Sudah dibuat');
+    expect(html).toContain('Perlu Revisi');
+    expect(html).toContain('Edit &amp; Ajukan');
+  });
+
+  it('documents the Log OUT verification queue and correction-only Stock Log history', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="INVENTORY" searchQuery="Verifikasi Log OUT" />
+    );
+
+    expect(html).toContain('Log OUT Belum Diverifikasi');
+    expect(html).toContain('Setujui');
+    expect(html).toContain('Perlu Koreksi');
+    expect(html).toContain('tombol Koreksi');
+    expect(html).toContain('Log Stok hanya menampilkan warna dan badge');
+  });
 });

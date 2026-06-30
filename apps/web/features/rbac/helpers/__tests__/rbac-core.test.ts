@@ -102,6 +102,55 @@ describe("RBAC permission matrix", () => {
     expect(canRolePerformAction("SALES", "inventory.approve", "update", defaults)).toBe(false);
   });
 
+  it("grants OUT log verification to owner, admin, and inventory by default", () => {
+    const defaults = buildDefaultRolePermissions();
+
+    expect(canRolePerformAction("OWNER", "inventory.out_log.verify", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "inventory.out_log.verify", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("INVENTORY", "inventory.out_log.verify", "update", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "inventory.out_log.verify", "update", defaults)).toBe(false);
+    expect(canRolePerformAction("SALES", "inventory.out_log.verify", "update", defaults)).toBe(false);
+  });
+
+  it("adds configurable inbound receipt decision resources with owner-only defaults", () => {
+    const defaults = buildDefaultRolePermissions();
+    const decisionResources = [
+      "inventory.inbound_receipt.approve",
+      "inventory.inbound_receipt.reject",
+      "inventory.inbound_receipt.revise",
+    ];
+
+    for (const resource of decisionResources) {
+      expect(canRolePerformAction("OWNER", resource, "update", defaults)).toBe(true);
+      expect(canRolePerformAction("ADMIN", resource, "update", defaults)).toBe(false);
+      expect(canRolePerformAction("INVENTORY", resource, "update", defaults)).toBe(false);
+    }
+
+    const normalized = normalizeRolePermissions([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "inventory.inbound_receipt.approve",
+        action: "update",
+        allowed: true,
+      },
+      {
+        role: "INVENTORY",
+        scope: "resource",
+        target: "inventory.inbound_receipt.revise",
+        action: "update",
+        allowed: true,
+      },
+    ]);
+
+    expect(
+      canRolePerformAction("ADMIN", "inventory.inbound_receipt.approve", "update", normalized),
+    ).toBe(true);
+    expect(
+      canRolePerformAction("INVENTORY", "inventory.inbound_receipt.revise", "update", normalized),
+    ).toBe(true);
+  });
+
   it("adds INVENTORY as an editable role with inventory workspace access but no stock approval", () => {
     const defaults = buildDefaultRolePermissions();
 

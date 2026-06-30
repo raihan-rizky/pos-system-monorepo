@@ -169,4 +169,78 @@ describe("GET /api/inventory/logs", () => {
     expect(body.pagination.pendingTotal).toBe(3);
     expect(body.pagination.total).toBe(7);
   });
+
+  it("maps OUT verification state and latest correction for Stock Log badges", async () => {
+    inventoryLogFindManyMock.mockResolvedValue([
+      {
+        id: "log-out-1",
+        productId: "product-1",
+        type: "OUT",
+        reason: "USAGE",
+        quantity: 3,
+        note: "Dipakai produksi",
+        createdBy: "user-1",
+        person: "Rina",
+        createdAt: new Date("2026-06-30T03:00:00.000Z"),
+        status: "APPROVED",
+        approvedBy: "owner-1",
+        approverName: "Owner",
+        decidedAt: new Date("2026-06-30T03:05:00.000Z"),
+        rejectionReason: null,
+        verification: { status: "MISMATCH" },
+        correctionRequests: [
+          {
+            id: "correction-1",
+            status: "PENDING",
+            correctedProductId: "product-1",
+            correctedQuantity: 2,
+            correctedReason: "USAGE",
+            correctedNote: "Qty seharusnya 2",
+            requestedBy: "user-1",
+            decidedBy: null,
+            decidedAt: null,
+            rejectionReason: null,
+            correctedProduct: {
+              id: "product-1",
+              name: "Kertas A4",
+              sku: "A4-001",
+              unit: "rim",
+              stock: 12,
+              imageUrl: null,
+              category: { name: "Kertas", icon: null },
+            },
+          },
+        ],
+        product: {
+          id: "product-1",
+          name: "Kertas A4",
+          sku: "A4-001",
+          unit: "rim",
+          stock: 12,
+          imageUrl: null,
+          category: { name: "Kertas", icon: null },
+        },
+      },
+    ]);
+    inventoryLogCountMock
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(0);
+
+    const request = new NextRequest("http://localhost/api/inventory/logs?type=OUT");
+    const response = await GET(request);
+    const body = await response.json();
+
+    expect(body.data[0]).toEqual(
+      expect.objectContaining({
+        id: "log-out-1",
+        verificationState: "CORRECTION_PENDING",
+        verification: { status: "MISMATCH" },
+        latestCorrection: expect.objectContaining({
+          id: "correction-1",
+          status: "PENDING",
+        }),
+      }),
+    );
+    expect(body.data[0]).not.toHaveProperty("correctionRequests");
+  });
 });

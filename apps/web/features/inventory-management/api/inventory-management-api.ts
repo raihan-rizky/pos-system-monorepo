@@ -3,6 +3,7 @@ import type {
   InboundReceiptLineStatus,
   InboundReceiptStatus,
 } from "../types/inventory-management";
+import type { OutLogVerificationState } from "../helpers/inventory-management-rules";
 
 export async function fetchInventorySummary(): Promise<InventorySummary> {
   const response = await fetch("/api/inventory-management/summary");
@@ -317,6 +318,7 @@ export function approveStockGroupBulk(
 export interface CreateInboundReceiptInput {
   supplierId?: string | null;
   shoppingRequestId?: string | null;
+  submitImmediately?: boolean;
   note?: string | null;
   lines: Array<{
     productId: string;
@@ -330,6 +332,7 @@ export interface CreateInboundReceiptInput {
 
 export interface InboundReceiptListLine {
   id: string;
+  productId: string;
   productNameSnapshot: string | null;
   skuSnapshot: string | null;
   unitSnapshot: string | null;
@@ -343,6 +346,11 @@ export interface InboundReceiptListItem {
   id: string;
   status: InboundReceiptStatus;
   createdAt: string;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  rejectionReason: string | null;
+  revisionReason: string | null;
   supplier: { name: string } | null;
   note: string | null;
   lines: InboundReceiptListLine[];
@@ -383,6 +391,36 @@ export function createInboundReceipt(input: CreateInboundReceiptInput) {
     "/api/inventory-management/inbound-receipts",
     input,
   );
+}
+
+export function updateAndSubmitInboundReceipt(
+  id: string,
+  input: {
+    note?: string | null;
+    lines: Array<{
+      id: string;
+      productId: string;
+      expectedQuantity: number;
+      receivedQuantity: number;
+      status: InboundReceiptLineStatus;
+      note?: string | null;
+    }>;
+  },
+) {
+  return fetch(`/api/inventory-management/inbound-receipts/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }).then(async (response) => {
+    const payload = (await response.json().catch(() => ({}))) as {
+      data?: unknown;
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(payload.message || "Inventory management request failed");
+    }
+    return payload.data;
+  });
 }
 
 export function submitInboundReceipt(id: string) {
@@ -443,4 +481,109 @@ export function rejectInternalStockOutRequest(id: string, rejectionReason: strin
   return postInventoryManagement(`/api/internal-stock-out/${id}/reject`, {
     rejectionReason,
   });
+}
+
+export interface OutLogVerificationQueueItem {
+  id: string;
+  quantity: number;
+  reason: string | null;
+  note: string | null;
+  person: string | null;
+  createdAt: string;
+  verificationState: OutLogVerificationState;
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+    unit: string;
+    stock: number;
+    imageUrl: string | null;
+    category: { name: string; icon: string | null };
+  };
+  verification: {
+    status: "UNVERIFIED" | "VERIFIED" | "MISMATCH";
+    note?: string | null;
+  } | null;
+  latestCorrection: {
+    id: string;
+    status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+    correctedProductId: string;
+    correctedQuantity: number;
+    correctedReason: "USAGE" | "MANUAL_ADJUSTMENT";
+    correctedNote: string | null;
+    requestedBy: string;
+    rejectionReason?: string | null;
+    correctedProduct?: {
+      id: string;
+      name: string;
+      sku: string;
+      unit: string;
+    };
+  } | null;
+}
+
+export interface OutLogVerificationQueueResponse {
+  data: {
+    periodKey: string;
+    items: OutLogVerificationQueueItem[];
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchOutLogVerificationQueue(input: {
+  dateKey: string;
+  page?: number;
+}): Promise<OutLogVerificationQueueResponse> {
+  const params = new URLSearchParams({ dateKey: input.dateKey });
+  if (input.page) params.set("page", String(input.page));
+  const response = await fetch(
+    `/api/inventory-management/log-verifications?${params.toString()}`,
+  );
+  if (!response.ok) throw new Error("Gagal memuat antrean verifikasi Log OUT");
+  return response.json() as Promise<OutLogVerificationQueueResponse>;
+}
+
+export function setOutLogVerificationStatus(
+  inventoryLogId: string,
+  status: "VERIFIED" | "MISMATCH",
+) {
+  return postInventoryManagement(
+    "/api/inventory-management/log-verifications",
+    { inventoryLogId, status },
+  );
+}
+
+export function createOutLogCorrection(input: {
+  inventoryLogId: string;
+  correctedProductId: string;
+  correctedQuantity: number;
+  correctedReason: "USAGE" | "MANUAL_ADJUSTMENT";
+  correctedNote: string;
+}) {
+  return postInventoryManagement(
+    "/api/inventory-management/log-verifications",
+    { action: "CREATE_CORRECTION", ...input },
+  );
+}
+
+export function approveOutLogCorrection(correctionRequestId: string) {
+  return postInventoryManagement(
+    "/api/inventory-management/log-verifications",
+    { action: "APPROVE_CORRECTION", correctionRequestId },
+  );
+}
+
+export function rejectOutLogCorrection(
+  correctionRequestId: string,
+  reason: string,
+) {
+  return postInventoryManagement(
+    "/api/inventory-management/log-verifications",
+    { action: "REJECT_CORRECTION", correctionRequestId, reason },
+  );
 }

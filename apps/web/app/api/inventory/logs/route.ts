@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
+import { resolveOutLogVerificationState } from "@/features/inventory-management/helpers/inventory-management-rules";
 
 import { getLogger } from "@/lib/logger";
 
@@ -86,6 +87,34 @@ export async function GET(request: NextRequest) {
             },
           },
           supplier: { select: { id: true, name: true } },
+          verification: { select: { status: true } },
+          correctionRequests: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              correctedProductId: true,
+              correctedQuantity: true,
+              correctedReason: true,
+              correctedNote: true,
+              requestedBy: true,
+              decidedBy: true,
+              decidedAt: true,
+              rejectionReason: true,
+              correctedProduct: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  unit: true,
+                  stock: true,
+                  imageUrl: true,
+                  category: { select: { name: true, icon: true } },
+                },
+              },
+            },
+          },
         },
         orderBy,
         skip,
@@ -120,10 +149,24 @@ export async function GET(request: NextRequest) {
         .filter((item) => item.inventoryLogId)
         .map((item) => [item.inventoryLogId, item]),
     );
-    const logsWithBatch = logs.map((entry) => ({
-      ...entry,
-      batchItem: batchItemByLogId.get(entry.id) ?? null,
-    }));
+    const logsWithBatch = logs.map((entry) => {
+      const { correctionRequests = [], ...logEntry } = entry;
+      const latestCorrection = correctionRequests[0] ?? null;
+      const verificationState =
+        logEntry.type === "OUT"
+          ? resolveOutLogVerificationState({
+              verificationStatus: logEntry.verification?.status ?? null,
+              correctionStatus: latestCorrection?.status ?? null,
+            })
+          : undefined;
+
+      return {
+        ...logEntry,
+        batchItem: batchItemByLogId.get(entry.id) ?? null,
+        ...(verificationState ? { verificationState } : {}),
+        latestCorrection,
+      };
+    });
 
     return apiList(logsWithBatch, {
       ...buildPaginationMeta(total, page, limit),

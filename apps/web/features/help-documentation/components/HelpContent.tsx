@@ -74,7 +74,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Tab RBAC", description: "Pada halaman pengaturan yang terbuka, klik tab 'RBAC' (hanya terlihat oleh Owner). Owner selalu punya akses penuh dan tidak ikut diedit.", icon: <Users className="w-8 h-8" /> },
         { title: "Baca Ringkasan Role", description: "Lihat kartu ringkasan Admin, Kasir, Sales, dan Inventaris untuk mengetahui jumlah halaman, aksi, custom permission, dan perubahan sensitif pada tiap role.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Bandingkan Matrix Modul", description: "Gunakan matrix modul untuk membandingkan akses antar role. Matrix ini adalah ringkasan konfigurasi permission, bukan bukti enforcement route atau API.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Atur Izin per Modul", description: "Pilih role dan modul yang ingin diubah, lalu centang akses halaman atau aksi resource yang dibutuhkan. Status 'Belum disimpan' muncul saat ada perubahan lokal.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Atur Izin per Modul", description: "Pilih role dan modul yang ingin diubah, lalu centang akses halaman atau aksi resource yang dibutuhkan. Untuk Penerimaan Barang, izin Setujui, Tolak, dan Minta Revisi diatur sebagai aksi terpisah di modul Inventaris. Status 'Belum disimpan' muncul saat ada perubahan lokal.", icon: <Settings className="w-8 h-8" /> },
         { title: "Review & Konfirmasi", description: "Klik 'Review & Simpan' untuk melihat daftar perubahan. Perubahan sensitif seperti RBAC, finance, WhatsApp, HPP, dan approval harus dikonfirmasi sebelum tersimpan.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
@@ -86,7 +86,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari menu samping (sidebar) sebelah kiri layar, gulir ke bawah pada kategori 'Keuangan', lalu klik menu 'Laporan Keuangan' (ikon grafik batang).", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Pilih Rentang Waktu", description: "Di bagian atas halaman laporan, klik pada kolom pemilih tanggal (kalender), tentukan rentang tanggal mulai dan tanggal akhir yang ingin dipantau, lalu klik tombol 'Terapkan'.", icon: <History className="w-8 h-8" /> },
-        { title: "Cetak atau Ekspor", description: "Jika ingin menyimpan file laporan, klik tombol 'Ekspor' di pojok kanan atas layar, lalu klik format yang Anda inginkan (Excel atau PDF) untuk mengunduhnya ke perangkat Anda.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Cetak atau Ekspor", description: "Jika ingin menyimpan file laporan, klik tombol 'Ekspor' di pojok kanan atas layar, lalu pilih Excel atau PDF. File Excel menyertakan ringkasan revenue per kategori produk.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
     {
@@ -165,7 +165,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },
         { title: "Buka Menu Ekspor", description: "Di pojok kanan atas halaman, klik tombol 'Ekspor'.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, termasuk revenue per kategori produk, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Periode Ekspor", description: "Tentukan cakupan waktu ekspor: Harian (hari ini), Mingguan (7 hari terakhir), atau Bulanan (bulan berjalan). Berkas akan otomatis terunduh.", icon: <History className="w-8 h-8" /> },
       ]
     },
@@ -307,7 +307,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },
         { title: "Buka Menu Ekspor", description: "Di pojok kanan atas halaman, klik tombol 'Ekspor'.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, termasuk revenue per kategori produk, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Periode Ekspor", description: "Tentukan cakupan waktu ekspor: Harian (hari ini), Mingguan (7 hari terakhir), atau Bulanan (bulan berjalan). Berkas akan otomatis terunduh.", icon: <History className="w-8 h-8" /> },
       ]
     },
@@ -496,7 +496,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Truck className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Cetak Surat Jalan", description: "Di halaman Riwayat Transaksi, cari transaksi lunas/DP. Klik tombol aksi titik tiga '...' di ujung kanan, pilih 'Cetak Surat Jalan'.", icon: <History className="w-8 h-8" /> },
-        { title: "Mulai Buat Baru", description: "Pada modal Surat Jalan yang terbuka, klik tombol 'Buat Surat Jalan' (atau 'Buat Surat Jalan Baru').", icon: <Truck className="w-8 h-8" /> },
+        { title: "Mulai Buat Baru", description: "Pada modal Surat Jalan yang terbuka, cek invoice utama lewat tombol 'Lihat Struk' jika perlu, lalu klik tombol 'Buat Surat Jalan' (atau 'Buat Surat Jalan Baru').", icon: <Truck className="w-8 h-8" /> },
         { title: "Isi Jumlah & Detail Kurir", description: "Masukkan jumlah barang yang dikirim saat ini untuk tiap item. Isi detail pengiriman seperti kurir, pengemudi, pelat kendaraan, dan nama penerima.", icon: <Settings className="w-8 h-8" /> },
         { title: "Simpan & Cetak", description: "Klik tombol simpan/proses. Surat jalan baru akan tersimpan di sistem dan siap dicetak sebagai lampiran fisik pengiriman.", icon: <FileText className="w-8 h-8" /> },
       ]
@@ -530,24 +530,24 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "inventory-alur-kerja",
       title: "Alur Kerja Inventory",
-      description: "Alur kerja harian orang gudang dari mulai cek log mutasi, terima kiriman barang masuk, hingga lapor barang rusak.",
+      description: "Alur kerja harian orang gudang dari mulai cek log mutasi, terima kiriman barang masuk, hingga lapor barang rusak. Untuk Penerimaan Barang, pilih invoice yang belum berbadge 'Sudah dibuat', isi jumlah fisik, lalu klik 'Ajukan ke Owner'. Jika statusnya 'Perlu Revisi', buka filter Perlu Revisi lalu gunakan 'Edit & Ajukan'.",
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Verifikasi Mutasi Log", description: "Buka menu 'Inventaris' di sidebar. Klik tab 'Riwayat' -> sub-tab 'Log Stok' di pagi hari untuk memastikan mutasi stok harian berjalan sesuai catatan. Di layar HP, geser bar sub-tab Riwayat secara horizontal dan baca log sebagai kartu ringkas.", icon: <History className="w-8 h-8" /> },
-        { title: "Input Penerimaan Barang", description: "Saat kiriman supplier datang, klik tombol hitam 'Input / Transaksi' di kanan atas halaman, klik 'Penerimaan Barang'. Isikan detail item barang, nomor surat jalan supplier, kuantitas fisik, lalu klik 'Simpan'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Input Penerimaan Barang", description: "Saat kiriman supplier datang, buka tab 'Transaksi' lalu 'Penerimaan Barang' dan klik 'Terima barang'. Pilih invoice daftar belanja dari opsi berwarna: badge 'Sudah dibuat' berarti invoice itu sudah punya penerimaan aktif, sedangkan 'Sudah lengkap' berarti stoknya sudah diterima penuh. Isi kuantitas fisik, catatan bila perlu, lalu klik 'Ajukan ke Owner'. Jika statusnya kembali 'Perlu Revisi', buka filter Perlu Revisi, klik 'Edit & Ajukan', perbaiki data, lalu ajukan ulang.", icon: <Package className="w-8 h-8" /> },
         { title: "Catat Barang Pecah/Rusak", description: "Jika ditemukan produk rusak, klik tombol 'Input / Transaksi' -> 'Laporkan Barang Rusak'. Masukkan kode barang, kuantitas yang rusak, isi alasan penyesuaian, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
       id: "inventory-tugas-harian",
       title: "Menyelesaikan Tugas Harian",
-      description: "Cek daftar pekerjaan harianmu di sini, seperti mencocokkan stok fisik harian dan memverifikasi log keluar barang. Catatan: Anda wajib melakukan Check In terlebih dahulu pada widget harian agar panel tugas harian (Pusat Kerja Hari Ini) tidak terkunci/buram.",
+      description: "Cek daftar pekerjaan harianmu di sini, seperti mencocokkan stok fisik harian dan memverifikasi Log OUT. Untuk tugas 'Log OUT Belum Diverifikasi', klik Setujui jika catatan sudah benar, klik Perlu Koreksi jika data perlu diperbaiki, lalu gunakan tombol Koreksi untuk mengajukan produk/qty/alasan yang benar. Log Stok hanya menampilkan warna dan badge status verifikasi, tanpa tombol koreksi atau setujui. Catatan: Anda wajib melakukan Check In terlebih dahulu pada widget harian agar panel tugas harian (Pusat Kerja Hari Ini) tidak terkunci/buram.",
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Cek Tugas Aktif", description: "Lakukan Check In terlebih dahulu pada widget harian. Buka menu 'Inventaris' di sidebar kiri, lalu klik tab 'Tugas' di bagian atas halaman untuk melihat checklist tugas harian.", icon: <ShoppingCart className="w-8 h-8" /> },
-        { title: "Lakukan Matching Stok", description: "Klik tugas 'Matching Stok Harian' (atau tombol 'Input / Transaksi' -> 'Cocokkan Stok (Harian)'). Cocokkan stok fisik di gudang dengan angka sistem, isi form kecocokan, lalu klik 'Simpan'.", icon: <History className="w-8 h-8" /> },
+        { title: "Lakukan Matching Stok", description: "Matching Stok Harian hanya dibuka pukul 15:00-20:00 WIB. Klik tugas 'Matching Stok Harian' (atau tombol 'Input / Transaksi' -> 'Cocokkan Stok (Harian)'), klik input Stok Gudang per baris, lalu cek indikator otomatis: hijau berarti sesuai, merah berarti selisih, dan kuning berarti belum valid. Isi catatan untuk baris selisih, lalu klik 'Submit Matching'.", icon: <History className="w-8 h-8" /> },
         { title: "Input Laporan Kerusakan", description: "Klik tugas 'Laporan Barang Rusak' (atau 'Input / Transaksi' -> 'Laporkan Barang Rusak'), cari produk reject hari ini, ketik kuantitas rusak, dan klik tombol 'Kirim'.", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Verifikasi Log OUT", description: "Klik tugas 'Log OUT Belum Diverifikasi' (atau klik tab 'Riwayat' -> 'Log Stok'), periksa daftar barang keluar hari ini, lalu klik tombol 'Verifikasi' pada kolom aksi log yang sesuai.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Verifikasi Log OUT Belum Diverifikasi", description: "Klik tugas 'Log OUT Belum Diverifikasi', periksa daftar barang keluar hari ini, lalu pilih 'Setujui' atau 'Perlu Koreksi'. Jika perlu koreksi, tombol Koreksi membuka form perbaikan produk, qty, alasan, dan catatan. Setelah koreksi disetujui Owner/Admin/Inventory lain, cek ulang baris tersebut lalu klik Setujui.", icon: <Settings className="w-8 h-8" /> },
         { title: "Check Out Inventaris", description: "Di akhir hari, buka widget Check In / Check Out lalu klik 'Check Out'. Periksa ringkasan pergerakan stok, status dokumen, dan workflow. Jika masih ada tugas wajib yang belum selesai, isi alasan pengecualian per kategori sebelum klik 'Tutup Hari'.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
@@ -558,7 +558,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Tugas Mingguan", description: "Buka menu 'Inventaris' di sidebar kiri, klik tab 'Tugas' di bagian atas halaman, lalu pilih sub-tab 'Tugas Mingguan'.", icon: <Package className="w-8 h-8" /> },
-        { title: "Upload Bukti Kebersihan", description: "Klik tugas 'Proof Kebersihan Gudang' (atau tombol 'Input / Transaksi' -> 'Proof Kebersihan (Mingguan)'). Klik tombol 'Pilih File/Foto', unggah foto kondisi kebersihan rak gudang terupdate, lalu klik 'Submit'.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Upload Bukti Kebersihan", description: "Klik tugas 'Proof Kebersihan Gudang' (atau tombol 'Input / Transaksi' -> 'Proof Kebersihan (Mingguan)'). Unggah foto ke prnt.sc, tempel link hasil upload, cek pratinjau gambar, lalu klik 'Submit Proof'.", icon: <Settings className="w-8 h-8" /> },
         { title: "Stock Opname & Rekonsiliasi", description: "Lakukan perhitungan stok fisik rak gudang. Jika ada selisih, klik 'Input / Transaksi' -> 'Stock Out Internal' (jika menyusut) atau 'Penerimaan Barang' (jika berlebih) senilai jumlah selisih agar data stok sistem kembali akurat setelah disetujui Owner.", icon: <Users className="w-8 h-8" /> },
       ]
     },
@@ -750,7 +750,7 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
     return allContent.filter((item) => searchInContent(item, searchQuery));
   }, [allContent, searchQuery]);
 
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(content[0]?.id ?? null);
 
   // Auto-expand first item when search or role changes
   useEffect(() => {
