@@ -243,4 +243,108 @@ describe("GET /api/inventory/logs", () => {
     );
     expect(body.data[0]).not.toHaveProperty("correctionRequests");
   });
+
+  it("does not show Log OUT verification badges for rows outside the verification queue contract", async () => {
+    inventoryLogFindManyMock.mockResolvedValue([
+      {
+        id: "sale-out-1",
+        productId: "product-1",
+        type: "OUT",
+        reason: "SALE",
+        quantity: 1,
+        note: "Transaksi POS",
+        createdBy: "cashier-1",
+        person: "Kasir",
+        createdAt: new Date("2026-06-30T03:00:00.000Z"),
+        status: "APPROVED",
+        approvedBy: "owner-1",
+        approverName: "Owner",
+        decidedAt: new Date("2026-06-30T03:05:00.000Z"),
+        rejectionReason: null,
+        verification: null,
+        correctionRequests: [],
+        product: {
+          id: "product-1",
+          name: "Kertas A4",
+          sku: "A4-001",
+          unit: "rim",
+          stock: 12,
+          imageUrl: null,
+          category: { name: "Kertas", icon: null },
+        },
+      },
+      {
+        id: "pending-usage-1",
+        productId: "product-1",
+        type: "OUT",
+        reason: "USAGE",
+        quantity: 2,
+        note: "Menunggu approval",
+        createdBy: "inventory-1",
+        person: "Rina",
+        createdAt: new Date("2026-06-30T04:00:00.000Z"),
+        status: "PENDING",
+        approvedBy: null,
+        approverName: null,
+        decidedAt: null,
+        rejectionReason: null,
+        verification: null,
+        correctionRequests: [],
+        product: {
+          id: "product-1",
+          name: "Kertas A4",
+          sku: "A4-001",
+          unit: "rim",
+          stock: 12,
+          imageUrl: null,
+          category: { name: "Kertas", icon: null },
+        },
+      },
+      {
+        id: "approved-usage-1",
+        productId: "product-1",
+        type: "OUT",
+        reason: "USAGE",
+        quantity: 3,
+        note: "Dipakai produksi",
+        createdBy: "inventory-1",
+        person: "Rina",
+        createdAt: new Date("2026-06-30T05:00:00.000Z"),
+        status: "APPROVED",
+        approvedBy: "owner-1",
+        approverName: "Owner",
+        decidedAt: new Date("2026-06-30T05:05:00.000Z"),
+        rejectionReason: null,
+        verification: null,
+        correctionRequests: [],
+        product: {
+          id: "product-1",
+          name: "Kertas A4",
+          sku: "A4-001",
+          unit: "rim",
+          stock: 12,
+          imageUrl: null,
+          category: { name: "Kertas", icon: null },
+        },
+      },
+    ]);
+    inventoryLogCountMock
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(1);
+
+    const request = new NextRequest("http://localhost/api/inventory/logs?type=OUT");
+    const response = await GET(request);
+    const body = await response.json();
+
+    expect(body.data.find((row: { id: string }) => row.id === "sale-out-1")).not.toHaveProperty(
+      "verificationState",
+    );
+    expect(
+      body.data.find((row: { id: string }) => row.id === "pending-usage-1"),
+    ).not.toHaveProperty("verificationState");
+    expect(body.data.find((row: { id: string }) => row.id === "approved-usage-1")).toHaveProperty(
+      "verificationState",
+      "UNVERIFIED",
+    );
+  });
 });

@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
-import { resolveOutLogVerificationState } from "@/features/inventory-management/helpers/inventory-management-rules";
+import {
+  isOutLogVerificationEligible,
+  resolveOutLogVerificationState,
+} from "@/features/inventory-management/helpers/inventory-management-rules";
 
 import { getLogger } from "@/lib/logger";
 
@@ -153,7 +156,7 @@ export async function GET(request: NextRequest) {
       const { correctionRequests = [], ...logEntry } = entry;
       const latestCorrection = correctionRequests[0] ?? null;
       const verificationState =
-        logEntry.type === "OUT"
+        isOutLogVerificationEligible(logEntry)
           ? resolveOutLogVerificationState({
               verificationStatus: logEntry.verification?.status ?? null,
               correctionStatus: latestCorrection?.status ?? null,

@@ -32,6 +32,28 @@ export type OutLogVerificationState =
   | "CORRECTION_REJECTED"
   | "READY_FOR_REVIEW";
 
+export const OUT_LOG_VERIFICATION_REASONS = [
+  "USAGE",
+  "MANUAL_ADJUSTMENT",
+] as const;
+
+const OUT_LOG_VERIFICATION_REASON_SET = new Set<string>(
+  OUT_LOG_VERIFICATION_REASONS,
+);
+
+export function isOutLogVerificationEligible(input: {
+  type: string | null;
+  status: string | null;
+  reason: string | null;
+}): boolean {
+  return (
+    input.type === "OUT" &&
+    input.status === "APPROVED" &&
+    input.reason !== null &&
+    OUT_LOG_VERIFICATION_REASON_SET.has(input.reason)
+  );
+}
+
 export function resolveOutLogVerificationState(input: {
   verificationStatus: "UNVERIFIED" | "VERIFIED" | "MISMATCH" | null;
   correctionStatus: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | null;
