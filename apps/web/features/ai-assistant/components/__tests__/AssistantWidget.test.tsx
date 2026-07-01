@@ -187,4 +187,40 @@ describe("AssistantWidget", () => {
     expect(statusIndex).toBeGreaterThan(-1);
     expect(workflowIndex).toBeLessThan(statusIndex);
   });
+
+  it("renders role-specific template questions/quick prompts", () => {
+    // For INVENTORY role
+    const htmlInventory = renderToStaticMarkup(
+      <AssistantWidget defaultOpen userRole="INVENTORY" />
+    );
+    expect(htmlInventory).toContain("Cek stok barang menipis");
+    expect(htmlInventory).not.toContain("Barang terlaris minggu ini");
+    expect(htmlInventory).toContain("Bagaimana cara melakukan stock opname?");
+    expect(htmlInventory).toContain("Cara input penerimaan barang");
+
+    // For SALES role
+    const htmlSales = renderToStaticMarkup(
+      <AssistantWidget defaultOpen userRole="SALES" />
+    );
+    expect(htmlSales).toContain("Cari pelanggan Toko Makmur");
+    expect(htmlSales).toContain("Cek sisa piutang Agen Sabar Subur");
+    expect(htmlSales).toContain("Rekap transaksi pelanggan Budi");
+
+    // For CASHIER role
+    const htmlCashier = renderToStaticMarkup(
+      <AssistantWidget defaultOpen userRole="CASHIER" />
+    );
+    expect(htmlCashier).toContain("Cek stok Kertas HVS");
+    expect(htmlCashier).toContain("Berapa harga Kertas HVS?");
+    expect(htmlCashier).toContain("Lihat daftar transaksi pending");
+
+    // For OWNER/ADMIN role
+    const htmlOwner = renderToStaticMarkup(
+      <AssistantWidget defaultOpen userRole="OWNER" />
+    );
+    expect(htmlOwner).toContain("Ringkasan penjualan hari ini");
+    expect(htmlOwner).toContain("Daftar produk terlaris hari ini");
+    expect(htmlOwner).toContain("Cara mengatur hak akses role RBAC");
+  });
 });
+

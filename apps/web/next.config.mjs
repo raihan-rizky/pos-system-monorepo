@@ -48,6 +48,9 @@ const nextConfig = {
   // Production security & performance
   compress: true,
   poweredByHeader: false,
+  outputFileTracingIncludes: {
+    "/api/**": ["./node_modules/xlsx/**/*"],
+  },
 
   // Tree-shake large packages; only ship code that is actually used.
   experimental: {

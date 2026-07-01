@@ -1,11 +1,14 @@
+import { createRequire } from "node:module";
 import { Worker } from "node:worker_threads";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_OLD_GENERATION_SIZE_MB = 64;
+const serverRequire = createRequire(import.meta.url);
+const XLSX_MODULE_PATH = serverRequire.resolve("xlsx");
 
 const WORKER_SOURCE = `
-const { parentPort } = require("node:worker_threads");
-const XLSX = require("xlsx");
+const { parentPort, workerData } = require("node:worker_threads");
+const XLSX = require(workerData.xlsxModulePath);
 
 parentPort.on("message", (message) => {
   const options = message.options || {};
@@ -64,6 +67,9 @@ export function parseSpreadsheetMatrix(
     let settled = false;
     const worker = new Worker(WORKER_SOURCE, {
       eval: true,
+      workerData: {
+        xlsxModulePath: XLSX_MODULE_PATH,
+      },
       resourceLimits: {
         maxOldGenerationSizeMb:
           options.maxOldGenerationSizeMb ?? DEFAULT_MAX_OLD_GENERATION_SIZE_MB,

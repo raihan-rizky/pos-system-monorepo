@@ -276,15 +276,41 @@ export function AssistantWidget({
   const templateQuestions = useMemo(() => {
     switch (effectiveRole?.toUpperCase()) {
       case "INVENTORY":
-        return ["Cek stok barang menipis", "Barang terlaris minggu ini", "Buat jadwal opname"];
+        return [
+          "Cek stok barang menipis",
+          "Berapa stok Kertas HVS?",
+          "Bagaimana cara melakukan stock opname?",
+          "Cara input penerimaan barang",
+        ];
       case "SALES":
+        return [
+          "Cari pelanggan Toko Makmur",
+          "Cek sisa piutang Agen Sabar Subur",
+          "Rekap transaksi pelanggan Budi",
+          "Bagaimana cara mencatat transaksi?",
+        ];
       case "CASHIER":
-        return ["Total penjualan shift ini", "Cek harga grosir produk", "Status retur pelanggan"];
+        return [
+          "Cek stok Kertas HVS",
+          "Berapa harga Kertas HVS?",
+          "Lihat daftar transaksi pending",
+          "Cara membuat transaksi baru",
+        ];
       case "OWNER":
       case "ADMIN":
-        return ["Ringkasan penjualan hari ini", "Cek stok barang rendah", "Bagaimana cara mengatur akses setiap role", "Ringkasan hutang piutang agen sabar subur"];
+        return [
+          "Ringkasan penjualan hari ini",
+          "Daftar produk terlaris hari ini",
+          "Cek stok barang menipis",
+          "Cek sisa piutang Agen Sabar Subur",
+          "Cara mengatur hak akses role RBAC",
+        ];
       default:
-        return ["Bantu saya cek stok", "Ringkasan penjualan hari ini", "Cek surat jalan pending"];
+        return [
+          "Cara menggunakan asisten Pak Tel",
+          "Cek stok Kertas HVS",
+          "Panduan penggunaan sistem POS",
+        ];
     }
   }, [effectiveRole]);
 

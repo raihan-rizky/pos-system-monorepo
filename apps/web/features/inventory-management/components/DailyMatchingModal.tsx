@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Button } from "@pos/ui";
-import { AlertCircle, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, RefreshCw, XCircle } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import { getDefaultProductImage } from "@/lib/utils";
 import {
@@ -45,7 +45,8 @@ export function DailyMatchingModal({
   initialSummary,
   onSuccess,
 }: DailyMatchingModalProps) {
-  const { canPerform } = useRole();
+  const { role, canPerform } = useRole();
+  const isOwner = role === "OWNER";
   const canApprove = canPerform("inventory.approve", "update");
   const [preview, setPreview] = useState<DailyMatchingPreview | null>(null);
   const [physicalStocks, setPhysicalStocks] = useState<Record<string, string>>({});
@@ -94,10 +95,16 @@ export function DailyMatchingModal({
     return () => window.clearInterval(intervalId);
   }, [open]);
 
-  const matchingWindowStatus = useMemo(
-    () => getDailyMatchingWindowStatus(matchingWindowNow),
-    [matchingWindowNow],
-  );
+  const matchingWindowStatus = useMemo(() => {
+    const status = getDailyMatchingWindowStatus(matchingWindowNow);
+    if (isOwner) {
+      return {
+        ...status,
+        isOpen: true,
+      };
+    }
+    return status;
+  }, [matchingWindowNow, isOwner]);
 
   const rows = preview?.rows ?? [];
   const enrichedRows = useMemo(
@@ -239,6 +246,16 @@ export function DailyMatchingModal({
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {isOwner && (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-800"
+          >
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+            <span>menu ini selalu terbuka untuk owner...</span>
           </div>
         )}
 

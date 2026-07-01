@@ -1,9 +1,10 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as inventoryWorkspaceModule from "../InventoryWorkspace";
 
 const { InventoryWorkspace } = inventoryWorkspaceModule;
+import { DailyMatchingModal } from "../DailyMatchingModal";
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<any>();
@@ -25,12 +26,13 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
+const mockUseRole = vi.fn(() => ({
+  role: "INVENTORY",
+  userId: "user-1",
+  canPerform: () => true,
+}));
 vi.mock("@/components/providers/RoleProvider", () => ({
-  useRole: () => ({
-    role: "INVENTORY",
-    userId: "user-1",
-    canPerform: () => true,
-  }),
+  useRole: () => mockUseRole(),
 }));
 
 vi.mock("@/hooks/useInventoryLogs", () => ({
@@ -80,6 +82,13 @@ vi.mock("@pos/ui", async (importOriginal) => {
 });
 
 describe("InventoryWorkspace", () => {
+  afterEach(() => {
+    mockUseRole.mockReturnValue({
+      role: "INVENTORY",
+      userId: "user-1",
+      canPerform: () => true,
+    });
+  });
   it("shows a correction badge and action for a mismatched OUT log", () => {
     const OutLogVerificationRow = (
       inventoryWorkspaceModule as typeof inventoryWorkspaceModule & {
@@ -773,5 +782,39 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("Cari nama produk atau SKU");
     expect(html).not.toContain("Product ID");
     expect(html).not.toContain("Cth: prod-12345");
+  });
+
+  it("keeps matching stok harian always open for OWNER and renders the info banner", () => {
+    mockUseRole.mockReturnValue({
+      role: "OWNER",
+      userId: "user-1",
+      canPerform: () => true,
+    });
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace
+        initialSummary={{
+          ...baseSummary,
+          counts: {
+            ...baseSummary.counts,
+            dailyMatchingIncomplete: true,
+          },
+        }}
+      />,
+    );
+
+    expect(html).toContain("Matching Stok Harian");
+    expect(html).toContain("Belum match");
+    expect(html).not.toContain("Terkunci");
+
+    // Let's render the modal as Owner to see the info banner
+    const htmlModal = renderToStaticMarkup(
+      <DailyMatchingModal
+        open
+        onClose={() => undefined}
+        initialSummary={baseSummary}
+        onSuccess={() => undefined}
+      />
+    );
+    expect(htmlModal).toContain("menu ini selalu terbuka untuk owner...");
   });
 });

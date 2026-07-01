@@ -119,7 +119,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   defaultTab,
   initialDaySessionPreview,
 }) => {
-  const { canPerform, userId } = useRole();
+  const { role, canPerform, userId } = useRole();
   const [activeTab, setActiveTab] = React.useState<typeof MAIN_TABS[number]>(
     defaultTab ?? "Ringkasan"
   );
@@ -152,10 +152,17 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     daySessionPreview?.session?.status === "CHECKED_IN" ||
     daySessionPreview?.session?.status === "CHECKED_OUT";
   const isDaySessionLoaded = daySessionPreview !== null;
-  const dailyMatchingWindowStatus = React.useMemo(
-    () => getDailyMatchingWindowStatus(matchingWindowNow),
-    [matchingWindowNow],
-  );
+  const isOwner = role === "OWNER";
+  const dailyMatchingWindowStatus = React.useMemo(() => {
+    const status = getDailyMatchingWindowStatus(matchingWindowNow);
+    if (isOwner) {
+      return {
+        ...status,
+        isOpen: true,
+      };
+    }
+    return status;
+  }, [matchingWindowNow, isOwner]);
 
   const loadChecklistItems = React.useCallback(async () => {
     if (activeTab !== "Tugas") return;
