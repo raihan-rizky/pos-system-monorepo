@@ -6,6 +6,7 @@ import {
   type ImportCleaningFix,
   type NormalizedImportRow,
 } from "../types";
+import { normalizeSupplierCode } from "@/features/suppliers/helpers/supplier-code";
 
 export const MAX_PRODUCT_IMPORT_ROWS = 3000;
 
@@ -30,6 +31,12 @@ const HEADER_ALIASES: Record<string, string> = {
   harga_pemerintah: "hargaDinas",
   harga_level_2: "hargaDinas",
   hargalevel2: "hargaDinas",
+  hargaagen: "hargaAgen",
+  harga_agen: "hargaAgen",
+  hargaagent: "hargaAgen",
+  harga_agent: "hargaAgen",
+  harga_level_3: "hargaAgen",
+  hargalevel3: "hargaAgen",
   stok: "stock",
   satuan: "unit",
   konversi: "unitMultiplierToBase",
@@ -46,9 +53,22 @@ const HEADER_ALIASES: Record<string, string> = {
   minimumstock: "minStock",
   gambar: "imageUrl",
   image: "imageUrl",
+  suppliercode: "supplierCode",
+  supplier_code: "supplierCode",
+  kodesupplier: "supplierCode",
+  kode_supplier: "supplierCode",
+  kodepemasok: "supplierCode",
+  kode_pemasok: "supplierCode",
 };
 
 export { HEADER_ALIASES };
+
+const importCleaningFixSchema = z.object({
+  ruleId: z.string(),
+  field: z.enum(["price", "costPrice", "hargaDinas", "hargaAgen"]),
+  oldValue: z.number().nullable(),
+  newValue: z.number().nullable(),
+});
 
 export const importRowCommitSchema = z.object({
   rowNumber: z.number().int().min(1),
@@ -62,17 +82,26 @@ export const importRowCommitSchema = z.object({
   unitMultiplierToBase: z.coerce.number().min(0).optional().nullable(),
   costPrice: z.coerce.number().min(0).optional().nullable(),
   hargaDinas: z.coerce.number().min(0).optional().nullable(),
+  hargaDinasProvided: z.boolean().optional(),
+  hargaAgen: z.coerce.number().min(0).optional().nullable(),
   minStock: z.coerce.number().int().min(0).optional(),
   barcode: z.string().trim().optional().nullable(),
   description: z.string().trim().optional().nullable(),
   size: z.string().trim().optional().nullable(),
   material: z.string().trim().optional().nullable(),
   imageUrl: z.string().trim().optional().nullable(),
+  supplierCode: z.string().trim().optional().nullable(),
+  supplierCodes: z.array(z.string().trim().min(1)).optional(),
+  supplierCodesProvided: z.boolean().optional(),
   existingProductId: z.string().optional(),
   matchedProductId: z.string().optional(),
   matchedProductSku: z.string().optional(),
   matchedStockGroupId: z.string().optional().nullable(),
   generatedSku: z.string().optional(),
+  sourceFamilyKey: z.string().optional(),
+  cleaningStatus: z.enum(["clean", "auto_fixed", "review_required", "warning"]).optional(),
+  cleaningIssues: z.array(z.string()).optional(),
+  cleaningFixes: z.array(importCleaningFixSchema).optional(),
   autoAction: z
     .enum([
       "create",
@@ -104,6 +133,17 @@ function toNumber(value: unknown) {
   const cleaned = normalizeValue(value).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", ".");
   if (!cleaned) return Number.NaN;
   return Number(cleaned);
+}
+
+export function parseSupplierCodes(value: unknown): string[] {
+  return Array.from(
+    new Set(
+      normalizeValue(value)
+        .split(",")
+        .map((part) => normalizeSupplierCode(part))
+        .filter((code): code is string => Boolean(code)),
+    ),
+  );
 }
 
 const PACKAGE_UNITS = new Set(["dus", "box", "pak", "pack", "ball", "rim"]);
@@ -155,11 +195,19 @@ function addReviewIssue(row: NormalizedImportRow, warning: string, warnings: str
 function swapFieldWhenPackageLower(
   smallRow: NormalizedImportRow,
   packageRow: NormalizedImportRow,
-  field: "price" | "costPrice" | "hargaDinas",
+  field: "price" | "costPrice" | "hargaDinas" | "hargaAgen",
 ) {
   const smallValue = smallRow[field] ?? null;
   const packageValue = packageRow[field] ?? null;
-  if (smallValue == null || packageValue == null || packageValue >= smallValue) return false;
+  if (
+    smallValue == null ||
+    packageValue == null ||
+    smallValue <= 0 ||
+    packageValue <= 0 ||
+    packageValue >= smallValue
+  ) {
+    return false;
+  }
 
   smallRow[field] = packageValue as never;
   packageRow[field] = smallValue as never;
@@ -205,7 +253,8 @@ function applyImportCleaning(rows: NormalizedImportRow[], warnings: string[]) {
       const priceChanged = swapFieldWhenPackageLower(smallRow, packageRow, "price");
       const costChanged = swapFieldWhenPackageLower(smallRow, packageRow, "costPrice");
       const hargaDinasChanged = swapFieldWhenPackageLower(smallRow, packageRow, "hargaDinas");
-      const changed = priceChanged || costChanged || hargaDinasChanged;
+      const hargaAgenChanged = swapFieldWhenPackageLower(smallRow, packageRow, "hargaAgen");
+      const changed = priceChanged || costChanged || hargaDinasChanged || hargaAgenChanged;
 
       if (changed) {
         for (const row of [smallRow, packageRow]) {
@@ -266,10 +315,15 @@ export function normalizeImportRows(
     const minStockRaw = normalizeValue(record.minStock);
     const costPriceRaw = normalizeValue(record.costPrice);
     const hargaDinasRaw = normalizeValue(record.hargaDinas);
+    const hargaDinasProvided = Object.prototype.hasOwnProperty.call(record, "hargaDinas");
+    const hargaAgenRaw = normalizeValue(record.hargaAgen);
+    const supplierCodeRaw = normalizeValue(record.supplierCode);
+    const supplierCodes = parseSupplierCodes(record.supplierCode);
     const unitMultiplierRaw = normalizeValue(record.unitMultiplierToBase);
     const minStock = minStockRaw ? toNumber(record.minStock) : 5;
     const costPrice = costPriceRaw ? toNumber(record.costPrice) : Number.NaN;
     const hargaDinas = hargaDinasRaw ? toNumber(record.hargaDinas) : Number.NaN;
+    const hargaAgen = hargaAgenRaw ? toNumber(record.hargaAgen) : Number.NaN;
     const unitMultiplierToBase = unitMultiplierRaw ? toNumber(record.unitMultiplierToBase) : Number.NaN;
 
     if (!normalizeValue(record.name)) rowErrors.push("Name is required.");
@@ -291,8 +345,14 @@ export function normalizeImportRows(
     if (hargaDinasRaw && (!Number.isFinite(hargaDinas) || hargaDinas < 0)) {
       rowWarnings.push("Harga Dinas was not a valid number and will be imported as empty.");
     }
-    if (hargaDinasRaw && Number.isFinite(hargaDinas) && hargaDinas >= 0 && Number.isFinite(price) && hargaDinas < price) {
+    if (hargaDinasRaw && Number.isFinite(hargaDinas) && hargaDinas > 0 && Number.isFinite(price) && hargaDinas < price) {
       rowWarnings.push("Harga Dinas is lower than regular price.");
+    }
+    if (hargaAgenRaw && (!Number.isFinite(hargaAgen) || hargaAgen < 0)) {
+      rowWarnings.push("Harga Agen was not a valid number and will be imported as empty.");
+    }
+    if (hargaAgenRaw && Number.isFinite(hargaAgen) && hargaAgen >= 0 && Number.isFinite(price) && hargaAgen < price) {
+      rowWarnings.push("Harga Agen is lower than regular price.");
     }
     if (minStockRaw && (!Number.isFinite(minStock) || minStock < 0)) {
       rowWarnings.push("Min stock was not a valid number and will be imported as 5.");
@@ -334,8 +394,13 @@ export function normalizeImportRows(
           : null,
       costPrice: costPriceRaw && Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : null,
       hargaDinas:
-        hargaDinasRaw && Number.isFinite(hargaDinas) && hargaDinas >= 0
+        hargaDinasRaw && Number.isFinite(hargaDinas) && hargaDinas > 0
           ? hargaDinas
+          : null,
+      hargaDinasProvided,
+      hargaAgen:
+        hargaAgenRaw && Number.isFinite(hargaAgen) && hargaAgen >= 0
+          ? hargaAgen
           : null,
       minStock: minStockRaw && Number.isFinite(minStock) && minStock >= 0 ? Math.trunc(minStock) : 5,
       barcode: normalizeValue(record.barcode) || null,
@@ -343,6 +408,8 @@ export function normalizeImportRows(
       size: normalizeValue(record.size) || null,
       material: normalizeValue(record.material) || null,
       imageUrl: normalizeValue(record.imageUrl) || null,
+      supplierCodes,
+      supplierCodesProvided: supplierCodeRaw.length > 0,
       duplicateInFile,
       existingProductId: existingProduct?.id,
       existingProductName: existingProduct?.name,
@@ -378,12 +445,14 @@ export function buildCleanedImportRows(rows: NormalizedImportRow[]) {
     unitMultiplierToBase: row.unitMultiplierToBase ?? "",
     costPrice: row.costPrice ?? "",
     hargaDinas: row.hargaDinas ?? "",
+    hargaAgen: row.hargaAgen ?? "",
     minStock: row.minStock ?? "",
     barcode: row.barcode ?? "",
     description: row.description ?? "",
     size: row.size ?? "",
     material: row.material ?? "",
     imageUrl: row.imageUrl ?? "",
+    supplierCode: (row.supplierCodes ?? []).join(", "),
   }));
 }
 
@@ -415,6 +484,7 @@ export function revertImportCleaningFixes(rows: NormalizedImportRow[]): Normaliz
       if (fix.field === "price") reverted.price = Number(fix.oldValue ?? 0);
       if (fix.field === "costPrice") reverted.costPrice = fix.oldValue;
       if (fix.field === "hargaDinas") reverted.hargaDinas = fix.oldValue;
+      if (fix.field === "hargaAgen") reverted.hargaAgen = fix.oldValue;
     }
 
     if (row.cleaningStatus === "auto_fixed") {

@@ -156,6 +156,7 @@ async function buildExistingSupplierMap(tx?: Parameters<typeof listSupplierImpor
     current.push({
       supplierId: supplier.supplierId,
       name: supplier.name,
+      code: supplier.code,
       type: supplier.type,
       phone: supplier.phone,
       isActive: supplier.isActive,
@@ -216,6 +217,7 @@ function findDuplicateActiveNames(rows: SupplierImportCommitRow[]): string[] {
 
 function toSupplierInput(row: SupplierImportCommitRow): SupplierInput {
   return {
+    code: row.supplierCode ?? null,
     name: row.name,
     type: row.type,
     phone: row.phone ?? null,

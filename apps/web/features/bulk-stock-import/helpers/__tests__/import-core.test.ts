@@ -135,6 +135,41 @@ describe("bulk stock import core", () => {
     );
   });
 
+  it("recognizes legacy catalog headers as bulk stock import columns", async () => {
+    const csv = [
+      "No.;Kode Item;Nama Item;Jenis;Stok;Satuan;Qty / Paket;Satuan;Harga Pokok;Harga Level 1;Harga Level 2;Harga Level 3",
+      "1;A-001;Acco plastik Joyko;ATK;175;Dus;1;Dus;7600;12000;13500;0",
+    ].join("\n");
+    const buffer = new TextEncoder().encode(csv).buffer;
+
+    const parsed = await parseBulkStockImportFile(buffer);
+
+    expect(buildMissingBulkStockColumns(parsed.headers)).toEqual([]);
+    expect(parsed.records[0]).toEqual(
+      expect.objectContaining({
+        name: "Acco plastik Joyko",
+        category: "ATK",
+        stock: "175",
+      }),
+    );
+  });
+
+  it("keeps the row unit when legacy catalog CSV also includes a base unit column", async () => {
+    const csv = [
+      "Nama Item;Jenis;Stok;Satuan;Qty / Paket;Satuan",
+      "Acco plastik Joyko;ATK;17,5;Pak;10;Dus",
+    ].join("\n");
+    const buffer = new TextEncoder().encode(csv).buffer;
+
+    const parsed = await parseBulkStockImportFile(buffer);
+
+    expect(parsed.records[0]).toEqual(
+      expect.objectContaining({
+        unit: "Pak",
+      }),
+    );
+  });
+
   it("keeps cell alignment when the sheet contains blank header columns", async () => {
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.aoa_to_sheet([

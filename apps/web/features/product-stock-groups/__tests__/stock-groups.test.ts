@@ -5,7 +5,10 @@ import {
   calculateDisplayStock,
   formatCompoundStock,
 } from "../stock-display";
-import { createProductStockGroupEnsurer } from "../product-stock-groups-service";
+import {
+  createProductStockGroupEnsurer,
+  ensureProductStockGroups,
+} from "../product-stock-groups-service";
 import { normalizeStockGroupKey } from "../stock-grouping";
 import { applyProductStockDelta, StockMutationError } from "../stock-mutations";
 
@@ -88,6 +91,83 @@ describe("stock group helpers", () => {
 
     expect(findUnique).toHaveBeenCalledTimes(1);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("bulk ensures stock groups with one lookup and one createMany call", async () => {
+    const existing = {
+      id: "group-existing",
+      storeId: "store-main",
+      groupKey: "amplop|cat-atk||",
+      displayName: "Amplop",
+      baseUnit: "pack",
+      baseStock: 10,
+    };
+    const findMany = vi.fn().mockResolvedValue([existing]);
+    const createMany = vi.fn().mockResolvedValue({ count: 1 });
+
+    const ensured = await ensureProductStockGroups(
+      {
+        productStockGroup: { findMany, createMany },
+      } as any,
+      [
+        {
+          storeId: "store-main",
+          name: "Amplop",
+          categoryId: "cat-atk",
+          material: "",
+          size: "",
+          displayName: "Amplop",
+          baseUnit: "pack",
+          baseStock: 10,
+        },
+        {
+          storeId: "store-main",
+          name: "Kertas HVS",
+          categoryId: "cat-atk",
+          material: "70 GSM",
+          size: "A4",
+          displayName: "Kertas HVS",
+          baseUnit: "rim",
+          baseStock: 500,
+        },
+        {
+          storeId: "store-main",
+          name: "Kertas   HVS",
+          categoryId: "cat-atk",
+          material: "70 gsm",
+          size: "a4",
+          displayName: "Kertas HVS duplicate",
+          baseUnit: "rim",
+          baseStock: 999,
+        },
+      ],
+    );
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(createMany).toHaveBeenCalledTimes(1);
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          id: expect.any(String),
+          storeId: "store-main",
+          groupKey: "kertas hvs|cat-atk|70 gsm|a4",
+          displayName: "Kertas HVS",
+          baseUnit: "rim",
+          baseStock: 500,
+        }),
+      ],
+    });
+    expect(ensured.get("store-main|amplop|cat-atk||")).toEqual({
+      group: existing,
+      created: false,
+    });
+    expect(ensured.get("store-main|kertas hvs|cat-atk|70 gsm|a4")).toEqual({
+      group: expect.objectContaining({
+        id: expect.any(String),
+        groupKey: "kertas hvs|cat-atk|70 gsm|a4",
+      }),
+      created: true,
+    });
   });
 });
 

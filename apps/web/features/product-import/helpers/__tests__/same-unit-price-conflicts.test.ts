@@ -52,6 +52,12 @@ describe("same-unit price conflicts", () => {
         row({ rowNumber: 3, hargaDinas: 16000 }),
       ]),
     ).toHaveLength(1);
+    expect(
+      findSameUnitPriceConflictGroups([
+        row({ rowNumber: 2, hargaAgen: 14000 } as Partial<NormalizedImportRow>),
+        row({ rowNumber: 3, hargaAgen: 14500 } as Partial<NormalizedImportRow>),
+      ]),
+    ).toHaveLength(1);
   });
 
   it("ignores same SKU/unit rows when normalized product identity differs", () => {

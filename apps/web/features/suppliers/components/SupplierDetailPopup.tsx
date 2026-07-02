@@ -110,7 +110,9 @@ export function SupplierDetailPopup({
                   <StatusPill active={detailSupplier?.isActive ?? true} />
                 </div>
                 <p className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  {detailSupplier?.type ?? "-"}
+                  {detailSupplier?.code
+                    ? `${detailSupplier.code} - ${detailSupplier.type ?? "-"}`
+                    : detailSupplier?.type ?? "-"}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-slate-600">
                   {detailSupplier?.contactPerson ||
@@ -192,6 +194,7 @@ export function SupplierDetailPopup({
             Profil Supplier
           </h4>
           <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+            <Metric label="Kode Supplier" value={detailSupplier?.code || "-"} />
             <Metric label="Kontak" value={detailSupplier?.contactPerson || "-"} />
             <Metric label="Phone" value={detailSupplier?.phone || "-"} />
             <Metric label="Alamat" value={detailSupplier?.address || "-"} />

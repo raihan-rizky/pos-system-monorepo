@@ -1,5 +1,23 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "DIRECT_URL",
+    "EASYOCR_API_KEY",
+    "NEBIUS_API_KEY",
+    "SUPABASE_SERVICE_KEY",
+    "WEBHOOK_BASE_URL",
+    "WAHA_BASE_URL",
+    "WAHA_SESSION",
+    "WAHA_API_KEY",
+    "WAHA_WEBHOOK_SECRET",
+    "CLOSING_DEAL_PUSH_SECRET",
+    "VAPID_PRIVATE_KEY",
+    "VAPID_SUBJECT",
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

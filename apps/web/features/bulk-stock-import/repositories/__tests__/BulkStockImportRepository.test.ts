@@ -358,6 +358,91 @@ describe("bulkStockImportRepository", () => {
     ).rejects.toThrow("INSUFFICIENT_STOCK");
     expect(queryRawMock).not.toHaveBeenCalled();
   });
+
+  it("does not throw INCONSISTENT_STOCK_GROUP_TARGET for SET mode with multiple grouped products", async () => {
+    const sharedGroup = { id: "group-1", baseStock: 20 };
+    const productFindManyMock = vi.fn().mockResolvedValue([
+      product("prod-a", "SKU-A", 20, {
+        stockGroupId: "group-1",
+        unitMultiplierToBase: 1,
+        stockGroup: sharedGroup,
+      }),
+      product("prod-b", "SKU-B", 2, {
+        id: "prod-b",
+        name: "Acco plastik Joyko",
+        sku: "SKU-B",
+        stockGroupId: "group-1",
+        unitMultiplierToBase: 10,
+        stockGroup: sharedGroup,
+      }),
+    ]);
+    const batchOperationCreateMock = vi.fn().mockResolvedValue({ id: "batch-1" });
+    const batchOperationUpdateMock = vi.fn().mockResolvedValue({ id: "batch-1" });
+    const inventoryLogCreateManyMock = vi.fn().mockResolvedValue({ count: 2 });
+    const batchOperationItemCreateManyMock = vi.fn().mockResolvedValue({ count: 2 });
+    const queryRawMock = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: "group-1" }])
+      .mockResolvedValueOnce([{ id: "prod-a" }, { id: "prod-b" }]);
+
+    dbTransactionMock.mockImplementation(async (callback) =>
+      callback({
+        product: { findMany: productFindManyMock },
+        batchOperation: {
+          create: batchOperationCreateMock,
+          update: batchOperationUpdateMock,
+        },
+        inventoryLog: { createMany: inventoryLogCreateManyMock },
+        batchOperationItem: { createMany: batchOperationItemCreateManyMock },
+        $queryRaw: queryRawMock,
+      }),
+    );
+
+    // Product A (Dus, x1): target 5 → baseTarget=5, baseDelta=5-20=-15
+    // Product B (Pak, x10): target 1 → baseTarget=10, baseDelta=10-20=-10
+    // These differ (inconsistent), but should use finer-grained variant (prod-a, x1)
+    await expect(
+      bulkStockImportRepository.commitStockImport({
+        storeId: "store-1",
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-1",
+        },
+        mode: "SET",
+        supplier: null,
+        note: "bulk import opname",
+        impacts: [
+          {
+            productId: "prod-a",
+            sku: "SKU-A",
+            quantity: 5,
+            delta: -15,
+            beforeStock: 20,
+            afterStock: 5,
+            sourceRowNumbers: [2],
+          },
+          {
+            productId: "prod-b",
+            sku: "SKU-B",
+            quantity: 1,
+            delta: -1,
+            beforeStock: 2,
+            afterStock: 1,
+            sourceRowNumbers: [3],
+          },
+        ],
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        updatedProductCount: 2,
+        status: "COMMITTED",
+      }),
+    );
+
+    expect(queryRawMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 function product(

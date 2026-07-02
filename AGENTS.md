@@ -13,6 +13,7 @@ Replacement (HMR) – continues to work smoothly.
   build command switches the `.next` folder to production assets which disables hot
   reload and can leave the development server in an inconsistent state.  If a
   production build is required, do it outside of the interactive agent workflow.
+* **Do not run `pnpm dev` or stop `pnpm dev` after implementing a feature or fixing bugs.** Let the user manage the server lifecycle and avoid starting/stopping server tasks once your development or bug-fixing tasks are finished.
 
 ## 2. Keep Dependencies in Sync
 
@@ -35,16 +36,27 @@ If you add or update dependencies remember to:
 | Command | Purpose |
 | :--- | :--- |
 | `pnpm dev` | Start the Next.js dev server with HMR. |
+| `pnpm dev:prod` | Start the Next.js dev server with HMR loaded with production environment variables. |
 | `pnpm lint` | Run ESLint checks. |
 | `pnpm test` | Execute the test suite for the web application. |
 | `pnpm type-check` | Run TypeScript compilation check across all packages. |
 | `pnpm setup` | Initialize environment (runs install, generates Prisma client, and pushes schema). |
 | `pnpm db:push` | Push the Prisma schema state directly to the database. |
+| `pnpm db:push:prod` | Push the Prisma schema state directly to the production database. |
 | `pnpm db:generate` | Generate Prisma client assets. |
 | `pnpm db:seed` | Seed the database with default/development data. |
+| `pnpm db:seed:prod` | Seed the production database with default/production data. |
 | `pnpm db:studio` | Launch Prisma Studio web GUI to browse data. |
+| `pnpm db:migrate:dev` | Run Prisma migrations against the development database. |
+| `pnpm db:migrate:prod` | Run Prisma migrations against the production database (deploy). |
 | `pnpm e2e` | Execute Playwright/Cypress end-to-end tests for the web package. |
 | `pnpm product-import-worker` | Run the product import background worker process. |
+| `pnpm product-import-worker:once` | Run the product import background worker process once. |
+| `pnpm product-import-worker:cleanup` | Clean up import worker resources. |
+| `pnpm assistant:evaluate` | Run AI assistant evaluations. |
+| `pnpm assistant:concurrency` | Run AI assistant concurrency tests. |
+| `pnpm assistant:cost` | Analyze AI assistant API costs. |
+| `pnpm audit:icons` | Audit and verify correct icon importing and definitions. |
 | `pnpm build` | **Production build – _do not run during agent sessions_** |
 
 ## 5. Always Create Documentation

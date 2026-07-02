@@ -5,6 +5,7 @@ import { Button } from "@pos/ui";
 import { ArrowRight, Check, X } from "lucide-react";
 import { IMPORT_COLUMNS, REQUIRED_IMPORT_COLUMNS, type ColumnMapping, type ImportColumn } from "../types";
 import { getMissingRequiredColumns } from "../helpers/client-parser";
+import { getColumnMappingKey } from "../helpers/column-mapping-key";
 
 export function ColumnMappingStep({
   rawHeaders,
@@ -22,8 +23,8 @@ export function ColumnMappingStep({
   const missingRequired = getMissingRequiredColumns(mapping);
   const mappedValues = new Set(Object.values(mapping).filter(Boolean));
 
-  const handleChange = (rawHeader: string, value: string) => {
-    onMappingChange({ ...mapping, [rawHeader]: value as ImportColumn | "" });
+  const handleChange = (mappingKey: string, value: string) => {
+    onMappingChange({ ...mapping, [mappingKey]: value as ImportColumn | "" });
   };
 
   return (
@@ -46,13 +47,14 @@ export function ColumnMappingStep({
             </tr>
           </thead>
           <tbody>
-            {rawHeaders.map((raw) => {
-              const mapped = mapping[raw] || "";
+            {rawHeaders.map((raw, index) => {
+              const mappingKey = getColumnMappingKey(rawHeaders, index);
+              const mapped = mapping[mappingKey] || "";
               const isRequired = mapped && REQUIRED_IMPORT_COLUMNS.includes(mapped as typeof REQUIRED_IMPORT_COLUMNS[number]);
               const isIgnored = !mapped;
 
               return (
-                <tr key={raw} className="border-t border-slate-100">
+                <tr key={mappingKey || `column-${index}`} className="border-t border-slate-100">
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-sm font-mono font-bold text-slate-700">
                       {raw}
@@ -64,7 +66,7 @@ export function ColumnMappingStep({
                   <td className="px-4 py-3">
                     <select
                       value={mapped}
-                      onChange={(e) => handleChange(raw, e.target.value)}
+                      onChange={(e) => handleChange(mappingKey, e.target.value)}
                       className={`w-full rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${
                         isIgnored
                           ? "border-slate-200 bg-slate-50 text-slate-400"
@@ -78,7 +80,7 @@ export function ColumnMappingStep({
                         <option
                           key={col}
                           value={col}
-                          disabled={mappedValues.has(col) && mapping[raw] !== col}
+                          disabled={mappedValues.has(col) && mapping[mappingKey] !== col}
                         >
                           {col}
                           {REQUIRED_IMPORT_COLUMNS.includes(col as typeof REQUIRED_IMPORT_COLUMNS[number]) ? " *" : ""}

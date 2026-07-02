@@ -5,6 +5,7 @@ import {
   SUPPLIER_TYPES,
   type SupplierType,
 } from "@/features/suppliers/types/supplier";
+import { normalizeSupplierCode } from "@/features/suppliers/helpers/supplier-code";
 import {
   IMPORT_COLUMNS,
   REQUIRED_IMPORT_COLUMNS,
@@ -17,6 +18,12 @@ import {
 export const MAX_SUPPLIER_IMPORT_ROWS = 500;
 
 const HEADER_ALIASES: Record<string, string> = {
+  suppliercode: "supplierCode",
+  supplier_code: "supplierCode",
+  kodesupplier: "supplierCode",
+  kode_supplier: "supplierCode",
+  kodepemasok: "supplierCode",
+  kode_pemasok: "supplierCode",
   nama: "name",
   namasupplier: "name",
   nama_supplier: "name",
@@ -44,6 +51,7 @@ const HEADER_ALIASES: Record<string, string> = {
 
 export const importRowCommitSchema = z.object({
   rowNumber: z.number().int().min(1),
+  supplierCode: z.string().trim().nullable().optional(),
   name: z.string().trim().min(1),
   normalizedName: z.string().trim().min(1),
   type: z.enum(SUPPLIER_TYPES),
@@ -56,6 +64,7 @@ export const importRowCommitSchema = z.object({
     z.object({
       supplierId: z.string(),
       name: z.string(),
+      code: z.string().nullable().optional(),
       type: z.enum(SUPPLIER_TYPES),
       phone: z.string().nullable(),
       isActive: z.boolean(),
@@ -154,6 +163,7 @@ export function buildMissingColumnResponse(headers: string[]) {
 export function normalizeImportRows(
   parsedRecords: ParsedSupplierImportRecord[],
   existingSupplierMap: Map<string, ExistingSupplierMatch[]>,
+  existingSupplierByCodeMap: Map<string, ExistingSupplierMatch> = new Map(),
 ): Pick<
   SupplierImportPreviewResponse,
   "rows" | "warnings" | "errors" | "existingNameMatches"
@@ -178,15 +188,33 @@ export function normalizeImportRows(
     .map(({ rowNumber, record }) => {
       const rowWarnings: string[] = [];
       const rowErrors: string[] = [];
+      const supplierCode = normalizeSupplierCode(record.supplierCode);
       const name = normalizeValue(record.name);
       const normalizedName = normalizeSupplierName(name);
       const typeResult = normalizeSupplierType(record.type);
-      const existingMatches = normalizedName
+      const nameMatches = normalizedName
         ? existingSupplierMap.get(normalizedName) ?? []
         : [];
+      const codeMatch = supplierCode
+        ? existingSupplierByCodeMap.get(supplierCode) ?? null
+        : null;
+      const nameMatchesCodeMatch =
+        codeMatch && nameMatches.some((match) => match.supplierId === codeMatch.supplierId);
+      const existingMatches = codeMatch
+        ? nameMatches.length > 0
+          ? nameMatchesCodeMatch
+            ? [codeMatch]
+            : []
+          : [codeMatch]
+        : nameMatches;
 
       if (!name) rowErrors.push("Name is required.");
       if (typeResult.warning) rowWarnings.push(typeResult.warning);
+      if (codeMatch && nameMatches.length > 0 && !nameMatchesCodeMatch) {
+        rowErrors.push(
+          "Supplier code and name point to different suppliers. Fix the code or name before commit.",
+        );
+      }
 
       const duplicateInFile =
         normalizedName ? (nameCounts.get(normalizedName) ?? 0) > 1 : false;
@@ -221,6 +249,7 @@ export function normalizeImportRows(
 
       return {
         rowNumber,
+        supplierCode,
         name,
         normalizedName,
         type: typeResult.type,

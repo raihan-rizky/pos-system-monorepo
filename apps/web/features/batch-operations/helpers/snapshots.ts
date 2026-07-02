@@ -9,6 +9,7 @@ export interface ProductSnapshot {
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
+  hargaAgen: number | null;
   stock: number;
   minStock: number;
   unit: string;
@@ -28,8 +29,9 @@ export function productSnapshot(product: Product): ProductSnapshot {
     barcode: product.barcode,
     description: product.description,
     price: Number(product.price),
-    costPrice: product.costPrice === null ? null : Number(product.costPrice),
-    hargaDinas: product.hargaDinas === null ? null : Number(product.hargaDinas),
+    costPrice: product.costPrice == null ? null : Number(product.costPrice),
+    hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
+    hargaAgen: product.hargaAgen == null ? null : Number(product.hargaAgen),
     stock: product.stock,
     minStock: product.minStock,
     unit: product.unit,

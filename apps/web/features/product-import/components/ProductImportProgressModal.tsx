@@ -36,14 +36,18 @@ export function ProductImportProgressModal({
   const progress = totalRows > 0 ? Math.floor((processedRows / totalRows) * 100) : 0;
   const isActive = job ? ACTIVE_STATUSES.includes(job.status as (typeof ACTIVE_STATUSES)[number]) : false;
   const canCancel = job && isActive;
-  const canRetry = job && (job.status === "FAILED" || job.status === "COMPLETED_WITH_ERRORS");
+  const canRetry =
+    job &&
+    (job.status === "FAILED" ||
+      job.status === "COMPLETED_WITH_ERRORS" ||
+      (job.status === "PENDING" && Boolean(job.lastError)));
   const refreshMessage = refreshError instanceof Error ? refreshError.message : null;
 
   const statusLabel = useMemo(() => {
     if (!job) return "Tidak ada import aktif";
     switch (job.status) {
       case "PENDING":
-        return "Menunggu worker";
+        return "Menunggu antrean";
       case "RUNNING":
         return "Import berjalan";
       case "CANCEL_REQUESTED":
@@ -199,7 +203,7 @@ export function ProductImportProgressModal({
               disabled={retryJob.isPending}
               onClick={() => void handleRetry()}
             >
-              Retry
+              Coba Lagi
             </Button>
           )}
         </div>

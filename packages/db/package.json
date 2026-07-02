@@ -9,6 +9,10 @@
   },
   "scripts": {
     "db:push": "prisma db push",
+    "db:push:dev": "dotenv -e .env.development -- prisma db push",
+    "db:push:prod": "dotenv -e .env.production -- prisma db push",
+    "db:migrate:dev": "dotenv -e .env.development -- prisma migrate dev",
+    "db:migrate:prod": "dotenv -e .env.production -- prisma migrate deploy",
     "db:pull": "prisma db pull",
     "db:studio": "prisma studio",
     "build": "prisma generate && node -e \"const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/.build','prisma generated\\n')\"",
@@ -16,6 +20,8 @@
     "postinstall": "prisma generate",
     "migrate:base-units": "tsx scripts/migrate-base-units.ts",
     "seed": "tsx src/seed.ts",
+    "seed:dev": "dotenv -e .env.development -- tsx src/seed.ts",
+    "seed:prod": "dotenv -e .env.production -- tsx src/seed.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

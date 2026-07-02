@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import type { Prisma } from "@pos/db";
 
 import { calculateDisplayStock, normalizeUnitMultiplier } from "./stock-display";
@@ -10,6 +11,22 @@ export interface EnsureStockGroupInput extends StockGroupKeyInput {
   displayName: string;
   baseUnit: string;
   baseStock: number;
+}
+
+export interface EnsuredProductStockGroup {
+  group: {
+    id: string;
+    storeId: string;
+    groupKey: string;
+    displayName: string;
+    baseUnit: string;
+    baseStock: number;
+  };
+  created: boolean;
+}
+
+export function stockGroupEnsureCacheKey(input: StockGroupKeyInput & { storeId: string }) {
+  return `${input.storeId}|${normalizeStockGroupKey(input)}`;
 }
 
 export async function ensureProductStockGroup(
@@ -51,6 +68,86 @@ export async function ensureProductStockGroup(
   return { group, created: true };
 }
 
+export async function ensureProductStockGroups(
+  tx: Tx,
+  inputs: ReadonlyArray<EnsureStockGroupInput>,
+): Promise<Map<string, EnsuredProductStockGroup>> {
+  const uniqueInputs = new Map<
+    string,
+    EnsureStockGroupInput & { groupKey: string }
+  >();
+
+  for (const input of inputs) {
+    const groupKey = normalizeStockGroupKey(input);
+    const cacheKey = `${input.storeId}|${groupKey}`;
+    if (uniqueInputs.has(cacheKey)) continue;
+    uniqueInputs.set(cacheKey, { ...input, groupKey });
+  }
+
+  const result = new Map<string, EnsuredProductStockGroup>();
+  if (uniqueInputs.size === 0) return result;
+
+  if (
+    !("productStockGroup" in tx) ||
+    !tx.productStockGroup ||
+    typeof tx.productStockGroup.findMany !== "function" ||
+    typeof tx.productStockGroup.createMany !== "function"
+  ) {
+    for (const input of uniqueInputs.values()) {
+      result.set(
+        `${input.storeId}|${input.groupKey}`,
+        await ensureProductStockGroup(tx, input),
+      );
+    }
+    return result;
+  }
+
+  const existingGroups = await tx.productStockGroup.findMany({
+    where: {
+      OR: Array.from(uniqueInputs.values()).map((input) => ({
+        storeId: input.storeId,
+        groupKey: input.groupKey,
+      })),
+    },
+  });
+  const existingKeys = new Set(
+    existingGroups.map((group) => `${group.storeId}|${group.groupKey}`),
+  );
+
+  for (const group of existingGroups) {
+    result.set(`${group.storeId}|${group.groupKey}`, {
+      group,
+      created: false,
+    });
+  }
+
+  const missingInputs = Array.from(uniqueInputs.values()).filter(
+    (input) => !existingKeys.has(`${input.storeId}|${input.groupKey}`),
+  );
+  const createdGroups = missingInputs.map((input) => ({
+    id: randomUUID(),
+    storeId: input.storeId,
+    groupKey: input.groupKey,
+    displayName: input.displayName,
+    baseUnit: input.baseUnit,
+    baseStock: input.baseStock,
+  }));
+
+  if (createdGroups.length > 0) {
+    await tx.productStockGroup.createMany({
+      data: createdGroups,
+    });
+    for (const group of createdGroups) {
+      result.set(`${group.storeId}|${group.groupKey}`, {
+        group,
+        created: true,
+      });
+    }
+  }
+
+  return result;
+}
+
 export function createProductStockGroupEnsurer(tx: Tx) {
   const cache = new Map<
     string,
@@ -58,8 +155,7 @@ export function createProductStockGroupEnsurer(tx: Tx) {
   >();
 
   return async (input: EnsureStockGroupInput) => {
-    const groupKey = normalizeStockGroupKey(input);
-    const cacheKey = `${input.storeId}|${groupKey}`;
+    const cacheKey = stockGroupEnsureCacheKey(input);
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 

@@ -24,6 +24,7 @@ export default function PriceUpdateModal({
   const [price, setPrice] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [hargaDinas, setHargaDinas] = useState("");
+  const [hargaAgen, setHargaAgen] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +33,7 @@ export default function PriceUpdateModal({
     setPrice(String(product.price));
     setCostPrice(product.costPrice == null ? "" : String(product.costPrice));
     setHargaDinas(product.hargaDinas == null ? "" : String(product.hargaDinas));
+    setHargaAgen(product.hargaAgen == null ? "" : String(product.hargaAgen));
     setNote("");
     setError(null);
   }, [isOpen, product]);
@@ -43,16 +45,20 @@ export default function PriceUpdateModal({
       currentPrice: product.price,
       currentCostPrice: product.costPrice,
       currentHargaDinas: product.hargaDinas,
+      currentHargaAgen: product.hargaAgen,
       nextPrice: price,
       nextCostPrice: costPrice,
       nextHargaDinas: hargaDinas,
+      nextHargaAgen: hargaAgen,
       note,
     });
-  }, [costPrice, hargaDinas, note, price, product]);
+  }, [costPrice, hargaAgen, hargaDinas, note, price, product]);
 
   const canSave = Boolean(payload) && Number(price) >= 0;
   const showHargaDinasWarning =
     hargaDinas.trim() !== "" && Number(hargaDinas) < Number(price || "0");
+  const showHargaAgenWarning =
+    hargaAgen.trim() !== "" && Number(hargaAgen) < Number(price || "0");
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
@@ -60,7 +66,7 @@ export default function PriceUpdateModal({
       setError(null);
 
       if (!product || !payload) {
-        setError("Ubah harga jual atau HPP sebelum menyimpan.");
+        setError("Ubah harga jual, HPP, Harga Dinas, atau Harga Agen sebelum menyimpan.");
         return;
       }
 
@@ -115,20 +121,37 @@ export default function PriceUpdateModal({
           />
         </div>
 
-        <div className="space-y-1">
-          <Input
-            label="Harga Dinas"
-            type="number"
-            min="0"
-            placeholder="Opsional"
-            value={hargaDinas}
-            onChange={(event) => setHargaDinas(event.target.value)}
-          />
-          {showHargaDinasWarning && (
-            <p className="text-xs font-medium text-amber-700">
-              Harga Dinas lebih rendah dari harga jual.
-            </p>
-          )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Input
+              label="Harga Dinas"
+              type="number"
+              min="0"
+              placeholder="Opsional"
+              value={hargaDinas}
+              onChange={(event) => setHargaDinas(event.target.value)}
+            />
+            {showHargaDinasWarning && (
+              <p className="text-xs font-medium text-amber-700">
+                Harga Dinas lebih rendah dari harga jual.
+              </p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Input
+              label="Harga Agen"
+              type="number"
+              min="0"
+              placeholder="Opsional"
+              value={hargaAgen}
+              onChange={(event) => setHargaAgen(event.target.value)}
+            />
+            {showHargaAgenWarning && (
+              <p className="text-xs font-medium text-amber-700">
+                Harga Agen lebih rendah dari harga jual.
+              </p>
+            )}
+          </div>
         </div>
 
         <div>

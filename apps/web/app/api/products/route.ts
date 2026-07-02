@@ -33,6 +33,7 @@ const productSchema = z.object({
   price: z.coerce.number().min(0, "Price must be >= 0"),
   costPrice: z.coerce.number().optional().nullable(),
   hargaDinas: z.coerce.number().min(0, "Harga Dinas must be >= 0").optional().nullable(),
+  hargaAgen: z.coerce.number().min(0, "Harga Agen must be >= 0").optional().nullable(),
   stock: z.coerce.number().default(0),
   unitMultiplierToBase: z.coerce.number().positive().optional(),
   minStock: z.coerce.number().default(5),

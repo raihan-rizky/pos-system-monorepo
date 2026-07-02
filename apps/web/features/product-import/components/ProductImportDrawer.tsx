@@ -1086,15 +1086,17 @@ function ImportPreviewTable({
 }) {
   return (
     <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-200 bg-white relative">
-      <table className="min-w-[980px] w-full text-left text-sm border-collapse">
+      <table className="min-w-[1120px] w-full text-left text-sm border-collapse">
         <thead className="sticky top-0 text-[11px] uppercase tracking-widest text-slate-500 z-20 shadow-sm">
           <tr>
             <th className="px-3 py-2 sticky left-0 z-30 bg-slate-50 border-b border-r border-slate-200">Produk</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">SKU</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Kategori</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Supplier</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga Modal</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga Dinas</th>
+            <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Harga Agen</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Stok</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-right">Stok Min.</th>
             <th className="px-3 py-2 bg-slate-50 border-b border-slate-200">Cleaning</th>
@@ -1121,6 +1123,11 @@ function ImportPreviewTable({
                     </span>
                   )}
                 </td>
+                <td className="px-3 py-3 font-mono text-xs text-slate-500">
+                  {(row.supplierCodes ?? []).length > 0
+                    ? row.supplierCodes?.join(", ")
+                    : "-"}
+                </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
                   {row.costPrice != null ? row.costPrice : "-"}
                 </td>
@@ -1129,6 +1136,9 @@ function ImportPreviewTable({
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
                   {row.hargaDinas != null ? row.hargaDinas : "-"}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-slate-500">
+                  {row.hargaAgen != null ? row.hargaAgen : "-"}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">
                   <div className="flex items-center justify-end gap-1.5">

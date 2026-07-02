@@ -152,6 +152,8 @@ export async function POST(
             description: beforeSnapshot.description,
             price: beforeSnapshot.price,
             costPrice: beforeSnapshot.costPrice,
+            hargaDinas: beforeSnapshot.hargaDinas,
+            hargaAgen: beforeSnapshot.hargaAgen,
             stock: beforeSnapshot.stock,
             minStock: beforeSnapshot.minStock,
             unit: beforeSnapshot.unit,

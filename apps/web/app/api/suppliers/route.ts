@@ -14,11 +14,16 @@ import {
   createSupplierWithWarnings,
   listSuppliersPage,
 } from "@/features/suppliers/services/suppliers-service";
+import {
+  isSupplierCodeUniqueError,
+  normalizeSupplierCode,
+} from "@/features/suppliers/helpers/supplier-code";
 import { SUPPLIER_TYPES } from "@/features/suppliers/types/supplier";
 
 const log = getLogger("api:suppliers");
 
 const supplierInputSchema = z.object({
+  code: z.string().trim().max(50).optional().or(z.literal("")),
   name: z.string().trim().min(1, "Name is required").max(120),
   type: z.enum(SUPPLIER_TYPES),
   phone: z.string().trim().max(40).optional().or(z.literal("")),
@@ -68,6 +73,7 @@ export async function POST(request: Request) {
     if (!parsed.success) return apiValidationError(parsed.error);
 
     const result = await createSupplierWithWarnings({
+      code: normalizeSupplierCode(parsed.data.code),
       name: parsed.data.name,
       type: parsed.data.type,
       phone: parsed.data.phone || null,
@@ -83,6 +89,11 @@ export async function POST(request: Request) {
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+    if (isSupplierCodeUniqueError(error)) {
+      return apiError("Kode supplier sudah dipakai supplier lain.", 409, {
+        code: "Conflict",
+      });
+    }
 
     log.error("suppliers.create.failed", { error });
     return apiError("Failed to create supplier", 500, { code: "InternalError" });

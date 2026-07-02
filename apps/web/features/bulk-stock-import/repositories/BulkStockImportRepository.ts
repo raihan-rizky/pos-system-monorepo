@@ -69,6 +69,7 @@ interface GroupStockUpdate {
   stockGroupId: string;
   productId: string;
   baseDelta: number;
+  targetUnitMultiplierToBase: number;
 }
 
 async function findStockImportProductRecords(storeId: string) {
@@ -119,12 +120,29 @@ function addToMap(map: Map<string, number>, key: string, value: number) {
   map.set(key, (map.get(key) ?? 0) + value);
 }
 
+function normalizeUnitMultiplier(multiplier: number | null | undefined) {
+  return Number.isFinite(multiplier) && Number(multiplier) > 0
+    ? Number(multiplier)
+    : 1;
+}
+
+function roundedDisplayTargetTolerance(
+  leftMultiplier: number,
+  rightMultiplier: number,
+) {
+  return Math.max(leftMultiplier, rightMultiplier) * 0.005 + 1e-6;
+}
+
 function collectStockUpdate(
   product: StockImportTxProduct,
   delta: number,
   allowNegative: boolean,
   standaloneDeltas: Map<string, number>,
   groupDeltas: Map<string, GroupStockUpdate>,
+  options?: {
+    mode: BulkStockImportMode;
+    targetStock: number;
+  },
 ) {
   if (delta === 0) return;
 
@@ -142,10 +160,61 @@ function collectStockUpdate(
 
   const baseDelta = calculateBaseQuantity(delta, product.unitMultiplierToBase);
   const existing = groupDeltas.get(product.stockGroupId);
+  const unitMultiplier = normalizeUnitMultiplier(product.unitMultiplierToBase);
+
+  if (options?.mode === "SET") {
+    const targetBaseStock = calculateBaseQuantity(
+      options.targetStock,
+      product.unitMultiplierToBase,
+    );
+    const nextBaseDelta = targetBaseStock - product.stockGroup.baseStock;
+
+    if (existing) {
+      const tolerance = roundedDisplayTargetTolerance(
+        existing.targetUnitMultiplierToBase,
+        unitMultiplier,
+      );
+      if (Math.abs(existing.baseDelta - nextBaseDelta) <= tolerance) {
+        // Consistent targets — prefer the finer-grained variant for precision
+        if (unitMultiplier < existing.targetUnitMultiplierToBase) {
+          groupDeltas.set(product.stockGroupId, {
+            stockGroupId: product.stockGroupId,
+            productId: product.id,
+            baseDelta: nextBaseDelta,
+            targetUnitMultiplierToBase: unitMultiplier,
+          });
+        }
+        return;
+      }
+
+      // Inconsistent targets across grouped products — use the finer-grained
+      // variant as the authority since it provides the most precise base stock.
+      if (unitMultiplier < existing.targetUnitMultiplierToBase) {
+        groupDeltas.set(product.stockGroupId, {
+          stockGroupId: product.stockGroupId,
+          productId: product.id,
+          baseDelta: nextBaseDelta,
+          targetUnitMultiplierToBase: unitMultiplier,
+        });
+      }
+      return;
+    }
+
+    groupDeltas.set(product.stockGroupId, {
+      stockGroupId: product.stockGroupId,
+      productId: product.id,
+      baseDelta: nextBaseDelta,
+      targetUnitMultiplierToBase: unitMultiplier,
+    });
+    return;
+  }
+
   groupDeltas.set(product.stockGroupId, {
     stockGroupId: product.stockGroupId,
     productId: existing?.productId ?? product.id,
     baseDelta: (existing?.baseDelta ?? 0) + baseDelta,
+    targetUnitMultiplierToBase:
+      existing?.targetUnitMultiplierToBase ?? unitMultiplier,
   });
 }
 
@@ -334,6 +403,10 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
             allowNegative,
             standaloneDeltas,
             groupDeltas,
+            {
+              mode: input.mode,
+              targetStock: afterStock,
+            },
           );
         }
 

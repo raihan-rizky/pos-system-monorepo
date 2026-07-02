@@ -69,6 +69,30 @@ describe("resolveProductImportAutoDecisions", () => {
     expect(resolved.autoActionReason).toContain("Harga Dinas changed");
   });
 
+  it("auto-updates when same product and unit has different Harga Agen", () => {
+    const [resolved] = resolveProductImportAutoDecisions({
+      rows: [row({ name: "Fc A4", category: "Jasa", unit: "lembar", price: 500, costPrice: 100, hargaAgen: 650 } as Partial<NormalizedImportRow>)],
+      existingProducts: [
+        {
+          id: "prod-1",
+          name: "Fotocopy A4",
+          sku: "FC-A4",
+          category: "Jasa",
+          unit: "lembar",
+          price: 500,
+          costPrice: 100,
+          hargaAgen: 600,
+          stockGroupId: "group-1",
+          stockGroupBaseUnit: "lembar",
+        } as any,
+      ],
+      existingSkus: new Set(["FC-A4"]),
+    });
+
+    expect(resolved.autoAction).toBe("auto_price_update");
+    expect(resolved.autoActionReason).toContain("Harga Agen changed");
+  });
+
   it("auto-updates only price and cost for same product and same unit when price data differs", () => {
     const [resolved] = resolveProductImportAutoDecisions({
       rows: [row({ name: "Fc A4", category: "Jasa", unit: "lembar", price: 500, costPrice: 100 })],
@@ -90,6 +114,103 @@ describe("resolveProductImportAutoDecisions", () => {
 
     expect(resolved.autoAction).toBe("auto_price_update");
     expect(resolved.autoActionReason).toContain("price/cost changed");
+  });
+
+  it("auto-updates when same product and unit has a different unit multiplier", () => {
+    const [resolved] = resolveProductImportAutoDecisions({
+      rows: [
+        row({
+          name: "Amplop 90 Garda",
+          sku: "A-006",
+          category: "ATK",
+          unit: "Ball",
+          price: 119500,
+          costPrice: 97500,
+          unitMultiplierToBase: 5,
+        }),
+      ],
+      existingProducts: [
+        {
+          id: "prod-ball",
+          name: "Amplop 90 Garda",
+          sku: "A-006-BALL",
+          category: "ATK",
+          unit: "Ball",
+          price: 119500,
+          costPrice: 97500,
+          unitMultiplierToBase: 500,
+          stockGroupId: "group-1",
+          stockGroupBaseUnit: "Dus",
+        } as any,
+      ],
+      existingSkus: new Set(["A-006-BALL"]),
+    });
+
+    expect(resolved.autoAction).toBe("auto_price_update");
+    expect(resolved.autoActionReason).toContain("unit multiplier changed");
+  });
+
+  it("uses the matched variant SKU when source rows reuse the base SKU across units", () => {
+    const resolved = resolveProductImportAutoDecisions({
+      rows: [
+        row({
+          rowNumber: 12,
+          name: "Amplop 90 Garda",
+          sku: "A-006",
+          category: "ATK",
+          unit: "Dus",
+          price: 26500,
+          costPrice: 19500,
+          hargaDinas: 29500,
+        }),
+        row({
+          rowNumber: 13,
+          name: "Amplop 90 Garda",
+          sku: "A-006",
+          category: "ATK",
+          unit: "Ball",
+          price: 119500,
+          costPrice: 97500,
+          unitMultiplierToBase: 5,
+        }),
+      ],
+      existingProducts: [
+        {
+          id: "prod-base",
+          name: "Amplop 90 Garda",
+          sku: "A-006",
+          category: "ATK",
+          unit: "Dus",
+          price: 26500,
+          costPrice: 19500,
+          hargaDinas: 29500,
+          stockGroupId: "group-1",
+          stockGroupBaseUnit: "Dus",
+        },
+        {
+          id: "prod-ball",
+          name: "Amplop 90 Garda",
+          sku: "A-006-BALL",
+          category: "ATK",
+          unit: "Ball",
+          price: 119.5,
+          costPrice: 97.5,
+          hargaDinas: null,
+          stockGroupId: "group-1",
+          stockGroupBaseUnit: "Dus",
+        },
+      ],
+      existingSkus: new Set(["A-006", "A-006-BALL"]),
+    });
+
+    expect(resolved[1]).toEqual(
+      expect.objectContaining({
+        sku: "A-006-BALL",
+        matchedProductId: "prod-ball",
+        matchedProductSku: "A-006-BALL",
+        autoAction: "auto_price_update",
+      }),
+    );
   });
 
   it("auto-creates a different-unit variant with a fresh SKU in the same group", () => {

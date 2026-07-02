@@ -29,6 +29,7 @@ async function listSupplierImportCandidatesWithClient(
   const suppliers = await client.supplier.findMany({
     select: {
       id: true,
+      code: true,
       name: true,
       type: true,
       phone: true,
@@ -38,6 +39,7 @@ async function listSupplierImportCandidatesWithClient(
 
   return suppliers.map((supplier) => ({
     supplierId: supplier.id,
+    code: supplier.code,
     name: supplier.name,
     normalizedName: normalizeSupplierNameForRepository(supplier.name),
     type: supplier.type,
@@ -52,6 +54,7 @@ export async function createSupplierForImport(
 ): Promise<void> {
   await tx.supplier.create({
     data: {
+      code: input.code || null,
       name: input.name,
       type: input.type,
       phone: input.phone || null,
@@ -70,6 +73,7 @@ export async function updateSupplierForImport(
   await tx.supplier.update({
     where: { id },
     data: {
+      code: input.code || null,
       name: input.name,
       type: input.type,
       phone: input.phone || null,

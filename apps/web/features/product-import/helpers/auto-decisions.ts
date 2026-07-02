@@ -12,6 +12,9 @@ export interface ExistingImportProduct {
   price: number;
   costPrice: number | null;
   hargaDinas?: number | null;
+  hargaDinasProvided?: boolean;
+  hargaAgen?: number | null;
+  unitMultiplierToBase?: number | null;
   stockGroupId?: string | null;
   stockGroupBaseUnit?: string | null;
 }
@@ -35,12 +38,28 @@ function normalizePrice(value: number | null | undefined): number | null {
   return value == null ? null : Number(value);
 }
 
+function unitMultiplierMatches(row: NormalizedImportRow, product: ExistingImportProduct): boolean {
+  if (row.unitMultiplierToBase == null || product.unitMultiplierToBase == null) return true;
+  return Number(row.unitMultiplierToBase) === Number(product.unitMultiplierToBase);
+}
+
+function optionalPriceMatches(
+  rowValue: number | null | undefined,
+  productValue: number | null | undefined,
+  provided?: boolean,
+): boolean {
+  if (!provided && rowValue == null) return true;
+  return normalizePrice(rowValue ?? null) === normalizePrice(productValue ?? null);
+}
+
 function priceDataMatches(row: NormalizedImportRow, product: ExistingImportProduct): boolean {
   return (
     normalizePrice(row.price) === normalizePrice(product.price) &&
     normalizePrice(row.costPrice ?? null) === normalizePrice(product.costPrice) &&
-    (row.hargaDinas == null ||
-      normalizePrice(row.hargaDinas) === normalizePrice(product.hargaDinas ?? null))
+    optionalPriceMatches(row.hargaDinas, product.hargaDinas, row.hargaDinasProvided) &&
+    (row.hargaAgen == null ||
+      normalizePrice(row.hargaAgen) === normalizePrice(product.hargaAgen ?? null)) &&
+    unitMultiplierMatches(row, product)
   );
 }
 
@@ -49,10 +68,19 @@ function describePriceDataChanges(row: NormalizedImportRow, product: ExistingImp
   if (normalizePrice(row.price) !== normalizePrice(product.price)) changed.push("price");
   if (normalizePrice(row.costPrice ?? null) !== normalizePrice(product.costPrice)) changed.push("cost");
   if (
-    row.hargaDinas != null &&
-    normalizePrice(row.hargaDinas) !== normalizePrice(product.hargaDinas ?? null)
+    (row.hargaDinasProvided || row.hargaDinas != null) &&
+    normalizePrice(row.hargaDinas ?? null) !== normalizePrice(product.hargaDinas ?? null)
   ) {
     changed.push("Harga Dinas");
+  }
+  if (
+    row.hargaAgen != null &&
+    normalizePrice(row.hargaAgen) !== normalizePrice(product.hargaAgen ?? null)
+  ) {
+    changed.push("Harga Agen");
+  }
+  if (!unitMultiplierMatches(row, product)) {
+    changed.push("unit multiplier");
   }
   return changed.join("/") || "price/cost";
 }
@@ -72,6 +100,8 @@ function createCandidateFromRow(row: NormalizedImportRow): ProductCandidate {
     price: row.price,
     costPrice: row.costPrice ?? null,
     hargaDinas: row.hargaDinas ?? null,
+    hargaAgen: row.hargaAgen ?? null,
+    unitMultiplierToBase: row.unitMultiplierToBase ?? null,
     stockGroupId: row.matchedStockGroupId ?? `row-group:${row.rowNumber}`,
     stockGroupBaseUnit: row.unit,
     productKey,
@@ -208,6 +238,7 @@ export function resolveProductImportAutoDecisions(
         : "auto_price_update";
       return {
         ...row,
+        sku: sameUnit.sku,
         autoAction,
         autoActionReason:
           autoAction === "auto_skip"

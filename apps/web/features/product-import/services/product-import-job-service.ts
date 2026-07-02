@@ -13,15 +13,19 @@ import {
 
 const logger = getLogger("features:product-import:jobs");
 
-const PRODUCT_IMPORT_JOB_CHUNK_SIZE = 100;
+const PRODUCT_IMPORT_JOB_CHUNK_SIZE = 400;
 const PRODUCT_IMPORT_JOB_RETENTION_DAYS = 30;
-const PRODUCT_IMPORT_JOB_STALE_MS = 90_000;
+const PRODUCT_IMPORT_JOB_STALE_MS = 180_000;
 const PRODUCT_IMPORT_JOB_ROW_MAX_ATTEMPTS = 3;
 const PRODUCT_IMPORT_JOB_INFRA_RETRY_BASE_MS = 5_000;
 const PRODUCT_IMPORT_JOB_INFRA_RETRY_MAX_MS = 5 * 60_000;
 
 const ACTIVE_JOB_STATUSES = ["PENDING", "RUNNING", "CANCEL_REQUESTED"] as const;
 const TERMINAL_JOB_STATUSES = ["COMPLETED", "COMPLETED_WITH_ERRORS", "FAILED", "CANCELLED"] as const;
+
+export interface ProductImportWorkerControl {
+  shouldStop?: () => boolean;
+}
 
 export const productImportJobCreateSchema = productImportStartSchema.extend({
   chunkSize: z.number().int().min(1).max(250).optional(),
@@ -325,37 +329,62 @@ export async function retryProductImportJob(jobId: string, user: ProductImportAc
       cancelRequestedAt: null,
     },
   });
+
 }
 
 export async function claimNextProductImportJob(storeId: string) {
-  const staleBefore = new Date(Date.now() - PRODUCT_IMPORT_JOB_STALE_MS);
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - PRODUCT_IMPORT_JOB_STALE_MS);
+  const eligibility = {
+    storeId,
+    OR: [
+      {
+        status: "PENDING" as const,
+        rows: {
+          some: {
+            status: "PENDING" as const,
+            OR: [
+              { nextAttemptAt: null },
+              { nextAttemptAt: { lte: now } },
+            ],
+          },
+        },
+      },
+      { status: "CANCEL_REQUESTED" as const },
+      {
+        status: "RUNNING" as const,
+        OR: [{ lastHeartbeatAt: null }, { lastHeartbeatAt: { lt: staleBefore } }],
+      },
+    ],
+  };
   const candidate = await db.productImportJob.findFirst({
-    where: {
-      storeId,
-      OR: [
-        { status: "PENDING" },
-        { status: "RUNNING", OR: [{ lastHeartbeatAt: null }, { lastHeartbeatAt: { lt: staleBefore } }] },
-      ],
-    },
+    where: eligibility,
     orderBy: { createdAt: "asc" },
   });
 
   if (!candidate) return null;
 
-  const now = new Date();
-  await db.productImportJobRow.updateMany({
-    where: { jobId: candidate.id, status: "RUNNING" },
-    data: { status: "PENDING", startedAt: null },
-  });
-
-  return db.productImportJob.update({
-    where: { id: candidate.id },
+  const claim = await db.productImportJob.updateMany({
+    where: { id: candidate.id, ...eligibility },
     data: {
       status: "RUNNING",
       startedAt: candidate.startedAt ?? now,
       lastHeartbeatAt: now,
     },
   });
+  if (claim.count === 0) return null;
+
+  await db.productImportJobRow.updateMany({
+    where: { jobId: candidate.id, status: "RUNNING" },
+    data: { status: "PENDING", startedAt: null },
+  });
+
+  return {
+    ...candidate,
+    status: "RUNNING" as const,
+    startedAt: candidate.startedAt ?? now,
+    lastHeartbeatAt: now,
+  };
 }
 
 async function markJobRowsRunning(jobId: string, cursor: number, chunkSize: number) {
@@ -424,34 +453,27 @@ async function markCommittedJobRows(input: {
       .filter((item) => item.sourceRowNumber != null)
       .map((item) => [item.sourceRowNumber as number, item]),
   );
-  const skippedRowNumbers = items
-    .filter((item) => item.action === "SKIP" && item.sourceRowNumber != null)
-    .map((item) => item.sourceRowNumber as number);
-  const succeededRowNumbers = input.rowNumbers.filter(
-    (rowNumber) => !skippedRowNumbers.includes(rowNumber),
+  const productIds = input.rowNumbers.map(
+    (rowNumber) => itemByRowNumber.get(rowNumber)?.productId ?? null,
+  );
+  const statuses = input.rowNumbers.map((rowNumber) =>
+    itemByRowNumber.get(rowNumber)?.action === "SKIP" ? "SKIPPED" : "SUCCEEDED",
   );
 
-  if (skippedRowNumbers.length > 0) {
-    await db.productImportJobRow.updateMany({
-      where: { jobId: input.jobId, rowNumber: { in: skippedRowNumbers } },
-      data: { status: "SKIPPED", finishedAt: new Date() },
-    });
-  }
-  if (succeededRowNumbers.length > 0) {
-    await db.productImportJobRow.updateMany({
-      where: { jobId: input.jobId, rowNumber: { in: succeededRowNumbers } },
-      data: { status: "SUCCEEDED", finishedAt: new Date() },
-    });
-  }
-
-  for (const rowNumber of input.rowNumbers) {
-    const item = itemByRowNumber.get(rowNumber);
-    if (!item?.productId) continue;
-    await db.productImportJobRow.updateMany({
-      where: { jobId: input.jobId, rowNumber },
-      data: { productId: item.productId },
-    });
-  }
+  await db.$executeRaw`
+    UPDATE pos_product_import_job_rows AS r SET
+      status = v.status::"ProductImportJobRowStatus",
+      "productId" = COALESCE(v."productId", r."productId"),
+      "finishedAt" = NOW(),
+      "updatedAt" = NOW()
+    FROM unnest(
+      ${input.rowNumbers}::int4[],
+      ${productIds}::text[],
+      ${statuses}::text[]
+    ) AS v("rowNumber", "productId", status)
+    WHERE r."jobId" = ${input.jobId}
+      AND r."rowNumber" = v."rowNumber"
+  `;
 }
 
 async function markFailedJobRows(input: {
@@ -611,7 +633,10 @@ async function processJobRowChunk(input: {
   return "processed";
 }
 
-export async function processProductImportJob(jobId: string) {
+export async function processProductImportJob(
+  jobId: string,
+  control: ProductImportWorkerControl = {},
+) {
   const initialJob = await db.productImportJob.findUnique({ where: { id: jobId } });
   if (!initialJob) throw new Error("IMPORT_JOB_NOT_FOUND");
   let job = initialJob;
@@ -657,6 +682,20 @@ export async function processProductImportJob(jobId: string) {
     }
 
     await summarizeJob(job.id, { clearLastError: true });
+    if (control.shouldStop?.()) {
+      const remainingRows = await db.productImportJobRow.count({
+        where: { jobId: job.id, status: { in: ["PENDING", "RUNNING"] } },
+      });
+      if (remainingRows > 0) {
+        return db.productImportJob.update({
+          where: { id: job.id },
+          data: {
+            status: "PENDING",
+            lastHeartbeatAt: new Date(),
+          },
+        });
+      }
+    }
   }
 
   const summary = await summarizeJob(job.id);
@@ -687,10 +726,13 @@ export async function processProductImportJob(jobId: string) {
   });
 }
 
-export async function processNextProductImportJob(storeId: string) {
+export async function processNextProductImportJob(
+  storeId: string,
+  control: ProductImportWorkerControl = {},
+) {
   const job = await claimNextProductImportJob(storeId);
   if (!job) return null;
-  return processProductImportJob(job.id);
+  return processProductImportJob(job.id, control);
 }
 
 export async function cleanupExpiredProductImportJobs(now = new Date()) {

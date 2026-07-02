@@ -48,6 +48,22 @@ describe("supplier import service", () => {
     });
   });
 
+  it("passes normalized supplier code into create payloads", async () => {
+    await commitSupplierImport({
+      rows: [commitRow({ rowNumber: 2, name: "CV Sinar", supplierCode: "SP0001" } as Partial<SupplierImportCommitRow> & { name: string })],
+      decisions: {},
+      selectedExistingSupplierIds: {},
+    });
+
+    expect(createSupplierMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        code: "SP0001",
+        name: "CV Sinar",
+      }),
+    );
+  });
+
   it("requires selected supplier id when update has multiple current matches", async () => {
     listCandidatesTxMock.mockResolvedValue([
       supplierCandidate("supplier-1", "CV Sinar"),
@@ -70,6 +86,7 @@ function commitRow(
   const normalizedName = overrides.name.toLowerCase().replace(/\s+/g, " ").trim();
   return {
     rowNumber: overrides.rowNumber ?? 2,
+    supplierCode: overrides.supplierCode ?? null,
     name: overrides.name,
     normalizedName,
     type: overrides.type ?? "DISTRIBUTOR",

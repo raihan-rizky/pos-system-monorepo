@@ -3,6 +3,8 @@ export interface ProductVariant {
   unit: string;
   price: number;
   costPrice: number | null;
+  hargaDinas: number | null;
+  hargaAgen: number | null;
   stock: number;
   sku: string;
   unitMultiplierToBase?: number;
@@ -21,6 +23,7 @@ export interface Product {
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
+  hargaAgen: number | null;
   stock: number;
   minStock: number;
   unit: string;

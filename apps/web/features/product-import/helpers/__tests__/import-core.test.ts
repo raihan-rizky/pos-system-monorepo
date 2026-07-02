@@ -19,6 +19,7 @@ describe("buildMissingColumnResponse", () => {
     expect(normalizeHeader("Harga Pokok")).toBe("costPrice");
     expect(normalizeHeader("Harga Level 1")).toBe("price");
     expect(normalizeHeader("Harga Level 2")).toBe("hargaDinas");
+    expect(normalizeHeader("Harga Agen")).toBe("hargaAgen");
   });
 
   it("returns no missing columns when all required columns present", () => {
@@ -115,6 +116,95 @@ describe("normalizeImportRows", () => {
     expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
   });
 
+  it("treats zero Harga Dinas as empty during import", () => {
+    const records = [{ name: "Product", sku: "SKU-DINAS-EMPTY", category: "Drinks", price: 10000, hargaDinas: 0, unit: "pcs" }];
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0].hargaDinas).toBeNull();
+    expect(result.rows[0].warnings).not.toContain("Harga Dinas is lower than regular price.");
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+  });
+
+  it("accepts optional Harga Agen and warns when it is below regular price", () => {
+    const records = [{ name: "Product", sku: "SKU-AGEN", category: "Drinks", price: 10000, hargaAgen: 9000, unit: "pcs" }];
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0].hargaAgen).toBe(9000);
+    expect(result.rows[0].warnings).toContain("Harga Agen is lower than regular price.");
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+  });
+
+  it("keeps package Harga Dinas empty instead of swapping zero into the base unit", () => {
+    const records = [
+      {
+        name: "Acco plastik Joyko",
+        sku: "A-001",
+        category: "ATK",
+        unit: "Dus",
+        unitMultiplierToBase: 1,
+        price: 12000,
+        hargaDinas: 13500,
+      },
+      {
+        name: "Acco plastik Joyko",
+        sku: "A-001",
+        category: "ATK",
+        unit: "Pak",
+        unitMultiplierToBase: 10,
+        price: 108000,
+        hargaDinas: 0,
+      },
+    ];
+
+    const result = normalizeImportRows(records, new Map(), new Set(["atk"]));
+
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({
+        unit: "Dus",
+        price: 12000,
+        hargaDinas: 13500,
+      }),
+    );
+    expect(result.rows[1]).toEqual(
+      expect.objectContaining({
+        unit: "Pak",
+        price: 108000,
+        hargaDinas: null,
+      }),
+    );
+    expect(result.rows[0].cleaningFixes ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "hargaDinas" }),
+      ]),
+    );
+    expect(result.rows[1].cleaningFixes ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "hargaDinas" }),
+      ]),
+    );
+  });
+
+  it("parses comma-separated supplier codes without blocking the product row", () => {
+    const records = [{
+      name: "Product",
+      sku: "SKU-SUP",
+      category: "Drinks",
+      price: 10000,
+      supplierCode: " sp0001, SP0002 ",
+      unit: "pcs",
+    }];
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({
+        supplierCodesProvided: true,
+        supplierCodes: ["SP0001", "SP0002"],
+        errors: [],
+      }),
+    );
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+  });
+
   it("auto-fixes package rows when package prices are lower than small-unit prices", () => {
     const records = [
       {
@@ -126,6 +216,7 @@ describe("normalizeImportRows", () => {
         price: 1000,
         costPrice: 700,
         hargaDinas: 1200,
+        hargaAgen: 1150,
       },
       {
         name: "Binder Clip",
@@ -136,6 +227,7 @@ describe("normalizeImportRows", () => {
         price: 900,
         costPrice: 600,
         hargaDinas: 1100,
+        hargaAgen: 1050,
       },
     ];
 
@@ -146,6 +238,7 @@ describe("normalizeImportRows", () => {
         price: 900,
         costPrice: 600,
         hargaDinas: 1100,
+        hargaAgen: 1050,
         cleaningStatus: "auto_fixed",
         sourceFamilyKey: "BC-001",
       }),
@@ -155,6 +248,7 @@ describe("normalizeImportRows", () => {
         price: 1000,
         costPrice: 700,
         hargaDinas: 1200,
+        hargaAgen: 1150,
         cleaningStatus: "auto_fixed",
         sourceFamilyKey: "BC-001",
       }),
@@ -179,10 +273,103 @@ describe("normalizeImportRows", () => {
           oldValue: 1100,
           newValue: 1200,
         }),
+        expect.objectContaining({
+          ruleId: "PACKAGE_PRICE_LOWER_THAN_SMALL",
+          field: "hargaAgen",
+          oldValue: 1050,
+          newValue: 1150,
+        }),
       ]),
     );
     expect(result.warnings).toContain(
       "Row 3: Auto-fixed package/small price fields because package unit price was lower than small unit price.",
+    );
+  });
+
+  it("does not swap zero price fields between small and package units", () => {
+    const records = [
+      {
+        name: "Kertas HVS",
+        sku: "HVS-001",
+        category: "ATK",
+        unit: "rim",
+        unitMultiplierToBase: 1,
+        price: 53000,
+        costPrice: 47154,
+        hargaAgen: 48000,
+      },
+      {
+        name: "Kertas HVS",
+        sku: "HVS-001",
+        category: "ATK",
+        unit: "dus",
+        unitMultiplierToBase: 5,
+        price: 260000,
+        costPrice: 235770,
+        hargaAgen: 0,
+      },
+    ];
+
+    const result = normalizeImportRows(records, new Map(), categories);
+
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({
+        unit: "rim",
+        price: 53000,
+        costPrice: 47154,
+        hargaAgen: 48000,
+        cleaningStatus: "clean",
+      }),
+    );
+    expect(result.rows[1]).toEqual(
+      expect.objectContaining({
+        unit: "dus",
+        price: 260000,
+        costPrice: 235770,
+        hargaAgen: 0,
+        cleaningStatus: "clean",
+      }),
+    );
+    expect(result.rows[0].cleaningFixes ?? []).toEqual([]);
+    expect(result.rows[1].cleaningFixes ?? []).toEqual([]);
+  });
+
+  it("keeps auto-cleaning metadata in commit rows", () => {
+    const normalized = normalizeImportRows(
+      [
+        {
+          name: "Binder Clip",
+          sku: "BC-001",
+          category: "ATK",
+          unit: "pcs",
+          unitMultiplierToBase: 1,
+          price: 1000,
+        },
+        {
+          name: "Binder Clip",
+          sku: "BC-001",
+          category: "ATK",
+          unit: "dus",
+          unitMultiplierToBase: 12,
+          price: 900,
+        },
+      ],
+      new Map(),
+      categories,
+    );
+
+    const parsed = importRowCommitSchema.parse(normalized.rows[1]);
+
+    expect(parsed.cleaningStatus).toBe("auto_fixed");
+    expect(parsed.cleaningFixes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ruleId: "PACKAGE_PRICE_LOWER_THAN_SMALL",
+          field: "price",
+          oldValue: 900,
+          newValue: 1000,
+        }),
+      ]),
     );
   });
 

@@ -53,6 +53,7 @@ export function ProductGrid({
           categoryName: product.category.name,
           price: product.price,
           hargaDinas: product.hargaDinas,
+          hargaAgen: product.hargaAgen,
         },
         customerType,
         categoryPricingRules,

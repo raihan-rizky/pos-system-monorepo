@@ -51,7 +51,7 @@ export function SupplierSelector({ value, onChange, error }: SupplierSelectorPro
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         className="mb-2 min-h-10 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-        placeholder="Cari supplier"
+        placeholder="Cari kode atau nama supplier"
       />
       <select
         value={value}
@@ -61,7 +61,7 @@ export function SupplierSelector({ value, onChange, error }: SupplierSelectorPro
         <option value="">Pilih supplier</option>
         {supplierOptions.map((supplier) => (
           <option key={supplier.id} value={supplier.id}>
-            {supplier.name} - {supplier.type}
+            {supplier.code ? `${supplier.code} - ` : ""}{supplier.name} - {supplier.type}
           </option>
         ))}
       </select>

@@ -50,6 +50,7 @@ import {
 } from "@/features/suppliers/shopping-requests";
 
 const emptyForm: SupplierInput = {
+  code: "",
   name: "",
   type: "DISTRIBUTOR",
   phone: "",
@@ -110,6 +111,7 @@ export function SupplierPageShell() {
   const openEdit = (supplier: SupplierListItem) => {
     setEditing(supplier);
     setForm({
+      code: supplier.code ?? "",
       name: supplier.name,
       type: supplier.type,
       phone: supplier.phone ?? "",
@@ -253,7 +255,7 @@ export function SupplierPageShell() {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     className="min-h-11 w-full rounded-xl border border-slate-200 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                    placeholder="Cari nama, kontak, atau telepon..."
+                    placeholder="Cari kode, nama, kontak, atau telepon..."
                   />
                 </label>
                 <select
@@ -420,6 +422,19 @@ function SupplierFormModal({
             {warning}
           </div>
         ))}
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold text-slate-700">
+            Kode Supplier
+          </span>
+          <input
+            value={form.code ?? ""}
+            onChange={(event) =>
+              onChange({ ...form, code: event.target.value.toUpperCase() })
+            }
+            className="min-h-11 w-full rounded-xl border border-slate-200 px-3 font-mono text-sm uppercase"
+            placeholder="SP0001"
+          />
+        </label>
         <label className="block">
           <span className="mb-1 block text-sm font-bold text-slate-700">Nama</span>
           <input
@@ -628,9 +643,16 @@ function SupplierCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-base font-black text-slate-950">{supplier.name}</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <p className="truncate text-base font-black text-slate-950">{supplier.name}</p>
+            {supplier.code && (
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] font-black uppercase text-slate-500">
+                {supplier.code}
+              </span>
+            )}
+          </div>
           <p className="mt-1 truncate text-xs font-bold uppercase tracking-wider text-slate-500">
-            {supplier.type}{supplier.phone ? ` · ${supplier.phone}` : ""}
+            {supplier.type}{supplier.phone ? ` - ${supplier.phone}` : ""}
           </p>
         </div>
         <StatusPill isActive={supplier.isActive} />

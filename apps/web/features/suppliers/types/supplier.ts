@@ -16,6 +16,7 @@ export type SupplierWarning = {
 
 export type SupplierListItem = {
   id: string;
+  code: string | null;
   name: string;
   type: SupplierType;
   phone: string | null;
@@ -28,6 +29,7 @@ export type SupplierListItem = {
 };
 
 export type SupplierInput = {
+  code?: string | null;
   name: string;
   type: SupplierType;
   phone?: string | null;

@@ -120,6 +120,7 @@ model Product {
   unitMultiplierToBase    Float                       @default(1)
   conversionNeedsReview   Boolean                     @default(false)
   hargaDinas              Decimal?                    @db.Decimal(12, 2)
+  hargaAgen               Decimal?                    @db.Decimal(12, 2)
   batchItems              BatchOperationItem[]
   inventoryInboundLines    InventoryInboundReceiptLine[]
   inventoryLogs           InventoryLog[]
@@ -127,6 +128,7 @@ model Product {
   inventoryProductionMaterials InventoryProductionMaterial[]
   internalStockOutRequests InternalStockOutRequest[]
   priceLogs               ProductPriceLog[]
+  productSuppliers        ProductSupplier[]
   shoppingRequestItems    ShoppingRequestItem[]
   stockGroupActivities    ProductStockGroupActivity[]
   category                Category                    @relation(fields: [categoryId], references: [id])
@@ -327,6 +329,7 @@ model Customer {
 
 model Supplier {
   id               String            @id @default(cuid())
+  code             String?           @unique
   name             String
   type             SupplierType
   phone            String?
@@ -338,12 +341,25 @@ model Supplier {
   updatedAt        DateTime          @updatedAt
   inboundReceipts  InventoryInboundReceipt[]
   inventoryLogs    InventoryLog[]
+  productSuppliers ProductSupplier[]
   shoppingRequests ShoppingRequest[]
 
   @@index([isActive])
   @@index([type])
   @@index([name])
   @@map("pos_suppliers")
+}
+
+model ProductSupplier {
+  productId  String
+  supplierId String
+  createdAt  DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@id([productId, supplierId])
+  @@index([supplierId])
+  @@map("pos_product_suppliers")
 }
 
 model DebtPaymentLog {

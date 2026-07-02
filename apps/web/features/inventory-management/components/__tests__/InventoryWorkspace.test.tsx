@@ -53,6 +53,26 @@ vi.mock("@/hooks/useProducts", () => ({
   }),
 }));
 
+const mockUseInventorySummary = vi.fn(() => ({
+  data: null,
+  isLoading: false,
+  refetch: vi.fn(),
+}));
+vi.mock("../../hooks/useInventorySummary", () => ({
+  useInventorySummary: () => mockUseInventorySummary(),
+}));
+
+const mockInvalidateQueries = vi.fn();
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      invalidateQueries: mockInvalidateQueries,
+    }),
+  };
+});
+
 vi.mock("@/features/internal-use-recap/hooks/useInternalUseRecap", () => ({
   useInternalUseRecap: () => ({
     data: {
@@ -816,5 +836,27 @@ describe("InventoryWorkspace", () => {
       />
     );
     expect(htmlModal).toContain("menu ini selalu terbuka untuk owner...");
+  });
+
+  it("uses live summary data from useInventorySummary when available", () => {
+    mockUseInventorySummary.mockReturnValue({
+      data: {
+        ...baseSummary,
+        counts: {
+          ...baseSummary.counts,
+          unverifiedOutLogs: 2,
+        },
+      },
+      isLoading: false,
+      refetch: vi.fn() as any,
+    } as any);
+
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace initialSummary={baseSummary} />
+    );
+
+    expect(html).toContain("2 log perlu dicek sebelum matching");
+    expect(html).toContain("Verifikasi dulu");
+    expect(html).not.toContain("0 log perlu dicek sebelum matching");
   });
 });

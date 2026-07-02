@@ -6,6 +6,7 @@ const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const categoryFindManyMock = vi.hoisted(() => vi.fn());
+const supplierFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -19,6 +20,9 @@ vi.mock("@pos/db", () => ({
     },
     category: {
       findMany: categoryFindManyMock,
+    },
+    supplier: {
+      findMany: supplierFindManyMock,
     },
   },
 }));
@@ -46,6 +50,7 @@ describe("POST /api/products/import/preview", () => {
       },
     ]);
     categoryFindManyMock.mockResolvedValue([{ name: "Jasa" }]);
+    supplierFindManyMock.mockResolvedValue([]);
   });
 
   it("returns an auto-skip decision for case-insensitive duplicate product names after abbreviation expansion", async () => {
@@ -129,5 +134,50 @@ describe("POST /api/products/import/preview", () => {
       "same_unit_price_conflict",
     ]);
     expect(body.rows.every((row: { errors: string[] }) => row.errors.length > 0)).toBe(true);
+  });
+
+  it("warns for product import supplier codes that do not exist", async () => {
+    productFindManyMock.mockResolvedValue([]);
+    supplierFindManyMock.mockResolvedValue([
+      { id: "supplier-1", code: "SP0001", name: "CV Sinar" },
+    ]);
+
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File(
+        ["name,sku,category,price,unit,supplierCode\nAmplop,AMP-SUP,Jasa,1000,pcs,\"sp0001, SP404\""],
+        "products.csv",
+        { type: "text/csv" },
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/preview", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(supplierFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: { in: ["SP0001", "SP404"] } },
+        select: { id: true, code: true, name: true },
+      }),
+    );
+    expect(body.rows[0]).toEqual(
+      expect.objectContaining({
+        supplierCodes: ["SP0001", "SP404"],
+        supplierCodesProvided: true,
+      }),
+    );
+    expect(body.rows[0].warnings).toContain(
+      "Kode supplier SP404 tidak ditemukan dan akan diabaikan.",
+    );
+    expect(body.warnings).toContain(
+      "Row 2: Kode supplier SP404 tidak ditemukan dan akan diabaikan.",
+    );
   });
 });

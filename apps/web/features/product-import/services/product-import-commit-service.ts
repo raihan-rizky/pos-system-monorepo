@@ -6,7 +6,10 @@ import { productSnapshot } from "@/features/batch-operations/helpers/snapshots";
 import {
   buildStockGroupCreateData,
   createProductStockGroupEnsurer,
+  ensureProductStockGroups,
+  stockGroupEnsureCacheKey,
   shouldMarkConversionForReview,
+  type EnsureStockGroupInput,
 } from "@/features/product-stock-groups/product-stock-groups-service";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
@@ -15,6 +18,7 @@ import { getLogger } from "@/lib/logger";
 import {
   MAX_PRODUCT_IMPORT_ROWS,
   importRowCommitSchema,
+  parseSupplierCodes,
 } from "../helpers/import-core";
 import { resolveProductImportAutoDecisions } from "../helpers/auto-decisions";
 import {
@@ -33,7 +37,7 @@ import type { NormalizedImportRow } from "../types";
 
 const logger = getLogger("features:product-import:commit");
 
-export const PRODUCT_IMPORT_CHUNK_SIZE = 200;
+export const PRODUCT_IMPORT_CHUNK_SIZE = 500;
 
 export const productImportCommitSchema = z.object({
   rows: z.array(importRowCommitSchema).max(MAX_PRODUCT_IMPORT_ROWS),
@@ -64,6 +68,12 @@ type ChunkInput = z.infer<typeof productImportChunkSchema>;
 type FinishInput = z.infer<typeof productImportFinishSchema>;
 type PlannedExecutionRow = NormalizedImportRow & {
   plannedCommitAction?: ProductImportCommitAction;
+};
+type EnsuredImportStockGroups = Awaited<ReturnType<typeof ensureProductStockGroups>>;
+type ImportSupplierReference = {
+  id: string;
+  code: string | null;
+  name: string;
 };
 
 export interface ProductImportActor {
@@ -96,6 +106,47 @@ const EMPTY_COUNTS: CommitCounts = {
 
 function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
+
+function supplierCodesFromRows(rows: Array<Pick<NormalizedImportRow, "supplierCodes">>) {
+  return uniqueStrings(rows.flatMap((row) => row.supplierCodes ?? []));
+}
+
+async function loadSupplierByCode(
+  tx: Tx,
+  rows: Array<Pick<NormalizedImportRow, "supplierCodes">>,
+) {
+  const codes = supplierCodesFromRows(rows);
+  if (codes.length === 0) return new Map<string, ImportSupplierReference>();
+
+  const suppliers = await tx.supplier.findMany({
+    where: { code: { in: codes } },
+    select: { id: true, code: true, name: true },
+  });
+  return new Map(
+    suppliers
+      .filter((supplier) => supplier.code)
+      .map((supplier) => [supplier.code as string, supplier]),
+  );
+}
+
+function queueProductSupplierSync(input: {
+  row: NormalizedImportRow;
+  productId: string;
+  supplierByCode: Map<string, ImportSupplierReference>;
+  deleteProductIds: Set<string>;
+  createRows: Array<{ productId: string; supplierId: string }>;
+}) {
+  if (!input.row.supplierCodesProvided) return;
+  input.deleteProductIds.add(input.productId);
+  for (const code of input.row.supplierCodes ?? []) {
+    const supplier = input.supplierByCode.get(code);
+    if (!supplier) continue;
+    input.createRows.push({
+      productId: input.productId,
+      supplierId: supplier.id,
+    });
+  }
 }
 
 function storeIdFor(user: ProductImportActor) {
@@ -153,14 +204,27 @@ function buildSessionSummary(input: {
 }
 
 function asCommitRows(rows: CommitInput["rows"]): NormalizedImportRow[] {
-  return rows.map((row) => ({
-    ...row,
-    duplicateInFile: false,
-    missingCategory: false,
-    stockProvided: row.stockProvided ?? true,
-    warnings: [],
-    errors: [],
-  }));
+  return rows.map((row) => {
+    const hargaDinasProvided =
+      row.hargaDinasProvided ??
+      Object.prototype.hasOwnProperty.call(row, "hargaDinas");
+
+    return {
+      ...row,
+      hargaDinasProvided,
+      supplierCodes:
+        row.supplierCodes ??
+        parseSupplierCodes((row as { supplierCode?: string | null }).supplierCode),
+      supplierCodesProvided:
+        row.supplierCodesProvided ??
+        Boolean((row as { supplierCode?: string | null }).supplierCode?.trim()),
+      duplicateInFile: false,
+      missingCategory: false,
+      stockProvided: row.stockProvided ?? true,
+      warnings: [],
+      errors: [],
+    };
+  });
 }
 
 async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, options: {
@@ -233,6 +297,7 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
       price: true,
       costPrice: true,
       hargaDinas: true,
+      hargaAgen: true,
       stock: true,
       stockGroupId: true,
       unitMultiplierToBase: true,
@@ -287,6 +352,8 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
       price: Number(product.price),
       costPrice: product.costPrice == null ? null : Number(product.costPrice),
       hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
+      hargaAgen: product.hargaAgen == null ? null : Number(product.hargaAgen),
+      unitMultiplierToBase: product.unitMultiplierToBase,
       stockGroupId: product.stockGroupId,
       stockGroupBaseUnit: product.stockGroup?.baseUnit ?? null,
     })),
@@ -302,11 +369,14 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
     throw new Error(`DUPLICATE_SKUS:${duplicateSkus.join(",")}`);
   }
 
+  const supplierByCode = await loadSupplierByCode(tx, resolvedRows);
+
   return {
     categoryByName,
     missingCategories,
     existingBySku,
     existingById,
+    supplierByCode,
     resolvedRows,
     resolvedCommitDecisions,
   };
@@ -346,6 +416,7 @@ async function loadChunkExecutionPlan(tx: Tx, rows: PlannedExecutionRow[], store
         price: true,
         costPrice: true,
         hargaDinas: true,
+        hargaAgen: true,
         stock: true,
         stockGroupId: true,
         unitMultiplierToBase: true,
@@ -365,11 +436,14 @@ async function loadChunkExecutionPlan(tx: Tx, rows: PlannedExecutionRow[], store
       },
     });
 
+  const supplierByCode = await loadSupplierByCode(tx, rows);
+
   return {
     categoryByName,
     missingCategories: [] as string[],
     existingBySku: new Map(existingProducts.map((product) => [product.sku, product])),
     existingById: new Map(existingProducts.map((product) => [product.id, product])),
+    supplierByCode,
     resolvedRows: rows,
     resolvedCommitDecisions: {} as Record<string, "create" | "update" | "skip" | "create-variant">,
   };
@@ -380,9 +454,9 @@ function findExistingProductForPlannedRow(
   plan: Awaited<ReturnType<typeof loadChunkExecutionPlan>>,
 ) {
   return (
-    plan.existingBySku.get(row.sku) ??
     (row.matchedProductId ? plan.existingById.get(row.matchedProductId) : undefined) ??
-    (row.existingProductId ? plan.existingById.get(row.existingProductId) : undefined)
+    (row.existingProductId ? plan.existingById.get(row.existingProductId) : undefined) ??
+    plan.existingBySku.get(row.sku)
   );
 }
 
@@ -414,6 +488,7 @@ interface BulkProductUpdate {
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
+  hargaAgen: number | null;
   minStock: number;
   unit: string;
   size: string | null;
@@ -432,6 +507,7 @@ interface BulkProductInsert {
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
+  hargaAgen: number | null;
   stock: number;
   minStock: number;
   unit: string;
@@ -450,6 +526,9 @@ interface BulkPriceUpdate {
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
+  hargaDinasProvided: boolean;
+  hargaAgen: number | null;
+  unitMultiplierToBase: number | null;
 }
 
 interface BulkStockGroupUpdate {
@@ -468,6 +547,7 @@ async function applyBulkProductInserts(tx: Tx, inserts: BulkProductInsert[]) {
   const prices = inserts.map((r) => r.price);
   const costPrices = inserts.map((r) => r.costPrice);
   const hargaDinasArr = inserts.map((r) => r.hargaDinas);
+  const hargaAgenArr = inserts.map((r) => r.hargaAgen);
   const stocks = inserts.map((r) => r.stock);
   const minStocks = inserts.map((r) => r.minStock);
   const units = inserts.map((r) => r.unit);
@@ -483,7 +563,7 @@ async function applyBulkProductInserts(tx: Tx, inserts: BulkProductInsert[]) {
   await tx.$queryRaw`
     INSERT INTO pos_products (
       id, name, sku, barcode, description,
-      price, "costPrice", "hargaDinas",
+      price, "costPrice", "hargaDinas", "hargaAgen",
       stock, "minStock", unit, size, material,
       "imageUrl", "categoryId", "storeId",
       "stockGroupId", "unitMultiplierToBase", "conversionNeedsReview",
@@ -491,7 +571,7 @@ async function applyBulkProductInserts(tx: Tx, inserts: BulkProductInsert[]) {
     )
     SELECT
       v.id, v.name, v.sku, v.barcode, v.description,
-      v.price, v."costPrice", v."hargaDinas",
+      v.price, v."costPrice", v."hargaDinas", v."hargaAgen",
       v.stock, v."minStock", v.unit, v.size, v.material,
       v."imageUrl", v."categoryId", v."storeId",
       v."stockGroupId", v."unitMultiplierToBase", v."conversionNeedsReview",
@@ -499,14 +579,14 @@ async function applyBulkProductInserts(tx: Tx, inserts: BulkProductInsert[]) {
     FROM unnest(
       ${ids}::text[], ${names}::text[], ${skus}::text[],
       ${barcodes}::text[], ${descriptions}::text[],
-      ${prices}::float8[], ${costPrices}::float8[], ${hargaDinasArr}::float8[],
+      ${prices}::float8[], ${costPrices}::float8[], ${hargaDinasArr}::float8[], ${hargaAgenArr}::float8[],
       ${stocks}::float8[], ${minStocks}::int4[], ${units}::text[],
       ${sizes}::text[], ${materials}::text[],
       ${imageUrls}::text[], ${categoryIds}::text[], ${storeIds}::text[],
       ${stockGroupIds}::text[], ${multipliers}::float8[], ${conversionFlags}::boolean[]
     ) AS v(
       id, name, sku, barcode, description,
-      price, "costPrice", "hargaDinas",
+      price, "costPrice", "hargaDinas", "hargaAgen",
       stock, "minStock", unit, size, material,
       "imageUrl", "categoryId", "storeId",
       "stockGroupId", "unitMultiplierToBase", "conversionNeedsReview"
@@ -524,6 +604,7 @@ async function applyBulkProductUpdates(tx: Tx, updates: BulkProductUpdate[], sto
   const prices = updates.map((r) => r.price);
   const costPrices = updates.map((r) => r.costPrice);
   const hargaDinasArr = updates.map((r) => r.hargaDinas);
+  const hargaAgenArr = updates.map((r) => r.hargaAgen);
   const minStocks = updates.map((r) => r.minStock);
   const unitArr = updates.map((r) => r.unit);
   const sizes = updates.map((r) => r.size);
@@ -540,6 +621,7 @@ async function applyBulkProductUpdates(tx: Tx, updates: BulkProductUpdate[], sto
       price = v.price,
       "costPrice" = v."costPrice",
       "hargaDinas" = v."hargaDinas",
+      "hargaAgen" = v."hargaAgen",
       "minStock" = v."minStock",
       unit = v.unit,
       size = v.size,
@@ -551,14 +633,14 @@ async function applyBulkProductUpdates(tx: Tx, updates: BulkProductUpdate[], sto
     FROM unnest(
       ${ids}::text[], ${names}::text[],
       ${barcodes}::text[], ${descriptions}::text[],
-      ${prices}::float8[], ${costPrices}::float8[], ${hargaDinasArr}::float8[],
+      ${prices}::float8[], ${costPrices}::float8[], ${hargaDinasArr}::float8[], ${hargaAgenArr}::float8[],
       ${minStocks}::int4[], ${unitArr}::text[],
       ${sizes}::text[], ${materials}::text[],
       ${imageUrls}::text[], ${categoryIds}::text[], ${stockGroupIds}::text[]
     ) AS v(
       id, name,
       barcode, description,
-      price, "costPrice", "hargaDinas",
+      price, "costPrice", "hargaDinas", "hargaAgen",
       "minStock", unit,
       size, material,
       "imageUrl", "categoryId", "stockGroupId"
@@ -575,26 +657,39 @@ async function applyBulkPriceUpdates(tx: Tx, updates: BulkPriceUpdate[]) {
   const prices = updates.map((r) => r.price);
   const costPrices = updates.map((r) => r.costPrice);
   const hargaDinasArr = updates.map((r) => r.hargaDinas);
+  const hargaDinasProvidedArr = updates.map((r) => r.hargaDinasProvided);
+  const hargaAgenArr = updates.map((r) => r.hargaAgen);
+  const multipliers = updates.map((r) => r.unitMultiplierToBase);
 
   await tx.$queryRaw`
     UPDATE pos_products AS p SET
       price = v.price,
       "costPrice" = v."costPrice",
-      "hargaDinas" = COALESCE(v."hargaDinas", p."hargaDinas"),
+      "hargaDinas" = CASE WHEN v."hargaDinasProvided" THEN v."hargaDinas" ELSE p."hargaDinas" END,
+      "hargaAgen" = COALESCE(v."hargaAgen", p."hargaAgen"),
+      "unitMultiplierToBase" = COALESCE(v."unitMultiplierToBase", p."unitMultiplierToBase"),
       "updatedAt" = NOW()
     FROM unnest(
       ${ids}::text[], ${prices}::float8[],
-      ${costPrices}::float8[], ${hargaDinasArr}::float8[]
-    ) AS v(id, price, "costPrice", "hargaDinas")
+      ${costPrices}::float8[], ${hargaDinasArr}::float8[], ${hargaAgenArr}::float8[],
+      ${multipliers}::float8[], ${hargaDinasProvidedArr}::boolean[]
+    ) AS v(id, price, "costPrice", "hargaDinas", "hargaAgen", "unitMultiplierToBase", "hargaDinasProvided")
     WHERE p.id = v.id
   `;
 }
 
-async function applyBulkStockGroupUpdates(tx: Tx, updates: BulkStockGroupUpdate[]) {
+async function applyBulkStockGroupUpdates(
+  tx: Tx,
+  updates: BulkStockGroupUpdate[],
+  storeId: string,
+) {
   if (updates.length === 0) return;
 
-  const ids = updates.map((r) => r.id);
-  const baseStocks = updates.map((r) => r.baseStock);
+  const uniqueUpdates = Array.from(
+    new Map(updates.map((update) => [update.id, update])).values(),
+  );
+  const ids = uniqueUpdates.map((r) => r.id);
+  const baseStocks = uniqueUpdates.map((r) => r.baseStock);
 
   await tx.$queryRaw`
     UPDATE pos_product_stock_groups AS g SET
@@ -604,7 +699,26 @@ async function applyBulkStockGroupUpdates(tx: Tx, updates: BulkStockGroupUpdate[
       ${ids}::text[], ${baseStocks}::float8[]
     ) AS v(id, "baseStock")
     WHERE g.id = v.id
+      AND g."storeId" = ${storeId}
   `;
+}
+
+async function applyProductSupplierSync(input: {
+  tx: Tx;
+  productIds: Set<string>;
+  rows: Array<{ productId: string; supplierId: string }>;
+}) {
+  if (input.productIds.size > 0) {
+    await input.tx.productSupplier.deleteMany({
+      where: { productId: { in: Array.from(input.productIds) } },
+    });
+  }
+  if (input.rows.length > 0) {
+    await input.tx.productSupplier.createMany({
+      data: input.rows,
+      skipDuplicates: true,
+    });
+  }
 }
 
 async function processFastPriceAndSkipRows(input: {
@@ -620,6 +734,8 @@ async function processFastPriceAndSkipRows(input: {
   const counts: CommitCounts = { ...EMPTY_COUNTS };
   const priceLogEntries: Prisma.ProductPriceLogCreateManyInput[] = [];
   const batchItems: Prisma.BatchOperationItemCreateManyInput[] = [];
+  const productSupplierDeleteIds = new Set<string>();
+  const productSupplierCreateRows: Array<{ productId: string; supplierId: string }> = [];
   const priceUpdates: BulkPriceUpdate[] = [];
   let updatedRowCount = 0;
   let skippedRowCount = 0;
@@ -644,7 +760,8 @@ async function processFastPriceAndSkipRows(input: {
       ...existing,
       price: row.price,
       costPrice: row.costPrice,
-      ...(row.hargaDinas != null ? { hargaDinas: row.hargaDinas } : {}),
+      ...(row.hargaDinasProvided ? { hargaDinas: row.hargaDinas ?? null } : {}),
+      ...(row.hargaAgen != null ? { hargaAgen: row.hargaAgen } : {}),
       stock: beforeDisplayStock,
     };
 
@@ -653,6 +770,16 @@ async function processFastPriceAndSkipRows(input: {
       price: row.price,
       costPrice: row.costPrice ?? null,
       hargaDinas: row.hargaDinas ?? null,
+      hargaDinasProvided: row.hargaDinasProvided ?? false,
+      hargaAgen: row.hargaAgen ?? null,
+      unitMultiplierToBase: row.unitMultiplierToBase ?? null,
+    });
+    queueProductSupplierSync({
+      row,
+      productId: existing.id,
+      supplierByCode: input.plan.supplierByCode,
+      deleteProductIds: productSupplierDeleteIds,
+      createRows: productSupplierCreateRows,
     });
 
     counts.updatedProductCount += 1;
@@ -680,6 +807,11 @@ async function processFastPriceAndSkipRows(input: {
   }
 
   await applyBulkPriceUpdates(input.tx, priceUpdates);
+  await applyProductSupplierSync({
+    tx: input.tx,
+    productIds: productSupplierDeleteIds,
+    rows: productSupplierCreateRows,
+  });
 
   if (priceLogEntries.length > 0) {
     await input.tx.productPriceLog.createMany({ data: priceLogEntries });
@@ -705,6 +837,111 @@ async function processFastPriceAndSkipRows(input: {
   return counts;
 }
 
+function stockGroupInputForRow(input: {
+  storeId: string;
+  row: PlannedExecutionRow;
+  categoryId: string;
+  baseStock: number;
+}) {
+  return {
+    storeId: input.storeId,
+    name: input.row.name,
+    categoryId: input.categoryId,
+    material: input.row.material,
+    size: input.row.size,
+    displayName: input.row.name,
+    baseUnit: input.row.unit,
+    baseStock: input.baseStock,
+  } satisfies EnsureStockGroupInput;
+}
+
+async function preEnsureImportStockGroups(input: {
+  tx: Tx;
+  rows: PlannedExecutionRow[];
+  skippedSourceRowNumbers: Set<number>;
+  plan: Awaited<ReturnType<typeof prepareImportPlan>> | Awaited<ReturnType<typeof loadChunkExecutionPlan>>;
+  storeId: string;
+}) {
+  const groupInputs: EnsureStockGroupInput[] = [];
+
+  for (const row of input.rows) {
+    if (input.skippedSourceRowNumbers.has(row.rowNumber)) continue;
+
+    const existing =
+      (row.matchedProductId ? input.plan.existingById.get(row.matchedProductId) : undefined) ??
+      (row.existingProductId ? input.plan.existingById.get(row.existingProductId) : undefined) ??
+      input.plan.existingBySku.get(row.sku);
+    const rawDecision = row.plannedCommitAction
+      ? undefined
+      : getEffectiveImportDecision(row, input.plan.resolvedCommitDecisions);
+    const decision = rawDecision ?? "create";
+    const commitAction = row.plannedCommitAction ?? getCommitActionForResolvedRow(row, decision);
+
+    if (decision === "skip" || commitAction === "skip" || commitAction === "update-price") {
+      continue;
+    }
+
+    const category = input.plan.categoryByName.get(row.category.toLowerCase());
+    if (!category) continue;
+
+    if (commitAction === "update" && existing) {
+      const multiplier = existing.unitMultiplierToBase || 1;
+      groupInputs.push(
+        stockGroupInputForRow({
+          storeId: input.storeId,
+          row,
+          categoryId: category.id,
+          baseStock: row.stock * multiplier,
+        }),
+      );
+      continue;
+    }
+
+    if (commitAction === "create" || commitAction === "create-variant") {
+      const { multiplier } = buildStockGroupCreateData({
+        stock: row.stock,
+        unitMultiplierToBase: row.unitMultiplierToBase ?? 1,
+      });
+      const matched =
+        row.matchedProductId && row.autoAction !== "conflict"
+          ? input.plan.existingById.get(row.matchedProductId)
+          : undefined;
+      const variantGroup =
+        commitAction === "create-variant" && matched?.stockGroup ? matched.stockGroup : null;
+      if (variantGroup) continue;
+
+      const stockPlan = resolveImportCreateStockPlan({
+        commitAction,
+        rowStock: row.stock,
+        stockProvided: row.stockProvided,
+        multiplier,
+        matchedGroupBaseStock: null,
+      });
+      groupInputs.push(
+        stockGroupInputForRow({
+          storeId: input.storeId,
+          row,
+          categoryId: category.id,
+          baseStock: stockPlan.groupBaseStock,
+        }),
+      );
+    }
+  }
+
+  return ensureProductStockGroups(input.tx, groupInputs);
+}
+
+async function resolveImportStockGroup(input: {
+  ensuredGroups: EnsuredImportStockGroups;
+  fallbackEnsure: ReturnType<typeof createProductStockGroupEnsurer>;
+  groupInput: EnsureStockGroupInput;
+}) {
+  return (
+    input.ensuredGroups.get(stockGroupEnsureCacheKey(input.groupInput)) ??
+    input.fallbackEnsure(input.groupInput)
+  );
+}
+
 async function processResolvedRows(input: {
   tx: Tx;
   batchOperationId: string;
@@ -717,6 +954,13 @@ async function processResolvedRows(input: {
 }) {
   const counts: CommitCounts = { ...EMPTY_COUNTS };
   const ensureImportStockGroup = createProductStockGroupEnsurer(input.tx);
+  const ensuredImportStockGroups = await preEnsureImportStockGroups({
+    tx: input.tx,
+    rows: input.rows,
+    skippedSourceRowNumbers: input.skippedSourceRowNumbers,
+    plan: input.plan,
+    storeId: input.storeId,
+  });
 
   // --- Accumulators ---
   const bulkProductInserts: BulkProductInsert[] = [];
@@ -726,13 +970,16 @@ async function processResolvedRows(input: {
   const inventoryLogsToCreate: Prisma.InventoryLogCreateManyInput[] = [];
   const priceLogEntries: Prisma.ProductPriceLogCreateManyInput[] = [];
   const batchItems: Prisma.BatchOperationItemCreateManyInput[] = [];
+  const productSupplierDeleteIds = new Set<string>();
+  const productSupplierCreateRows: Array<{ productId: string; supplierId: string }> = [];
 
   for (const row of input.rows) {
     if (input.skippedSourceRowNumbers.has(row.rowNumber)) continue;
 
     const existing =
-      input.plan.existingBySku.get(row.sku) ??
-      (row.matchedProductId ? input.plan.existingById.get(row.matchedProductId) : undefined);
+      (row.matchedProductId ? input.plan.existingById.get(row.matchedProductId) : undefined) ??
+      (row.existingProductId ? input.plan.existingById.get(row.existingProductId) : undefined) ??
+      input.plan.existingBySku.get(row.sku);
     const rawDecision = row.plannedCommitAction
       ? undefined
       : getEffectiveImportDecision(row, input.plan.resolvedCommitDecisions);
@@ -772,10 +1019,20 @@ async function processResolvedRows(input: {
       const beforeSnapshot = productSnapshot({ ...existing, stock: beforeDisplayStock });
 
       bulkPriceUpdates.push({
-        id: existing.id,
-        price: row.price,
-        costPrice: row.costPrice ?? null,
-        hargaDinas: row.hargaDinas ?? null,
+      id: existing.id,
+      price: row.price,
+      costPrice: row.costPrice ?? null,
+      hargaDinas: row.hargaDinas ?? null,
+      hargaDinasProvided: row.hargaDinasProvided ?? false,
+      hargaAgen: row.hargaAgen ?? null,
+      unitMultiplierToBase: row.unitMultiplierToBase ?? null,
+    });
+      queueProductSupplierSync({
+        row,
+        productId: existing.id,
+        supplierByCode: input.plan.supplierByCode,
+        deleteProductIds: productSupplierDeleteIds,
+        createRows: productSupplierCreateRows,
       });
 
       counts.updatedProductCount += 1;
@@ -794,7 +1051,8 @@ async function processResolvedRows(input: {
         ...existing,
         price: row.price,
         costPrice: row.costPrice,
-        ...(row.hargaDinas != null ? { hargaDinas: row.hargaDinas } : {}),
+        ...(row.hargaDinasProvided ? { hargaDinas: row.hargaDinas ?? null } : {}),
+        ...(row.hargaAgen != null ? { hargaAgen: row.hargaAgen } : {}),
         stock: beforeDisplayStock,
       };
       batchItems.push({
@@ -813,16 +1071,16 @@ async function processResolvedRows(input: {
       const beforeDisplayStock = resolveProductDisplayStock(existing);
       const beforeSnapshot = productSnapshot({ ...existing, stock: beforeDisplayStock });
       const multiplier = existing.unitMultiplierToBase || 1;
-      // ensureImportStockGroup stays sequential (cache + upsert logic)
-      const { group } = await ensureImportStockGroup({
+      const groupInput = stockGroupInputForRow({
         storeId: input.storeId,
-        name: row.name,
+        row,
         categoryId: category.id,
-        material: row.material,
-        size: row.size,
-        displayName: row.name,
-        baseUnit: row.unit,
         baseStock: row.stock * multiplier,
+      });
+      const { group } = await resolveImportStockGroup({
+        ensuredGroups: ensuredImportStockGroups,
+        fallbackEnsure: ensureImportStockGroup,
+        groupInput,
       });
 
       bulkStockGroupUpdates.push({
@@ -838,6 +1096,7 @@ async function processResolvedRows(input: {
         price: row.price,
         costPrice: row.costPrice ?? null,
         hargaDinas: row.hargaDinas ?? null,
+        hargaAgen: row.hargaAgen ?? null,
         minStock: row.minStock ?? 5,
         unit: row.unit,
         size: row.size ?? null,
@@ -845,6 +1104,13 @@ async function processResolvedRows(input: {
         imageUrl: row.imageUrl ?? null,
         categoryId: category.id,
         stockGroupId: group.id,
+      });
+      queueProductSupplierSync({
+        row,
+        productId: existing.id,
+        supplierByCode: input.plan.supplierByCode,
+        deleteProductIds: productSupplierDeleteIds,
+        createRows: productSupplierCreateRows,
       });
 
       counts.updatedProductCount += 1;
@@ -881,7 +1147,7 @@ async function processResolvedRows(input: {
         sourceRowNumber: row.rowNumber,
         action: "UPDATE",
         beforeSnapshot: beforeSnapshot as unknown as Prisma.InputJsonValue,
-        afterSnapshot: productSnapshot({ ...existing, name: row.name, sku: row.sku, price: row.price as any, costPrice: row.costPrice as any, hargaDinas: (row.hargaDinas ?? existing.hargaDinas) as any, minStock: row.minStock ?? 5, unit: row.unit, size: row.size ?? null, material: row.material ?? null, imageUrl: row.imageUrl ?? null, categoryId: category.id, stockGroupId: group.id, stock: row.stock } as unknown as Parameters<typeof productSnapshot>[0]) as unknown as Prisma.InputJsonValue,
+        afterSnapshot: productSnapshot({ ...existing, name: row.name, sku: row.sku, price: row.price as any, costPrice: row.costPrice as any, hargaDinas: (row.hargaDinas ?? null) as any, hargaAgen: (row.hargaAgen ?? existing.hargaAgen) as any, minStock: row.minStock ?? 5, unit: row.unit, size: row.size ?? null, material: row.material ?? null, imageUrl: row.imageUrl ?? null, categoryId: category.id, stockGroupId: group.id, stock: row.stock } as unknown as Parameters<typeof productSnapshot>[0]) as unknown as Prisma.InputJsonValue,
         inventoryLogId: logId,
       });
       continue;
@@ -905,18 +1171,18 @@ async function processResolvedRows(input: {
         multiplier,
         matchedGroupBaseStock: variantGroup?.baseStock,
       });
-      // ensureImportStockGroup stays sequential (cache + upsert logic)
+      const groupInput = stockGroupInputForRow({
+        storeId: input.storeId,
+        row,
+        categoryId: category.id,
+        baseStock: stockPlan.groupBaseStock,
+      });
       const ensured = variantGroup
         ? { group: variantGroup, created: false }
-        : await ensureImportStockGroup({
-          storeId: input.storeId,
-          name: row.name,
-          categoryId: category.id,
-          material: row.material,
-          size: row.size,
-          displayName: row.name,
-          baseUnit: row.unit,
-          baseStock: stockPlan.groupBaseStock,
+        : await resolveImportStockGroup({
+          ensuredGroups: ensuredImportStockGroups,
+          fallbackEnsure: ensureImportStockGroup,
+          groupInput,
         });
       const { group, created: groupCreated } = ensured;
       const productId = randomUUID();
@@ -936,6 +1202,7 @@ async function processResolvedRows(input: {
         price: row.price,
         costPrice: row.costPrice ?? null,
         hargaDinas: row.hargaDinas ?? null,
+        hargaAgen: row.hargaAgen ?? null,
         stock: stockPlan.productStock,
         minStock: row.minStock ?? 5,
         unit: row.unit,
@@ -947,6 +1214,13 @@ async function processResolvedRows(input: {
         stockGroupId: group.id,
         unitMultiplierToBase: multiplier,
         conversionNeedsReview,
+      });
+      queueProductSupplierSync({
+        row,
+        productId,
+        supplierByCode: input.plan.supplierByCode,
+        deleteProductIds: productSupplierDeleteIds,
+        createRows: productSupplierCreateRows,
       });
 
       counts.createdProductCount += 1;
@@ -993,6 +1267,7 @@ async function processResolvedRows(input: {
           price: row.price as any,
           costPrice: row.costPrice as any ?? null,
           hargaDinas: row.hargaDinas as any ?? null,
+          hargaAgen: row.hargaAgen as any ?? null,
           stock: stockPlan.productStock,
           minStock: row.minStock ?? 5,
           unit: row.unit,
@@ -1014,10 +1289,15 @@ async function processResolvedRows(input: {
   }
 
   // --- Bulk execution phase ---
-  await applyBulkStockGroupUpdates(input.tx, bulkStockGroupUpdates);
+  await applyBulkStockGroupUpdates(input.tx, bulkStockGroupUpdates, input.storeId);
   await applyBulkProductInserts(input.tx, bulkProductInserts);
   await applyBulkProductUpdates(input.tx, bulkProductUpdates, input.storeId);
   await applyBulkPriceUpdates(input.tx, bulkPriceUpdates);
+  await applyProductSupplierSync({
+    tx: input.tx,
+    productIds: productSupplierDeleteIds,
+    rows: productSupplierCreateRows,
+  });
 
   if (inventoryLogsToCreate.length > 0) {
     await input.tx.inventoryLog.createMany({ data: inventoryLogsToCreate });

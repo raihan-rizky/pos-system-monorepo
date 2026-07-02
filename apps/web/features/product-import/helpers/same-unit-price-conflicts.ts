@@ -6,6 +6,7 @@ export interface SameUnitPriceConflictPrice {
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
+  hargaAgen: number | null;
 }
 
 export interface SameUnitPriceConflictGroup {
@@ -51,6 +52,7 @@ function buildPriceSignature(row: NormalizedImportRow) {
     price: priceValue(row.price),
     costPrice: priceValue(row.costPrice),
     hargaDinas: priceValue(row.hargaDinas),
+    hargaAgen: priceValue(row.hargaAgen),
   });
 }
 
@@ -60,6 +62,7 @@ function toPrice(row: NormalizedImportRow): SameUnitPriceConflictPrice {
     price: Number(row.price),
     costPrice: priceValue(row.costPrice),
     hargaDinas: priceValue(row.hargaDinas),
+    hargaAgen: priceValue(row.hargaAgen),
   };
 }
 

@@ -132,6 +132,46 @@ describe("/api/suppliers", () => {
     ]);
   });
 
+  it("normalizes supplier code when creating a supplier", async () => {
+    const response = await post({
+      code: " sp0001 ",
+      name: "Supplier Baru",
+      type: "DISTRIBUTOR",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(supplierCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          code: "SP0001",
+          name: "Supplier Baru",
+        }),
+      }),
+    );
+    expect(body.data.code).toBe("SP0001");
+  });
+
+  it("returns conflict when supplier code is already used", async () => {
+    supplierCreateMock.mockRejectedValueOnce({
+      code: "P2002",
+      meta: { target: ["code"] },
+    });
+
+    const response = await post({
+      code: "SP0001",
+      name: "Supplier Baru",
+      type: "DISTRIBUTOR",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toEqual({
+      code: "Conflict",
+      message: "Kode supplier sudah dipakai supplier lain.",
+    });
+  });
+
   it("rejects invalid supplier type with the canonical validation envelope", async () => {
     const response = await post({ name: "Supplier Baru", type: "BAD_TYPE" });
     const body = await response.json();

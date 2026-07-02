@@ -144,6 +144,7 @@ export function PaymentModal({
         categoryName: item.categoryName,
         price: item.catalogPrice ?? item.price,
         hargaDinas: item.hargaDinas,
+        hargaAgen: item.hargaAgen,
       },
       selectedCustomerType,
       activePricingRules,

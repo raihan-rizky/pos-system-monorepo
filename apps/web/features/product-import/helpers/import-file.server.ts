@@ -1,6 +1,7 @@
 import { parseSpreadsheetMatrix } from "@/lib/server/spreadsheet-parser";
 
 import type { ColumnMapping } from "../types";
+import { getColumnMappingKey } from "./column-mapping-key";
 import { normalizeHeader } from "./import-core";
 
 function normalizeValue(value: unknown) {
@@ -13,15 +14,34 @@ async function parseWorkbookRows(
   columnMapping?: ColumnMapping,
 ) {
   const matrix = await parseSpreadsheetMatrix(buffer);
-  const rawHeaders = (matrix[0] ?? [])
-    .map((header) => String(header ?? "").trim())
-    .filter(Boolean);
+  const rawHeaders = (matrix[0] ?? []).map((header) =>
+    String(header ?? "").trim(),
+  );
 
-  const normalizedHeaders = rawHeaders.map((rawHeader) => {
-    if (columnMapping && rawHeader in columnMapping) {
-      return columnMapping[rawHeader] || "";
+  const mappedColumns = new Set<string>();
+  const normalizedHeaders = rawHeaders.map((rawHeader, index) => {
+    const mappingKey = getColumnMappingKey(rawHeaders, index);
+    let header = "";
+
+    if (
+      columnMapping &&
+      mappingKey &&
+      Object.prototype.hasOwnProperty.call(columnMapping, mappingKey)
+    ) {
+      header = columnMapping[mappingKey] || "";
+    } else if (
+      columnMapping &&
+      mappingKey === rawHeader &&
+      Object.prototype.hasOwnProperty.call(columnMapping, rawHeader)
+    ) {
+      header = columnMapping[rawHeader] || "";
+    } else {
+      header = normalizeHeader(rawHeader);
     }
-    return normalizeHeader(rawHeader);
+
+    if (!header || mappedColumns.has(header)) return "";
+    mappedColumns.add(header);
+    return header;
   });
 
   const records = matrix

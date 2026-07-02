@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   BulkStockImportValidationError,
@@ -6,8 +6,27 @@ import {
   previewBulkStockImport,
 } from "../bulk-stock-import-service";
 import type { BulkStockImportRepository } from "../../repositories/BulkStockImportRepository";
+import { bulkStockImportRepository } from "../../repositories/BulkStockImportRepository";
+
+const dbMock = vi.hoisted(() => ({
+  $transaction: vi.fn(),
+  product: {
+    findMany: vi.fn(),
+  },
+  supplier: {
+    findFirst: vi.fn(),
+  },
+}));
+
+vi.mock("@pos/db", () => ({
+  db: dbMock,
+}));
 
 describe("commitBulkStockImport", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("previews matched, skipped, and duplicate rows through the repository", async () => {
     const repository = {
       findActiveProductsForStockImport: vi.fn().mockResolvedValue([
@@ -412,6 +431,141 @@ describe("commitBulkStockImport", () => {
       }),
     );
   });
+
+  it("sets grouped stock once when set-mode imports multiple units for the same stock group", async () => {
+    const tx = makeStockImportTx([
+      groupedProduct({
+        id: "prod-dus",
+        name: "Acco plastik Joyko",
+        sku: "A-001",
+        unit: "Dus",
+        stock: 168,
+        unitMultiplierToBase: 1,
+      }),
+      groupedProduct({
+        id: "prod-pak",
+        name: "Acco plastik Joyko",
+        sku: "A-001-PAK",
+        unit: "Pak",
+        stock: 16.8,
+        unitMultiplierToBase: 10,
+      }),
+    ]);
+    dbMock.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await bulkStockImportRepository.commitStockImport({
+      storeId: "store-1",
+      user: {
+        id: "owner-1",
+        name: "Owner",
+        role: "OWNER",
+        storeId: "store-1",
+      },
+      mode: "SET",
+      impacts: [
+        {
+          productId: "prod-dus",
+          sku: "A-001",
+          quantity: 175,
+          delta: 7,
+          beforeStock: 168,
+          afterStock: 175,
+          sourceRowNumbers: [2],
+        },
+        {
+          productId: "prod-pak",
+          sku: "A-001-PAK",
+          quantity: 17.5,
+          delta: 0.7,
+          beforeStock: 16.8,
+          afterStock: 17.5,
+          sourceRowNumbers: [3],
+        },
+      ],
+      supplier: null,
+      note: "Bulk stock import",
+    });
+
+    expect(result.updatedProductCount).toBe(2);
+    const groupedUpdateCall = tx.$queryRaw.mock.calls.find(([template]) =>
+      Array.from(template as TemplateStringsArray).join("").includes(
+        "UPDATE pos_product_stock_groups",
+      ),
+    );
+    expect(groupedUpdateCall).toBeDefined();
+    expect(groupedUpdateCall?.[2]).toEqual([7]);
+  });
+
+  it("accepts rounded package set targets when a base-unit target is present", async () => {
+    const tx = makeStockImportTx([
+      groupedProduct({
+        id: "prod-dus",
+        name: "Amplop 90 J -plus Jendela Kiri",
+        sku: "A-004",
+        unit: "Dus",
+        stock: 40,
+        unitMultiplierToBase: 1,
+        stockGroupBaseStock: 40,
+      }),
+      groupedProduct({
+        id: "prod-ball",
+        name: "Amplop 90 J -plus Jendela Kiri",
+        sku: "A-004-BALL",
+        unit: "Ball",
+        stock: 40 / 6,
+        unitMultiplierToBase: 6,
+        stockGroupBaseStock: 40,
+      }),
+    ]);
+    dbMock.$transaction.mockImplementation((callback) => callback(tx));
+
+    await expect(
+      bulkStockImportRepository.commitStockImport({
+        storeId: "store-1",
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-1",
+        },
+        mode: "SET",
+        impacts: [
+          {
+            productId: "prod-dus",
+            sku: "A-004",
+            quantity: 44,
+            delta: 4,
+            beforeStock: 40,
+            afterStock: 44,
+            sourceRowNumbers: [8],
+          },
+          {
+            productId: "prod-ball",
+            sku: "A-004-BALL",
+            quantity: 7.33,
+            delta: 7.33 - 40 / 6,
+            beforeStock: 40 / 6,
+            afterStock: 7.33,
+            sourceRowNumbers: [9],
+          },
+        ],
+        supplier: null,
+        note: "Bulk stock import",
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        updatedProductCount: 2,
+      }),
+    );
+
+    const groupedUpdateCall = tx.$queryRaw.mock.calls.find(([template]) =>
+      Array.from(template as TemplateStringsArray).join("").includes(
+        "UPDATE pos_product_stock_groups",
+      ),
+    );
+    expect(groupedUpdateCall).toBeDefined();
+    expect(groupedUpdateCall?.[2]).toEqual([4]);
+  });
 });
 
 function product(
@@ -428,5 +582,72 @@ function product(
     categoryName,
     unit,
     stock,
+  };
+}
+
+function groupedProduct(input: {
+  id: string;
+  name: string;
+  sku: string;
+  unit: string;
+  stock: number;
+  unitMultiplierToBase: number;
+  stockGroupBaseStock?: number;
+}) {
+  const stockGroup = {
+    id: "group-1",
+    storeId: "store-1",
+    groupKey: "acco-plastik-joyko",
+    displayName: input.name,
+    baseUnit: "Dus",
+    baseStock: input.stockGroupBaseStock ?? 168,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+  };
+
+  return {
+    id: input.id,
+    name: input.name,
+    sku: input.sku,
+    barcode: null,
+    description: null,
+    price: { toString: () => "12000" },
+    costPrice: { toString: () => "7600" },
+    stock: input.stock,
+    minStock: 5,
+    unit: input.unit,
+    categoryId: "cat-1",
+    storeId: "store-1",
+    isActive: true,
+    imageUrl: null,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    material: null,
+    size: null,
+    stockGroupId: "group-1",
+    unitMultiplierToBase: input.unitMultiplierToBase,
+    conversionNeedsReview: false,
+    hargaDinas: null,
+    hargaAgen: null,
+    stockGroup,
+  };
+}
+
+function makeStockImportTx(products: ReturnType<typeof groupedProduct>[]) {
+  return {
+    product: {
+      findMany: vi.fn().mockResolvedValue(products),
+    },
+    batchOperation: {
+      create: vi.fn().mockResolvedValue({ id: "batch-1" }),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    inventoryLog: {
+      createMany: vi.fn().mockResolvedValue({ count: products.length }),
+    },
+    batchOperationItem: {
+      createMany: vi.fn().mockResolvedValue({ count: products.length }),
+    },
+    $queryRaw: vi.fn().mockResolvedValue([{ id: "group-1" }]),
   };
 }

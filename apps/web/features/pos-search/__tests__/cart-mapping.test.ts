@@ -17,6 +17,7 @@ describe('CartMappingService', () => {
     price: 5000,
     costPrice: 3000,
     hargaDinas: 4500,
+    hargaAgen: 4200,
     stock: 20,
     minStock: 5,
     unit: 'pcs',
@@ -34,6 +35,7 @@ describe('CartMappingService', () => {
     price: 12000, // Top-level values (e.g. copied from Dus)
     costPrice: 9000,
     hargaDinas: 11000,
+    hargaAgen: 10500,
     stock: 5,
     minStock: 2,
     unit: 'Dus',
@@ -56,6 +58,7 @@ describe('CartMappingService', () => {
         price: 12000,
         costPrice: 9000,
         hargaDinas: 11000,
+        hargaAgen: 10500,
         stock: 5,
         sku: 'ACCO-DUS',
         size: 'Large',
@@ -68,6 +71,7 @@ describe('CartMappingService', () => {
         price: 13500,
         costPrice: 10000,
         hargaDinas: 12500,
+        hargaAgen: 12000,
         stock: 15,
         sku: 'ACCO-PAK',
         size: 'Medium',
@@ -86,6 +90,7 @@ describe('CartMappingService', () => {
       price: 5000,
       costPrice: 3000,
       hargaDinas: 4500,
+      hargaAgen: 4200,
       unit: 'pcs',
       stock: 20,
       unitMultiplierToBase: null,
@@ -107,6 +112,7 @@ describe('CartMappingService', () => {
     // Values that should come from the 'acco-pak' variant object in variants array:
     expect(result.costPrice).toBe(10000);
     expect(result.hargaDinas).toBe(12500);
+    expect(result.hargaAgen).toBe(12000);
     expect(result.size).toBe('Medium');
     expect(result.material).toBe('Plastic');
   });
@@ -119,6 +125,7 @@ describe('CartMappingService', () => {
     expect(result.price).toBe(12000);
     expect(result.costPrice).toBe(9000);
     expect(result.hargaDinas).toBe(11000);
+    expect(result.hargaAgen).toBe(10500);
     expect(result.size).toBe('Large');
     expect(result.material).toBe('Metal');
   });

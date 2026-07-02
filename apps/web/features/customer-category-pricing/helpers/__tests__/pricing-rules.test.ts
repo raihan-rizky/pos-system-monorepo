@@ -113,6 +113,29 @@ describe("customer category pricing rules", () => {
     );
   });
 
+  it("uses product Harga Agen for AGEN before category pricing", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+        price: 12000,
+        hargaAgen: 9000,
+      },
+      "AGEN",
+      rules,
+    );
+
+    expect(priced.unitPrice).toBe(9000);
+    expect(priced.appliedPricing).toEqual(
+      expect.objectContaining({
+        ruleId: "harga-agen",
+        customerType: "AGEN",
+        originalUnitPrice: 12000,
+        appliedUnitPrice: 9000,
+      }),
+    );
+  });
+
   it("falls back to category pricing when Harga Dinas is empty", () => {
     const priced = priceProductForCustomerType(
       {

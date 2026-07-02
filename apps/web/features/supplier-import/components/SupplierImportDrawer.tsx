@@ -362,6 +362,9 @@ export function SupplierImportDrawer({
                           <p className="max-w-[220px] break-words font-semibold text-slate-900">
                             {row.name || "-"}
                           </p>
+                          <p className="mt-1 font-mono text-xs font-bold uppercase text-slate-500">
+                            {row.supplierCode ?? "Tanpa kode"}
+                          </p>
                           <p className="mt-1 text-xs text-slate-500">
                             {row.type}
                           </p>

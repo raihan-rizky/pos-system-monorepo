@@ -40,6 +40,8 @@ import { useRole } from "@/components/providers/RoleProvider";
 import { sortTaskChecklistItems } from "../helpers/task-checklist";
 import type { InventoryTaskPriority } from "../helpers/task-checklist";
 import { getDailyMatchingWindowStatus } from "../helpers/inventory-management-rules";
+import { useQueryClient } from "@tanstack/react-query";
+import { useInventorySummary } from "../hooks/useInventorySummary";
 
 import { DailyMatchingModal } from "./DailyMatchingModal";
 import { WeeklyProofModal } from "./WeeklyProofModal";
@@ -115,10 +117,14 @@ export interface InventoryWorkspaceProps {
 }
 
 export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
-  initialSummary,
+  initialSummary: incomingInitialSummary,
   defaultTab,
   initialDaySessionPreview,
 }) => {
+  const queryClient = useQueryClient();
+  const { data: summaryResponse } = useInventorySummary();
+  const initialSummary = summaryResponse ?? incomingInitialSummary;
+
   const { role, canPerform, userId } = useRole();
   const [activeTab, setActiveTab] = React.useState<typeof MAIN_TABS[number]>(
     defaultTab ?? "Ringkasan"
@@ -196,6 +202,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   const handleSuccess = (message: string) => {
     setStatusMessage(message);
     setErrorMessage(null);
+    void queryClient.invalidateQueries({ queryKey: ["inventory-management", "summary"] });
     // Dismiss banner after 5 seconds
     setTimeout(() => {
       setStatusMessage((prev) => (prev === message ? null : prev));
@@ -228,6 +235,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     form.reset();
     setEditingChecklistId(null);
     await loadChecklistItems();
+    void queryClient.invalidateQueries({ queryKey: ["inventory-management", "summary"] });
   };
 
   const handleChecklistToggle = async (item: TaskChecklistItem) => {
@@ -241,6 +249,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       return;
     }
     await loadChecklistItems();
+    void queryClient.invalidateQueries({ queryKey: ["inventory-management", "summary"] });
   };
 
   const handleChecklistDelete = async (item: TaskChecklistItem) => {
@@ -252,6 +261,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       return;
     }
     await loadChecklistItems();
+    void queryClient.invalidateQueries({ queryKey: ["inventory-management", "summary"] });
   };
 
   const startChecklistEdit = (item: TaskChecklistItem) => {
@@ -276,7 +286,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   const sevenDayMovement = React.useMemo(() => {
     const movements = initialSummary.chartData?.inboundOutbound ?? [];
     const totals = movements.reduce(
-      (result, movement) => ({
+      (result: { inbound: number; outbound: number }, movement: { inbound: number; outbound: number }) => ({
         inbound: result.inbound + movement.inbound,
         outbound: result.outbound + movement.outbound,
       }),
@@ -285,7 +295,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     const busiestDay = movements.reduce<{
       day: string;
       volume: number;
-    } | null>((current, movement) => {
+    } | null>((current: { day: string; volume: number } | null, movement: { day: string; inbound: number; outbound: number }) => {
       const volume = movement.inbound + movement.outbound;
       return !current || volume > current.volume
         ? { day: movement.day, volume }

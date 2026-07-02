@@ -17,6 +17,13 @@ const txMock = {
     create: vi.fn(),
     update: vi.fn(),
   },
+  supplier: {
+    findMany: vi.fn(),
+  },
+  productSupplier: {
+    createMany: vi.fn(),
+    deleteMany: vi.fn(),
+  },
   category: {
     findMany: vi.fn(),
     create: vi.fn(),
@@ -42,7 +49,9 @@ const txMock = {
     createMany: vi.fn(),
   },
   productStockGroup: {
+    findMany: vi.fn(),
     findUnique: vi.fn(),
+    createMany: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
   },
@@ -91,6 +100,9 @@ describe("POST /api/products/import/commit", () => {
     });
     dbTransactionMock.mockImplementation((callback) => callback(txMock));
     txMock.product.findMany.mockResolvedValue([]);
+    txMock.supplier.findMany.mockResolvedValue([]);
+    txMock.productSupplier.createMany.mockResolvedValue({ count: 0 });
+    txMock.productSupplier.deleteMany.mockResolvedValue({ count: 0 });
     txMock.category.findMany.mockResolvedValue([{ id: "cat-1", name: "Jasa" }]);
     txMock.batchOperation.create.mockImplementation(async ({ data }) => {
       batchSummary = data.summary;
@@ -154,6 +166,8 @@ describe("POST /api/products/import/commit", () => {
       return { count };
     });
     txMock.productStockGroup.findUnique.mockResolvedValue(null);
+    txMock.productStockGroup.findMany.mockResolvedValue([]);
+    txMock.productStockGroup.createMany.mockResolvedValue({ count: 0 });
     txMock.productStockGroup.create.mockResolvedValue({
       id: "group-2",
       storeId: "store-main",
@@ -343,6 +357,115 @@ describe("POST /api/products/import/commit", () => {
     expect(txMock.$queryRaw).toHaveBeenCalled();
   });
 
+  it("links created products to found supplier codes during commit", async () => {
+    txMock.product.findMany.mockResolvedValue([]);
+    txMock.supplier.findMany.mockResolvedValue([
+      { id: "supplier-1", code: "SP0001", name: "CV Sinar" },
+      { id: "supplier-2", code: "SP0002", name: "PT Terang" },
+    ]);
+
+    const payload = {
+      rows: [
+        {
+          rowNumber: 2,
+          name: "Amplop",
+          sku: "AMP-SUP",
+          category: "Jasa",
+          price: 1000,
+          stock: 10,
+          unit: "pack",
+          supplierCode: "SP0001, SP0002",
+        },
+      ],
+      decisions: {},
+    };
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/commit", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(txMock.supplier.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: { in: ["SP0001", "SP0002"] } },
+        select: { id: true, code: true, name: true },
+      }),
+    );
+    expect(txMock.productSupplier.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ supplierId: "supplier-1" }),
+          expect.objectContaining({ supplierId: "supplier-2" }),
+        ]),
+        skipDuplicates: true,
+      }),
+    );
+  });
+
+  it("bulk ensures missing stock groups before inserting many new products", async () => {
+    txMock.product.findMany.mockResolvedValue([]);
+    txMock.productStockGroup.findMany.mockResolvedValue([]);
+    txMock.productStockGroup.createMany.mockResolvedValue({ count: 2 });
+
+    const payload = {
+      rows: [
+        {
+          rowNumber: 2,
+          name: "Amplop",
+          sku: "AMP-001",
+          category: "Jasa",
+          price: 1000,
+          stock: 10,
+          unit: "pack",
+        },
+        {
+          rowNumber: 3,
+          name: "Kertas HVS",
+          sku: "HVS-001",
+          category: "Jasa",
+          price: 50000,
+          stock: 5,
+          unit: "rim",
+        },
+      ],
+      decisions: {},
+    };
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/commit", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(txMock.productStockGroup.findMany).toHaveBeenCalledTimes(1);
+    expect(txMock.productStockGroup.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.any(String),
+          storeId: "store-main",
+          groupKey: "amplop|cat-1||",
+          baseStock: 10,
+        }),
+        expect.objectContaining({
+          id: expect.any(String),
+          storeId: "store-main",
+          groupKey: "kertas hvs|cat-1||",
+          baseStock: 5,
+        }),
+      ]),
+    });
+    expect(txMock.productStockGroup.findUnique).not.toHaveBeenCalled();
+    expect(txMock.productStockGroup.create).not.toHaveBeenCalled();
+    expect(txMock.$queryRaw).toHaveBeenCalled();
+  });
+
   it("rejects same SKU/name/category/unit rows with conflicting price data until decisions are explicit", async () => {
     txMock.product.findMany.mockResolvedValue([]);
 
@@ -391,8 +514,8 @@ describe("POST /api/products/import/commit", () => {
         unit: "pcs",
         rowNumbers: [2, 3],
         prices: [
-          { rowNumber: 2, price: 1000, costPrice: 800, hargaDinas: null },
-          { rowNumber: 3, price: 1200, costPrice: 800, hargaDinas: null },
+          { rowNumber: 2, price: 1000, costPrice: 800, hargaDinas: null, hargaAgen: null },
+          { rowNumber: 3, price: 1200, costPrice: 800, hargaDinas: null, hargaAgen: null },
         ],
       }),
     ]);

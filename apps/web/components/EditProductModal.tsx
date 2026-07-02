@@ -22,6 +22,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
   const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
   const [hargaDinas, setHargaDinas] = useState("");
+  const [hargaAgen, setHargaAgen] = useState("");
   const [stock, setStock] = useState("");
   const [unit, setUnit] = useState("pcs");
   const [categoryId, setCategoryId] = useState("");
@@ -38,6 +39,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
       setSku(product.sku);
       setPrice(product.price.toString());
       setHargaDinas(product.hargaDinas == null ? "" : product.hargaDinas.toString());
+      setHargaAgen(product.hargaAgen == null ? "" : product.hargaAgen.toString());
       setStock(product.stock.toString());
       setUnit(product.unit);
       setCategoryId(product.category.id);
@@ -94,12 +96,14 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
 
     try {
       const parsedHargaDinas = hargaDinas.trim() ? Number(hargaDinas) : null;
+      const parsedHargaAgen = hargaAgen.trim() ? Number(hargaAgen) : null;
       await updateProduct.mutateAsync({
         id: product.id,
         name,
         sku,
         price: Number(price),
         hargaDinas: parsedHargaDinas,
+        hargaAgen: parsedHargaAgen,
         stock: Number(stock),
         unit,
         categoryId,
@@ -192,6 +196,19 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
             {hargaDinas.trim() && Number(hargaDinas) < Number(price || 0) && (
               <p className="text-xs font-medium text-amber-700">
                 Harga Dinas lebih rendah dari harga jual.
+              </p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Input
+              label="Harga Agen (Opsional)"
+              type="number"
+              value={hargaAgen}
+              onChange={(e) => setHargaAgen(e.target.value)}
+            />
+            {hargaAgen.trim() && Number(hargaAgen) < Number(price || 0) && (
+              <p className="text-xs font-medium text-amber-700">
+                Harga Agen lebih rendah dari harga jual.
               </p>
             )}
           </div>

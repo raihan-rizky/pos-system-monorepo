@@ -234,7 +234,7 @@ describe('ProductGroupingService', () => {
       expect(result[0].variants).toHaveLength(2);
     });
 
-    it('sets top-level product properties (price, unit, stock, sku, hargaDinas, costPrice, size, material) from the selected defaultVariant', () => {
+    it('sets top-level product properties (price, unit, stock, sku, hargaDinas, hargaAgen, costPrice, size, material) from the selected defaultVariant', () => {
       const products: Product[] = [
         {
           id: '1',
@@ -243,6 +243,7 @@ describe('ProductGroupingService', () => {
           price: 50000,
           costPrice: 40000,
           hargaDinas: 45000,
+          hargaAgen: 43000,
           stock: 10,
           unit: 'dus',
           size: 'large',
@@ -256,6 +257,7 @@ describe('ProductGroupingService', () => {
           price: 5000,
           costPrice: 4000,
           hargaDinas: 4500,
+          hargaAgen: 4300,
           stock: 100,
           unit: 'pcs',
           size: 'small',
@@ -272,13 +274,14 @@ describe('ProductGroupingService', () => {
       expect(result[0].price).toBe(5000);
       expect(result[0].costPrice).toBe(4000);
       expect(result[0].hargaDinas).toBe(4500);
+      expect(result[0].hargaAgen).toBe(4300);
       expect(result[0].stock).toBe(100);
       expect(result[0].unit).toBe('pcs');
       expect(result[0].size).toBe('small');
       expect(result[0].material).toBe('cup');
     });
 
-    it('maps variant-specific properties (hargaDinas, barcode, size, material) to the variants array items', () => {
+    it('maps variant-specific properties (hargaDinas, hargaAgen, barcode, size, material) to the variants array items', () => {
       const products: Product[] = [
         {
           id: '1',
@@ -288,6 +291,7 @@ describe('ProductGroupingService', () => {
           price: 50000,
           costPrice: null,
           hargaDinas: 45000,
+          hargaAgen: 43000,
           stock: 10,
           minStock: 0,
           unit: 'dus',
@@ -304,6 +308,7 @@ describe('ProductGroupingService', () => {
       expect(result[0].variants[0]).toMatchObject({
         id: '1',
         hargaDinas: 45000,
+        hargaAgen: 43000,
         barcode: '123456',
         size: 'large',
         material: 'bag',

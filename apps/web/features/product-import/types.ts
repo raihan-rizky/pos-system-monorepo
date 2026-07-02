@@ -4,6 +4,7 @@ export const OPTIONAL_IMPORT_COLUMNS = [
   "stock",
   "costPrice",
   "hargaDinas",
+  "hargaAgen",
   "minStock",
   "unitMultiplierToBase",
   "barcode",
@@ -11,6 +12,7 @@ export const OPTIONAL_IMPORT_COLUMNS = [
   "size",
   "material",
   "imageUrl",
+  "supplierCode",
 ] as const;
 
 export const IMPORT_COLUMNS = [...REQUIRED_IMPORT_COLUMNS, ...OPTIONAL_IMPORT_COLUMNS] as const;
@@ -29,7 +31,7 @@ export type ImportCleaningStatus = "clean" | "auto_fixed" | "review_required" | 
 
 export interface ImportCleaningFix {
   ruleId: string;
-  field: "price" | "costPrice" | "hargaDinas";
+  field: "price" | "costPrice" | "hargaDinas" | "hargaAgen";
   oldValue: number | null;
   newValue: number | null;
 }
@@ -50,12 +52,16 @@ export interface NormalizedImportRow {
   unitMultiplierToBase?: number | null;
   costPrice?: number | null;
   hargaDinas?: number | null;
+  hargaDinasProvided?: boolean;
+  hargaAgen?: number | null;
   minStock?: number;
   barcode?: string | null;
   description?: string | null;
   size?: string | null;
   material?: string | null;
   imageUrl?: string | null;
+  supplierCodes?: string[];
+  supplierCodesProvided?: boolean;
   duplicateInFile: boolean;
   existingProductId?: string;
   existingProductName?: string;

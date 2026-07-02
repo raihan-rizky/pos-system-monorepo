@@ -33,6 +33,35 @@ function countResolvedActions(rows: Array<{ autoAction?: string; generatedSku?: 
   );
 }
 
+async function addSupplierCodeWarnings(
+  rows: Array<{ rowNumber: number; supplierCodes?: string[]; warnings: string[] }>,
+  warnings: string[],
+) {
+  const supplierCodes = Array.from(
+    new Set(rows.flatMap((row) => row.supplierCodes ?? [])),
+  );
+  if (supplierCodes.length === 0) return;
+
+  const suppliers = await db.supplier.findMany({
+    where: { code: { in: supplierCodes } },
+    select: { id: true, code: true, name: true },
+  });
+  const foundCodes = new Set(
+    suppliers.map((supplier) => supplier.code).filter((code): code is string => Boolean(code)),
+  );
+
+  for (const row of rows) {
+    for (const code of row.supplierCodes ?? []) {
+      if (foundCodes.has(code)) continue;
+      const warning = `Kode supplier ${code} tidak ditemukan dan akan diabaikan.`;
+      if (!row.warnings.includes(warning)) {
+        row.warnings.push(warning);
+        warnings.push(`Row ${row.rowNumber}: ${warning}`);
+      }
+    }
+  }
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
   const rateLimited = enforceRateLimit(request, {
@@ -146,6 +175,8 @@ export async function POST(request: Request) {
           price: true,
           costPrice: true,
           hargaDinas: true,
+          hargaAgen: true,
+          unitMultiplierToBase: true,
           stockGroupId: true,
           category: { select: { name: true } },
           stockGroup: { select: { baseUnit: true } },
@@ -169,6 +200,7 @@ export async function POST(request: Request) {
       new Map(products.map((product) => [product.sku, { id: product.id, name: product.name }])),
       new Set(categories.map((category) => category.name.toLowerCase())),
     );
+    await addSupplierCodeWarnings(normalized.rows, normalized.warnings);
     const rows = applySameUnitPriceConflicts(resolveProductImportAutoDecisions({
       rows: normalized.rows,
       existingProducts: products.map((product) => ({
@@ -180,6 +212,8 @@ export async function POST(request: Request) {
         price: Number(product.price),
         costPrice: product.costPrice == null ? null : Number(product.costPrice),
         hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
+        hargaAgen: product.hargaAgen == null ? null : Number(product.hargaAgen),
+        unitMultiplierToBase: product.unitMultiplierToBase,
         stockGroupId: product.stockGroupId,
         stockGroupBaseUnit: product.stockGroup?.baseUnit ?? null,
       })),

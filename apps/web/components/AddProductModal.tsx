@@ -21,6 +21,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
   const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
   const [hargaDinas, setHargaDinas] = useState("");
+  const [hargaAgen, setHargaAgen] = useState("");
   const [stock, setStock] = useState("");
   const [unit, setUnit] = useState("pcs");
   const [categoryId, setCategoryId] = useState("");
@@ -76,11 +77,13 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
 
     try {
       const parsedHargaDinas = hargaDinas.trim() ? Number(hargaDinas) : undefined;
+      const parsedHargaAgen = hargaAgen.trim() ? Number(hargaAgen) : undefined;
       await createProduct.mutateAsync({
         name,
         sku,
         price: Number(price),
         hargaDinas: parsedHargaDinas,
+        hargaAgen: parsedHargaAgen,
         stock: Number(stock),
         minStock: 5,
         unit,
@@ -94,6 +97,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
       setSku("");
       setPrice("");
       setHargaDinas("");
+      setHargaAgen("");
       setStock("");
       setUnit("pcs");
       setCategoryId("");
@@ -188,6 +192,20 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
             {hargaDinas.trim() && Number(hargaDinas) < Number(price || 0) && (
               <p className="text-xs font-medium text-amber-700">
                 Harga Dinas lebih rendah dari harga jual.
+              </p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Input
+              label="Harga Agen (Opsional)"
+              type="number"
+              value={hargaAgen}
+              onChange={(e) => setHargaAgen(e.target.value)}
+              placeholder="0"
+            />
+            {hargaAgen.trim() && Number(hargaAgen) < Number(price || 0) && (
+              <p className="text-xs font-medium text-amber-700">
+                Harga Agen lebih rendah dari harga jual.
               </p>
             )}
           </div>

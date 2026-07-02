@@ -196,23 +196,23 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-change-price",
       title: "Mengubah Harga Produk & HPP",
-      description: "Ubah harga jual produk dan harga modal (HPP) dengan gampang lewat form edit di menu ini.",
+      description: "Ubah harga jual produk, harga modal (HPP), Harga Dinas, dan Harga Agen dengan gampang lewat form edit di menu ini.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Tab Produk", description: "Masuk ke menu 'Produk' di sidebar, pastikan Anda berada di tab 'Produk'.", icon: <Package className="w-8 h-8" /> },
         { title: "Ubah Harga Langsung", description: "Klik tombol aksi 'Ubah Harga' di kolom paling kanan tabel produk untuk mengubah harga jual secara langsung.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Agen, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
         { title: "Pantau Riwayat", description: "Buka tab 'Riwayat Harga' di bagian atas halaman untuk memantau grafik dan log perubahan harga barang dari waktu ke waktu.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {
       id: "owner-special-pricing",
       title: "Mengatur Harga Grup Pelanggan (Harga Khusus)",
-      description: "Atur diskon otomatis untuk grup pelanggan tertentu (misal grup Agen dapat potongan khusus untuk kategori produk tertentu).",
+      description: "Atur harga khusus untuk grup pelanggan. Produk bisa punya Harga Agen atau Harga Dinas sendiri, lalu aturan kategori dipakai saat harga produk khusus belum diisi.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Tab Harga Khusus", description: "Buka menu 'Produk' di sidebar, lalu klik tab 'Harga Khusus' di bagian atas (hanya diakses oleh Owner).", icon: <Settings className="w-8 h-8" /> },
-        { title: "Isi Aturan Harga", description: "Di kolom aturan sebelah kanan, pilih Tipe Pelanggan (AGEN, INDUSTRI, PEMERINTAH [Dinas]), kategori produk, dan mode diskon (persen atau rupiah).", icon: <FileText className="w-8 h-8" /> },
+        { title: "Isi Aturan Harga", description: "Di kolom aturan sebelah kanan, pilih Tipe Pelanggan (AGEN, INDUSTRI, PEMERINTAH [Dinas]), kategori produk, dan mode diskon (persen atau rupiah). Untuk AGEN, Harga Agen di produk akan dipakai dulu jika tersedia.", icon: <FileText className="w-8 h-8" /> },
         { title: "Masukkan Nilai Diskon", description: "Masukkan nominal atau persentase diskon yang ingin diberikan untuk grup tersebut, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
         { title: "Hasil Transaksi POS", description: "Diskon akan otomatis memotong harga produk di kasir (POS) saat transaksi dibuat untuk pelanggan dengan grup tipe tersebut.", icon: <ShoppingCart className="w-8 h-8" /> },
       ]
@@ -226,7 +226,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
         { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, periksa ringkasan data, lalu klik simpan untuk memulai import massal.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi. Setelah dikonfirmasi, import berjalan di antrean background; jika muncul pesan antrean belum mulai, buka progress import lalu klik Coba Lagi.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -261,19 +261,19 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Package className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Produk", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Katalog', kemudian klik menu 'Produk' (ikon paket).", icon: <Package className="w-8 h-8" /> },
-        { title: "Tambah Produk Baru", description: "Klik tombol hitam '+ Tambah Produk' di pojok kanan atas. Pada modal formulir yang muncul, ketikkan Nama Produk, Kategori, Harga Jual, Stok Awal, dan kode SKU/Barcode, lalu klik tombol 'Simpan'.", icon: <ShoppingCart className="w-8 h-8" /> },
-        { title: "Ubah Data Produk", description: "Cari produk yang ingin diubah di tabel, lalu klik tombol ikon 'Edit' (pensil) di kolom aksi paling kanan. Lakukan penyesuaian data pada form pop-up, kemudian klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Tambah Produk Baru", description: "Klik tombol hitam '+ Tambah Produk' di pojok kanan atas. Pada modal formulir yang muncul, ketik Nama Produk, Kategori, Harga Jual, Harga Agen atau Harga Dinas bila perlu, Stok Awal, dan kode SKU/Barcode, lalu klik 'Simpan'.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Ubah Data Produk", description: "Cari produk yang ingin diubah di tabel, lalu klik tombol ikon 'Edit' (pensil) di kolom aksi paling kanan. Lakukan penyesuaian data termasuk Harga Agen atau Harga Dinas pada form pop-up, kemudian klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
       id: "admin-suppliers",
       title: "Kelola Pemasok (Supplier)",
-      description: "Catat data alamat dan nomor kontak supplier-mu di sini biar gampang saat mau pesan barang atau cek riwayat belanja toko.",
+      description: "Catat kode unik, alamat, dan nomor kontak supplier-mu di sini biar gampang saat mau pesan barang atau cek riwayat belanja toko.",
       icon: <Truck className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Menu Supplier", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Katalog', lalu klik menu 'Supplier' (ikon truk).", icon: <Truck className="w-8 h-8" /> },
         { title: "Buka Form Tambah", description: "Klik tombol hitam '+ Tambah Supplier' di pojok kanan atas halaman untuk memunculkan form input data.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Simpan Data Supplier", description: "Ketik Nama Perusahaan Supplier, Nama Contact Person (PIC), No WhatsApp, dan Alamat lengkap, lalu klik tombol 'Simpan' di pojok kanan bawah modal.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Simpan Data Supplier", description: "Ketik Kode Supplier unik seperti SP0001, Nama Perusahaan Supplier, Contact Person (PIC), No WhatsApp, dan Alamat lengkap, lalu klik tombol 'Simpan' di pojok kanan bawah modal.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -326,12 +326,12 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "admin-change-price",
       title: "Mengubah Harga Produk & HPP",
-      description: "Ubah harga jual produk dan harga modal (HPP) dengan gampang lewat form edit di menu ini.",
+      description: "Ubah harga jual produk, harga modal (HPP), Harga Dinas, dan Harga Agen dengan gampang lewat form edit di menu ini.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Tab Produk", description: "Masuk ke menu 'Produk' di sidebar, pastikan Anda berada di tab 'Produk'.", icon: <Package className="w-8 h-8" /> },
         { title: "Ubah Harga Langsung", description: "Klik tombol aksi 'Ubah Harga' di kolom paling kanan tabel produk untuk mengubah harga jual secara langsung.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Agen, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
         { title: "Pantau Riwayat", description: "Buka tab 'Riwayat Harga' di bagian atas halaman untuk memantau grafik dan log perubahan harga barang dari waktu ke waktu.", icon: <History className="w-8 h-8" /> },
       ]
     },
@@ -344,7 +344,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
         { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, periksa ringkasan data, lalu klik simpan untuk memulai import massal.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi sebelum import diproses.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -576,13 +576,13 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     },
     {
       id: "inventory-bulk-stock-import",
-      title: "Import Stok Massal (Excel)",
-      description: "Nggak usah edit stok satu-satu, kamu bisa update ribuan stok barang sekaligus pakai file Excel.",
+      title: "Import Stok Massal (Excel/CSV)",
+      description: "Nggak usah edit stok satu-satu, kamu bisa update ribuan stok barang sekaligus pakai file Excel atau CSV.",
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Pilih Import Bulk Stock", description: "Pilih 'Import Bulk Stock' untuk masuk ke halaman penyesuaian kuantitas stok dari berkas Excel.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Upload Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda yang berisi kolom kode barang/SKU dan kuantitas stok. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pilih Import Bulk Stock", description: "Pilih 'Import Bulk Stock' untuk masuk ke halaman penyesuaian kuantitas stok dari berkas Excel atau CSV.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Upload File", description: "Pilih file .xlsx atau .csv yang berisi kolom nama barang, kategori/jenis, stok, dan satuan. File katalog lama dengan header Nama Item, Jenis, Stok, dan Satuan juga bisa dipakai. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
         { title: "Mapping & Selesai", description: "Lakukan pemetaan kolom, verifikasi ringkasan item, lalu klik proses untuk memperbarui stok barang secara massal.", icon: <Settings className="w-8 h-8" /> },
       ]
     },

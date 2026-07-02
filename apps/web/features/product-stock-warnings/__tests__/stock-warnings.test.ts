@@ -36,6 +36,7 @@ describe("Stock Warning Detection", () => {
     price: 10000,
     costPrice: null,
     hargaDinas: null,
+    hargaAgen: null,
     stock,
     minStock,
     unit: "pcs",

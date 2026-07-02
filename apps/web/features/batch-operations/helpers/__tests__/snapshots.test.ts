@@ -10,6 +10,7 @@ function makeSnapshot(overrides: Partial<ProductSnapshot> = {}): ProductSnapshot
     price: 15000,
     costPrice: 10000,
     hargaDinas: null,
+    hargaAgen: null,
     stock: 50,
     minStock: 5,
     unit: "pcs",
@@ -40,6 +41,12 @@ describe("snapshotsMatch", () => {
   it("returns false when price differs", () => {
     const snap1 = makeSnapshot();
     const snap2 = makeSnapshot({ price: 99999 });
+    expect(snapshotsMatch(snap1, snap2)).toBe(false);
+  });
+
+  it("returns false when Harga Agen differs", () => {
+    const snap1 = makeSnapshot({ hargaAgen: 14000 });
+    const snap2 = makeSnapshot({ hargaAgen: 13000 });
     expect(snapshotsMatch(snap1, snap2)).toBe(false);
   });
 });

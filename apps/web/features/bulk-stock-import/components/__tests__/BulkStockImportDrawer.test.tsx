@@ -162,6 +162,7 @@ describe("BulkStockImportPreviewPanel", () => {
         suppliers={[
           {
             id: "supplier-1",
+            code: "SP0001",
             name: "CV Sinar Jaya",
             type: "DISTRIBUTOR",
             phone: null,

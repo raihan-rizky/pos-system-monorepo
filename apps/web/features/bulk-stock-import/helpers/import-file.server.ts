@@ -33,7 +33,9 @@ export async function parseBulkStockImportFile(
     .map((row) => {
       const record: Record<string, unknown> = {};
       headers.forEach((header, index) => {
-        if (header) record[header] = row[index];
+        if (!header) return;
+        if (normalizeValue(record[header])) return;
+        record[header] = row[index];
       });
       return record;
     });

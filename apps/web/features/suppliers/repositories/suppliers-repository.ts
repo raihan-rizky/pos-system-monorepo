@@ -10,6 +10,7 @@ import type {
   SupplierStockInRecapLog,
 } from "@/features/suppliers/helpers/supplier-stock-in-recap";
 import type { SupplierRestockLog } from "@/features/suppliers/helpers/supplier-summary";
+import { normalizeSupplierCode } from "@/features/suppliers/helpers/supplier-code";
 
 export type SupplierListFilters = {
   q?: string;
@@ -29,6 +30,7 @@ export function buildSupplierWhere(filters: SupplierListFilters): SupplierWhereI
   const where: SupplierWhereInput = {};
   if (filters.q) {
     where.OR = [
+      { code: { contains: filters.q, mode: "insensitive" } },
       { name: { contains: filters.q, mode: "insensitive" } },
       { phone: { contains: filters.q, mode: "insensitive" } },
       { contactPerson: { contains: filters.q, mode: "insensitive" } },
@@ -67,6 +69,7 @@ export function findSuppliersByName(name: string): Promise<SupplierNameRow[]> {
 export function createSupplier(input: SupplierInput): Promise<SupplierListItem> {
   return db.supplier.create({
     data: {
+      code: normalizeSupplierCode(input.code),
       name: input.name,
       type: input.type,
       phone: input.phone || null,
@@ -97,6 +100,7 @@ export function updateSupplier(
   return db.supplier.update({
     where: { id },
     data: {
+      code: normalizeSupplierCode(input.code),
       name: input.name,
       type: input.type,
       phone: input.phone || null,

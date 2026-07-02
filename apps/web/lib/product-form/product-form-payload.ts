@@ -9,6 +9,7 @@ export type ProductFormValues = {
   price: string;
   costPrice: string;
   hargaDinas: string;
+  hargaAgen: string;
   minStock: string;
   unit: string;
   unitMultiplierToBase: string;
@@ -53,6 +54,7 @@ export function buildProductFormPayload(
     material: formData.material || undefined,
     imageUrl: formData.imageUrl || undefined,
     hargaDinas: formData.hargaDinas ? Number(formData.hargaDinas) : null,
+    hargaAgen: formData.hargaAgen ? Number(formData.hargaAgen) : null,
   };
 
   if (mode === "edit") {

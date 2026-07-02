@@ -8,6 +8,7 @@ const formData = {
   price: "15000",
   costPrice: "9000",
   hargaDinas: "18000",
+  hargaAgen: "16000",
   minStock: "5",
   unit: "meter",
   unitMultiplierToBase: "1",
@@ -30,6 +31,7 @@ describe("buildProductFormPayload", () => {
         price: 15000,
         costPrice: 9000,
         hargaDinas: 18000,
+        hargaAgen: 16000,
       }),
     );
   });
@@ -48,6 +50,7 @@ describe("buildProductFormPayload", () => {
     expect(buildProductFormPayload(formData, "edit")).toEqual(
       expect.objectContaining({
         hargaDinas: 18000,
+        hargaAgen: 16000,
       }),
     );
   });

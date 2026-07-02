@@ -23,6 +23,24 @@ describe("supplier import preprocessing", () => {
     expect(parsed.records).toHaveLength(2);
   });
 
+  it("maps and normalizes optional supplier codes", async () => {
+    const buffer = workbookBuffer([
+      ["Kode Supplier", "name", "type"],
+      [" sp0001 ", "CV Sinar", "distributor"],
+    ]);
+
+    const parsed = await parseImportFile(buffer);
+    const result = normalizeImportRows(parsed.records, new Map());
+
+    expect(parsed.records[0].record).toMatchObject({
+      supplierCode: " sp0001 ",
+    });
+    expect(result.rows[0]).toMatchObject({
+      supplierCode: "SP0001",
+      errors: [],
+    });
+  });
+
   it("normalizes supplier rows, type warnings, duplicates, and existing matches", () => {
     const existing = new Map<string, ExistingSupplierMatch[]>([
       [
@@ -77,6 +95,55 @@ describe("supplier import preprocessing", () => {
         expect.stringContaining("Unknown supplier type"),
         expect.stringContaining("Multiple suppliers match"),
       ]),
+    );
+  });
+
+  it("blocks rows when supplier code and name point to different existing suppliers", () => {
+    const existingByName = new Map<string, ExistingSupplierMatch[]>([
+      [
+        "cv sinar",
+        [
+          {
+            supplierId: "supplier-name",
+            name: "CV Sinar",
+            type: "DISTRIBUTOR",
+            phone: null,
+            isActive: true,
+          },
+        ],
+      ],
+    ]);
+    const existingByCode = new Map<string, ExistingSupplierMatch>([
+      [
+        "SP0001",
+        {
+          supplierId: "supplier-code",
+          name: "PT Kode",
+          type: "DISTRIBUTOR",
+          phone: null,
+          isActive: true,
+        },
+      ],
+    ]);
+
+    const result = (normalizeImportRows as any)(
+      [
+        {
+          rowNumber: 2,
+          record: {
+            supplierCode: "sp0001",
+            name: "CV Sinar",
+            type: "distributor",
+          },
+        },
+      ],
+      existingByName,
+      existingByCode,
+    );
+
+    expect(result.rows[0].supplierCode).toBe("SP0001");
+    expect(result.rows[0].errors).toContain(
+      "Supplier code and name point to different suppliers. Fix the code or name before commit.",
     );
   });
 });

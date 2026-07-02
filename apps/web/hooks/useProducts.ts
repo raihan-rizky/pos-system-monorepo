@@ -19,6 +19,7 @@ export interface ProductVariant {
     baseStock: number;
   } | null;
   hargaDinas: number | null;
+  hargaAgen: number | null;
   barcode?: string | null;
   size?: string | null;
   material?: string | null;
@@ -32,6 +33,7 @@ export interface Product {
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
+  hargaAgen: number | null;
   stock: number;
   minStock: number;
   unit: string;
@@ -242,6 +244,7 @@ export interface CreateProductInput {
   price: number;
   costPrice?: number | null;
   hargaDinas?: number | null;
+  hargaAgen?: number | null;
   stock: number;
   unitMultiplierToBase?: number;
   minStock: number;

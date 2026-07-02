@@ -3,6 +3,7 @@ import type { SupplierType } from "@/features/suppliers/types/supplier";
 export const REQUIRED_IMPORT_COLUMNS = ["name"] as const;
 
 export const OPTIONAL_IMPORT_COLUMNS = [
+  "supplierCode",
   "type",
   "phone",
   "contactPerson",
@@ -31,6 +32,7 @@ export interface ColumnMapping {
 export interface ExistingSupplierMatch {
   supplierId: string;
   name: string;
+  code?: string | null;
   type: SupplierType;
   phone: string | null;
   isActive: boolean;
@@ -38,6 +40,7 @@ export interface ExistingSupplierMatch {
 
 export interface NormalizedSupplierImportRow {
   rowNumber: number;
+  supplierCode: string | null;
   name: string;
   normalizedName: string;
   type: SupplierType;

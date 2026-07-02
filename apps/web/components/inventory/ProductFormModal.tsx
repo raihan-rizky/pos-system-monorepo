@@ -23,6 +23,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     price: "",
     costPrice: "",
     hargaDinas: "",
+    hargaAgen: "",
     minStock: "5",
     unit: "pcs",
     unitMultiplierToBase: "1",
@@ -80,6 +81,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         price: initialData.price.toString(),
         costPrice: initialData.costPrice?.toString() || "",
         hargaDinas: initialData.hargaDinas?.toString() || "",
+        hargaAgen: initialData.hargaAgen?.toString() || "",
         minStock: initialData.minStock.toString(),
         unit: initialData.unit,
         unitMultiplierToBase: String(initialData.unitMultiplierToBase ?? 1),
@@ -102,6 +104,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         price: "",
         costPrice: "",
         hargaDinas: "",
+        hargaAgen: "",
         minStock: "5",
         unit: "pcs",
         unitMultiplierToBase: "1",
@@ -142,6 +145,9 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   const showHargaDinasWarning =
     formData.hargaDinas.trim() !== "" &&
     Number(formData.hargaDinas) < regularPrice;
+  const showHargaAgenWarning =
+    formData.hargaAgen.trim() !== "" &&
+    Number(formData.hargaAgen) < regularPrice;
   const unitMultiplier = Number(formData.unitMultiplierToBase || "1");
   const canAddSmallestUnitVariant = !productId && Number.isFinite(unitMultiplier) && unitMultiplier > 1;
   const showSmallestUnitVariant =
@@ -232,6 +238,21 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             {showHargaDinasWarning && (
               <p className="text-xs font-medium text-amber-700">
                 Harga Dinas lebih rendah dari harga jual.
+              </p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Input
+              label="Harga Agen"
+              type="number"
+              min="0"
+              placeholder="Opsional"
+              value={formData.hargaAgen}
+              onChange={(e) => setFormData({ ...formData, hargaAgen: e.target.value })}
+            />
+            {showHargaAgenWarning && (
+              <p className="text-xs font-medium text-amber-700">
+                Harga Agen lebih rendah dari harga jual.
               </p>
             )}
           </div>

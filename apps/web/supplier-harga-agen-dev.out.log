@@ -1,0 +1,58 @@
+
+> @pos/web@0.0.0 dev D:\main_project\pos-system-monorepo\apps\web
+> next dev --port 3002
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3002
+   - Network:      http://192.168.100.10:3002
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · optimizePackageImports
+
+ ✓ Starting...
+ ✓ Ready in 7.2s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 743ms (172 modules)
+[36m2026-07-01T05:41:30.190Z DEBUG[0m [middleware] middleware.start {"requestId":"1f174beee970f6f3","method":"GET","path":"/pos"}
+[32m2026-07-01T05:41:31.256Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:41:31.344Z DEBUG[0m [middleware] middleware.end {"requestId":"1f174beee970f6f3","method":"GET","path":"/pos","status":200,"durationMs":1155}
+ ○ Compiling /pos ...
+ ✓ Compiled /pos in 18.1s (2591 modules)
+{"time":"2026-07-01T05:41:50.940Z","level":"info","name":"db","msg":"db.client.created"}
+{"time":"2026-07-01T05:41:51.320Z","level":"info","name":"db","msg":"db.info","message":"Starting a postgresql pool with 3 connections in PgBouncer mode.","target":"quaint::pooled"}
+ GET /pos 200 in 22324ms
+[36m2026-07-01T05:41:55.449Z DEBUG[0m [middleware] middleware.start {"requestId":"3ff5d672f858b6c4","method":"GET","path":"/api/transactions"}
+[36m2026-07-01T05:41:55.465Z DEBUG[0m [middleware] middleware.start {"requestId":"541b08cc7a071ab3","method":"GET","path":"/api/transactions"}
+[36m2026-07-01T05:41:55.519Z DEBUG[0m [middleware] middleware.start {"requestId":"12a186bddc872fd5","method":"GET","path":"/api/inventory-management/summary"}
+[36m2026-07-01T05:41:55.527Z DEBUG[0m [middleware] middleware.start {"requestId":"4ea456707d5599b3","method":"GET","path":"/api/products"}
+[32m2026-07-01T05:41:55.654Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:41:55.655Z DEBUG[0m [middleware] middleware.end {"requestId":"3ff5d672f858b6c4","method":"GET","path":"/api/transactions","status":200,"durationMs":208}
+[32m2026-07-01T05:41:55.871Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:41:55.871Z DEBUG[0m [middleware] middleware.end {"requestId":"541b08cc7a071ab3","method":"GET","path":"/api/transactions","status":200,"durationMs":406}
+[32m2026-07-01T05:41:55.894Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:41:55.895Z DEBUG[0m [middleware] middleware.end {"requestId":"12a186bddc872fd5","method":"GET","path":"/api/inventory-management/summary","status":200,"durationMs":376}
+[36m2026-07-01T05:41:55.937Z DEBUG[0m [middleware] middleware.start {"requestId":"7ce948422b859982","method":"GET","path":"/api/shifts"}
+[32m2026-07-01T05:41:56.053Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:41:56.054Z DEBUG[0m [middleware] middleware.end {"requestId":"4ea456707d5599b3","method":"GET","path":"/api/products","status":200,"durationMs":527}
+[32m2026-07-01T05:41:56.078Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:41:56.079Z DEBUG[0m [middleware] middleware.end {"requestId":"7ce948422b859982","method":"GET","path":"/api/shifts","status":200,"durationMs":142}
+ ○ Compiling /api/shifts ...
+ ✓ Compiled /api/shifts in 13.6s (3826 modules)
+[36m2026-07-01T05:42:11.057Z DEBUG[0m [middleware] middleware.start {"requestId":"6eeb45fbd9dcc839","method":"GET","path":"/pos"}
+[32m2026-07-01T05:42:11.267Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:42:11.339Z DEBUG[0m [middleware] middleware.end {"requestId":"6eeb45fbd9dcc839","method":"GET","path":"/pos","status":200,"durationMs":283}
+ GET /api/products?page=1&limit=24 500 in 15989ms
+ GET /api/transactions?status=DP&limit=1&page=1 200 in 16182ms
+ GET /api/shifts?active=true 200 in 16645ms
+ GET /pos 200 in 1462ms
+ GET /api/transactions?status=PENDING_APPROVAL&limit=1&page=1 200 in 17385ms
+[36m2026-07-01T05:42:13.146Z DEBUG[0m [middleware] middleware.start {"requestId":"8e16a8ea423ca8f9","method":"GET","path":"/api/products"}
+[32m2026-07-01T05:42:13.277Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:42:13.278Z DEBUG[0m [middleware] middleware.end {"requestId":"8e16a8ea423ca8f9","method":"GET","path":"/api/products","status":200,"durationMs":132}
+ GET /api/inventory-management/summary 200 in 18193ms
+ GET /api/products?page=1&limit=24 500 in 1167ms
+[36m2026-07-01T05:42:16.477Z DEBUG[0m [middleware] middleware.start {"requestId":"f78a1e46b10d75f8","method":"GET","path":"/api/products"}
+[32m2026-07-01T05:42:16.601Z INFO [0m [supabase-middleware] role.resolved {"username":"owner","role":"OWNER"}
+[36m2026-07-01T05:42:16.602Z DEBUG[0m [middleware] middleware.end {"requestId":"f78a1e46b10d75f8","method":"GET","path":"/api/products","status":200,"durationMs":125}
+ GET /api/products?page=1&limit=24 500 in 390ms
+[?25h

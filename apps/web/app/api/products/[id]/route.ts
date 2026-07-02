@@ -23,6 +23,7 @@ const updateProductSchema = z.object({
   price: z.coerce.number().min(0, "Price must be >= 0").optional(),
   costPrice: z.coerce.number().optional().nullable(),
   hargaDinas: z.coerce.number().min(0, "Harga Dinas must be >= 0").optional().nullable(),
+  hargaAgen: z.coerce.number().min(0, "Harga Agen must be >= 0").optional().nullable(),
   stock: z.coerce.number().optional(),
   unitMultiplierToBase: z.coerce.number().positive().optional(),
   minStock: z.coerce.number().optional(),

@@ -2,6 +2,7 @@
 
 import type { ColumnMapping, ImportColumn } from "../types";
 import { IMPORT_COLUMNS } from "../types";
+import { getColumnMappingKey } from "./column-mapping-key";
 
 const HEADER_ALIASES: Record<string, string> = {
   productname: "name",
@@ -24,6 +25,12 @@ const HEADER_ALIASES: Record<string, string> = {
   harga_pemerintah: "hargaDinas",
   harga_level_2: "hargaDinas",
   hargalevel2: "hargaDinas",
+  hargaagen: "hargaAgen",
+  harga_agen: "hargaAgen",
+  hargaagent: "hargaAgen",
+  harga_agent: "hargaAgen",
+  harga_level_3: "hargaAgen",
+  hargalevel3: "hargaAgen",
   stok: "stock",
   satuan: "unit",
   konversi: "unitMultiplierToBase",
@@ -40,6 +47,12 @@ const HEADER_ALIASES: Record<string, string> = {
   minimumstock: "minStock",
   gambar: "imageUrl",
   image: "imageUrl",
+  suppliercode: "supplierCode",
+  supplier_code: "supplierCode",
+  kodesupplier: "supplierCode",
+  kode_supplier: "supplierCode",
+  kodepemasok: "supplierCode",
+  kode_pemasok: "supplierCode",
 };
 
 function normalizeHeaderKey(value: string): string {
@@ -70,15 +83,16 @@ export function buildAutoMapping(rawHeaders: string[]): ColumnMapping {
   const mapping: ColumnMapping = {};
   const alreadyMapped = new Set<string>();
 
-  for (const raw of rawHeaders) {
+  for (const [index, raw] of rawHeaders.entries()) {
+    const mappingKey = getColumnMappingKey(rawHeaders, index);
     const key = normalizeHeaderKey(raw);
     const aliased = HEADER_ALIASES[key] ?? key;
 
     if (known.has(aliased) && !alreadyMapped.has(aliased)) {
-      mapping[raw] = aliased as ImportColumn;
+      mapping[mappingKey] = aliased as ImportColumn;
       alreadyMapped.add(aliased);
     } else {
-      mapping[raw] = "";
+      mapping[mappingKey] = "";
     }
   }
 

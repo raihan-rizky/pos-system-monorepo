@@ -4,11 +4,16 @@ import { Worker } from "node:worker_threads";
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_OLD_GENERATION_SIZE_MB = 64;
 const serverRequire = createRequire(import.meta.url);
-const XLSX_MODULE_PATH = serverRequire.resolve("xlsx");
+const XLSX_PACKAGE_NAME = "xlsx";
+const XLSX_WORKER_REQUIRE_ID = resolveXlsxWorkerRequireId();
 
 const WORKER_SOURCE = `
 const { parentPort, workerData } = require("node:worker_threads");
-const XLSX = require(workerData.xlsxModulePath);
+const xlsxModuleId =
+  typeof workerData.xlsxModulePath === "string" && workerData.xlsxModulePath.length > 0
+    ? workerData.xlsxModulePath
+    : "xlsx";
+const XLSX = require(xlsxModuleId);
 
 parentPort.on("message", (message) => {
   const options = message.options || {};
@@ -59,6 +64,17 @@ type WorkerResult =
   | { ok: true; matrix: unknown[][] }
   | { ok: false; error?: { name?: string; message?: string } };
 
+function resolveXlsxWorkerRequireId(): string {
+  try {
+    const resolved: unknown = serverRequire.resolve(XLSX_PACKAGE_NAME);
+    return typeof resolved === "string" && resolved.length > 0
+      ? resolved
+      : XLSX_PACKAGE_NAME;
+  } catch {
+    return XLSX_PACKAGE_NAME;
+  }
+}
+
 export function parseSpreadsheetMatrix(
   buffer: ArrayBuffer,
   options: SpreadsheetParseOptions = {},
@@ -68,7 +84,7 @@ export function parseSpreadsheetMatrix(
     const worker = new Worker(WORKER_SOURCE, {
       eval: true,
       workerData: {
-        xlsxModulePath: XLSX_MODULE_PATH,
+        xlsxModulePath: XLSX_WORKER_REQUIRE_ID,
       },
       resourceLimits: {
         maxOldGenerationSizeMb:
