@@ -1,4 +1,5 @@
 import type { SupplierInput } from "@/features/suppliers/types/supplier";
+import { normalizeSupplierCode } from "@/features/suppliers/helpers/supplier-code";
 import type {
   ColumnMapping,
   ExistingSupplierMatch,
@@ -37,8 +38,12 @@ export async function previewSupplierImport(input: {
     });
   }
 
-  const supplierMap = await buildExistingSupplierMap();
-  const normalized = normalizeImportRows(parsed.records, supplierMap);
+  const supplierMaps = await buildExistingSupplierMaps();
+  const normalized = normalizeImportRows(
+    parsed.records,
+    supplierMaps.byName,
+    supplierMaps.byCode,
+  );
 
   return {
     ...normalized,
@@ -75,7 +80,7 @@ export async function commitSupplierImport(input: {
   }
 
   return runSupplierImportTransaction(async (tx) => {
-    const supplierMap = await buildExistingSupplierMap(tx);
+    const supplierMaps = await buildExistingSupplierMaps(tx);
     const activeRows = input.rows.filter((row) => {
       const decision = resolveDecision(row, input.decisions);
       return decision !== "skip";
@@ -95,7 +100,7 @@ export async function commitSupplierImport(input: {
 
     for (const row of input.rows) {
       const decision = resolveDecision(row, input.decisions);
-      const matches = supplierMap.get(row.normalizedName) ?? [];
+      const matches = findExistingSupplierMatches(row, supplierMaps);
 
       if (!decision) {
         throw new SupplierImportConflictError(
@@ -145,25 +150,55 @@ export function parseSupplierImportCommitRows(
   return rows.map((row) => importRowCommitSchema.parse(row));
 }
 
-async function buildExistingSupplierMap(tx?: Parameters<typeof listSupplierImportCandidatesForTransaction>[0]): Promise<
-  Map<string, ExistingSupplierMatch[]>
-> {
+interface ExistingSupplierMaps {
+  byName: Map<string, ExistingSupplierMatch[]>;
+  byCode: Map<string, ExistingSupplierMatch>;
+}
+
+async function buildExistingSupplierMaps(
+  tx?: Parameters<typeof listSupplierImportCandidatesForTransaction>[0],
+): Promise<ExistingSupplierMaps> {
   const suppliers = tx
     ? await listSupplierImportCandidatesForTransaction(tx)
     : await listSupplierImportCandidates();
-  return suppliers.reduce((map, supplier) => {
-    const current = map.get(supplier.normalizedName) ?? [];
-    current.push({
+  return suppliers.reduce<ExistingSupplierMaps>((maps, supplier) => {
+    const match = {
       supplierId: supplier.supplierId,
       name: supplier.name,
       code: supplier.code,
       type: supplier.type,
       phone: supplier.phone,
       isActive: supplier.isActive,
-    });
-    map.set(supplier.normalizedName, current);
-    return map;
-  }, new Map<string, ExistingSupplierMatch[]>());
+    };
+    const current = maps.byName.get(supplier.normalizedName) ?? [];
+    current.push(match);
+    maps.byName.set(supplier.normalizedName, current);
+
+    const normalizedCode = normalizeSupplierCode(supplier.code);
+    if (normalizedCode) {
+      maps.byCode.set(normalizedCode, match);
+    }
+    return maps;
+  }, {
+    byName: new Map<string, ExistingSupplierMatch[]>(),
+    byCode: new Map<string, ExistingSupplierMatch>(),
+  });
+}
+
+function findExistingSupplierMatches(
+  row: SupplierImportCommitRow,
+  maps: ExistingSupplierMaps,
+) {
+  const nameMatches = maps.byName.get(row.normalizedName) ?? [];
+  const codeMatch = row.supplierCode
+    ? maps.byCode.get(row.supplierCode) ?? null
+    : null;
+
+  if (!codeMatch) return nameMatches;
+  if (nameMatches.length === 0) return [codeMatch];
+  return nameMatches.some((match) => match.supplierId === codeMatch.supplierId)
+    ? [codeMatch]
+    : [];
 }
 
 function resolveDecision(

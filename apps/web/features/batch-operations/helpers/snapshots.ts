@@ -19,10 +19,42 @@ export interface ProductSnapshot {
   storeId: string;
   isActive: boolean;
   imageUrl: string | null;
+  supplierIds?: string[];
 }
 
-export function productSnapshot(product: Product): ProductSnapshot {
-  return {
+type ProductWithSupplierLinks = Product & {
+  supplierIds?: string[];
+  productSuppliers?: Array<{ supplierId: string }>;
+};
+
+function normalizedSupplierIds(product: ProductWithSupplierLinks): string[] | undefined {
+  if (Array.isArray(product.supplierIds)) {
+    return Array.from(new Set(product.supplierIds)).sort();
+  }
+  if (Array.isArray(product.productSuppliers)) {
+    return Array.from(
+      new Set(product.productSuppliers.map((link) => link.supplierId)),
+    ).sort();
+  }
+  return undefined;
+}
+
+function comparableSnapshot(
+  current: ProductSnapshot,
+  expected: ProductSnapshot,
+): ProductSnapshot {
+  if (expected.supplierIds !== undefined) {
+    return {
+      ...current,
+      supplierIds: Array.from(new Set(current.supplierIds ?? [])).sort(),
+    };
+  }
+  const { supplierIds: _supplierIds, ...withoutSupplierIds } = current;
+  return withoutSupplierIds;
+}
+
+export function productSnapshot(product: ProductWithSupplierLinks): ProductSnapshot {
+  const snapshot: ProductSnapshot = {
     id: product.id,
     name: product.name,
     sku: product.sku,
@@ -42,10 +74,22 @@ export function productSnapshot(product: Product): ProductSnapshot {
     isActive: product.isActive,
     imageUrl: product.imageUrl,
   };
+  const supplierIds = normalizedSupplierIds(product);
+  if (supplierIds !== undefined) {
+    snapshot.supplierIds = supplierIds;
+  }
+  return snapshot;
 }
 
 export function snapshotsMatch(current: ProductSnapshot, expected: ProductSnapshot) {
-  return JSON.stringify(current) === JSON.stringify(expected);
+  const normalizedExpected =
+    expected.supplierIds === undefined
+      ? expected
+      : {
+        ...expected,
+        supplierIds: Array.from(new Set(expected.supplierIds)).sort(),
+      };
+  return JSON.stringify(comparableSnapshot(current, expected)) === JSON.stringify(normalizedExpected);
 }
 
 export function stockDelta(type: "IN" | "OUT" | "ADJUSTMENT", currentStock: number, quantity: number) {

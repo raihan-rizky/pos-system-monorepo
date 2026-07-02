@@ -54,6 +54,7 @@ export interface NormalizedImportRow {
   hargaDinas?: number | null;
   hargaDinasProvided?: boolean;
   hargaAgen?: number | null;
+  hargaAgenProvided?: boolean;
   minStock?: number;
   barcode?: string | null;
   description?: string | null;

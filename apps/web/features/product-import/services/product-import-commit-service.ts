@@ -48,13 +48,13 @@ export const productImportCommitSchema = z.object({
 });
 
 export const productImportStartSchema = productImportCommitSchema.extend({
-  chunkSize: z.number().int().min(1).max(250).optional(),
+  chunkSize: z.number().int().min(1).max(PRODUCT_IMPORT_CHUNK_SIZE).optional(),
 });
 
 export const productImportChunkSchema = z.object({
   batchOperationId: z.string().min(1),
   cursor: z.number().int().min(0),
-  chunkSize: z.number().int().min(1).max(250).default(PRODUCT_IMPORT_CHUNK_SIZE),
+  chunkSize: z.number().int().min(1).max(PRODUCT_IMPORT_CHUNK_SIZE).default(PRODUCT_IMPORT_CHUNK_SIZE),
 });
 
 export const productImportFinishSchema = z.object({
@@ -108,6 +108,10 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 }
 
+function numberOrNull(value: unknown) {
+  return value == null ? null : Number(value);
+}
+
 function supplierCodesFromRows(rows: Array<Pick<NormalizedImportRow, "supplierCodes">>) {
   return uniqueStrings(rows.flatMap((row) => row.supplierCodes ?? []));
 }
@@ -137,16 +141,22 @@ function queueProductSupplierSync(input: {
   deleteProductIds: Set<string>;
   createRows: Array<{ productId: string; supplierId: string }>;
 }) {
-  if (!input.row.supplierCodesProvided) return;
+  if (!input.row.supplierCodesProvided) return null;
+  const supplierIds = uniqueStrings(
+    (input.row.supplierCodes ?? [])
+      .map((code) => input.supplierByCode.get(code)?.id)
+      .filter((supplierId): supplierId is string => Boolean(supplierId)),
+  ).sort();
+  if (supplierIds.length === 0) return null;
+
   input.deleteProductIds.add(input.productId);
-  for (const code of input.row.supplierCodes ?? []) {
-    const supplier = input.supplierByCode.get(code);
-    if (!supplier) continue;
+  for (const supplierId of supplierIds) {
     input.createRows.push({
       productId: input.productId,
-      supplierId: supplier.id,
+      supplierId,
     });
   }
+  return supplierIds;
 }
 
 function storeIdFor(user: ProductImportActor) {
@@ -208,10 +218,12 @@ function asCommitRows(rows: CommitInput["rows"]): NormalizedImportRow[] {
     const hargaDinasProvided =
       row.hargaDinasProvided ??
       Object.prototype.hasOwnProperty.call(row, "hargaDinas");
+    const hargaAgenProvided = row.hargaAgenProvided ?? row.hargaAgen != null;
 
     return {
       ...row,
       hargaDinasProvided,
+      hargaAgenProvided,
       supplierCodes:
         row.supplierCodes ??
         parseSupplierCodes((row as { supplierCode?: string | null }).supplierCode),
@@ -314,6 +326,7 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
       updatedAt: true,
       category: { select: { name: true } },
       stockGroup: { select: { id: true, baseUnit: true, baseStock: true } },
+      productSuppliers: { select: { supplierId: true } },
     },
   });
   const existingBySku = new Map(existingProducts.map((product) => [product.sku, product]));
@@ -433,6 +446,7 @@ async function loadChunkExecutionPlan(tx: Tx, rows: PlannedExecutionRow[], store
         updatedAt: true,
         category: { select: { name: true } },
         stockGroup: { select: { id: true, baseUnit: true, baseStock: true } },
+        productSuppliers: { select: { supplierId: true } },
       },
     });
 
@@ -756,14 +770,6 @@ async function processFastPriceAndSkipRows(input: {
 
     const beforeDisplayStock = resolveProductDisplayStock(existing);
     const beforeSnapshot = productSnapshot({ ...existing, stock: beforeDisplayStock });
-    const afterProduct = {
-      ...existing,
-      price: row.price,
-      costPrice: row.costPrice,
-      ...(row.hargaDinasProvided ? { hargaDinas: row.hargaDinas ?? null } : {}),
-      ...(row.hargaAgen != null ? { hargaAgen: row.hargaAgen } : {}),
-      stock: beforeDisplayStock,
-    };
 
     priceUpdates.push({
       id: existing.id,
@@ -774,13 +780,22 @@ async function processFastPriceAndSkipRows(input: {
       hargaAgen: row.hargaAgen ?? null,
       unitMultiplierToBase: row.unitMultiplierToBase ?? null,
     });
-    queueProductSupplierSync({
+    const replacementSupplierIds = queueProductSupplierSync({
       row,
       productId: existing.id,
       supplierByCode: input.plan.supplierByCode,
       deleteProductIds: productSupplierDeleteIds,
       createRows: productSupplierCreateRows,
     });
+    const afterProduct = {
+      ...existing,
+      ...(replacementSupplierIds ? { supplierIds: replacementSupplierIds } : {}),
+      price: row.price,
+      costPrice: row.costPrice,
+      ...(row.hargaDinasProvided ? { hargaDinas: row.hargaDinas ?? null } : {}),
+      ...(row.hargaAgenProvided ? { hargaAgen: row.hargaAgen ?? null } : {}),
+      stock: beforeDisplayStock,
+    };
 
     counts.updatedProductCount += 1;
     updatedRowCount += 1;
@@ -1027,7 +1042,7 @@ async function processResolvedRows(input: {
       hargaAgen: row.hargaAgen ?? null,
       unitMultiplierToBase: row.unitMultiplierToBase ?? null,
     });
-      queueProductSupplierSync({
+      const replacementSupplierIds = queueProductSupplierSync({
         row,
         productId: existing.id,
         supplierByCode: input.plan.supplierByCode,
@@ -1049,10 +1064,11 @@ async function processResolvedRows(input: {
       );
       const afterProduct = {
         ...existing,
+        ...(replacementSupplierIds ? { supplierIds: replacementSupplierIds } : {}),
         price: row.price,
         costPrice: row.costPrice,
         ...(row.hargaDinasProvided ? { hargaDinas: row.hargaDinas ?? null } : {}),
-        ...(row.hargaAgen != null ? { hargaAgen: row.hargaAgen } : {}),
+        ...(row.hargaAgenProvided ? { hargaAgen: row.hargaAgen ?? null } : {}),
         stock: beforeDisplayStock,
       };
       batchItems.push({
@@ -1087,6 +1103,9 @@ async function processResolvedRows(input: {
         id: group.id,
         baseStock: row.stock * multiplier,
       });
+      const nextHargaAgen = row.hargaAgenProvided
+        ? row.hargaAgen ?? null
+        : numberOrNull(existing.hargaAgen);
 
       bulkProductUpdates.push({
         id: existing.id,
@@ -1096,7 +1115,7 @@ async function processResolvedRows(input: {
         price: row.price,
         costPrice: row.costPrice ?? null,
         hargaDinas: row.hargaDinas ?? null,
-        hargaAgen: row.hargaAgen ?? null,
+        hargaAgen: nextHargaAgen,
         minStock: row.minStock ?? 5,
         unit: row.unit,
         size: row.size ?? null,
@@ -1105,7 +1124,7 @@ async function processResolvedRows(input: {
         categoryId: category.id,
         stockGroupId: group.id,
       });
-      queueProductSupplierSync({
+      const replacementSupplierIds = queueProductSupplierSync({
         row,
         productId: existing.id,
         supplierByCode: input.plan.supplierByCode,
@@ -1140,6 +1159,24 @@ async function processResolvedRows(input: {
         });
         counts.inventoryLogCount += 1;
       }
+      const afterProduct = {
+        ...existing,
+        ...(replacementSupplierIds ? { supplierIds: replacementSupplierIds } : {}),
+        name: row.name,
+        sku: row.sku,
+        price: row.price as any,
+        costPrice: row.costPrice as any,
+        hargaDinas: (row.hargaDinas ?? null) as any,
+        hargaAgen: nextHargaAgen as any,
+        minStock: row.minStock ?? 5,
+        unit: row.unit,
+        size: row.size ?? null,
+        material: row.material ?? null,
+        imageUrl: row.imageUrl ?? null,
+        categoryId: category.id,
+        stockGroupId: group.id,
+        stock: row.stock,
+      } as unknown as Parameters<typeof productSnapshot>[0];
       batchItems.push({
         batchOperationId: input.batchOperationId,
         productId: existing.id,
@@ -1147,7 +1184,7 @@ async function processResolvedRows(input: {
         sourceRowNumber: row.rowNumber,
         action: "UPDATE",
         beforeSnapshot: beforeSnapshot as unknown as Prisma.InputJsonValue,
-        afterSnapshot: productSnapshot({ ...existing, name: row.name, sku: row.sku, price: row.price as any, costPrice: row.costPrice as any, hargaDinas: (row.hargaDinas ?? null) as any, hargaAgen: (row.hargaAgen ?? existing.hargaAgen) as any, minStock: row.minStock ?? 5, unit: row.unit, size: row.size ?? null, material: row.material ?? null, imageUrl: row.imageUrl ?? null, categoryId: category.id, stockGroupId: group.id, stock: row.stock } as unknown as Parameters<typeof productSnapshot>[0]) as unknown as Prisma.InputJsonValue,
+        afterSnapshot: productSnapshot(afterProduct) as unknown as Prisma.InputJsonValue,
         inventoryLogId: logId,
       });
       continue;
@@ -1215,7 +1252,7 @@ async function processResolvedRows(input: {
         unitMultiplierToBase: multiplier,
         conversionNeedsReview,
       });
-      queueProductSupplierSync({
+      const replacementSupplierIds = queueProductSupplierSync({
         row,
         productId,
         supplierByCode: input.plan.supplierByCode,
@@ -1280,6 +1317,7 @@ async function processResolvedRows(input: {
           stockGroupId: group.id,
           unitMultiplierToBase: multiplier,
           conversionNeedsReview,
+          ...(replacementSupplierIds ? { supplierIds: replacementSupplierIds } : {}),
           createdAt: new Date(),
           updatedAt: new Date(),
         } as unknown as Parameters<typeof productSnapshot>[0]) as unknown as Prisma.InputJsonValue,

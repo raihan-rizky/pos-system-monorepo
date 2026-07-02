@@ -130,8 +130,29 @@ describe("normalizeImportRows", () => {
     const result = normalizeImportRows(records, new Map(), categories);
 
     expect(result.rows[0].hargaAgen).toBe(9000);
+    expect(result.rows[0].hargaAgenProvided).toBe(true);
     expect(result.rows[0].warnings).toContain("Harga Agen is lower than regular price.");
     expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+  });
+
+  it("marks Harga Agen as not provided when the cell is omitted or blank", () => {
+    const result = normalizeImportRows(
+      [
+        { name: "Tanpa Kolom", sku: "SKU-AGEN-OMIT", category: "Drinks", price: 10000, unit: "pcs" },
+        { name: "Kolom Kosong", sku: "SKU-AGEN-BLANK", category: "Drinks", price: 10000, hargaAgen: "", unit: "pcs" },
+      ],
+      new Map(),
+      categories,
+    );
+
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({ hargaAgen: null, hargaAgenProvided: false }),
+    );
+    expect(result.rows[1]).toEqual(
+      expect.objectContaining({ hargaAgen: null, hargaAgenProvided: false }),
+    );
+    expect(importRowCommitSchema.safeParse(result.rows[0]).success).toBe(true);
+    expect(importRowCommitSchema.safeParse(result.rows[1]).success).toBe(true);
   });
 
   it("keeps package Harga Dinas empty instead of swapping zero into the base unit", () => {

@@ -14,6 +14,25 @@ function asSnapshot(value: Prisma.JsonValue | null | undefined) {
   return value as unknown as ProductSnapshot | null;
 }
 
+async function restoreProductSupplierLinks(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  snapshot: ProductSnapshot | null,
+) {
+  if (snapshot?.supplierIds === undefined) return;
+
+  await tx.productSupplier.deleteMany({
+    where: { productId },
+  });
+
+  if (snapshot.supplierIds.length > 0) {
+    await tx.productSupplier.createMany({
+      data: snapshot.supplierIds.map((supplierId) => ({ productId, supplierId })),
+      skipDuplicates: true,
+    });
+  }
+}
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -44,7 +63,10 @@ export async function POST(
       });
       if (laterTouch) throw new Error(`LATER_BATCH_TOUCH:${laterTouch.sku}`);
 
-      const products = await tx.product.findMany({ where: { id: { in: productIds }, storeId } });
+      const products = await tx.product.findMany({
+        where: { id: { in: productIds }, storeId },
+        include: { productSuppliers: { select: { supplierId: true } } },
+      });
       const productById = new Map(products.map((product) => [product.id, product]));
       const blockedProducts: string[] = [];
 
@@ -115,6 +137,7 @@ export async function POST(
             where: { id: current.id },
             data: { stock: 0, isActive: false },
           });
+          await restoreProductSupplierLinks(tx, current.id, { ...afterSnapshot, supplierIds: [] });
           const log = delta === 0 ? null : await tx.inventoryLog.create({
             data: {
               productId: current.id,
@@ -134,7 +157,10 @@ export async function POST(
               sku: item.sku,
               action: "UNDO",
               beforeSnapshot: afterSnapshot as unknown as Prisma.InputJsonValue,
-              afterSnapshot: productSnapshot(updated) as unknown as Prisma.InputJsonValue,
+              afterSnapshot: productSnapshot({
+                ...updated,
+                ...(afterSnapshot.supplierIds === undefined ? {} : { supplierIds: [] }),
+              }) as unknown as Prisma.InputJsonValue,
               inventoryLogId: log?.id,
             },
           });
@@ -164,6 +190,7 @@ export async function POST(
             imageUrl: beforeSnapshot.imageUrl,
           },
         });
+        await restoreProductSupplierLinks(tx, current.id, beforeSnapshot);
         const log = delta === 0 ? null : await tx.inventoryLog.create({
           data: {
             productId: current.id,
@@ -183,7 +210,12 @@ export async function POST(
             sku: item.sku,
             action: "UNDO",
             beforeSnapshot: afterSnapshot as unknown as Prisma.InputJsonValue,
-            afterSnapshot: productSnapshot(restored) as unknown as Prisma.InputJsonValue,
+            afterSnapshot: productSnapshot({
+              ...restored,
+              ...(beforeSnapshot.supplierIds === undefined
+                ? {}
+                : { supplierIds: beforeSnapshot.supplierIds }),
+            }) as unknown as Prisma.InputJsonValue,
             inventoryLogId: log?.id,
           },
         });

@@ -49,6 +49,15 @@ describe("snapshotsMatch", () => {
     const snap2 = makeSnapshot({ hargaAgen: 13000 });
     expect(snapshotsMatch(snap1, snap2)).toBe(false);
   });
+
+  it("compares supplier ids only when the expected snapshot recorded them", () => {
+    const current = makeSnapshot({ supplierIds: ["supplier-new"] });
+
+    expect(snapshotsMatch(current, makeSnapshot())).toBe(true);
+    expect(
+      snapshotsMatch(current, makeSnapshot({ supplierIds: ["supplier-old"] })),
+    ).toBe(false);
+  });
 });
 
 describe("stockDelta", () => {

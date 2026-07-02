@@ -1,5 +1,5 @@
 export interface ProductImportWorkerConfig {
-  storeId: "store-main";
+  storeId: string;
   pollIntervalMs: number;
   errorBackoffMs: number;
 }
@@ -20,7 +20,7 @@ export function readProductImportWorkerConfig(
   environment: ProductImportWorkerEnvironment = process.env,
 ): ProductImportWorkerConfig {
   return {
-    storeId: "store-main",
+    storeId: environment.PRODUCT_IMPORT_WORKER_STORE_ID?.trim() || "store-main",
     pollIntervalMs: positiveInteger(
       "PRODUCT_IMPORT_WORKER_POLL_MS",
       environment.PRODUCT_IMPORT_WORKER_POLL_MS,

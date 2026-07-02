@@ -14,6 +14,7 @@ export interface ExistingImportProduct {
   hargaDinas?: number | null;
   hargaDinasProvided?: boolean;
   hargaAgen?: number | null;
+  hargaAgenProvided?: boolean;
   unitMultiplierToBase?: number | null;
   stockGroupId?: string | null;
   stockGroupBaseUnit?: string | null;
@@ -57,8 +58,7 @@ function priceDataMatches(row: NormalizedImportRow, product: ExistingImportProdu
     normalizePrice(row.price) === normalizePrice(product.price) &&
     normalizePrice(row.costPrice ?? null) === normalizePrice(product.costPrice) &&
     optionalPriceMatches(row.hargaDinas, product.hargaDinas, row.hargaDinasProvided) &&
-    (row.hargaAgen == null ||
-      normalizePrice(row.hargaAgen) === normalizePrice(product.hargaAgen ?? null)) &&
+    optionalPriceMatches(row.hargaAgen, product.hargaAgen, row.hargaAgenProvided) &&
     unitMultiplierMatches(row, product)
   );
 }
@@ -74,7 +74,7 @@ function describePriceDataChanges(row: NormalizedImportRow, product: ExistingImp
     changed.push("Harga Dinas");
   }
   if (
-    row.hargaAgen != null &&
+    (row.hargaAgenProvided || row.hargaAgen != null) &&
     normalizePrice(row.hargaAgen) !== normalizePrice(product.hargaAgen ?? null)
   ) {
     changed.push("Harga Agen");

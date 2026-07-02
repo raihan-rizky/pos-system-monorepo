@@ -354,6 +354,267 @@ describe("POST /api/products/import/commit/chunk", () => {
     expect(priceUpdateCall).toContainEqual([true]);
   });
 
+  it("does not delete existing supplier links when provided supplier codes do not resolve", async () => {
+    const existingProduct = {
+      id: "prod-1",
+      name: "Amplop",
+      sku: "AMP-001",
+      barcode: null,
+      description: null,
+      price: 1000,
+      costPrice: 700,
+      hargaDinas: null,
+      hargaAgen: null,
+      stock: 10,
+      stockGroupId: "group-1",
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      minStock: 5,
+      unit: "pcs",
+      size: null,
+      material: null,
+      categoryId: "cat-1",
+      storeId: "store-main",
+      isActive: true,
+      imageUrl: null,
+      createdAt: new Date("2026-01-01"),
+      updatedAt: new Date("2026-01-01"),
+      category: { name: "Jasa" },
+      stockGroup: { id: "group-1", baseUnit: "pcs", baseStock: 10 },
+      productSuppliers: [{ supplierId: "supplier-existing" }],
+    };
+    txMock.product.findMany.mockResolvedValue([existingProduct]);
+    txMock.supplier.findMany.mockResolvedValue([]);
+    txMock.productImportPlannedRow.findMany.mockResolvedValue([
+      {
+        batchOperationId: "batch-1",
+        sourceRowNumber: 12,
+        cursorIndex: 0,
+        status: "PENDING",
+        sku: "AMP-001",
+        productId: "prod-1",
+        commitAction: "update-price",
+        rowData: {
+          rowNumber: 12,
+          name: "Amplop",
+          sku: "AMP-001",
+          category: "Jasa",
+          price: 1200,
+          stock: 10,
+          unit: "pcs",
+          costPrice: 800,
+          supplierCode: "SP-MISSING",
+          supplierCodes: ["SP-MISSING"],
+          supplierCodesProvided: true,
+          duplicateInFile: false,
+          missingCategory: false,
+          warnings: [],
+          errors: [],
+          autoAction: "auto_price_update",
+          matchedProductId: "prod-1",
+        },
+      },
+    ]);
+    txMock.batchOperationItem.findMany.mockResolvedValue([]);
+    txMock.batchOperationItem.createMany.mockResolvedValue({ count: 1 });
+    txMock.batchOperationItem.count.mockResolvedValue(1);
+    txMock.productImportPlannedRow.updateMany.mockResolvedValue({ count: 1 });
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/commit/chunk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchOperationId: "batch-1",
+          cursor: 0,
+          chunkSize: 75,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(txMock.supplier.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: { in: ["SP-MISSING"] } },
+      }),
+    );
+    expect(txMock.productSupplier.deleteMany).not.toHaveBeenCalled();
+    expect(txMock.productSupplier.createMany).not.toHaveBeenCalled();
+  });
+
+  it("records supplier links in product import update snapshots", async () => {
+    const existingProduct = {
+      id: "prod-1",
+      name: "Amplop",
+      sku: "AMP-001",
+      barcode: null,
+      description: null,
+      price: 1000,
+      costPrice: 700,
+      hargaDinas: null,
+      hargaAgen: null,
+      stock: 10,
+      stockGroupId: "group-1",
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      minStock: 5,
+      unit: "pcs",
+      size: null,
+      material: null,
+      categoryId: "cat-1",
+      storeId: "store-main",
+      isActive: true,
+      imageUrl: null,
+      createdAt: new Date("2026-01-01"),
+      updatedAt: new Date("2026-01-01"),
+      category: { name: "Jasa" },
+      stockGroup: { id: "group-1", baseUnit: "pcs", baseStock: 10 },
+      productSuppliers: [{ supplierId: "supplier-old" }],
+    };
+    txMock.product.findMany.mockResolvedValue([existingProduct]);
+    txMock.supplier.findMany.mockResolvedValue([
+      { id: "supplier-new", code: "SP0001", name: "CV Baru" },
+    ]);
+    txMock.productImportPlannedRow.findMany.mockResolvedValue([
+      {
+        batchOperationId: "batch-1",
+        sourceRowNumber: 13,
+        cursorIndex: 0,
+        status: "PENDING",
+        sku: "AMP-001",
+        productId: "prod-1",
+        commitAction: "update-price",
+        rowData: {
+          rowNumber: 13,
+          name: "Amplop",
+          sku: "AMP-001",
+          category: "Jasa",
+          price: 1200,
+          stock: 10,
+          unit: "pcs",
+          costPrice: 800,
+          supplierCode: "SP0001",
+          supplierCodes: ["SP0001"],
+          supplierCodesProvided: true,
+          duplicateInFile: false,
+          missingCategory: false,
+          warnings: [],
+          errors: [],
+          autoAction: "auto_price_update",
+          matchedProductId: "prod-1",
+        },
+      },
+    ]);
+    txMock.batchOperationItem.findMany.mockResolvedValue([]);
+    txMock.batchOperationItem.createMany.mockResolvedValue({ count: 1 });
+    txMock.batchOperationItem.count.mockResolvedValue(1);
+    txMock.productImportPlannedRow.updateMany.mockResolvedValue({ count: 1 });
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/commit/chunk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchOperationId: "batch-1",
+          cursor: 0,
+          chunkSize: 75,
+        }),
+      }),
+    );
+
+    const batchItems = txMock.batchOperationItem.createMany.mock.calls.at(-1)?.[0]
+      .data;
+
+    expect(response.status).toBe(200);
+    expect(batchItems[0].beforeSnapshot.supplierIds).toEqual(["supplier-old"]);
+    expect(batchItems[0].afterSnapshot.supplierIds).toEqual(["supplier-new"]);
+  });
+
+  it("preserves Harga Agen for full updates when the row omits it", async () => {
+    const existingProduct = {
+      id: "prod-1",
+      name: "Amplop",
+      sku: "AMP-001",
+      barcode: null,
+      description: null,
+      price: 1000,
+      costPrice: 700,
+      hargaDinas: null,
+      hargaAgen: 1500,
+      stock: 10,
+      stockGroupId: "group-1",
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      minStock: 5,
+      unit: "pcs",
+      size: null,
+      material: null,
+      categoryId: "cat-1",
+      storeId: "store-main",
+      isActive: true,
+      imageUrl: null,
+      createdAt: new Date("2026-01-01"),
+      updatedAt: new Date("2026-01-01"),
+      category: { name: "Jasa" },
+      stockGroup: { id: "group-1", baseUnit: "pcs", baseStock: 10 },
+      productSuppliers: [],
+    };
+    txMock.product.findMany.mockResolvedValue([existingProduct]);
+    txMock.productImportPlannedRow.findMany.mockResolvedValue([
+      {
+        batchOperationId: "batch-1",
+        sourceRowNumber: 14,
+        cursorIndex: 0,
+        status: "PENDING",
+        sku: "AMP-001",
+        productId: "prod-1",
+        commitAction: "update",
+        rowData: {
+          rowNumber: 14,
+          name: "Amplop Baru",
+          sku: "AMP-001",
+          category: "Jasa",
+          price: 1200,
+          stock: 10,
+          unit: "pcs",
+          costPrice: 800,
+          duplicateInFile: false,
+          missingCategory: false,
+          warnings: [],
+          errors: [],
+          autoAction: "auto_price_update",
+          matchedProductId: "prod-1",
+        },
+      },
+    ]);
+    txMock.batchOperationItem.findMany.mockResolvedValue([]);
+    txMock.batchOperationItem.createMany.mockResolvedValue({ count: 1 });
+    txMock.batchOperationItem.count.mockResolvedValue(1);
+    txMock.productImportPlannedRow.updateMany.mockResolvedValue({ count: 1 });
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/commit/chunk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchOperationId: "batch-1",
+          cursor: 0,
+          chunkSize: 75,
+        }),
+      }),
+    );
+
+    const productUpdateCall = txMock.$queryRaw.mock.calls.find((call) =>
+      Array.from(call[0] as TemplateStringsArray).join("").includes("UPDATE pos_products AS p SET"),
+    );
+    const batchItems = txMock.batchOperationItem.createMany.mock.calls.at(-1)?.[0]
+      .data;
+
+    expect(response.status).toBe(200);
+    expect(productUpdateCall).toContainEqual([1500]);
+    expect(batchItems[0].afterSnapshot.hargaAgen).toBe(1500);
+  });
+
   it("targets the matched variant for price updates when the source row reuses the base SKU", async () => {
     const baseProduct = {
       id: "prod-base",

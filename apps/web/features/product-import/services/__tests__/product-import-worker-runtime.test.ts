@@ -15,6 +15,18 @@ describe("product import worker runtime", () => {
     ).toThrow("PRODUCT_IMPORT_WORKER_POLL_MS harus berupa bilangan bulat positif.");
   });
 
+  it("uses the configured store id when one is provided", async () => {
+    const runtime = await import(
+      "../../../../../../packages/product-import-worker/src/runtime"
+    );
+
+    expect(
+      runtime.readProductImportWorkerConfig({
+        PRODUCT_IMPORT_WORKER_STORE_ID: "store-cabang",
+      }).storeId,
+    ).toBe("store-cabang");
+  });
+
   it("passes the shutdown signal into active job processing", async () => {
     const runtime = await import(
       "../../../../../../packages/product-import-worker/src/runtime"

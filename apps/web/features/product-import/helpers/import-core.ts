@@ -84,6 +84,7 @@ export const importRowCommitSchema = z.object({
   hargaDinas: z.coerce.number().min(0).optional().nullable(),
   hargaDinasProvided: z.boolean().optional(),
   hargaAgen: z.coerce.number().min(0).optional().nullable(),
+  hargaAgenProvided: z.boolean().optional(),
   minStock: z.coerce.number().int().min(0).optional(),
   barcode: z.string().trim().optional().nullable(),
   description: z.string().trim().optional().nullable(),
@@ -317,6 +318,7 @@ export function normalizeImportRows(
     const hargaDinasRaw = normalizeValue(record.hargaDinas);
     const hargaDinasProvided = Object.prototype.hasOwnProperty.call(record, "hargaDinas");
     const hargaAgenRaw = normalizeValue(record.hargaAgen);
+    const hargaAgenProvided = hargaAgenRaw.length > 0;
     const supplierCodeRaw = normalizeValue(record.supplierCode);
     const supplierCodes = parseSupplierCodes(record.supplierCode);
     const unitMultiplierRaw = normalizeValue(record.unitMultiplierToBase);
@@ -402,6 +404,7 @@ export function normalizeImportRows(
         hargaAgenRaw && Number.isFinite(hargaAgen) && hargaAgen >= 0
           ? hargaAgen
           : null,
+      hargaAgenProvided,
       minStock: minStockRaw && Number.isFinite(minStock) && minStock >= 0 ? Math.trunc(minStock) : 5,
       barcode: normalizeValue(record.barcode) || null,
       description: normalizeValue(record.description) || null,
