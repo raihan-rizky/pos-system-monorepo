@@ -30,9 +30,7 @@ export type QuotationCartItem =
 export type QuotationCheckoutMode = "payment" | "quotation";
 
 export function getCartCheckoutMode(items: QuotationCartItem[]): QuotationCheckoutMode {
-  return items.some((item) => item.lineType === "PRODUCT" && item.stock <= 0)
-    ? "quotation"
-    : "payment";
+  return "payment";
 }
 
 export function canViewQuotationHpp(role: QuotationRole): boolean {

@@ -61,6 +61,7 @@ import { useRole } from "@/components/providers/RoleProvider";
 import { parseSearchQuery } from "@/features/pos-search/pos-search";
 import { mapProductToCartItem } from "@/features/pos-search/services/cart-mapping";
 import type { PrintingServiceOrderData } from "@/features/printing-services/components/PrintingServiceOrderModal";
+import { shouldConfirmNegativeStock } from "@/features/pos-checkout/helpers/checkout-validation";
 import {
   loadStockOnlyPreference,
   matchesStockFilter,
@@ -103,6 +104,7 @@ export default function POSClientPage({
     useState<Product | null>(null);
   const [pendingEmptyStockVariantId, setPendingEmptyStockVariantId] =
     useState<string | undefined>(undefined);
+  const [showNegativeStockCheckoutConfirm, setShowNegativeStockCheckoutConfirm] = useState(false);
   const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<{
     tone: "success" | "warning" | "danger";
@@ -271,6 +273,12 @@ export default function POSClientPage({
       setShiftModalDismissed(false);
       return;
     }
+    
+    if (shouldConfirmNegativeStock(productCartItems)) {
+      setShowNegativeStockCheckoutConfirm(true);
+      return;
+    }
+
     setCheckoutNotice(null);
     setShowPayment(true);
   };
@@ -810,6 +818,45 @@ export default function POSClientPage({
         />
       )}
 
+      {showNegativeStockCheckoutConfirm && (
+        <Modal
+          open={showNegativeStockCheckoutConfirm}
+          onClose={() => setShowNegativeStockCheckoutConfirm(false)}
+          title="Konfirmasi Stok Negatif"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+              <AlertTriangle size={22} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Peringatan Stok</p>
+                <p className="mt-1 text-sm">
+                  Beberapa produk dalam keranjang memiliki stok kosong atau negatif. Melanjutkan pembayaran akan membuat stok menjadi negatif. Lanjutkan?
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setShowNegativeStockCheckoutConfirm(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                variant="accent"
+                onClick={() => {
+                  setShowNegativeStockCheckoutConfirm(false);
+                  setCheckoutNotice(null);
+                  setShowPayment(true);
+                }}
+              >
+                Lanjutkan
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {pendingEmptyStockProduct && (
         <Modal
           open={!!pendingEmptyStockProduct}
@@ -829,8 +876,7 @@ export default function POSClientPage({
                 </p>
                 <p className="mt-1 text-sm">
                   Stok produk ini {resolvedPendingVariant ? resolvedPendingVariant.stock : pendingEmptyStockProduct.stock}. Item akan
-                  masuk ke keranjang untuk nota penawaran, bukan pembayaran
-                  langsung.
+                  masuk ke keranjang. Stok akan menjadi negatif jika dibayar langsung.
                 </p>
               </div>
             </div>

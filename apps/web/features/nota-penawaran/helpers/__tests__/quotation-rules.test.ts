@@ -22,13 +22,14 @@ const productLine = (
 });
 
 describe("getCartCheckoutMode", () => {
-  it("uses nota penawaran mode when any product line has empty stock", () => {
+  it("uses payment mode even when a product line has empty or negative stock", () => {
     expect(
       getCartCheckoutMode([
         productLine({ stock: 10 }),
         productLine({ productId: "p2", stock: 0 }),
+        productLine({ productId: "p3", stock: -5 }),
       ]),
-    ).toBe("quotation");
+    ).toBe("payment");
   });
 
   it("keeps payment mode when every product line has stock", () => {
