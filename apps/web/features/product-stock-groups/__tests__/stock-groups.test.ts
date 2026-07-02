@@ -10,7 +10,11 @@ import {
   ensureProductStockGroups,
 } from "../product-stock-groups-service";
 import { normalizeStockGroupKey } from "../stock-grouping";
-import { applyProductStockDelta, StockMutationError } from "../stock-mutations";
+import {
+  applyProductStockDelta,
+  applyProductStockDeltas,
+  StockMutationError,
+} from "../stock-mutations";
 
 describe("stock group helpers", () => {
   it("normalizes name/category/material/size into a stable group key", () => {
@@ -259,5 +263,24 @@ describe("applyProductStockDelta", () => {
 
     expect(error).toBeInstanceOf(StockMutationError);
     expect(error.message).toBe("CONVERSION_NEEDS_REVIEW");
+  });
+});
+
+describe("applyProductStockDeltas", () => {
+  it("omits the stock >= qty guard on batched negative decrements when allowNegative is true", async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{ id: "p1" }]);
+
+    await applyProductStockDeltas(
+      { $queryRaw: queryRaw } as any,
+      {
+        storeId: "store-main",
+        items: [{ productId: "p1", delta: -2 }],
+        allowNegative: true,
+      },
+    );
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    const sqlParts = (queryRaw.mock.calls[0][0] as TemplateStringsArray).join(" ");
+    expect(sqlParts).not.toContain("p.stock >= v.qty");
   });
 });

@@ -1,4 +1,4 @@
-import type { Prisma } from "@pos/db";
+import { Prisma } from "@pos/db";
 
 import { calculateBaseQuantity, resolveProductDisplayStock } from "./stock-display";
 
@@ -258,7 +258,7 @@ export async function applyProductStockDeltas(
           AS v(id, qty)
         WHERE p.id = v.id
           AND p."storeId" = ${input.storeId}
-          AND p.stock >= v.qty
+          ${input.allowNegative ? Prisma.empty : Prisma.sql`AND p.stock >= v.qty`}
         RETURNING p.id
       `;
       if (updated.length !== values.length) {

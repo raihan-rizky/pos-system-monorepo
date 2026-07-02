@@ -821,6 +821,7 @@ export async function POST(request: Request) {
                 productId: item.productId,
                 delta: -item.quantity,
               })),
+              allowNegative: true,
             });
           }
 

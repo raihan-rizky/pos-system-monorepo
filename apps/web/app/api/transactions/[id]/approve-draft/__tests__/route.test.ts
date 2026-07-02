@@ -38,6 +38,10 @@ vi.mock("@pos/db", () => ({
     customer: { update: customerUpdateMock },
     $transaction: dbTransactionMock,
   },
+  Prisma: {
+    empty: "",
+    sql: vi.fn().mockReturnValue(""),
+  },
 }));
 
 const draftRow = {

@@ -40,6 +40,10 @@ vi.mock("@pos/db", () => ({
     },
     $transaction: dbTransactionMock,
   },
+  Prisma: {
+    empty: "",
+    sql: vi.fn().mockReturnValue(""),
+  },
 }));
 
 describe("POST /api/transactions/[id]/approve", () => {
