@@ -72,12 +72,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         rounded-2xl border text-left
         transition-all duration-200
         animate-fade-in
-        ${
-          isEditMode
-            ? "bg-white border-brand-300 ring-2 ring-brand-100 ring-opacity-50"
-            : isOutOfStock
-              ? "bg-amber-50/70 border-amber-200 hover:border-amber-300 hover:shadow-md active:translate-y-0 cursor-pointer"
-              : "bg-white border-surface-200 hover:border-brand-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+        ${isEditMode
+          ? "bg-white border-brand-300 ring-2 ring-brand-100 ring-opacity-50"
+          : isOutOfStock
+            ? "bg-amber-50/70 border-amber-200 hover:border-amber-300 hover:shadow-md active:translate-y-0 cursor-pointer"
+            : "bg-white border-surface-200 hover:border-brand-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
         }
       `}
     >
@@ -128,9 +127,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Category badge */}
       <div
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold mb-2 ${
-          isEditMode ? "pr-16" : ""
-        }`}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold mb-2 ${isEditMode ? "pr-16" : ""
+          }`}
         style={{
           backgroundColor: `${product.category.color}15`,
           color: product.category.color || "#64748b",
@@ -192,13 +190,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             /{selectedVariant.unit}
           </span>
           <span
-            className={`text-[10px] font-medium ${
-              isOutOfStock
+            className={`text-[10px] font-medium ${isOutOfStock
                 ? "text-danger-500"
                 : isLowStock
                   ? "text-amber-500"
                   : "text-surface-400"
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2">
               {isOutOfStock ? (
@@ -231,18 +228,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <button
                 key={variant.id}
                 onClick={() => setSelectedVariantId(variant.id)}
-                className={`flex-1 flex flex-col justify-center px-2 py-1.5 border rounded-xl transition-all min-w-0 ${
-                  isSelected 
-                    ? "bg-brand-50 border-brand-400 shadow-sm ring-1 ring-brand-400/50" 
+                className={`flex-1 flex flex-col justify-center px-2 py-1.5 border rounded-xl transition-all min-w-0 ${isSelected
+                    ? "bg-brand-50 border-brand-400 shadow-sm ring-1 ring-brand-400/50"
                     : "bg-surface-50 border-surface-200 hover:border-brand-300 hover:bg-surface-100 opacity-90"
-                }`}
+                  }`}
               >
                 <div className="flex w-full items-center justify-between gap-1 mb-0.5">
                   <span className={`text-[11px] font-bold truncate ${isSelected ? "text-brand-700" : "text-surface-700"}`}>
                     {variant.unit}
                   </span>
                   {isVariantOutOfStock && (
-                     <span className="text-[9px] font-bold text-danger-500 uppercase shrink-0">Habis</span>
+                    <span className="text-[9px] font-bold text-danger-500 uppercase shrink-0">Habis</span>
                   )}
                 </div>
                 <span className={`text-[10px] font-medium text-left truncate ${isSelected ? "text-brand-600" : "text-surface-500"}`}>

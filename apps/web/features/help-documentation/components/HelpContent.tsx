@@ -206,6 +206,19 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "owner-change-stock-individual",
+      title: "Mengubah Stok Individual Produk",
+      description: "Ubah jumlah stok fisik untuk satu produk tertentu secara langsung melalui formulir edit produk.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Menu Produk", description: "Buka menu samping (sidebar) sebelah kiri layar Anda, masuk ke kategori 'Katalog', kemudian klik menu 'Produk' (ikon paket).", icon: <Package className="w-8 h-8" /> },
+        { title: "Cari Produk", description: "Cari produk yang ingin diubah stoknya di dalam tabel daftar produk.", icon: <Search className="w-8 h-8" /> },
+        { title: "Klik Tombol Ubah Produk", description: "Klik tombol aksi 'Ubah Produk' (ikon pensil/edit) di kolom paling kanan untuk membuka modal edit produk.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Ubah Stok Saat Ini", description: "Pada form modal 'Ubah Produk' yang muncul, cari input 'Stok Saat Ini', lalu ketikkan jumlah stok terbaru yang Anda inginkan.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Simpan Perubahan", description: "Klik tombol 'Simpan Produk' di pojok kanan bawah modal untuk memperbarui stok produk secara langsung di sistem.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "owner-special-pricing",
       title: "Mengatur Harga Grup Pelanggan (Harga Khusus)",
       description: "Atur harga khusus untuk grup pelanggan. Produk bisa punya Harga Agen atau Harga Dinas sendiri, lalu aturan kategori dipakai saat harga produk khusus belum diisi.",
@@ -333,6 +346,19 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Ubah Harga Langsung", description: "Klik tombol aksi 'Ubah Harga' di kolom paling kanan tabel produk untuk mengubah harga jual secara langsung.", icon: <Settings className="w-8 h-8" /> },
         { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Agen, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
         { title: "Pantau Riwayat", description: "Buka tab 'Riwayat Harga' di bagian atas halaman untuk memantau grafik dan log perubahan harga barang dari waktu ke waktu.", icon: <History className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-change-stock-individual",
+      title: "Mengubah Stok Individual Produk",
+      description: "Ubah jumlah stok fisik untuk satu produk tertentu secara langsung melalui formulir edit produk.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Menu Produk", description: "Buka menu samping (sidebar) sebelah kiri layar Anda, masuk ke kategori 'Katalog', kemudian klik menu 'Produk' (ikon paket).", icon: <Package className="w-8 h-8" /> },
+        { title: "Cari Produk", description: "Cari produk yang ingin diubah stoknya di dalam tabel daftar produk.", icon: <Search className="w-8 h-8" /> },
+        { title: "Klik Tombol Ubah Produk", description: "Klik tombol aksi 'Ubah Produk' (ikon pensil/edit) di kolom paling kanan untuk membuka modal edit produk.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Ubah Stok Saat Ini", description: "Pada form modal 'Ubah Produk' yang muncul, cari input 'Stok Saat Ini', lalu ketikkan jumlah stok terbaru yang Anda inginkan.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Simpan Perubahan", description: "Klik tombol 'Simpan Produk' di pojok kanan bawah modal untuk memperbarui stok produk secara langsung di sistem.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {

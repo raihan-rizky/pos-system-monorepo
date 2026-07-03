@@ -55,4 +55,15 @@ describe('HelpContent', () => {
     expect(html).toContain('tombol Koreksi');
     expect(html).toContain('Log Stok hanya menampilkan warna dan badge');
   });
+
+  it('documents the individual stock update via the edit product button', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="ADMIN" searchQuery="Mengubah Stok Individual" />
+    );
+
+    expect(html).toContain('Mengubah Stok Individual');
+    expect(html).toContain('Stok Saat Ini');
+    expect(html).toContain('Simpan Produk');
+  });
 });
+

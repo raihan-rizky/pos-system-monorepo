@@ -607,7 +607,30 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Kirim Permintaan Pembayaran", description: "Kirimkan detail tagihan pesanan pembeli melalui sistem untuk proses pembayaran." },
       { title: "Cetak Invoice Tagihan", description: "Cetak 2 rangkap invoice tagihan pesanan dari sistem sebagai tanda bukti pesanan resmi." },
       { title: "Serahkan Nota ke Pelanggan", description: "Berikan satu rangkap invoice kepada pelanggan sebagai rincian belanja mereka." },
-      { title: "Serahkan Uang ke Kasir", description: "Serahkan rangkap invoice kedua beserta uang pembayaran dari pelanggan ke kasir untuk proses penyelesaian transaksi (Checkout)." },
+      { title: "Serahkan Uang ke Kasir", description: "Menyerahkan rangkap invoice kedua beserta uang pembayaran dari pelanggan kepada Kasir untuk diproses (Checkout)." },
+    ],
+  }),
+  workflow({
+    faqNumber: 33,
+    slug: "change-individual-stock",
+    title: "Bagaimana cara mengubah stok individual produk lewat tombol \"Ubah Produk\"?",
+    aliases: [
+      "ubah stok individual",
+      "ganti stok produk",
+      "edit stok individual",
+      "ubah produk untuk stok",
+      "stok saat ini produk"
+    ],
+    route: "/products",
+    actionLabel: "Buka Produk",
+    iconKey: "package",
+    requiredCapabilities: [{ resource: "product", action: "update" }],
+    steps: [
+      { title: "Buka menu katalog", description: "Masuk ke sidebar Katalog, lalu buka halaman Produk." },
+      { title: "Cari produk", description: "Temukan produk yang ingin disesuaikan kuantitas stoknya pada daftar tabel produk." },
+      { title: "Klik tombol Ubah Produk", description: "Klik ikon pensil (Ubah Produk) di kolom paling kanan pada baris produk yang dipilih." },
+      { title: "Ubah data stok", description: "Cari kolom input 'Stok Saat Ini' pada formulir modal edit produk, lalu ketik jumlah stok yang baru." },
+      { title: "Simpan produk", description: "Periksa kembali data Anda, lalu klik tombol Simpan Produk untuk menyimpan stok baru ke sistem." }
     ],
   }),
 ];
