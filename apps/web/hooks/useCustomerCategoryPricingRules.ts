@@ -3,14 +3,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CategoryCustomerPricingMode,
-  CustomerType,
+  PricingCustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 export interface CustomerCategoryPricingRule {
   id: string;
   storeId: string;
   categoryId: string;
-  customerType: CustomerType;
+  customerType: PricingCustomerType;
+  unit: string | null;
+  brandId: string | null;
   mode: CategoryCustomerPricingMode;
   value: number;
   isActive: boolean;
@@ -24,11 +26,18 @@ export interface CustomerCategoryPricingRule {
     icon: string | null;
     color: string | null;
   };
+  brand?: {
+    id: string;
+    name: string;
+    normalizedName: string;
+  } | null;
 }
 
 export interface CustomerCategoryPricingRuleInput {
   categoryId: string;
-  customerType: CustomerType;
+  customerType: PricingCustomerType;
+  unit?: string | null;
+  brandId?: string | null;
   mode: CategoryCustomerPricingMode;
   value: number;
   isActive?: boolean;
@@ -36,8 +45,9 @@ export interface CustomerCategoryPricingRuleInput {
 
 export interface CustomerCategoryPricingRulesParams {
   activeOnly?: boolean;
-  customerType?: CustomerType;
+  customerType?: PricingCustomerType;
   categoryId?: string;
+  brandId?: string;
 }
 
 async function fetchRules(
@@ -47,6 +57,7 @@ async function fetchRules(
   if (params.activeOnly) sp.set("activeOnly", "true");
   if (params.customerType) sp.set("customerType", params.customerType);
   if (params.categoryId) sp.set("categoryId", params.categoryId);
+  if (params.brandId) sp.set("brandId", params.brandId);
 
   const res = await fetch(`/api/customer-category-pricing-rules?${sp.toString()}`);
   if (!res.ok) {

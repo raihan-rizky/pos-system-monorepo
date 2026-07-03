@@ -16,7 +16,8 @@ import {
   Warehouse,
   Search,
   Bot,
-  Sparkles
+  Sparkles,
+  Tag
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import HelpDiagramStepper, { Step } from "./HelpDiagramStepper";
@@ -236,13 +237,14 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-special-pricing",
       title: "Mengatur Harga Grup Pelanggan (Harga Khusus)",
-      description: "Atur harga khusus untuk grup pelanggan. Produk bisa punya Harga Agen atau Harga Dinas sendiri, lalu aturan kategori dipakai saat harga produk khusus belum diisi.",
+      description: "Atur harga khusus untuk semua pelanggan atau grup tertentu berdasarkan kategori, unit, dan merek. Harga Agen atau Harga Dinas di produk tetap dipakai lebih dulu, lalu Harga Khusus menjadi fallback.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Tab Harga Khusus", description: "Buka menu 'Produk' di sidebar, lalu klik tab 'Harga Khusus' di bagian atas (hanya diakses oleh Owner).", icon: <Settings className="w-8 h-8" /> },
-        { title: "Isi Aturan Harga", description: "Di kolom aturan sebelah kanan, pilih Tipe Pelanggan (AGEN, INDUSTRI, PEMERINTAH [Dinas]), kategori produk, dan mode diskon (persen atau rupiah). Untuk AGEN, Harga Agen di produk akan dipakai dulu jika tersedia.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Isi Aturan Harga", description: "Di kolom aturan sebelah kanan, pilih Tipe Pelanggan termasuk Semua pelanggan, kategori produk, unit opsional, merek opsional, dan mode diskon persen atau rupiah.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Atur Unit & Merek", description: "Kosongkan Unit untuk semua unit, pilih Semua merek untuk semua merek, atau pilih merek tertentu. Jika merek belum ada, ketik nama merek baru lalu klik Tambah.", icon: <Tag className="w-8 h-8" /> },
         { title: "Masukkan Nilai Diskon", description: "Masukkan nominal atau persentase diskon yang ingin diberikan untuk grup tersebut, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Hasil Transaksi POS", description: "Diskon akan otomatis memotong harga produk di kasir (POS) saat transaksi dibuat untuk pelanggan dengan grup tipe tersebut.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Hasil Transaksi POS", description: "Diskon otomatis dipakai di kasir jika kategori, unit, merek, dan tipe pelanggan cocok. Untuk Agen atau Pemerintah, Harga Agen/Harga Dinas produk tetap mengalahkan aturan Harga Khusus.", icon: <ShoppingCart className="w-8 h-8" /> },
       ]
     },
     {
@@ -291,8 +293,8 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Package className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Produk", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Katalog', kemudian klik menu 'Produk' (ikon paket).", icon: <Package className="w-8 h-8" /> },
-        { title: "Tambah Produk Baru", description: "Klik tombol hitam '+ Tambah Produk' di pojok kanan atas. Pada modal formulir yang muncul, ketik Nama Produk, Kategori, Harga Jual, Harga Agen atau Harga Dinas bila perlu, Stok Awal, dan kode SKU/Barcode, lalu klik 'Simpan'.", icon: <ShoppingCart className="w-8 h-8" /> },
-        { title: "Ubah Data Produk", description: "Cari produk yang ingin diubah di tabel, lalu klik tombol ikon 'Edit' (pensil) di kolom aksi paling kanan. Lakukan penyesuaian data termasuk Harga Agen atau Harga Dinas pada form pop-up, kemudian klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Tambah Produk Baru", description: "Klik tombol hitam '+ Tambah Produk' di pojok kanan atas. Pada modal formulir yang muncul, isi Nama Produk, Kategori, Merek bila ada, Harga Jual, Harga Agen atau Harga Dinas bila perlu, Stok Awal, dan kode SKU/Barcode, lalu klik 'Simpan'. Jika merek belum ada, ketik nama merek baru lalu klik Tambah.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Ubah Data Produk", description: "Cari produk yang ingin diubah di tabel, lalu klik tombol ikon 'Edit' (pensil) di kolom aksi paling kanan. Lakukan penyesuaian data termasuk Merek, Harga Agen, atau Harga Dinas pada form pop-up, kemudian klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {

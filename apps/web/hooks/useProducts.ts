@@ -11,6 +11,12 @@ export interface ProductVariant {
   costPrice: number | null;
   stock: number;
   sku: string;
+  brandId?: string | null;
+  brand?: {
+    id: string;
+    name: string;
+    normalizedName?: string;
+  } | null;
   unitMultiplierToBase?: number;
   stockGroup?: {
     id: string;
@@ -56,6 +62,12 @@ export interface Product {
     icon: string | null;
     color: string | null;
   };
+  brandId?: string | null;
+  brand?: {
+    id: string;
+    name: string;
+    normalizedName?: string;
+  } | null;
   defaultVariant?: {
     id: string;
     unit: string;
@@ -251,6 +263,7 @@ export interface CreateProductInput {
   unit: string;
   size?: string | null;
   categoryId: string;
+  brandId?: string | null;
   material?: string;
   imageUrl?: string;
   smallestUnitVariant?: {

@@ -6,6 +6,7 @@ export type ProductFormValues = {
   name: string;
   sku: string;
   categoryId: string;
+  brandId?: string;
   price: string;
   costPrice: string;
   hargaDinas: string;
@@ -46,6 +47,7 @@ export function buildProductFormPayload(
     name: formData.name,
     sku: formData.sku,
     categoryId: formData.categoryId,
+    brandId: formData.brandId || null,
     minStock: Number(formData.minStock),
     stock: Number(formData.stock),
     unit: formData.unit,

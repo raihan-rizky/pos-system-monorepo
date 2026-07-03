@@ -55,6 +55,24 @@ describe("buildProductFormPayload", () => {
     );
   });
 
+  it("includes optional brand assignment when creating and editing product details", () => {
+    const valuesWithBrand = {
+      ...formData,
+      brandId: "brand-joyko",
+    } as any;
+
+    expect(buildProductFormPayload(valuesWithBrand, "create")).toEqual(
+      expect.objectContaining({
+        brandId: "brand-joyko",
+      }),
+    );
+    expect(buildProductFormPayload(valuesWithBrand, "edit")).toEqual(
+      expect.objectContaining({
+        brandId: "brand-joyko",
+      }),
+    );
+  });
+
   it("does not include smallest sellable variant until explicitly enabled", () => {
     expect(
       buildProductFormPayload(

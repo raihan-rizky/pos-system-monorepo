@@ -22,6 +22,7 @@ function makeSnapshot(overrides: Partial<ProductSnapshot> = {}): ProductSnapshot
     size: "M",
     material: "Cotton",
     imageUrl: "http://example.com/img.jpg",
+    brandId: "brand-1",
     ...overrides,
   };
 }
@@ -57,6 +58,13 @@ describe("snapshotsMatch", () => {
     expect(
       snapshotsMatch(current, makeSnapshot({ supplierIds: ["supplier-old"] })),
     ).toBe(false);
+  });
+
+  it("compares brand only when the expected snapshot recorded it", () => {
+    const current = makeSnapshot({ brandId: "brand-new" });
+
+    expect(snapshotsMatch(current, makeSnapshot({ brandId: undefined }))).toBe(true);
+    expect(snapshotsMatch(current, makeSnapshot({ brandId: "brand-old" }))).toBe(false);
   });
 });
 

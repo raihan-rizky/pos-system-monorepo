@@ -57,6 +57,7 @@ model Store {
   logoUrl                      String?
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
+  brands                       Brand[]
   batchOperations              BatchOperation[]
   shifts                       CashierShift[]
   customerCategoryPricingRules CategoryCustomerPricingRule[]
@@ -97,6 +98,22 @@ model Category {
   @@map("pos_categories")
 }
 
+model Brand {
+  id                           String                        @id @default(cuid())
+  storeId                      String
+  name                         String
+  normalizedName               String
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  customerCategoryPricingRules CategoryCustomerPricingRule[]
+  products                     Product[]
+  store                        Store                         @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, normalizedName])
+  @@index([storeId])
+  @@map("pos_brands")
+}
+
 model Product {
   id                      String                      @id @default(cuid())
   name                    String
@@ -109,6 +126,7 @@ model Product {
   minStock                Int                         @default(5)
   unit                    String                      @default("pcs")
   categoryId              String
+  brandId                 String?
   storeId                 String
   isActive                Boolean                     @default(true)
   imageUrl                String?
@@ -131,6 +149,7 @@ model Product {
   productSuppliers        ProductSupplier[]
   shoppingRequestItems    ShoppingRequestItem[]
   stockGroupActivities    ProductStockGroupActivity[]
+  brand                   Brand?                       @relation(fields: [brandId], references: [id])
   category                Category                    @relation(fields: [categoryId], references: [id])
   stockGroup              ProductStockGroup?          @relation(fields: [stockGroupId], references: [id])
   store                   Store                       @relation(fields: [storeId], references: [id])
@@ -139,6 +158,7 @@ model Product {
   serviceMaterialItems    TransactionItem[]           @relation("transaction_raw_material")
 
   @@index([categoryId])
+  @@index([brandId])
   @@index([storeId])
   @@index([stockGroupId])
   @@index([sku])
@@ -432,6 +452,9 @@ model TransactionItem {
   pricingCategoryName  String?
   pricingMode          CategoryCustomerPricingMode?
   pricingValue         Decimal?                     @db.Decimal(12, 2)
+  pricingUnit          String?
+  pricingBrandId       String?
+  pricingBrandName     String?
   originalUnitPrice    Decimal?                     @db.Decimal(12, 2)
   appliedUnitPrice     Decimal?                     @db.Decimal(12, 2)
   suratJalanItems      SuratJalanItem[]
@@ -865,7 +888,9 @@ model CategoryCustomerPricingRule {
   id            String                      @id @default(cuid())
   storeId       String
   categoryId    String
-  customerType  CustomerType
+  customerType  CustomerType?
+  unit          String?
+  brandId       String?
   mode          CategoryCustomerPricingMode
   value         Decimal                     @db.Decimal(12, 2)
   isActive      Boolean                     @default(true)
@@ -873,6 +898,7 @@ model CategoryCustomerPricingRule {
   updatedBy     String?
   createdAt     DateTime                    @default(now())
   updatedAt     DateTime                    @updatedAt
+  brand         Brand?                      @relation(fields: [brandId], references: [id])
   category      Category                    @relation(fields: [categoryId], references: [id])
   createdByUser User?                       @relation("created_category_customer_pricing_rules", fields: [createdBy], references: [id])
   store         Store                       @relation(fields: [storeId], references: [id])
@@ -880,7 +906,8 @@ model CategoryCustomerPricingRule {
 
   @@index([storeId, isActive])
   @@index([categoryId])
-  @@index([storeId, customerType, categoryId], map: "pos_category_customer_pricing_rules_storeId_customerType_catego")
+  @@index([brandId])
+  @@index([storeId, customerType, categoryId, unit, brandId], map: "pos_category_customer_pricing_rules_scope_idx")
   @@map("pos_category_customer_pricing_rules")
 }
 

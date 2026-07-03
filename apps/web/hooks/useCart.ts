@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
+import type {
+  CategoryCustomerPricingMode,
+  CustomerType,
+} from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 export interface ProductCartItem {
   cartLineId: string;
@@ -19,16 +23,21 @@ export interface ProductCartItem {
   stockGroup?: {
     baseUnit?: string | null;
   } | null;
+  brandId?: string | null;
+  brandName?: string | null;
   categoryId: string;
   categoryName: string;
   size?: string;
   material?: string;
   appliedPricing?: {
     ruleId: string;
-    customerType: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH";
+    customerType: CustomerType;
     categoryId: string;
     categoryName: string | null;
-    mode: "FLAT_DISCOUNT" | "PERCENT_DISCOUNT";
+    unit?: string | null;
+    brandId?: string | null;
+    brandName?: string | null;
+    mode: CategoryCustomerPricingMode;
     value: number;
     originalUnitPrice: number;
     appliedUnitPrice: number;
@@ -75,6 +84,8 @@ function loadCartFromStorage(): CartItem[] {
         catalogPrice: product.catalogPrice ?? product.price,
         categoryId: product.categoryId ?? "",
         categoryName: product.categoryName ?? "",
+        brandId: product.brandId ?? null,
+        brandName: product.brandName ?? null,
         cartLineId:
           product.cartLineId ||
           buildProductCartLineId(product.productId, product.size, product.material),
@@ -118,7 +129,7 @@ export function useCart() {
   }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; price: number; costPrice?: number | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { baseUnit?: string | null } | null; categoryId: string; categoryName: string; size?: string; material?: string }) => {
+    (product: { id: string; name: string; price: number; costPrice?: number | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -151,6 +162,8 @@ export function useCart() {
             stock: product.stock,
             unitMultiplierToBase: product.unitMultiplierToBase ?? null,
             stockGroup: product.stockGroup ?? null,
+            brandId: product.brandId ?? null,
+            brandName: product.brandName ?? null,
             categoryId: product.categoryId,
             categoryName: product.categoryName,
             size: product.size,

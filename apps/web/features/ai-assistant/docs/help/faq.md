@@ -11,7 +11,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 1. Buka sidebar **Katalog > Produk** (`/products`).
 2. Klik tombol hitam **Tambah Produk** di kanan atas.
 3. Isi formulir pendaftaran produk:
-   - **Informasi Utama:** Nama produk, SKU (harus unik), dan Kategori.
+   - **Informasi Utama:** Nama produk, SKU (harus unik), Kategori, dan Merek bila ada. Jika merek belum tersedia, ketik nama merek baru lalu klik **Tambah**.
    - **Harga:** Harga Jual dasar, Harga Dinas (opsional), dan Harga Modal/HPP (opsional).
    - **Stok & Satuan:** Satuan/Unit (misal: pcs, box), Isi per Unit Terkecil, Stok Saat Ini, dan Batas Minimum Stok.
 4. **Varian Unit Terkecil (Opsional):** Jika satu barang juga dijual dalam unit pecahan (misal: jual per box dan per pcs), gunakan opsi **Tambah Varian Unit Terkecil**. Masukkan nama unit, SKU baru yang unik, harga jual, dan barcode. Sistem otomatis membagi stok dasar berdasarkan faktor konversi unit.
@@ -23,16 +23,19 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 2. **Edit Detail Produk:** Klik tombol **Edit** (ikon pensil) pada baris produk untuk mengubah detail produk secara penuh, termasuk mengganti harga jual dasar dan nilai Harga Modal/HPP.
 
 ### Q3: Bagaimana cara mengatur harga khusus/diskon bagi grup pelanggan (Agen, Industri, Dinas)?
-**A:** Anda dapat membuat kebijakan harga diskon khusus yang berlaku untuk satu kategori produk bagi kelompok pelanggan tertentu:
+**A:** Anda dapat membuat kebijakan harga diskon khusus yang berlaku untuk kategori produk, unit, dan merek tertentu bagi semua pelanggan atau kelompok pelanggan tertentu:
 1. Buka halaman **Produk > Harga Khusus** (hanya dapat diakses oleh **OWNER**).
 2. Pada form di sisi kanan layar, tentukan pengaturan aturan:
-   - **Tipe Pelanggan:** Pilih kelompok pelanggan (**UMUM**, **AGEN**, **INDUSTRI**, atau **PEMERINTAH** [Dinas]).
+   - **Tipe Pelanggan:** Pilih **Semua pelanggan** atau kelompok pelanggan (**UMUM**, **AGEN**, **INDUSTRI**, atau **PEMERINTAH** [Dinas]).
    - **Kategori:** Pilih kategori produk yang ingin diberikan harga khusus.
+   - **Unit:** Isi unit seperti `rim`, `pcs`, atau `dus` jika aturan hanya untuk unit itu. Kosongkan untuk semua unit.
+   - **Merek:** Pilih **Semua merek** atau merek tertentu. Jika merek belum tersedia, tambahkan dari kolom merek baru.
    - **Mode Diskon:**
      - **Diskon (%):** Potongan dalam bentuk persentase dari harga dasar (misal: diskon 10%).
      - **Diskon Rp:** Potongan nominal tetap dalam rupiah (misal: potongan Rp 5.000).
    - **Nilai:** Isi persentase atau nominal Rupiah diskon.
-3. Klik **Simpan**. Sistem akan otomatis menerapkan diskon ini ketika kasir memilih pelanggan dengan tipe grup tersebut saat transaksi di POS.
+3. Klik **Simpan**. Sistem akan otomatis menerapkan diskon ini ketika kategori, unit, merek, dan tipe pelanggan cocok saat transaksi di POS.
+4. Untuk pelanggan **Agen** atau **Pemerintah**, nilai **Harga Agen** atau **Harga Dinas** di produk tetap mengalahkan aturan Harga Khusus. Harga Khusus dipakai sebagai fallback.
 
 ### Q4: Bagaimana cara mengimpor data produk atau kuantitas stok secara massal lewat Excel?
 **A:** Untuk memproses data dalam jumlah banyak secara instan:

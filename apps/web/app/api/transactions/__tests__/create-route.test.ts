@@ -6,6 +6,13 @@ const requireRoleMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const applyProductStockDeltasMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const customerFindFirstMock = vi.hoisted(() => vi.fn());
+const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
+const productFindManyMock = vi.hoisted(() => vi.fn());
+const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
+const transactionCountMock = vi.hoisted(() => vi.fn());
+const transactionFindManyMock = vi.hoisted(() => vi.fn());
+const transactionCreateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/server", async () => {
   const actual = await vi.importActual<typeof import("next/server")>("next/server");
@@ -46,27 +53,16 @@ vi.mock("@/features/product-stock-groups/stock-mutations", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
-    customer: { findFirst: vi.fn().mockResolvedValue(true) },
-    salesperson: { findFirst: vi.fn().mockResolvedValue(true) },
+    customer: { findFirst: customerFindFirstMock },
+    salesperson: { findFirst: salespersonFindFirstMock },
     product: {
-      findMany: vi.fn().mockResolvedValue([
-        {
-          id: "p1",
-          name: "Item 1",
-          price: "1000",
-          costPrice: "500",
-          stock: -5,
-          unit: "pcs",
-          categoryId: "cat1",
-          category: { name: "CAT1" },
-        },
-      ]),
+      findMany: productFindManyMock,
     },
-    categoryCustomerPricingRule: { findMany: vi.fn().mockResolvedValue([]) },
+    categoryCustomerPricingRule: { findMany: pricingRuleFindManyMock },
     transaction: {
-      count: vi.fn().mockResolvedValue(0),
-      findMany: vi.fn().mockResolvedValue([]),
-      create: vi.fn().mockResolvedValue({ id: "tx-1", status: "COMPLETED" }),
+      count: transactionCountMock,
+      findMany: transactionFindManyMock,
+      create: transactionCreateMock,
     },
     $transaction: dbTransactionMock,
   },
@@ -84,8 +80,30 @@ describe("POST /api/transactions negative stock", () => {
       name: "Cashier",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    customerFindFirstMock.mockResolvedValue(true);
+    salespersonFindFirstMock.mockResolvedValue(true);
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "p1",
+        name: "Item 1",
+        price: "1000",
+        costPrice: "500",
+        hargaDinas: null,
+        hargaAgen: null,
+        stock: -5,
+        unit: "pcs",
+        categoryId: "cat1",
+        brandId: null,
+        brand: null,
+        category: { name: "CAT1" },
+      },
+    ]);
+    pricingRuleFindManyMock.mockResolvedValue([]);
+    transactionCountMock.mockResolvedValue(0);
+    transactionFindManyMock.mockResolvedValue([]);
+    transactionCreateMock.mockResolvedValue({ id: "tx-1", status: "COMPLETED" });
     dbTransactionMock.mockImplementation(async (cb: any) => cb({
-      transaction: { create: vi.fn().mockResolvedValue({ id: "tx-1", status: "COMPLETED" }) },
+      transaction: { create: transactionCreateMock },
       transactionItemSnapshot: { createMany: vi.fn() },
       inventoryLog: { createMany: vi.fn() },
       customer: { update: vi.fn() },
@@ -135,5 +153,78 @@ describe("POST /api/transactions negative stock", () => {
     
     const args = applyProductStockDeltasMock.mock.calls[0][1];
     expect(args.allowNegative).toBe(true);
+  });
+
+  it("applies ALL pricing rules scoped by selected product unit and brand", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "p1",
+        name: "Kertas A4",
+        price: "1000",
+        costPrice: "500",
+        hargaDinas: null,
+        hargaAgen: null,
+        stock: 10,
+        unit: "Rim",
+        categoryId: "cat1",
+        brandId: "brand-joyko",
+        brand: { id: "brand-joyko", name: "Joyko" },
+        category: { name: "Kertas" },
+      },
+    ]);
+    pricingRuleFindManyMock.mockResolvedValue([
+      {
+        id: "rule-all-rim-joyko",
+        categoryId: "cat1",
+        customerType: null,
+        unit: "rim",
+        brandId: "brand-joyko",
+        brand: { name: "Joyko" },
+        mode: "PERCENT_DISCOUNT",
+        value: "10",
+        isActive: true,
+        updatedAt: new Date("2026-07-03T00:00:00.000Z"),
+        category: { name: "Kertas" },
+      },
+    ]);
+
+    const res = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "CASH",
+          amountPaid: 2000,
+          discount: 0,
+          customerName: "Umum",
+          customerId: null,
+          paymentStatus: "COMPLETED",
+          items: [
+            {
+              lineType: "PRODUCT",
+              productId: "p1",
+              quantity: 1,
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    const createArg = transactionCreateMock.mock.calls[0][0];
+    expect(createArg.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 900,
+        pricingRuleId: "rule-all-rim-joyko",
+        pricingCustomerType: "UMUM",
+        pricingCategoryId: "cat1",
+        pricingCategoryName: "Kertas",
+        pricingUnit: "rim",
+        pricingBrandId: "brand-joyko",
+        pricingBrandName: "Joyko",
+        originalUnitPrice: 1000,
+        appliedUnitPrice: 900,
+      }),
+    );
   });
 });

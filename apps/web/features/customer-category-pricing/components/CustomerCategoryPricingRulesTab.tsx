@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Percent, Save, Tag, Trash2, RefreshCcw } from "lucide-react";
+import { AlertTriangle, Percent, Plus, Save, Tag, Trash2, RefreshCcw } from "lucide-react";
 import { useCategories, useProductsPage } from "@/hooks/useProducts";
+import { useBrands, useCreateBrand } from "@/hooks/useBrands";
 import {
   useCreateCustomerCategoryPricingRule,
   useCustomerCategoryPricingRules,
@@ -13,11 +14,12 @@ import {
 import {
   countProductsAtOrBelowFlatDiscount,
   type CategoryCustomerPricingMode,
-  type CustomerType,
+  type PricingCustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { formatRupiah } from "@/lib/utils";
 
-const CUSTOMER_TYPE_OPTIONS: CustomerType[] = [
+const CUSTOMER_TYPE_OPTIONS: PricingCustomerType[] = [
+  "ALL",
   "UMUM",
   "AGEN",
   "INDUSTRI",
@@ -26,8 +28,10 @@ const CUSTOMER_TYPE_OPTIONS: CustomerType[] = [
 
 type FormState = {
   id: string | null;
-  customerType: CustomerType;
+  customerType: PricingCustomerType;
   categoryId: string;
+  unit: string;
+  brandId: string;
   mode: CategoryCustomerPricingMode;
   value: number;
   isActive: boolean;
@@ -35,8 +39,10 @@ type FormState = {
 
 const emptyForm: FormState = {
   id: null,
-  customerType: "AGEN",
+  customerType: "ALL",
   categoryId: "",
+  unit: "",
+  brandId: "",
   mode: "PERCENT_DISCOUNT",
   value: 10,
   isActive: true,
@@ -47,19 +53,29 @@ function ruleValueLabel(rule: CustomerCategoryPricingRule) {
   return `${rule.value}%`;
 }
 
+function customerTypeLabel(type: PricingCustomerType) {
+  if (type === "ALL") return "Semua pelanggan";
+  if (type === "UMUM") return "Umum";
+  if (type === "AGEN") return "Agen";
+  if (type === "INDUSTRI") return "Industri";
+  return "Pemerintah";
+}
+
 export function CustomerCategoryPricingRulesTab() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState<string | null>(null);
+  const [newBrandName, setNewBrandName] = useState("");
   const { data: categories = [] } = useCategories();
+  const { data: brands = [] } = useBrands();
   const rulesQuery = useCustomerCategoryPricingRules();
   const createRule = useCreateCustomerCategoryPricingRule();
   const updateRule = useUpdateCustomerCategoryPricingRule();
   const deleteRule = useDeleteCustomerCategoryPricingRule();
+  const createBrand = useCreateBrand();
   const categoryProductsQuery = useProductsPage("", form.categoryId, {
     page: 1,
     limit: 200,
   });
-  const categoryProducts = categoryProductsQuery.data?.data ?? [];
   const selectedCategory = categories.find((category) => category.id === form.categoryId);
   const zeroedProductCount = useMemo(() => {
     if (form.mode !== "FLAT_DISCOUNT" || form.value <= 0) return 0;
@@ -68,6 +84,7 @@ export function CustomerCategoryPricingRulesTab() {
   }, [categoryProductsQuery.data?.data, form.mode, form.value]);
   const rules = rulesQuery.data ?? [];
   const isSaving = createRule.isPending || updateRule.isPending;
+  const isAddingBrand = createBrand.isPending;
 
   useEffect(() => {
     if (!form.categoryId && categories.length > 0) {
@@ -80,6 +97,7 @@ export function CustomerCategoryPricingRulesTab() {
       ...emptyForm,
       categoryId: categories[0]?.id ?? "",
     });
+    setNewBrandName("");
     setError(null);
   };
 
@@ -88,6 +106,8 @@ export function CustomerCategoryPricingRulesTab() {
       id: rule.id,
       customerType: rule.customerType,
       categoryId: rule.categoryId,
+      unit: rule.unit ?? "",
+      brandId: rule.brandId ?? "",
       mode: rule.mode,
       value: Number(rule.value),
       isActive: rule.isActive,
@@ -111,27 +131,44 @@ export function CustomerCategoryPricingRulesTab() {
     }
 
     try {
+      const payload = {
+        customerType: form.customerType,
+        categoryId: form.categoryId,
+        unit: form.unit.trim() || null,
+        brandId: form.brandId || null,
+        mode: form.mode,
+        value: form.value,
+        isActive: form.isActive,
+      };
+
       if (form.id) {
         await updateRule.mutateAsync({
           id: form.id,
-          customerType: form.customerType,
-          categoryId: form.categoryId,
-          mode: form.mode,
-          value: form.value,
-          isActive: form.isActive,
+          ...payload,
         });
       } else {
-        await createRule.mutateAsync({
-          customerType: form.customerType,
-          categoryId: form.categoryId,
-          mode: form.mode,
-          value: form.value,
-          isActive: form.isActive,
-        });
+        await createRule.mutateAsync(payload);
       }
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan aturan");
+    }
+  };
+
+  const handleCreateBrand = async () => {
+    const name = newBrandName.trim();
+    if (!name) {
+      setError("Nama merek wajib diisi");
+      return;
+    }
+
+    try {
+      setError(null);
+      const brand = await createBrand.mutateAsync({ name });
+      setForm((current) => ({ ...current, brandId: brand.id }));
+      setNewBrandName("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menambah merek");
     }
   };
 
@@ -148,6 +185,8 @@ export function CustomerCategoryPricingRulesTab() {
               <tr>
                 <th className="px-4 py-3">Tipe</th>
                 <th className="px-4 py-3">Kategori</th>
+                <th className="px-4 py-3">Unit</th>
+                <th className="px-4 py-3">Merek</th>
                 <th className="px-4 py-3">Mode</th>
                 <th className="px-4 py-3">Nilai</th>
                 <th className="px-4 py-3">Status</th>
@@ -157,7 +196,7 @@ export function CustomerCategoryPricingRulesTab() {
             <tbody className="divide-y divide-slate-100">
               {rulesQuery.isPending ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-sm font-medium text-slate-500" colSpan={6}>
+                  <td className="px-4 py-10 text-center text-sm font-medium text-slate-500" colSpan={8}>
                     <div className="flex items-center justify-center">
                       <RefreshCcw className="mr-2 h-5 w-5 animate-spin text-slate-400" />
                       Memuat aturan harga khusus...
@@ -166,21 +205,23 @@ export function CustomerCategoryPricingRulesTab() {
                 </tr>
               ) : rulesQuery.error ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-sm font-medium text-red-500" colSpan={6}>
+                  <td className="px-4 py-10 text-center text-sm font-medium text-red-500" colSpan={8}>
                     Gagal memuat aturan harga khusus.
                   </td>
                 </tr>
               ) : rules.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-sm font-medium text-slate-500" colSpan={6}>
+                  <td className="px-4 py-10 text-center text-sm font-medium text-slate-500" colSpan={8}>
                     Belum ada aturan harga khusus.
                   </td>
                 </tr>
               ) : (
                 rules.map((rule) => (
                   <tr key={rule.id} className={!rule.isActive ? "opacity-50" : ""}>
-                    <td className="px-4 py-3 font-bold text-slate-900">{rule.customerType}</td>
+                    <td className="px-4 py-3 font-bold text-slate-900">{customerTypeLabel(rule.customerType)}</td>
                     <td className="px-4 py-3 text-slate-700">{rule.category.name}</td>
+                    <td className="px-4 py-3 text-slate-700">{rule.unit || "Semua unit"}</td>
+                    <td className="px-4 py-3 text-slate-700">{rule.brand?.name || "Semua merek"}</td>
                     <td className="px-4 py-3 text-slate-700">
                       {rule.mode === "FLAT_DISCOUNT" ? "Diskon Rp" : "Diskon %"}
                     </td>
@@ -231,14 +272,14 @@ export function CustomerCategoryPricingRulesTab() {
               onChange={(event) =>
                 setForm((current) => ({
                   ...current,
-                  customerType: event.target.value as CustomerType,
+                  customerType: event.target.value as PricingCustomerType,
                 }))
               }
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-900"
             >
               {CUSTOMER_TYPE_OPTIONS.map((type) => (
                 <option key={type} value={type}>
-                  {type}
+                  {customerTypeLabel(type)}
                 </option>
               ))}
             </select>
@@ -260,6 +301,56 @@ export function CustomerCategoryPricingRulesTab() {
               ))}
             </select>
           </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-500">Unit</span>
+              <input
+                value={form.unit}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, unit: event.target.value }))
+                }
+                placeholder="Semua unit"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-900"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-500">Merek</span>
+              <select
+                value={form.brandId}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, brandId: event.target.value }))
+                }
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-900"
+              >
+                <option value="">Semua merek</option>
+                {brands.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              value={newBrandName}
+              onChange={(event) => setNewBrandName(event.target.value)}
+              placeholder="Tambah merek baru"
+              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-900"
+            />
+            <button
+              type="button"
+              onClick={handleCreateBrand}
+              disabled={isAddingBrand}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Tambah
+            </button>
+          </div>
 
           <div>
             <span className="mb-1 block text-xs font-bold text-slate-500">Mode</span>
@@ -319,7 +410,7 @@ export function CustomerCategoryPricingRulesTab() {
                 <span>
                   Diskon tetap ini sama atau lebih besar dari harga {zeroedProductCount} produk di kategori{" "}
                   {selectedCategory?.name ?? "terpilih"}. Harga produk tersebut akan menjadi Rp 0 untuk pelanggan tipe{" "}
-                  {form.customerType}.
+                  {customerTypeLabel(form.customerType)}.
                 </span>
               </div>
             </div>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Modal, Button, Input } from "@pos/ui";
-import { Upload, X, RefreshCw } from "lucide-react";
+import { Plus, Upload, X, RefreshCw } from "lucide-react";
 import { useCreateProduct, useUpdateProduct, Product } from "@/hooks/useProducts";
+import { useBrands, useCreateBrand } from "@/hooks/useBrands";
 import { buildProductFormPayload } from "@/lib/product-form/product-form-payload";
 
 interface ProductFormModalProps {
@@ -15,11 +16,14 @@ interface ProductFormModalProps {
 export default function ProductFormModal({ isOpen, onClose, productId, categories, initialData }: ProductFormModalProps) {
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
+  const { data: brands = [] } = useBrands();
+  const createBrand = useCreateBrand();
 
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
     categoryId: "",
+    brandId: "",
     price: "",
     costPrice: "",
     hargaDinas: "",
@@ -41,6 +45,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [newBrandName, setNewBrandName] = useState("");
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -78,6 +83,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         name: initialData.name,
         sku: initialData.sku,
         categoryId: initialData.category?.id || "",
+        brandId: initialData.brandId || initialData.brand?.id || "",
         price: initialData.price.toString(),
         costPrice: initialData.costPrice?.toString() || "",
         hargaDinas: initialData.hargaDinas?.toString() || "",
@@ -101,6 +107,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         name: "",
         sku: "",
         categoryId: categories[0]?.id || "",
+        brandId: "",
         price: "",
         costPrice: "",
         hargaDinas: "",
@@ -120,7 +127,27 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         imageUrl: "",
       });
     }
+    if (isOpen) {
+      setNewBrandName("");
+    }
   }, [isOpen, initialData, categories]);
+
+  const handleCreateBrand = async () => {
+    const name = newBrandName.trim();
+    if (!name) {
+      setError("Nama merek wajib diisi");
+      return;
+    }
+
+    try {
+      setError(null);
+      const brand = await createBrand.mutateAsync({ name });
+      setFormData((current) => ({ ...current, brandId: brand.id }));
+      setNewBrandName("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menambah merek");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,7 +167,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     }
   };
 
-  const isProcessing = createProduct.isPending || updateProduct.isPending;
+  const isProcessing = createProduct.isPending || updateProduct.isPending || createBrand.isPending;
   const regularPrice = productId && initialData ? Number(initialData.price) : Number(formData.price || "0");
   const showHargaDinasWarning =
     formData.hargaDinas.trim() !== "" &&
@@ -215,6 +242,37 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-1">Merek</label>
+            <select
+              value={formData.brandId}
+              onChange={(e) => setFormData({ ...formData, brandId: e.target.value })}
+              className="w-full px-3 py-2 bg-white border border-surface-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none"
+            >
+              <option value="">Tanpa merek</option>
+              {brands.map((brand) => (
+                <option key={brand.id} value={brand.id}>
+                  {brand.name}
+                </option>
+              ))}
+            </select>
+            <div className="mt-2 flex gap-2">
+              <Input
+                placeholder="Tambah merek baru"
+                value={newBrandName}
+                onChange={(e) => setNewBrandName(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleCreateBrand}
+                disabled={createBrand.isPending}
+              >
+                <Plus className="h-4 w-4" />
+                Tambah
+              </Button>
+            </div>
           </div>
           {!productId && (
             <Input

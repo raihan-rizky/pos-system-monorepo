@@ -31,10 +31,20 @@ const updateProductSchema = z.object({
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   categoryId: z.string().optional(),
+  brandId: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   priceChangeNote: z.string().optional().nullable(),
 });
+
+async function brandBelongsToStore(brandId: string | null | undefined, storeId: string) {
+  if (!brandId) return true;
+  const brand = await db.brand.findFirst({
+    where: { id: brandId, storeId },
+    select: { id: true },
+  });
+  return Boolean(brand);
+}
 
 export async function PUT(
   request: Request,
@@ -69,6 +79,13 @@ export async function PUT(
       return NextResponse.json(
         { message: "Product not found" },
         { status: 404 }
+      );
+    }
+
+    if (!(await brandBelongsToStore(validatedData.brandId, storeId))) {
+      return NextResponse.json(
+        { message: "Merek tidak ditemukan" },
+        { status: 404 },
       );
     }
 
@@ -135,6 +152,9 @@ export async function PUT(
         include: {
           category: {
             select: { id: true, name: true, icon: true, color: true },
+          },
+          brand: {
+            select: { id: true, name: true, normalizedName: true },
           },
           stockGroup: {
             select: {

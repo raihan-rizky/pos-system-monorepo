@@ -382,4 +382,192 @@ describe("customer category pricing rules", () => {
       manualOverrideApplied: false,
     });
   });
+
+  it("applies ALL customer pricing rules to UMUM customers", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+        price: 10000,
+        unit: "rim",
+      } as any,
+      "UMUM",
+      [
+        {
+          id: "rule-all",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "ALL",
+          mode: "PERCENT_DISCOUNT",
+          value: 10,
+          isActive: true,
+          unit: "rim",
+        } as any,
+      ],
+    );
+
+    expect(priced.unitPrice).toBe(9000);
+    expect(priced.appliedPricing).toEqual(
+      expect.objectContaining({
+        ruleId: "rule-all",
+        customerType: "UMUM",
+        appliedUnitPrice: 9000,
+      }),
+    );
+  });
+
+  it("prefers customer-specific rules over ALL rules", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+        price: 10000,
+        unit: "rim",
+      } as any,
+      "AGEN",
+      [
+        {
+          id: "rule-all",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "ALL",
+          mode: "PERCENT_DISCOUNT",
+          value: 5,
+          isActive: true,
+          unit: "rim",
+        } as any,
+        {
+          id: "rule-agen",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "AGEN",
+          mode: "PERCENT_DISCOUNT",
+          value: 10,
+          isActive: true,
+          unit: "rim",
+        } as any,
+      ],
+    );
+
+    expect(priced.unitPrice).toBe(9000);
+    expect(priced.appliedPricing?.ruleId).toBe("rule-agen");
+  });
+
+  it("prefers unit-specific rules over all-unit rules", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+        price: 10000,
+        unit: " RIM ",
+      } as any,
+      "AGEN",
+      [
+        {
+          id: "rule-all-unit",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "AGEN",
+          mode: "PERCENT_DISCOUNT",
+          value: 5,
+          isActive: true,
+          unit: null,
+        } as any,
+        {
+          id: "rule-rim",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "AGEN",
+          mode: "PERCENT_DISCOUNT",
+          value: 10,
+          isActive: true,
+          unit: "rim",
+        } as any,
+      ],
+    );
+
+    expect(priced.unitPrice).toBe(9000);
+    expect(priced.appliedPricing?.ruleId).toBe("rule-rim");
+  });
+
+  it("prefers the most specific brand and unit rule over a unit-only rule", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+        price: 10000,
+        unit: "rim",
+        brandId: "brand-joyko",
+      } as any,
+      "AGEN",
+      [
+        {
+          id: "rule-rim",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "AGEN",
+          mode: "PERCENT_DISCOUNT",
+          value: 10,
+          isActive: true,
+          unit: "rim",
+          brandId: null,
+        } as any,
+        {
+          id: "rule-rim-joyko",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "AGEN",
+          mode: "PERCENT_DISCOUNT",
+          value: 15,
+          isActive: true,
+          unit: "rim",
+          brandId: "brand-joyko",
+          brandName: "Joyko",
+        } as any,
+      ],
+    );
+
+    expect(priced.unitPrice).toBe(8500);
+    expect(priced.appliedPricing?.ruleId).toBe("rule-rim-joyko");
+  });
+
+  it("does not apply brand-specific rules to products without a brand", () => {
+    const priced = priceProductForCustomerType(
+      {
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+        price: 10000,
+        unit: "rim",
+        brandId: null,
+      } as any,
+      "AGEN",
+      [
+        {
+          id: "rule-joyko",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "AGEN",
+          mode: "PERCENT_DISCOUNT",
+          value: 15,
+          isActive: true,
+          unit: "rim",
+          brandId: "brand-joyko",
+        } as any,
+        {
+          id: "rule-all-brand",
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+          customerType: "AGEN",
+          mode: "PERCENT_DISCOUNT",
+          value: 5,
+          isActive: true,
+          unit: "rim",
+          brandId: null,
+        } as any,
+      ],
+    );
+
+    expect(priced.unitPrice).toBe(9500);
+    expect(priced.appliedPricing?.ruleId).toBe("rule-all-brand");
+  });
 });

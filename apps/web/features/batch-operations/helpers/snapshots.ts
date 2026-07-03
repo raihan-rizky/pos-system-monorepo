@@ -16,6 +16,7 @@ export interface ProductSnapshot {
   size: string | null;
   material: string | null;
   categoryId: string;
+  brandId?: string | null;
   storeId: string;
   isActive: boolean;
   imageUrl: string | null;
@@ -43,14 +44,18 @@ function comparableSnapshot(
   current: ProductSnapshot,
   expected: ProductSnapshot,
 ): ProductSnapshot {
+  const normalized: ProductSnapshot = { ...current };
   if (expected.supplierIds !== undefined) {
-    return {
-      ...current,
-      supplierIds: Array.from(new Set(current.supplierIds ?? [])).sort(),
-    };
+    normalized.supplierIds = Array.from(new Set(current.supplierIds ?? [])).sort();
+  } else {
+    delete normalized.supplierIds;
   }
-  const { supplierIds: _supplierIds, ...withoutSupplierIds } = current;
-  return withoutSupplierIds;
+
+  if (expected.brandId === undefined) {
+    delete normalized.brandId;
+  }
+
+  return normalized;
 }
 
 export function productSnapshot(product: ProductWithSupplierLinks): ProductSnapshot {
@@ -70,6 +75,7 @@ export function productSnapshot(product: ProductWithSupplierLinks): ProductSnaps
     size: product.size,
     material: product.material,
     categoryId: product.categoryId,
+    brandId: product.brandId,
     storeId: product.storeId,
     isActive: product.isActive,
     imageUrl: product.imageUrl,

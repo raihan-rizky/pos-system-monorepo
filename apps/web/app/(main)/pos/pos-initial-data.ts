@@ -41,6 +41,7 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
           material: true,
           imageUrl: true,
           isActive: true,
+          brandId: true,
           stockGroupId: true,
           unitMultiplierToBase: true,
           conversionNeedsReview: true,
@@ -54,6 +55,9 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
           },
           category: {
             select: { id: true, name: true, icon: true, color: true },
+          },
+          brand: {
+            select: { id: true, name: true, normalizedName: true },
           },
         },
         orderBy: { name: "asc" },

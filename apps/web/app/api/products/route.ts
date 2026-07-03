@@ -41,6 +41,7 @@ const productSchema = z.object({
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   categoryId: z.string().min(1, "Category is required"),
+  brandId: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   smallestUnitVariant: z.object({
     unit: z.string().trim().min(1),
@@ -65,6 +66,15 @@ const productSchema = z.object({
 });
 
 export const dynamic = 'force-dynamic';
+
+async function brandBelongsToStore(brandId: string | null | undefined, storeId: string) {
+  if (!brandId) return true;
+  const brand = await db.brand.findFirst({
+    where: { id: brandId, storeId },
+    select: { id: true },
+  });
+  return Boolean(brand);
+}
 
 // GET /api/products?search=xxx&categoryId=xxx&limit=100
 export async function GET(request: Request) {
@@ -137,6 +147,9 @@ export async function GET(request: Request) {
         include: {
           category: {
             select: { id: true, name: true, icon: true, color: true },
+          },
+          brand: {
+            select: { id: true, name: true, normalizedName: true },
           },
           stockGroup: {
             select: {
@@ -215,6 +228,13 @@ export async function POST(request: Request) {
     const storeId = user.storeId || "store-main";
     const unitMultiplierProvided = body.unitMultiplierToBase !== undefined && body.unitMultiplierToBase !== null;
 
+    if (!(await brandBelongsToStore(validatedData.brandId, storeId))) {
+      return NextResponse.json(
+        { message: "Merek tidak ditemukan" },
+        { status: 404 },
+      );
+    }
+
     const product = await db.$transaction(async (tx) => {
       if (validatedData.smallestUnitVariant) {
         const smallest = validatedData.smallestUnitVariant;
@@ -262,6 +282,9 @@ export async function POST(request: Request) {
             category: {
               select: { id: true, name: true, icon: true, color: true },
             },
+            brand: {
+              select: { id: true, name: true, normalizedName: true },
+            },
             stockGroup: {
               select: {
                 id: true,
@@ -288,6 +311,7 @@ export async function POST(request: Request) {
             size: validatedData.size,
             material: validatedData.material,
             categoryId: validatedData.categoryId,
+            brandId: validatedData.brandId ?? null,
             imageUrl: validatedData.imageUrl,
             stockGroupId: group.id,
             unitMultiplierToBase: 1,
@@ -392,6 +416,9 @@ export async function POST(request: Request) {
         include: {
           category: {
             select: { id: true, name: true, icon: true, color: true },
+          },
+          brand: {
+            select: { id: true, name: true, normalizedName: true },
           },
           stockGroup: {
             select: {

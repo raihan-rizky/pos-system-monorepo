@@ -4,6 +4,7 @@ import { PUT } from "../route";
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const productFindFirstMock = vi.hoisted(() => vi.fn());
+const brandFindFirstMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
 const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
@@ -18,6 +19,9 @@ vi.mock("@pos/db", () => ({
     product: {
       findFirst: productFindFirstMock,
       update: productUpdateMock,
+    },
+    brand: {
+      findFirst: brandFindFirstMock,
     },
     productPriceLog: {
       createMany: productPriceLogCreateManyMock,
@@ -36,6 +40,7 @@ describe("PUT /api/products/[id]", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    brandFindFirstMock.mockResolvedValue({ id: "brand-joyko" });
     productFindFirstMock.mockResolvedValue({
       id: "product-1",
       price: "15000.00",
@@ -100,5 +105,26 @@ describe("PUT /api/products/[id]", () => {
         }),
       ],
     });
+  });
+
+  it("rejects brand assignment from another store when updating a product", async () => {
+    brandFindFirstMock.mockResolvedValue(null);
+
+    const response = await PUT(
+      new Request("http://localhost/api/products/product-1", {
+        method: "PUT",
+        body: JSON.stringify({
+          brandId: "brand-other-store",
+        }),
+      }),
+      { params: Promise.resolve({ id: "product-1" }) },
+    );
+
+    expect(response.status).toBe(404);
+    expect(brandFindFirstMock).toHaveBeenCalledWith({
+      where: { id: "brand-other-store", storeId: "store-main" },
+      select: { id: true },
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
   });
 });

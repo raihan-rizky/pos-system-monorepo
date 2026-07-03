@@ -186,6 +186,9 @@ export async function POST(
             size: beforeSnapshot.size,
             material: beforeSnapshot.material,
             categoryId: beforeSnapshot.categoryId,
+            ...(beforeSnapshot.brandId !== undefined
+              ? { brandId: beforeSnapshot.brandId }
+              : {}),
             isActive: beforeSnapshot.isActive,
             imageUrl: beforeSnapshot.imageUrl,
           },

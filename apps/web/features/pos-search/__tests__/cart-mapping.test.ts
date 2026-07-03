@@ -91,6 +91,8 @@ describe('CartMappingService', () => {
       costPrice: 3000,
       hargaDinas: 4500,
       hargaAgen: 4200,
+      brandId: null,
+      brandName: null,
       unit: 'pcs',
       stock: 20,
       unitMultiplierToBase: null,
@@ -128,6 +130,38 @@ describe('CartMappingService', () => {
     expect(result.hargaAgen).toBe(10500);
     expect(result.size).toBe('Large');
     expect(result.material).toBe('Metal');
+  });
+
+  it('preserves brand scope when mapping a selected variant to cart', () => {
+    const result = mapProductToCartItem(
+      {
+        ...variantProduct,
+        variants: [
+          {
+            id: 'acco-dus',
+            unit: 'Dus',
+            price: 12000,
+            costPrice: 9000,
+            hargaDinas: 11000,
+            hargaAgen: 10500,
+            stock: 5,
+            sku: 'ACCO-DUS',
+            size: 'Large',
+            material: 'Metal',
+            barcode: '11111',
+            brandId: 'brand-joyko',
+            brand: {
+              id: 'brand-joyko',
+              name: 'Joyko',
+            },
+          },
+        ],
+      },
+      'acco-dus',
+    );
+
+    expect(result.brandId).toBe('brand-joyko');
+    expect(result.brandName).toBe('Joyko');
   });
 
   it('falls back to default variant if specified variantId is not found', () => {

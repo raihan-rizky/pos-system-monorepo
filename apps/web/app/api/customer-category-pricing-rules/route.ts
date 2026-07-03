@@ -8,10 +8,12 @@ import {
   requireRole,
 } from "@/lib/rbac/guard";
 import {
-  isCustomerType,
+  isPricingCustomerType,
   isPricingMode,
   type CategoryCustomerPricingMode,
   type CustomerType,
+  type PricingCustomerType,
+  normalizePricingUnit,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { getLogger } from "@/lib/logger";
 
@@ -20,7 +22,9 @@ const log = getLogger("api:customer-category-pricing-rules");
 const ruleSchema = z
   .object({
     categoryId: z.string().min(1, "Kategori wajib dipilih"),
-    customerType: z.string().refine(isCustomerType, "Tipe pelanggan tidak valid"),
+    customerType: z.string().refine(isPricingCustomerType, "Tipe pelanggan tidak valid"),
+    unit: z.string().optional().nullable(),
+    brandId: z.string().optional().nullable(),
     mode: z.string().refine(isPricingMode, "Mode harga tidak valid"),
     value: z.coerce.number(),
     isActive: z.boolean().optional().default(true),
@@ -49,7 +53,9 @@ type RuleWithCategory = {
   id: string;
   storeId: string;
   categoryId: string;
-  customerType: CustomerType;
+  customerType: CustomerType | null;
+  unit: string | null;
+  brandId: string | null;
   mode: CategoryCustomerPricingMode;
   value: unknown;
   isActive: boolean;
@@ -58,13 +64,19 @@ type RuleWithCategory = {
   createdAt: Date;
   updatedAt: Date;
   category: { id: string; name: string; icon: string | null; color: string | null };
+  brand?: { id: string; name: string; normalizedName: string } | null;
 };
 
 function serializeRule(rule: RuleWithCategory) {
   return {
     ...rule,
+    customerType: rule.customerType ?? "ALL",
     value: Number(rule.value),
   };
+}
+
+function toStoredCustomerType(customerType: PricingCustomerType) {
+  return customerType === "ALL" ? null : customerType;
 }
 
 async function assertCategoryExists(categoryId: string) {
@@ -75,17 +87,30 @@ async function assertCategoryExists(categoryId: string) {
   return Boolean(category);
 }
 
+async function assertBrandExists(storeId: string, brandId: string | null | undefined) {
+  if (!brandId) return true;
+  const brand = await db.brand.findUnique({
+    where: { id: brandId },
+    select: { id: true, storeId: true },
+  });
+  return Boolean(brand && brand.storeId === storeId);
+}
+
 async function hasDuplicateActiveRule(input: {
   storeId: string;
   categoryId: string;
-  customerType: CustomerType;
+  customerType: PricingCustomerType;
+  unit?: string | null;
+  brandId?: string | null;
   excludeId?: string;
 }) {
   const duplicate = await db.categoryCustomerPricingRule.findFirst({
     where: {
       storeId: input.storeId,
       categoryId: input.categoryId,
-      customerType: input.customerType,
+      customerType: toStoredCustomerType(input.customerType),
+      unit: normalizePricingUnit(input.unit),
+      brandId: input.brandId ?? null,
       isActive: true,
       ...(input.excludeId ? { id: { not: input.excludeId } } : {}),
     },
@@ -104,8 +129,9 @@ export async function GET(request: Request) {
     const activeOnly = searchParams.get("activeOnly") === "true";
     const customerType = searchParams.get("customerType");
     const categoryId = searchParams.get("categoryId");
+    const brandId = searchParams.get("brandId");
 
-    if (customerType && !isCustomerType(customerType)) {
+    if (customerType && !isPricingCustomerType(customerType)) {
       return apiError("Tipe pelanggan tidak valid", 422, {
         code: "ValidationError",
         errors: { customerType: ["Tipe pelanggan tidak valid"] },
@@ -116,11 +142,13 @@ export async function GET(request: Request) {
       where: {
         storeId,
         ...(activeOnly ? { isActive: true } : {}),
-        ...(customerType ? { customerType: customerType as CustomerType } : {}),
+        ...(customerType ? { customerType: toStoredCustomerType(customerType as PricingCustomerType) } : {}),
         ...(categoryId ? { categoryId } : {}),
+        ...(brandId ? { brandId } : {}),
       },
       include: {
         category: { select: { id: true, name: true, icon: true, color: true } },
+        brand: { select: { id: true, name: true, normalizedName: true } },
       },
       orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
     });
@@ -146,12 +174,17 @@ export async function POST(request: Request) {
     if (!parsed.success) return apiValidationError(parsed.error);
 
     const data = parsed.data as z.infer<typeof ruleSchema> & {
-      customerType: CustomerType;
+      customerType: PricingCustomerType;
       mode: CategoryCustomerPricingMode;
     };
+    const normalizedUnit = normalizePricingUnit(data.unit);
+    const brandId = data.brandId || null;
 
     if (!(await assertCategoryExists(data.categoryId))) {
       return apiError("Kategori tidak ditemukan", 404, { code: "NotFound" });
+    }
+    if (!(await assertBrandExists(storeId, brandId))) {
+      return apiError("Merek tidak ditemukan", 404, { code: "NotFound" });
     }
 
     if (
@@ -160,6 +193,8 @@ export async function POST(request: Request) {
         storeId,
         categoryId: data.categoryId,
         customerType: data.customerType,
+        unit: normalizedUnit,
+        brandId,
       }))
     ) {
       return apiError(
@@ -173,7 +208,9 @@ export async function POST(request: Request) {
       data: {
         storeId,
         categoryId: data.categoryId,
-        customerType: data.customerType,
+        customerType: toStoredCustomerType(data.customerType),
+        unit: normalizedUnit,
+        brandId,
         mode: data.mode,
         value: data.value,
         isActive: data.isActive,
@@ -182,6 +219,7 @@ export async function POST(request: Request) {
       },
       include: {
         category: { select: { id: true, name: true, icon: true, color: true } },
+        brand: { select: { id: true, name: true, normalizedName: true } },
       },
     });
 

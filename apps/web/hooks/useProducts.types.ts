@@ -7,6 +7,12 @@ export interface ProductVariant {
   hargaAgen: number | null;
   stock: number;
   sku: string;
+  brandId?: string | null;
+  brand?: {
+    id: string;
+    name: string;
+    normalizedName?: string;
+  } | null;
   unitMultiplierToBase?: number;
   stockGroup?: {
     id: string;
@@ -46,6 +52,12 @@ export interface Product {
     icon: string | null;
     color: string | null;
   };
+  brandId?: string | null;
+  brand?: {
+    id: string;
+    name: string;
+    normalizedName?: string;
+  } | null;
   
   // Variant grouping fields
   defaultVariant?: {

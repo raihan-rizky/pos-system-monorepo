@@ -281,6 +281,9 @@ export async function GET(request: Request) {
                 pricingCategoryName: true,
                 pricingMode: true,
                 pricingValue: true,
+                pricingUnit: true,
+                pricingBrandId: true,
+                pricingBrandName: true,
                 originalUnitPrice: true,
                 appliedUnitPrice: true,
                 subtotal: true,
@@ -495,10 +498,12 @@ export async function POST(request: Request) {
           hargaAgen: true,
           stock: true,
           unit: true,
+          brandId: true,
           size: true,
           material: true,
           categoryId: true,
           category: { select: { name: true } },
+          brand: { select: { name: true } },
         },
       }),
       uniquePrintingServiceIds.length > 0
@@ -554,15 +559,22 @@ export async function POST(request: Request) {
         : "UMUM";
     const pricingRules = (await db.categoryCustomerPricingRule.findMany({
       where: { storeId, isActive: true },
-      include: { category: { select: { name: true } } },
+      include: {
+        category: { select: { name: true } },
+        brand: { select: { name: true } },
+      },
     })).map((rule) => ({
       id: rule.id,
       categoryId: rule.categoryId,
       categoryName: rule.category.name,
-      customerType: rule.customerType as CustomerType,
+      customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
+      unit: rule.unit,
+      brandId: rule.brandId,
+      brandName: rule.brand?.name ?? null,
       mode: rule.mode,
       value: Number(rule.value),
       isActive: rule.isActive,
+      updatedAt: rule.updatedAt,
     })) satisfies CategoryPricingRule[];
 
     const serverItems: ServerTransactionItem[] = items.map((item) => {
@@ -612,6 +624,9 @@ export async function POST(request: Request) {
               price: Number(product.price),
               hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
               hargaAgen: product.hargaAgen == null ? null : Number(product.hargaAgen),
+              unit: product.unit,
+              brandId: product.brandId,
+              brandName: product.brand?.name ?? null,
             },
             checkoutCustomerType,
             pricingRules,
@@ -739,6 +754,9 @@ export async function POST(request: Request) {
                           pricingCategoryName: item.appliedPricing?.categoryName ?? null,
                           pricingMode: item.appliedPricing?.mode ?? null,
                           pricingValue: item.appliedPricing?.value ?? null,
+                          pricingUnit: item.appliedPricing?.unit ?? null,
+                          pricingBrandId: item.appliedPricing?.brandId ?? null,
+                          pricingBrandName: item.appliedPricing?.brandName ?? null,
                           originalUnitPrice: item.appliedPricing?.originalUnitPrice ?? item.originalPrice,
                           appliedUnitPrice: item.appliedPricing?.appliedUnitPrice ?? item.price,
                         }
@@ -772,6 +790,9 @@ export async function POST(request: Request) {
                   pricingCategoryName: true,
                   pricingMode: true,
                   pricingValue: true,
+                  pricingUnit: true,
+                  pricingBrandId: true,
+                  pricingBrandName: true,
                   originalUnitPrice: true,
                   appliedUnitPrice: true,
                   subtotal: true,

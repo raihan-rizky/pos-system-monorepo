@@ -7,6 +7,7 @@ const productFindUniqueMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const productCountMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindManyMock = vi.hoisted(() => vi.fn());
+const brandFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 const productCreateMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
@@ -35,6 +36,9 @@ vi.mock("@pos/db", () => ({
     productStockGroup: {
       findMany: productStockGroupFindManyMock,
     },
+    brand: {
+      findFirst: brandFindFirstMock,
+    },
     productPriceLog: {
       createMany: productPriceLogCreateManyMock,
     },
@@ -56,6 +60,7 @@ describe("POST /api/products", () => {
     });
     handleAuthErrorMock.mockReturnValue(null);
     productFindUniqueMock.mockResolvedValue(null);
+    brandFindFirstMock.mockResolvedValue(null);
     productCreateMock.mockResolvedValue({
       id: "product-1",
       name: "Banner Flexi",
@@ -222,6 +227,72 @@ describe("POST /api/products", () => {
         }),
       }),
     );
+  });
+
+  it("persists optional brand assignment when creating a product", async () => {
+    brandFindFirstMock.mockResolvedValue({ id: "brand-joyko" });
+    productCreateMock.mockResolvedValue({
+      id: "product-1",
+      name: "Pulpen Joyko",
+      sku: "JOYKO-PEN",
+      price: 5000,
+      costPrice: 3000,
+      brandId: "brand-joyko",
+      storeId: "store-main",
+      category: { id: "cat-1", name: "ATK", icon: null, color: null },
+      brand: { id: "brand-joyko", name: "Joyko", normalizedName: "joyko" },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/products", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Pulpen Joyko",
+          sku: "JOYKO-PEN",
+          categoryId: "cat-1",
+          brandId: "brand-joyko",
+          price: 5000,
+          costPrice: 3000,
+          stock: 10,
+          unit: "pcs",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(productCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          brandId: "brand-joyko",
+        }),
+      }),
+    );
+  });
+
+  it("rejects brand assignment from another store when creating a product", async () => {
+    brandFindFirstMock.mockResolvedValue(null);
+
+    const response = await POST(
+      new Request("http://localhost/api/products", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Pulpen Joyko",
+          sku: "JOYKO-PEN",
+          categoryId: "cat-1",
+          brandId: "brand-other-store",
+          price: 5000,
+          stock: 10,
+          unit: "pcs",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(brandFindFirstMock).toHaveBeenCalledWith({
+      where: { id: "brand-other-store", storeId: "store-main" },
+      select: { id: true },
+    });
+    expect(productCreateMock).not.toHaveBeenCalled();
   });
 });
 

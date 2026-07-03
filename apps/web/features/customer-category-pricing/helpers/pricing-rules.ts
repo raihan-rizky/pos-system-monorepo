@@ -1,5 +1,7 @@
 export const CUSTOMER_TYPES = ["UMUM", "AGEN", "INDUSTRI", "PEMERINTAH"] as const;
 export type CustomerType = (typeof CUSTOMER_TYPES)[number];
+export const PRICING_CUSTOMER_TYPES = ["ALL", ...CUSTOMER_TYPES] as const;
+export type PricingCustomerType = (typeof PRICING_CUSTOMER_TYPES)[number];
 
 export const PRICING_MODES = ["FLAT_DISCOUNT", "PERCENT_DISCOUNT"] as const;
 export type CategoryCustomerPricingMode = (typeof PRICING_MODES)[number];
@@ -8,10 +10,14 @@ export interface CategoryPricingRule {
   id: string;
   categoryId: string;
   categoryName?: string | null;
-  customerType: CustomerType;
+  customerType: PricingCustomerType;
   mode: CategoryCustomerPricingMode;
   value: number;
   isActive: boolean;
+  unit?: string | null;
+  brandId?: string | null;
+  brandName?: string | null;
+  updatedAt?: string | Date;
 }
 
 export interface PriceableProduct {
@@ -20,6 +26,9 @@ export interface PriceableProduct {
   price: number;
   hargaDinas?: number | null;
   hargaAgen?: number | null;
+  unit?: string | null;
+  brandId?: string | null;
+  brandName?: string | null;
 }
 
 export interface AppliedCategoryPricing {
@@ -27,6 +36,9 @@ export interface AppliedCategoryPricing {
   customerType: CustomerType;
   categoryId: string;
   categoryName: string | null;
+  unit?: string | null;
+  brandId?: string | null;
+  brandName?: string | null;
   mode: CategoryCustomerPricingMode;
   value: number;
   originalUnitPrice: number;
@@ -42,12 +54,27 @@ export function isCustomerType(value: string | null | undefined): value is Custo
   return CUSTOMER_TYPES.includes(value as CustomerType);
 }
 
+export function isPricingCustomerType(
+  value: string | null | undefined,
+): value is PricingCustomerType {
+  return PRICING_CUSTOMER_TYPES.includes(value as PricingCustomerType);
+}
+
 export function isPricingMode(value: string | null | undefined): value is CategoryCustomerPricingMode {
   return PRICING_MODES.includes(value as CategoryCustomerPricingMode);
 }
 
 function roundCurrency(value: number) {
   return Math.max(0, Math.round(value * 100) / 100);
+}
+
+function normalizeScopeText(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  return normalized.length > 0 ? normalized : null;
+}
+
+export function normalizePricingUnit(value: string | null | undefined) {
+  return normalizeScopeText(value);
 }
 
 export function resolveCheckoutCustomerType(customerType?: CustomerType | null): CustomerType {
@@ -64,14 +91,70 @@ export function isRegularPriceFallback(input: {
 
 export function findMatchingCategoryPricingRule(
   rules: CategoryPricingRule[],
-  input: { customerType: CustomerType; categoryId: string },
+  input: {
+    customerType: CustomerType;
+    categoryId: string;
+    unit?: string | null;
+    brandId?: string | null;
+  },
 ) {
-  return rules.find(
-    (rule) =>
-      rule.isActive &&
-      rule.customerType === input.customerType &&
-      rule.categoryId === input.categoryId,
-  ) ?? null;
+  const productUnit = normalizePricingUnit(input.unit);
+  const productBrandId = input.brandId ?? null;
+
+  const matches = rules
+    .map((rule, index) => {
+      if (!rule.isActive || rule.categoryId !== input.categoryId) return null;
+      if (rule.customerType !== "ALL" && rule.customerType !== input.customerType) {
+        return null;
+      }
+
+      const ruleUnit = normalizePricingUnit(rule.unit);
+      if (ruleUnit && ruleUnit !== productUnit) return null;
+
+      const ruleBrandId = rule.brandId ?? null;
+      if (ruleBrandId && ruleBrandId !== productBrandId) return null;
+
+      const hasSpecificCustomer = rule.customerType !== "ALL";
+      const hasSpecificUnit = Boolean(ruleUnit);
+      const hasSpecificBrand = Boolean(ruleBrandId);
+      const updatedAtTime =
+        rule.updatedAt == null ? 0 : new Date(rule.updatedAt).getTime() || 0;
+
+      return {
+        rule,
+        index,
+        updatedAtTime,
+        specificity:
+          Number(hasSpecificCustomer) +
+          Number(hasSpecificUnit) +
+          Number(hasSpecificBrand),
+        hasSpecificCustomer,
+        hasSpecificUnit,
+        hasSpecificBrand,
+      };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> =>
+      Boolean(candidate),
+    );
+
+  matches.sort((a, b) => {
+    if (b.specificity !== a.specificity) return b.specificity - a.specificity;
+    if (b.hasSpecificCustomer !== a.hasSpecificCustomer) {
+      return Number(b.hasSpecificCustomer) - Number(a.hasSpecificCustomer);
+    }
+    if (b.hasSpecificUnit !== a.hasSpecificUnit) {
+      return Number(b.hasSpecificUnit) - Number(a.hasSpecificUnit);
+    }
+    if (b.hasSpecificBrand !== a.hasSpecificBrand) {
+      return Number(b.hasSpecificBrand) - Number(a.hasSpecificBrand);
+    }
+    if (b.updatedAtTime !== a.updatedAtTime) {
+      return b.updatedAtTime - a.updatedAtTime;
+    }
+    return a.index - b.index;
+  });
+
+  return matches[0]?.rule ?? null;
 }
 
 export function applyCategoryPricingRule(
@@ -80,7 +163,17 @@ export function applyCategoryPricingRule(
   rule: CategoryPricingRule | null,
 ): PricedProductLine {
   const originalUnitPrice = roundCurrency(product.price);
-  if (!rule || !rule.isActive || rule.customerType !== customerType || rule.categoryId !== product.categoryId) {
+  const ruleUnit = normalizePricingUnit(rule?.unit);
+  const productUnit = normalizePricingUnit(product.unit);
+  const ruleBrandId = rule?.brandId ?? null;
+  if (
+    !rule ||
+    !rule.isActive ||
+    (rule.customerType !== "ALL" && rule.customerType !== customerType) ||
+    rule.categoryId !== product.categoryId ||
+    (ruleUnit && ruleUnit !== productUnit) ||
+    (ruleBrandId && ruleBrandId !== (product.brandId ?? null))
+  ) {
     return { unitPrice: originalUnitPrice, appliedPricing: null };
   }
 
@@ -100,6 +193,9 @@ export function applyCategoryPricingRule(
       customerType,
       categoryId: product.categoryId,
       categoryName: product.categoryName ?? rule.categoryName ?? null,
+      unit: ruleUnit,
+      brandId: ruleBrandId,
+      brandName: rule.brandName ?? product.brandName ?? null,
       mode: rule.mode,
       value: roundCurrency(rule.value),
       originalUnitPrice,
@@ -127,6 +223,9 @@ export function priceProductForCustomerType(
         customerType,
         categoryId: product.categoryId,
         categoryName: product.categoryName ?? null,
+        unit: product.unit ?? null,
+        brandId: product.brandId ?? null,
+        brandName: product.brandName ?? null,
         mode: "FLAT_DISCOUNT",
         value: roundCurrency(originalUnitPrice - appliedUnitPrice),
         originalUnitPrice,
@@ -149,6 +248,9 @@ export function priceProductForCustomerType(
         customerType,
         categoryId: product.categoryId,
         categoryName: product.categoryName ?? null,
+        unit: product.unit ?? null,
+        brandId: product.brandId ?? null,
+        brandName: product.brandName ?? null,
         mode: "FLAT_DISCOUNT",
         value: roundCurrency(originalUnitPrice - appliedUnitPrice),
         originalUnitPrice,
@@ -163,6 +265,8 @@ export function priceProductForCustomerType(
     findMatchingCategoryPricingRule(rules, {
       customerType,
       categoryId: product.categoryId,
+      unit: product.unit,
+      brandId: product.brandId,
     }),
   );
 }
@@ -265,7 +369,7 @@ export function resolveCustomPricedLine(input: {
 
 export function formatPricingRuleLabel(input: {
   ruleId?: string;
-  customerType: CustomerType;
+  customerType: PricingCustomerType;
   mode: CategoryCustomerPricingMode;
   value: number;
 }) {

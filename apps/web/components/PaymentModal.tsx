@@ -18,12 +18,10 @@ import {
   formatPricingRuleLabel,
   calculateCustomPriceMargin,
   canEditCustomPriceForCustomer,
-  priceProductForCustomerType,
-  resolveCustomPricedLine,
   isRegularPriceFallback,
-  type CategoryPricingRule,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { priceCartItemsForCheckout } from "@/features/pos-checkout/helpers/checkout-pricing";
 
 
 
@@ -128,39 +126,12 @@ export function PaymentModal({
     role,
     selectedCustomerType,
   );
-  const activePricingRules: CategoryPricingRule[] = (pricingRulesQuery.data ?? []).map((rule) => ({
-    id: rule.id,
-    categoryId: rule.categoryId,
-    categoryName: rule.category.name,
-    customerType: rule.customerType,
-    mode: rule.mode,
-    value: Number(rule.value),
-    isActive: rule.isActive,
-  }));
-  const pricedItems = items.map((item): CartItem => {
-    if (item.lineType !== "PRODUCT" || !item.categoryId) return item;
-    const priced = priceProductForCustomerType(
-      {
-        categoryId: item.categoryId,
-        categoryName: item.categoryName,
-        price: item.catalogPrice ?? item.price,
-        hargaDinas: item.hargaDinas,
-        hargaAgen: item.hargaAgen,
-      },
-      selectedCustomerType,
-      activePricingRules,
-    );
-    const resolved = resolveCustomPricedLine({
-      pricedLine: priced,
-      submittedPrice: manualPrices[item.cartLineId],
-      role,
-      customerType: selectedCustomerType,
-    });
-    return {
-      ...item,
-      price: resolved.unitPrice,
-      appliedPricing: resolved.appliedPricing,
-    };
+  const pricedItems = priceCartItemsForCheckout({
+    items,
+    customerType: selectedCustomerType,
+    pricingRules: pricingRulesQuery.data ?? [],
+    manualPrices,
+    role,
   });
   const pricedSubtotal = pricedItems.reduce(
     (sum, item) => sum + item.price * item.quantity,

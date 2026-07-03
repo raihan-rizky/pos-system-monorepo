@@ -8,6 +8,7 @@ const ruleFindManyMock = vi.hoisted(() => vi.fn());
 const ruleFindFirstMock = vi.hoisted(() => vi.fn());
 const ruleCreateMock = vi.hoisted(() => vi.fn());
 const categoryFindUniqueMock = vi.hoisted(() => vi.fn());
+const brandFindUniqueMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -24,6 +25,9 @@ vi.mock("@pos/db", () => ({
     },
     category: {
       findUnique: categoryFindUniqueMock,
+    },
+    brand: {
+      findUnique: brandFindUniqueMock,
     },
   },
 }));
@@ -52,6 +56,7 @@ describe("/api/customer-category-pricing-rules", () => {
       category: { id: data.categoryId, name: "Kertas", icon: null, color: null },
     }));
     categoryFindUniqueMock.mockResolvedValue({ id: "cat-1" });
+    brandFindUniqueMock.mockResolvedValue({ id: "brand-1", storeId: "store-main" });
   });
 
   it("allows checkout roles to read active rules", async () => {
@@ -120,5 +125,52 @@ describe("/api/customer-category-pricing-rules", () => {
     );
 
     expect(response.status).toBe(422);
+  });
+
+  it("creates ALL customer rules scoped by unit and brand", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/customer-category-pricing-rules", {
+        method: "POST",
+        body: JSON.stringify({
+          categoryId: "cat-1",
+          customerType: "ALL",
+          mode: "PERCENT_DISCOUNT",
+          value: 10,
+          unit: " Rim ",
+          brandId: "brand-1",
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(ruleFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: "store-main",
+          categoryId: "cat-1",
+          customerType: null,
+          unit: "rim",
+          brandId: "brand-1",
+          isActive: true,
+        }),
+      }),
+    );
+    expect(ruleCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          storeId: "store-main",
+          categoryId: "cat-1",
+          customerType: null,
+          unit: "rim",
+          brandId: "brand-1",
+          mode: "PERCENT_DISCOUNT",
+          value: 10,
+        }),
+      }),
+    );
+    expect(body.customerType).toBe("ALL");
+    expect(body.unit).toBe("rim");
+    expect(body.brandId).toBe("brand-1");
   });
 });
