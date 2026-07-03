@@ -46,9 +46,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         price: product.price,
         stock: product.stock,
         sku: product.sku,
+        hargaDinas: product.hargaDinas,
+        hargaAgen: product.hargaAgen,
       }
     );
   }, [product, selectedVariantId]);
+
+  const hargaAgen = "hargaAgen" in selectedVariant ? selectedVariant.hargaAgen : product.hargaAgen;
+  const hargaDinas = "hargaDinas" in selectedVariant ? selectedVariant.hargaDinas : product.hargaDinas;
 
   const isOutOfStock = Math.floor(selectedVariant.stock ?? 0) <= 0;
   const isLowStock = Math.floor(selectedVariant.stock ?? 0) <= 5;
@@ -148,6 +153,32 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <p className="text-base font-bold text-brand-600">
           {formatRupiah(Number(selectedVariant.price))}
         </p>
+        <div className="mt-1 space-y-0.5 text-[11px] leading-snug">
+          <p className="flex flex-wrap items-center gap-1">
+            <span className="font-medium text-surface-500">Agen:</span>
+            {Number(hargaAgen ?? 0) > 0 ? (
+              <span className="font-semibold text-emerald-600">
+                {formatRupiah(Number(hargaAgen))}
+              </span>
+            ) : (
+              <span className="font-medium italic text-surface-400">
+                Belum ada harga agen
+              </span>
+            )}
+          </p>
+          <p className="flex flex-wrap items-center gap-1">
+            <span className="font-medium text-surface-500">Dinas:</span>
+            {Number(hargaDinas ?? 0) > 0 ? (
+              <span className="font-semibold text-blue-600">
+                {formatRupiah(Number(hargaDinas))}
+              </span>
+            ) : (
+              <span className="font-medium italic text-surface-400">
+                Belum ada harga dinas
+              </span>
+            )}
+          </p>
+        </div>
         {showRegularPriceHint && (
           <span
             className="inline-block mt-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md"

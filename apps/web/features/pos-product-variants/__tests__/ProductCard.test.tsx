@@ -176,4 +176,36 @@ describe('ProductCard', () => {
 
     expect(html).toContain('(Stok Habis)');
   });
+
+  it('renders harga agen and harga dinas when they exist', () => {
+    const mockProductWithPrices = {
+      ...mockProduct,
+      hargaAgen: 45000,
+      hargaDinas: 47000,
+    } as any;
+
+    const onAddToCart = vi.fn();
+    const html = renderToStaticMarkup(
+      <ProductCard product={mockProductWithPrices} onAddToCart={onAddToCart} />
+    );
+
+    expect(html).toContain('45.000');
+    expect(html).toContain('47.000');
+  });
+
+  it('renders fallback text when harga agen and harga dinas are missing', () => {
+    const mockProductWithoutPrices = {
+      ...mockProduct,
+      hargaAgen: 0,
+      hargaDinas: null,
+    } as any;
+
+    const onAddToCart = vi.fn();
+    const html = renderToStaticMarkup(
+      <ProductCard product={mockProductWithoutPrices} onAddToCart={onAddToCart} />
+    );
+
+    expect(html).toContain('Belum ada harga agen');
+    expect(html).toContain('Belum ada harga dinas');
+  });
 });
