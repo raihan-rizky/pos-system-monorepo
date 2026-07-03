@@ -571,6 +571,15 @@ describe("InventoryWorkspace", () => {
     expect(html).not.toContain("overflow-x-auto w-max");
   });
 
+  it("labels the bulk stock transaction tab as update stok massal", () => {
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace initialSummary={baseSummary} defaultTab="Transaksi" />,
+    );
+
+    expect(html).toContain("Update Stok Massal");
+    expect(html).not.toContain("Bulk & grup");
+  });
+
   it("adds overflow-x-hidden to the main element to prevent overall page stretch on mobile", () => {
     const html = renderToStaticMarkup(
       <InventoryWorkspace initialSummary={baseSummary} />,

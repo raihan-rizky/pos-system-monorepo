@@ -253,7 +253,7 @@ export interface StockGroupBulkPreview {
   stockGroupId: string;
   displayName: string;
   baseUnit: string;
-  type: "OUT" | "ADJUSTMENT";
+  type: "IN" | "OUT" | "ADJUSTMENT";
   stockInput: { mode: "BASE" } | { mode: "VARIANT"; variantProductId: string };
   inputValue: number;
   beforeBaseStock: number;
@@ -272,31 +272,82 @@ export interface StockGroupBulkPreview {
   changedVariants: StockGroupBulkPreview["variants"];
 }
 
-export function previewStockGroupBulk(input: {
+export type ProductFirstStockMode = "GROUP_STOCK" | "PRODUCT_ONLY";
+
+export interface ProductFirstStockBulkRequestRow {
+  productId: string;
+  mode: ProductFirstStockMode;
+  type: "IN" | "OUT" | "ADJUSTMENT";
+  inputValue: number;
+  note?: string | null;
+}
+
+export interface ProductOnlyStockPreview {
+  id: string;
+  productId: string;
+  name: string;
+  sku: string;
+  unit: string;
+  mode: "PRODUCT_ONLY";
+  type: "IN" | "OUT" | "ADJUSTMENT";
+  inputValue: number;
+  beforeStock: number;
+  afterStock: number;
+  delta: number;
+  note: string;
+}
+
+export interface ProductFirstStockGroupPreview extends StockGroupBulkPreview {
+  mode: "GROUP_STOCK";
+  productId: string;
+  productName: string;
+  stockGroupName: string;
+}
+
+export interface ProductFirstStockGroupBulkPreview {
+  rows: Array<ProductFirstStockGroupPreview | ProductOnlyStockPreview>;
+  bundledRows: ProductFirstStockGroupPreview[];
+  standaloneRows: ProductOnlyStockPreview[];
+}
+
+type LegacyStockGroupBulkInput = {
   stockGroupId: string;
-  type: "OUT" | "ADJUSTMENT";
+  type: "IN" | "OUT" | "ADJUSTMENT";
   stockInput: { mode: "BASE" } | { mode: "VARIANT"; variantProductId: string };
   inputValue: number;
   note?: string | null;
-}) {
-  return postInventoryManagement<StockGroupBulkPreview>(
+};
+
+type ProductFirstStockGroupBulkInput = {
+  rows: ProductFirstStockBulkRequestRow[];
+};
+
+export function previewStockGroupBulk(input: LegacyStockGroupBulkInput): Promise<StockGroupBulkPreview>;
+export function previewStockGroupBulk(input: ProductFirstStockGroupBulkInput): Promise<ProductFirstStockGroupBulkPreview>;
+export function previewStockGroupBulk(
+  input: LegacyStockGroupBulkInput | ProductFirstStockGroupBulkInput,
+) {
+  return postInventoryManagement<StockGroupBulkPreview | ProductFirstStockGroupBulkPreview>(
     "/api/inventory-management/stock-group-bulk",
     { ...input, action: "preview" },
   );
 }
 
-export function submitStockGroupBulk(input: {
-  stockGroupId: string;
-  type: "OUT" | "ADJUSTMENT";
-  stockInput: { mode: "BASE" } | { mode: "VARIANT"; variantProductId: string };
-  inputValue: number;
-  note?: string | null;
-}) {
-  return postInventoryManagement<{
+export function submitStockGroupBulk(input: LegacyStockGroupBulkInput): Promise<{
     batchOperationId: string;
     status: "PENDING";
     preview: StockGroupBulkPreview;
-  }>("/api/inventory-management/stock-group-bulk", {
+  }>;
+export function submitStockGroupBulk(input: ProductFirstStockGroupBulkInput): Promise<{
+  bundleBatchOperationId: string | null;
+  standaloneLogIds: string[];
+  status: "PENDING";
+  preview: ProductFirstStockGroupBulkPreview;
+}>;
+export function submitStockGroupBulk(
+  input: LegacyStockGroupBulkInput | ProductFirstStockGroupBulkInput,
+) {
+  return postInventoryManagement("/api/inventory-management/stock-group-bulk", {
     ...input,
     action: "submit",
   });

@@ -251,7 +251,9 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
-        { title: "Pantau Log Grup", description: "Setiap mutasi stok di salah satu produk anggota akan otomatis mengubah stok produk lain dalam grup tersebut secara real-time.", icon: <History className="w-8 h-8" /> },
+        { title: "Cari produk di Update Stok Massal", description: "Masuk ke menu 'Inventaris', buka tab 'Transaksi', lalu pilih 'Update Stok Massal'. Gunakan kolom 'Cari produk' untuk menambahkan produk atau varian yang mau disesuaikan.", icon: <Search className="w-8 h-8" /> },
+        { title: "Pilih Stok Bersama / Stok Produk Ini", description: "Pilih 'Stok Bersama' jika stok grup dan semua varian terkait ikut dihitung. Pilih 'Stok Produk Ini' jika hanya produk itu yang dibuatkan log stok dan stok grup tidak diubah.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih satu produk saja per grup stok", description: "Sistem memblokir produk duplikat dan menampilkan pesan 'Pilih satu produk saja per grup stok untuk mode Stok Bersama' jika dua varian dari grup yang sama sama-sama memakai Stok Bersama. Setelah diajukan, perubahan mengikuti approval stock log.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     }
   ],
@@ -382,7 +384,9 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
-        { title: "Pantau Log Grup", description: "Setiap mutasi stok di salah satu produk anggota akan otomatis mengubah stok produk lain dalam grup tersebut secara real-time.", icon: <History className="w-8 h-8" /> },
+        { title: "Cari produk di Update Stok Massal", description: "Masuk ke menu 'Inventaris', buka tab 'Transaksi', lalu pilih 'Update Stok Massal'. Gunakan kolom 'Cari produk' untuk menambahkan produk atau varian yang mau disesuaikan.", icon: <Search className="w-8 h-8" /> },
+        { title: "Pilih Stok Bersama / Stok Produk Ini", description: "Pilih 'Stok Bersama' jika stok grup dan semua varian terkait ikut dihitung. Pilih 'Stok Produk Ini' jika hanya produk itu yang dibuatkan log stok dan stok grup tidak diubah.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih satu produk saja per grup stok", description: "Sistem memblokir produk duplikat dan menampilkan pesan 'Pilih satu produk saja per grup stok untuk mode Stok Bersama' jika dua varian dari grup yang sama sama-sama memakai Stok Bersama. Setelah diajukan, perubahan mengikuti approval stock log.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     }
   ],
@@ -621,7 +625,9 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
-        { title: "Pantau Log Grup", description: "Setiap mutasi stok di salah satu produk anggota akan otomatis mengubah stok produk lain dalam grup tersebut secara real-time.", icon: <History className="w-8 h-8" /> },
+        { title: "Cari produk di Update Stok Massal", description: "Masuk ke tab 'Transaksi' di halaman Inventaris, lalu pilih 'Update Stok Massal'. Gunakan kolom 'Cari produk' untuk memilih produk atau varian yang stoknya mau diubah.", icon: <Search className="w-8 h-8" /> },
+        { title: "Pilih Stok Bersama / Stok Produk Ini", description: "Pilih 'Stok Bersama' jika perubahan harus mengikuti stok grup dan memunculkan dampak ke varian lain. Pilih 'Stok Produk Ini' jika hanya produk tersebut yang dicatat di log stok dan stok grup tidak diubah.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih satu produk saja per grup stok", description: "Produk duplikat akan ditolak. Jika dua varian dari grup yang sama sama-sama memakai Stok Bersama, sistem menampilkan pesan 'Pilih satu produk saja per grup stok untuk mode Stok Bersama'. Setelah submit, pengajuan tetap menunggu approval.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     }
   ],

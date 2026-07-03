@@ -76,7 +76,7 @@ const DamagedReportsHistoryTab = lazy(() =>
 const MAIN_TABS = ["Ringkasan", "Tugas", "Transaksi", "Riwayat"] as const;
 
 const TUGAS_TABS = ["Tugas Harian", "Tugas Mingguan"] as const;
-const TRANSAKSI_TABS = ["Penerimaan Barang", "Pemakaian Internal", "Surat Jalan", "Bulk & Grup Stok"] as const;
+const TRANSAKSI_TABS = ["Penerimaan Barang", "Pemakaian Internal", "Surat Jalan", "Update Stok Massal"] as const;
 const RIWAYAT_TABS = ["Log Stok", "Rekap Stok", "Laporan Barang Rusak", "Riwayat Tugas Harian", "Riwayat Tugas Mingguan"] as const;
 
 const HEALTH_METRICS_INFO = [
@@ -1447,11 +1447,11 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => openTransactionTab("Bulk & Grup Stok")}
+                onClick={() => openTransactionTab("Update Stok Massal")}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 <Layers className="h-4 w-4" />
-                Bulk & grup
+                Update stok massal
               </button>
             </div>
           </div>
@@ -1565,7 +1565,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
 
                 {activeTransaksiTab === "Surat Jalan" && <InventorySuratJalanTab />}
 
-                {activeTransaksiTab === "Bulk & Grup Stok" && (
+                {activeTransaksiTab === "Update Stok Massal" && (
                   <StockGroupBulkPanel />
                 )}
               </div>

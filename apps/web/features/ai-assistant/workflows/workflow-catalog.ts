@@ -120,7 +120,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "file-spreadsheet",
     requiredCapabilities: [{ resource: "product", action: "create" }, { resource: "inventory", action: "update" }],
     steps: [
-      { title: "Buka menu import", description: "Di halaman Pusat Produk, klik dropdown Import di kanan atas." },
+      { title: "Buka Fitur Import", description: "Di halaman Pusat Produk, klik tombol dropdown Import di kanan atas." },
       { title: "Pilih tipe import", description: "Pilih Import Bulk Products untuk katalog atau Import Bulk Stock untuk kuantitas stok." },
       { title: "Unggah Excel", description: "Pilih file .xlsx dari perangkat, lalu lakukan pemetaan kolom jika nama kolom berbeda. Kolom opsional termasuk Harga Agen, Harga Dinas, dan Kode Supplier." },
       { title: "Periksa pratinjau", description: "Cek Harga Agen, Harga Dinas, kode supplier, dan keputusan baris pada pratinjau sebelum menyelesaikan import. Import berjalan di antrean background; pantau progres, lalu gunakan Coba Lagi jika antrean belum berhasil dimulai." },
@@ -631,6 +631,31 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Klik tombol Ubah Produk", description: "Klik ikon pensil (Ubah Produk) di kolom paling kanan pada baris produk yang dipilih." },
       { title: "Ubah data stok", description: "Cari kolom input 'Stok Saat Ini' pada formulir modal edit produk, lalu ketik jumlah stok yang baru." },
       { title: "Simpan produk", description: "Periksa kembali data Anda, lalu klik tombol Simpan Produk untuk menyimpan stok baru ke sistem." }
+    ],
+  }),
+  workflow({
+    faqNumber: 34,
+    slug: "update-stok-massal-product-first",
+    title: "Bagaimana cara memakai Update Stok Massal untuk produk dan grup stok?",
+    aliases: [
+      "update stok massal",
+      "ubah banyak stok produk",
+      "stok bersama",
+      "stok produk ini",
+      "bulk grup stok",
+      "update stok grup dari produk"
+    ],
+    route: "/inventory",
+    actionLabel: "Buka Inventaris",
+    iconKey: "warehouse",
+    requiredCapabilities: [{ resource: "inventory", action: "update" }],
+    steps: [
+      { title: "Buka Update Stok Massal", description: "Masuk ke halaman Inventaris, buka tab Transaksi, lalu pilih Update Stok Massal." },
+      { title: "Cari produk", description: "Gunakan pencarian produk untuk menambahkan setiap produk atau varian yang stoknya mau diubah." },
+      { title: "Atur baris masing-masing", description: "Setiap produk punya aksi, input stok, catatan, dan mode sendiri sehingga satu baris tidak mengubah pengaturan baris lain." },
+      { title: "Pilih mode stok", description: "Pilih Stok Bersama untuk menghitung dampak ke stok grup dan varian lain. Pilih Stok Produk Ini jika hanya produk itu yang dibuatkan log stok dan stok grup tidak diubah." },
+      { title: "Cek konflik", description: "Sistem memblokir produk duplikat. Jika dua varian dari grup yang sama sama-sama memakai Stok Bersama, ikuti pesan Pilih satu produk saja per grup stok untuk mode Stok Bersama." },
+      { title: "Ajukan approval", description: "Klik submit untuk membuat pengajuan. Stok Bersama tampil sebagai bundle di Stock Log, sedangkan Stok Produk Ini menjadi log terpisah sampai approval selesai." },
     ],
   }),
 ];

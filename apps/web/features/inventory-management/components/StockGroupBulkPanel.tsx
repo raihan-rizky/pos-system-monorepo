@@ -1,105 +1,243 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Boxes, RefreshCw, Send } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  ChevronDown,
+  Info,
+  Layers,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  X,
+} from "lucide-react";
 import { Button } from "@pos/ui";
+import { useProducts, type Product, type ProductVariant } from "@/hooks/useProducts";
 import { getDefaultProductImage } from "@/lib/utils";
 import {
   previewStockGroupBulk,
   submitStockGroupBulk,
-  type StockGroupBulkPreview,
+  type ProductFirstStockBulkRequestRow,
+  type ProductFirstStockGroupBulkPreview,
+  type ProductFirstStockMode,
 } from "../api/inventory-management-api";
-import { fetchStockGroupDetail, fetchStockGroups, type StockGroupDetail, type StockGroupOption } from "@/features/product-stock-groups/api/stock-group-api";
+
+type StockActionType = "IN" | "OUT" | "ADJUSTMENT";
+
+interface SelectableProduct {
+  id: string;
+  name: string;
+  sku: string;
+  unit: string;
+  stock: number;
+  imageUrl: string | null;
+  category: Product["category"];
+  stockGroupId: string | null;
+  stockGroup?: Product["stockGroup"];
+  unitMultiplierToBase?: number;
+  conversionNeedsReview?: boolean;
+}
+
+interface SelectedProductRow {
+  product: SelectableProduct;
+  mode: ProductFirstStockMode;
+  type: StockActionType;
+  inputValue: string;
+  note: string;
+  expanded: boolean;
+}
 
 function formatQty(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  if (!Number.isFinite(value)) return "0";
+  return Number.isInteger(value) ? String(value) : Number(value.toFixed(2)).toString();
+}
+
+function actionLabel(type: StockActionType) {
+  if (type === "IN") return "Tambah";
+  if (type === "OUT") return "Kurangi";
+  return "Set stok akhir";
+}
+
+function modeLabel(mode: ProductFirstStockMode) {
+  return mode === "GROUP_STOCK" ? "Stok Bersama" : "Stok Produk Ini";
+}
+
+function duplicateKey(product: SelectableProduct) {
+  return [product.name, product.sku, product.unit]
+    .map((part) => part.trim().toLowerCase())
+    .join("|");
+}
+
+function flattenProductCandidates(products: Product[] | undefined): SelectableProduct[] {
+  return (products ?? []).flatMap((product) => {
+    if (product.variants && product.variants.length > 0) {
+      return product.variants.map((variant: ProductVariant) => {
+        const variantExtra = variant as ProductVariant & {
+          stockGroupId?: string | null;
+          conversionNeedsReview?: boolean;
+        };
+        return {
+          id: variant.id,
+          name: product.name,
+          sku: variant.sku,
+          unit: variant.unit,
+          stock: variant.stock,
+          imageUrl: product.imageUrl,
+          category: product.category,
+          stockGroupId: variantExtra.stockGroupId ?? variant.stockGroup?.id ?? product.stockGroupId ?? null,
+          stockGroup: variant.stockGroup ?? product.stockGroup,
+          unitMultiplierToBase: variant.unitMultiplierToBase,
+          conversionNeedsReview:
+            variantExtra.conversionNeedsReview ?? product.conversionNeedsReview ?? false,
+        };
+      });
+    }
+
+    return [{
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      unit: product.unit,
+      stock: product.stock,
+      imageUrl: product.imageUrl,
+      category: product.category,
+      stockGroupId: product.stockGroupId ?? product.stockGroup?.id ?? null,
+      stockGroup: product.stockGroup,
+      unitMultiplierToBase: product.unitMultiplierToBase,
+      conversionNeedsReview: product.conversionNeedsReview ?? false,
+    }];
+  });
+}
+
+function validationMessages(rows: SelectedProductRow[]) {
+  const messages: string[] = [];
+  const seen = new Set<string>();
+  const sharedGroups = new Map<string, string>();
+
+  for (const row of rows) {
+    const key = duplicateKey(row.product);
+    if (seen.has(key)) {
+      messages.push("Produk yang sama sudah dipilih.");
+    }
+    seen.add(key);
+
+    if (row.mode === "GROUP_STOCK" && row.product.stockGroupId) {
+      const existing = sharedGroups.get(row.product.stockGroupId);
+      if (existing) {
+        messages.push("Pilih satu produk saja per grup stok untuk mode Stok Bersama.");
+      }
+      sharedGroups.set(row.product.stockGroupId, row.product.id);
+    }
+
+    if (!Number.isFinite(Number(row.inputValue)) || Number(row.inputValue) < 0) {
+      messages.push(`${row.product.name} perlu jumlah stok yang valid.`);
+    }
+
+    if (row.mode === "GROUP_STOCK" && row.product.conversionNeedsReview) {
+      messages.push(`${row.product.name} perlu review konversi unit sebelum Stok Bersama diproses.`);
+    }
+  }
+
+  return Array.from(new Set(messages));
+}
+
+function buildRequestRows(rows: SelectedProductRow[]): ProductFirstStockBulkRequestRow[] {
+  return rows.map((row) => ({
+    productId: row.product.id,
+    mode: row.mode,
+    type: row.type,
+    inputValue: Number(row.inputValue),
+    note: row.note.trim() || null,
+  }));
 }
 
 export const StockGroupBulkPanel: React.FC = () => {
-  const [groups, setGroups] = useState<StockGroupOption[]>([]);
-  const [groupId, setGroupId] = useState("");
-  const [detail, setDetail] = useState<StockGroupDetail | null>(null);
-  const [type, setType] = useState<"OUT" | "ADJUSTMENT">("ADJUSTMENT");
-  const [basis, setBasis] = useState<"BASE" | "VARIANT">("BASE");
-  const [variantProductId, setVariantProductId] = useState("");
-  const [inputValue, setInputValue] = useState("");
-  const [note, setNote] = useState("");
-  const [preview, setPreview] = useState<StockGroupBulkPreview | null>(null);
-  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [rows, setRows] = useState<SelectedProductRow[]>([]);
+  const [preview, setPreview] = useState<ProductFirstStockGroupBulkPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const groupsAbortRef = useRef<AbortController | null>(null);
-  const detailAbortRef = useRef<AbortController | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
 
-  useEffect(() => {
-    groupsAbortRef.current?.abort();
-    const ac = new AbortController();
-    groupsAbortRef.current = ac;
-    setIsLoadingGroups(true);
-    fetchStockGroups(ac.signal)
-      .then(setGroups)
-      .catch(() => setError("Gagal memuat grup stok."))
-      .finally(() => { if (!ac.signal.aborted) setIsLoadingGroups(false); });
-    return () => ac.abort();
-  }, []);
-
-  useEffect(() => {
-    if (!groupId) {
-      setDetail(null);
-      return;
-    }
-    detailAbortRef.current?.abort();
-    const ac = new AbortController();
-    detailAbortRef.current = ac;
-    setIsLoadingDetail(true);
-    setError(null);
-    fetchStockGroupDetail(groupId, ac.signal)
-      .then((data) => {
-        if (ac.signal.aborted) return;
-        setDetail(data);
-        setVariantProductId(data.variants[0]?.id ?? "");
-        setInputValue(formatQty(data.baseStock));
-      })
-      .catch((err) => {
-        if (!ac.signal.aborted) setError(err instanceof Error ? err.message : "Gagal memuat detail grup");
-      })
-      .finally(() => { if (!ac.signal.aborted) setIsLoadingDetail(false); });
-    return () => ac.abort();
-  }, [groupId]);
-
-  const stockInput = useMemo(
-    () =>
-      basis === "BASE"
-        ? ({ mode: "BASE" } as const)
-        : ({ mode: "VARIANT", variantProductId } as const),
-    [basis, variantProductId],
+  const productsQuery = useProducts(search, undefined, { limit: 20 });
+  const candidates = useMemo(
+    () => flattenProductCandidates(productsQuery.data),
+    [productsQuery.data],
   );
+  const validations = useMemo(() => validationMessages(rows), [rows]);
 
   const canPreview =
-    Boolean(groupId) &&
-    Number.isFinite(Number(inputValue)) &&
-    Number(inputValue) >= 0 &&
-    (basis === "BASE" || Boolean(variantProductId));
+    rows.length > 0 &&
+    validations.length === 0 &&
+    rows.every((row) => Number.isFinite(Number(row.inputValue)) && Number(row.inputValue) >= 0);
 
-  const runPreview = async () => {
-    if (!canPreview) return;
+  useEffect(() => {
+    if (!canPreview) {
+      setPreview(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsPreviewing(true);
+    previewStockGroupBulk({ rows: buildRequestRows(rows) })
+      .then((data) => {
+        if (!cancelled) {
+          setPreview(data);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setPreview(null);
+          setError(err instanceof Error ? err.message : "Gagal membuat preview stok.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsPreviewing(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canPreview, rows]);
+
+  const addProduct = (product: SelectableProduct) => {
+    if (rows.some((row) => duplicateKey(row.product) === duplicateKey(product))) {
+      setError("Produk yang sama sudah dipilih.");
+      return;
+    }
+
+    setRows((current) => [
+      ...current,
+      {
+        product,
+        mode: product.stockGroupId ? "GROUP_STOCK" : "PRODUCT_ONLY",
+        type: "ADJUSTMENT",
+        inputValue: formatQty(product.stock),
+        note: "",
+        expanded: true,
+      },
+    ]);
+    setSearch("");
     setError(null);
     setSuccess(null);
-    try {
-      const data = await previewStockGroupBulk({
-        stockGroupId: groupId,
-        type,
-        stockInput,
-        inputValue: Number(inputValue),
-        note: note.trim() || null,
-      });
-      setPreview(data);
-    } catch (err) {
-      setPreview(null);
-      setError(err instanceof Error ? err.message : "Gagal membuat preview");
-    }
+  };
+
+  const updateRow = (productId: string, patch: Partial<Omit<SelectedProductRow, "product">>) => {
+    setRows((current) =>
+      current.map((row) =>
+        row.product.id === productId ? { ...row, ...patch } : row,
+      ),
+    );
+    setSuccess(null);
+  };
+
+  const removeRow = (productId: string) => {
+    setRows((current) => current.filter((row) => row.product.id !== productId));
+    setSuccess(null);
   };
 
   const submit = async () => {
@@ -108,17 +246,11 @@ export const StockGroupBulkPanel: React.FC = () => {
     setError(null);
     setSuccess(null);
     try {
-      const result = await submitStockGroupBulk({
-        stockGroupId: groupId,
-        type,
-        stockInput,
-        inputValue: Number(inputValue),
-        note: note.trim() || null,
-      });
+      const result = await submitStockGroupBulk({ rows: buildRequestRows(rows) });
       setPreview(result.preview);
-      setSuccess("Request bulk grup stok dibuat dan menunggu approval owner.");
+      setSuccess("Permintaan update stok massal berhasil dibuat dan menunggu approval owner.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengajukan request");
+      setError(err instanceof Error ? err.message : "Gagal mengajukan update stok massal.");
     } finally {
       setIsSubmitting(false);
     }
@@ -129,25 +261,30 @@ export const StockGroupBulkPanel: React.FC = () => {
       <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-            <Boxes className="h-5 w-5 text-sky-700" />
-            Bulk & Grup Stok
+            <Layers className="h-5 w-5 text-sky-700" />
+            Update Stok Massal
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Ajukan OUT atau ADJUSTMENT untuk satu grup stok existing.
+            Cari produk, pilih mode stok, lalu ajukan perubahan untuk direview owner.
           </p>
         </div>
-        {isLoadingGroups && (
+        {isPreviewing && (
           <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
             <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            Memuat grup
+            Menghitung preview
           </span>
         )}
       </div>
 
-      {error && (
+      {(error || validations.length > 0) && (
         <div className="mb-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          {error}
+          <div className="space-y-1">
+            {error && <p>{error}</p>}
+            {validations.map((message) => (
+              <p key={message}>{message}</p>
+            ))}
+          </div>
         </div>
       )}
       {success && (
@@ -156,192 +293,287 @@ export const StockGroupBulkPanel: React.FC = () => {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(360px,440px)_1fr]">
         <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <label className="block text-xs font-bold text-slate-600">
-            Grup Stok
-            <select
-              value={groupId}
-              onChange={(event) => {
-                setGroupId(event.target.value);
-                setPreview(null);
-              }}
-              className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
-            >
-              <option value="">Pilih grup stok</option>
-              {groups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.displayName} ({group.variantCount} varian)
-                </option>
-              ))}
-            </select>
+            Cari produk
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm"
+                placeholder="Cari nama produk, SKU, atau unit"
+              />
+            </div>
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            {(["ADJUSTMENT", "OUT"] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => {
-                  setType(mode);
-                  setPreview(null);
-                }}
-                className={`h-10 rounded-xl text-sm font-black ${
-                  type === mode ? "bg-slate-900 text-white" : "bg-white text-slate-600"
-                }`}
-              >
-                {mode === "ADJUSTMENT" ? "Penyesuaian" : "Keluarkan"}
-              </button>
-            ))}
+          {search.trim() && (
+            <div className="max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white">
+              {productsQuery.isFetching ? (
+                <div className="flex items-center gap-2 px-3 py-3 text-sm text-slate-500">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Memuat produk...
+                </div>
+              ) : candidates.length === 0 ? (
+                <div className="px-3 py-3 text-sm text-slate-500">
+                  Produk tidak ditemukan.
+                </div>
+              ) : (
+                candidates.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => addProduct(product)}
+                    className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-slate-900">{product.name}</span>
+                      <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        {product.sku} - {product.unit}
+                      </span>
+                    </span>
+                    <Plus className="h-4 w-4 shrink-0 text-slate-500" />
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div
+              title="Perubahan mengikuti stok grup dan ikut menghitung varian lain dalam grup."
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
+            >
+              <span className="inline-flex items-center gap-1 font-black text-slate-900">
+                Stok Bersama
+                <Info className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div
+              title="Perubahan hanya dicatat untuk produk ini dan tidak mengubah stok grup."
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
+            >
+              <span className="inline-flex items-center gap-1 font-black text-slate-900">
+                Stok Produk Ini
+                <Info className="h-3.5 w-3.5" />
+              </span>
+            </div>
           </div>
 
-          <label className="block text-xs font-bold text-slate-600">
-            Basis Input
-            <select
-              value={basis === "BASE" ? "BASE" : variantProductId}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === "BASE") {
-                  setBasis("BASE");
-                } else {
-                  setBasis("VARIANT");
-                  setVariantProductId(value);
-                }
-                setPreview(null);
-              }}
-              className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
-              disabled={!detail}
-            >
-              <option value="BASE">Stok dasar ({detail?.baseUnit ?? "base"})</option>
-              {detail?.variants.map((variant) => (
-                <option key={variant.id} value={variant.id}>
-                  {variant.name} ({variant.unit})
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="space-y-3">
+            {rows.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-5 text-center text-sm text-slate-500">
+                Belum ada produk dipilih.
+              </div>
+            ) : (
+              rows.map((row) => (
+                <div key={row.product.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">{row.product.name}</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        {row.product.sku} - {row.product.unit}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        Stok saat ini: {formatQty(row.product.stock)} {row.product.unit}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Hapus ${row.product.name}`}
+                      onClick={() => removeRow(row.product.id)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
 
-          <label className="block text-xs font-bold text-slate-600">
-            {type === "OUT" ? "Jumlah dikurangi" : "Stok akhir baru"}
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={inputValue}
-              onChange={(event) => {
-                setInputValue(event.target.value);
-                setPreview(null);
-              }}
-              className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-right text-sm font-bold"
-            />
-          </label>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-bold text-slate-600">
+                      Aksi
+                      <select
+                        value={row.type}
+                        onChange={(event) =>
+                          updateRow(row.product.id, {
+                            type: event.target.value as StockActionType,
+                            inputValue:
+                              event.target.value === "ADJUSTMENT"
+                                ? formatQty(row.product.stock)
+                                : "",
+                          })
+                        }
+                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                      >
+                        <option value="IN">Tambah stok</option>
+                        <option value="OUT">Kurangi stok</option>
+                        <option value="ADJUSTMENT">Set stok akhir</option>
+                      </select>
+                    </label>
 
-          <label className="block text-xs font-bold text-slate-600">
-            Catatan
-            <textarea
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              className="mt-1 min-h-20 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-              placeholder="Catatan request approval"
-            />
-          </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      {row.type === "ADJUSTMENT" ? "Stok akhir baru" : "Jumlah"}
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={row.inputValue}
+                        onChange={(event) => updateRow(row.product.id, { inputValue: event.target.value })}
+                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-right text-sm font-bold"
+                      />
+                    </label>
+                  </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={runPreview}
-              disabled={!canPreview || isLoadingDetail}
-            >
-              Preview
-            </Button>
-            <Button
-              type="button"
-              onClick={submit}
-              disabled={!canPreview || isSubmitting}
-              className="bg-slate-900 text-white hover:bg-slate-800"
-              icon={<Send className="h-4 w-4" />}
-            >
-              Ajukan
-            </Button>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {([
+                      ["GROUP_STOCK", "Stok Bersama", "Perubahan mengikuti stok grup dan ikut menghitung varian lain dalam grup."],
+                      ["PRODUCT_ONLY", "Stok Produk Ini", "Perubahan hanya dicatat untuk produk ini dan tidak mengubah stok grup."],
+                    ] as const).map(([mode, label, tooltip]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        title={tooltip}
+                        onClick={() => updateRow(row.product.id, { mode })}
+                        className={`min-h-10 rounded-lg border px-3 py-2 text-left text-xs font-black ${
+                          row.mode === mode
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {label}
+                          <Info className="h-3.5 w-3.5" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="mt-3 block text-xs font-bold text-slate-600">
+                    Catatan
+                    <textarea
+                      value={row.note}
+                      onChange={(event) => updateRow(row.product.id, { note: event.target.value })}
+                      className="mt-1 min-h-16 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      placeholder="Catatan approval"
+                    />
+                  </label>
+                </div>
+              ))
+            )}
           </div>
+
+          <Button
+            type="button"
+            onClick={submit}
+            disabled={!canPreview || isSubmitting}
+            className="w-full bg-slate-900 text-white hover:bg-slate-800"
+            icon={<Send className="h-4 w-4" />}
+          >
+            Ajukan Update Stok
+          </Button>
         </div>
 
         <div className="min-h-80 rounded-xl border border-slate-200 bg-white">
-          {isLoadingDetail ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Memuat detail grup...
-            </div>
-          ) : !detail ? (
-            <div className="p-8 text-center text-sm text-slate-500">
-              Pilih grup stok untuk melihat varian dan preview perubahan.
+          {!preview ? (
+            <div className="flex min-h-80 items-center justify-center p-8 text-center text-sm text-slate-500">
+              Pilih produk dan isi jumlah untuk melihat dampak varian secara real time.
             </div>
           ) : (
-            <div className="overflow-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-left text-[11px] font-black uppercase tracking-wider text-slate-400">
-                    <th className="px-3 py-3">Varian</th>
-                    <th className="px-3 py-3 text-right">Konversi</th>
-                    <th className="px-3 py-3 text-right">Sebelum</th>
-                    <th className="px-3 py-3 text-right">Sesudah</th>
-                    <th className="px-3 py-3 text-right">Delta</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.variants.map((variant) => {
-                    const next = preview?.variants.find((row) => row.id === variant.id);
-                    const before = next?.beforeStock ?? variant.stock;
-                    const after = next?.afterStock ?? variant.stock;
-                    const delta = next?.delta ?? 0;
-                    return (
-                      <tr key={variant.id} className="border-b border-slate-100">
-                        <td className="px-3 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-                              <img
-                                src={variant.imageUrl || getDefaultProductImage(variant.category?.name)}
-                                alt=""
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate font-bold text-slate-900">{variant.name}</p>
-                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                {variant.sku} - {variant.unit}
-                              </p>
-                            </div>
+            <div className="divide-y divide-slate-100">
+              {preview.rows.map((previewRow) => {
+                const isOpen = rows.find((row) => row.product.id === previewRow.productId)?.expanded ?? true;
+                const selected = rows.find((row) => row.product.id === previewRow.productId);
+                return (
+                  <div key={`${previewRow.mode}-${previewRow.productId}`} className="p-4">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        selected && updateRow(selected.product.id, { expanded: !selected.expanded })
+                      }
+                      className="flex w-full items-center justify-between gap-3 text-left"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black text-slate-900">
+                          {previewRow.mode === "GROUP_STOCK"
+                            ? previewRow.stockGroupName
+                            : previewRow.name}
+                        </span>
+                        <span className="block text-xs font-semibold text-slate-500">
+                          {modeLabel(previewRow.mode)} - {actionLabel(previewRow.type)}
+                        </span>
+                      </span>
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {isOpen && previewRow.mode === "GROUP_STOCK" && (
+                      <div className="mt-3 overflow-auto rounded-xl border border-slate-200">
+                        <table className="w-full min-w-[620px] text-sm">
+                          <thead className="bg-slate-50 text-left text-[11px] font-black uppercase tracking-wider text-slate-400">
+                            <tr>
+                              <th className="px-3 py-2">Varian</th>
+                              <th className="px-3 py-2 text-right">Sebelum</th>
+                              <th className="px-3 py-2 text-right">Sesudah</th>
+                              <th className="px-3 py-2 text-right">Delta</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewRow.variants.map((variant) => (
+                              <tr key={variant.id} className="border-t border-slate-100">
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
+                                      <img
+                                        src={getDefaultProductImage(undefined)}
+                                        alt=""
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="truncate font-bold text-slate-900">{variant.name}</p>
+                                      <p className="text-[10px] font-bold text-slate-400">{variant.sku} - {variant.unit}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 text-right font-bold tabular-nums">
+                                  {formatQty(variant.beforeStock)}
+                                </td>
+                                <td className="px-3 py-2 text-right font-bold tabular-nums">
+                                  {formatQty(variant.afterStock)}
+                                </td>
+                                <td className={`px-3 py-2 text-right font-black tabular-nums ${variant.delta < 0 ? "text-rose-600" : variant.delta > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                                  {variant.delta > 0 ? "+" : ""}{formatQty(variant.delta)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {isOpen && previewRow.mode === "PRODUCT_ONLY" && (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500">
+                            <Package className="h-5 w-5" />
                           </div>
-                        </td>
-                        <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-600">
-                          1 {variant.unit} = {formatQty(variant.unitMultiplierToBase)} {detail.baseUnit}
-                        </td>
-                        <td className="px-3 py-3 text-right font-bold tabular-nums">
-                          {formatQty(before)}
-                        </td>
-                        <td className="px-3 py-3 text-right font-bold tabular-nums">
-                          {formatQty(after)}
-                        </td>
-                        <td
-                          className={`px-3 py-3 text-right font-black tabular-nums ${
-                            delta < 0 ? "text-rose-600" : delta > 0 ? "text-emerald-600" : "text-slate-400"
-                          }`}
-                        >
-                          {delta > 0 ? "+" : ""}
-                          {formatQty(delta)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {preview && (
-                <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
-                  Base stock: {formatQty(preview.beforeBaseStock)} {"->"} {formatQty(preview.afterBaseStock)} {preview.baseUnit}
-                  . {preview.changedVariants.length} varian berubah.
-                </div>
-              )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold text-slate-900">{previewRow.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {formatQty(previewRow.beforeStock)} {"->"} {formatQty(previewRow.afterStock)} {previewRow.unit}
+                            </p>
+                          </div>
+                          <span className={`text-sm font-black tabular-nums ${previewRow.delta < 0 ? "text-rose-600" : previewRow.delta > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                            {previewRow.delta > 0 ? "+" : ""}{formatQty(previewRow.delta)}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs font-semibold text-slate-500">
+                          Stok grup tidak berubah. Catatan log akan memuat mode Stok Produk Ini.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

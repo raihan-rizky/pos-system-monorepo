@@ -4,10 +4,17 @@ import { z } from "zod";
 
 import { productSnapshot } from "@/features/batch-operations/helpers/snapshots";
 import {
+  calculateProductFirstStockGroupBulkPreview,
   calculateStockGroupBulkPreview,
   stockGroupBulkAction,
   stockGroupBulkReason,
+  type ProductFirstStockBulkGroup,
+  type ProductFirstStockBulkProduct,
+  type ProductFirstStockBulkRowInput,
+  type ProductFirstStockGroupPreview,
+  type ProductOnlyStockPreview,
 } from "@/features/inventory-management/helpers/stock-group-bulk";
+import { calculateDisplayStock } from "@/features/product-stock-groups/stock-display";
 import { apiError, apiValidationError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
@@ -26,6 +33,19 @@ const requestSchema = z.object({
   stockInput: stockInputSchema,
   inputValue: z.coerce.number().min(0),
   note: z.string().trim().max(500).optional().nullable(),
+});
+
+const productFirstRowSchema = z.object({
+  productId: z.string().min(1),
+  mode: z.enum(["GROUP_STOCK", "PRODUCT_ONLY"]),
+  type: z.enum(["IN", "OUT", "ADJUSTMENT"]),
+  inputValue: z.coerce.number().min(0),
+  note: z.string().trim().max(500).optional().nullable(),
+});
+
+const productFirstRequestSchema = z.object({
+  action: z.enum(["preview", "submit"]).default("preview"),
+  rows: z.array(productFirstRowSchema).min(1).max(100),
 });
 
 async function loadGroup(storeId: string, stockGroupId: string) {
@@ -58,11 +78,249 @@ async function loadGroup(storeId: string, stockGroupId: string) {
   };
 }
 
+function toPreviewProduct(product: {
+  id: string;
+  name: string;
+  sku: string;
+  unit: string;
+  stock: number;
+  stockGroupId?: string | null;
+  unitMultiplierToBase: number;
+  conversionNeedsReview: boolean;
+  stockGroup?: { baseStock: number } | null;
+}): ProductFirstStockBulkProduct {
+  return {
+    id: product.id,
+    name: product.name,
+    sku: product.sku,
+    unit: product.unit,
+    stock: product.stockGroup
+      ? calculateDisplayStock(product.stockGroup.baseStock, product.unitMultiplierToBase)
+      : product.stock,
+    stockGroupId: product.stockGroupId ?? null,
+    unitMultiplierToBase: product.unitMultiplierToBase,
+    conversionNeedsReview: product.conversionNeedsReview,
+  };
+}
+
+async function buildProductFirstPreview(storeId: string, rows: ProductFirstStockBulkRowInput[]) {
+  const productIds = Array.from(new Set(rows.map((row) => row.productId)));
+  const selectedProducts = await db.product.findMany({
+    where: { id: { in: productIds }, storeId, isActive: true },
+    include: { stockGroup: true },
+  });
+  const selectedProductIds = new Set(selectedProducts.map((product) => product.id));
+  if (!productIds.every((productId) => selectedProductIds.has(productId))) {
+    throw new Error("PRODUCT_NOT_FOUND");
+  }
+
+  const stockGroupIds = Array.from(
+    new Set(
+      selectedProducts
+        .map((product) => product.stockGroupId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const stockGroups = stockGroupIds.length
+    ? await db.productStockGroup.findMany({
+        where: { id: { in: stockGroupIds }, storeId },
+        include: {
+          products: {
+            where: { isActive: true },
+            orderBy: [{ unit: "asc" }, { name: "asc" }],
+          },
+        },
+      })
+    : [];
+
+  const products = selectedProducts.map(toPreviewProduct);
+  const groups: ProductFirstStockBulkGroup[] = stockGroups.map((group) => ({
+    id: group.id,
+    displayName: group.displayName,
+    baseUnit: group.baseUnit,
+    baseStock: group.baseStock,
+    variants: group.products.map((product) =>
+      toPreviewProduct({
+        ...product,
+        stockGroup: { baseStock: group.baseStock },
+      }),
+    ),
+  }));
+
+  const productById = new Map(
+    [
+      ...selectedProducts,
+      ...stockGroups.flatMap((group) => group.products),
+    ].map((product) => [product.id, product]),
+  );
+
+  return {
+    preview: calculateProductFirstStockGroupBulkPreview({
+      rows,
+      products,
+      groups,
+    }),
+    productById,
+  };
+}
+
+function changedBundledVariants(row: ProductFirstStockGroupPreview) {
+  return row.changedVariants.filter((variant) => Math.abs(variant.delta) > 1e-9);
+}
+
+function changedStandaloneRows(rows: ProductOnlyStockPreview[]) {
+  return rows.filter((row) => Math.abs(row.delta) > 1e-9);
+}
+
+function quantityForGroupedVariant(row: ProductFirstStockGroupPreview, delta: number, afterStock: number) {
+  if (row.type === "ADJUSTMENT") return afterStock;
+  return Math.abs(delta);
+}
+
+function noteForBundledRow(
+  row: ProductFirstStockGroupPreview,
+  inputRows: ProductFirstStockBulkRowInput[],
+) {
+  const note = inputRows.find((inputRow) => inputRow.productId === row.productId)?.note?.trim();
+  return note || `Update stok bersama ${row.stockGroupName}`;
+}
+
+async function handleProductFirstRequest(
+  storeId: string,
+  user: { id: string; name?: string | null },
+  input: z.infer<typeof productFirstRequestSchema>,
+) {
+  const { preview, productById } = await buildProductFirstPreview(storeId, input.rows);
+  const bundledItems = preview.bundledRows.flatMap((row) =>
+    changedBundledVariants(row).map((variant) => ({ row, variant })),
+  );
+  const standaloneRows = changedStandaloneRows(preview.standaloneRows);
+
+  if (bundledItems.length === 0 && standaloneRows.length === 0) {
+    return apiError("Tidak ada perubahan stok untuk diajukan", 422, {
+      code: "ValidationError",
+      errors: { inputValue: ["Tidak ada perubahan stok"] },
+    });
+  }
+
+  if (input.action === "preview") {
+    return NextResponse.json({ data: preview });
+  }
+
+  const result = await db.$transaction(async (tx) => {
+    let bundleBatchOperationId: string | null = null;
+    const standaloneLogIds: string[] = [];
+
+    if (bundledItems.length > 0) {
+      const batch = await tx.batchOperation.create({
+        data: {
+          type: "BULK_STOCK_GROUP_ADJUSTMENT",
+          status: "PENDING",
+          storeId,
+          createdBy: user.id,
+          summary: {
+            source: "PRODUCT_FIRST_STOCK_GROUP_BULK",
+            productName: "Update Stok Massal - Stok Bersama",
+            rows: preview.bundledRows.map((row) => ({
+              productId: row.productId,
+              productName: row.productName,
+              stockGroupId: row.stockGroupId,
+              stockGroupName: row.stockGroupName,
+              type: row.type,
+              stockInput: row.stockInput,
+              inputValue: row.inputValue,
+              beforeBaseStock: row.beforeBaseStock,
+              afterBaseStock: row.afterBaseStock,
+              baseUnit: row.baseUnit,
+              note: input.rows.find((inputRow) => inputRow.productId === row.productId)?.note?.trim() || null,
+            })),
+            totalCount: bundledItems.length,
+            pendingCount: bundledItems.length,
+            approvedCount: 0,
+            rejectedCount: 0,
+            pendingApproval: true,
+          },
+        },
+      });
+      bundleBatchOperationId = batch.id;
+
+      for (const item of bundledItems) {
+        const product = productById.get(item.variant.id);
+        if (!product) throw new Error("PRODUCT_NOT_FOUND");
+        const log = await tx.inventoryLog.create({
+          data: {
+            productId: item.variant.id,
+            type: item.row.type,
+            reason: stockGroupBulkReason(item.row.type),
+            quantity: quantityForGroupedVariant(
+              item.row,
+              item.variant.delta,
+              item.variant.afterStock,
+            ),
+            note: noteForBundledRow(item.row, input.rows),
+            createdBy: user.id,
+            person: user.name,
+            status: "PENDING",
+          },
+        });
+        await tx.batchOperationItem.create({
+          data: {
+            batchOperationId: batch.id,
+            productId: item.variant.id,
+            sku: item.variant.sku,
+            action: stockGroupBulkAction(item.row.type),
+            beforeSnapshot: productSnapshot({
+              ...product,
+              stock: item.variant.beforeStock,
+            }) as unknown as Prisma.InputJsonValue,
+            afterSnapshot: productSnapshot({
+              ...product,
+              stock: item.variant.afterStock,
+            }) as unknown as Prisma.InputJsonValue,
+            inventoryLogId: log.id,
+          },
+        });
+      }
+    }
+
+    for (const row of standaloneRows) {
+      const log = await tx.inventoryLog.create({
+        data: {
+          productId: row.productId,
+          type: row.type,
+          reason: stockGroupBulkReason(row.type),
+          quantity: row.logQuantity,
+          note: row.note,
+          createdBy: user.id,
+          person: user.name,
+          status: "PENDING",
+        },
+      });
+      standaloneLogIds.push(log.id);
+    }
+
+    return {
+      bundleBatchOperationId,
+      standaloneLogIds,
+      status: "PENDING",
+      preview,
+    };
+  });
+
+  return NextResponse.json({ data: result }, { status: 201 });
+}
+
 export async function POST(request: Request) {
   try {
     const user = await requirePermission("inventory", "update");
     const storeId = user.storeId || "store-main";
-    const input = requestSchema.parse(await request.json());
+    const body = await request.json();
+    if (Array.isArray((body as { rows?: unknown }).rows)) {
+      const input = productFirstRequestSchema.parse(body);
+      return await handleProductFirstRequest(storeId, user, input);
+    }
+
+    const input = requestSchema.parse(body);
     const group = await loadGroup(storeId, input.stockGroupId);
     const preview = calculateStockGroupBulkPreview({
       type: input.type,
@@ -164,6 +422,21 @@ export async function POST(request: Request) {
     if (error instanceof Error) {
       if (error.message === "GROUP_NOT_FOUND") {
         return apiError("Stock group not found", 404, { code: "NotFound" });
+      }
+      if (error.message === "PRODUCT_NOT_FOUND") {
+        return apiError("Produk tidak ditemukan", 404, { code: "NotFound" });
+      }
+      if (error.message === "DUPLICATE_PRODUCT") {
+        return apiError("Produk yang sama sudah dipilih.", 422, {
+          code: "ValidationError",
+          errors: { rows: ["DUPLICATE_PRODUCT"] },
+        });
+      }
+      if (error.message === "DUPLICATE_GROUP_STOCK") {
+        return apiError("Pilih satu produk saja per grup stok untuk mode Stok Bersama.", 422, {
+          code: "ValidationError",
+          errors: { rows: ["DUPLICATE_GROUP_STOCK"] },
+        });
       }
       if (error.message === "VARIANT_NOT_FOUND") {
         return apiError("Variant product must belong to the group", 422, {

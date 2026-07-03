@@ -62,8 +62,19 @@ describe('HelpContent', () => {
     );
 
     expect(html).toContain('Mengubah Stok Individual');
-    expect(html).toContain('Stok Saat Ini');
-    expect(html).toContain('Simpan Produk');
+    expect(html).toContain('Ubah Stok Saat Ini');
+    expect(html).toContain('Simpan Perubahan');
+  });
+
+  it('documents product-first mass stock update modes for stock groups', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="INVENTORY" searchQuery="Update Stok Massal" />
+    );
+
+    expect(html).toContain('Update Stok Massal');
+    expect(html).toContain('Cari produk');
+    expect(html).toContain('Stok Bersama');
+    expect(html).toContain('Stok Produk Ini');
+    expect(html).toContain('Pilih satu produk saja per grup stok');
   });
 });
-

@@ -6,6 +6,8 @@ import { productSnapshot } from "@/features/batch-operations/helpers/snapshots";
 import {
   calculateStockGroupBulkPreview,
   stockGroupBulkReason,
+  type StockGroupBulkBasis,
+  type StockGroupBulkType,
 } from "@/features/inventory-management/helpers/stock-group-bulk";
 import { summarizeBulkApprovalBundle } from "@/features/bulk-stock-approval/helpers/bundle-status";
 import { apiError, apiValidationError } from "@/lib/api/responses";
@@ -28,6 +30,31 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
+function isProductFirstBundle(summary: Record<string, unknown>) {
+  return summary.source === "PRODUCT_FIRST_STOCK_GROUP_BULK";
+}
+
+function readProductFirstRows(summary: Record<string, unknown>) {
+  const rows = Array.isArray(summary.rows) ? summary.rows : [];
+  return rows.map((row) => {
+    const record = asRecord(row);
+    const stockInput = asRecord(record.stockInput);
+    return {
+      productId: String(record.productId || ""),
+      stockGroupId: String(record.stockGroupId || ""),
+      type: record.type === "IN" || record.type === "OUT" ? record.type : "ADJUSTMENT",
+      inputValue: Number(record.inputValue),
+      stockInput:
+        stockInput.mode === "VARIANT"
+          ? ({
+              mode: "VARIANT",
+              variantProductId: String(stockInput.variantProductId || ""),
+            } as const)
+          : ({ mode: "BASE" } as const),
+    };
+  }).filter((row) => row.productId && row.stockGroupId && Number.isFinite(row.inputValue));
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ batchId: string }> },
@@ -48,6 +75,131 @@ export async function POST(
       if (batch.status !== "PENDING") throw new Error("ALREADY_DECIDED");
 
       const summary = asRecord(batch.summary);
+      if (isProductFirstBundle(summary)) {
+        const rows = readProductFirstRows(summary);
+        if (rows.length === 0) throw new Error("NO_CHANGES");
+
+        const groups = await tx.productStockGroup.findMany({
+          where: {
+            id: { in: Array.from(new Set(rows.map((row) => row.stockGroupId))) },
+            storeId: batch.storeId,
+          },
+          include: {
+            products: {
+              where: { isActive: true },
+              orderBy: [{ unit: "asc" }, { name: "asc" }],
+            },
+          },
+        });
+        const groupById = new Map(groups.map((group) => [group.id, group]));
+        const productById = new Map(groups.flatMap((group) => group.products).map((product) => [product.id, product]));
+        const itemByProductId = new Map(
+          batch.items
+            .filter((item) => item.productId)
+            .map((item) => [item.productId as string, item]),
+        );
+        const logStatuses: Array<{ status: "APPROVED" | "REJECTED" }> = [];
+        const reviewedRows: Array<Record<string, unknown>> = [];
+
+        for (const row of rows) {
+          const group = groupById.get(row.stockGroupId);
+          if (!group) throw new Error("GROUP_NOT_FOUND");
+          const preview = calculateStockGroupBulkPreview({
+            type: row.type as StockGroupBulkType,
+            stockInput: row.stockInput as StockGroupBulkBasis,
+            inputValue: row.inputValue,
+            group: {
+              id: group.id,
+              displayName: group.displayName,
+              baseUnit: group.baseUnit,
+              baseStock: group.baseStock,
+              variants: group.products.map((product) => ({
+                id: product.id,
+                name: product.name,
+                sku: product.sku,
+                unit: product.unit,
+                stock: product.stock,
+                unitMultiplierToBase: product.unitMultiplierToBase,
+                conversionNeedsReview: product.conversionNeedsReview,
+              })),
+            },
+          });
+
+          if (preview.changedVariants.length === 0) continue;
+
+          await tx.productStockGroup.update({
+            where: { id: group.id },
+            data: { baseStock: preview.afterBaseStock },
+          });
+
+          for (const variant of preview.changedVariants) {
+            const product = productById.get(variant.id);
+            const item = itemByProductId.get(variant.id);
+            if (!product || !item?.inventoryLogId) continue;
+
+            await tx.inventoryLog.update({
+              where: { id: item.inventoryLogId },
+              data: {
+                type: preview.type,
+                reason: stockGroupBulkReason(preview.type),
+                quantity:
+                  preview.type === "ADJUSTMENT"
+                    ? variant.afterStock
+                    : Math.abs(variant.delta),
+                status: "APPROVED",
+                approvedBy: user.id,
+                approverName: user.name,
+                decidedAt: new Date(),
+              },
+            });
+            await tx.batchOperationItem.update({
+              where: { id: item.id },
+              data: {
+                beforeSnapshot: productSnapshot({
+                  ...product,
+                  stock: variant.beforeStock,
+                }) as unknown as Prisma.InputJsonValue,
+                afterSnapshot: productSnapshot({
+                  ...product,
+                  stock: variant.afterStock,
+                }) as unknown as Prisma.InputJsonValue,
+              },
+            });
+            logStatuses.push({ status: "APPROVED" });
+          }
+
+          reviewedRows.push({
+            productId: row.productId,
+            stockGroupId: row.stockGroupId,
+            type: preview.type,
+            stockInput: preview.stockInput,
+            inputValue: preview.inputValue,
+            beforeBaseStock: preview.beforeBaseStock,
+            afterBaseStock: preview.afterBaseStock,
+            baseUnit: preview.baseUnit,
+          });
+        }
+
+        if (logStatuses.length === 0) throw new Error("NO_CHANGES");
+
+        const bundleSummary = summarizeBulkApprovalBundle(logStatuses);
+        await tx.batchOperation.update({
+          where: { id: batch.id },
+          data: {
+            status: bundleSummary.status,
+            summary: {
+              ...summary,
+              ...bundleSummary,
+              rows: reviewedRows,
+              reviewedBy: user.id,
+              reviewedByName: user.name,
+            } as unknown as Prisma.InputJsonValue,
+          },
+        });
+
+        return { batchId: batch.id, batchSummary: bundleSummary };
+      }
+
       const stockGroupId = String(summary.stockGroupId || "");
       const type = summary.type === "OUT" ? "OUT" : "ADJUSTMENT";
       const stockInput =

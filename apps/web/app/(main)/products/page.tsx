@@ -53,6 +53,7 @@ import {
   useActiveProductImportJob,
   useProductImportJobStatus,
 } from "@/features/product-import/hooks/useProductImport";
+import { useProductSelection } from "./hooks/useProductSelection";
 
 const ProductPriceLogsTab = lazy(
   () => import("@/app/(main)/products/ProductPriceLogsTab"),
@@ -244,9 +245,6 @@ function ProductsContent() {
   const [isBulkStockOpen, setIsBulkStockOpen] = useState(false);
   const [isBulkStockGroupOpen, setIsBulkStockGroupOpen] = useState(false);
   const [isBulkPhotoImportOpen, setIsBulkPhotoImportOpen] = useState(false);
-  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(
-    new Set(),
-  );
   const [selectedPriceLogProductId, setSelectedPriceLogProductId] =
     useState("");
   const [priceUpdateProductId, setPriceUpdateProductId] = useState<
@@ -290,6 +288,14 @@ function ProductsContent() {
     [productsData?.data],
   );
   const categories = categoriesData ?? [];
+
+  const {
+    selectedProducts,
+    selectedProductIds,
+    toggleSelectedProduct,
+    deselectProduct,
+    clearSelection,
+  } = useProductSelection(products);
 
   const pagination = productsData?.pagination;
   const totalPages = Math.max(1, pagination?.totalPages ?? 1);
@@ -340,9 +346,6 @@ function ProductsContent() {
   const lowStock = stats?.lowStock ?? 0;
   const negativeStock = stats?.negativeStock ?? 0;
   const totalValue = stats?.inventoryValue ?? 0;
-  const selectedProducts = products.filter((product) =>
-    selectedProductIds.has(product.id),
-  );
 
   useEffect(() => {
     if (activeImportJob) {
@@ -446,12 +449,7 @@ function ProductsContent() {
     try {
       await deleteProductMutation.mutateAsync(deleteTargetId);
       setDeleteTargetId(null);
-      setSelectedProductIds((current) => {
-        if (!current.has(deleteTargetId)) return current;
-        const next = new Set(current);
-        next.delete(deleteTargetId);
-        return next;
-      });
+      deselectProduct(deleteTargetId);
     } catch {
       // Error surfaced via mutation state in modal.
     }
@@ -462,21 +460,13 @@ function ProductsContent() {
     try {
       const result = await bulkDeleteProductsMutation.mutateAsync(ids);
       setBulkDeleteResult(result);
-      setSelectedProductIds(new Set());
+      clearSelection();
     } catch {
       // Error surfaced via mutation state in modal.
     }
   };
   const deleteTargetProduct =
     deleteTargetId ? products.find((p) => p.id === deleteTargetId) ?? null : null;
-  const toggleSelectedProduct = (id: string) => {
-    setSelectedProductIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-purple-50/50 min-h-screen">
@@ -1143,7 +1133,7 @@ function ProductsContent() {
                 </button>
               )}
               <button
-                onClick={() => setSelectedProductIds(new Set())}
+                onClick={clearSelection}
                 className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
                 aria-label="Hapus pilihan"
               >
@@ -1184,7 +1174,7 @@ function ProductsContent() {
             open={isBulkStockOpen}
             onClose={() => {
               setIsBulkStockOpen(false);
-              setSelectedProductIds(new Set());
+              clearSelection();
             }}
             products={selectedProducts}
           />
@@ -1194,7 +1184,7 @@ function ProductsContent() {
             open={isBulkStockGroupOpen}
             onClose={() => setIsBulkStockGroupOpen(false)}
             onSaved={() => {
-              setSelectedProductIds(new Set());
+              clearSelection();
               productsQuery.refetch();
               statsQuery.refetch();
             }}

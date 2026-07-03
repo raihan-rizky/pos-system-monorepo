@@ -133,4 +133,26 @@ describe("POST /api/inventory/[id]/approve", () => {
 
     expect(response.status).toBe(404);
   });
+
+  it("approves Stok Produk Ini grouped logs without changing grouped stock", async () => {
+    inventoryLogFindUniqueMock.mockResolvedValue({
+      id: "log-1",
+      productId: "grouped-product",
+      type: "OUT",
+      quantity: 3,
+      status: "PENDING",
+      note: "Dipakai display\nMode: Stok Produk Ini - stok grup tidak diubah",
+    });
+
+    const response = await call("log-1");
+
+    expect(response.status).toBe(200);
+    expect(productFindUniqueMock).not.toHaveBeenCalled();
+    expect(productUpdateMock).not.toHaveBeenCalled();
+    expect(inventoryLogUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "APPROVED", approvedBy: "owner-1" }),
+      }),
+    );
+  });
 });

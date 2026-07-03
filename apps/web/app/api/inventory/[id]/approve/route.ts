@@ -19,6 +19,10 @@ function computeStockDelta(
   return quantity;
 }
 
+function isProductOnlyStockLog(note: string | null | undefined) {
+  return note?.includes("Mode: Stok Produk Ini - stok grup tidak diubah") ?? false;
+}
+
 // POST /api/inventory/[id]/approve
 // OWNER-only. Flips status PENDING → APPROVED inside a transaction and
 // applies the stock delta. The status check inside the transaction is the
@@ -49,6 +53,7 @@ export async function POST(
           productId: true,
           type: true,
           quantity: true,
+          note: true,
           status: true,
           createdBy: true,
           person: true,
@@ -76,11 +81,13 @@ export async function POST(
       }
 
       const delta = computeStockDelta(log.type, log.quantity);
-      const stockResult = await applyProductStockDelta(tx, {
-        storeId: user.storeId || "store-main",
-        productId: log.productId,
-        delta,
-      });
+      const stockResult = isProductOnlyStockLog(log.note)
+        ? null
+        : await applyProductStockDelta(tx, {
+            storeId: user.storeId || "store-main",
+            productId: log.productId,
+            delta,
+          });
 
       const updatedLog = await tx.inventoryLog.update({
         where: { id },
@@ -99,9 +106,10 @@ export async function POST(
         requesterName: log.person,
         approverId: user.id,
         approverName: user.name,
-        beforeStock: stockResult.beforeStock,
-        afterStock: stockResult.afterStock,
+        beforeStock: stockResult?.beforeStock ?? null,
+        afterStock: stockResult?.afterStock ?? null,
         stockDelta: delta,
+        stockMutationSkipped: stockResult === null,
       });
 
       return { log: updatedLog };

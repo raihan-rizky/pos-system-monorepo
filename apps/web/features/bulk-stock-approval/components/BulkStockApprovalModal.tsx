@@ -70,6 +70,8 @@ export function BulkStockApprovalModal({
     [batch],
   );
   const isStockGroupBundle = batch?.type === "BULK_STOCK_GROUP_ADJUSTMENT";
+  const isProductFirstStockGroupBundle =
+    isStockGroupBundle && summary.source === "PRODUCT_FIRST_STOCK_GROUP_BULK";
   const isDailyMatchingBundle = batch?.type === "DAILY_STOCK_MATCHING";
   const canApproveItems = !isStockGroupBundle && !isDailyMatchingBundle;
 
@@ -96,7 +98,7 @@ export function BulkStockApprovalModal({
   }, [batch]);
 
   useEffect(() => {
-    if (!batch || !isStockGroupBundle || !customInputValue) {
+    if (!batch || !isStockGroupBundle || isProductFirstStockGroupBundle || !customInputValue) {
       setReviewPreview(null);
       return;
     }
@@ -124,7 +126,7 @@ export function BulkStockApprovalModal({
     return () => {
       cancelled = true;
     };
-  }, [batch, customBasis, customInputValue, isStockGroupBundle]);
+  }, [batch, customBasis, customInputValue, isProductFirstStockGroupBundle, isStockGroupBundle]);
 
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
@@ -142,6 +144,10 @@ export function BulkStockApprovalModal({
   const runCustomApprove = async () => {
     if (!batch) return;
     if (isStockGroupBundle) {
+      if (isProductFirstStockGroupBundle) {
+        await run(() => approveStockGroupBulk(batch.id, {}));
+        return;
+      }
       await run(() =>
         approveStockGroupBulk(batch.id, {
           inputValue: Number(customInputValue),
@@ -221,6 +227,47 @@ export function BulkStockApprovalModal({
               {(isStockGroupBundle || isDailyMatchingBundle) && (
                 <div className="mb-3 rounded-xl border border-sky-100 bg-sky-50 p-3">
                   {isStockGroupBundle ? (
+                    isProductFirstStockGroupBundle ? (
+                      <div className="space-y-3">
+                        <div className="rounded-xl border border-cyan-200 bg-white p-3">
+                          <p className="text-xs font-black uppercase tracking-wider text-cyan-700">
+                            Stok Bersama
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-700">
+                            Bundle ini akan menghitung ulang stok grup dari data terbaru saat disetujui.
+                          </p>
+                          {Array.isArray(summary.rows) && summary.rows.length > 0 && (
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                              {summary.rows.map((row, index) => {
+                                const record = asRecord(row);
+                                return (
+                                  <div
+                                    key={`${record.stockGroupId ?? index}`}
+                                    className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                                  >
+                                    <p className="truncate text-xs font-bold text-slate-900">
+                                      {String(record.stockGroupName || record.productName || "Grup stok")}
+                                    </p>
+                                    <p className="text-[11px] font-semibold text-slate-500">
+                                      {String(record.type || "-")} {String(record.inputValue ?? "")}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={runCustomApprove}
+                          loading={approveAll.isPending}
+                          icon={<Check className="h-4 w-4" />}
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                        >
+                          Setujui Bundle
+                        </Button>
+                      </div>
+                    ) : (
                     <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
                       <label className="text-xs font-bold text-slate-600">
                         Basis Review
@@ -270,6 +317,7 @@ export function BulkStockApprovalModal({
                         </div>
                       )}
                     </div>
+                    )
                   ) : (
                     <div className="space-y-3">
                       <p className="text-xs font-bold text-slate-600">
