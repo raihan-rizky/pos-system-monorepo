@@ -68,6 +68,7 @@ const paymentMethods = [
   { value: "CASH", label: "Tunai", icon: Banknote },
   { value: "QRIS", label: "QRIS", icon: Smartphone },
   { value: "DEBIT", label: "Debit", icon: CreditCard },
+  { value: "CREDIT", label: "Kredit", icon: CreditCard },
   { value: "TRANSFER", label: "Transfer", icon: Landmark },
 ];
 

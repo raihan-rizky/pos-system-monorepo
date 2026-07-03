@@ -136,4 +136,30 @@ describe("ApproveModal", () => {
 
     expect(html).toContain("Metode Multi-payment");
   });
+
+  it("renders CREDIT payment method correctly in edit mode", () => {
+    const mockTx = {
+      id: "tx-2",
+      invoiceNumber: "INV-20260630-9999",
+      total: 150000,
+      paymentMethod: "CREDIT",
+      amountPaid: 150000,
+      change: 0,
+      customerName: "Jane Doe",
+      items: [],
+      payments: [],
+      status: "PENDING_APPROVAL",
+    } as any;
+
+    const html = renderToStaticMarkup(
+      <ApproveModal
+        tx={mockTx}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(html).toContain("value=\"CREDIT\"");
+    expect(html).toContain("Kartu Kredit");
+  });
 });

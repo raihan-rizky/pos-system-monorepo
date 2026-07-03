@@ -70,7 +70,7 @@ type EditForm = {
   status: string;
 };
 
-const PAYMENT_METHODS = ["CASH", "TRANSFER", "QRIS", "DEBIT", "KREDIT"];
+const PAYMENT_METHODS = ["CASH", "TRANSFER", "QRIS", "DEBIT", "CREDIT"];
 const STATUSES = [
   { value: "COMPLETED", label: "Lunas", color: "text-emerald-700" },
   { value: "DP", label: "DP", color: "text-amber-700" },
@@ -407,7 +407,7 @@ function PaymentBadge({ method }: { method: string }) {
     TRANSFER: { bg: "bg-blue-100", text: "text-blue-700", Icon: Building2 },
     QRIS: { bg: "bg-purple-100", text: "text-purple-700", Icon: Smartphone },
     DEBIT: { bg: "bg-indigo-100", text: "text-indigo-700", Icon: CreditCard },
-    KREDIT: { bg: "bg-orange-100", text: "text-orange-700", Icon: CreditCard },
+    CREDIT: { bg: "bg-orange-100", text: "text-orange-700", Icon: CreditCard },
   };
   const style = map[method] ?? { bg: "bg-surface-100", text: "text-surface-600", Icon: CircleDollarSign };
   const Icon = style.Icon;

@@ -84,7 +84,6 @@ export function ApproveModal({
         return <Smartphone className="h-4 w-4 text-purple-600" />;
       case "DEBIT":
       case "CREDIT":
-      case "KREDIT":
         return <CreditCard className="h-4 w-4 text-indigo-600" />;
       default:
         return <CircleDollarSign className="h-4 w-4 text-surface-600" />;
