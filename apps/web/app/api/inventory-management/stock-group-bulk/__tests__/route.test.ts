@@ -95,6 +95,7 @@ describe("POST /api/inventory-management/stock-group-bulk", () => {
       sku: "A4-LBR",
       unit: "lembar",
       stock: 100,
+      imageUrl: "/uploads/kertas-a4.png",
       stockGroupId: "group-1",
       unitMultiplierToBase: 1,
       stockGroup: { id: "group-1", displayName: "Kertas A4", baseUnit: "lembar", baseStock: 100 },
@@ -105,6 +106,7 @@ describe("POST /api/inventory-management/stock-group-bulk", () => {
       sku: "A4-PACK",
       unit: "pack",
       stock: 10,
+      imageUrl: "/uploads/kertas-pack.png",
       stockGroupId: "group-1",
       unitMultiplierToBase: 10,
       stockGroup: { id: "group-1", displayName: "Kertas A4", baseUnit: "lembar", baseStock: 100 },
@@ -115,6 +117,7 @@ describe("POST /api/inventory-management/stock-group-bulk", () => {
       sku: "SM-G2",
       unit: "pcs",
       stock: 12,
+      imageUrl: "/uploads/marker.png",
     });
 
     productFindManyMock.mockResolvedValue([sheet, pack, marker]);
@@ -143,6 +146,15 @@ describe("POST /api/inventory-management/stock-group-bulk", () => {
     expect(response.status).toBe(201);
     expect(body.data.bundleBatchOperationId).toBe("batch-1");
     expect(body.data.standaloneLogIds).toEqual(["log-3"]);
+    expect(body.data.preview.bundledRows[0].changedVariants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "sheet", imageUrl: "/uploads/kertas-a4.png" }),
+        expect.objectContaining({ id: "pack", imageUrl: "/uploads/kertas-pack.png" }),
+      ]),
+    );
+    expect(body.data.preview.standaloneRows[0]).toEqual(
+      expect.objectContaining({ productId: "marker", imageUrl: "/uploads/marker.png" }),
+    );
     expect(batchOperationCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

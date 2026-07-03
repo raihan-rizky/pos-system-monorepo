@@ -59,14 +59,21 @@ describe("FAQ workflow catalog", () => {
     expect(serializedWorkflow).toContain("inventory.out_log.verify");
   });
 
-  it("documents product-first Update Stok Massal modes and duplicate safeguards", () => {
+  it("documents product-first Update Stok single and bulk paths with duplicate safeguards", () => {
     const massStockWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 34);
 
     expect(massStockWorkflow).toBeDefined();
     const serializedWorkflow = JSON.stringify(massStockWorkflow);
+    expect(serializedWorkflow).toContain("Update Stok");
+    expect(serializedWorkflow).toContain("Satu Produk (Single)");
+    expect(serializedWorkflow).toContain("Banyak Produk (Bulk)");
     expect(serializedWorkflow).toContain("Update Stok Massal");
+    expect(serializedWorkflow).not.toContain("Buka Update Stok Massal");
+    expect(serializedWorkflow).not.toContain("buka tab Transaksi");
     expect(serializedWorkflow).toContain("Stok Bersama");
     expect(serializedWorkflow).toContain("Stok Produk Ini");
+    expect(serializedWorkflow).toContain("Thumbnail/foto produk");
+    expect(serializedWorkflow).toContain("foto produk/varian");
     expect(serializedWorkflow).toContain("Pilih satu produk saja per grup stok");
     expect(serializedWorkflow).toContain("approval");
   });

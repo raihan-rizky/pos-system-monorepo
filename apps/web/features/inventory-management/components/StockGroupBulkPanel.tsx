@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Info,
   Layers,
-  Package,
   Plus,
   RefreshCw,
   Search,
@@ -15,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@pos/ui";
 import { useProducts, type Product, type ProductVariant } from "@/hooks/useProducts";
-import { getDefaultProductImage } from "@/lib/utils";
+import { ProductStockThumbnail } from "./ProductStockThumbnail";
 import {
   previewStockGroupBulk,
   submitStockGroupBulk,
@@ -327,10 +326,18 @@ export const StockGroupBulkPanel: React.FC = () => {
                     onClick={() => addProduct(product)}
                     className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold text-slate-900">{product.name}</span>
-                      <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        {product.sku} - {product.unit}
+                    <span className="flex min-w-0 items-center gap-3">
+                      <ProductStockThumbnail
+                        name={product.name}
+                        imageUrl={product.imageUrl}
+                        categoryName={product.category?.name}
+                        size="sm"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-slate-900">{product.name}</span>
+                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          {product.sku} - {product.unit}
+                        </span>
                       </span>
                     </span>
                     <Plus className="h-4 w-4 shrink-0 text-slate-500" />
@@ -370,14 +377,22 @@ export const StockGroupBulkPanel: React.FC = () => {
               rows.map((row) => (
                 <div key={row.product.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-slate-900">{row.product.name}</p>
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        {row.product.sku} - {row.product.unit}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold text-slate-500">
-                        Stok saat ini: {formatQty(row.product.stock)} {row.product.unit}
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <ProductStockThumbnail
+                        name={row.product.name}
+                        imageUrl={row.product.imageUrl}
+                        categoryName={row.product.category?.name}
+                        size="md"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-900">{row.product.name}</p>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          {row.product.sku} - {row.product.unit}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          Stok saat ini: {formatQty(row.product.stock)} {row.product.unit}
+                        </p>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -473,7 +488,7 @@ export const StockGroupBulkPanel: React.FC = () => {
           </Button>
         </div>
 
-        <div className="min-h-80 rounded-xl border border-slate-200 bg-white">
+        <div className="min-h-80 min-w-0 rounded-xl border border-slate-200 bg-white">
           {!preview ? (
             <div className="flex min-h-80 items-center justify-center p-8 text-center text-sm text-slate-500">
               Pilih produk dan isi jumlah untuk melihat dampak varian secara real time.
@@ -492,14 +507,30 @@ export const StockGroupBulkPanel: React.FC = () => {
                       }
                       className="flex w-full items-center justify-between gap-3 text-left"
                     >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-black text-slate-900">
-                          {previewRow.mode === "GROUP_STOCK"
-                            ? previewRow.stockGroupName
-                            : previewRow.name}
-                        </span>
-                        <span className="block text-xs font-semibold text-slate-500">
-                          {modeLabel(previewRow.mode)} - {actionLabel(previewRow.type)}
+                      <span className="flex min-w-0 items-center gap-3">
+                        <ProductStockThumbnail
+                          name={
+                            previewRow.mode === "GROUP_STOCK"
+                              ? previewRow.productName
+                              : previewRow.name
+                          }
+                          imageUrl={
+                            previewRow.mode === "GROUP_STOCK"
+                              ? selected?.product.imageUrl
+                              : previewRow.imageUrl ?? selected?.product.imageUrl
+                          }
+                          categoryName={selected?.product.category?.name}
+                          size="sm"
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-black text-slate-900">
+                            {previewRow.mode === "GROUP_STOCK"
+                              ? previewRow.stockGroupName
+                              : previewRow.name}
+                          </span>
+                          <span className="block text-xs font-semibold text-slate-500">
+                            {modeLabel(previewRow.mode)} - {actionLabel(previewRow.type)}
+                          </span>
                         </span>
                       </span>
                       <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -521,13 +552,12 @@ export const StockGroupBulkPanel: React.FC = () => {
                               <tr key={variant.id} className="border-t border-slate-100">
                                 <td className="px-3 py-2">
                                   <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
-                                      <img
-                                        src={getDefaultProductImage(undefined)}
-                                        alt=""
-                                        className="h-full w-full object-cover"
-                                      />
-                                    </div>
+                                    <ProductStockThumbnail
+                                      name={variant.name}
+                                      imageUrl={variant.imageUrl}
+                                      size="sm"
+                                      className="h-8 w-8"
+                                    />
                                     <div className="min-w-0">
                                       <p className="truncate font-bold text-slate-900">{variant.name}</p>
                                       <p className="text-[10px] font-bold text-slate-400">{variant.sku} - {variant.unit}</p>
@@ -553,9 +583,13 @@ export const StockGroupBulkPanel: React.FC = () => {
                     {isOpen && previewRow.mode === "PRODUCT_ONLY" && (
                       <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500">
-                            <Package className="h-5 w-5" />
-                          </div>
+                          <ProductStockThumbnail
+                            name={previewRow.name}
+                            imageUrl={previewRow.imageUrl ?? selected?.product.imageUrl}
+                            categoryName={selected?.product.category?.name}
+                            size="md"
+                            className="h-10 w-10 rounded-xl"
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-bold text-slate-900">{previewRow.name}</p>
                             <p className="text-xs text-slate-500">

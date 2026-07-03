@@ -5,6 +5,10 @@ import {
   jakartaWeekKey,
   unresolvedOutLogVerificationWhere,
 } from "../helpers/inventory-management-rules";
+import {
+  PRISMA_READ_CONCURRENCY_LIMIT,
+  runWithConcurrencyLimit,
+} from "../helpers/read-concurrency";
 
 export const WORKSPACE_SAFETY_ITEMS = [
   { id: "machine-area", label: "Area mesin printing bersih dan siap dipakai" },
@@ -58,26 +62,29 @@ export async function loadStockRiskItems(storeId: string, take = 8) {
     unit: true,
   };
 
-  const [negative, outOfStock, lowStockCandidates] = await Promise.all([
-    db.product.findMany({
-      where: { storeId, isActive: true, stock: { lt: 0 } },
-      select,
-      orderBy: [{ stock: "asc" }, { name: "asc" }],
-      take,
-    }),
-    db.product.findMany({
-      where: { storeId, isActive: true, stock: 0 },
-      select,
-      orderBy: { name: "asc" },
-      take,
-    }),
-    db.product.findMany({
-      where: { storeId, isActive: true, stock: { gt: 0 } },
-      select,
-      orderBy: [{ stock: "asc" }, { name: "asc" }],
-      take: take * 4,
-    }),
-  ]);
+  const [negative, outOfStock, lowStockCandidates] = await runWithConcurrencyLimit(
+    PRISMA_READ_CONCURRENCY_LIMIT,
+    [
+      () => db.product.findMany({
+        where: { storeId, isActive: true, stock: { lt: 0 } },
+        select,
+        orderBy: [{ stock: "asc" }, { name: "asc" }],
+        take,
+      }),
+      () => db.product.findMany({
+        where: { storeId, isActive: true, stock: 0 },
+        select,
+        orderBy: { name: "asc" },
+        take,
+      }),
+      () => db.product.findMany({
+        where: { storeId, isActive: true, stock: { gt: 0 } },
+        select,
+        orderBy: [{ stock: "asc" }, { name: "asc" }],
+        take: take * 4,
+      }),
+    ] as const,
+  );
 
   return {
     negative,
@@ -156,11 +163,14 @@ export async function loadInventoryDaySession(storeId: string, dateKey: string) 
 
 export async function buildInventoryDaySessionPreview(storeId: string, now = new Date()) {
   const dateKey = jakartaDateKey(now);
-  const [session, productionMaterials, completion] = await Promise.all([
-    loadInventoryDaySession(storeId, dateKey),
-    loadProductionMaterials(storeId),
-    buildInventoryDayCompletion(storeId, dateKey, now),
-  ]);
+  const completion = await buildInventoryDayCompletion(storeId, dateKey, now);
+  const [session, productionMaterials] = await runWithConcurrencyLimit(
+    PRISMA_READ_CONCURRENCY_LIMIT,
+    [
+      () => loadInventoryDaySession(storeId, dateKey),
+      () => loadProductionMaterials(storeId),
+    ] as const,
+  );
   const checkOutPreview = await buildInventoryCheckOutSnapshot({
     storeId,
     dateKey,
@@ -197,9 +207,9 @@ export async function buildInventoryDayCompletion(
     dailyChecklistRemaining,
     unmarkedSuratJalan,
     weeklyProof,
-  ] = await Promise.all([
-    loadInventoryDaySession(storeId, dateKey),
-    db.inventoryTask.findUnique({
+  ] = await runWithConcurrencyLimit(PRISMA_READ_CONCURRENCY_LIMIT, [
+    () => loadInventoryDaySession(storeId, dateKey),
+    () => db.inventoryTask.findUnique({
       where: {
         storeId_type_periodKey: {
           storeId,
@@ -209,7 +219,7 @@ export async function buildInventoryDayCompletion(
       },
       select: { status: true },
     }),
-    db.inventoryLog.count({
+    () => db.inventoryLog.count({
       where: {
         type: "OUT",
         status: "APPROVED",
@@ -217,10 +227,10 @@ export async function buildInventoryDayCompletion(
         ...unresolvedOutLogVerificationWhere(),
       },
     }),
-    db.inventoryLog.count({
+    () => db.inventoryLog.count({
       where: { status: "PENDING", reason: "WASTE", product: { storeId } },
     }),
-    db.inventoryTaskChecklistItem.count({
+    () => db.inventoryTaskChecklistItem.count({
       where: {
         storeId,
         periodType: "DAILY",
@@ -228,10 +238,10 @@ export async function buildInventoryDayCompletion(
         isCompleted: false,
       },
     }),
-    db.suratJalan.count({
+    () => db.suratJalan.count({
       where: { storeId, markingStatus: "UNMARKED" },
     }),
-    db.inventoryTask.findUnique({
+    () => db.inventoryTask.findUnique({
       where: {
         storeId_type_periodKey: {
           storeId,
@@ -241,7 +251,7 @@ export async function buildInventoryDayCompletion(
       },
       select: { status: true },
     }),
-  ]);
+  ] as const);
 
   const tasks = [
     {
@@ -301,8 +311,9 @@ export async function buildInventoryDayCompletion(
 
 export async function buildInventoryCheckOutSnapshot(input: InventoryCheckOutSnapshotInput) {
   const { start, end } = jakartaDayBounds(input.dateKey);
+  const stockRisk = await loadStockRiskItems(input.storeId);
+
   const [
-    stockRisk,
     approvedLogs,
     pendingRequestCount,
     submittedInboundReceipts,
@@ -312,9 +323,8 @@ export async function buildInventoryCheckOutSnapshot(input: InventoryCheckOutSna
     dailyChecklistRemaining,
     unverifiedOutLogs,
     damagedReportsPending,
-  ] = await Promise.all([
-    loadStockRiskItems(input.storeId),
-    db.inventoryLog.findMany({
+  ] = await runWithConcurrencyLimit(PRISMA_READ_CONCURRENCY_LIMIT, [
+    () => db.inventoryLog.findMany({
       where: {
         status: "APPROVED",
         createdAt: { gte: start, lt: end },
@@ -322,25 +332,25 @@ export async function buildInventoryCheckOutSnapshot(input: InventoryCheckOutSna
       },
       select: { type: true, reason: true, quantity: true },
     }),
-    db.inventoryLog.count({
+    () => db.inventoryLog.count({
       where: {
         status: "PENDING",
         product: { storeId: input.storeId },
       },
     }),
-    db.inventoryInboundReceipt.count({
+    () => db.inventoryInboundReceipt.count({
       where: { storeId: input.storeId, status: "SUBMITTED" },
     }),
-    db.inventoryInboundReceipt.count({
+    () => db.inventoryInboundReceipt.count({
       where: { storeId: input.storeId, status: "NEEDS_REVISION" },
     }),
-    db.suratJalan.count({
+    () => db.suratJalan.count({
       where: { storeId: input.storeId, status: "PENDING" },
     }),
-    db.suratJalan.count({
+    () => db.suratJalan.count({
       where: { storeId: input.storeId, markingStatus: "UNMARKED" },
     }),
-    db.inventoryTaskChecklistItem.count({
+    () => db.inventoryTaskChecklistItem.count({
       where: {
         storeId: input.storeId,
         periodType: "DAILY",
@@ -348,7 +358,7 @@ export async function buildInventoryCheckOutSnapshot(input: InventoryCheckOutSna
         isCompleted: false,
       },
     }),
-    db.inventoryLog.count({
+    () => db.inventoryLog.count({
       where: {
         type: "OUT",
         status: "APPROVED",
@@ -357,10 +367,10 @@ export async function buildInventoryCheckOutSnapshot(input: InventoryCheckOutSna
         ...unresolvedOutLogVerificationWhere(),
       },
     }),
-    db.inventoryLog.count({
+    () => db.inventoryLog.count({
       where: { status: "PENDING", reason: "WASTE", product: { storeId: input.storeId } },
     }),
-  ]);
+  ] as const);
 
   return {
     checkedOutAt: input.now.toISOString(),

@@ -11,6 +11,7 @@ export interface StockGroupBulkVariant {
   name: string;
   sku: string;
   unit: string;
+  imageUrl?: string | null;
   unitMultiplierToBase: number;
   conversionNeedsReview: boolean;
   stock: number;

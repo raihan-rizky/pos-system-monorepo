@@ -71,6 +71,7 @@ async function loadGroup(storeId: string, stockGroupId: string) {
       name: product.name,
       sku: product.sku,
       unit: product.unit,
+      imageUrl: product.imageUrl,
       stock: product.stock,
       unitMultiplierToBase: product.unitMultiplierToBase,
       conversionNeedsReview: product.conversionNeedsReview,
@@ -87,6 +88,7 @@ function toPreviewProduct(product: {
   stockGroupId?: string | null;
   unitMultiplierToBase: number;
   conversionNeedsReview: boolean;
+  imageUrl?: string | null;
   stockGroup?: { baseStock: number } | null;
 }): ProductFirstStockBulkProduct {
   return {
@@ -94,6 +96,7 @@ function toPreviewProduct(product: {
     name: product.name,
     sku: product.sku,
     unit: product.unit,
+    imageUrl: product.imageUrl ?? null,
     stock: product.stockGroup
       ? calculateDisplayStock(product.stockGroup.baseStock, product.unitMultiplierToBase)
       : product.stock,

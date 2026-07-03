@@ -264,6 +264,7 @@ export interface StockGroupBulkPreview {
     name: string;
     sku: string;
     unit: string;
+    imageUrl?: string | null;
     unitMultiplierToBase: number;
     beforeStock: number;
     afterStock: number;
@@ -288,6 +289,7 @@ export interface ProductOnlyStockPreview {
   name: string;
   sku: string;
   unit: string;
+  imageUrl?: string | null;
   mode: "PRODUCT_ONLY";
   type: "IN" | "OUT" | "ADJUSTMENT";
   inputValue: number;

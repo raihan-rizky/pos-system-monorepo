@@ -29,6 +29,45 @@ function makeRepository(
 }
 
 describe("inventory management service", () => {
+  it("limits summary repository reads to the Prisma pool size", async () => {
+    let activeReads = 0;
+    let maxActiveReads = 0;
+    const trackRead = <T,>(value: T) => async () => {
+      activeReads += 1;
+      maxActiveReads = Math.max(maxActiveReads, activeReads);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      activeReads -= 1;
+      return value;
+    };
+
+    await getInventorySummary({
+      user: { id: "inventory-1", role: "INVENTORY", storeId: "store-main" },
+      repository: makeRepository({
+        countPendingStockRequests: trackRead(2),
+        countUnverifiedOutLogs: trackRead(5),
+        countSubmittedInboundReceipts: trackRead(3),
+        isWeeklyProofMissing: trackRead(true),
+        isDailyMatchingIncomplete: trackRead(true),
+        countPendingDamagedReports: trackRead(4),
+        countNeedsRevisionReceipts: trackRead(7),
+        countRejectedRequestsForUser: trackRead(9),
+        countPendingSuratJalan: trackRead(2),
+        countUnmarkedSuratJalan: trackRead(6),
+        countNegativeStockProducts: trackRead(1),
+        countOutOfStockProducts: trackRead(6),
+        countLowStockProducts: trackRead(12),
+        countDailyChecklistRemaining: trackRead(3),
+        getChartData: trackRead({
+          inboundOutbound: [],
+          health: { accuracy: 100, availability: 100, fulfillment: 100 },
+        }),
+      }),
+      now: new Date("2026-06-25T03:00:00.000Z"),
+    });
+
+    expect(maxActiveReads).toBeLessThanOrEqual(3);
+  });
+
   it("returns owner urgent count from approval queues", async () => {
     const summary = await getInventorySummary({
       user: { id: "owner-1", role: "OWNER", storeId: "store-main" },

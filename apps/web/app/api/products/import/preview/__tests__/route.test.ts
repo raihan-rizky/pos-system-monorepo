@@ -103,6 +103,40 @@ describe("POST /api/products/import/preview", () => {
     expect(categoryFindManyMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a bulk import when at least 80% of comparable selling prices are below HPP", async () => {
+    productFindManyMock.mockResolvedValue([]);
+    const dataRows = Array.from({ length: 10 }, (_, index) => {
+      const price = index < 8 ? 100 : 200;
+      return `Produk ${index + 1},SKU-${index + 1},Jasa,${price},10,pcs,150`;
+    });
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File(
+        [["name,sku,category,price,stock,unit,costPrice", ...dataRows].join("\n")],
+        "products.csv",
+        { type: "text/csv" },
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/products/import/preview", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toEqual({
+      code: "PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED",
+      message:
+        "Mayoritas Harga Jual lebih rendah daripada HPP. Periksa kembali mapping kolom Harga Jual dan HPP sebelum melanjutkan import.",
+      comparableRowCount: 10,
+      priceBelowCostRowCount: 8,
+    });
+  });
+
   it("marks all same SKU/name/category/unit rows with conflicting price data as unresolved conflicts", async () => {
     productFindManyMock.mockResolvedValue([]);
 

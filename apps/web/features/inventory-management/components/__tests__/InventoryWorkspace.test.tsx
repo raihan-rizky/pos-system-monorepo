@@ -571,12 +571,20 @@ describe("InventoryWorkspace", () => {
     expect(html).not.toContain("overflow-x-auto w-max");
   });
 
-  it("labels the bulk stock transaction tab as update stok massal", () => {
+  it("offers single and bulk choices from the Update Stok entry point", () => {
     const html = renderToStaticMarkup(
       <InventoryWorkspace initialSummary={baseSummary} defaultTab="Transaksi" />,
     );
 
-    expect(html).toContain("Update Stok Massal");
+    expect(html).toContain("Update Stok");
+    expect(html).toContain("Satu Produk (Single)");
+    expect(html).toContain("Banyak Produk (Bulk)");
+    expect(html).toContain("Update satu produk");
+    expect(html).toContain("Preview perubahan");
+    expect(html).toContain("shadow-cyan-500/30");
+    expect(html).toContain("ring-cyan-200");
+    expect(html).not.toContain("aria-selected=\"false\">Update Stok Massal</button>");
+    expect(html).not.toContain("Buka Update Stok Massal");
     expect(html).not.toContain("Bulk & grup");
   });
 

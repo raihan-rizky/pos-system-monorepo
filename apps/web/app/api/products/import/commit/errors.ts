@@ -1,8 +1,24 @@
 import { NextResponse } from "next/server";
 
 import { SAME_UNIT_PRICE_CONFLICT_MESSAGE } from "@/features/product-import/helpers/same-unit-price-conflicts";
+import {
+  PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED,
+  PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED_MESSAGE,
+} from "@/features/product-import/helpers/price-column-sanity";
 
 export function productImportCommitErrorResponse(error: Error) {
+  if (error.message.startsWith(`${PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED}:`)) {
+    const [, priceBelowCostRowCount, comparableRowCount] = error.message.split(":");
+    return NextResponse.json(
+      {
+        code: PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED,
+        message: PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED_MESSAGE,
+        comparableRowCount: Number(comparableRowCount),
+        priceBelowCostRowCount: Number(priceBelowCostRowCount),
+      },
+      { status: 422 },
+    );
+  }
   if (error.message.startsWith("MISSING_CATEGORIES:")) {
     return NextResponse.json(
       {

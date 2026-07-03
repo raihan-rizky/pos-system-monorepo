@@ -3,6 +3,10 @@ import {
   jakartaDateKey,
   jakartaWeekKey,
 } from "../helpers/inventory-management-rules";
+import {
+  PRISMA_READ_CONCURRENCY_LIMIT,
+  runWithConcurrencyLimit,
+} from "../helpers/read-concurrency";
 import type {
   InventoryManagementUser,
   InventorySummary,
@@ -43,23 +47,23 @@ export async function getInventorySummary(
     lowStockProducts,
     dailyChecklistRemaining,
     chartData,
-  ] = await Promise.all([
-    input.repository.countPendingStockRequests(storeId),
-    input.repository.countUnverifiedOutLogs(storeId, dateKey),
-    input.repository.countSubmittedInboundReceipts(storeId),
-    input.repository.isWeeklyProofMissing(storeId, weekKey),
-    input.repository.isDailyMatchingIncomplete(storeId, dateKey),
-    input.repository.countPendingDamagedReports(storeId),
-    input.repository.countNeedsRevisionReceipts(storeId),
-    input.repository.countRejectedRequestsForUser(storeId, input.user.id),
-    input.repository.countPendingSuratJalan(storeId),
-    input.repository.countUnmarkedSuratJalan(storeId),
-    input.repository.countNegativeStockProducts(storeId),
-    input.repository.countOutOfStockProducts(storeId),
-    input.repository.countLowStockProducts(storeId),
-    input.repository.countDailyChecklistRemaining(storeId, dateKey),
-    input.repository.getChartData(storeId, dateKey),
-  ]);
+  ] = await runWithConcurrencyLimit(PRISMA_READ_CONCURRENCY_LIMIT, [
+    () => input.repository.countPendingStockRequests(storeId),
+    () => input.repository.countUnverifiedOutLogs(storeId, dateKey),
+    () => input.repository.countSubmittedInboundReceipts(storeId),
+    () => input.repository.isWeeklyProofMissing(storeId, weekKey),
+    () => input.repository.isDailyMatchingIncomplete(storeId, dateKey),
+    () => input.repository.countPendingDamagedReports(storeId),
+    () => input.repository.countNeedsRevisionReceipts(storeId),
+    () => input.repository.countRejectedRequestsForUser(storeId, input.user.id),
+    () => input.repository.countPendingSuratJalan(storeId),
+    () => input.repository.countUnmarkedSuratJalan(storeId),
+    () => input.repository.countNegativeStockProducts(storeId),
+    () => input.repository.countOutOfStockProducts(storeId),
+    () => input.repository.countLowStockProducts(storeId),
+    () => input.repository.countDailyChecklistRemaining(storeId, dateKey),
+    () => input.repository.getChartData(storeId, dateKey),
+  ] as const);
 
   const counts = {
     pendingStockRequests,

@@ -68,13 +68,58 @@ describe('HelpContent', () => {
 
   it('documents product-first mass stock update modes for stock groups', () => {
     const html = renderToStaticMarkup(
-      <HelpContent targetRole="INVENTORY" searchQuery="Update Stok Massal" />
+      <HelpContent targetRole="INVENTORY" searchQuery="Mengatur Grup Stok" />
     );
 
-    expect(html).toContain('Update Stok Massal');
+    expect(html).toContain('Update Stok');
+    expect(html).toContain('Banyak Produk (Bulk)');
     expect(html).toContain('Cari produk');
     expect(html).toContain('Stok Bersama');
     expect(html).toContain('Stok Produk Ini');
     expect(html).toContain('Pilih satu produk saja per grup stok');
+  });
+
+  it('documents the bulk product price and HPP mapping safeguard', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="OWNER" searchQuery="Import Massal Produk" />
+    );
+
+    expect(html).toContain('Mapping Harga Jual &amp; HPP');
+  });
+
+  it('documents the dedicated Update Stok guide for Owner, Admin, and Inventory roles', () => {
+    const ownerHtml = renderToStaticMarkup(
+      <HelpContent targetRole="OWNER" searchQuery="Update Stok" />
+    );
+    expect(ownerHtml).toContain('Update Stok');
+    expect(ownerHtml).toContain('Satu Produk (Single)');
+    expect(ownerHtml).toContain('Banyak Produk (Bulk)');
+    expect(ownerHtml).toContain('Update satu produk');
+    expect(ownerHtml).toContain('Update Stok Massal');
+    expect(ownerHtml).toContain('Atur Aksi &amp; Jumlah');
+    expect(ownerHtml).toContain('Thumbnail/foto produk');
+    expect(ownerHtml).toContain('foto produk/varian');
+    expect(ownerHtml).not.toContain('Buka Update Stok Massal');
+    expect(ownerHtml).not.toContain('klik tab &#x27;Transaksi&#x27;');
+
+    const adminHtml = renderToStaticMarkup(
+      <HelpContent targetRole="ADMIN" searchQuery="Update Stok" />
+    );
+    expect(adminHtml).toContain('Update Stok');
+    expect(adminHtml).toContain('Satu Produk (Single)');
+    expect(adminHtml).toContain('Banyak Produk (Bulk)');
+    expect(adminHtml).toContain('Thumbnail/foto produk');
+    expect(adminHtml).not.toContain('Buka Update Stok Massal');
+    expect(adminHtml).not.toContain('klik tab &#x27;Transaksi&#x27;');
+
+    const invHtml = renderToStaticMarkup(
+      <HelpContent targetRole="INVENTORY" searchQuery="Update Stok" />
+    );
+    expect(invHtml).toContain('Update Stok');
+    expect(invHtml).toContain('Satu Produk (Single)');
+    expect(invHtml).toContain('Banyak Produk (Bulk)');
+    expect(invHtml).toContain('Thumbnail/foto produk');
+    expect(invHtml).not.toContain('Buka Update Stok Massal');
+    expect(invHtml).not.toContain('klik tab &#x27;Transaksi&#x27;');
   });
 });

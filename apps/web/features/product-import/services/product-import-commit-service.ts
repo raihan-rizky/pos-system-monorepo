@@ -29,6 +29,7 @@ import { resolveImportCreateStockPlan } from "../helpers/commit-stock";
 import { getEffectiveImportDecision } from "../helpers/import-decisions";
 import { findDuplicateFinalSkuGroups } from "../helpers/import-readiness";
 import { expandProductNameAbbreviations } from "../helpers/name-normalization";
+import { assertProductImportPriceColumnsNotSwapped } from "../helpers/price-column-sanity";
 import {
   findSameUnitPriceConflictGroups,
   validateSameUnitPriceConflictDecisions,
@@ -1354,6 +1355,7 @@ async function processResolvedRows(input: {
 }
 
 export async function startProductImportCommit(input: StartInput, user: ProductImportActor) {
+  assertProductImportPriceColumnsNotSwapped(input.rows);
   const storeId = storeIdFor(user);
   const chunkSize = input.chunkSize ?? PRODUCT_IMPORT_CHUNK_SIZE;
 

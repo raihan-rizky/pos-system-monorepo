@@ -11,6 +11,11 @@ import { parseImportFile } from "@/features/product-import/helpers/import-file.s
 import { resolveProductImportAutoDecisions } from "@/features/product-import/helpers/auto-decisions";
 import { applySameUnitPriceConflicts } from "@/features/product-import/helpers/same-unit-price-conflicts";
 import {
+  analyzeProductImportPriceColumns,
+  PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED,
+  PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED_MESSAGE,
+} from "@/features/product-import/helpers/price-column-sanity";
+import {
   IMPORT_FILE_TOO_LARGE_MESSAGE,
   isImportFileTooLarge,
 } from "@/lib/import-file-size";
@@ -200,6 +205,25 @@ export async function POST(request: Request) {
       new Map(products.map((product) => [product.sku, { id: product.id, name: product.name }])),
       new Set(categories.map((category) => category.name.toLowerCase())),
     );
+    const priceColumnAnalysis = analyzeProductImportPriceColumns(normalized.rows);
+    if (priceColumnAnalysis.suspectedSwapped) {
+      log.warn("product.import.preview.price_columns_suspected_swapped", {
+        userId: user.id,
+        storeId,
+        fileName: file.name,
+        ...priceColumnAnalysis,
+        durationMs: Date.now() - startedAt,
+      });
+      return NextResponse.json(
+        {
+          code: PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED,
+          message: PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED_MESSAGE,
+          comparableRowCount: priceColumnAnalysis.comparableRowCount,
+          priceBelowCostRowCount: priceColumnAnalysis.priceBelowCostRowCount,
+        },
+        { status: 422 },
+      );
+    }
     await addSupplierCodeWarnings(normalized.rows, normalized.warnings);
     const rows = applySameUnitPriceConflicts(resolveProductImportAutoDecisions({
       rows: normalized.rows,

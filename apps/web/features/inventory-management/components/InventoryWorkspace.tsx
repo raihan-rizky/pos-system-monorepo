@@ -41,6 +41,7 @@ import { sortTaskChecklistItems } from "../helpers/task-checklist";
 import type { InventoryTaskPriority } from "../helpers/task-checklist";
 import { getDailyMatchingWindowStatus } from "../helpers/inventory-management-rules";
 import { useQueryClient } from "@tanstack/react-query";
+import { Modal } from "@pos/ui";
 import { useInventorySummary } from "../hooks/useInventorySummary";
 
 import { DailyMatchingModal } from "./DailyMatchingModal";
@@ -51,6 +52,7 @@ import { InternalStockOutModal } from "./InternalStockOutModal";
 import { InternalUseRecapPanel } from "@/features/internal-use-recap";
 import { InventorySuratJalanTab } from "./InventorySuratJalanTab";
 import { InboundReceiptTab } from "./InboundReceiptTab";
+import { SingleStockUpdatePanel } from "./SingleStockUpdatePanel";
 import { StockGroupBulkPanel } from "./StockGroupBulkPanel";
 import { InventoryDaySessionPanel } from "./InventoryDaySessionPanel";
 import { InventoryDaySessionHistory } from "./InventoryDaySessionHistory";
@@ -76,7 +78,7 @@ const DamagedReportsHistoryTab = lazy(() =>
 const MAIN_TABS = ["Ringkasan", "Tugas", "Transaksi", "Riwayat"] as const;
 
 const TUGAS_TABS = ["Tugas Harian", "Tugas Mingguan"] as const;
-const TRANSAKSI_TABS = ["Penerimaan Barang", "Pemakaian Internal", "Surat Jalan", "Update Stok Massal"] as const;
+const TRANSAKSI_TABS = ["Penerimaan Barang", "Pemakaian Internal", "Surat Jalan"] as const;
 const RIWAYAT_TABS = ["Log Stok", "Rekap Stok", "Laporan Barang Rusak", "Riwayat Tugas Harian", "Riwayat Tugas Mingguan"] as const;
 
 const HEALTH_METRICS_INFO = [
@@ -139,9 +141,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [matchingWindowNow, setMatchingWindowNow] = React.useState(() => new Date());
   const [activeModal, setActiveModal] = React.useState<
-    "matching" | "weeklyProof" | "damaged" | "inbound" | "internalStockOut" | null
+    "matching" | "weeklyProof" | "damaged" | "inbound" | "internalStockOut" | "stockSingle" | "stockGroupBulk" | null
   >(null);
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
+  const [isStockUpdateMenuOpen, setIsStockUpdateMenuOpen] = React.useState(false);
   const [checklistItems, setChecklistItems] = React.useState<TaskChecklistItem[]>([]);
   const [checklistError, setChecklistError] = React.useState<string | null>(null);
   const [editingChecklistId, setEditingChecklistId] = React.useState<string | null>(null);
@@ -651,7 +654,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onClick={() => {
+                  setIsDropdownOpen(!isDropdownOpen);
+                  setIsStockUpdateMenuOpen(false);
+                }}
                 className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 active:scale-[0.98] transition-all duration-200 shadow-md cursor-pointer select-none"
               >
                 <Plus className="h-4 w-4" />
@@ -740,6 +746,70 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                   </div>
                 </>
               )}
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={isStockUpdateMenuOpen}
+                onClick={() => {
+                  setIsStockUpdateMenuOpen(!isStockUpdateMenuOpen);
+                  setIsDropdownOpen(false);
+                }}
+                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-cyan-500/30 ring-1 ring-cyan-200 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-500 hover:shadow-xl hover:shadow-cyan-500/40 focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 active:translate-y-0 active:scale-[0.98]"
+              >
+                <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                <Layers className="relative h-4 w-4" />
+                <span className="relative">Update Stok</span>
+                <ChevronDown className="relative h-4 w-4" />
+              </button>
+
+              {isStockUpdateMenuOpen && (
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setIsStockUpdateMenuOpen(false)}
+                />
+              )}
+              <div
+                role="menu"
+                hidden={!isStockUpdateMenuOpen}
+                className="absolute right-0 z-40 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setActiveModal("stockSingle");
+                    setIsStockUpdateMenuOpen(false);
+                  }}
+                  className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left hover:bg-slate-50"
+                >
+                  <PackageOpen className="mt-0.5 h-4 w-4 shrink-0 text-cyan-600" />
+                  <span>
+                    <span className="block text-xs font-black text-slate-900">Satu Produk (Single)</span>
+                    <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500">
+                      Update satu produk dengan tampilan ringkas.
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setActiveModal("stockGroupBulk");
+                    setIsStockUpdateMenuOpen(false);
+                  }}
+                  className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left hover:bg-slate-50"
+                >
+                  <Layers className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                  <span>
+                    <span className="block text-xs font-black text-slate-900">Banyak Produk (Bulk)</span>
+                    <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500">
+                      Buka workflow Update Stok Massal yang sudah ada.
+                    </span>
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1447,8 +1517,8 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => openTransactionTab("Update Stok Massal")}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                onClick={() => setActiveModal("stockGroupBulk")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-3 py-2.5 text-xs font-bold text-white shadow-md shadow-cyan-500/30 ring-1 ring-cyan-200 hover:bg-cyan-500"
               >
                 <Layers className="h-4 w-4" />
                 Update stok massal
@@ -1564,10 +1634,6 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 )}
 
                 {activeTransaksiTab === "Surat Jalan" && <InventorySuratJalanTab />}
-
-                {activeTransaksiTab === "Update Stok Massal" && (
-                  <StockGroupBulkPanel />
-                )}
               </div>
             )}
 
@@ -1639,6 +1705,22 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
         onClose={() => setActiveModal(null)}
         onSuccess={handleSuccess}
       />
+      <Modal
+        open={activeModal === "stockSingle"}
+        onClose={() => setActiveModal(null)}
+        title="Update Stok"
+        size="2xl"
+      >
+        <SingleStockUpdatePanel />
+      </Modal>
+      <Modal
+        open={activeModal === "stockGroupBulk"}
+        onClose={() => setActiveModal(null)}
+        title="Update Stok Massal"
+        size="7xl"
+      >
+        <StockGroupBulkPanel />
+      </Modal>
     </main>
   );
 };

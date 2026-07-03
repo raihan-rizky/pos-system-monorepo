@@ -636,8 +636,10 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
   workflow({
     faqNumber: 34,
     slug: "update-stok-massal-product-first",
-    title: "Bagaimana cara memakai Update Stok Massal untuk produk dan grup stok?",
+    title: "Bagaimana cara memakai Update Stok untuk satu produk dan banyak produk?",
     aliases: [
+      "update stok",
+      "update stok satu produk",
       "update stok massal",
       "ubah banyak stok produk",
       "stok bersama",
@@ -650,11 +652,12 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "warehouse",
     requiredCapabilities: [{ resource: "inventory", action: "update" }],
     steps: [
-      { title: "Buka Update Stok Massal", description: "Masuk ke halaman Inventaris, buka tab Transaksi, lalu pilih Update Stok Massal." },
-      { title: "Cari produk", description: "Gunakan pencarian produk untuk menambahkan setiap produk atau varian yang stoknya mau diubah." },
-      { title: "Atur baris masing-masing", description: "Setiap produk punya aksi, input stok, catatan, dan mode sendiri sehingga satu baris tidak mengubah pengaturan baris lain." },
+      { title: "Buka Update Stok", description: "Masuk ke halaman Inventaris, lalu klik tombol Update Stok di sebelah Input / Transaksi." },
+      { title: "Pilih jalur", description: "Pilih Satu Produk (Single) untuk update satu produk dengan tampilan ringkas, atau pilih Banyak Produk (Bulk) untuk membuka workflow Update Stok Massal yang sudah ada." },
+      { title: "Cari produk", description: "Di Satu Produk, cari dan pilih satu produk. Di Banyak Produk (Bulk), gunakan pencarian produk untuk menambahkan setiap produk atau varian yang stoknya mau diubah. Thumbnail/foto produk tampil di hasil pencarian dan kartu pilihan agar barang mudah dicek." },
+      { title: "Atur aksi dan jumlah", description: "Pilih Tambah stok, Kurangi stok, atau Set stok akhir. Untuk Bulk, setiap produk punya aksi, input stok, catatan, dan mode sendiri." },
       { title: "Pilih mode stok", description: "Pilih Stok Bersama untuk menghitung dampak ke stok grup dan varian lain. Pilih Stok Produk Ini jika hanya produk itu yang dibuatkan log stok dan stok grup tidak diubah." },
-      { title: "Cek konflik", description: "Sistem memblokir produk duplikat. Jika dua varian dari grup yang sama sama-sama memakai Stok Bersama, ikuti pesan Pilih satu produk saja per grup stok untuk mode Stok Bersama." },
+      { title: "Cek preview dan konflik", description: "Cek preview dengan foto produk/varian, lalu pastikan tidak ada produk duplikat. Jika dua varian dari grup yang sama sama-sama memakai Stok Bersama, ikuti pesan Pilih satu produk saja per grup stok untuk mode Stok Bersama." },
       { title: "Ajukan approval", description: "Klik submit untuk membuat pengajuan. Stok Bersama tampil sebagai bundle di Stock Log, sedangkan Stok Produk Ini menjadi log terpisah sampai approval selesai." },
     ],
   }),

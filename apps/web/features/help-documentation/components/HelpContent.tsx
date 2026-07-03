@@ -219,6 +219,21 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "owner-update-stok-massal",
+      title: "Update Stok",
+      description: "Update satu produk atau banyak produk dari tombol Update Stok di halaman Inventaris. Thumbnail/foto produk tampil di pencarian, kartu pilihan, dan preview dengan foto produk/varian.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Update Stok", description: "Masuk ke menu 'Inventaris' di sidebar kiri, lalu klik tombol 'Update Stok' di sebelah tombol 'Input / Transaksi'.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Pilih Satu Produk (Single) / Banyak Produk (Bulk) - Update Stok Massal", description: "Pilih 'Satu Produk (Single)' untuk update satu produk dengan tampilan ringkas, atau pilih 'Banyak Produk (Bulk)' untuk membuka workflow Update Stok Massal yang sudah ada.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Cari Produk", description: "Di jalur Satu Produk, cari dan pilih satu produk. Di jalur Banyak Produk (Bulk), gunakan kolom 'Cari produk' untuk menambahkan beberapa produk atau varian ke daftar. Thumbnail/foto produk muncul di hasil pencarian dan kartu pilihan agar barang mudah dicek.", icon: <Search className="w-8 h-8" /> },
+        { title: "Atur Aksi & Jumlah", description: "Pilih aksi (Tambah stok, Kurangi stok, atau Set stok akhir) dan masukkan jumlah kuantitas stok yang baru.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Mode Stok", description: "Pilih 'Stok Bersama' untuk membagikan perubahan stok ke seluruh varian dalam grup, atau 'Stok Produk Ini' untuk mengubah stok produk tersebut saja tanpa memengaruhi varian lain.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Cek Preview", description: "Pada Satu Produk, cek ringkasan sebelum dan sesudah. Pada Banyak Produk (Bulk), perhatikan tabel preview dengan foto produk/varian dan pastikan tidak ada produk duplikat.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Ajukan Perubahan", description: "Ketik catatan jika diperlukan, lalu klik tombol 'Ajukan Update Stok'. Pengajuan akan dikirim ke Owner untuk disetujui (Status Pending) sebelum stok resmi diperbarui.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "owner-special-pricing",
       title: "Mengatur Harga Grup Pelanggan (Harga Khusus)",
       description: "Atur harga khusus untuk grup pelanggan. Produk bisa punya Harga Agen atau Harga Dinas sendiri, lalu aturan kategori dipakai saat harga produk khusus belum diisi.",
@@ -239,7 +254,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
         { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi. Setelah dikonfirmasi, import berjalan di antrean background; jika muncul pesan antrean belum mulai, buka progress import lalu klik Coba Lagi.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Mapping Harga Jual & HPP", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, terutama Harga Jual dan HPP. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi. Jika mayoritas Harga Jual lebih rendah daripada HPP, sistem menghentikan import agar mapping bisa diperiksa kembali. Setelah dikonfirmasi, import berjalan di antrean background; jika muncul pesan antrean belum mulai, buka progress import lalu klik Coba Lagi.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -251,7 +266,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
-        { title: "Cari produk di Update Stok Massal", description: "Masuk ke menu 'Inventaris', buka tab 'Transaksi', lalu pilih 'Update Stok Massal'. Gunakan kolom 'Cari produk' untuk menambahkan produk atau varian yang mau disesuaikan.", icon: <Search className="w-8 h-8" /> },
+        { title: "Cari produk via Update Stok > Banyak Produk (Bulk)", description: "Masuk ke menu 'Inventaris', klik tombol 'Update Stok', lalu pilih 'Banyak Produk (Bulk)' untuk membuka Update Stok Massal. Gunakan kolom 'Cari produk' untuk menambahkan produk atau varian yang mau disesuaikan.", icon: <Search className="w-8 h-8" /> },
         { title: "Pilih Stok Bersama / Stok Produk Ini", description: "Pilih 'Stok Bersama' jika stok grup dan semua varian terkait ikut dihitung. Pilih 'Stok Produk Ini' jika hanya produk itu yang dibuatkan log stok dan stok grup tidak diubah.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih satu produk saja per grup stok", description: "Sistem memblokir produk duplikat dan menampilkan pesan 'Pilih satu produk saja per grup stok untuk mode Stok Bersama' jika dua varian dari grup yang sama sama-sama memakai Stok Bersama. Setelah diajukan, perubahan mengikuti approval stock log.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
@@ -364,6 +379,21 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "admin-update-stok-massal",
+      title: "Update Stok",
+      description: "Update satu produk atau banyak produk dari tombol Update Stok di halaman Inventaris. Thumbnail/foto produk tampil di pencarian, kartu pilihan, dan preview dengan foto produk/varian.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Update Stok", description: "Masuk ke menu 'Inventaris' di sidebar kiri, lalu klik tombol 'Update Stok' di sebelah tombol 'Input / Transaksi'.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Pilih Satu Produk (Single) / Banyak Produk (Bulk) - Update Stok Massal", description: "Pilih 'Satu Produk (Single)' untuk update satu produk dengan tampilan ringkas, atau pilih 'Banyak Produk (Bulk)' untuk membuka workflow Update Stok Massal yang sudah ada.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Cari Produk", description: "Di jalur Satu Produk, cari dan pilih satu produk. Di jalur Banyak Produk (Bulk), gunakan kolom 'Cari produk' untuk menambahkan beberapa produk atau varian ke daftar. Thumbnail/foto produk muncul di hasil pencarian dan kartu pilihan agar barang mudah dicek.", icon: <Search className="w-8 h-8" /> },
+        { title: "Atur Aksi & Jumlah", description: "Pilih aksi (Tambah stok, Kurangi stok, atau Set stok akhir) dan masukkan jumlah kuantitas stok yang baru.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Mode Stok", description: "Pilih 'Stok Bersama' untuk membagikan perubahan stok ke seluruh varian dalam grup, atau 'Stok Produk Ini' untuk mengubah stok produk tersebut saja tanpa memengaruhi varian lain.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Cek Preview", description: "Pada Satu Produk, cek ringkasan sebelum dan sesudah. Pada Banyak Produk (Bulk), perhatikan tabel preview dengan foto produk/varian dan pastikan tidak ada produk duplikat.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Ajukan Perubahan", description: "Ketik catatan jika diperlukan, lalu klik tombol 'Ajukan Update Stok'. Pengajuan akan dikirim ke Owner untuk disetujui (Status Pending) sebelum stok resmi diperbarui.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "admin-import-products",
       title: "Import Massal Produk & Stok (Excel)",
       description: "Nggak perlu input manual satu-satu, kamu bisa langsung masukin banyak produk atau stok sekaligus pakai file Excel.",
@@ -372,7 +402,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
         { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Mapping Kolom & Proses", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi sebelum import diproses.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Mapping Harga Jual & HPP", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, terutama Harga Jual dan HPP. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi. Jika mayoritas Harga Jual lebih rendah daripada HPP, sistem menghentikan import agar mapping bisa diperiksa kembali.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -384,7 +414,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
-        { title: "Cari produk di Update Stok Massal", description: "Masuk ke menu 'Inventaris', buka tab 'Transaksi', lalu pilih 'Update Stok Massal'. Gunakan kolom 'Cari produk' untuk menambahkan produk atau varian yang mau disesuaikan.", icon: <Search className="w-8 h-8" /> },
+        { title: "Cari produk via Update Stok > Banyak Produk (Bulk)", description: "Masuk ke menu 'Inventaris', klik tombol 'Update Stok', lalu pilih 'Banyak Produk (Bulk)' untuk membuka Update Stok Massal. Gunakan kolom 'Cari produk' untuk menambahkan produk atau varian yang mau disesuaikan.", icon: <Search className="w-8 h-8" /> },
         { title: "Pilih Stok Bersama / Stok Produk Ini", description: "Pilih 'Stok Bersama' jika stok grup dan semua varian terkait ikut dihitung. Pilih 'Stok Produk Ini' jika hanya produk itu yang dibuatkan log stok dan stok grup tidak diubah.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih satu produk saja per grup stok", description: "Sistem memblokir produk duplikat dan menampilkan pesan 'Pilih satu produk saja per grup stok untuk mode Stok Bersama' jika dua varian dari grup yang sama sama-sama memakai Stok Bersama. Setelah diajukan, perubahan mengikuti approval stock log.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
@@ -617,6 +647,21 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "inventory-update-stok-massal",
+      title: "Update Stok",
+      description: "Update satu produk atau banyak produk dari tombol Update Stok di halaman Inventaris. Thumbnail/foto produk tampil di pencarian, kartu pilihan, dan preview dengan foto produk/varian.",
+      icon: <Warehouse className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Update Stok", description: "Masuk ke menu 'Inventaris' di sidebar kiri, lalu klik tombol 'Update Stok' di sebelah tombol 'Input / Transaksi'.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Pilih Satu Produk (Single) / Banyak Produk (Bulk) - Update Stok Massal", description: "Pilih 'Satu Produk (Single)' untuk update satu produk dengan tampilan ringkas, atau pilih 'Banyak Produk (Bulk)' untuk membuka workflow Update Stok Massal yang sudah ada.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Cari Produk", description: "Di jalur Satu Produk, cari dan pilih satu produk. Di jalur Banyak Produk (Bulk), gunakan kolom 'Cari produk' untuk menambahkan beberapa produk atau varian ke daftar. Thumbnail/foto produk muncul di hasil pencarian dan kartu pilihan agar barang mudah dicek.", icon: <Search className="w-8 h-8" /> },
+        { title: "Atur Aksi & Jumlah", description: "Pilih aksi (Tambah stok, Kurangi stok, atau Set stok akhir) dan masukkan jumlah kuantitas stok yang baru.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Mode Stok", description: "Pilih 'Stok Bersama' untuk membagikan perubahan stok ke seluruh varian dalam grup, atau 'Stok Produk Ini' untuk mengubah stok produk tersebut saja tanpa memengaruhi varian lain.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Cek Preview", description: "Pada Satu Produk, cek ringkasan sebelum dan sesudah. Pada Banyak Produk (Bulk), perhatikan tabel preview dengan foto produk/varian dan pastikan tidak ada produk duplikat.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Ajukan Perubahan", description: "Ketik catatan jika diperlukan, lalu klik tombol 'Ajukan Update Stok'. Pengajuan akan dikirim ke Owner untuk disetujui (Status Pending) sebelum stok resmi diperbarui.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "inventory-stock-group",
       title: "Mengatur Grup Stok (Stock Group)",
       description: "Mengelompokkan produk-produk variasi atau kemasan berbeda agar berbagi satu stok fisik yang sama di gudang.",
@@ -625,7 +670,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Aktivitas Grup", description: "Masuk ke menu 'Produk' di sidebar, lalu pilih tab 'Aktivitas Grup' di navigasi atas.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Buat Grup Stok Baru", description: "Klik tombol 'Atur Grup Stok' (atau Bulk Stock Group) untuk mendefinisikan kelompok stok baru.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tentukan Produk Anggota", description: "Pilih produk utama dan tambahkan produk-produk anggota yang akan saling berbagi stok dasar secara otomatis.", icon: <Package className="w-8 h-8" /> },
-        { title: "Cari produk di Update Stok Massal", description: "Masuk ke tab 'Transaksi' di halaman Inventaris, lalu pilih 'Update Stok Massal'. Gunakan kolom 'Cari produk' untuk memilih produk atau varian yang stoknya mau diubah.", icon: <Search className="w-8 h-8" /> },
+        { title: "Cari produk via Update Stok > Banyak Produk (Bulk)", description: "Di halaman Inventaris, klik tombol 'Update Stok', lalu pilih 'Banyak Produk (Bulk)' untuk membuka Update Stok Massal. Gunakan kolom 'Cari produk' untuk memilih produk atau varian yang stoknya mau diubah.", icon: <Search className="w-8 h-8" /> },
         { title: "Pilih Stok Bersama / Stok Produk Ini", description: "Pilih 'Stok Bersama' jika perubahan harus mengikuti stok grup dan memunculkan dampak ke varian lain. Pilih 'Stok Produk Ini' jika hanya produk tersebut yang dicatat di log stok dan stok grup tidak diubah.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih satu produk saja per grup stok", description: "Produk duplikat akan ditolak. Jika dua varian dari grup yang sama sama-sama memakai Stok Bersama, sistem menampilkan pesan 'Pilih satu produk saja per grup stok untuk mode Stok Bersama'. Setelah submit, pengajuan tetap menunggu approval.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
