@@ -390,6 +390,54 @@ describe("GET /api/products", () => {
     expect(body.data[0].variants).toHaveLength(2);
     expect(body.data[0].defaultVariant.stock).toBe(100);
   });
+
+  it("searches products by category and brand names", async () => {
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "p-kertas-a4",
+        name: "A4 70gsm",
+        sku: "A4-70-RIM",
+        price: 50000,
+        stock: 10,
+        unit: "rim",
+        isActive: true,
+        category: { id: "cat-paper", name: "Kertas", icon: null, color: "#000" },
+        brand: { id: "brand-paperline", name: "Paperline", normalizedName: "paperline" },
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/products?search=kertas"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(productFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                {
+                  category: {
+                    is: {
+                      name: { contains: "kertas", mode: "insensitive" },
+                    },
+                  },
+                },
+                {
+                  brand: {
+                    is: {
+                      name: { contains: "kertas", mode: "insensitive" },
+                    },
+                  },
+                },
+              ]),
+            }),
+          ],
+        }),
+      }),
+    );
+  });
 });
 
 describe("DELETE /api/products", () => {

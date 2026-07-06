@@ -70,6 +70,29 @@ describe("matchesSearchTokens", () => {
       matchesSearchTokens({ name: "Air Mineral", sku: "AM-1" }, ["air"]),
     ).toBe(true);
   });
+
+  it("matches category and brand names so category searches find existing products", () => {
+    expect(
+      matchesSearchTokens(
+        {
+          name: "A4 70gsm",
+          sku: "A4-70-RIM",
+          category: { name: "Kertas" },
+        },
+        ["kertas"],
+      ),
+    ).toBe(true);
+    expect(
+      matchesSearchTokens(
+        {
+          name: "Ballpoint Standard",
+          sku: "PEN-STD",
+          brand: { name: "Joyko" },
+        },
+        ["joyko"],
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("buildProductSearchOR", () => {
@@ -79,23 +102,35 @@ describe("buildProductSearchOR", () => {
 
   it("emits AND of OR groups so each token must hit some field", () => {
     const where = buildProductSearchOR(["indomie", "goreng"]);
-    expect(where).toEqual({
-      AND: [
-        {
-          OR: [
-            { name: { contains: "indomie", mode: "insensitive" } },
-            { sku: { contains: "indomie", mode: "insensitive" } },
-            { barcode: { contains: "indomie", mode: "insensitive" } },
-          ],
-        },
-        {
-          OR: [
-            { name: { contains: "goreng", mode: "insensitive" } },
-            { sku: { contains: "goreng", mode: "insensitive" } },
-            { barcode: { contains: "goreng", mode: "insensitive" } },
-          ],
-        },
-      ],
-    });
+    expect(where?.AND).toHaveLength(2);
+    expect(where?.AND[0].OR).toEqual(
+      expect.arrayContaining([
+        { name: { contains: "indomie", mode: "insensitive" } },
+        { sku: { contains: "indomie", mode: "insensitive" } },
+        { barcode: { contains: "indomie", mode: "insensitive" } },
+        { category: { is: { name: { contains: "indomie", mode: "insensitive" } } } },
+        { brand: { is: { name: { contains: "indomie", mode: "insensitive" } } } },
+      ]),
+    );
+    expect(where?.AND[1].OR).toEqual(
+      expect.arrayContaining([
+        { name: { contains: "goreng", mode: "insensitive" } },
+        { sku: { contains: "goreng", mode: "insensitive" } },
+        { barcode: { contains: "goreng", mode: "insensitive" } },
+        { category: { is: { name: { contains: "goreng", mode: "insensitive" } } } },
+        { brand: { is: { name: { contains: "goreng", mode: "insensitive" } } } },
+      ]),
+    );
+  });
+
+  it("includes category and brand names in every token search group", () => {
+    const where = buildProductSearchOR(["kertas"]);
+
+    expect(where?.AND[0].OR).toEqual(
+      expect.arrayContaining([
+        { category: { is: { name: { contains: "kertas", mode: "insensitive" } } } },
+        { brand: { is: { name: { contains: "kertas", mode: "insensitive" } } } },
+      ]),
+    );
   });
 });

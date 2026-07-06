@@ -2,6 +2,8 @@ export type ProductSearchable = {
   name?: string | null;
   sku?: string | null;
   barcode?: string | null;
+  category?: { name?: string | null } | null;
+  brand?: { name?: string | null } | null;
 };
 
 const MAX_TOKENS = 8;
@@ -46,7 +48,13 @@ export function matchesSearchTokens(
   tokens: string[],
 ): boolean {
   if (tokens.length === 0) return true;
-  const haystack = [product.name, product.sku, product.barcode]
+  const haystack = [
+    product.name,
+    product.sku,
+    product.barcode,
+    product.category?.name,
+    product.brand?.name,
+  ]
     .filter((v): v is string => typeof v === "string" && v.length > 0)
     .map((v) => v.toLowerCase());
   if (haystack.length === 0) return false;
@@ -62,6 +70,8 @@ type ProductWhereGroup = {
     | { name: ContainsFilter }
     | { sku: ContainsFilter }
     | { barcode: ContainsFilter }
+    | { category: { is: { name: ContainsFilter } } }
+    | { brand: { is: { name: ContainsFilter } } }
   >;
 };
 
@@ -84,6 +94,8 @@ export function buildProductSearchOR(
         { name: { contains: token, mode: "insensitive" } },
         { sku: { contains: token, mode: "insensitive" } },
         { barcode: { contains: token, mode: "insensitive" } },
+        { category: { is: { name: { contains: token, mode: "insensitive" } } } },
+        { brand: { is: { name: { contains: token, mode: "insensitive" } } } },
       ],
     })),
   };
