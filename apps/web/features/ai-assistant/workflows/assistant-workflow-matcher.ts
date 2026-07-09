@@ -66,6 +66,10 @@ export function getMissingWorkflowRequirements(
 ) {
   const missing: string[] = [];
 
+  if (workflow.allowedRoles && !workflow.allowedRoles.includes(role)) {
+    missing.push(`role:${role}`);
+  }
+
   for (const page of workflow.requiredPages) {
     if (!canRoleAccessPage(role, page, permissions)) missing.push(`page:${page}`);
   }

@@ -122,4 +122,16 @@ describe('HelpContent', () => {
     expect(invHtml).not.toContain('Buka Update Stok Massal');
     expect(invHtml).not.toContain('klik tab &#x27;Transaksi&#x27;');
   });
+
+  it('shows the custom invoice date guide for Admin users', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="ADMIN" searchQuery="tanggal invoice" />
+    );
+    const normalizedHtml = html.toLowerCase();
+
+    expect(html).toContain('Mengubah Tanggal Invoice');
+    expect(html).toContain('Ubah Tanggal Invoice');
+    expect(normalizedHtml).toContain('alasan perubahan');
+    expect(normalizedHtml).toContain('cetak ulang invoice final');
+  });
 });

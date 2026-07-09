@@ -153,6 +153,43 @@ input[type="number"] {
   animation: ai-pulse-glow 2s infinite;
 }
 
+/* Help guide active step glow */
+@keyframes help-step-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(12, 152, 233, 0),
+      0 0 20px rgba(12, 152, 233, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(12, 152, 233, 0.12),
+      0 0 30px rgba(12, 152, 233, 0.5);
+  }
+}
+
+@keyframes help-step-callout-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(12, 152, 233, 0),
+      0 0 16px rgba(12, 152, 233, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(12, 152, 233, 0.14),
+      0 0 24px rgba(12, 152, 233, 0.55);
+  }
+}
+
+.help-step-glow-animated {
+  animation: help-step-glow 2.2s ease-in-out infinite;
+}
+
+.help-step-callout-glow-animated {
+  animation: help-step-callout-glow 1.8s ease-in-out infinite;
+}
+
 /* ─── Pending Approval Row Glow ───────────────────────────────────────────── */
 @keyframes pending-row-glow {
   0%,
@@ -205,10 +242,18 @@ input[type="number"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .help-step-glow-animated,
+  .help-step-callout-glow-animated,
   .animate-pending-row,
   .animate-pending-badge,
   .history-surat-jalan-glow {
     animation: none;
+  }
+  .help-step-glow-animated {
+    box-shadow: 0 0 20px rgba(12, 152, 233, 0.3);
+  }
+  .help-step-callout-glow-animated {
+    box-shadow: 0 0 16px rgba(12, 152, 233, 0.35);
   }
   .animate-pending-row {
     box-shadow: inset 3px 0 0 0 rgba(37, 99, 235, 0.9);

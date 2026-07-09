@@ -35,6 +35,8 @@ interface TransactionActionMenuProps {
   onReject: () => void;
   onApproveDraft: () => void;
   onVoid: () => void;
+  showUpward?: boolean;
+  initialOpen?: boolean;
 }
 
 export function TransactionActionMenu({
@@ -56,8 +58,10 @@ export function TransactionActionMenu({
   onReject,
   onApproveDraft,
   onVoid,
+  showUpward = false,
+  initialOpen = false,
 }: TransactionActionMenuProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(initialOpen);
   const [suratJalanModalOpen, setSuratJalanModalOpen] = useState(false);
   const [buktiModalOpen, setBuktiModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -99,7 +103,9 @@ export function TransactionActionMenu({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 rounded-xl shadow-lg bg-white ring-1 ring-black/5 divide-y divide-surface-100 z-50 overflow-hidden">
+        <div className={`absolute right-0 w-48 rounded-xl shadow-lg bg-white ring-1 ring-black/5 divide-y divide-surface-100 z-50 overflow-hidden ${
+          showUpward ? "bottom-full mb-2" : "mt-2"
+        }`}>
           {/* Action groups */}
           
 

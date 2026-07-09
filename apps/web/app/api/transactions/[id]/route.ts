@@ -155,7 +155,14 @@ export async function PATCH(
 
     const existingTransaction = await db.transaction.findFirst({
       where: { id, storeId },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        payments: {
+          select: { id: true },
+          take: 2,
+        },
+      },
     });
 
     if (!existingTransaction) {
@@ -204,6 +211,14 @@ export async function PATCH(
     if (salespersonId !== undefined) updateData.salespersonId = salespersonId || null;
     if (customerName !== undefined) updateData.customerName = customerName || null;
     if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
+    if (paymentMethod !== undefined && existingTransaction.payments.length === 1) {
+      updateData.payments = {
+        updateMany: {
+          where: {},
+          data: { method: paymentMethod },
+        },
+      };
+    }
     if (status !== undefined && status !== existingTransaction.status) updateData.status = status;
 
     if (Object.keys(updateData).length === 0) {

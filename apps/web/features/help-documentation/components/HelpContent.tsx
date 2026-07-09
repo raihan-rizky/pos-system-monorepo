@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import HelpDiagramStepper, { Step } from "./HelpDiagramStepper";
+export { resolveHelpStepVisual } from "./help-visual-registry";
 import type { Role } from "@/features/rbac/helpers/rbac-core";
 
 interface AccordionItem {
@@ -63,7 +64,7 @@ const ROLE_DESCRIPTIONS: Record<string, { desc: string; resps: string[] }> = {
   }
 };
 
-const ROLE_CONTENT: Record<string, AccordionItem[]> = {
+export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
   OWNER: [
     {
       id: "owner-rbac",
@@ -161,7 +162,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-custom-invoice-date",
       title: "Mengubah Tanggal Invoice",
-      description: "Owner dan Admin bisa mengatur tanggal bisnis invoice tanpa mengubah waktu audit sistem. Semua perubahan wajib punya alasan dan tercatat di riwayat.",
+      description: "Owner dan Admin bisa mengatur tanggal bisnis invoice tanpa mengubah waktu audit sistem. Alasan perubahan tercatat di riwayat, lalu cetak ulang invoice final setelah nomor atau tanggal berubah.",
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Riwayat", description: "Masuk ke menu 'Riwayat'. Tanggal utama di tabel adalah Tanggal Invoice, sedangkan label 'Dibuat' menunjukkan waktu record dibuat sistem.", icon: <History className="w-8 h-8" /> },
@@ -341,6 +342,18 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Isi Data Pengeluaran", description: "Ketik nama pemohon, pilih kategori pengeluaran, masukkan jumlah nominal, dan keterangan pengeluaran.", icon: <Settings className="w-8 h-8" /> },
         { title: "Upload Bukti Gambar", description: "Unggah foto nota belanja ke prnt.sc. Tunggu hingga selesai dan salin link URL gambar yang dihasilkan.", icon: <FileText className="w-8 h-8" /> },
         { title: "Tempel Link & Simpan", description: "Tempel link URL prnt.sc ke kolom 'URL Lampiran', lalu klik 'Simpan' untuk memproses pengeluaran.", icon: <Settings className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-custom-invoice-date",
+      title: "Mengubah Tanggal Invoice",
+      description: "Admin bisa mengatur tanggal bisnis invoice tanpa mengubah waktu audit sistem. Alasan perubahan tercatat di riwayat, lalu cetak ulang invoice final setelah nomor atau tanggal berubah.",
+      icon: <History className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Riwayat", description: "Masuk ke menu 'Riwayat'. Tanggal utama di tabel adalah Tanggal Invoice, sedangkan label 'Dibuat' menunjukkan waktu record dibuat sistem.", icon: <History className="w-8 h-8" /> },
+        { title: "Pilih Ubah Tanggal Invoice", description: "Klik menu titik tiga pada transaksi target, lalu pilih 'Ubah Tanggal Invoice'. Menu ini hanya muncul untuk Owner/Admin.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Isi Tanggal, Jam, dan Alasan", description: "Pilih tanggal invoice baru. Jam boleh dikosongkan agar sistem mempertahankan jam invoice sebelumnya. Tulis alasan perubahan sebelum menyimpan.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Cetak Ulang Invoice", description: "Setelah disimpan, nomor invoice/draft akan disesuaikan dengan tanggal baru. Buka detail transaksi untuk melihat timeline perubahan, lalu cetak ulang invoice final.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {
@@ -835,7 +848,7 @@ function searchInContent(item: AccordionItem, query: string): boolean {
 }
 
 export default function HelpContent({ targetRole, searchQuery = "" }: { targetRole: Role | "AI_ASSISTANT"; searchQuery?: string }) {
-  const allContent = useMemo(() => ROLE_CONTENT[targetRole] || [], [targetRole]);
+  const allContent = useMemo(() => HELP_ROLE_CONTENT[targetRole] || [], [targetRole]);
   const content = useMemo(() => {
     if (!searchQuery) return allContent;
     return allContent.filter((item) => searchInContent(item, searchQuery));
@@ -915,7 +928,12 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
                         {item.description}
                       </p>
                     )}
-                    <HelpDiagramStepper steps={item.steps} />
+                    <HelpDiagramStepper
+                      steps={item.steps}
+                      guideId={item.id}
+                      guideTitle={item.title}
+                      role={targetRole}
+                    />
                   </div>
                 </motion.div>
               )}

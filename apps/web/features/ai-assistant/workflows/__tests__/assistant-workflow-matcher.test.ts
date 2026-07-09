@@ -51,4 +51,20 @@ describe("assistant workflow matcher", () => {
       },
     });
   });
+
+  it("denies the custom invoice date workflow for cashier users", () => {
+    const result = matchAssistantWorkflow({
+      message: "cara ubah tanggal invoice",
+      role: "CASHIER",
+      permissions,
+    });
+
+    expect(result).toMatchObject({
+      kind: "denied",
+      workflow: {
+        id: "faq-q10-custom-invoice-date",
+      },
+      missingRequirements: ["role:CASHIER"],
+    });
+  });
 });

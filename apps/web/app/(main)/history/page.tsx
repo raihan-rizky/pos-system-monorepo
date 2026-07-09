@@ -1287,7 +1287,7 @@ export default function HistoryPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-100">
-                      {transactions.map((tx: Transaction) => {
+                      {transactions.map((tx: Transaction, idx: number) => {
                         const isDP = tx.status === "DP";
                         const isVoided = tx.status === "VOIDED";
                         const isRefunded = tx.status === "REFUNDED";
@@ -1490,6 +1490,7 @@ export default function HistoryPage() {
                                   onReject={() => setRejectingTransaction(tx)}
                                   onApproveDraft={() => setApprovingDraft(tx)}
                                   onVoid={() => setVoidingTransaction(tx)}
+                                  showUpward={idx >= transactions.length - 2 && transactions.length > 1}
                                 />
                               </div>
                             </td>
@@ -1502,7 +1503,7 @@ export default function HistoryPage() {
 
                 {/* Mobile Cards View */}
                 <div className="flex flex-col gap-3 md:hidden p-4 border-b border-surface-100">
-                  {transactions.map((tx: Transaction) => {
+                  {transactions.map((tx: Transaction, idx: number) => {
                     const isDP = tx.status === "DP";
                     const isVoided = tx.status === "VOIDED";
                     const isRefunded = tx.status === "REFUNDED";
@@ -1696,6 +1697,7 @@ export default function HistoryPage() {
                               onReject={() => setRejectingTransaction(tx)}
                               onApproveDraft={() => setApprovingDraft(tx)}
                               onVoid={() => setVoidingTransaction(tx)}
+                              showUpward={idx >= transactions.length - 2 && transactions.length > 1}
                             />
                           </div>
                         )}

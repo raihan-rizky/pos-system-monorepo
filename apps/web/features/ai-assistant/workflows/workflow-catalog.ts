@@ -1,4 +1,4 @@
-import type { ResourceAction } from "@/features/rbac/helpers/rbac-core";
+import type { ResourceAction, Role } from "@/features/rbac/helpers/rbac-core";
 import type { AssistantWorkflowPayload, AssistantWorkflowStepPayload } from "../types/assistant";
 
 export type AssistantWorkflowRequirement = {
@@ -11,6 +11,7 @@ export type AssistantWorkflowDefinition = AssistantWorkflowPayload & {
   aliases: string[];
   requiredPages: string[];
   requiredCapabilities: AssistantWorkflowRequirement[];
+  allowedRoles?: Role[];
   iconKey: string;
   steps: Required<AssistantWorkflowStepPayload>[];
 };
@@ -23,6 +24,7 @@ type WorkflowInput = {
   route: string;
   actionLabel: string;
   iconKey: string;
+  allowedRoles?: Role[];
   requiredPages?: string[];
   requiredCapabilities: AssistantWorkflowRequirement[];
   steps: Array<{ title: string; description: string }>;
@@ -45,6 +47,7 @@ function workflow(input: WorkflowInput): AssistantWorkflowDefinition {
     aliases: input.aliases,
     requiredPages: input.requiredPages ?? [input.route],
     requiredCapabilities: input.requiredCapabilities,
+    allowedRoles: input.allowedRoles,
     route: input.route,
     actionLabel: input.actionLabel,
     sourceRef: `docs/help/faq.md#q${input.faqNumber}-${sourceAnchor(input.title)}`,
@@ -216,6 +219,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     route: "/history",
     actionLabel: "Buka Riwayat",
     iconKey: "calendar",
+    allowedRoles: ["OWNER", "ADMIN"],
     requiredCapabilities: [{ resource: "transaction", action: "update" }],
     steps: [
       { title: "Buka Riwayat", description: "Masuk ke Riwayat Transaksi. Tanggal utama memakai Tanggal Invoice, sedangkan label Dibuat menunjukkan waktu sistem membuat record." },

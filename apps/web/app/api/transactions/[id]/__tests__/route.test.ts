@@ -4,6 +4,7 @@ const afterMock = vi.hoisted(() => vi.fn());
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
+const transactionUpdateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/server", async () => {
   const actual = await vi.importActual<typeof import("next/server")>("next/server");
@@ -23,12 +24,13 @@ vi.mock("@pos/db", () => ({
   db: {
     transaction: {
       findFirst: transactionFindFirstMock,
+      update: transactionUpdateMock,
     },
   },
   Prisma: {},
 }));
 
-import { GET } from "../route";
+import { GET, PATCH } from "../route";
 
 describe("GET /api/transactions/[id]", () => {
   beforeEach(() => {
@@ -123,6 +125,57 @@ describe("GET /api/transactions/[id]", () => {
         oldDocumentNumber: "INV-20260616-0001",
         newDocumentNumber: "INV-20260702-0001",
         reason: "Tanggal invoice disesuaikan",
+      }),
+    );
+  });
+});
+
+describe("PATCH /api/transactions/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requirePermissionMock.mockResolvedValue({
+      id: "owner-1",
+      role: "OWNER",
+      storeId: "store-main",
+    });
+    handleAuthErrorMock.mockReturnValue(null);
+  });
+
+  it("syncs the single payment badge method when paymentMethod changes", async () => {
+    transactionFindFirstMock.mockResolvedValue({
+      id: "tx-1",
+      status: "COMPLETED",
+      payments: [{ id: "payment-1" }],
+    });
+    transactionUpdateMock.mockResolvedValue({
+      id: "tx-1",
+      paymentMethod: "CREDIT",
+      status: "COMPLETED",
+      items: [],
+      cashier: { name: "Owner One" },
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/transactions/tx-1", {
+        method: "PATCH",
+        body: JSON.stringify({ paymentMethod: "CREDIT" }),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "tx-1" },
+        data: expect.objectContaining({
+          paymentMethod: "CREDIT",
+          payments: {
+            updateMany: {
+              where: {},
+              data: { method: "CREDIT" },
+            },
+          },
+        }),
       }),
     );
   });

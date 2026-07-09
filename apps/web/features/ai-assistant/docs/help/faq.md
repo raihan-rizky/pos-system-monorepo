@@ -96,7 +96,16 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
   2. Cari dan klik baris transaksi yang ingin dicetak invoice-nya.
   3. Pada panel detail transaksi di sebelah kanan, klik ikon printer atau tombol **Cetak Invoice/Struk** di sudut kanan atas panel.
 
-### Q10: Bagaimana cara mengunggah foto nota pengeluaran atau struk bukti transaksi pelanggan?
+### Q10: Bagaimana cara mengubah tanggal invoice transaksi?
+**A:** Owner/Admin dapat mengatur tanggal bisnis invoice tanpa mengubah waktu audit sistem. Gunakan fitur ini jika invoice final harus mengikuti tanggal operasional tertentu:
+1. Buka sidebar **Operasi > Riwayat** (`/history`).
+2. Cari transaksi target. Tanggal utama di tabel adalah **Tanggal Invoice**, sedangkan label **Dibuat** menunjukkan waktu record dibuat oleh sistem.
+3. Klik menu titik tiga `...` pada baris transaksi, lalu pilih **Ubah Tanggal Invoice**. Menu ini hanya muncul untuk Owner/Admin.
+4. Pilih tanggal invoice baru. Isi jam invoice hanya jika jamnya juga perlu diganti; jika jam dikosongkan, sistem mempertahankan jam invoice sebelumnya.
+5. Tulis alasan perubahan dengan jelas, lalu simpan. Sistem akan menyesuaikan nomor invoice/draft, mencatat audit trail, dan menampilkan riwayat perubahan di detail transaksi.
+6. Setelah perubahan berhasil, cetak ulang invoice final agar nomor dan tanggal yang diterima pelanggan sudah sesuai.
+
+### Q11: Bagaimana cara mengunggah foto nota pengeluaran atau struk bukti transaksi pelanggan?
 **A:** Karena penyimpanan file POS menggunakan URL gambar, Anda perlu mengunggah gambar bukti transaksi ke layanan pihak ketiga terlebih dahulu:
 1. Buka situs pengunggah gambar gratis seperti [prnt.sc](https://prnt.sc/) di browser Anda.
 2. Klik **Browse Images** atau seret (*drag-and-drop*) file gambar bukti/nota Anda ke sana.
@@ -104,7 +113,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 4. Kembali ke modal aplikasi POS, tempel (*paste*) link tersebut di kolom **URL Lampiran** pada formulir pengeluaran atau modal upload bukti transaksi.
 5. Klik **Simpan** untuk mengaitkan bukti tersebut dengan transaksi.
 
-### Q11: Bagaimana cara memulai (buka) dan mengakhiri (tutup) shift kerja kasir?
+### Q12: Bagaimana cara memulai (buka) dan mengakhiri (tutup) shift kerja kasir?
 **A:** Ikuti langkah berikut untuk mengelola laci uang kasir:
 - **Membuka Shift Kasir:**
   1. Buka sidebar **Lainnya > Shift Kasir** (`/shift`) saat baru masuk kerja.
@@ -115,7 +124,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
   2. Hitung total nominal fisik uang tunai di laci kasir secara manual, lalu ketikkan nilainya pada kolom Uang Tutup Laci Fisik.
   3. Masukkan catatan bila diperlukan, lalu klik tombol merah **Konfirmasi Akhiri Shift**. Sistem akan langsung membandingkan dengan catatan kas masuk sistem dan menampilkan selisih kas (jika ada).
 
-### Q12: Bagaimana cara mengoreksi atau mengubah data laporan shift kasir yang sudah ditutup?
+### Q13: Bagaimana cara mengoreksi atau mengubah data laporan shift kasir yang sudah ditutup?
 **A:** Jika terjadi kesalahan input saldo saat penutupan shift:
 1. Pada tabel Riwayat Shift (tab **Riwayat** di halaman Shift Kasir), cari baris shift yang ingin diubah.
 2. Klik ikon pensil (edit) di kolom aksi sebelah kanan.
@@ -125,14 +134,14 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 
 ## 📌 Topik: Pelanggan & Piutang
 
-### Q13: Bagaimana cara mendaftarkan pelanggan baru ke sistem?
+### Q14: Bagaimana cara mendaftarkan pelanggan baru ke sistem?
 **A:** Ikuti langkah berikut (memerlukan izin `customer.create`):
 1. Buka sidebar **Pelanggan > Pelanggan** (`/customers`).
 2. Klik tombol hitam **Tambah Pelanggan** di kanan atas (atau **Import Excel** jika ingin menambah massal).
 3. Isi data pelanggan pada formulir: Nama Pelanggan (wajib), Tipe Pelanggan (default UMUM, AGEN, INDUSTRI, atau PEMERINTAH), Nomor HP/WhatsApp, Email, Perusahaan, Alamat, dan Catatan.
 4. Klik **Simpan**.
 
-### Q14: Bagaimana cara mencatat pembayaran cicilan atau pelunasan piutang pelanggan?
+### Q15: Bagaimana cara mencatat pembayaran cicilan atau pelunasan piutang pelanggan?
 **A:** Ada dua cara untuk mencatat pelunasan piutang:
 - **Cara 1: Melalui Halaman Pelanggan (Tab Piutang):**
   1. Buka menu **Pelanggan > Pelanggan**, pilih tab **Piutang** di navigasi atas.
@@ -148,21 +157,21 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 
 ## 📌 Topik: Inventaris & Supplier
 
-### Q15: Bagaimana cara melaporkan barang yang rusak, hilang, atau menyusut di gudang?
+### Q16: Bagaimana cara melaporkan barang yang rusak, hilang, atau menyusut di gudang?
 **A:** Buka menu Inventaris untuk mencatat kerugian barang:
 1. Masuk ke halaman **Inventaris** (`/inventory`) dan klik tombol menu **Input / Transaksi**.
 2. Pilih opsi **Laporkan Barang Rusak**.
 3. Pilih produk yang mengalami kerusakan, masukkan jumlah stok yang rusak, dan tambahkan catatan/alasan kerusakan secara jelas.
 4. Klik **Submit** untuk menyimpan laporan. Laporan barang rusak akan diproses atau diajukan untuk disetujui agar mengurangi kuantitas stok di sistem.
 
-### Q16: Bagaimana cara menyelesaikan tugas operasional mingguan (seperti Proof Kebersihan)?
+### Q17: Bagaimana cara menyelesaikan tugas operasional mingguan (seperti Proof Kebersihan)?
 **A:** Ikuti langkah berikut untuk merekam kepatuhan tugas mingguan:
 1. Di halaman Inventaris, buka tab **Tugas**.
 2. Pada bagian **Tugas Mingguan**, Anda akan melihat daftar tugas operasional seperti **Proof Kebersihan Gudang**.
 3. Klik pada tugas tersebut atau tombol aksi yang tersedia.
 4. Unggah bukti foto (proof) kebersihan rak gudang Anda, kemudian klik **Submit** agar tugas tersebut tercatat sebagai selesai.
 
-### Q17: Bagaimana cara mengajukan Penerimaan Barang (Inbound Receipt) dari supplier?
+### Q18: Bagaimana cara mengajukan Penerimaan Barang (Inbound Receipt) dari supplier?
 **A:** Buka menu Inventaris untuk mencatat barang masuk:
 1. Buka menu **Input / Transaksi** di halaman Inventaris, kemudian pilih **Penerimaan Barang**.
 2. Isi detail dokumen seperti sumber barang (Supplier) dan nomor dokumen atau surat jalan terkait.
@@ -170,7 +179,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 4. Setelah draf lengkap, klik **Submit** (Ajukan). 
 5. Pengajuan ini tidak akan langsung menambah stok. Statusnya akan menjadi *Pending* hingga disetujui (Approve) oleh pihak berwenang (seperti OWNER atau admin dengan izin `inventory.approve`). Stok baru bertambah setelah disetujui.
 
-### Q18: Bagaimana cara membuat Daftar Belanja (Shopping Request) kebutuhan toko ke supplier?
+### Q19: Bagaimana cara membuat Daftar Belanja (Shopping Request) kebutuhan toko ke supplier?
 **A:** Fitur Daftar Belanja digunakan untuk mencatat kebutuhan barang/produk yang perlu dibeli dari supplier:
 1. Buka menu **Supplier** di sidebar, kemudian pilih tab **Daftar Belanja**.
 2. Klik tombol **Buat Daftar Belanja** di sebelah kanan atas tabel.
@@ -179,7 +188,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 5. Masukkan nominal kuantitas barang yang ingin diajukan (*requested quantity*) sesuai unitnya.
 6. Tulis keterangan pendukung pada kolom **Catatan Internal** bila perlu, lalu klik **Simpan Draft Belanja**.
 
-### Q27: Bagaimana cara melakukan Check In dan Check Out (Day Session) bagi Staf Gudang?
+### Q28: Bagaimana cara melakukan Check In dan Check Out (Day Session) bagi Staf Gudang?
 **A:** Staf gudang wajib mengelola operasional harian melalui alur sesi (Day Session):
 1. **Buka Sesi (Check In):** Buka halaman **Inventaris** (`/inventory`). Di awal hari kerja, halaman ini akan meminta Anda melakukan **Check In (Morning Check)**. Anda perlu mengisi formulir Morning Check yang mencakup:
    - Meninjau risiko stok menipis/habis.
@@ -191,7 +200,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
    - Pada hari Sabtu, Anda juga diwajibkan mengunggah berkas **Proof Kebersihan** (Tugas Mingguan) sebelum bisa menutup sesi.
    - Check Out akan mencatat ringkasan (snapshot) pekerjaan hari tersebut ke dalam riwayat. Riwayat sesi dapat dipantau di tab **Riwayat > Riwayat Tugas Harian** (sub-tab **Check Out**).
 
-### Q28: Bagaimana cara melakukan marking pada Surat Jalan (Delivery Order)?
+### Q29: Bagaimana cara melakukan marking pada Surat Jalan (Delivery Order)?
 **A:** Alur marking menggantikan verifikasi Surat Jalan untuk pencatatan internal gudang:
 1. Buka halaman **Inventaris** (`/inventory`), pilih tab **Ringkasan** (atau tab **Transaksi > Surat Jalan**).
 2. Temukan dokumen Surat Jalan yang berstatus **UNMARKED** (belum ditandai) pada antrean penanganan gudang.
@@ -209,14 +218,14 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 
 ## 📌 Topik: Keuangan & Pengaturan
 
-### Q19: Bagaimana cara mencatat pengeluaran operasional toko?
+### Q20: Bagaimana cara mencatat pengeluaran operasional toko?
 **A:** Buka menu keuangan untuk mencatat pengeluaran harian:
 1. Buka sidebar **Keuangan > Keuangan** (`/keuangan`).
 2. Klik tombol **Tambah Pengeluaran** untuk memasukkan pengeluaran baru.
 3. Isi nominal pengeluaran, pilih kategori, dan tambahkan catatan pendukung (opsional).
 4. **Unggah Bukti Pengeluaran (Attachment):** Upload foto nota belanja ke situs gratis seperti [prnt.sc](https://prnt.sc/), lalu salin tautan link gambar yang dihasilkan (misal: `https://prnt.sc/xxxxxx`). Tempel (*paste*) link tersebut di kolom **URL Lampiran** pada form pengeluaran, periksa pratinjau gambarnya, lalu klik **Simpan**.
 
-### Q20: Bagaimana cara mengekspor data Laporan Keuangan ke format Excel atau PDF?
+### Q21: Bagaimana cara mengekspor data Laporan Keuangan ke format Excel atau PDF?
 **A:** Anda dapat mengunduh salinan data laporan keuangan ke perangkat Anda:
 1. Di bagian kanan atas halaman Laporan Keuangan, klik tombol **Ekspor**.
 2. Pilih format dokumen:
@@ -226,13 +235,13 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 4. Berkas laporan akan otomatis terunduh ke perangkat Anda.
    *(Pilihan rentang tanggal filter yang sedang aktif di layar visual tidak memengaruhi isi berkas yang diekspor. Berkas yang diunduh akan selalu murni mengikuti cakupan periode yang Anda pilih di dalam menu dropdown Ekspor).*
 
-### Q21: Bagaimana cara mengubah informasi profil toko yang muncul di struk belanja?
+### Q22: Bagaimana cara mengubah informasi profil toko yang muncul di struk belanja?
 **A:** Untuk memperbarui logo, nama, atau alamat di struk penjualan:
 1. Buka sidebar **Lainnya > Pengaturan** (`/settings`), lalu pilih tab **Info Toko**.
 2. Lakukan perubahan pada logo toko, nama toko, alamat, dan nomor telepon yang ingin ditampilkan pada struk/invoice.
 3. Klik **Simpan** (memerlukan permission `settings.update`).
 
-### Q22: Bagaimana pemilik toko mengatur hak akses atau izin bagi admin, kasir, dan staf gudang?
+### Q23: Bagaimana pemilik toko mengatur hak akses atau izin bagi admin, kasir, dan staf gudang?
 **A:** Pengaturan hak akses (RBAC) hanya dapat diakses oleh **OWNER**:
 1. Buka sidebar **Lainnya > Pengaturan** (`/settings`), lalu pilih tab **RBAC**.
 2. Periksa ringkasan statistik peran pada **Ringkasan Role** (menampilkan jumlah halaman aktif, aksi aktif, custom permission, dan total peringatan sensitif).
@@ -247,20 +256,20 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 
 ## 📌 Topik: Produksi & Tim Sales
 
-### Q23: Bagaimana cara memperbarui status pengerjaan pesanan cetak (Job Order)?
+### Q24: Bagaimana cara memperbarui status pengerjaan pesanan cetak (Job Order)?
 **A:** Operator produksi dapat memantau status pesanan di menu **Produksi** menggunakan Kanban Board:
 - Pindahkan kartu pesanan dengan menyeret kartu pesanan (*drag-and-drop*) ke tahapan: **Baru** -> **Sedang Diproses (PRINTING)** -> **Siap Diambil (READY_PICKUP)** -> **Selesai (DELIVERED)**.
 
-### Q24: Bagaimana cara mengirim notifikasi pengambilan barang kepada pelanggan?
+### Q25: Bagaimana cara mengirim notifikasi pengambilan barang kepada pelanggan?
 **A:** Sistem dapat mengirimkan pesan WhatsApp ke pelanggan ketika pesanan telah masuk ke status "Siap Diambil":
 - Pada papan Kanban, jika kartu pesanan berada di kolom **Siap Diambil**, klik tombol WhatsApp pada kartu tersebut untuk mengirim pesan pemberitahuan pengambilan barang otomatis ke nomor pelanggan yang terdaftar.
 
-### Q25: Bagaimana cara mengelola daftar anggota Sales?
+### Q26: Bagaimana cara mengelola daftar anggota Sales?
 **A:** Buka menu **Tim Sales** di sidebar untuk mengelola anggota:
 - **Tambah Sales:** Klik **Tambah Sales**, ketikkan nama anggota sales baru, lalu klik simpan.
 - **Ubah Sales / Toggle Aktif:** Klik tombol edit untuk mengubah nama, atau gunakan tombol toggle cepat di daftar sales untuk merubah statusnya (Aktif/Nonaktif). Hanya sales dengan status "Aktif" yang muncul di halaman kasir (POS).
 
-### Q26: Bagaimana cara melihat riwayat transaksi yang ditangani oleh Sales tertentu?
+### Q27: Bagaimana cara melihat riwayat transaksi yang ditangani oleh Sales tertentu?
 **A:** Untuk melacak kontribusi penjualan sales:
 1. Buka menu **Tim Sales** di sidebar.
 2. Klik pada baris/kartu nama sales bersangkutan.

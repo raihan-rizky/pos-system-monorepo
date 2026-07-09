@@ -38,7 +38,10 @@ export default function HelpPage() {
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-surface-50 min-h-screen">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20">
+      <div
+        data-help-page-layout="wide"
+        className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20"
+      >
 
         {/* Header */}
         <div className="mb-8">

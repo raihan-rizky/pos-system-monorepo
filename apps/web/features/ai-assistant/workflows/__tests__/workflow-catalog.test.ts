@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
@@ -45,6 +46,25 @@ describe("FAQ workflow catalog", () => {
     expect(serializedInbound).toContain("inventory.inbound_receipt.reject");
     expect(serializedInbound).toContain("inventory.inbound_receipt.revise");
     expect(JSON.stringify(inbound)).not.toContain("admin dengan izin `inventory.approve`");
+  });
+
+  it("documents the custom invoice date guide in the workflow catalog and FAQ source", () => {
+    const customInvoiceDateWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 10);
+    const faqSource = readFileSync(new URL("../../docs/help/faq.md", import.meta.url), "utf8");
+
+    expect(customInvoiceDateWorkflow).toMatchObject({
+      id: "faq-q10-custom-invoice-date",
+      route: "/history",
+      actionLabel: "Buka Riwayat",
+      sourceRef: "docs/help/faq.md#q10-bagaimana-cara-mengubah-tanggal-invoice-transaksi",
+      allowedRoles: ["OWNER", "ADMIN"],
+    });
+    expect(JSON.stringify(customInvoiceDateWorkflow)).toContain("Tanggal Invoice");
+    expect(JSON.stringify(customInvoiceDateWorkflow)).toContain("alasan perubahan");
+    expect(JSON.stringify(customInvoiceDateWorkflow)).toContain("cetak ulang");
+    expect(faqSource).toContain("### Q10: Bagaimana cara mengubah tanggal invoice transaksi?");
+    expect(faqSource).toContain("**Ubah Tanggal Invoice**");
+    expect(faqSource).toContain("cetak ulang invoice final");
   });
 
   it("keeps inventory daily workflow aligned with Log OUT verification RBAC and correction flow", () => {
