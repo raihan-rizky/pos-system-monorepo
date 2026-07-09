@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "type-check": "tsc --noEmit",
+    "db:migrate:prod": "pnpm --filter @pos/db db:migrate:prod",
     "assistant:evaluate": "vitest run features/ai-assistant/evaluation/__tests__/assistant-workflow-evaluation.test.ts",
     "assistant:concurrency": "vitest run features/ai-assistant/evaluation/__tests__/assistant-concurrency-harness.test.ts",
     "assistant:cost": "vitest run features/ai-assistant/evaluation/__tests__/assistant-cost-baseline.test.ts",
