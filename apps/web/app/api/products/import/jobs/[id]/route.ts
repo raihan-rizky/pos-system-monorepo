@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import {
-  getProductImportJobStatus,
   productImportJobIdSchema,
+  progressProductImportJobForPolling,
 } from "@/features/product-import/services/product-import-job-service";
 
 const logger = getLogger("api:products:import:jobs:detail");
@@ -18,7 +18,7 @@ export async function GET(
   try {
     const user = await requirePermission("product", "read");
     const params = productImportJobIdSchema.parse(await context.params);
-    const job = await getProductImportJobStatus(params.id, user);
+    const job = await progressProductImportJobForPolling(params.id, user);
     return NextResponse.json(job);
   } catch (error) {
     const authErr = handleAuthError(error);

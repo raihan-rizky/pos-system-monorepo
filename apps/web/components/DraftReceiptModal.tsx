@@ -279,7 +279,9 @@ export function DraftReceiptModal({
                 <p style={{ margin: "0 0 4px" }}>
                   Cilegon,{" "}
                   {formatIndonesianDate(
-                    transaction?.createdAt || new Date().toISOString()
+                    transaction?.invoiceDate ||
+                      transaction?.createdAt ||
+                      new Date().toISOString()
                   )}
                 </p>
                 <p style={{ margin: "0 0 2px", fontWeight: "bold" }}>

@@ -5,6 +5,7 @@ export type ImportDecisionMap = Record<string, ImportRowDecision>;
 export function getDefaultDecisionForAutoAction(
   row: NormalizedImportRow,
 ): ImportRowDecision | undefined {
+  if (row.autoAction === "create") return "create";
   if (row.autoAction === "auto_create_variant") return "create";
   if (row.autoAction === "auto_price_update") return "update";
   if (row.autoAction === "auto_skip") return "skip";

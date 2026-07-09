@@ -7,6 +7,12 @@ import {
   requirePermission,
 } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
+import {
+  compactJakartaDateKey,
+  jakartaDateKey,
+  requiresInvoiceDateReason,
+  resolveInvoiceDateTime,
+} from "@/features/invoice-date/helpers/invoice-date-core";
 import { buildCustomerUpdateArgs } from "@/features/pos-checkout/post-commit";
 import {
   applyProductStockDeltas,
@@ -20,6 +26,9 @@ export const dynamic = "force-dynamic";
 const approveDraftSchema = z.object({
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
   amountPaid: z.number().min(0),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  invoiceTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
+  invoiceDateReason: z.string().optional().nullable(),
 });
 
 const MAX_ATTEMPTS = 5;
@@ -41,7 +50,7 @@ export async function POST(
         { status: 422 },
       );
     }
-    const { paymentMethod, amountPaid } = parsed.data;
+    const { paymentMethod, amountPaid, invoiceDate, invoiceTime, invoiceDateReason } = parsed.data;
 
     const draft = await db.transaction.findFirst({
       where: { id, storeId },
@@ -84,7 +93,35 @@ export async function POST(
     const newStatus = isDP ? "DP" : "COMPLETED";
 
     const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const hasCustomInvoiceDate = Boolean(invoiceDate || invoiceTime);
+    if (hasCustomInvoiceDate && user.role !== "OWNER" && user.role !== "ADMIN") {
+      return NextResponse.json(
+        { message: "Hanya Owner atau Admin yang boleh mengatur tanggal invoice." },
+        { status: 403 },
+      );
+    }
+
+    const resolvedInvoiceDate = hasCustomInvoiceDate
+      ? resolveInvoiceDateTime({
+          mode: "edit",
+          date: invoiceDate ?? jakartaDateKey(draft.invoiceDate ?? now),
+          time: invoiceTime,
+          now,
+          previousInvoiceDate: draft.invoiceDate ?? now,
+        })
+      : draft.invoiceDate ?? now;
+    const dateStr = compactJakartaDateKey(resolvedInvoiceDate);
+
+    if (
+      hasCustomInvoiceDate &&
+      requiresInvoiceDateReason({ invoiceDate: resolvedInvoiceDate, now }) &&
+      !invoiceDateReason?.trim()
+    ) {
+      return NextResponse.json(
+        { message: "Alasan wajib diisi untuk tanggal invoice beda hari." },
+        { status: 422 },
+      );
+    }
 
     let updated: { invoiceNumber: string } | null = null;
 
@@ -108,6 +145,7 @@ export async function POST(
               data: {
                 status: newStatus,
                 invoiceNumber,
+                invoiceDate: resolvedInvoiceDate,
                 cashierId: user.id,
                 paymentMethod,
                 amountPaid: finalAmountPaid,
@@ -188,6 +226,7 @@ export async function POST(
         ...draft,
         status: newStatus,
         invoiceNumber: updated.invoiceNumber,
+        invoiceDate: resolvedInvoiceDate,
         cashierId: user.id,
         paymentMethod,
         amountPaid: finalAmountPaid,

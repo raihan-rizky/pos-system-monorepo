@@ -11,6 +11,12 @@ import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import type { Role } from "@/lib/rbac/permissions";
 import { getLogger } from "@/lib/logger";
 import {
+  compactJakartaDateKey,
+  jakartaDateKey,
+  requiresInvoiceDateReason,
+  resolveInvoiceDateTime,
+} from "@/features/invoice-date/helpers/invoice-date-core";
+import {
   buildDraftNumber,
   formatDraftNumberForDisplay,
 } from "@/features/transactions-draft/helpers/draft-number";
@@ -39,6 +45,9 @@ const createDraftSchema = z.object({
   salespersonId: z.string().optional().nullable(),
   isJobOrder: z.boolean().optional().default(false),
   estimatedDoneAt: z.string().optional().nullable(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  invoiceTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
+  invoiceDateReason: z.string().optional().nullable(),
   payments: z.array(z.object({
     method: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
     amount: z.number().min(0),
@@ -82,6 +91,9 @@ export async function POST(request: Request) {
       salespersonId,
       isJobOrder,
       estimatedDoneAt,
+      invoiceDate,
+      invoiceTime,
+      invoiceDateReason,
       payments,
     } = parsed.data;
 
@@ -89,10 +101,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Cart is empty" }, { status: 422 });
     }
 
-    const uniqueProductIds = [...new Set(items.map((item) => item.productId))];
+    const hasCustomInvoiceDate = Boolean(invoiceDate || invoiceTime);
+    if (hasCustomInvoiceDate && user.role !== "OWNER" && user.role !== "ADMIN") {
+      return NextResponse.json(
+        { message: "Hanya Owner atau Admin yang boleh mengatur tanggal invoice." },
+        { status: 403 },
+      );
+    }
 
     const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const resolvedInvoiceDate = hasCustomInvoiceDate
+      ? resolveInvoiceDateTime({
+          mode: "create",
+          date: invoiceDate ?? jakartaDateKey(now),
+          time: invoiceTime,
+          now,
+        })
+      : now;
+
+    if (
+      hasCustomInvoiceDate &&
+      requiresInvoiceDateReason({ invoiceDate: resolvedInvoiceDate, now }) &&
+      !invoiceDateReason?.trim()
+    ) {
+      return NextResponse.json(
+        { message: "Alasan wajib diisi untuk tanggal invoice beda hari." },
+        { status: 422 },
+      );
+    }
+
+    const uniqueProductIds = [...new Set(items.map((item) => item.productId))];
+
+    const dateStr = compactJakartaDateKey(resolvedInvoiceDate);
 
     const [customerCheck, salespersonCheck, products, draftCount] =
       await Promise.all([
@@ -196,6 +236,7 @@ export async function POST(request: Request) {
             data: {
               invoiceNumber: null,
               draftNumber,
+              invoiceDate: resolvedInvoiceDate,
               storeId,
               cashierId: isSalesRequest ? null : user.id,
               requestedById: isSalesRequest ? user.id : null,

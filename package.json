@@ -25,6 +25,8 @@
     "setup": "pnpm install && pnpm db:generate && pnpm db:push",
     "db:migrate:prod": "pnpm --filter @pos/db db:migrate:prod",
     "db:migrate:dev": "pnpm --filter @pos/db db:migrate:dev",
+    "db:migrate-reset:dev": "pnpm --filter @pos/db db:migrate-reset:dev",
+    "db:migrate-reset:prod": "pnpm --filter @pos/db db:migrate-reset:prod",
     "product-import-worker": "pnpm --filter @pos/product-import-worker start",
     "product-import-worker:once": "pnpm --filter @pos/product-import-worker once",
     "product-import-worker:cleanup": "pnpm --filter @pos/product-import-worker cleanup"

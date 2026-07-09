@@ -43,6 +43,7 @@ describe("GET /api/transactions/[id]", () => {
 
   it("serializes transactions without reading a missing updatedAt field", async () => {
     const transactionCreatedAt = new Date("2026-06-16T08:30:00.000Z");
+    const invoiceDate = new Date("2026-07-02T03:00:00.000Z");
 
     transactionFindFirstMock.mockResolvedValue({
       id: "tx-1",
@@ -60,9 +61,23 @@ describe("GET /api/transactions/[id]", () => {
       salesName: null,
       salespersonId: null,
       note: null,
+      invoiceDate,
       createdAt: transactionCreatedAt,
       cashier: { name: "Cashier One" },
       salesperson: null,
+      invoiceDateChangeLogs: [
+        {
+          id: "change-1",
+          oldInvoiceDate: new Date("2026-06-16T08:30:00.000Z"),
+          newInvoiceDate: invoiceDate,
+          oldDocumentNumber: "INV-20260616-0001",
+          newDocumentNumber: "INV-20260702-0001",
+          reason: "Tanggal invoice disesuaikan",
+          actorName: "Owner One",
+          actorRole: "OWNER",
+          createdAt: new Date("2026-07-09T03:00:00.000Z"),
+        },
+      ],
       items: [
         {
           id: "item-1",
@@ -88,8 +103,27 @@ describe("GET /api/transactions/[id]", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(transactionFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          invoiceDateChangeLogs: expect.objectContaining({
+            orderBy: { createdAt: "desc" },
+          }),
+        }),
+      }),
+    );
+    expect(body.invoiceDate).toBe("2026-07-02T03:00:00.000Z");
     expect(body.createdAt).toBe("2026-06-16T08:30:00.000Z");
     expect(body.updatedAt).toBeUndefined();
     expect(body.items[0].createdAt).toBe("2026-06-16T08:30:00.000Z");
+    expect(body.invoiceDateChangeLogs[0]).toEqual(
+      expect.objectContaining({
+        oldInvoiceDate: "2026-06-16T08:30:00.000Z",
+        newInvoiceDate: "2026-07-02T03:00:00.000Z",
+        oldDocumentNumber: "INV-20260616-0001",
+        newDocumentNumber: "INV-20260702-0001",
+        reason: "Tanggal invoice disesuaikan",
+      }),
+    );
   });
 });

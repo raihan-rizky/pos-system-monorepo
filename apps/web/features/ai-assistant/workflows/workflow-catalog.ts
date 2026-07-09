@@ -124,7 +124,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka Fitur Import", description: "Di halaman Pusat Produk, klik tombol dropdown Import di kanan atas." },
       { title: "Pilih tipe import", description: "Pilih Import Bulk Products untuk katalog atau Import Bulk Stock untuk kuantitas stok." },
       { title: "Unggah Excel", description: "Pilih file .xlsx dari perangkat, lalu lakukan pemetaan kolom jika nama kolom berbeda. Kolom opsional termasuk Harga Agen, Harga Dinas, dan Kode Supplier." },
-      { title: "Periksa pratinjau", description: "Cek Harga Agen, Harga Dinas, kode supplier, dan keputusan baris pada pratinjau sebelum menyelesaikan import. Import berjalan di antrean background; pantau progres, lalu gunakan Coba Lagi jika antrean belum berhasil dimulai." },
+      { title: "Periksa pratinjau", description: "Cek Harga Agen, Harga Dinas, kode supplier, dan keputusan baris pada pratinjau sebelum menyelesaikan import. Sistem otomatis memilih aksi untuk duplikat SKU yang jelas sebagai varian dan memilih satu baris harga terbaik saat ada konflik harga untuk satuan yang sama. Import berjalan di antrean background; pantau progres, lalu gunakan Coba Lagi jika antrean belum berhasil dimulai." },
     ],
   }),
   workflow({
@@ -156,7 +156,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Pastikan shift aktif", description: "Buka shift kasir terlebih dahulu sebelum memproses transaksi." },
       { title: "Pilih item", description: "Cari produk atau layanan, pilih varian jika ada, lalu masukkan ke keranjang." },
       { title: "Periksa keranjang", description: "Atur kuantitas atau hapus item yang tidak sesuai, lalu klik Bayar." },
-      { title: "Isi pembayaran", description: "Pilih pelanggan, sales bila perlu, metode pembayaran, status Lunas atau DP, dan tipe transaksi." },
+      { title: "Isi pembayaran", description: "Pilih pelanggan, sales bila perlu, metode pembayaran, status Lunas atau DP, dan tipe transaksi. Owner/Admin dapat mengisi Tanggal Invoice dan Jam Invoice opsional jika invoice harus memakai tanggal bisnis tertentu." },
       { title: "Konfirmasi dan cetak", description: "Klik Konfirmasi Bayar atau Bayar DP, lalu cetak struk bila diperlukan." },
     ],
   }),
@@ -172,8 +172,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Riwayat", description: "Masuk ke Riwayat Transaksi dan gunakan filter Pending untuk melihat transaksi yang menunggu persetujuan." },
       { title: "Pilih aksi", description: "Klik Setujui atau Tolak pada baris transaksi, atau gunakan menu tiga titik." },
-      { title: "Isi modal persetujuan", description: "Pilih Bayar Instan atau Bayar Nanti, lalu lengkapi metode dan nominal pembayaran." },
-      { title: "Finalisasi keputusan", description: "Klik Setujui untuk memotong stok dan memfinalisasi, atau Tolak untuk membatalkan transaksi pending." },
+      { title: "Isi modal persetujuan", description: "Pilih Bayar Instan atau Bayar Nanti, lalu lengkapi metode dan nominal pembayaran. Owner/Admin dapat mengubah Tanggal Invoice atau Jam Invoice final bila perlu." },
+      { title: "Finalisasi keputusan", description: "Klik Setujui untuk memotong stok dan memfinalisasi, atau Tolak untuk membatalkan transaksi pending. Jika tanggal/nomor invoice final berubah, cetak ulang invoice final." },
     ],
   }),
   workflow({
@@ -210,6 +210,23 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
   }),
   workflow({
     faqNumber: 10,
+    slug: "custom-invoice-date",
+    title: "Bagaimana cara mengubah tanggal invoice transaksi?",
+    aliases: ["ubah tanggal invoice", "ganti tanggal invoice", "custom invoice date", "tanggal faktur", "ubah nomor invoice"],
+    route: "/history",
+    actionLabel: "Buka Riwayat",
+    iconKey: "calendar",
+    requiredCapabilities: [{ resource: "transaction", action: "update" }],
+    steps: [
+      { title: "Buka Riwayat", description: "Masuk ke Riwayat Transaksi. Tanggal utama memakai Tanggal Invoice, sedangkan label Dibuat menunjukkan waktu sistem membuat record." },
+      { title: "Pilih transaksi", description: "Cari transaksi yang ingin diperbaiki tanggalnya, lalu buka menu tiga titik pada baris tersebut." },
+      { title: "Klik Ubah Tanggal Invoice", description: "Pilih menu Ubah Tanggal Invoice. Fitur ini hanya tersedia untuk Owner/Admin." },
+      { title: "Isi perubahan", description: "Pilih tanggal baru, isi jam hanya jika ingin mengganti jam invoice, lalu tulis alasan perubahan. Jika jam kosong, jam invoice sebelumnya dipertahankan." },
+      { title: "Simpan dan cetak ulang", description: "Sistem menyesuaikan nomor invoice/draft, mencatat audit trail, dan invoice final harus dicetak ulang setelah perubahan." },
+    ],
+  }),
+  workflow({
+    faqNumber: 11,
     slug: "upload-receipt-proof",
     title: "Bagaimana cara mengunggah foto nota atau bukti transaksi?",
     aliases: ["unggah bukti transaksi", "upload nota", "foto struk", "url lampiran"],
@@ -225,7 +242,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 11,
+    faqNumber: 12,
     slug: "cashier-shift",
     title: "Bagaimana cara memulai dan mengakhiri shift kerja kasir?",
     aliases: ["buka shift", "tutup shift", "mulai shift kasir", "akhiri shift kasir"],
@@ -242,7 +259,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 12,
+    faqNumber: 13,
     slug: "edit-closed-shift",
     title: "Bagaimana cara mengoreksi laporan shift kasir yang sudah ditutup?",
     aliases: ["ubah laporan shift", "koreksi shift", "edit shift tertutup", "saldo akhir shift salah"],
@@ -257,7 +274,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 13,
+    faqNumber: 14,
     slug: "add-customer",
     title: "Bagaimana cara mendaftarkan pelanggan baru ke sistem?",
     aliases: ["tambah pelanggan", "daftar pelanggan baru", "input customer", "buat customer baru"],
@@ -273,7 +290,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 14,
+    faqNumber: 15,
     slug: "customer-debt-payment",
     title: "Bagaimana cara mencatat pembayaran cicilan atau pelunasan piutang pelanggan?",
     aliases: ["bayar piutang", "pelunasan piutang", "cicilan pelanggan", "bayar hutang pelanggan"],
@@ -290,7 +307,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 15,
+    faqNumber: 16,
     slug: "damaged-stock-report",
     title: "Bagaimana cara melaporkan barang rusak, hilang, atau menyusut di gudang?",
     aliases: ["lapor barang rusak", "barang hilang", "stok menyusut", "laporan kerusakan gudang"],
@@ -306,7 +323,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 16,
+    faqNumber: 17,
     slug: "weekly-proof-task",
     title: "Bagaimana cara menyelesaikan tugas operasional mingguan?",
     aliases: ["proof kebersihan", "tugas mingguan", "unggah kebersihan gudang", "weekly proof"],
@@ -322,7 +339,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 17,
+    faqNumber: 18,
     slug: "inbound-receipt",
     title: "Bagaimana cara mengajukan Penerimaan Barang dari supplier?",
     aliases: ["penerimaan barang", "inbound receipt", "barang masuk supplier", "ajukan penerimaan"],
@@ -339,7 +356,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 18,
+    faqNumber: 19,
     slug: "shopping-request",
     title: "Bagaimana cara membuat Daftar Belanja kebutuhan toko ke supplier?",
     aliases: ["buat daftar belanja", "shopping request", "kebutuhan toko supplier", "draft belanja supplier"],
@@ -356,7 +373,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 19,
+    faqNumber: 20,
     slug: "record-expense",
     title: "Bagaimana cara mencatat pengeluaran operasional toko?",
     aliases: ["catat pengeluaran", "tambah pengeluaran", "expense toko", "biaya operasional"],
@@ -373,7 +390,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 20,
+    faqNumber: 21,
     slug: "export-financial-report",
     title: "Bagaimana cara mengekspor Laporan Keuangan ke Excel atau PDF?",
     aliases: ["ekspor laporan keuangan", "export excel pdf", "unduh laporan", "laporan keuangan pdf"],
@@ -389,7 +406,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 21,
+    faqNumber: 22,
     slug: "store-profile",
     title: "Bagaimana cara mengubah informasi profil toko yang muncul di struk?",
     aliases: ["ubah info toko", "profil toko struk", "logo toko", "alamat struk"],
@@ -405,7 +422,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 22,
+    faqNumber: 23,
     slug: "manage-rbac",
     title: "Bagaimana pemilik toko mengatur hak akses atau izin bagi role?",
     aliases: ["atur hak akses", "mengatur rbac", "izin kasir admin", "permission role"],
@@ -423,7 +440,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 23,
+    faqNumber: 24,
     slug: "job-order-status",
     title: "Bagaimana cara memperbarui status pengerjaan pesanan cetak?",
     aliases: ["ubah status job order", "kanban produksi", "pesanan cetak", "status produksi"],
@@ -438,7 +455,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 24,
+    faqNumber: 25,
     slug: "pickup-notification",
     title: "Bagaimana cara mengirim notifikasi pengambilan barang kepada pelanggan?",
     aliases: ["kirim notifikasi pengambilan", "whatsapp siap diambil", "pesanan siap diambil", "notifikasi pickup"],
@@ -453,7 +470,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 25,
+    faqNumber: 26,
     slug: "manage-salespersons",
     title: "Bagaimana cara mengelola daftar anggota Sales?",
     aliases: ["kelola sales", "tambah sales", "anggota sales", "aktifkan sales"],
@@ -469,7 +486,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 26,
+    faqNumber: 27,
     slug: "salesperson-history",
     title: "Bagaimana cara melihat riwayat transaksi yang ditangani Sales tertentu?",
     aliases: ["riwayat transaksi sales", "transaksi sales tertentu", "kontribusi sales", "detail sales"],
@@ -484,7 +501,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 27,
+    faqNumber: 28,
     slug: "inventory-day-session",
     title: "Bagaimana cara melakukan Check In dan Check Out bagi staf gudang?",
     aliases: ["check in inventaris", "check out inventaris", "day session gudang", "morning check"],
@@ -501,7 +518,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 28,
+    faqNumber: 29,
     slug: "delivery-order-marking",
     title: "Bagaimana cara melakukan marking pada Surat Jalan?",
     aliases: ["marking surat jalan", "tandai surat jalan", "delivery order marking", "sj unmarked"],
@@ -518,7 +535,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 29,
+    faqNumber: 30,
     slug: "approve-stock-logs",
     title: "Bagaimana cara menyetujui atau menolak pengajuan mutasi/Log Stok?",
     aliases: [
@@ -540,7 +557,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 30,
+    faqNumber: 31,
     slug: "inventory-workflow",
     title: "Bagaimana alur kerja harian staf gudang (Inventory)?",
     aliases: [
@@ -567,7 +584,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 31,
+    faqNumber: 32,
     slug: "cashier-workflow",
     title: "Bagaimana alur kerja harian staf Kasir?",
     aliases: [
@@ -589,7 +606,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 32,
+    faqNumber: 33,
     slug: "sales-workflow",
     title: "Bagaimana alur kerja harian staf Sales?",
     aliases: [
@@ -612,7 +629,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 33,
+    faqNumber: 34,
     slug: "change-individual-stock",
     title: "Bagaimana cara mengubah stok individual produk lewat tombol \"Ubah Produk\"?",
     aliases: [
@@ -635,7 +652,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
   workflow({
-    faqNumber: 34,
+    faqNumber: 35,
     slug: "update-stok-massal-product-first",
     title: "Bagaimana cara memakai Update Stok untuk satu produk dan banyak produk?",
     aliases: [

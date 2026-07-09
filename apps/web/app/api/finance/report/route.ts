@@ -98,12 +98,13 @@ export async function GET(request: Request) {
         where: {
           storeId,
           status: { in: ["COMPLETED", "DP"] },
-          createdAt: dateBounds,
+          invoiceDate: dateBounds,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { invoiceDate: "desc" },
         select: {
           id: true,
           invoiceNumber: true,
+          invoiceDate: true,
           createdAt: true,
           status: true,
           paymentMethod: true,
@@ -171,6 +172,7 @@ export async function GET(request: Request) {
         dateTo,
         transactions: transactions.map((transaction) => ({
           ...transaction,
+          createdAt: transaction.invoiceDate,
           total: toNumber(transaction.total),
           amountPaid: toNumber(transaction.amountPaid),
           discount: toNumber(transaction.discount),

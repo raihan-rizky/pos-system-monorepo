@@ -31,8 +31,11 @@ export interface Transaction {
   salesperson?: { name: string } | null;
   note: string | null;
   status: string; // COMPLETED, DP, PENDING_APPROVAL, VOIDED, REFUNDED, DRAFT
+  invoiceDate?: string | null;
   createdAt: string;
   buktiTransaksiUrls?: string[];
+  latestInvoiceDateChange?: InvoiceDateChangeLog | null;
+  invoiceDateChangeLogs?: InvoiceDateChangeLog[];
   debtPaymentLogs?: {
     id: string;
     createdAt: string;
@@ -81,6 +84,18 @@ export interface Transaction {
   }[];
 }
 
+export interface InvoiceDateChangeLog {
+  id: string;
+  oldInvoiceDate: string;
+  newInvoiceDate: string;
+  oldDocumentNumber: string | null;
+  newDocumentNumber: string | null;
+  reason: string;
+  actorName: string | null;
+  actorRole: string;
+  createdAt: string;
+}
+
 export interface PaginatedTransactions {
   data: Transaction[];
   pagination: {
@@ -117,6 +132,9 @@ interface CreateTransactionInput {
   paymentStatus?: string; // 'COMPLETED' | 'DP'
   isJobOrder?: boolean;
   estimatedDoneAt?: string | null;
+  invoiceDate?: string;
+  invoiceTime?: string | null;
+  invoiceDateReason?: string | null;
   payments?: {
     method: string;
     amount: number;
@@ -309,6 +327,45 @@ export function useUpdateTransaction() {
   });
 }
 
+export interface UpdateTransactionInvoiceDateInput {
+  id: string;
+  invoiceDate: string;
+  invoiceTime?: string | null;
+  reason: string;
+  regenerateNumber?: boolean;
+}
+
+async function updateTransactionInvoiceDate(
+  input: UpdateTransactionInvoiceDateInput,
+): Promise<Transaction> {
+  const { id, ...body } = input;
+  const res = await fetch(`/api/transactions/${id}/invoice-date`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...body,
+      regenerateNumber: body.regenerateNumber ?? true,
+    }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || "Gagal mengubah tanggal invoice");
+  }
+  return res.json();
+}
+
+export function useUpdateTransactionInvoiceDate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateTransactionInvoiceDate,
+    onSuccess: (transaction) => {
+      updateTransactionInHistoryCaches(queryClient, transaction);
+      scheduleTransactionViewInvalidation(queryClient);
+    },
+  });
+}
+
 async function deleteTransaction(id: string): Promise<void> {
   const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
   if (!res.ok) {
@@ -333,6 +390,9 @@ export interface ApproveTransactionInput {
   paymentMethod?: string;
   amountPaid?: number;
   isPayLater?: boolean;
+  invoiceDate?: string;
+  invoiceTime?: string | null;
+  invoiceDateReason?: string | null;
 }
 
 async function approveTransaction(input: ApproveTransactionInput): Promise<Transaction> {

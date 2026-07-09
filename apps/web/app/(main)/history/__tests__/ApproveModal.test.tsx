@@ -3,12 +3,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ApproveModal } from "../components/ApproveModal";
 
+let roleMock = "OWNER";
+
 // Mock hooks called by ApproveModal
 vi.mock("@/hooks/useTransactions", () => ({
   useApproveTransaction: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
+}));
+
+vi.mock("@/components/providers/RoleProvider", () => ({
+  useRole: () => ({ role: roleMock }),
 }));
 
 vi.mock("@pos/ui", async (importOriginal) => {
@@ -161,5 +167,55 @@ describe("ApproveModal", () => {
 
     expect(html).toContain("value=\"CREDIT\"");
     expect(html).toContain("Kartu Kredit");
+  });
+
+  it("shows optional invoice date and time controls for owner approval", () => {
+    roleMock = "OWNER";
+    const mockTx = {
+      id: "tx-3",
+      invoiceNumber: "INV-20260709-0001",
+      total: 150000,
+      paymentMethod: "CASH",
+      amountPaid: 150000,
+      customerName: "Jane Doe",
+      items: [],
+      status: "PENDING_APPROVAL",
+    } as any;
+
+    const html = renderToStaticMarkup(
+      <ApproveModal
+        tx={mockTx}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(html).toContain("Tanggal Invoice (Opsional)");
+    expect(html).toContain("Jam Invoice (Opsional)");
+  });
+
+  it("hides optional invoice date controls for cashier approval", () => {
+    roleMock = "CASHIER";
+    const mockTx = {
+      id: "tx-4",
+      invoiceNumber: "INV-20260709-0002",
+      total: 150000,
+      paymentMethod: "CASH",
+      amountPaid: 150000,
+      customerName: "Jane Doe",
+      items: [],
+      status: "PENDING_APPROVAL",
+    } as any;
+
+    const html = renderToStaticMarkup(
+      <ApproveModal
+        tx={mockTx}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(html).not.toContain("Tanggal Invoice (Opsional)");
+    expect(html).not.toContain("Jam Invoice (Opsional)");
   });
 });

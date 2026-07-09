@@ -227,4 +227,83 @@ describe("POST /api/transactions negative stock", () => {
       }),
     );
   });
+
+  it("lets OWNER create an invoice with a custom invoice date and matching invoice number date", async () => {
+    requireRoleMock.mockResolvedValue({
+      id: "owner-1",
+      role: "OWNER",
+      storeId: "store-1",
+      name: "Owner",
+    });
+    transactionCountMock.mockResolvedValue(4);
+    applyProductStockDeltasMock.mockResolvedValue([]);
+
+    const res = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "CASH",
+          amountPaid: 1000,
+          discount: 0,
+          customerName: "Umum",
+          customerId: null,
+          paymentStatus: "COMPLETED",
+          invoiceDate: "2026-07-01",
+          invoiceTime: "14:05",
+          invoiceDateReason: "Invoice susulan dari arsip manual",
+          items: [
+            {
+              lineType: "PRODUCT",
+              productId: "p1",
+              quantity: 1,
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    const createArg = transactionCreateMock.mock.calls[0][0];
+    expect(createArg.data.invoiceDate.toISOString()).toBe(
+      "2026-07-01T07:05:00.000Z",
+    );
+    expect(createArg.data.invoiceNumber).toBe("INV-20260701-0005");
+    expect(transactionCountMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-1",
+        invoiceNumber: { startsWith: "INV-20260701-" },
+      },
+    });
+  });
+
+  it("rejects a custom invoice date from CASHIER", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "CASH",
+          amountPaid: 1000,
+          discount: 0,
+          customerName: "Umum",
+          customerId: null,
+          paymentStatus: "COMPLETED",
+          invoiceDate: "2026-07-01",
+          items: [
+            {
+              lineType: "PRODUCT",
+              productId: "p1",
+              quantity: 1,
+            },
+          ],
+        }),
+      }),
+    );
+
+    const body = await res.json();
+    expect(res.status).toBe(403);
+    expect(body.message).toBe(
+      "Hanya Owner atau Admin yang boleh mengatur tanggal invoice.",
+    );
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
 });

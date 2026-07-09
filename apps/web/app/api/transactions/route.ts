@@ -11,6 +11,12 @@ import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/respons
 import { getLogger } from "@/lib/logger";
 import { sendRolePushEvent } from "@/lib/push-events";
 import {
+  compactJakartaDateKey,
+  jakartaDateKey,
+  requiresInvoiceDateReason,
+  resolveInvoiceDateTime,
+} from "@/features/invoice-date/helpers/invoice-date-core";
+import {
   buildCustomerUpdateArgs,
   buildInventoryLogRows,
   buildServiceMaterialInventoryLogRows,
@@ -92,6 +98,9 @@ const createTransactionSchema = z.object({
   paymentStatus: z.enum(["COMPLETED", "DP"]).optional().default("COMPLETED"),
   isJobOrder: z.boolean().optional().default(false),
   estimatedDoneAt: z.string().optional().nullable(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  invoiceTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
+  invoiceDateReason: z.string().optional().nullable(),
   payments: z.array(z.object({
     method: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
     amount: z.number().min(0),
@@ -173,19 +182,17 @@ export async function GET(request: Request) {
 
     // Date range filter
     if (dateFrom || dateTo) {
-      const createdAtFilter: DateTimeFilter = {};
+      const invoiceDateFilter: DateTimeFilter = {};
       if (dateFrom) {
-        const [year, month, day] = dateFrom.split("-");
-        createdAtFilter.gte = new Date(Number(year), Number(month) - 1, Number(day));
+        invoiceDateFilter.gte = new Date(`${dateFrom}T00:00:00+07:00`);
       }
       if (dateTo) {
-        // Include the entire "dateTo" day in local time
-        const [year, month, day] = dateTo.split("-");
-        const end = new Date(Number(year), Number(month) - 1, Number(day));
+        // Include the entire "dateTo" day in Jakarta business time.
+        const end = new Date(`${dateTo}T00:00:00+07:00`);
         end.setDate(end.getDate() + 1);
-        createdAtFilter.lt = end;
+        invoiceDateFilter.lt = end;
       }
-      andConditions.push({ createdAt: createdAtFilter });
+      andConditions.push({ invoiceDate: invoiceDateFilter });
     }
 
     // Category filter (transactions containing products in this category)
@@ -257,7 +264,7 @@ export async function GET(request: Request) {
       findMany: () =>
         db.transaction.findMany({
           where,
-          orderBy: { createdAt: "desc" },
+          orderBy: { invoiceDate: "desc" },
           skip,
           take: limit,
           include: {
@@ -321,6 +328,21 @@ export async function GET(request: Request) {
               select: { id: true, createdAt: true, amount: true, paymentMethod: true },
               orderBy: { createdAt: "desc" },
             },
+            invoiceDateChangeLogs: {
+              take: 1,
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                oldInvoiceDate: true,
+                newInvoiceDate: true,
+                oldDocumentNumber: true,
+                newDocumentNumber: true,
+                reason: true,
+                actorName: true,
+                actorRole: true,
+                createdAt: true,
+              },
+            },
           },
         }),
     });
@@ -348,8 +370,10 @@ export async function GET(request: Request) {
         suratJalan: _suratJalan,
         payments,
         debtPaymentLogs,
+        invoiceDateChangeLogs,
         ...transactionPayload
       } = transaction;
+      const latestInvoiceDateChange = (invoiceDateChangeLogs ?? [])[0] ?? null;
       return {
         ...transactionPayload,
         payments: (payments ?? []).map((payment) => ({
@@ -362,6 +386,14 @@ export async function GET(request: Request) {
           amount: Number(payment.amount),
           paymentMethod: payment.paymentMethod,
         })),
+        latestInvoiceDateChange: latestInvoiceDateChange
+          ? {
+              ...latestInvoiceDateChange,
+              oldInvoiceDate: latestInvoiceDateChange.oldInvoiceDate.toISOString(),
+              newInvoiceDate: latestInvoiceDateChange.newInvoiceDate.toISOString(),
+              createdAt: latestInvoiceDateChange.createdAt.toISOString(),
+            }
+          : null,
         suratJalanSummary: summary,
       };
     });
@@ -418,8 +450,40 @@ export async function POST(request: Request) {
       paymentStatus,
       isJobOrder,
       estimatedDoneAt,
+      invoiceDate,
+      invoiceTime,
+      invoiceDateReason,
       payments: rawPayments,
     } = parsed.data;
+    const hasCustomInvoiceDate = Boolean(invoiceDate || invoiceTime);
+
+    if (hasCustomInvoiceDate && user.role !== "OWNER" && user.role !== "ADMIN") {
+      return NextResponse.json(
+        { message: "Hanya Owner atau Admin yang boleh mengatur tanggal invoice." },
+        { status: 403 },
+      );
+    }
+
+    const now = new Date();
+    const resolvedInvoiceDate = hasCustomInvoiceDate
+      ? resolveInvoiceDateTime({
+          mode: "create",
+          date: invoiceDate ?? jakartaDateKey(now),
+          time: invoiceTime,
+          now,
+        })
+      : now;
+
+    if (
+      hasCustomInvoiceDate &&
+      requiresInvoiceDateReason({ invoiceDate: resolvedInvoiceDate, now }) &&
+      !invoiceDateReason?.trim()
+    ) {
+      return NextResponse.json(
+        { message: "Alasan wajib diisi untuk tanggal invoice beda hari." },
+        { status: 422 },
+      );
+    }
 
     // Resolve payments array: use explicit payments or fall back to single paymentMethod
     const resolvedPayments = rawPayments && rawPayments.length > 0
@@ -461,9 +525,7 @@ export async function POST(request: Request) {
     // pre-validation parallel batch instead of running serially inside the
     // interactive transaction below. The retry loop on P2002 already covers
     // the rare race where two cashiers read the same count.
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dateStr = compactJakartaDateKey(resolvedInvoiceDate);
 
     const [
       customerCheck,
@@ -522,7 +584,10 @@ export async function POST(request: Request) {
           })
         : Promise.resolve([]),
       db.transaction.count({
-        where: { storeId, createdAt: { gte: dayStart } },
+        where: {
+          storeId,
+          invoiceNumber: { startsWith: `INV-${dateStr}-` },
+        },
       }),
     ]);
 
@@ -694,6 +759,7 @@ export async function POST(request: Request) {
           const txn = await tx.transaction.create({
             data: {
               invoiceNumber,
+              invoiceDate: resolvedInvoiceDate,
               storeId,
               cashierId: isSalesRequest ? null : user.id,
               requestedById: isSalesRequest ? user.id : null,

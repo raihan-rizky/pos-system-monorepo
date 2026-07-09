@@ -76,6 +76,7 @@ export function ReceiptModal({
     () => buildReceiptPaymentLines(transaction, printStatus),
     [transaction, printStatus],
   );
+  const invoiceDateChangeLogs = transaction?.invoiceDateChangeLogs ?? [];
 
   const displayNote = transaction?.note
     ? transaction.note.replace(/(?: \| )?Pelunasan(?: piutang)? [\d.,]+ \([A-Z]+\)(?:, [\d.,]+ \([A-Z]+\))*/g, "").trim()
@@ -232,7 +233,9 @@ export function ReceiptModal({
                     <span className="mr-4">:</span>
                     <span>
                       {formatDate(
-                        transaction?.createdAt || new Date().toISOString(),
+                        transaction?.invoiceDate ||
+                          transaction?.createdAt ||
+                          new Date().toISOString(),
                       )}
                     </span>
                   </div>
@@ -445,6 +448,53 @@ export function ReceiptModal({
             </div>
           </div>
         </div>
+
+        {invoiceDateChangeLogs.length > 0 && (
+          <section className="print:hidden rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+            <h3 className="text-sm font-bold text-amber-900">
+              Riwayat Perubahan Tanggal Invoice
+            </h3>
+            <div className="mt-3 space-y-3">
+              {invoiceDateChangeLogs.map((change) => (
+                <div
+                  key={change.id}
+                  className="rounded-lg border border-amber-200 bg-white p-3 text-sm"
+                >
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="font-semibold text-surface-900">
+                      {formatDate(new Date(change.oldInvoiceDate))} menjadi{" "}
+                      {formatDate(new Date(change.newInvoiceDate))}
+                    </div>
+                    <div className="text-xs text-surface-500">
+                      {formatDate(new Date(change.createdAt))}
+                    </div>
+                  </div>
+                  <div className="mt-2 grid gap-2 text-xs text-surface-600 sm:grid-cols-2">
+                    <div>
+                      <span className="font-semibold text-surface-700">
+                        Nomor lama:
+                      </span>{" "}
+                      {change.oldDocumentNumber ?? "-"}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-surface-700">
+                        Nomor baru:
+                      </span>{" "}
+                      {change.newDocumentNumber ?? "-"}
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-surface-700">
+                    <span className="font-semibold">Alasan:</span>{" "}
+                    {change.reason}
+                  </p>
+                  <p className="mt-1 text-xs text-surface-500">
+                    Diubah oleh {change.actorName || change.actorRole}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Actions (Not Printed) */}
         <div className="flex gap-3 print:hidden  sticky bottom-[-16px] z-10 bg-white pt-4 pb-4 -mx-6 px-6 border-t border-gray-100 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] mt-4">

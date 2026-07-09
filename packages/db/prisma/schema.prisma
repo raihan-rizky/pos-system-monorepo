@@ -28,6 +28,7 @@ model User {
   recordedExpenses                    Expense[]                     @relation("recorded_expenses")
   productImportJobs                   ProductImportJob[]            @relation("created_product_import_jobs")
   productionActivityLogs              ProductionActivityLog[]       @relation("production_activity_actor")
+  invoiceDateChangeLogs               InvoiceDateChangeLog[]        @relation("invoice_date_change_actor")
   inventoryTasksSubmitted             InventoryTask[]               @relation("inventory_task_submitter")
   inventoryDaySessionsCheckedIn       InventoryDaySession[]         @relation("inventory_day_session_checkin")
   inventoryDaySessionsCheckedOut      InventoryDaySession[]         @relation("inventory_day_session_checkout")
@@ -76,6 +77,7 @@ model Store {
   internalStockOutRequests     InternalStockOutRequest[]
   productStockGroups           ProductStockGroup[]
   productionActivityLogs       ProductionActivityLog[]
+  invoiceDateChangeLogs        InvoiceDateChangeLog[]
   products                     Product[]
   salespersons                 Salesperson[]
   shoppingRequests             ShoppingRequest[]
@@ -241,6 +243,7 @@ model Transaction {
   change                   Decimal                 @default(0) @db.Decimal(12, 2)
   status                   TransactionStatus       @default(COMPLETED)
   note                     String?
+  invoiceDate              DateTime                @default(now())
   createdAt                DateTime                @default(now())
   customerName             String?
   salesName                String?
@@ -259,6 +262,7 @@ model Transaction {
   debtPaymentLogs          DebtPaymentLog[]
   expenses                 Expense[]
   inventoryLogs            InventoryLog[]
+  invoiceDateChangeLogs    InvoiceDateChangeLog[]
   productionActivityLogs   ProductionActivityLog[]
   suratJalan               SuratJalan[]
   items                    TransactionItem[]
@@ -280,10 +284,34 @@ model Transaction {
   @@index([offlineClientMutationId])
   @@index([customerId, storeId, status, createdAt], map: "pos_transactions_customer_store_status_createdAt_idx")
   @@index([storeId, createdAt(sort: Desc)], map: "pos_transactions_store_createdAt_desc_idx")
+  @@index([storeId, invoiceDate(sort: Desc)], map: "pos_transactions_store_invoiceDate_desc_idx")
+  @@index([storeId, status, invoiceDate(sort: Desc)], map: "pos_transactions_store_status_invoiceDate_desc_idx")
   @@index([storeId, isJobOrder, productionStatus, createdAt(sort: Desc)], map: "pos_transactions_store_job_production_createdAt_desc_idx")
   @@index([storeId, paymentMethod, createdAt(sort: Desc)], map: "pos_transactions_store_payment_createdAt_desc_idx")
   @@index([storeId, status, createdAt(sort: Desc)], map: "pos_transactions_store_status_createdAt_desc_idx")
   @@map("pos_transactions")
+}
+
+model InvoiceDateChangeLog {
+  id                String      @id @default(cuid())
+  transactionId     String
+  storeId           String
+  oldInvoiceDate    DateTime
+  newInvoiceDate    DateTime
+  oldDocumentNumber String?
+  newDocumentNumber String?
+  reason            String
+  actorId           String?
+  actorName         String
+  actorRole         Role
+  createdAt         DateTime    @default(now())
+  actor             User?       @relation("invoice_date_change_actor", fields: [actorId], references: [id])
+  store             Store       @relation(fields: [storeId], references: [id])
+  transaction       Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId, createdAt])
+  @@index([storeId, createdAt])
+  @@map("pos_invoice_date_change_logs")
 }
 
 model ProductionActivityLog {

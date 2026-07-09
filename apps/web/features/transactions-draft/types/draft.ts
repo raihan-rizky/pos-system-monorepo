@@ -19,6 +19,9 @@ export type DraftCreateInput = {
   salespersonId?: string | null;
   isJobOrder: boolean;
   estimatedDoneAt?: string | null;
+  invoiceDate?: string;
+  invoiceTime?: string | null;
+  invoiceDateReason?: string | null;
   payments?: { method: "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER"; amount: number }[];
 };
 
@@ -26,6 +29,9 @@ export type DraftApproveInput = {
   id: string;
   paymentMethod: "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER";
   amountPaid: number;
+  invoiceDate?: string;
+  invoiceTime?: string | null;
+  invoiceDateReason?: string | null;
 };
 
 export type DraftTransaction = Transaction;

@@ -194,7 +194,7 @@ export function buildInvoicePdfData(
       ? totals.paymentsList.map(p => p.label === "TUNAI" ? "Tunai" : p.label).join(", ")
       : transaction.paymentMethod === "CASH" ? "Tunai" : transaction.paymentMethod,
     date: formatIndonesianDate(
-      transaction.createdAt || new Date().toISOString()
+      transaction.invoiceDate || transaction.createdAt || new Date().toISOString()
     ),
     status,
     items: pdfItems,

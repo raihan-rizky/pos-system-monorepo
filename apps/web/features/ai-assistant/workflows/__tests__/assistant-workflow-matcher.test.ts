@@ -47,7 +47,7 @@ describe("assistant workflow matcher", () => {
     expect(result).toMatchObject({
       kind: "denied",
       workflow: {
-        id: "faq-q22-manage-rbac",
+        id: "faq-q23-manage-rbac",
       },
     });
   });

@@ -818,14 +818,14 @@ describe("AssistantService", () => {
 
     expect(selectionPrompt).toContain("faq-q06-pos-sale");
     expect(selectionPrompt).not.toContain("faq-q01-add-product");
-    expect(selectionPrompt).not.toContain("faq-q22-manage-rbac");
+    expect(selectionPrompt).not.toContain("faq-q23-manage-rbac");
     expect(body).toContain("Sebutkan menu yang mau dipandu ya.");
     expect(body).not.toContain('"workflow"');
   });
 
   it("rejects workflow selection IDs outside the permitted set", async () => {
     const create = vi.fn()
-      .mockResolvedValueOnce(workflowSelection("faq-q22-manage-rbac"))
+      .mockResolvedValueOnce(workflowSelection("faq-q23-manage-rbac"))
       .mockResolvedValueOnce(finalAnswer("Jangan jawab dari model umum."));
     service = new AssistantService({
       apiKey: "test-key",
@@ -851,7 +851,7 @@ describe("AssistantService", () => {
 
   it("recognizes Indonesian inventory wording for constrained workflow selection", async () => {
     const create = vi.fn()
-      .mockResolvedValueOnce(workflowSelection("faq-q27-inventory-day-session"))
+      .mockResolvedValueOnce(workflowSelection("faq-q28-inventory-day-session"))
       .mockResolvedValueOnce(finalAnswer("Jawaban inventori umum tidak boleh dipakai."));
     service = new AssistantService({
       apiKey: "test-key",
@@ -869,7 +869,7 @@ describe("AssistantService", () => {
     }));
 
     expect(create).toHaveBeenCalledTimes(1);
-    expect(body).toContain('"id":"faq-q27-inventory-day-session"');
+    expect(body).toContain('"id":"faq-q28-inventory-day-session"');
     expect(body).toContain("Check In");
     expect(body).not.toContain("Jawaban inventori umum tidak boleh dipakai.");
   });

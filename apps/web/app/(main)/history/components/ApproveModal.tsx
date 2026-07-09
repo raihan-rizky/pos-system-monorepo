@@ -18,6 +18,7 @@ import {
   type Transaction,
 } from "@/hooks/useTransactions";
 import { formatRupiah, getDefaultProductImage } from "@/lib/utils";
+import { useRole } from "@/components/providers/RoleProvider";
 
 export function ApproveModal({
   tx,
@@ -29,7 +30,12 @@ export function ApproveModal({
   onSuccess: () => void;
 }) {
   const approveTx = useApproveTransaction();
+  const { role } = useRole();
   const [error, setError] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoiceTime, setInvoiceTime] = useState("");
+  const [invoiceDateReason, setInvoiceDateReason] = useState("");
+  const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
 
   const hasMultiPayment = tx.payments && tx.payments.length > 0;
   const multiPaymentTotal = hasMultiPayment
@@ -67,6 +73,13 @@ export function ApproveModal({
           ? tx.paymentMethod || "CASH"
           : paymentMethodInput,
         isPayLater,
+        ...(canChangeInvoiceDate
+          ? {
+              invoiceDate: invoiceDate || undefined,
+              invoiceTime: invoiceTime || null,
+              invoiceDateReason: invoiceDateReason.trim() || null,
+            }
+          : {}),
       });
       onSuccess();
     } catch (err: unknown) {
@@ -356,6 +369,52 @@ export function ApproveModal({
               )}
             </span>
           </div>
+
+          {canChangeInvoiceDate && (
+            <section className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+                    Tanggal Invoice (Opsional)
+                  </label>
+                  <input
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+                    Jam Invoice (Opsional)
+                  </label>
+                  <input
+                    type="time"
+                    value={invoiceTime}
+                    onChange={(e) => setInvoiceTime(e.target.value)}
+                    className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-surface-500">
+                Jika jam dikosongkan, sistem memakai jam invoice yang sudah ada.
+              </p>
+              {(invoiceDate || invoiceTime) && (
+                <div>
+                  <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+                    Alasan perubahan tanggal
+                  </label>
+                  <textarea
+                    value={invoiceDateReason}
+                    onChange={(e) => setInvoiceDateReason(e.target.value)}
+                    placeholder="Contoh: transaksi pending disetujui untuk tanggal invoice sebelumnya"
+                    rows={2}
+                    className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                  />
+                </div>
+              )}
+            </section>
+          )}
 
           {error && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-600 flex items-start gap-2">

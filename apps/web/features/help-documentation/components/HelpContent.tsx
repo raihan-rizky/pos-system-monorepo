@@ -154,8 +154,20 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Filter Transaksi Pending", description: "Buka menu 'Riwayat' di sidebar kiri. Gunakan filter status 'Pending' pada bagian atas tabel (baris transaksi pending akan berwarna biru).", icon: <Search className="w-8 h-8" /> },
         { title: "Klik Aksi Approval", description: "Klik tombol 'Setujui' atau 'Tolak' langsung di sebelah kanan baris transaksi (atau melalui tombol titik tiga '...').", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Tentukan Metode & Jumlah", description: "Pada modal approval, pilih metode pembayaran (Cash, Transfer, Debit, Kredit, atau QRIS) dan masukkan nominal bayar. Jika tempo, pilih opsi 'Bayar Nanti (Tempo)'.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Konfirmasi", description: "Klik tombol hijau 'Setujui' untuk memfinalisasi transaksi dan mengurangi stok produk secara resmi. Jika menolak, klik 'Tolak' untuk membatalkan (VOID).", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Tentukan Metode & Jumlah", description: "Pada modal approval, pilih metode pembayaran (Cash, Transfer, Debit, Kredit, atau QRIS) dan masukkan nominal bayar. Jika tempo, pilih opsi 'Bayar Nanti (Tempo)'. Owner/Admin juga bisa mengisi Tanggal Invoice dan Jam Invoice opsional bila invoice final harus ikut tanggal bisnis tertentu.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Konfirmasi", description: "Klik tombol hijau 'Setujui' untuk memfinalisasi transaksi dan mengurangi stok produk secara resmi. Jika tanggal invoice diubah, cetak ulang invoice final agar nomor dan tanggalnya sesuai. Jika menolak, klik 'Tolak' untuk membatalkan (VOID).", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-custom-invoice-date",
+      title: "Mengubah Tanggal Invoice",
+      description: "Owner dan Admin bisa mengatur tanggal bisnis invoice tanpa mengubah waktu audit sistem. Semua perubahan wajib punya alasan dan tercatat di riwayat.",
+      icon: <History className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Riwayat", description: "Masuk ke menu 'Riwayat'. Tanggal utama di tabel adalah Tanggal Invoice, sedangkan label 'Dibuat' menunjukkan waktu record dibuat sistem.", icon: <History className="w-8 h-8" /> },
+        { title: "Pilih Ubah Tanggal Invoice", description: "Klik menu titik tiga pada transaksi target, lalu pilih 'Ubah Tanggal Invoice'. Menu ini hanya muncul untuk Owner/Admin.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Isi Tanggal, Jam, dan Alasan", description: "Pilih tanggal invoice baru. Jam boleh dikosongkan agar sistem mempertahankan jam invoice sebelumnya. Tulis alasan perubahan sebelum menyimpan.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Cetak Ulang Invoice", description: "Setelah disimpan, nomor invoice/draft akan disesuaikan dengan tanggal baru. Buka detail transaksi untuk melihat timeline perubahan, lalu cetak ulang invoice final.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {
@@ -256,7 +268,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
         { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Mapping Harga Jual & HPP", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, terutama Harga Jual dan HPP. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi. Jika mayoritas Harga Jual lebih rendah daripada HPP, sistem menghentikan import agar mapping bisa diperiksa kembali. Setelah dikonfirmasi, import berjalan di antrean background; jika muncul pesan antrean belum mulai, buka progress import lalu klik Coba Lagi.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Mapping Harga Jual & HPP", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, terutama Harga Jual dan HPP. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi. Di preview, sistem otomatis memilih aksi untuk duplikat SKU yang sudah jelas sebagai varian dan memilih satu baris harga terbaik untuk konflik harga satuan yang sama. Jika mayoritas Harga Jual lebih rendah daripada HPP, sistem menghentikan import agar mapping bisa diperiksa kembali. Setelah dikonfirmasi, import berjalan di antrean background; jika muncul pesan antrean belum mulai, buka progress import lalu klik Coba Lagi.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -404,7 +416,7 @@ const ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Jenis Import", description: "Pilih 'Import Bulk Products' untuk mengunggah katalog produk baru/lama, atau 'Import Bulk Stock' khusus untuk menyesuaikan stok gudang.", icon: <FileText className="w-8 h-8" /> },
         { title: "Unggah File Excel", description: "Pilih file Excel (.xlsx) dari komputer Anda untuk diunggah ke sistem. Ukuran file maksimal 5 MB.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Mapping Harga Jual & HPP", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, terutama Harga Jual dan HPP. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi. Jika mayoritas Harga Jual lebih rendah daripada HPP, sistem menghentikan import agar mapping bisa diperiksa kembali.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Mapping Harga Jual & HPP", description: "Petakan nama kolom Excel agar sesuai dengan kolom sistem, terutama Harga Jual dan HPP. Kolom opsional seperti Harga Agen, Harga Dinas, dan Kode Supplier bisa ikut diisi. Di preview, sistem otomatis memilih aksi untuk duplikat SKU yang sudah jelas sebagai varian dan memilih satu baris harga terbaik untuk konflik harga satuan yang sama. Jika mayoritas Harga Jual lebih rendah daripada HPP, sistem menghentikan import agar mapping bisa diperiksa kembali.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {

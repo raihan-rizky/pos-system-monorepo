@@ -5,7 +5,10 @@ import {
   getRowsMissingImportDecision,
   type ImportDecisionMap,
 } from "./import-decisions";
-import { validateSameUnitPriceConflictDecisions } from "./same-unit-price-conflicts";
+import {
+  findSameUnitPriceConflictGroups,
+  validateSameUnitPriceConflictDecisions,
+} from "./same-unit-price-conflicts";
 
 export interface DuplicateFinalSkuGroup {
   sku: string;
@@ -128,12 +131,47 @@ export function getSuggestedDuplicateFinalSkuDecisions(
   return suggestions;
 }
 
+export function getSuggestedSameUnitPriceConflictDecisions(
+  rows: NormalizedImportRow[],
+  decisions: ImportDecisionMap,
+): Record<string, ImportRowDecision> {
+  const suggestions: Record<string, ImportRowDecision> = {};
+  const rowsByNumber = new Map(rows.map((row) => [row.rowNumber, row]));
+
+  for (const group of findSameUnitPriceConflictGroups(rows)) {
+    const groupRows = group.rowNumbers
+      .map((rowNumber) => rowsByNumber.get(rowNumber))
+      .filter((row): row is NormalizedImportRow => Boolean(row));
+    const explicitUpdate = groupRows.find(
+      (row) => decisions[String(row.rowNumber)] === "update",
+    );
+    const keepRow = explicitUpdate ?? [...groupRows].sort(compareDuplicateFinalSkuRows)[0];
+    if (!keepRow) continue;
+
+    for (const row of groupRows) {
+      const key = String(row.rowNumber);
+      if (decisions[key]) continue;
+      suggestions[key] = row.rowNumber === keepRow.rowNumber ? "update" : "skip";
+    }
+  }
+
+  return suggestions;
+}
+
 export function getProductImportReadiness(
   rows: NormalizedImportRow[],
   decisions: ImportDecisionMap,
 ): ProductImportReadiness {
   const blockersByRow: Record<number, string[]> = {};
-  const suggestedDecisions = getSuggestedDuplicateFinalSkuDecisions(rows, decisions);
+  const sameUnitPriceSuggestions = getSuggestedSameUnitPriceConflictDecisions(rows, decisions);
+  const duplicateFinalSkuSuggestions = getSuggestedDuplicateFinalSkuDecisions(
+    rows,
+    { ...decisions, ...sameUnitPriceSuggestions },
+  );
+  const suggestedDecisions = {
+    ...duplicateFinalSkuSuggestions,
+    ...sameUnitPriceSuggestions,
+  };
 
   for (const row of rows) {
     const decision = getEffectiveImportDecision(row, decisions);

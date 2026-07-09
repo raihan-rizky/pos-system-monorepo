@@ -44,11 +44,18 @@ import {
 } from "@/features/transaction-history/helpers/date-range";
 import {
   useTransactionHistory,
+  useTransaction,
   useUpdateTransaction,
+  useUpdateTransactionInvoiceDate,
   useDeleteTransaction,
   useRejectTransaction,
   Transaction,
 } from "@/hooks/useTransactions";
+import {
+  getLatestPreviousInvoiceDate,
+  getTransactionInvoiceDate,
+  hasInvoiceDateChange,
+} from "@/features/invoice-date/helpers/history-invoice-date-display";
 import { ApproveDraftDialog } from "@/features/transactions-draft";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { useCategories } from "@/hooks/useProducts";
@@ -60,6 +67,37 @@ import { shouldShowDeleteAction, shouldShowUpdateAction } from "@/features/rbac/
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("page:main:history");
+
+function formatJakartaDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return year && month && day ? `${year}-${month}-${day}` : "";
+}
+
+function formatJakartaTimeInput(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "";
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "";
+  return hour && minute ? `${hour}:${minute}` : "";
+}
 // ─── Edit Modal ──────────────────────────────────────────────────────────────
 
 type EditForm = {
@@ -346,6 +384,155 @@ function EditModal({
 }
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
+
+function InvoiceDateEditModal({
+  tx,
+  onClose,
+}: {
+  tx: Transaction;
+  onClose: () => void;
+}) {
+  const updateInvoiceDate = useUpdateTransactionInvoiceDate();
+  const currentInvoiceDate = getTransactionInvoiceDate(tx);
+  const previousChangedDate = getLatestPreviousInvoiceDate(tx);
+  const [invoiceDate, setInvoiceDate] = useState(
+    formatJakartaDateInput(currentInvoiceDate),
+  );
+  const [invoiceTime, setInvoiceTime] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const existingTime = formatJakartaTimeInput(currentInvoiceDate);
+  const documentNumber = tx.invoiceNumber ?? tx.draftNumber ?? "-";
+  const canSubmit =
+    Boolean(invoiceDate) &&
+    reason.trim().length > 0 &&
+    !updateInvoiceDate.isPending;
+
+  const handleSave = async () => {
+    setError("");
+    if (!canSubmit) return;
+    try {
+      await updateInvoiceDate.mutateAsync({
+        id: tx.id,
+        invoiceDate,
+        invoiceTime: invoiceTime || null,
+        reason: reason.trim(),
+        regenerateNumber: true,
+      });
+      onClose();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal mengubah tanggal invoice",
+      );
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Ubah Tanggal Invoice" size="md">
+      <div className="space-y-4">
+        <div className="rounded-xl border border-surface-200 bg-surface-50 p-3 text-sm">
+          <div className="flex justify-between gap-3">
+            <span className="text-surface-500">Nomor</span>
+            <span className="font-mono font-bold text-surface-900 text-right">
+              {documentNumber}
+            </span>
+          </div>
+          <div className="mt-2 flex justify-between gap-3">
+            <span className="text-surface-500">Tanggal invoice saat ini</span>
+            <span className="font-semibold text-surface-900 text-right">
+              {formatDate(new Date(currentInvoiceDate))}
+            </span>
+          </div>
+          <div className="mt-2 flex justify-between gap-3">
+            <span className="text-surface-500">Tanggal dibuat sistem</span>
+            <span className="font-semibold text-surface-900 text-right">
+              {formatDate(new Date(tx.createdAt))}
+            </span>
+          </div>
+          {previousChangedDate && (
+            <div className="mt-2 flex justify-between gap-3">
+              <span className="text-surface-500">Tanggal sebelumnya</span>
+              <span className="font-semibold text-amber-700 text-right">
+                {formatDate(new Date(previousChangedDate))}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+              Tanggal Invoice
+            </label>
+            <input
+              type="date"
+              value={invoiceDate}
+              onChange={(e) => setInvoiceDate(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+              Jam Invoice (Opsional)
+            </label>
+            <input
+              type="time"
+              value={invoiceTime}
+              onChange={(e) => setInvoiceTime(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
+            />
+          </div>
+        </div>
+
+        <p className="text-xs text-surface-500">
+          Jika jam dikosongkan, sistem mempertahankan jam invoice sebelumnya
+          ({existingTime || "tidak tersedia"}).
+        </p>
+
+        <div>
+          <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+            Alasan perubahan
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            placeholder="Contoh: transaksi seharusnya masuk pembukuan tanggal sebelumnya"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
+          />
+        </div>
+
+        {error && (
+          <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={updateInvoiceDate.isPending}
+          >
+            Batal
+          </Button>
+          <Button
+            type="button"
+            variant="accent"
+            onClick={handleSave}
+            disabled={!canSubmit}
+            loading={updateInvoiceDate.isPending}
+          >
+            Simpan Tanggal
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "DRAFT") {
@@ -756,10 +943,14 @@ export default function HistoryPage() {
   const canApproveTransactions = shouldShowUpdateAction("transaction.approve", canPerform);
   const canRejectTransactions = shouldShowDeleteAction("transaction.approve", canPerform);
   const canDeleteTransactions = shouldShowDeleteAction("transaction", canPerform);
+  const canChangeInvoiceDate =
+    canUpdateTransactions && (role === "OWNER" || role === "ADMIN");
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [selectedSuratJalanTransactionId, setSelectedSuratJalanTransactionId] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingInvoiceDateTransaction, setEditingInvoiceDateTransaction] =
+    useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [approvingTransaction, setApprovingTransaction] = useState<Transaction | null>(null);
   const [rejectingTransaction, setRejectingTransaction] = useState<Transaction | null>(null);
@@ -828,6 +1019,10 @@ export default function HistoryPage() {
   const transactions = result?.data ?? [];
   const total = result?.pagination.total ?? 0;
   const totalPages = result?.pagination.totalPages ?? 1;
+  const { data: selectedTransactionDetail } = useTransaction(
+    selectedTransaction?.id ?? null,
+  );
+  const receiptTransaction = selectedTransactionDetail ?? selectedTransaction;
 
   const hasActiveFilters =
     debouncedSearch || dateFrom || dateTo || categoryId || statusFilter || suratJalanOnly;
@@ -1100,6 +1295,8 @@ export default function HistoryPage() {
                         const isDraft = tx.status === "DRAFT";
                         const isBundled = isSuratJalanBundle(tx);
                         const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
+                        const invoiceDateForDisplay = getTransactionInvoiceDate(tx);
+                        const previousInvoiceDate = getLatestPreviousInvoiceDate(tx);
                         const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
                         const rowBg = isPending
                           ? "bg-blue-50/70 hover:bg-blue-50 animate-pending-row relative"
@@ -1130,7 +1327,17 @@ export default function HistoryPage() {
                             }}
                           >
                             <td className={`py-3.5 px-4 text-sm whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-900"}`}>
-                              {formatDate(new Date(tx.createdAt))}
+                              <div className="font-semibold">
+                                {formatDate(new Date(invoiceDateForDisplay))}
+                              </div>
+                              <div className="mt-0.5 text-[11px] text-surface-500">
+                                Dibuat: {formatDate(new Date(tx.createdAt))}
+                              </div>
+                              {previousInvoiceDate && (
+                                <div className="mt-0.5 text-[11px] font-semibold text-amber-700">
+                                  Sebelumnya: {formatDate(new Date(previousInvoiceDate))}
+                                </div>
+                              )}
                             </td>
                             <td className="py-3.5 px-4">
                               <div className="flex flex-col gap-1.5">
@@ -1142,6 +1349,12 @@ export default function HistoryPage() {
                                     <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
                                       <Truck className="h-3 w-3" aria-hidden="true" />
                                       Surat Jalan
+                                    </span>
+                                  )}
+                                  {hasInvoiceDateChange(tx) && (
+                                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                                      <CalendarDays className="h-3 w-3" aria-hidden="true" />
+                                      Tanggal diubah
                                     </span>
                                   )}
                                 </div>
@@ -1267,9 +1480,11 @@ export default function HistoryPage() {
                                   canRejectTransactions={canRejectTransactions}
                                   canApproveDrafts={canApproveDrafts}
                                   canVoid={canVoid}
+                                  canChangeInvoiceDate={canChangeInvoiceDate}
                                   isPending={isPending}
                                   isBundled={isBundled}
                                   onEdit={() => setEditingTransaction(tx)}
+                                  onEditInvoiceDate={() => setEditingInvoiceDateTransaction(tx)}
                                   onDelete={() => setDeletingTransaction(tx)}
                                   onApprove={() => setApprovingTransaction(tx)}
                                   onReject={() => setRejectingTransaction(tx)}
@@ -1295,6 +1510,8 @@ export default function HistoryPage() {
                     const isDraft = tx.status === "DRAFT";
                     const isBundled = isSuratJalanBundle(tx);
                     const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
+                    const invoiceDateForDisplay = getTransactionInvoiceDate(tx);
+                    const previousInvoiceDate = getLatestPreviousInvoiceDate(tx);
                     const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
                     const cardBg = isPending ? "bg-blue-50/30 border-blue-100"
                       : isDraft ? "bg-amber-50/20 border-amber-100"
@@ -1329,6 +1546,12 @@ export default function HistoryPage() {
                                   Surat Jalan
                                 </span>
                               )}
+                              {hasInvoiceDateChange(tx) && (
+                                <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                  <CalendarDays className="h-3 w-3" aria-hidden="true" />
+                                  Tanggal diubah
+                                </span>
+                              )}
                             </div>
                             {tx.buktiTransaksiUrls && tx.buktiTransaksiUrls.length > 0 && (
                               <div className="flex -space-x-1.5 mb-1">
@@ -1358,7 +1581,17 @@ export default function HistoryPage() {
                                 })}
                               </div>
                             )}
-                            <p className="text-xs text-surface-500">{formatDate(new Date(tx.createdAt))}</p>
+                            <p className="text-xs font-semibold text-surface-700">
+                              {formatDate(new Date(invoiceDateForDisplay))}
+                            </p>
+                            <p className="text-[11px] text-surface-500">
+                              Dibuat: {formatDate(new Date(tx.createdAt))}
+                            </p>
+                            {previousInvoiceDate && (
+                              <p className="text-[11px] font-semibold text-amber-700">
+                                Sebelumnya: {formatDate(new Date(previousInvoiceDate))}
+                              </p>
+                            )}
                             {bundleProgress && (
                               <p className="mt-1 text-[11px] font-bold text-emerald-700">
                                 {bundleProgress}
@@ -1453,9 +1686,11 @@ export default function HistoryPage() {
                               canRejectTransactions={canRejectTransactions}
                               canApproveDrafts={canApproveDrafts}
                               canVoid={canVoid}
+                              canChangeInvoiceDate={canChangeInvoiceDate}
                               isPending={isPending}
                               isBundled={isBundled}
                               onEdit={() => setEditingTransaction(tx)}
+                              onEditInvoiceDate={() => setEditingInvoiceDateTransaction(tx)}
                               onDelete={() => setDeletingTransaction(tx)}
                               onApprove={() => setApprovingTransaction(tx)}
                               onReject={() => setRejectingTransaction(tx)}
@@ -1509,11 +1744,11 @@ export default function HistoryPage() {
       </div>
 
       {/* Receipt View Modal */}
-      {selectedTransaction && (
+      {selectedTransaction && receiptTransaction && (
         <ReceiptModal
           open={!!selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
-          transaction={selectedTransaction}
+          transaction={receiptTransaction}
         />
       )}
 
@@ -1530,6 +1765,13 @@ export default function HistoryPage() {
         <EditModal
           tx={editingTransaction}
           onClose={() => setEditingTransaction(null)}
+        />
+      )}
+
+      {editingInvoiceDateTransaction && canChangeInvoiceDate && (
+        <InvoiceDateEditModal
+          tx={editingInvoiceDateTransaction}
+          onClose={() => setEditingInvoiceDateTransaction(null)}
         />
       )}
 

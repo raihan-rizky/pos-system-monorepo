@@ -67,6 +67,18 @@ describe("getRowsMissingImportDecision", () => {
     expect(getRowsMissingImportDecision([autoSkip], {})).toEqual([]);
   });
 
+  it("defaults create auto actions so resolved duplicate rows do not need manual decisions", () => {
+    const baseRow = row({
+      rowNumber: 2,
+      sku: "A-001",
+      duplicateInFile: true,
+      autoAction: "create",
+    });
+
+    expect(getEffectiveImportDecision(baseRow, {})).toBe("create");
+    expect(getRowsMissingImportDecision([baseRow], {})).toEqual([]);
+  });
+
   it("requires a decision for rows matching existing products", () => {
     const rows = [row({ existingProductId: "prod-1" })];
 

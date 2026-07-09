@@ -7,7 +7,8 @@ import {
   CheckCircle,
   XCircle as RejectIcon,
   Upload,
-  Truck
+  Truck,
+  CalendarDays,
 } from "lucide-react";
 import { Transaction } from "@/hooks/useTransactions";
 import { isTransactionEligibleForSuratJalan } from "@/features/surat-jalan/components/SuratJalanBundleButton";
@@ -24,9 +25,11 @@ interface TransactionActionMenuProps {
   canRejectTransactions: boolean;
   canApproveDrafts: boolean;
   canVoid: boolean;
+  canChangeInvoiceDate: boolean;
   isPending: boolean;
   isBundled: boolean;
   onEdit: () => void;
+  onEditInvoiceDate: () => void;
   onDelete: () => void;
   onApprove: () => void;
   onReject: () => void;
@@ -43,9 +46,11 @@ export function TransactionActionMenu({
   canRejectTransactions,
   canApproveDrafts,
   canVoid,
+  canChangeInvoiceDate,
   isPending,
   isBundled,
   onEdit,
+  onEditInvoiceDate,
   onDelete,
   onApprove,
   onReject,
@@ -73,11 +78,12 @@ export function TransactionActionMenu({
 
   // Determine if we have any items to show in the dropdown
   const hasUpdateAction = !isBundled && !isSalesRole && canUpdateTransactions;
+  const hasInvoiceDateAction = !isBundled && !isSalesRole && canChangeInvoiceDate;
   const hasDeleteAction = !isBundled && !isSalesRole && canDeleteTransactions;
   const hasVoidAction = !isBundled && !isSalesRole && canVoid;
   const hasSuratJalanAction = !isBundled && isTransactionEligibleForSuratJalan(tx);
 
-  const hasAnyAction = hasUpdateAction || hasDeleteAction || hasVoidAction || 
+  const hasAnyAction = hasUpdateAction || hasInvoiceDateAction || hasDeleteAction || hasVoidAction || 
                        hasSuratJalanAction;
 
   if (!hasAnyAction) return null;
@@ -98,7 +104,7 @@ export function TransactionActionMenu({
           
 
 
-          {(hasUpdateAction || hasVoidAction) && (
+          {(hasUpdateAction || hasInvoiceDateAction || hasVoidAction) && (
             <div className="p-1">
               {hasUpdateAction && (
                 <button
@@ -107,6 +113,15 @@ export function TransactionActionMenu({
                 >
                   <Edit2 className="mr-2 h-4 w-4 text-surface-500" />
                   Ubah
+                </button>
+              )}
+              {hasInvoiceDateAction && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEditInvoiceDate(); }}
+                  className="w-full text-left px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-700 flex items-center rounded-lg transition-colors cursor-pointer"
+                >
+                  <CalendarDays className="mr-2 h-4 w-4 text-surface-500" />
+                  Ubah Tanggal Invoice
                 </button>
               )}
               {hasUpdateAction && (

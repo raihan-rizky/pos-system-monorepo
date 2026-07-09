@@ -43,6 +43,9 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
     items: CartItem[];
+    invoiceDate?: string;
+    invoiceTime?: string | null;
+    invoiceDateReason?: string | null;
     payments?: { method: string; amount: number }[];
   }) => void;
   onSaveDraft?: (data: {
@@ -55,6 +58,9 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
     items: CartItem[];
+    invoiceDate?: string;
+    invoiceTime?: string | null;
+    invoiceDateReason?: string | null;
     payments?: { method: "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER"; amount: number }[];
   }) => void;
   isProcessing?: boolean;
@@ -116,8 +122,12 @@ export function PaymentModal({
     return items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size);
   });
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoiceTime, setInvoiceTime] = useState("");
+  const [invoiceDateReason, setInvoiceDateReason] = useState("");
   
   const { role } = useRole();
+  const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
   const selectedCustomerType: CustomerType =
     customerSelection.kind === "existing"
       ? customerSelection.customer.type ?? "UMUM"
@@ -149,6 +159,9 @@ export function PaymentModal({
       setCustomerSelection({ kind: "general" });
       setManualPrices({});
       setCustomerError(null);
+      setInvoiceDate("");
+      setInvoiceTime("");
+      setInvoiceDateReason("");
     } else {
       // auto-set isJobOrder if opening with items that have material/size
       setIsJobOrder(items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size));
@@ -201,6 +214,13 @@ export function PaymentModal({
     const selectedSales = salespersons.find(s => s.id === salespersonId);
     const customer = await resolveCustomerForSubmit();
     if (!customer) return;
+    const invoiceDatePayload = canChangeInvoiceDate
+      ? {
+          invoiceDate: invoiceDate || undefined,
+          invoiceTime: invoiceTime || null,
+          invoiceDateReason: invoiceDateReason.trim() || null,
+        }
+      : {};
 
     onConfirm({
       paymentMethod: selectedPaymentMethods[0] || "CASH",
@@ -215,6 +235,7 @@ export function PaymentModal({
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
       items: pricedItems,
+      ...invoiceDatePayload,
       payments: selectedPaymentMethods.map(m => ({ method: m, amount: amountsPaid[m] || 0 })).filter(p => p.amount > 0),
     });
   };
@@ -224,6 +245,13 @@ export function PaymentModal({
     const selectedSales = salespersons.find((s) => s.id === salespersonId);
     const customer = await resolveCustomerForSubmit();
     if (!customer) return;
+    const invoiceDatePayload = canChangeInvoiceDate
+      ? {
+          invoiceDate: invoiceDate || undefined,
+          invoiceTime: invoiceTime || null,
+          invoiceDateReason: invoiceDateReason.trim() || null,
+        }
+      : {};
 
     onSaveDraft({
       discount,
@@ -235,6 +263,7 @@ export function PaymentModal({
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
       items: pricedItems,
+      ...invoiceDatePayload,
       payments: selectedPaymentMethods.map(m => ({ method: m as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER", amount: amountsPaid[m] || 0 })).filter(p => p.amount > 0),
     });
   };
@@ -465,6 +494,52 @@ export function PaymentModal({
             ))}
           </select>
         </div>
+
+        {canChangeInvoiceDate && (
+          <section className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-surface-700 mb-1.5 block">
+                  Tanggal Invoice (Opsional)
+                </label>
+                <input
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                  className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-surface-700 mb-1.5 block">
+                  Jam Invoice (Opsional)
+                </label>
+                <input
+                  type="time"
+                  value={invoiceTime}
+                  onChange={(e) => setInvoiceTime(e.target.value)}
+                  className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-surface-500">
+              Jika jam dikosongkan, sistem memakai jam checkout saat invoice dibuat.
+            </p>
+            {(invoiceDate || invoiceTime) && (
+              <div>
+                <label className="text-sm font-medium text-surface-700 mb-1.5 block">
+                  Alasan perubahan tanggal
+                </label>
+                <textarea
+                  value={invoiceDateReason}
+                  onChange={(e) => setInvoiceDateReason(e.target.value)}
+                  placeholder="Contoh: transaksi kemarin baru sempat dicetak hari ini"
+                  rows={2}
+                  className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                />
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Payment Method */}
         <div>

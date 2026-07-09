@@ -4,9 +4,9 @@ import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(34);
+    expect(FAQ_WORKFLOWS).toHaveLength(35);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 34 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 35 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);
@@ -34,7 +34,7 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("keeps inbound receipt guidance aligned with submit, revision, and granular decision RBAC", () => {
-    const inbound = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 17);
+    const inbound = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 18);
 
     expect(inbound).toBeDefined();
     const serializedInbound = JSON.stringify(inbound);
@@ -48,7 +48,7 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("keeps inventory daily workflow aligned with Log OUT verification RBAC and correction flow", () => {
-    const inventoryWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 30);
+    const inventoryWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 31);
 
     expect(inventoryWorkflow).toBeDefined();
     const serializedWorkflow = JSON.stringify(inventoryWorkflow);
@@ -60,7 +60,7 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("documents product-first Update Stok single and bulk paths with duplicate safeguards", () => {
-    const massStockWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 34);
+    const massStockWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 35);
 
     expect(massStockWorkflow).toBeDefined();
     const serializedWorkflow = JSON.stringify(massStockWorkflow);

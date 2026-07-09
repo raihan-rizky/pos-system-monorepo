@@ -74,7 +74,7 @@ export const WORKFLOW_EVALUATION_DATASET: WorkflowEvaluationDataset = {
       id: "security:admin-rbac-denied",
       prompt: "cara mengatur hak akses kasir dan admin di RBAC",
       role: "ADMIN",
-      expected: { kind: "denied", workflowId: "faq-q22-manage-rbac" },
+      expected: { kind: "denied", workflowId: "faq-q23-manage-rbac" },
       tags: ["security", "rbac"],
     },
     {

@@ -6,6 +6,7 @@ import { formatRupiah } from "@/lib/utils";
 import type { Transaction } from "@/hooks/useTransactions";
 import { useApproveDraft, useCancelDraft } from "../hooks/useDraftMutations";
 import { formatDraftNumberForDisplay } from "../helpers/draft-number";
+import { useRole } from "@/components/providers/RoleProvider";
 
 interface ApproveDraftDialogProps {
   draft: Transaction;
@@ -29,6 +30,7 @@ export function ApproveDraftDialog({
 }: ApproveDraftDialogProps): React.ReactElement {
   const approveDraft = useApproveDraft();
   const cancelDraft = useCancelDraft();
+  const { role } = useRole();
   const total = Number(draft.total);
   const displayDraftNumber = draft.draftNumber
     ? formatDraftNumberForDisplay(draft.draftNumber)
@@ -38,6 +40,10 @@ export function ApproveDraftDialog({
   const [amountPaid, setAmountPaid] = useState<number>(total);
   const [error, setError] = useState<string | null>(null);
   const [isDP, setIsDP] = useState<boolean>(false);
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoiceTime, setInvoiceTime] = useState("");
+  const [invoiceDateReason, setInvoiceDateReason] = useState("");
+  const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
 
   const remaining = total - amountPaid;
   const change = amountPaid - total;
@@ -52,6 +58,13 @@ export function ApproveDraftDialog({
         id: draft.id,
         paymentMethod,
         amountPaid,
+        ...(canChangeInvoiceDate
+          ? {
+              invoiceDate: invoiceDate || undefined,
+              invoiceTime: invoiceTime || null,
+              invoiceDateReason: invoiceDateReason.trim() || null,
+            }
+          : {}),
       });
       onSuccess(result);
     } catch (err) {
@@ -217,6 +230,52 @@ export function ApproveDraftDialog({
               </p>
             )}
           </div>
+
+          {canChangeInvoiceDate && (
+            <section className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+                    Tanggal Invoice (Opsional)
+                  </label>
+                  <input
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+                    Jam Invoice (Opsional)
+                  </label>
+                  <input
+                    type="time"
+                    value={invoiceTime}
+                    onChange={(e) => setInvoiceTime(e.target.value)}
+                    className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-surface-500">
+                Jika jam dikosongkan, sistem memakai jam dari faktur sementara.
+              </p>
+              {(invoiceDate || invoiceTime) && (
+                <div>
+                  <label className="block text-xs font-semibold text-surface-600 mb-1.5">
+                    Alasan perubahan tanggal
+                  </label>
+                  <textarea
+                    value={invoiceDateReason}
+                    onChange={(e) => setInvoiceDateReason(e.target.value)}
+                    placeholder="Contoh: final invoice mengikuti tanggal nota sebelumnya"
+                    rows={2}
+                    className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
+                  />
+                </div>
+              )}
+            </section>
+          )}
 
           {error && (
             <p

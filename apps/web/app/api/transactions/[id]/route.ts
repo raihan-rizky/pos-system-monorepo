@@ -54,6 +54,20 @@ export async function GET(
           select: { id: true, createdAt: true, amount: true, paymentMethod: true },
           orderBy: { createdAt: "desc" },
         },
+        invoiceDateChangeLogs: {
+          select: {
+            id: true,
+            oldInvoiceDate: true,
+            newInvoiceDate: true,
+            oldDocumentNumber: true,
+            newDocumentNumber: true,
+            reason: true,
+            actorName: true,
+            actorRole: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
         items: {
           include: {
             product: {
@@ -77,10 +91,18 @@ export async function GET(
     }
 
     const createdAt = toIsoString(transaction.createdAt) ?? new Date(0).toISOString();
+    const invoiceDate = toIsoString(transaction.invoiceDate) ?? createdAt;
 
     return NextResponse.json({
       ...transaction,
+      invoiceDate,
       createdAt,
+      invoiceDateChangeLogs: (transaction.invoiceDateChangeLogs ?? []).map((entry) => ({
+        ...entry,
+        oldInvoiceDate: toIsoString(entry.oldInvoiceDate) ?? createdAt,
+        newInvoiceDate: toIsoString(entry.newInvoiceDate) ?? invoiceDate,
+        createdAt: toIsoString(entry.createdAt) ?? createdAt,
+      })),
       payments: (transaction.payments ?? []).map((payment) => ({
         amount: Number(payment.amount),
         method: payment.method,

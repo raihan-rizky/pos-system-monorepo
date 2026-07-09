@@ -100,7 +100,7 @@ export function buildDraftPdfData(
       overrides?.kepadaYth ?? transaction.customerName ?? "Pelanggan Umum",
     divisiPurchasing: overrides?.divisiPurchasing ?? decodedDivision,
     date: formatIndonesianDate(
-      transaction.createdAt || new Date().toISOString()
+      transaction.invoiceDate || transaction.createdAt || new Date().toISOString()
     ),
     items: pdfItems,
     grandTotal,

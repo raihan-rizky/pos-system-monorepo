@@ -241,6 +241,69 @@ describe("POST /api/transactions/draft", () => {
     expect(createArgs.data.requestedById).toBe("sales-1");
   });
 
+  it("lets OWNER create a draft with a custom invoice date and matching draft number date", async () => {
+    requireRoleMock.mockResolvedValue({
+      id: "owner-1",
+      role: "OWNER",
+      storeId: "store-main",
+      name: "Owner One",
+    });
+    transactionCountMock.mockResolvedValue(4);
+    const { POST } = await import("../route");
+    const res = await POST(
+      new Request("http://localhost/api/transactions/draft", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            { productId: "p1", name: "Kertas A4", price: 50000, quantity: 2 },
+          ],
+          discount: 0,
+          isJobOrder: false,
+          invoiceDate: "2026-07-01",
+          invoiceTime: "14:05",
+          invoiceDateReason: "Nota penawaran susulan dari arsip manual",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    const createArgs = transactionCreateMock.mock.calls[0][0];
+    expect(createArgs.data.invoiceDate.toISOString()).toBe(
+      "2026-07-01T07:05:00.000Z",
+    );
+    expect(createArgs.data.draftNumber).toBe("PNW-TLD-20260701-005");
+    expect(transactionCountMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        draftNumber: { startsWith: "PNW-TLD-20260701-" },
+      },
+    });
+  });
+
+  it("rejects a custom invoice date from CASHIER when creating a draft", async () => {
+    const { POST } = await import("../route");
+    const res = await POST(
+      new Request("http://localhost/api/transactions/draft", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            { productId: "p1", name: "Kertas A4", price: 50000, quantity: 2 },
+          ],
+          discount: 0,
+          isJobOrder: false,
+          invoiceDate: "2026-07-01",
+        }),
+      }),
+    );
+
+    const body = await res.json();
+    expect(res.status).toBe(403);
+    expect(body.message).toBe(
+      "Hanya Owner atau Admin yang boleh mengatur tanggal invoice.",
+    );
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
   it("returns 403 when role lacks transaction.draft:create permission", async () => {
     canRolePerformActionMock.mockReturnValue(false);
     handleAuthErrorMock.mockImplementation((err: any) => {

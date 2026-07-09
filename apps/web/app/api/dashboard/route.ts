@@ -65,7 +65,7 @@ export async function GET() {
       db.transaction.findMany({
         where: {
           storeId,
-          createdAt: { gte: today },
+          invoiceDate: { gte: today },
           status: { in: ["COMPLETED", "DP"] },
         },
         select: { total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
@@ -74,7 +74,7 @@ export async function GET() {
       db.transaction.findMany({
         where: {
           storeId,
-          createdAt: { gte: firstDayOfMonth },
+          invoiceDate: { gte: firstDayOfMonth },
           status: { in: ["COMPLETED", "DP"] },
         },
         select: { total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
@@ -97,17 +97,17 @@ export async function GET() {
       db.transaction.findMany({
         where: {
           storeId,
-          createdAt: { gte: last7Days },
+          invoiceDate: { gte: last7Days },
           status: { in: ["COMPLETED", "DP"] },
         },
-        select: { createdAt: true, total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
+        select: { invoiceDate: true, total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
       }),
       // 6. Top Sales (Last 30 Days)
       db.transaction.groupBy({
         by: ["salespersonId", "salesName"],
         where: {
           storeId,
-          createdAt: { gte: last30Days },
+          invoiceDate: { gte: last30Days },
           status: { in: ["COMPLETED", "DP"] },
         },
         _sum: { total: true },
@@ -120,7 +120,7 @@ export async function GET() {
         by: ["customerId", "customerName"],
         where: {
           storeId,
-          createdAt: { gte: last30Days },
+          invoiceDate: { gte: last30Days },
           status: { in: ["COMPLETED", "DP"] },
           customerId: { not: null },
         },
@@ -157,7 +157,7 @@ export async function GET() {
         where: { storeId, status: "DP" },
         include: { items: true },
         take: 5,
-        orderBy: { createdAt: "desc" },
+        orderBy: { invoiceDate: "desc" },
       }),
       // 11. Outstanding DP
       db.transaction.aggregate({
@@ -168,7 +168,7 @@ export async function GET() {
       db.transaction.findMany({
         where: {
           storeId,
-          createdAt: { gte: today },
+          invoiceDate: { gte: today },
           status: { in: ["COMPLETED", "DP"] },
         },
         select: { total: true, amountPaid: true, status: true, paymentMethod: true },
@@ -211,7 +211,7 @@ export async function GET() {
     }
 
     revenueChartRaw.forEach((item) => {
-      const dateStr = jakartaDateKey(item.createdAt);
+      const dateStr = jakartaDateKey(item.invoiceDate);
       if (dailyData[dateStr]) {
         dailyData[dateStr].revenue += Number(item.status === "DP" ? item.amountPaid : item.total || 0);
         dailyData[dateStr].profit += calculateProfit(item.items);

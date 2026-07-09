@@ -53,12 +53,13 @@ export async function GET(request: Request) {
         where: {
           storeId,
           status: { in: ["COMPLETED", "DP"] },
-          createdAt: { gte: start, lt: end },
+          invoiceDate: { gte: start, lt: end },
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: { invoiceDate: "asc" },
         select: {
           id: true,
           invoiceNumber: true,
+          invoiceDate: true,
           createdAt: true,
           salesName: true,
           salesperson: { select: { name: true } },
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
     const saleInputs = sales.map((s) => ({
       id: s.id,
       invoiceNumber: s.invoiceNumber,
-      createdAt: s.createdAt,
+      createdAt: s.invoiceDate,
       salesName: s.salesName,
       salesperson: s.salesperson,
       customerName: s.customerName,

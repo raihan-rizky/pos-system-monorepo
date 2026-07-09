@@ -258,6 +258,24 @@ export async function getProductImportJobStatus(jobId: string, user: ProductImpo
   return job;
 }
 
+export async function progressProductImportJobForPolling(
+  jobId: string,
+  user: ProductImportActor,
+) {
+  const storeId = storeIdFor(user);
+  const job = await db.productImportJob.findFirst({
+    where: { id: jobId, storeId },
+    select: { id: true, status: true },
+  });
+  if (!job) throw new Error("IMPORT_JOB_NOT_FOUND");
+
+  if ((ACTIVE_JOB_STATUSES as readonly string[]).includes(job.status)) {
+    await processNextProductImportJob(storeId, { shouldStop: () => true });
+  }
+
+  return getProductImportJobStatus(jobId, user);
+}
+
 export async function getActiveProductImportJob(user: ProductImportActor) {
   const storeId = storeIdFor(user);
   return db.productImportJob.findFirst({

@@ -154,6 +154,90 @@ describe("GET /api/transactions surat jalan history", () => {
     );
   });
 
+  it("filters and orders history by invoiceDate business date", async () => {
+    const { GET } = await import("../route");
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/transactions?dateFrom=2026-07-01&dateTo=2026-07-02",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionCountMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        AND: [
+          {
+            invoiceDate: {
+              gte: new Date("2026-06-30T17:00:00.000Z"),
+              lt: new Date("2026-07-02T17:00:00.000Z"),
+            },
+          },
+        ],
+      },
+    });
+    expect(transactionFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { invoiceDate: "desc" },
+      }),
+    );
+  });
+
+  it("returns the latest invoice date change summary for history rows", async () => {
+    transactionFindManyMock.mockResolvedValueOnce([
+      {
+        id: "txn-1",
+        invoiceNumber: "INV-20260708-0001",
+        draftNumber: null,
+        items: [],
+        suratJalan: [],
+        invoiceDateChangeLogs: [
+          {
+            id: "change-1",
+            oldInvoiceDate: new Date("2026-07-09T03:15:00.000Z"),
+            newInvoiceDate: new Date("2026-07-08T03:15:00.000Z"),
+            oldDocumentNumber: "INV-20260709-0001",
+            newDocumentNumber: "INV-20260708-0001",
+            reason: "Invoice seharusnya masuk transaksi kemarin.",
+            actorName: "Owner One",
+            actorRole: "OWNER",
+            createdAt: new Date("2026-07-09T05:00:00.000Z"),
+          },
+        ],
+      },
+    ]);
+
+    const { GET } = await import("../route");
+
+    const response = await GET(new Request("http://localhost/api/transactions"));
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(transactionFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          invoiceDateChangeLogs: expect.objectContaining({
+            take: 1,
+            orderBy: { createdAt: "desc" },
+          }),
+        }),
+      }),
+    );
+    expect(json.data[0]).not.toHaveProperty("invoiceDateChangeLogs");
+    expect(json.data[0].latestInvoiceDateChange).toEqual({
+      id: "change-1",
+      oldInvoiceDate: "2026-07-09T03:15:00.000Z",
+      newInvoiceDate: "2026-07-08T03:15:00.000Z",
+      oldDocumentNumber: "INV-20260709-0001",
+      newDocumentNumber: "INV-20260708-0001",
+      reason: "Invoice seharusnya masuk transaksi kemarin.",
+      actorName: "Owner One",
+      actorRole: "OWNER",
+      createdAt: "2026-07-09T05:00:00.000Z",
+    });
+  });
+
   it("includes walk-in transactions in the UMUM customer type filter", async () => {
     const { GET } = await import("../route");
 

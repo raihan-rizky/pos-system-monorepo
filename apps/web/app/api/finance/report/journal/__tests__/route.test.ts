@@ -49,4 +49,21 @@ describe("GET /api/finance/report/journal", () => {
       }),
     );
   });
+
+  it("queries sales journal rows by invoiceDate", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/finance/report/journal?period=monthly"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          invoiceDate: { gte: expect.any(Date), lt: expect.any(Date) },
+        }),
+        orderBy: { invoiceDate: "asc" },
+        select: expect.objectContaining({ invoiceDate: true }),
+      }),
+    );
+  });
 });

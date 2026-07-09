@@ -54,7 +54,7 @@ describe("GET /api/finance/report", () => {
     expect(requirePermissionMock).toHaveBeenCalledWith("financial-report", "read");
   });
 
-  it("queries confirmed sales and shifts within the requested Jakarta date range", async () => {
+  it("queries confirmed sales by invoiceDate and shifts within the requested Jakarta date range", async () => {
     const request = new NextRequest(
       "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31",
     );
@@ -67,7 +67,7 @@ describe("GET /api/finance/report", () => {
         where: expect.objectContaining({
           storeId: "store-main",
           status: { in: ["COMPLETED", "DP"] },
-          createdAt: {
+          invoiceDate: {
             gte: new Date("2026-04-30T17:00:00.000Z"),
             lt: new Date("2026-05-31T17:00:00.000Z"),
           },
@@ -168,7 +168,7 @@ describe("GET /api/finance/report", () => {
     expect(transactionFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          createdAt: {
+          invoiceDate: {
             gte: new Date("2026-04-30T17:00:00.000Z"),
             lt: new Date("2026-05-20T17:00:00.000Z"),
           },

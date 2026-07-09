@@ -236,6 +236,19 @@ describe("buildInvoicePdfData", () => {
     expect(data.items[0].subtotalFormatted).toBe("50.000");
   });
 
+  test("uses invoiceDate instead of createdAt for printed invoice date", () => {
+    const txn = makeTransaction({
+      createdAt: "2026-06-01T10:00:00.000Z",
+      invoiceDate: "2026-07-02T03:00:00.000Z",
+    });
+
+    const data = buildInvoicePdfData(txn, DEFAULT_STORE);
+
+    expect(data.date).toMatch(/2/);
+    expect(data.date).toMatch(/Juli/);
+    expect(data.date).toMatch(/2026/);
+  });
+
   test("uses draftNumber when invoiceNumber is null", () => {
     const txn = makeTransaction({
       invoiceNumber: null,

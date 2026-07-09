@@ -5,6 +5,7 @@ const afterMock = vi.hoisted(() => vi.fn());
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
+const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionUpdateManyMock = vi.hoisted(() => vi.fn());
 const transactionFindUniqueOrThrowMock = vi.hoisted(() => vi.fn());
 const productUpdateManyMock = vi.hoisted(() => vi.fn());
@@ -31,6 +32,7 @@ vi.mock("@pos/db", () => ({
   db: {
     transaction: {
       findFirst: transactionFindFirstMock,
+      findMany: transactionFindManyMock,
     },
     inventoryLog: {
       createMany: inventoryLogCreateManyMock,
@@ -59,6 +61,7 @@ describe("POST /api/transactions/[id]/approve", () => {
     transactionFindFirstMock.mockResolvedValue({
       id: "tx-1",
       invoiceNumber: "INV-20260520-0001",
+      invoiceDate: new Date("2026-05-20T03:00:00.000Z"),
       storeId: "store-main",
       status: "PENDING_APPROVAL",
       total: 50000,
@@ -71,6 +74,7 @@ describe("POST /api/transactions/[id]/approve", () => {
         { productId: "product-2", quantity: 1 },
       ],
     });
+    transactionFindManyMock.mockResolvedValue([]);
     transactionUpdateManyMock.mockResolvedValue({ count: 1 });
     transactionFindUniqueOrThrowMock.mockResolvedValue({
       id: "tx-1",
@@ -219,5 +223,67 @@ describe("POST /api/transactions/[id]/approve", () => {
       }),
     });
     expect(queryRawMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets OWNER change invoice date during approval and regenerates the invoice number", async () => {
+    requirePermissionMock.mockResolvedValue({
+      id: "owner-1",
+      role: "OWNER",
+      name: "Owner One",
+      storeId: "store-main",
+    });
+    transactionFindFirstMock.mockResolvedValueOnce({
+      id: "tx-1",
+      invoiceNumber: "INV-20260520-0007",
+      invoiceDate: new Date("2026-05-20T03:00:00.000Z"),
+      storeId: "store-main",
+      status: "PENDING_APPROVAL",
+      total: 50000,
+      paymentMethod: "TRANSFER",
+      amountPaid: 50000,
+      change: 0,
+      customerId: "customer-1",
+      items: [{ productId: "product-1", quantity: 1 }],
+    });
+    transactionFindManyMock.mockResolvedValueOnce([
+      { invoiceNumber: "INV-20260702-0001" },
+      { invoiceNumber: "INV-20260702-0002" },
+    ]);
+    queryRawMock.mockResolvedValueOnce([{ id: "product-1" }]);
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "CASH",
+          amountPaid: 50000,
+          invoiceDate: "2026-07-02",
+          invoiceTime: "16:30",
+          invoiceDateReason: "Final invoice dicetak ulang saat approval",
+        }),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.invoiceNumber).toBe("INV-20260702-0007");
+    expect(body.invoiceDate).toBe("2026-07-02T09:30:00.000Z");
+    expect(transactionFindManyMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        invoiceNumber: { startsWith: "INV-20260702-" },
+        id: { not: "tx-1" },
+      },
+      select: { invoiceNumber: true },
+    });
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          invoiceDate: new Date("2026-07-02T09:30:00.000Z"),
+          invoiceNumber: "INV-20260702-0007",
+        }),
+      }),
+    );
   });
 });

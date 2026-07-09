@@ -308,6 +308,9 @@ export default function POSClientPage({
     paymentStatus: string;
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
+    invoiceDate?: string;
+    invoiceTime?: string | null;
+    invoiceDateReason?: string | null;
     items: typeof cart.items;
   }) => {
     try {
@@ -414,6 +417,9 @@ export default function POSClientPage({
     salespersonId: string;
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
+    invoiceDate?: string;
+    invoiceTime?: string | null;
+    invoiceDateReason?: string | null;
     items: typeof cart.items;
   }) => {
     setDraftError(null);
@@ -437,6 +443,9 @@ export default function POSClientPage({
         salespersonId: data.salespersonId,
         isJobOrder: data.isJobOrder,
         estimatedDoneAt: data.estimatedDoneAt,
+        invoiceDate: data.invoiceDate,
+        invoiceTime: data.invoiceTime,
+        invoiceDateReason: data.invoiceDateReason,
       });
       cart.clearCart();
       setShowPayment(false);

@@ -48,6 +48,7 @@ const draftRow = {
   id: "draft-1",
   invoiceNumber: null,
   draftNumber: "DRAFT-20260520-0001",
+  invoiceDate: new Date("2026-05-20T03:00:00.000Z"),
   storeId: "store-main",
   status: "DRAFT" as const,
   total: 100000,
@@ -199,5 +200,70 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
       { params: Promise.resolve({ id: "draft-1" }) },
     );
     expect(res.status).toBe(200);
+  });
+
+  it("mints the final invoice number from the draft invoiceDate", async () => {
+    transactionFindFirstMock.mockResolvedValue({
+      ...draftRow,
+      draftNumber: "PNW-TLD-20260701-005",
+      invoiceDate: new Date("2026-07-01T07:05:00.000Z"),
+    });
+    transactionCountMock.mockResolvedValue(4);
+
+    const { POST } = await import("../route");
+    const res = await POST(
+      new Request("http://localhost/api/transactions/draft-1/approve-draft", {
+        method: "POST",
+        body: JSON.stringify({ paymentMethod: "CASH", amountPaid: 100000 }),
+      }),
+      { params: Promise.resolve({ id: "draft-1" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.invoiceNumber).toBe("INV-20260701-0005");
+    expect(transactionCountMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        invoiceNumber: { startsWith: "INV-20260701-" },
+      },
+    });
+  });
+
+  it("lets OWNER override invoiceDate during draft approval", async () => {
+    requirePermissionMock.mockResolvedValue({
+      id: "owner-1",
+      role: "OWNER",
+      storeId: "store-main",
+      name: "Owner One",
+    });
+    transactionCountMock.mockResolvedValue(2);
+
+    const { POST } = await import("../route");
+    const res = await POST(
+      new Request("http://localhost/api/transactions/draft-1/approve-draft", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "CASH",
+          amountPaid: 100000,
+          invoiceDate: "2026-07-02",
+          invoiceTime: "16:30",
+          invoiceDateReason: "Approval nota susulan",
+        }),
+      }),
+      { params: Promise.resolve({ id: "draft-1" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.invoiceNumber).toBe("INV-20260702-0003");
+    expect(body.invoiceDate).toBe("2026-07-02T09:30:00.000Z");
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          invoiceDate: new Date("2026-07-02T09:30:00.000Z"),
+        }),
+      }),
+    );
   });
 });

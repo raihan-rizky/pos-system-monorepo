@@ -108,6 +108,38 @@ describe("product import readiness", () => {
     expect(readiness.ok).toBe(true);
   });
 
+  it("suggests one update and skips the rest for same-unit price conflicts", () => {
+    const rows = [
+      row({
+        rowNumber: 2,
+        price: 10000,
+        autoAction: "same_unit_price_conflict",
+        errors: ["Same SKU/product/unit has conflicting price data."],
+      }),
+      row({
+        rowNumber: 3,
+        price: 12000,
+        autoAction: "same_unit_price_conflict",
+        errors: ["Same SKU/product/unit has conflicting price data."],
+      }),
+      row({
+        rowNumber: 4,
+        price: 9000,
+        autoAction: "same_unit_price_conflict",
+        errors: ["Same SKU/product/unit has conflicting price data."],
+      }),
+    ];
+
+    const readiness = getProductImportReadiness(rows, {});
+
+    expect(readiness.suggestedDecisions).toEqual({
+      "2": "skip",
+      "3": "update",
+      "4": "skip",
+    });
+    expect(getProductImportReadiness(rows, readiness.suggestedDecisions).ok).toBe(true);
+  });
+
   it("detects duplicate final SKU groups after skipped rows are excluded", () => {
     const rows = [
       row({ rowNumber: 2, sku: "STABILO-019" }),
