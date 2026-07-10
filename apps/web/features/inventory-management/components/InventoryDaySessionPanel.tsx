@@ -154,7 +154,7 @@ export function InventoryDaySessionPanel({
   );
 }
 
-function MorningCheckModal({
+export function MorningCheckModal({
   open,
   preview,
   onClose,
@@ -184,8 +184,9 @@ function MorningCheckModal({
       preview.stockRisk.outOfStock.length +
       preview.stockRisk.lowStock.length >
     0;
+  const hasMaterials = preview.productionMaterials.length > 0;
   const materialComplete =
-    preview.productionMaterials.length > 0 &&
+    hasMaterials &&
     preview.productionMaterials.every((item) => {
       const value = Number(materialCounts[item.product.id]);
       return Number.isFinite(value) && value >= 0;
@@ -193,7 +194,7 @@ function MorningCheckModal({
   const safetyComplete = preview.workspaceSafetyItems.every((item) => safetyChecks[item.id]);
   const sections = [
     stockRiskAcknowledged || !hasStockRisk,
-    materialComplete,
+    materialComplete || !hasMaterials,
     safetyComplete,
   ];
   const progress = Math.round((sections.filter(Boolean).length / sections.length) * 100);
@@ -264,6 +265,7 @@ function MorningCheckModal({
             <PackageCheck className="h-4 w-4 text-indigo-600" />
             Key Production Materials
           </h3>
+          {hasMaterials ? (
           <div className="mt-3 grid gap-2">
             {preview.productionMaterials.map((item) => (
               <label
@@ -292,6 +294,16 @@ function MorningCheckModal({
               </label>
             ))}
           </div>
+          ) : (
+            <div className="mt-3 space-y-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
+              <p className="text-sm font-semibold text-slate-600">Belum ada bahan produksi yang tercatat</p>
+              <p className="text-xs text-slate-500">
+                Sistem belum mendeteksi riwayat pemakaian bahan baku produksi dari transaksi.
+                <br />
+                Anda bisa langsung check in untuk melanjutkan hari.
+              </p>
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-slate-200 p-4">
