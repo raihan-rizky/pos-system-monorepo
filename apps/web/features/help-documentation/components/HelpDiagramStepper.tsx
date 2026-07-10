@@ -119,9 +119,9 @@ export const HelpVisualModal: React.FC<HelpVisualModalProps> = ({
         aria-label={`${guideTitle ? `${guideTitle}: ` : ""}${step.title}`}
         tabIndex={-1}
         onKeyDown={trapFocus}
-        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white shadow-xl"
+        className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-surface-200 p-4">
+        <div className="flex items-start justify-between gap-4 border-b border-surface-200 p-4 shrink-0">
           <div>
             {guideTitle ? <p className="text-xs font-semibold text-brand-600">{guideTitle}</p> : null}
             <h3 className="flex items-center gap-2 text-base font-bold text-surface-900">
@@ -135,12 +135,12 @@ export const HelpVisualModal: React.FC<HelpVisualModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-surface-200 px-3 py-2 text-sm font-semibold text-surface-700 hover:bg-surface-50"
+            className="rounded-md border border-surface-200 px-3 py-2 text-sm font-semibold text-surface-700 hover:bg-surface-50 shrink-0"
           >
             Tutup
           </button>
         </div>
-        <div className="p-4">
+        <div className="p-4 flex-1 overflow-y-auto">
           <VisualGuideMockup visual={step.visual} stepNumber={stepNumber} stepTitle={step.title} />
         </div>
       </div>

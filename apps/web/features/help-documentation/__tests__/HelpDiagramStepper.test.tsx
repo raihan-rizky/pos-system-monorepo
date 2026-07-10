@@ -138,6 +138,33 @@ describe("HelpDiagramStepper", () => {
     expect(html).toContain('aria-label="Langkah berikutnya"');
   });
 
+  it("uses layout classes on the modal dialog to prevent screen overflow", () => {
+    const step = {
+      title: "Step Title",
+      description: "Step Description",
+      icon: <Package />,
+      id: "step-id",
+      visual: {
+        page: "settings" as const,
+        target: "settings-sidebar",
+        callout: "Callout text",
+      },
+    };
+
+    const html = renderToStaticMarkup(
+      <HelpVisualModal
+        step={step}
+        stepNumber={1}
+        totalSteps={3}
+        guideTitle="Guide Title"
+        onClose={() => {}}
+      />,
+    );
+
+    expect(html).toContain('class="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"');
+    expect(html).toContain('class="p-4 flex-1 overflow-y-auto"');
+  });
+
   it("keeps the right-side guide aligned with frontend development guidelines", () => {
     const stepperSource = readFileSync(new URL("../components/HelpDiagramStepper.tsx", import.meta.url), "utf8");
     const visualSource = readFileSync(new URL("../components/VisualGuideMockup.tsx", import.meta.url), "utf8");
