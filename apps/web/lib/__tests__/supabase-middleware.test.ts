@@ -4,9 +4,19 @@ import { updateSession } from "@/utils/supabase/middleware";
 
 const getUserMock = vi.hoisted(() => vi.fn());
 const maybeSingleMock = vi.hoisted(() => vi.fn());
-const eqMock = vi.hoisted(() => vi.fn(() => ({ maybeSingle: maybeSingleMock })));
+const eqMock = vi.hoisted(() => vi.fn(() => ({ maybeSingle: maybeSingleMock, eq: eqMock })));
 const selectMock = vi.hoisted(() => vi.fn(() => ({ eq: eqMock })));
-const fromMock = vi.hoisted(() => vi.fn(() => ({ select: selectMock })));
+const fromMock = vi.hoisted(() => {
+  const fn = vi.fn();
+  fn.mockImplementation((table: string) => {
+    return {
+      select: vi.fn(() => ({
+        eq: eqMock,
+      })),
+    };
+  });
+  return fn;
+});
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: vi.fn(() => ({
@@ -24,15 +34,22 @@ describe("updateSession", () => {
     getUserMock.mockResolvedValue({
       data: { user: { email: "admin@pos.local" } },
     });
-    maybeSingleMock.mockResolvedValue({
-      data: {
-        id: "admin-1",
-        name: "Admin User",
-        role: "ADMIN",
-        storeId: "store-1",
-        isActive: true,
-      },
-      error: null,
+    let callCount = 0;
+    maybeSingleMock.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          data: {
+            id: "admin-1",
+            name: "Admin User",
+            role: "ADMIN",
+            storeId: "store-1",
+            isActive: true,
+          },
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: null, error: null });
     });
   });
 
@@ -94,5 +111,97 @@ describe("updateSession", () => {
     expect(getUserMock).toHaveBeenCalled();
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({ error: "Unauthorized" });
+  });
+
+  it("respects allowed DB permissions when overriding default page targets", async () => {
+    // INVENTORY defaults to /inventory only. We override to allow /dashboard too.
+    getUserMock.mockResolvedValue({
+      data: { user: { email: "inventory@pos.local" } },
+    });
+    
+    // maybeSingle for both pos_users and pos_role_permissions
+    let callCount = 0;
+    maybeSingleMock.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          data: { id: "inv-1", name: "Inv User", role: "INVENTORY", storeId: "store-1", isActive: true },
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: { allowed: true },
+        error: null,
+      });
+    });
+
+    const request = new NextRequest("http://localhost/dashboard", {
+      headers: { cookie: "x-pos-role=INVENTORY; x-pos-user-id=inv-1; x-pos-store-id=store-1; x-pos-user-name=Inv" }
+    });
+
+    const response = await updateSession(request);
+
+    // If access is allowed and cookies are fresh, response should pass through (status 200).
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+  });
+
+  it("allows INVENTORY role to access pages explicitly granted via RBAC settings", async () => {
+    // Default: INVENTORY only has /inventory. Dashboard should be DENIED.
+    getUserMock.mockResolvedValue({
+      data: { user: { email: "inventory2@pos.local" } },
+    });
+    
+    let callCount = 0;
+    maybeSingleMock.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          data: { id: "inv-2", name: "Inv User 2", role: "INVENTORY", storeId: "store-1", isActive: true },
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    const request = new NextRequest("http://localhost/dashboard", {
+      headers: { cookie: "x-pos-role=INVENTORY; x-pos-user-id=inv-2; x-pos-store-id=store-1; x-pos-user-name=Inv2" }
+    });
+
+    const response = await updateSession(request);
+
+    // Without custom permissions, INVENTORY should be denied dashboard (redirect to default)
+    expect(response.headers.get("location")).toBe("http://localhost/inventory");
+    expect(response.status).toBe(307);
+  });
+
+  it("applies granular resource permissions (not just page access) from DB", async () => {
+    getUserMock.mockResolvedValue({
+      data: { user: { email: "inventory3@pos.local" } },
+    });
+    
+    let callCount = 0;
+    maybeSingleMock.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          data: { id: "inv-3", name: "Inv User 3", role: "INVENTORY", storeId: "store-1", isActive: true },
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: { allowed: true },
+        error: null,
+      });
+    });
+
+    const request = new NextRequest("http://localhost/dashboard", {
+      headers: { cookie: "x-pos-role=INVENTORY; x-pos-user-id=inv-3; x-pos-store-id=store-1; x-pos-user-name=Inv3" }
+    });
+
+    const response = await updateSession(request);
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
   });
 });

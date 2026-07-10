@@ -5,9 +5,8 @@ import type { Role } from "@/lib/rbac/permissions";
 import {
   buildDefaultRolePermissions,
   canRoleAccessPage,
-  normalizeRolePermissions,
+  normalizePageTarget,
 } from "@/features/rbac/helpers/rbac-core";
-import type { PermissionEntry } from "@/features/rbac/helpers/rbac-core";
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("supabase-middleware");
@@ -242,7 +241,7 @@ export async function updateSession(request: NextRequest) {
 
 type PermissionClient = {
   from: (table: string) => {
-    select: (columns: string) => unknown;
+    select: (columns: string) => any;
   };
 };
 
@@ -252,21 +251,32 @@ async function canAccessPageWithConfiguredPermissions(
   path: string,
 ) {
   try {
+    const pageTarget = normalizePageTarget(path);
+    // If it's an unknown target, reject immediately or fallback to default?
+    // Actually, fallback to default handles unknown targets (returns false).
+
     const { data, error } = await (supabase
       .from("pos_role_permissions")
-      .select("role,scope,target,action,allowed") as PromiseLike<{
-      data: PermissionEntry[] | null;
+      .select("allowed")
+      .eq("role", role)
+      .eq("scope", "page")
+      .eq("target", pageTarget)
+      .eq("action", "access")
+      .maybeSingle() as PromiseLike<{
+      data: { allowed: boolean } | null;
       error: unknown;
     }>);
 
-    if (error || !data?.length) {
-      if (error) {
-        log.warn("rbac.permissions.empty", { error, role, path });
-      }
+    if (error) {
+      log.warn("rbac.permissions.query.error", { error, role, path });
       return canRoleAccessPage(role, path, buildDefaultRolePermissions());
     }
 
-    return canRoleAccessPage(role, path, normalizeRolePermissions(data));
+    if (data !== null) {
+      return data.allowed;
+    }
+
+    return canRoleAccessPage(role, path, buildDefaultRolePermissions());
   } catch (error) {
     log.error("rbac.permissions.load.failed", { error, role, path });
     return canRoleAccessPage(role, path, buildDefaultRolePermissions());
