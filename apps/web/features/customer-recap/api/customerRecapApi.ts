@@ -4,6 +4,7 @@ import type {
   CustomerRecapData,
   CustomerRecapQuery,
 } from "../types/customer-recap";
+import type { CustomerRecapExportData } from "../helpers/export-core";
 
 async function readEnvelope<T>(
   response: Response,
@@ -50,6 +51,17 @@ export const customerRecapApi = {
     return readEnvelope<CustomerDetailRecapData>(
       response,
       "Failed to load customer recap",
+    );
+  },
+
+  async getExportRecap(input: CustomerRecapQuery): Promise<CustomerRecapExportData> {
+    const response = await fetch(
+      `/api/customers/recap/export?${queryString(input)}`,
+      { cache: "no-store" },
+    );
+    return readEnvelope<CustomerRecapExportData>(
+      response,
+      "Gagal memuat data ekspor rekap pelanggan",
     );
   },
 };

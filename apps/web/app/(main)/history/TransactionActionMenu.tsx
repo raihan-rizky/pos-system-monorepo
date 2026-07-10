@@ -103,7 +103,7 @@ export function TransactionActionMenu({
       </button>
 
       {isOpen && (
-        <div className={`absolute right-0 w-48 rounded-xl shadow-lg bg-white ring-1 ring-black/5 divide-y divide-surface-100 z-50 overflow-hidden ${
+        <div className={`absolute right-0 w-48 rounded-xl shadow-lg bg-white ring-1 ring-black/5 divide-y divide-surface-100 z-[100] overflow-hidden ${
           showUpward ? "bottom-full mb-2" : "mt-2"
         }`}>
           {/* Action groups */}

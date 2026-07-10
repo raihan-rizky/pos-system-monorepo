@@ -49,6 +49,38 @@ function isProtectedPageRequest(pathname: string) {
   );
 }
 
+function isRetryableAuthFailure(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const authError = error as { name?: unknown };
+  return authError.name === "AuthRetryableFetchError";
+}
+
+function authVerificationUnavailable(
+  request: NextRequest,
+  error: unknown,
+  authResponse: NextResponse,
+) {
+  log.warn("auth.verification.unavailable", {
+    error,
+    path: request.nextUrl.pathname,
+  });
+
+  const message = "Sesi belum dapat diverifikasi. Silakan coba lagi.";
+  const response = request.nextUrl.pathname.startsWith("/api/")
+    ? NextResponse.json({ error: message }, { status: 503 })
+    : new NextResponse(message, { status: 503 });
+
+  // A refresh may already have rotated cookies before the subsequent user
+  // verification request fails. Preserve those cookies on the 503 response so
+  // the next request can recover with the newest session credentials.
+  for (const cookie of authResponse.cookies.getAll()) {
+    response.cookies.set(cookie);
+  }
+
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   if (process.env.NODE_ENV !== "production" && process.env.E2E_AUTH_BYPASS === "1") {
     const role = (request.cookies.get(ROLE_COOKIE)?.value || "OWNER") as Role;
@@ -125,7 +157,15 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  // Supabase keeps the refresh token when a request fails transiently. Do not
+  // turn that recoverable state into a logout/redirect by treating user=null
+  // as a missing session. A later request can verify the same session again.
+  if (!user && isRetryableAuthFailure(authError)) {
+    return authVerificationUnavailable(request, authError, supabaseResponse);
+  }
 
   // Not authenticated
   if (

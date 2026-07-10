@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
 interface AnimatedGradientBackgroundProps {
@@ -21,6 +20,61 @@ interface Beam {
     hue: number;
     pulse: number;
     pulseSpeed: number;
+}
+
+interface BeamPerformanceInput {
+    viewportWidth: number;
+    devicePixelRatio: number;
+    hardwareConcurrency: number;
+    deviceMemory: number;
+    prefersReducedMotion: boolean;
+}
+
+interface BeamPerformanceProfile {
+    animate: boolean;
+    beamCount: number;
+    pixelRatio: number;
+    targetFps: number;
+    blurRadius: number;
+}
+
+export function getBeamPerformanceProfile({
+    viewportWidth,
+    devicePixelRatio,
+    hardwareConcurrency,
+    deviceMemory,
+    prefersReducedMotion,
+}: BeamPerformanceInput): BeamPerformanceProfile {
+    if (prefersReducedMotion) {
+        return {
+            animate: false,
+            beamCount: 6,
+            pixelRatio: 1,
+            targetFps: 0,
+            blurRadius: 14,
+        };
+    }
+
+    const isLowEndDevice =
+        viewportWidth < 768 || hardwareConcurrency <= 4 || deviceMemory <= 4;
+
+    if (isLowEndDevice) {
+        return {
+            animate: true,
+            beamCount: 8,
+            pixelRatio: 1,
+            targetFps: 30,
+            blurRadius: 18,
+        };
+    }
+
+    return {
+        animate: true,
+        beamCount: 18,
+        pixelRatio: Math.min(Math.max(devicePixelRatio, 1), 1.5),
+        targetFps: 60,
+        blurRadius: 24,
+    };
 }
 
 function createBeam(width: number, height: number): Beam {
@@ -46,8 +100,7 @@ export function BeamsBackground({
 }: AnimatedGradientBackgroundProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const beamsRef = useRef<Beam[]>([]);
-    const animationFrameRef = useRef<number>(0);
-    const MINIMUM_BEAMS = 20;
+    const animationFrameRef = useRef<number | null>(null);
 
     const opacityMap = {
         subtle: 0.7,
@@ -56,36 +109,48 @@ export function BeamsBackground({
     };
 
     useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
+        const canvasElement = canvasRef.current;
+        if (!canvasElement) return;
+        const canvas: HTMLCanvasElement = canvasElement;
 
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
+        const canvasContext = canvas.getContext("2d");
+        if (!canvasContext) return;
+        const ctx: CanvasRenderingContext2D = canvasContext;
+
+        const navigatorWithMemory = navigator as Navigator & { deviceMemory?: number };
+        const profile = getBeamPerformanceProfile({
+            viewportWidth: window.innerWidth,
+            devicePixelRatio: window.devicePixelRatio || 1,
+            hardwareConcurrency: navigator.hardwareConcurrency || 8,
+            deviceMemory: navigatorWithMemory.deviceMemory || 8,
+            prefersReducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+        });
+        const frameInterval = profile.targetFps > 0 ? 1000 / profile.targetFps : 0;
+        let viewportWidth = window.innerWidth;
+        let viewportHeight = window.innerHeight;
+        let lastFrameAt = 0;
 
         const updateCanvasSize = () => {
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = window.innerWidth * dpr;
-            canvas.height = window.innerHeight * dpr;
-            canvas.style.width = `${window.innerWidth}px`;
-            canvas.style.height = `${window.innerHeight}px`;
-            ctx.scale(dpr, dpr);
+            viewportWidth = window.innerWidth;
+            viewportHeight = window.innerHeight;
+            canvas.width = Math.max(1, Math.floor(viewportWidth * profile.pixelRatio));
+            canvas.height = Math.max(1, Math.floor(viewportHeight * profile.pixelRatio));
+            canvas.style.width = `${viewportWidth}px`;
+            canvas.style.height = `${viewportHeight}px`;
+            canvas.style.filter = `blur(${profile.blurRadius}px)`;
+            ctx.setTransform(profile.pixelRatio, 0, 0, profile.pixelRatio, 0, 0);
 
-            const totalBeams = MINIMUM_BEAMS * 1.5;
-            beamsRef.current = Array.from({ length: totalBeams }, () =>
-                createBeam(canvas.width, canvas.height)
+            beamsRef.current = Array.from({ length: profile.beamCount }, () =>
+                createBeam(viewportWidth, viewportHeight)
             );
+            drawScene(false);
         };
 
-        updateCanvasSize();
-        window.addEventListener("resize", updateCanvasSize);
-
         function resetBeam(beam: Beam, index: number, totalBeams: number) {
-            if (!canvas) return beam;
-            
             const column = index % 3;
-            const spacing = canvas.width / 3;
+            const spacing = viewportWidth / 3;
 
-            beam.y = canvas.height + 100;
+            beam.y = viewportHeight + 100;
             beam.x =
                 column * spacing +
                 spacing / 2 +
@@ -135,35 +200,67 @@ export function BeamsBackground({
             ctx.restore();
         }
 
-        function animate() {
-            if (!canvas || !ctx) return;
-
+        function drawScene(advance: boolean) {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.filter = "blur(35px)";
+            ctx.restore();
 
             const totalBeams = beamsRef.current.length;
             beamsRef.current.forEach((beam, index) => {
-                beam.y -= beam.speed;
-                beam.pulse += beam.pulseSpeed;
+                if (advance) {
+                    beam.y -= beam.speed;
+                    beam.pulse += beam.pulseSpeed;
+                }
 
-                // Reset beam when it goes off screen
                 if (beam.y + beam.length < -100) {
                     resetBeam(beam, index, totalBeams);
                 }
 
                 drawBeam(ctx, beam);
             });
+        }
+
+        function animate(timestamp: number) {
+            animationFrameRef.current = null;
+            if (document.visibilityState === "hidden") return;
+
+            if (timestamp - lastFrameAt >= frameInterval) {
+                drawScene(true);
+                lastFrameAt = timestamp;
+            }
 
             animationFrameRef.current = requestAnimationFrame(animate);
         }
 
-        animate();
+        function startAnimation() {
+            if (!profile.animate || animationFrameRef.current !== null) return;
+            animationFrameRef.current = requestAnimationFrame(animate);
+        }
+
+        function stopAnimation() {
+            if (animationFrameRef.current === null) return;
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "hidden") {
+                stopAnimation();
+            } else {
+                startAnimation();
+            }
+        };
+
+        updateCanvasSize();
+        window.addEventListener("resize", updateCanvasSize);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        startAnimation();
 
         return () => {
             window.removeEventListener("resize", updateCanvasSize);
-            if (animationFrameRef.current) {
-                cancelAnimationFrame(animationFrameRef.current);
-            }
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            stopAnimation();
         };
     }, [intensity]);
 
@@ -176,24 +273,11 @@ export function BeamsBackground({
         >
             <canvas
                 ref={canvasRef}
+                aria-hidden="true"
                 className="absolute inset-0"
-                style={{ filter: "blur(15px)" }}
             />
 
-            <motion.div
-                className="absolute inset-0 bg-neutral-950/5"
-                animate={{
-                    opacity: [0.05, 0.15, 0.05],
-                }}
-                transition={{
-                    duration: 10,
-                    ease: "easeInOut",
-                    repeat: Number.POSITIVE_INFINITY,
-                }}
-                style={{
-                    backdropFilter: "blur(50px)",
-                }}
-            />
+            <div className="absolute inset-0 bg-neutral-950/10" aria-hidden="true" />
 
             <div className="relative z-10 flex min-h-screen w-full items-center justify-center">
                 {children}

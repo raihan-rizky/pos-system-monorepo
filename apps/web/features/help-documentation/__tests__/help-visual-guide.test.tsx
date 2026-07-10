@@ -120,7 +120,7 @@ describe("visual help guides", () => {
     expect(posHtml).toContain("Produk");
     expect(posHtml).toContain("Layanan");
     expect(posHtml).toContain("Cari produk");
-    expect(posHtml).toContain("Keranjang Belanja");
+    expect(posHtml).toContain("Keranjang");
     expect(posHtml).not.toContain("Data Contoh 1");
   });
 
@@ -176,6 +176,256 @@ describe("visual help guides", () => {
     expect(posHtml).toContain("lucide-shopping-cart");
   });
 
+  it("uses the real collapsed shell dimensions and keeps scrolling inside the page viewport", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{
+          page: "inventory",
+          target: "inventory-primary",
+          callout: "Buka workspace inventaris.",
+        }}
+        stepNumber={1}
+        stepTitle="Buka Inventaris"
+      />,
+    );
+
+    expect(html).toContain('data-help-preview-sidebar-mode="collapsed"');
+    expect(html).toContain('data-help-preview-sidebar-width="76"');
+    expect(html).toContain('data-help-preview-viewport-size="1290x768"');
+    expect(html).toContain('data-help-page-scroll="both"');
+    expect(html).toContain("w-[76px]");
+    expect(html).toContain("min-w-0");
+    expect(html).toContain("min-h-0");
+    expect(html).toContain("overflow-auto");
+    expect(html).not.toContain("Toko Teladan");
+    expect(html).not.toContain("Read-only");
+  });
+
+  it("keeps semantic fidelity contracts in sync for all twelve production surfaces", () => {
+    const contracts = [
+      {
+        page: "settings" as const,
+        target: "settings-primary",
+        sources: [
+          new URL("../../../app/(main)/settings/page.tsx", import.meta.url),
+          new URL("../../../components/settings/StoreInfoTab.tsx", import.meta.url),
+        ],
+        markers: ["Pengaturan", "Info Toko", "Informasi Toko"],
+      },
+      {
+        page: "history" as const,
+        target: "history-primary",
+        sources: [new URL("../../../app/(main)/history/page.tsx", import.meta.url)],
+        markers: ["Riwayat Transaksi", "Daftar seluruh transaksi dan invoice toko", "No. Invoice"],
+      },
+      {
+        page: "pos" as const,
+        target: "pos-primary",
+        sources: [
+          new URL("../../../app/(main)/pos/POSClientPage.tsx", import.meta.url),
+          new URL("../../../components/CartSidebar.tsx", import.meta.url),
+        ],
+        markers: ["Produk", "Layanan", "Cari produk, SKU, atau barcode...", "Keranjang"],
+      },
+      {
+        page: "products" as const,
+        target: "products-primary",
+        sources: [new URL("../../../app/(main)/products/page.tsx", import.meta.url)],
+        markers: ["INVENTARIS LIVE", "Pusat Produk", "Total Produk", "Aktivitas Grup"],
+      },
+      {
+        page: "inventory" as const,
+        target: "inventory-primary",
+        sources: [
+          new URL("../../inventory-management/components/InventoryWorkspace.tsx", import.meta.url),
+        ],
+        markers: ["Manajemen Inventaris", "Tugas", "Transaksi", "Riwayat", "Tindak Lanjut Operasional"],
+      },
+      {
+        page: "suppliers" as const,
+        target: "suppliers-primary",
+        sources: [new URL("../../suppliers/components/SupplierPageShell.tsx", import.meta.url)],
+        markers: [
+          "Manajemen Supplier",
+          "Kelola supplier dan pantau rekap stock in dari pembelian.",
+          "Rekap Stock In",
+        ],
+      },
+      {
+        page: "customers" as const,
+        target: "customers-primary",
+        sources: [new URL("../../../app/(main)/customers/page.tsx", import.meta.url)],
+        markers: [
+          "Customer Workspace",
+          "Semua Pelanggan",
+          "Cari nama pelanggan, nomor HP, email, atau perusahaan...",
+        ],
+      },
+      {
+        page: "finance" as const,
+        target: "finance-primary",
+        sources: [new URL("../../../app/(main)/keuangan/page.tsx", import.meta.url)],
+        markers: ["Net Cash Flow", "Arus Kas Harian", "Pemasukan", "Pengeluaran"],
+      },
+      {
+        page: "shift" as const,
+        target: "shift-primary",
+        sources: [new URL("../../../app/(main)/shift/page.tsx", import.meta.url)],
+        markers: [
+          "Riwayat Shift Kasir",
+          "Daftar rekapan sesi kasir dan selisih kas laci uang",
+          "Ekspetasi Tutup Laci",
+        ],
+      },
+      {
+        page: "production" as const,
+        target: "production-primary",
+        sources: [new URL("../../../app/(main)/production/page.tsx", import.meta.url)],
+        markers: ["Papan Produksi", "Pantau job order dari struk sampai diserahkan.", "Aktivitas Produksi"],
+      },
+      {
+        page: "salespersons" as const,
+        target: "salespersons-primary",
+        sources: [new URL("../../../app/(main)/salespersons/page.tsx", import.meta.url)],
+        markers: ["Manajemen sales", "Tim Sales", "Cari nama sales...", "Top Performer"],
+      },
+      {
+        page: "assistant" as const,
+        target: "assistant-primary",
+        sources: [
+          new URL("../../ai-assistant/components/AssistantWidget.tsx", import.meta.url),
+        ],
+        markers: ["Pak Teladan", "Asisten", "Tanya AI, share ide, atau minta bantuan..."],
+      },
+    ];
+
+    for (const contract of contracts) {
+      const productionSource = contract.sources
+        .map((source) => readFileSync(source, "utf8"))
+        .join("\n");
+      const html = renderToStaticMarkup(
+        <VisualGuideMockup
+          visual={{
+            page: contract.page,
+            target: contract.target,
+            callout: `Panduan ${contract.page}`,
+          }}
+          stepNumber={1}
+          stepTitle={contract.page}
+        />,
+      );
+
+      expect(html, `${contract.page}.fidelity`).toContain(
+        `data-help-fidelity-page="${contract.page}"`,
+      );
+      for (const marker of contract.markers) {
+        expect(productionSource, `${contract.page}.source.${marker}`).toContain(marker);
+        expect(html, `${contract.page}.preview.${marker}`).toContain(marker);
+      }
+    }
+  });
+
+  it("renders each guide target in an explicit page state instead of one composite screen", () => {
+    for (const [page, config] of Object.entries(HELP_VISUAL_PAGE_CONFIG)) {
+      for (const group of config.groups) {
+        for (const target of group.targets) {
+          const html = renderToStaticMarkup(
+            <VisualGuideMockup
+              visual={{
+                page: page as keyof typeof HELP_VISUAL_PAGE_CONFIG,
+                target: target.key,
+                callout: `Panduan ${target.label}`,
+              }}
+              stepNumber={1}
+              stepTitle={target.label}
+            />,
+          );
+
+          expect(html, `${page}.${target.key}.state`).toContain("data-help-preview-state=");
+          expect(html, `${page}.${target.key}.active`).toContain(
+            `data-help-target="${target.key}"`,
+          );
+        }
+      }
+    }
+  }, 20000);
+
+  it("selects the real tab, subtab, and overlay state for representative workflow targets", () => {
+    const cases = [
+      ["settings", "settings-info-store", "settings-store", "Info Toko"],
+      ["settings", "settings-whatsapp-tab", "settings-whatsapp", "Integrasi WhatsApp"],
+      ["settings", "settings-rbac-tab", "settings-rbac", "Permission RBAC"],
+      ["products", "products-special-price-tab", "products-special-prices", "Harga Khusus"],
+      ["products", "products-stock-group-tab", "products-group-activity", "Aktivitas Grup"],
+      ["inventory", "inventory-inbound", "inventory-inbound", "Penerimaan Barang"],
+      ["inventory", "inventory-stock-log-tab", "inventory-stock-log", "Log Stok"],
+      ["inventory", "inventory-matching", "inventory-matching-modal", "Matching Stok Harian"],
+      ["suppliers", "suppliers-add", "suppliers-form-open", "Tambah Supplier"],
+      ["suppliers", "suppliers-create-request", "suppliers-request-open", "Buat Daftar Belanja"],
+      ["customers", "customers-debt-tab", "customers-debt", "Piutang"],
+      ["customers", "customers-pay-debt", "customers-payment-open", "Bayar Piutang"],
+      ["finance", "finance-expense-form", "finance-expense-form-open", "Form Pengeluaran"],
+      ["shift", "shift-opening-cash", "shift-open-modal", "Modal Laci"],
+      ["shift", "shift-closing-cash", "shift-close-modal", "Uang Tutup Laci"],
+      ["shift", "shift-edit", "shift-edit-modal", "Ubah Shift"],
+      ["production", "production-whatsapp", "production-whatsapp-confirm", "WhatsApp"],
+      ["salespersons", "salespersons-add", "salespersons-add-modal", "Tambah Sales"],
+      ["salespersons", "salespersons-detail", "salespersons-detail-open", "Detail Sales"],
+      ["assistant", "assistant-button", "assistant-closed", "Pak Teladan"],
+      ["assistant", "assistant-input", "assistant-open", "Tanya AI, share ide, atau minta bantuan..."],
+    ] as const;
+
+    for (const [page, target, state, marker] of cases) {
+      const html = renderToStaticMarkup(
+        <VisualGuideMockup
+          visual={{ page, target, callout: marker }}
+          stepNumber={1}
+          stepTitle={marker}
+        />,
+      );
+
+      expect(html, `${page}.${target}.state`).toContain(
+        `data-help-preview-state="${state}"`,
+      );
+      expect(html, `${page}.${target}.marker`).toContain(marker);
+    }
+  });
+
+  it("activates the financial-report icon for report targets and keeps page headers non-sticky", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{
+          page: "finance",
+          target: "finance-export",
+          callout: "Buka menu ekspor laporan.",
+        }}
+        stepNumber={1}
+        stepTitle="Ekspor Laporan"
+      />,
+    );
+
+    expect(html).toContain('data-help-preview-nav-active="financial-report"');
+    expect(html).not.toContain('data-help-preview-nav-active="finance"');
+    expect(html).not.toContain("sticky top-0");
+  });
+
+  it("marks the active target for automatic internal scrolling when a step changes", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{
+          page: "salespersons",
+          target: "salespersons-detail",
+          callout: "Buka detail sales.",
+        }}
+        stepNumber={4}
+        stepTitle="Detail Sales"
+      />,
+    );
+
+    expect(html).toContain('data-help-auto-scroll-target="salespersons-detail"');
+    expect(html).toContain('data-help-page-scroll="both"');
+  });
+
   it("keeps the app-shell page clipped and aligned with actual page layouts", () => {
     const settingsHtml = renderToStaticMarkup(
       <VisualGuideMockup
@@ -218,10 +468,10 @@ describe("visual help guides", () => {
     expect(settingsHtml).toContain("will-change-transform");
 
     expect(settingsHtml).toContain('data-help-actual-page="settings"');
-    expect(settingsHtml).toContain("max-w-[1600px] px-4 md:px-8 pt-6 pb-20");
-    expect(settingsHtml).toContain("flex flex-col sm:flex-row gap-6");
-    expect(settingsHtml).toContain("px-6 sm:px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold");
-    expect(settingsHtml).toContain("flex-1 bg-white border border-surface-100 rounded-2xl shadow-sm p-6");
+    expect(settingsHtml).toContain('data-help-fidelity-page="settings"');
+    expect(settingsHtml).toContain('data-help-preview-state="settings-rbac"');
+    expect(settingsHtml).toContain("Permission RBAC");
+    expect(settingsHtml).toContain("min-w-[1290px]");
     expect(settingsHtml).toContain("text-brand-600");
 
     expect(historyHtml).toContain('data-help-actual-page="history"');
@@ -233,13 +483,8 @@ describe("visual help guides", () => {
     expect(historyHtml).toContain("Mingguan");
     expect(historyHtml).toContain("Bulanan");
     expect(historyHtml).toContain("Surat Jalan saja");
-    expect(historyHtml).toContain("bg-white rounded-2xl border border-surface-200 overflow-hidden shadow-sm");
-    expect(historyHtml).toContain("flex-1 flex flex-col overflow-hidden relative");
-    expect(historyHtml).toContain("relative px-4 md:px-8 pt-4 pb-0 bg-white border-b border-surface-100");
-    expect(historyHtml).toContain("md:block px-4 md:px-8 py-4 bg-white border-b border-surface-100 space-y-3");
-    expect(historyHtml).toContain("flex-1 overflow-y-auto px-4 md:px-8 relative");
-    expect(historyHtml).toContain("hidden md:block overflow-x-auto");
-    expect(historyHtml).toContain("w-full text-left border-collapse");
+    expect(historyHtml).toContain('data-help-fidelity-page="history"');
+    expect(historyHtml).toContain("min-w-[1420px]");
     expect(historyHtml).toContain("Tanggal");
     expect(historyHtml).toContain("Sales");
     expect(historyHtml).toContain("Item");
@@ -249,12 +494,12 @@ describe("visual help guides", () => {
     expect(historyHtml).not.toContain("Read-only");
 
     expect(posHtml).toContain('data-help-actual-page="pos"');
-    expect(posHtml).toContain("flex flex-1 overflow-hidden");
+    expect(posHtml).toContain('data-help-fidelity-page="pos"');
     expect(posHtml).toContain("Produk");
     expect(posHtml).toContain("Layanan");
     expect(posHtml).toContain("Cari produk, SKU, atau barcode...");
     expect(posHtml).toContain("Stok tersedia");
-    expect(posHtml).toContain("hidden lg:block w-[340px] flex-shrink-0");
+    expect(posHtml).toContain("w-[340px]");
     expect(posHtml).toContain("lucide-search");
     expect(posHtml).toContain("lucide-check");
     expect(posHtml).toContain("lucide-shopping-cart");
@@ -304,22 +549,21 @@ describe("visual help guides", () => {
     expect(html).toContain("motion-safe:animate-pulse");
   });
 
-  it("renders every registered visual target in its static template", () => {
+  it("renders every registered visual target in its resolved page state", () => {
     for (const [page, config] of Object.entries(HELP_VISUAL_PAGE_CONFIG)) {
-      const html = renderToStaticMarkup(
-        <VisualGuideMockup
-          visual={{
-            page: page as keyof typeof HELP_VISUAL_PAGE_CONFIG,
-            target: config.primaryTarget,
-            callout: `Panduan ${config.label}`,
-          }}
-          stepNumber={1}
-          stepTitle={config.label}
-        />,
-      );
-
       for (const group of config.groups) {
         for (const target of group.targets) {
+          const html = renderToStaticMarkup(
+            <VisualGuideMockup
+              visual={{
+                page: page as keyof typeof HELP_VISUAL_PAGE_CONFIG,
+                target: target.key,
+                callout: `Panduan ${target.label}`,
+              }}
+              stepNumber={1}
+              stepTitle={target.label}
+            />,
+          );
           expect(html, `${page}.${target.key}`).toContain(`data-help-target="${target.key}"`);
         }
       }
@@ -343,6 +587,29 @@ describe("visual help guides", () => {
           );
 
           expect(html, `${page}.${target.key}`).toContain(`data-help-overlay-target="${target.key}"`);
+        }
+      }
+    }
+  }, 20000);
+
+  it("renders exactly one active highlight for every resolved target state", () => {
+    for (const [page, config] of Object.entries(HELP_VISUAL_PAGE_CONFIG)) {
+      for (const group of config.groups) {
+        for (const target of group.targets) {
+          const html = renderToStaticMarkup(
+            <VisualGuideMockup
+              visual={{
+                page: page as keyof typeof HELP_VISUAL_PAGE_CONFIG,
+                target: target.key,
+                callout: `Panduan ${target.label}`,
+              }}
+              stepNumber={1}
+              stepTitle={target.label}
+            />,
+          );
+
+          const activeTargets = html.match(/data-help-target-active="true"/g) ?? [];
+          expect(activeTargets, `${page}.${target.key}`).toHaveLength(1);
         }
       }
     }

@@ -162,6 +162,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     daySessionPreview?.session?.status === "CHECKED_OUT";
   const isDaySessionLoaded = daySessionPreview !== null;
   const isOwner = role === "OWNER";
+  const canViewTasks = isOwner || (isDaySessionLoaded && isDayCheckedIn);
   const dailyMatchingWindowStatus = React.useMemo(() => {
     const status = getDailyMatchingWindowStatus(matchingWindowNow);
     if (isOwner) {
@@ -1539,7 +1540,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               </div>
             }
           >
-            {activeTab === "Tugas" && (!isDaySessionLoaded || !isDayCheckedIn) && (
+            {activeTab === "Tugas" && !canViewTasks && (
               <div className="space-y-4">
                 <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
                 {isDaySessionLoaded && (
@@ -1555,7 +1556,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               </div>
             )}
 
-            {activeTab === "Tugas" && isDaySessionLoaded && isDayCheckedIn && (
+            {activeTab === "Tugas" && canViewTasks && (
               <div className="space-y-4">
                 <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
                 <div className="flex w-full max-w-full gap-2 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-max">

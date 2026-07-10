@@ -51,6 +51,24 @@ const allPaperRimBrandRule: CustomerCategoryPricingRule = {
 };
 
 describe("priceCartItemsForCheckout", () => {
+  it("keeps a cart transaction price ahead of automatic customer pricing", () => {
+    const [priced] = priceCartItemsForCheckout({
+      items: [
+        {
+          ...paperRim,
+          hargaAgen: 9500,
+          transactionPrice: 8000,
+        } as CartItem & { transactionPrice: number },
+      ],
+      customerType: "AGEN",
+      pricingRules: [allPaperRimBrandRule],
+      manualPrices: {},
+      role: "SALES",
+    });
+
+    expect(priced.price).toBe(8000);
+  });
+
   it("applies ALL Harga Khusus rules scoped to category, unit, and brand", () => {
     const [priced] = priceCartItemsForCheckout({
       items: [paperRim],

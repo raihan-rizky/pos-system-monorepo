@@ -2,9 +2,9 @@
 
 import React from "react";
 import { Button } from "@pos/ui";
-import { CreditCard, FileText, ShoppingCart, X, PackageMinus } from "lucide-react";
+import { CreditCard, DollarSign, FileText, PackageMinus, Pencil, ShoppingCart, X } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
-import type { CartItem } from "@/hooks/useCart";
+import type { CartItem, ProductCartItem } from "@/hooks/useCart";
 import type { QuotationCheckoutMode } from "@/features/nota-penawaran/helpers/quotation-rules";
 
 interface CartSidebarProps {
@@ -18,6 +18,11 @@ interface CartSidebarProps {
   checkoutMode?: QuotationCheckoutMode;
   onClose?: () => void;
   onInternalStockOut?: () => void;
+  canQuickEdit?: boolean;
+  quickEditEnabled?: boolean;
+  onToggleQuickEdit?: () => void;
+  onEditProduct?: (item: ProductCartItem) => void;
+  onEditPrice?: (item: ProductCartItem) => void;
 }
 
 export function CartSidebar({
@@ -31,8 +36,14 @@ export function CartSidebar({
   checkoutMode = "payment",
   onClose,
   onInternalStockOut,
+  canQuickEdit = false,
+  quickEditEnabled = false,
+  onToggleQuickEdit,
+  onEditProduct,
+  onEditPrice,
 }: CartSidebarProps) {
   const isQuotationMode = checkoutMode === "quotation";
+  const hasProductItems = items.some((item) => item.lineType === "PRODUCT");
 
   return (
     <div className="flex flex-col h-full bg-white border-l border-surface-200">
@@ -56,14 +67,32 @@ export function CartSidebar({
             </span>
           )}
         </div>
-        {items.length > 0 && (
-          <button
-            onClick={onClearCart}
-            className="text-xs text-danger-500 hover:text-danger-600 font-medium transition-colors"
-          >
-            Hapus Semua
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {canQuickEdit && hasProductItems && onToggleQuickEdit && (
+            <button
+              type="button"
+              onClick={onToggleQuickEdit}
+              aria-pressed={quickEditEnabled}
+              aria-label={quickEditEnabled ? "Nonaktifkan Edit Cepat" : "Aktifkan Edit Cepat"}
+              title={quickEditEnabled ? "Nonaktifkan Edit Cepat" : "Aktifkan Edit Cepat"}
+              className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
+                quickEditEnabled
+                  ? "bg-brand-100 text-brand-700"
+                  : "text-surface-400 hover:bg-surface-100 hover:text-surface-700"
+              }`}
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+          {items.length > 0 && (
+            <button
+              onClick={onClearCart}
+              className="text-xs text-danger-500 hover:text-danger-600 font-medium transition-colors"
+            >
+              Hapus Semua
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Items */}
@@ -93,17 +122,73 @@ export function CartSidebar({
                   <p className="text-xs text-surface-400 mt-0.5">
                     {formatRupiah(item.price)} /{item.unit}
                   </p>
+                  {item.lineType === "PRODUCT" && item.transactionPrice != null && (
+                    <div className="mt-1 text-[10px] font-medium text-brand-700">
+                      <span className="rounded-full bg-brand-100 px-2 py-0.5 font-bold">
+                        Harga khusus
+                      </span>
+                      <span className="ml-1">Hanya berlaku untuk transaksi ini</span>
+                    </div>
+                  )}
+                  {item.lineType === "PRODUCT" && (
+                    <dl className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-surface-500">
+                      <div>
+                        <dt className="font-semibold">Normal</dt>
+                        <dd>{formatRupiah(item.catalogPrice)}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-semibold">Agen</dt>
+                        <dd>
+                          {item.hargaAgen != null && item.hargaAgen > 0
+                            ? formatRupiah(item.hargaAgen)
+                            : "Belum diatur"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-semibold">Dinas</dt>
+                        <dd>
+                          {item.hargaDinas != null && item.hargaDinas > 0
+                            ? formatRupiah(item.hargaDinas)
+                            : "Belum diatur"}
+                        </dd>
+                      </div>
+                    </dl>
+                  )}
                   <p className="text-sm font-bold text-brand-600 mt-1">
                     {formatRupiah(item.price * item.quantity)}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
-                  <button
-                    onClick={() => onRemoveItem(item.cartLineId)}
-                    className="p-0.5 text-surface-300 hover:text-danger-500 transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {quickEditEnabled && item.lineType === "PRODUCT" && onEditProduct && (
+                      <button
+                        type="button"
+                        onClick={() => onEditProduct(item)}
+                        aria-label={`Ubah produk ${item.name}`}
+                        title="Ubah produk"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-surface-200 bg-white text-surface-600 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
+                    {quickEditEnabled && item.lineType === "PRODUCT" && onEditPrice && (
+                      <button
+                        type="button"
+                        onClick={() => onEditPrice(item)}
+                        aria-label={`Ubah harga produk ${item.name}`}
+                        title="Ubah harga produk"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-surface-200 bg-white text-surface-600 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                      >
+                        <DollarSign className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onRemoveItem(item.cartLineId)}
+                      className="p-0.5 text-surface-300 hover:text-danger-500 transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => onUpdateQuantity(item.cartLineId, item.quantity - 1)}

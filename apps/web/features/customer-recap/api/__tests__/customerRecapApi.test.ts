@@ -52,4 +52,32 @@ describe("customerRecapApi", () => {
       }),
     ).rejects.toThrow("Invalid customer recap date range");
   });
+
+  it("loads the export aggregate from the store-scoped export endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: {
+            dateFrom: "2026-05-01",
+            dateTo: "2026-05-02",
+            summary: {},
+            typeSummaries: [],
+            groups: [],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const data = await customerRecapApi.getExportRecap({
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-02",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/customers/recap/export?dateFrom=2026-05-01&dateTo=2026-05-02",
+      { cache: "no-store" },
+    );
+    expect(data.dateFrom).toBe("2026-05-01");
+  });
 });

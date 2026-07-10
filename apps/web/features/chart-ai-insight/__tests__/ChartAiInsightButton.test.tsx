@@ -9,6 +9,8 @@ describe("ChartAiInsightButton", () => {
     );
     expect(html).toContain("chart-ai-insight-btn");
     expect(html).toContain("Analisis AI");
+    expect(html).toContain("inline-block");
+    expect(html).toContain("text-left");
   });
 
   it("renders insight panel when defaultOpen=true", () => {

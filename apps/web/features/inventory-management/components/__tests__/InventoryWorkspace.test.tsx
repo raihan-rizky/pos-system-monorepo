@@ -522,6 +522,22 @@ describe("InventoryWorkspace", () => {
     expect(html).not.toContain("Tambah tugas");
   });
 
+  it("lets OWNER view the task workspace without checking in", () => {
+    mockUseRole.mockReturnValue({
+      role: "OWNER",
+      userId: "owner-1",
+      canPerform: () => true,
+    });
+
+    const html = renderToStaticMarkup(
+      <InventoryWorkspace initialSummary={baseSummary} defaultTab="Tugas" />,
+    );
+
+    expect(html).toContain("Checklist Manual Harian");
+    expect(html).toContain("Tambah tugas");
+    expect(html).not.toContain("Check in diperlukan sebelum membuka Tugas.");
+  });
+
   it("renders fixed operational task history tabs in the riwayat tab", () => {
     const html = renderToStaticMarkup(
       <InventoryWorkspace

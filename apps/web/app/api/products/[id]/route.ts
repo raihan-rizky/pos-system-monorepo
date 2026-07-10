@@ -13,6 +13,7 @@ import {
   resolveGroupedStockUpdate,
   shouldMarkConversionForReview,
 } from "@/features/product-stock-groups/product-stock-groups-service";
+import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
 
 const log = getLogger("api:products:id");
 const updateProductSchema = z.object({
@@ -35,15 +36,15 @@ const updateProductSchema = z.object({
   imageUrl: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   priceChangeNote: z.string().optional().nullable(),
+  quickEditGroup: z.boolean().optional(),
 });
 
-async function brandBelongsToStore(brandId: string | null | undefined, storeId: string) {
-  if (!brandId) return true;
-  const brand = await db.brand.findFirst({
+async function findStoreBrand(brandId: string | null | undefined, storeId: string) {
+  if (!brandId) return null;
+  return db.brand.findFirst({
     where: { id: brandId, storeId },
-    select: { id: true },
+    select: { id: true, name: true, normalizedName: true },
   });
-  return Boolean(brand);
 }
 
 export async function PUT(
@@ -56,7 +57,7 @@ export async function PUT(
     const storeId = user.storeId || "store-main";
     const body = await request.json();
     
-    const { priceChangeNote, ...validatedData } = updateProductSchema.parse(body);
+    const { priceChangeNote, quickEditGroup, ...validatedData } = updateProductSchema.parse(body);
 
     if (validatedData.sku) {
       const existingProduct = await db.product.findFirst({
@@ -82,11 +83,117 @@ export async function PUT(
       );
     }
 
-    if (!(await brandBelongsToStore(validatedData.brandId, storeId))) {
+    const selectedBrand = await findStoreBrand(validatedData.brandId, storeId);
+    if (validatedData.brandId && !selectedBrand) {
       return NextResponse.json(
         { message: "Merek tidak ditemukan" },
         { status: 404 },
       );
+    }
+
+    if (quickEditGroup) {
+      if (!validatedData.name || !validatedData.categoryId) {
+        return NextResponse.json(
+          { message: "Nama Produk dan Kategori wajib diisi." },
+          { status: 422 },
+        );
+      }
+      const groupName = validatedData.name;
+      const groupCategoryId = validatedData.categoryId;
+
+      const category = await db.category.findFirst({
+        where: { id: groupCategoryId },
+        select: { id: true, name: true, icon: true, color: true },
+      });
+      if (!category) {
+        return NextResponse.json(
+          { message: "Kategori tidak ditemukan" },
+          { status: 404 },
+        );
+      }
+
+      try {
+        const productIds = await db.$transaction(async (tx) => {
+          const groupProducts = await tx.product.findMany({
+            where: existingProduct.stockGroupId
+              ? { storeId, stockGroupId: existingProduct.stockGroupId }
+              : {
+                  storeId,
+                  name: { equals: existingProduct.name, mode: "insensitive" },
+                  categoryId: existingProduct.categoryId,
+                },
+            select: { id: true },
+          });
+          const groupProductIds = groupProducts.map((product) => product.id);
+          if (groupProductIds.length === 0) {
+            throw new Error("QUICK_EDIT_GROUP_NOT_FOUND");
+          }
+
+          if (existingProduct.stockGroupId) {
+            const nextGroupKey = normalizeStockGroupKey({
+              name: groupName,
+              categoryId: groupCategoryId,
+              material: existingProduct.material,
+              size: existingProduct.size,
+            });
+            const collision = await tx.productStockGroup.findFirst({
+              where: {
+                storeId,
+                groupKey: nextGroupKey,
+                NOT: { id: existingProduct.stockGroupId },
+              },
+              select: { id: true },
+            });
+            if (collision) throw new Error("QUICK_EDIT_GROUP_COLLISION");
+
+            await tx.productStockGroup.update({
+              where: { id: existingProduct.stockGroupId },
+              data: {
+                groupKey: nextGroupKey,
+                displayName: groupName,
+              },
+            });
+          }
+
+          await tx.product.updateMany({
+            where: { id: { in: groupProductIds }, storeId },
+            data: {
+              name: groupName,
+              categoryId: groupCategoryId,
+              brandId: validatedData.brandId ?? null,
+            },
+          });
+
+          return groupProductIds;
+        });
+
+        return NextResponse.json({
+          productIds,
+          name: groupName,
+          category,
+          brand: selectedBrand,
+        });
+      } catch (groupError) {
+        if (
+          groupError instanceof Error &&
+          groupError.message === "QUICK_EDIT_GROUP_COLLISION"
+        ) {
+          return NextResponse.json(
+            { message: "Nama dan kategori tersebut sudah digunakan oleh grup produk lain." },
+            { status: 409 },
+          );
+        }
+        if (
+          groupError instanceof Error &&
+          groupError.message === "QUICK_EDIT_GROUP_NOT_FOUND"
+        ) {
+          return NextResponse.json(
+            { message: "Grup produk tidak lagi tersedia." },
+            { status: 404 },
+          );
+        }
+        throw groupError;
+      }
     }
 
     const product = await db.$transaction(async (tx) => {
@@ -174,10 +281,14 @@ export async function PUT(
         before: {
           price: existingProduct.price,
           costPrice: existingProduct.costPrice,
+          hargaAgen: existingProduct.hargaAgen,
+          hargaDinas: existingProduct.hargaDinas,
         },
         after: {
           price: updated.price,
           costPrice: updated.costPrice,
+          hargaAgen: updated.hargaAgen,
+          hargaDinas: updated.hargaDinas,
         },
         actor: user,
         source: "MANUAL",

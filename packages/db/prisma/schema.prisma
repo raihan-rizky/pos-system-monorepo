@@ -1624,6 +1624,8 @@ enum InventoryLogStatus {
 enum ProductPriceLogField {
   PRICE
   COST_PRICE
+  HARGA_AGEN
+  HARGA_DINAS
 }
 
 enum ProductPriceLogSource {

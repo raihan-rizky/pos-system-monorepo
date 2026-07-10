@@ -44,7 +44,7 @@ export const SectionCard: React.FC<SectionCardProps> = React.memo(
   }) {
     return (
       <section
-        className={`rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden ${className}`}
+        className={`rounded-2xl border border-surface-200 bg-white shadow-sm ${className}`}
       >
         <header className="px-5 py-4 border-b border-surface-100 flex items-center gap-3">
           <span

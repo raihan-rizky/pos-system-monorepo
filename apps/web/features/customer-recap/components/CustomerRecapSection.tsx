@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { useCustomerRecap } from "../hooks/useCustomerRecap";
 import type { CustomerRecapQuery } from "../types/customer-recap";
 import { RecapPeriodPicker } from "./RecapPeriodPicker";
+import { CustomerRecapExportMenu } from "./CustomerRecapExportMenu";
 import { RecapSummaryCards } from "./RecapSummaryCards";
 import { RecapTopSpenders } from "./RecapTopSpenders";
 
@@ -47,6 +48,7 @@ export function CustomerRecapSection({
         </div>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
           <RecapPeriodPicker value={range} onChange={onRangeChange} />
+          <CustomerRecapExportMenu range={range} onRangeChange={onRangeChange} />
           <button
             type="button"
             onClick={handleToggle}

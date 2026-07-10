@@ -3,6 +3,11 @@ import { NextRequest } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 
 const getUserMock = vi.hoisted(() => vi.fn());
+const cookieAdapterMock = vi.hoisted(() => ({
+  setAll: undefined as
+    | undefined
+    | ((cookies: Array<{ name: string; value: string; options?: Record<string, unknown> }>) => void),
+}));
 const maybeSingleMock = vi.hoisted(() => vi.fn());
 const eqMock = vi.hoisted(() => vi.fn(() => ({ maybeSingle: maybeSingleMock, eq: eqMock })));
 const selectMock = vi.hoisted(() => vi.fn(() => ({ eq: eqMock })));
@@ -19,13 +24,18 @@ const fromMock = vi.hoisted(() => {
 });
 
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: vi.fn(() => ({
-    auth: {
-      getUser: getUserMock,
-      signOut: vi.fn(),
+  createServerClient: vi.fn(
+    (_url: string, _key: string, options: { cookies: { setAll: typeof cookieAdapterMock.setAll } }) => {
+      cookieAdapterMock.setAll = options.cookies.setAll;
+      return {
+        auth: {
+          getUser: getUserMock,
+          signOut: vi.fn(),
+        },
+        from: fromMock,
+      };
     },
-    from: fromMock,
-  })),
+  ),
 }));
 
 describe("updateSession", () => {
@@ -109,6 +119,61 @@ describe("updateSession", () => {
     const response = await updateSession(request);
 
     expect(getUserMock).toHaveBeenCalled();
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: "Unauthorized" });
+  });
+
+  it("keeps a retryable Supabase auth failure from being treated as logout", async () => {
+    getUserMock.mockImplementationOnce(async () => {
+      cookieAdapterMock.setAll?.([
+        {
+          name: "sb-project-ref-auth-token",
+          value: "refreshed-session",
+          options: { path: "/", maxAge: 60 * 60 },
+        },
+      ]);
+      return {
+        data: { user: null },
+        error: {
+          name: "AuthRetryableFetchError",
+          message: "Auth service temporarily unavailable",
+          status: 503,
+        },
+      };
+    });
+    const request = new NextRequest("https://pos.example.com/api/products", {
+      headers: {
+        cookie: "sb-project-ref-auth-token=still-valid-session",
+      },
+    });
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Sesi belum dapat diverifikasi. Silakan coba lagi.",
+    });
+    expect(response.cookies.get("sb-project-ref-auth-token")?.value).toBe("refreshed-session");
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it("still rejects a non-retryable malformed session even when its status is 500", async () => {
+    getUserMock.mockResolvedValueOnce({
+      data: { user: null },
+      error: {
+        name: "AuthInvalidTokenResponseError",
+        message: "Auth session or user missing",
+        status: 500,
+      },
+    });
+    const request = new NextRequest("https://pos.example.com/api/products", {
+      headers: {
+        cookie: "sb-project-ref-auth-token=malformed-session",
+      },
+    });
+
+    const response = await updateSession(request);
+
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({ error: "Unauthorized" });
   });

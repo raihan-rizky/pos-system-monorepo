@@ -1,4 +1,8 @@
-export type ProductPriceLogField = "PRICE" | "COST_PRICE";
+export type ProductPriceLogField =
+  | "PRICE"
+  | "COST_PRICE"
+  | "HARGA_AGEN"
+  | "HARGA_DINAS";
 export type ProductPriceLogSource = "MANUAL" | "IMPORT" | "API" | "SYSTEM";
 
 type PriceValue = number | string | { toString(): string } | null | undefined;
@@ -6,6 +10,8 @@ type PriceValue = number | string | { toString(): string } | null | undefined;
 export type ProductPriceSnapshot = {
   price: PriceValue;
   costPrice: PriceValue;
+  hargaAgen?: PriceValue;
+  hargaDinas?: PriceValue;
 };
 
 export type ProductPriceLogEntry = {
@@ -48,6 +54,16 @@ export function buildProductPriceLogEntries({
       beforeValue: before?.costPrice,
       afterValue: after.costPrice,
     },
+    {
+      field: "HARGA_AGEN",
+      beforeValue: before?.hargaAgen,
+      afterValue: after.hargaAgen,
+    },
+    {
+      field: "HARGA_DINAS",
+      beforeValue: before?.hargaDinas,
+      afterValue: after.hargaDinas,
+    },
   ];
 
   return fields.flatMap(({ field, beforeValue, afterValue }) => {
@@ -55,6 +71,9 @@ export function buildProductPriceLogEntries({
     const newValue = normalizePriceValue(afterValue);
 
     if (before && oldValue === newValue) return [];
+    if (!before && newValue === null && (field === "HARGA_AGEN" || field === "HARGA_DINAS")) {
+      return [];
+    }
 
     return [
       {

@@ -51,12 +51,24 @@ export function priceCartItemsForCheckout(input: {
       input.customerType,
       activePricingRules,
     );
-    const resolved = resolveCustomPricedLine({
-      pricedLine: priced,
-      submittedPrice: input.manualPrices[item.cartLineId],
-      role: input.role,
-      customerType: input.customerType,
-    });
+    const submittedManualPrice = input.manualPrices[item.cartLineId];
+    const resolved =
+      submittedManualPrice == null && item.transactionPrice != null
+        ? {
+            unitPrice: item.transactionPrice,
+            appliedPricing: priced.appliedPricing
+              ? {
+                  ...priced.appliedPricing,
+                  appliedUnitPrice: item.transactionPrice,
+                }
+              : null,
+          }
+        : resolveCustomPricedLine({
+            pricedLine: priced,
+            submittedPrice: submittedManualPrice,
+            role: input.role,
+            customerType: input.customerType,
+          });
 
     return {
       ...item,

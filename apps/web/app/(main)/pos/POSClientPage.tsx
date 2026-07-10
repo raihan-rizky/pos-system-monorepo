@@ -48,6 +48,8 @@ import { formatRupiah } from "@/lib/utils";
 import {
   useProductsPage,
   useCategories,
+  useUpdateProduct,
+  useUpdateProductGroupMetadata,
   type Category,
   type Product,
   type ProductsResponse,
@@ -58,6 +60,15 @@ import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
 import { useRole } from "@/components/providers/RoleProvider";
+import {
+  PosPriceQuickEditModal,
+  type PosCartPriceUpdate,
+} from "@/components/inventory/PriceUpdateModal";
+import {
+  PosProductQuickEditModal,
+  type PosProductGroupUpdate,
+} from "@/components/EditProductModal";
+import { useBrands } from "@/hooks/useBrands";
 import { parseSearchQuery } from "@/features/pos-search/pos-search";
 import { mapProductToCartItem } from "@/features/pos-search/services/cart-mapping";
 import type { PrintingServiceOrderData } from "@/features/printing-services/components/PrintingServiceOrderModal";
@@ -105,6 +116,9 @@ export default function POSClientPage({
   const [pendingEmptyStockVariantId, setPendingEmptyStockVariantId] =
     useState<string | undefined>(undefined);
   const [showNegativeStockCheckoutConfirm, setShowNegativeStockCheckoutConfirm] = useState(false);
+  const [isQuickEditEnabled, setIsQuickEditEnabled] = useState(false);
+  const [priceEditItem, setPriceEditItem] = useState<ProductCartItem | null>(null);
+  const [productEditItem, setProductEditItem] = useState<ProductCartItem | null>(null);
   const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<{
     tone: "success" | "warning" | "danger";
@@ -147,8 +161,9 @@ export default function POSClientPage({
   const { data: activeShift, isLoading: shiftLoading } = useActiveShift(
     initialData.activeShift ?? undefined,
   );
-  const { role } = useRole();
+  const { role, canPerform } = useRole();
   const isSales = role === "SALES";
+  const canQuickEdit = canPerform("product", "update");
 
   const productsQuery = useProductsPage(search, selectedCategory, {
     page,
@@ -174,7 +189,10 @@ export default function POSClientPage({
   const searchTokens = parseSearchQuery(search);
 
   const { data: categories = [] } = useCategories(initialData.categories);
+  const { data: brands = [] } = useBrands();
   const cart = useCart();
+  const updateProduct = useUpdateProduct();
+  const updateProductGroup = useUpdateProductGroupMetadata();
   const checkoutMode = useMemo(
     () => getCartCheckoutMode(cart.items),
     [cart.items],
@@ -229,6 +247,47 @@ export default function POSClientPage({
       });
     },
     [cart],
+  );
+
+  const handleSaveQuickPrice = useCallback(
+    async (update: PosCartPriceUpdate) => {
+      if (!priceEditItem) return;
+
+      if (update.masterUpdate) {
+        const updated = await updateProduct.mutateAsync(update.masterUpdate);
+        cart.syncProductPrices(updated.id, {
+          price: Number(updated.price),
+          hargaAgen:
+            updated.hargaAgen == null ? null : Number(updated.hargaAgen),
+          hargaDinas:
+            updated.hargaDinas == null ? null : Number(updated.hargaDinas),
+        });
+      }
+
+      cart.updateTransactionPrice(
+        priceEditItem.cartLineId,
+        update.transactionPrice,
+      );
+    },
+    [cart, priceEditItem, updateProduct],
+  );
+
+  const handleSaveQuickProduct = useCallback(
+    async (metadata: PosProductGroupUpdate) => {
+      if (!productEditItem) return;
+      const updated = await updateProductGroup.mutateAsync({
+        id: productEditItem.productId,
+        ...metadata,
+      });
+      cart.syncProductGroupMetadata(updated.productIds, {
+        name: updated.name,
+        categoryId: updated.category.id,
+        categoryName: updated.category.name,
+        brandId: updated.brand?.id ?? null,
+        brandName: updated.brand?.name ?? null,
+      });
+    },
+    [cart, productEditItem, updateProductGroup],
   );
 
   useEffect(() => {
@@ -724,6 +783,11 @@ export default function POSClientPage({
               onUpdateQuantity={cart.updateQuantity}
               onRemoveItem={cart.removeItem}
               onClearCart={cart.clearCart}
+              canQuickEdit={canQuickEdit}
+              quickEditEnabled={isQuickEditEnabled}
+              onToggleQuickEdit={() => setIsQuickEditEnabled((current) => !current)}
+              onEditProduct={setProductEditItem}
+              onEditPrice={setPriceEditItem}
               onCheckout={
                 checkoutMode === "quotation"
                   ? handleOpenNotaPenawaran
@@ -769,6 +833,11 @@ export default function POSClientPage({
               onUpdateQuantity={cart.updateQuantity}
               onRemoveItem={cart.removeItem}
               onClearCart={cart.clearCart}
+              canQuickEdit={canQuickEdit}
+              quickEditEnabled={isQuickEditEnabled}
+              onToggleQuickEdit={() => setIsQuickEditEnabled((current) => !current)}
+              onEditProduct={setProductEditItem}
+              onEditPrice={setPriceEditItem}
               onCheckout={() => {
                 closeCart();
                 if (checkoutMode === "quotation") {
@@ -796,8 +865,25 @@ export default function POSClientPage({
           isProcessing={createTransaction.isPending}
           isSavingDraft={createDraft.isPending}
           draftError={draftError}
+          onUpdateTransactionPrice={cart.updateTransactionPrice}
         />
       )}
+
+      <PosPriceQuickEditModal
+        open={Boolean(priceEditItem)}
+        item={priceEditItem}
+        onClose={() => setPriceEditItem(null)}
+        onSave={handleSaveQuickPrice}
+      />
+
+      <PosProductQuickEditModal
+        open={Boolean(productEditItem)}
+        item={productEditItem}
+        categories={categories}
+        brands={brands}
+        onClose={() => setProductEditItem(null)}
+        onSave={handleSaveQuickProduct}
+      />
 
       {showNotaPenawaran && (
         <NotaPenawaranModal

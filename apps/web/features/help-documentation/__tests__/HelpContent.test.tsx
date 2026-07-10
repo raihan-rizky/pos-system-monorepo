@@ -3,6 +3,17 @@ import { describe, expect, it } from 'vitest';
 import HelpContent from '../components/HelpContent';
 
 describe('HelpContent', () => {
+  it('explains modal zoom and internal AppShell scrolling', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="OWNER" />
+    );
+
+    expect(html).toContain('data-help-preview-tip="true"');
+    expect(html).toContain('Tips Melihat Panduan Visual');
+    expect(html).toContain('bubble zoom 2×');
+    expect(html).toContain('scrollbar internal');
+  });
+
   it('renders informal AI assistant description correctly', () => {
     const html = renderToStaticMarkup(
       <HelpContent targetRole="AI_ASSISTANT" />
@@ -133,5 +144,16 @@ describe('HelpContent', () => {
     expect(html).toContain('Ubah Tanggal Invoice');
     expect(normalizedHtml).toContain('alasan perubahan');
     expect(normalizedHtml).toContain('cetak ulang invoice final');
+  });
+
+  it('documents POS cart quick product and price editing', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="CASHIER" searchQuery="Edit Cepat Produk" />
+    );
+
+    expect(html).toContain('Edit Cepat Produk di Keranjang POS');
+    expect(html).toContain('Harga Normal, Harga Agen, dan Harga Dinas');
+    expect(html).toContain('Hanya berlaku untuk transaksi ini');
+    expect(html).toContain('permission edit produk');
   });
 });

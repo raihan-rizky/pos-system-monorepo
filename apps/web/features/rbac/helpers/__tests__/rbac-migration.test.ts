@@ -39,6 +39,27 @@ describe("RBAC permission migration contract", () => {
     expect(sql).toContain('GRANT SELECT ON TABLE "pos_role_permissions" TO authenticated');
   });
 
+  it("repairs a drifted pos_role_permissions SELECT policy idempotently", () => {
+    const repairMigration = readdirSync(migrationsDir).find(
+      (entry) => entry === "20260710_restore_rbac_permissions_read_policy",
+    );
+
+    expect(repairMigration).toBeDefined();
+    if (!repairMigration) return;
+
+    const sql = readMigrationSql(repairMigration);
+
+    expect(sql).toContain('ALTER TABLE "pos_role_permissions" ENABLE ROW LEVEL SECURITY');
+    expect(sql).toContain(
+      'DROP POLICY IF EXISTS "Allow authenticated users to read role permissions"',
+    );
+    expect(sql).toContain('CREATE POLICY "Allow authenticated users to read role permissions"');
+    expect(sql).toContain("FOR SELECT");
+    expect(sql).toContain("TO authenticated");
+    expect(sql).toContain("USING (true)");
+    expect(sql).toContain('GRANT SELECT ON TABLE "pos_role_permissions" TO authenticated');
+  });
+
   it("allows authenticated middleware reads from pos_users", () => {
     const sql = readMatchingMigrationSql(
       (entry) => entry.includes("rbac") || entry.includes("rls"),

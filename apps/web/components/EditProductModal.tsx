@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { ImageIcon } from "lucide-react";
 import { useUpdateProduct, useCategories, Product } from "@/hooks/useProducts";
+import type { ProductCartItem } from "@/hooks/useCart";
 
 import { getLogger } from "@/lib/logger";
 
@@ -252,6 +253,139 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
             className="flex-1"
           >
             Simpan Perubahan
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export type PosProductGroupUpdate = {
+  name: string;
+  categoryId: string;
+  brandId: string | null;
+};
+
+interface PosProductQuickEditModalProps {
+  open: boolean;
+  item: ProductCartItem | null;
+  categories: Array<{ id: string; name: string }>;
+  brands: Array<{ id: string; name: string }>;
+  onClose: () => void;
+  onSave: (input: PosProductGroupUpdate) => void | Promise<void>;
+}
+
+export function PosProductQuickEditModal({
+  open,
+  item,
+  categories,
+  brands,
+  onClose,
+  onSave,
+}: PosProductQuickEditModalProps) {
+  const [name, setName] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [brandId, setBrandId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open || !item) return;
+    setName(item.name);
+    setCategoryId(item.categoryId);
+    setBrandId(item.brandId ?? "");
+    setError(null);
+  }, [item, open]);
+
+  const handleSave = async () => {
+    if (!item) return;
+    if (!name.trim()) {
+      setError("Nama Produk wajib diisi.");
+      return;
+    }
+    if (!categoryId) {
+      setError("Kategori wajib dipilih.");
+      return;
+    }
+
+    setError(null);
+    setIsSaving(true);
+    try {
+      await onSave({
+        name: name.trim(),
+        categoryId,
+        brandId: brandId || null,
+      });
+      onClose();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : "Gagal mengubah produk.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!item) return null;
+
+  return (
+    <Modal open={open} onClose={onClose} title="Ubah Produk">
+      <div className="mt-4 space-y-4">
+        <div className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-xs font-medium text-brand-800">
+          Perubahan Nama, Kategori, dan Merek berlaku untuk seluruh varian produk ini.
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-medium text-red-600" role="alert">
+            {error}
+          </div>
+        )}
+
+        <Input
+          label="Nama Produk"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          required
+        />
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-surface-700">Kategori</label>
+          <select
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
+            className="w-full rounded-xl border border-surface-200 bg-white px-4 py-2.5 text-surface-900 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          >
+            <option value="">Pilih Kategori</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-surface-700">Merek</label>
+          <select
+            value={brandId}
+            onChange={(event) => setBrandId(event.target.value)}
+            className="w-full rounded-xl border border-surface-200 bg-white px-4 py-2.5 text-surface-900 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          >
+            <option value="">Tanpa merek</option>
+            {brands.map((brand) => (
+              <option key={brand.id} value={brand.id}>
+                {brand.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-surface-200 pt-5">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isSaving}>
+            Batal
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
           </Button>
         </div>
       </div>

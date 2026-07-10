@@ -336,6 +336,49 @@ export function useUpdateProduct() {
   });
 }
 
+export interface UpdateProductGroupMetadataInput {
+  id: string;
+  name: string;
+  categoryId: string;
+  brandId: string | null;
+}
+
+export interface ProductGroupMetadataResult {
+  productIds: string[];
+  name: string;
+  category: { id: string; name: string; icon?: string | null; color?: string | null };
+  brand: { id: string; name: string; normalizedName?: string } | null;
+}
+
+async function updateProductGroupMetadata(
+  input: UpdateProductGroupMetadataInput,
+): Promise<ProductGroupMetadataResult> {
+  const { id, ...metadata } = input;
+  const response = await fetch(`/api/products/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...metadata, quickEditGroup: true }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(payload?.message ?? "Gagal mengubah grup produk.");
+  }
+  return payload;
+}
+
+export function useUpdateProductGroupMetadata() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateProductGroupMetadata,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
 async function deleteProduct(id: string): Promise<void> {
   const res = await fetch(`/api/products/${id}`, {
     method: "DELETE",

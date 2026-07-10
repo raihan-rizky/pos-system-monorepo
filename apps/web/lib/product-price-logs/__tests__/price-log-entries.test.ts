@@ -69,4 +69,39 @@ describe("buildProductPriceLogEntries", () => {
       },
     ]);
   });
+
+  it("logs Harga Agen and Harga Dinas changes", () => {
+    const entries = buildProductPriceLogEntries({
+      productId: "product-1",
+      storeId: "store-1",
+      before: {
+        price: 15000,
+        costPrice: 9000,
+        hargaAgen: 12000,
+        hargaDinas: null,
+      },
+      after: {
+        price: 15000,
+        costPrice: 9000,
+        hargaAgen: 12500,
+        hargaDinas: 17000,
+      },
+      actor,
+      source: "MANUAL",
+      note: "Penyesuaian segmen",
+    });
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        field: "HARGA_AGEN",
+        oldValue: "12000.00",
+        newValue: "12500.00",
+      }),
+      expect.objectContaining({
+        field: "HARGA_DINAS",
+        oldValue: null,
+        newValue: "17000.00",
+      }),
+    ]);
+  });
 });

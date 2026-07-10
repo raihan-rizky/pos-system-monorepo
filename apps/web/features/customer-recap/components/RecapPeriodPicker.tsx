@@ -13,10 +13,10 @@ interface RecapPeriodPickerProps {
 }
 
 const PRESETS: Array<{ value: CustomerRecapPreset; label: string }> = [
-  { value: "month", label: "Bulan ini" },
-  { value: "30d", label: "30 hari" },
-  { value: "90d", label: "90 hari" },
-  { value: "year", label: "Tahun ini" },
+  { value: "daily", label: "Harian" },
+  { value: "weekly", label: "Mingguan" },
+  { value: "monthly", label: "Bulanan" },
+  { value: "yearly", label: "Tahunan" },
 ];
 
 export function RecapPeriodPicker({

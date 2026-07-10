@@ -161,13 +161,47 @@ describe("HelpDiagramStepper", () => {
       />,
     );
 
-    expect(html).toContain('class="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"');
+    expect(html).toContain('class="flex max-h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"');
     expect(html).toContain('class="p-4 flex-1 overflow-y-auto"');
+  });
+
+  it("enables a pointer-safe magnifier only inside the full-screen visual modal", () => {
+    const step = {
+      title: "Periksa inventaris",
+      description: "Arahkan pointer untuk memperbesar bagian AppShell.",
+      icon: <Package />,
+      id: "inventory-step",
+      visual: {
+        page: "inventory" as const,
+        target: "inventory-primary",
+        callout: "Periksa workspace inventaris.",
+      },
+    };
+
+    const modalHtml = renderToStaticMarkup(
+      <HelpVisualModal
+        step={step}
+        stepNumber={1}
+        totalSteps={1}
+        onClose={() => {}}
+      />,
+    );
+    const inlineHtml = renderToStaticMarkup(
+      <HelpDiagramStepper steps={[step]} visualMode="inline" />,
+    );
+
+    expect(modalHtml).toContain('data-help-magnifier-enabled="true"');
+    expect(modalHtml).toContain('data-help-magnifier-bubble="true"');
+    expect(modalHtml).toContain('data-help-magnifier-zoom="2"');
+    expect(modalHtml).toContain('data-help-magnifier-diameter="184"');
+    expect(modalHtml).toContain("pointer-events-none");
+    expect(inlineHtml).not.toContain('data-help-magnifier-enabled="true"');
   });
 
   it("keeps the right-side guide aligned with frontend development guidelines", () => {
     const stepperSource = readFileSync(new URL("../components/HelpDiagramStepper.tsx", import.meta.url), "utf8");
     const visualSource = readFileSync(new URL("../components/VisualGuideMockup.tsx", import.meta.url), "utf8");
+    const shellSource = readFileSync(new URL("../components/app-shell-preview/AppShellPreview.tsx", import.meta.url), "utf8");
 
     expect(stepperSource).toContain("const HelpGuideVisualPanelComponent: React.FC<HelpGuideVisualPanelProps>");
     expect(stepperSource).toContain("const HelpGuideVisualPanel = React.memo(HelpGuideVisualPanelComponent)");
@@ -179,8 +213,10 @@ describe("HelpDiagramStepper", () => {
 
     expect(visualSource).toContain("const VisualGuideMockupComponent: React.FC<VisualGuideMockupProps>");
     expect(visualSource).toContain("export const VisualGuideMockup = React.memo(VisualGuideMockupComponent)");
-    expect(visualSource).toContain('containerType: "inline-size"');
-    expect(visualSource).toContain('transform: "scale(calc(100cqw / 1366))"');
-    expect(visualSource).not.toContain("ResizeObserver");
+    expect(shellSource).toContain('containerType: "inline-size"');
+    expect(shellSource).toContain('transform: "scale(calc(100cqw / 1366))"');
+    expect(shellSource).toContain("max-h-[58vh]");
+    expect(shellSource).toContain("mx-auto");
+    expect(shellSource).not.toContain("ResizeObserver");
   });
 });

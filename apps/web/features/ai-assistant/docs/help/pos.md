@@ -9,4 +9,12 @@ Proses melayani penjualan langsung dapat dilakukan dengan cepat menggunakan laya
 - Keranjang yang berisi produk dengan stok 0 atau kurang otomatis memakai mode **Create Nota Penawaran**, bukan pembayaran langsung.
 - Transaksi layanan cetak memerlukan koneksi agar pemakaian bahan dapat dicatat ke stok.
 
+## Edit Cepat di keranjang
+
+- Pengguna dengan permission **edit produk** dapat mengaktifkan ikon **Edit Cepat** pada header keranjang.
+- Setiap produk menampilkan referensi **Harga Normal**, **Harga Agen**, dan **Harga Dinas**.
+- Ikon produk membuka modal untuk mengubah Nama, Kategori, dan Merek seluruh varian dalam grup.
+- Ikon harga membuka modal **Ubah Harga Produk**. Harga Normal/Agen/Dinas mengubah master varian terpilih, sedangkan **Harga Khusus** diberi keterangan **Hanya berlaku untuk transaksi ini**.
+- Harga Khusus transaksi menang atas harga otomatis sampai override dihapus.
+
 Tombol dan tindakan dapat berbeda menurut permission RBAC. Pak Teladan hanya dapat menjelaskan alur; ia tidak dapat menambah item ke keranjang, membuka shift, menyimpan draft, atau menyelesaikan transaksi.

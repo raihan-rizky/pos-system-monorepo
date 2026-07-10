@@ -44,7 +44,7 @@ export const ChartAiInsightButton: React.FC<ChartAiInsightButtonProps> = ({
   }, [reset]);
 
   return (
-    <div className="relative">
+    <div className="relative inline-block text-left">
       <button
         type="button"
         data-testid="chart-ai-insight-btn"

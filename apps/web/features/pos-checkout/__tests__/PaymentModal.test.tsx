@@ -2,6 +2,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { PaymentModal } from "@/components/PaymentModal";
+import type { ProductCartItem } from "@/hooks/useCart";
 
 let roleMock = "OWNER";
 
@@ -47,6 +48,40 @@ vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({
 }));
 
 describe("PaymentModal custom invoice date", () => {
+  it("shows a cart transaction price as a transaction-only override", () => {
+    const item: ProductCartItem = {
+      cartLineId: "PRODUCT:paper-rim",
+      lineType: "PRODUCT",
+      productId: "paper-rim",
+      name: "Kertas A4",
+      price: 8000,
+      catalogPrice: 10000,
+      transactionPrice: 8000,
+      costPrice: 7000,
+      hargaAgen: 9000,
+      hargaDinas: null,
+      quantity: 1,
+      unit: "Rim",
+      stock: 20,
+      categoryId: "cat-paper",
+      categoryName: "Kertas",
+      appliedPricing: null,
+    };
+
+    const html = renderToStaticMarkup(
+      <PaymentModal
+        open
+        onClose={vi.fn()}
+        items={[item]}
+        subtotal={8000}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Harga khusus transaksi");
+    expect(html).toContain("Hanya berlaku untuk transaksi ini");
+  });
+
   it("shows optional invoice date and time controls for owners", () => {
     roleMock = "OWNER";
 

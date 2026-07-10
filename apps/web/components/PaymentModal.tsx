@@ -66,6 +66,7 @@ interface PaymentModalProps {
   isProcessing?: boolean;
   isSavingDraft?: boolean;
   draftError?: string | null;
+  onUpdateTransactionPrice?: (cartLineId: string, price: number | null) => void;
 }
 
 const paymentMethods = [
@@ -88,6 +89,7 @@ export function PaymentModal({
   isProcessing,
   isSavingDraft,
   draftError,
+  onUpdateTransactionPrice,
 }: PaymentModalProps) {
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>(["CASH"]);
   const [discountMode, setDiscountMode] = useState<"RP" | "PERCENT">("RP");
@@ -287,6 +289,7 @@ export function PaymentModal({
       ...current,
       [cartLineId]: value,
     }));
+    onUpdateTransactionPrice?.(cartLineId, value > 0 ? value : null);
   };
 
   const resetManualPrice = (cartLineId: string) => {
@@ -295,6 +298,7 @@ export function PaymentModal({
       delete next[cartLineId];
       return next;
     });
+    onUpdateTransactionPrice?.(cartLineId, null);
   };
 
   return (
@@ -432,6 +436,12 @@ export function PaymentModal({
                       </>
                     );
                   })()}
+                </div>
+              )}
+              {item.lineType === "PRODUCT" && item.transactionPrice != null && (
+                <div className="mt-1 text-[11px] text-brand-800">
+                  <span className="font-semibold">Harga khusus transaksi</span>
+                  <span> — Hanya berlaku untuk transaksi ini.</span>
                 </div>
               )}
               {item.lineType === "PRODUCT" && item.appliedPricing && (

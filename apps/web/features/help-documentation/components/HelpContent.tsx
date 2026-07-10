@@ -9,6 +9,8 @@ import {
   DollarSign,
   Users,
   FileText,
+  FileSpreadsheet,
+  Download,
   Truck,
   ShieldCheck,
   TrendingUp,
@@ -17,7 +19,8 @@ import {
   Search,
   Bot,
   Sparkles,
-  Tag
+  Tag,
+  ZoomIn
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import HelpDiagramStepper, { Step } from "./HelpDiagramStepper";
@@ -369,6 +372,19 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "admin-export-customer-recap",
+      title: "Ekspor Rekap Pelanggan per Tipe",
+      description: "Unduh rekap pelanggan berdasarkan tipe Agen, Umum, Pemerintah, dan Industri dalam format Excel atau PDF, lengkap dengan Top 10 Produk dan analisis AI.",
+      icon: <FileSpreadsheet className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Pelanggan", description: "Masuk ke menu 'Pelanggan' di sidebar, lalu buka bagian 'Rekap Pelanggan'.", icon: <Users className="w-8 h-8" /> },
+        { title: "Klik Ekspor", description: "Klik tombol 'Ekspor' pada header Rekap Pelanggan.", icon: <Download className="w-8 h-8" /> },
+        { title: "Pilih Periode", description: "Pilih Harian, Mingguan, Bulanan, atau Tahunan. Mingguan memakai periode Senin sampai hari ini.", icon: <History className="w-8 h-8" /> },
+        { title: "Pilih Format", description: "Pilih Excel (.xlsx) untuk mendapatkan sheet Agen, Umum, Pemerintah, Industri, dan Ringkasan, atau pilih PDF untuk dokumen dengan section per tipe dan halaman ringkasan terakhir.", icon: <FileSpreadsheet className="w-8 h-8" /> },
+        { title: "Baca Ringkasan", description: "Periksa tabel pelanggan, Produk Favorit, Top 10 Produk per tipe, dan Analisis AI pada Ringkasan. Jika analisis AI tidak tersedia, file tetap dapat digunakan.", icon: <Sparkles className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "admin-shopping-request",
       title: "Membuat Daftar Belanja (Shopping Request)",
       description: "Buat list barang-barang apa saja yang perlu dibeli ke supplier untuk nambah stok toko.",
@@ -468,6 +484,18 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka POS Kasir", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Operasi', lalu klik menu 'Kasir' (POS - ikon kalkulator).", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Pilih & Tambah Produk", description: "Cari produk melalui kolom pencarian di bagian atas atau klik langsung pada gambar produk di grid sebelah kiri. Jika ada varian (seperti warna/ukuran), pilih varian yang sesuai di pop-up, lalu produk akan masuk ke keranjang kanan.", icon: <Package className="w-8 h-8" /> },
         { title: "Proses Pembayaran", description: "Klik tombol hijau besar 'Bayar' di bawah keranjang. Pilih metode pembayaran (misal: Tunai), masukkan nominal uang yang diterima dari pelanggan, klik 'Konfirmasi Pembayaran', lalu klik tombol 'Cetak Struk'.", icon: <DollarSign className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "cashier-pos-quick-edit",
+      title: "Edit Cepat Produk di Keranjang POS",
+      description: "Periksa dan perbarui data produk langsung dari keranjang jika akun Anda memiliki permission edit produk.",
+      icon: <Tag className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Aktifkan Edit Cepat", description: "Tambahkan produk ke keranjang, lalu klik ikon Edit Cepat di header keranjang. Tombol ini hanya muncul jika akun memiliki permission edit produk.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Periksa Referensi Harga", description: "Setiap baris produk menampilkan Harga Normal, Harga Agen, dan Harga Dinas. Nilai yang belum tersedia ditandai 'Belum diatur'.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Ubah Produk atau Harga", description: "Klik ikon produk untuk mengubah Nama, Kategori, dan Merek seluruh varian. Klik ikon harga untuk mengubah harga master varian terpilih.", icon: <Package className="w-8 h-8" /> },
+        { title: "Gunakan Harga Khusus", description: "Isi Harga Khusus bila harga hanya dipakai pada keranjang aktif. Badge 'Hanya berlaku untuk transaksi ini' menandakan harga tidak mengubah master produk.", icon: <ShoppingCart className="w-8 h-8" /> },
       ]
     },
     {
@@ -628,10 +656,10 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "inventory-tugas-harian",
       title: "Menyelesaikan Tugas Harian",
-      description: "Cek daftar pekerjaan harianmu di sini, seperti mencocokkan stok fisik harian dan memverifikasi Log OUT. Untuk tugas 'Log OUT Belum Diverifikasi', klik Setujui jika catatan sudah benar, klik Perlu Koreksi jika data perlu diperbaiki, lalu gunakan tombol Koreksi untuk mengajukan produk/qty/alasan yang benar. Log Stok hanya menampilkan warna dan badge status verifikasi, tanpa tombol koreksi atau setujui. Catatan: Anda wajib melakukan Check In terlebih dahulu pada widget harian agar panel tugas harian (Pusat Kerja Hari Ini) tidak terkunci/buram.",
+      description: "Cek daftar pekerjaan harianmu di sini, seperti mencocokkan stok fisik harian dan memverifikasi Log OUT. Untuk tugas 'Log OUT Belum Diverifikasi', klik Setujui jika catatan sudah benar, klik Perlu Koreksi jika data perlu diperbaiki, lalu gunakan tombol Koreksi untuk mengajukan produk/qty/alasan yang benar. Log Stok hanya menampilkan warna dan badge status verifikasi, tanpa tombol koreksi atau setujui. Catatan: staf inventaris wajib melakukan Check In terlebih dahulu pada widget harian agar panel tugas harian (Pusat Kerja Hari Ini) terbuka; OWNER dapat langsung melihat Tugas tanpa Check In.",
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Cek Tugas Aktif", description: "Lakukan Check In terlebih dahulu pada widget harian. Buka menu 'Inventaris' di sidebar kiri, lalu klik tab 'Tugas' di bagian atas halaman untuk melihat checklist tugas harian.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Cek Tugas Aktif", description: "Buka menu 'Inventaris' di sidebar kiri, lalu klik tab 'Tugas' di bagian atas halaman untuk melihat checklist tugas harian. Staf inventaris perlu Check In terlebih dahulu; OWNER dapat langsung membuka tab ini.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Lakukan Matching Stok", description: "Matching Stok Harian hanya dibuka pukul 15:00-20:00 WIB. Klik tugas 'Matching Stok Harian' (atau tombol 'Input / Transaksi' -> 'Cocokkan Stok (Harian)'), klik input Stok Gudang per baris, lalu cek indikator otomatis: hijau berarti sesuai, merah berarti selisih, dan kuning berarti belum valid. Isi catatan untuk baris selisih, lalu klik 'Submit Matching'.", icon: <History className="w-8 h-8" /> },
         { title: "Input Laporan Kerusakan", description: "Klik tugas 'Laporan Barang Rusak' (atau 'Input / Transaksi' -> 'Laporkan Barang Rusak'), cari produk reject hari ini, ketik kuantitas rusak, dan klik tombol 'Kirim'.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Verifikasi Log OUT Belum Diverifikasi", description: "Klik tugas 'Log OUT Belum Diverifikasi', periksa daftar barang keluar hari ini, lalu pilih 'Setujui' atau 'Perlu Koreksi'. Jika perlu koreksi, tombol Koreksi membuka form perbaikan produk, qty, alasan, dan catatan. Setelah koreksi disetujui Owner/Admin/Inventory lain, cek ulang baris tersebut lalu klik Setujui.", icon: <Settings className="w-8 h-8" /> },
@@ -893,6 +921,24 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
             </ul>
           </div>
         </div>
+      )}
+
+      {!searchQuery && (
+        <aside
+          data-help-preview-tip="true"
+          className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sky-950"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+            <ZoomIn className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="text-sm font-bold">Tips Melihat Panduan Visual</h2>
+            <p className="mt-1 text-sm leading-relaxed text-sky-800">
+              Klik preview untuk membuka modal, lalu arahkan kursor ke AppShell untuk melihat bubble zoom 2×.
+              Gunakan scrollbar internal bila halaman lebih lebar atau lebih panjang dari area preview.
+            </p>
+          </div>
+        </aside>
       )}
 
       <div className="space-y-4">

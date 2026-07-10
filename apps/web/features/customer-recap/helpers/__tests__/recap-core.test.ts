@@ -25,6 +25,22 @@ describe("buildCustomerRecapRange", () => {
       dateFrom: "2026-01-01",
       dateTo: "2026-05-20",
     });
+    expect(buildCustomerRecapRange("daily", now)).toEqual({
+      dateFrom: "2026-05-20",
+      dateTo: "2026-05-20",
+    });
+    expect(buildCustomerRecapRange("weekly", now)).toEqual({
+      dateFrom: "2026-05-18",
+      dateTo: "2026-05-20",
+    });
+    expect(buildCustomerRecapRange("monthly", now)).toEqual({
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-20",
+    });
+    expect(buildCustomerRecapRange("yearly", now)).toEqual({
+      dateFrom: "2026-01-01",
+      dateTo: "2026-05-20",
+    });
   });
 });
 

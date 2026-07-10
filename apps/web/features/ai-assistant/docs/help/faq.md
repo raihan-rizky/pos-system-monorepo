@@ -63,11 +63,12 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 1. Buka sidebar **Operasi > Kasir** (`/pos`).
 2. Pilih tab **Produk** atau **Layanan**. Cari item melalui kolom pencarian di bagian atas atau klik langsung pada gambar produk di grid sebelah kiri.
 3. Jika ada varian (seperti warna/ukuran), pilih varian yang sesuai di pop-up, lalu masukkan item ke **Keranjang**.
-4. Atur kuantitas atau hapus item di keranjang bila perlu, lalu klik tombol hijau besar **Bayar**.
-5. Di modal Pembayaran, pilih Pelanggan Umum atau pelanggan terdaftar. Sales dapat dipilih secara opsional.
-6. Pilih metode pembayaran: **Tunai**, **QRIS**, **Debit**, atau **Transfer** (maksimal 2 metode gabungan).
-7. Pilih status pembayaran **Lunas** atau **Uang Muka (DP)**, lalu tentukan tipe transaksi **Beli Langsung** atau **Job Order**.
-8. Isi jumlah uang yang dibayarkan, masukkan nominal diskon bila ada, klik **Konfirmasi Bayar** / **Bayar DP**, lalu cetak struk belanja pelanggan.
+4. Jika memiliki permission edit produk, gunakan **Edit Cepat** di header keranjang. Ikon produk mengubah Nama/Kategori/Merek seluruh varian, sedangkan ikon harga mengubah harga master atau **Harga Khusus** yang hanya berlaku untuk transaksi ini.
+5. Atur kuantitas atau hapus item di keranjang bila perlu, lalu klik tombol hijau besar **Bayar**.
+6. Di modal Pembayaran, pilih Pelanggan Umum atau pelanggan terdaftar. Sales dapat dipilih secara opsional.
+7. Pilih metode pembayaran: **Tunai**, **QRIS**, **Debit**, atau **Transfer** (maksimal 2 metode gabungan).
+8. Pilih status pembayaran **Lunas** atau **Uang Muka (DP)**, lalu tentukan tipe transaksi **Beli Langsung** atau **Job Order**.
+9. Isi jumlah uang yang dibayarkan, masukkan nominal diskon bila ada, klik **Konfirmasi Bayar** / **Bayar DP**, lalu cetak struk belanja pelanggan.
 
 ### Q7: Bagaimana cara menyetujui transaksi Pending (Approval Process) yang dikirim oleh sales lapangan?
 **A:** Transaksi dengan status **Pending** memerlukan persetujuan dari kasir atau pemilik toko agar stok barang terpotong dan pembayaran terverifikasi:
@@ -274,3 +275,11 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 1. Buka menu **Tim Sales** di sidebar.
 2. Klik pada baris/kartu nama sales bersangkutan.
 3. Sistem akan memunculkan rincian profil sales beserta daftar maksimal 20 transaksi terbaru yang ditangani oleh sales tersebut.
+
+### Q36: Bagaimana cara mengekspor rekap pelanggan per tipe ke Excel atau PDF?
+**A:** Rekap pelanggan dapat diunduh berdasarkan periode dan tipe pelanggan:
+1. Buka menu **Pelanggan**, lalu temukan bagian **Rekap Pelanggan**.
+2. Klik tombol **Ekspor**.
+3. Pilih periode **Harian**, **Mingguan**, **Bulanan**, atau **Tahunan**. Periode mingguan berjalan dari Senin sampai hari ini.
+4. Pilih **Excel (.xlsx)** untuk mendapatkan sheet **Agen**, **Umum**, **Pemerintah**, **Industri**, dan **Ringkasan**, atau pilih **PDF** untuk section per tipe dan halaman **Ringkasan Semua Tipe**.
+5. Setiap tipe memuat pelanggan yang bertransaksi pada periode tersebut, diurutkan berdasarkan Total Belanja, Produk Favorit, dan Top 10 Produk. Ringkasan terakhir memuat KPI dan Analisis AI.

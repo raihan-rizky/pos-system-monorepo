@@ -13,6 +13,7 @@ export interface ProductCartItem {
   name: string;
   price: number;
   catalogPrice: number;
+  transactionPrice?: number | null;
   costPrice?: number | null;
   hargaDinas?: number | null;
   hargaAgen?: number | null;
@@ -63,34 +64,101 @@ export interface PrintingServiceCartItem {
 
 export type CartItem = ProductCartItem | PrintingServiceCartItem;
 
+export function applyTransactionPrice(
+  items: CartItem[],
+  cartLineId: string,
+  price: number | null,
+): CartItem[] {
+  return items.map((item) =>
+    item.lineType === "PRODUCT" && item.cartLineId === cartLineId
+      ? {
+          ...item,
+          transactionPrice: price,
+          price: price ?? item.catalogPrice,
+        }
+      : item,
+  );
+}
+
+export function applyProductPriceUpdate(
+  items: CartItem[],
+  productId: string,
+  prices: {
+    price: number;
+    hargaAgen: number | null;
+    hargaDinas: number | null;
+  },
+): CartItem[] {
+  return items.map((item) =>
+    item.lineType === "PRODUCT" && item.productId === productId
+      ? {
+          ...item,
+          catalogPrice: prices.price,
+          hargaAgen: prices.hargaAgen,
+          hargaDinas: prices.hargaDinas,
+          price: item.transactionPrice ?? prices.price,
+        }
+      : item,
+  );
+}
+
+export function applyProductGroupMetadataUpdate(
+  items: CartItem[],
+  productIds: string[],
+  metadata: {
+    name: string;
+    categoryId: string;
+    categoryName: string;
+    brandId: string | null;
+    brandName: string | null;
+  },
+): CartItem[] {
+  const updatedProductIds = new Set(productIds);
+  return items.map((item) =>
+    item.lineType === "PRODUCT" && updatedProductIds.has(item.productId)
+      ? {
+          ...item,
+          ...metadata,
+        }
+      : item,
+  );
+}
+
 const CART_STORAGE_KEY = "pos_cart_v1";
+
+export function normalizeStoredCartItems(items: CartItem[]): CartItem[] {
+  return items.map((item) => {
+    if (item.lineType === "PRINTING_SERVICE") {
+      return {
+        ...item,
+        cartLineId: item.cartLineId || `PRINTING_SERVICE:${item.printingServiceId}:${Date.now()}`,
+      };
+    }
+    const product = item as ProductCartItem;
+    const transactionPrice = product.transactionPrice ?? null;
+    return {
+      ...product,
+      lineType: "PRODUCT",
+      price: transactionPrice ?? product.price,
+      catalogPrice: product.catalogPrice ?? product.price,
+      transactionPrice,
+      categoryId: product.categoryId ?? "",
+      categoryName: product.categoryName ?? "",
+      brandId: product.brandId ?? null,
+      brandName: product.brandName ?? null,
+      cartLineId:
+        product.cartLineId ||
+        buildProductCartLineId(product.productId, product.size, product.material),
+    };
+  });
+}
 
 function loadCartFromStorage(): CartItem[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = sessionStorage.getItem(CART_STORAGE_KEY);
     const parsed = raw ? (JSON.parse(raw) as CartItem[]) : [];
-    return parsed.map((item) => {
-      if (item.lineType === "PRINTING_SERVICE") {
-        return {
-          ...item,
-          cartLineId: item.cartLineId || `PRINTING_SERVICE:${item.printingServiceId}:${Date.now()}`,
-        };
-      }
-      const product = item as ProductCartItem;
-      return {
-        ...product,
-        lineType: "PRODUCT",
-        catalogPrice: product.catalogPrice ?? product.price,
-        categoryId: product.categoryId ?? "",
-        categoryName: product.categoryName ?? "",
-        brandId: product.brandId ?? null,
-        brandName: product.brandName ?? null,
-        cartLineId:
-          product.cartLineId ||
-          buildProductCartLineId(product.productId, product.size, product.material),
-      };
-    });
+    return normalizeStoredCartItems(parsed);
   } catch {
     return [];
   }
@@ -211,6 +279,45 @@ export function useCart() {
     );
   }, []);
 
+  const updateTransactionPrice = useCallback(
+    (cartLineId: string, price: number | null) => {
+      setItems((current) => applyTransactionPrice(current, cartLineId, price));
+    },
+    [],
+  );
+
+  const syncProductPrices = useCallback(
+    (
+      productId: string,
+      prices: {
+        price: number;
+        hargaAgen: number | null;
+        hargaDinas: number | null;
+      },
+    ) => {
+      setItems((current) => applyProductPriceUpdate(current, productId, prices));
+    },
+    [],
+  );
+
+  const syncProductGroupMetadata = useCallback(
+    (
+      productIds: string[],
+      metadata: {
+        name: string;
+        categoryId: string;
+        categoryName: string;
+        brandId: string | null;
+        brandName: string | null;
+      },
+    ) => {
+      setItems((current) =>
+        applyProductGroupMetadataUpdate(current, productIds, metadata),
+      );
+    },
+    [],
+  );
+
   const clearCart = useCallback(() => {
     setItems([]);
     if (typeof window !== "undefined") {
@@ -233,6 +340,9 @@ export function useCart() {
     addServiceItem,
     removeItem,
     updateQuantity,
+    updateTransactionPrice,
+    syncProductPrices,
+    syncProductGroupMetadata,
     clearCart,
     subtotal,
     totalItems,

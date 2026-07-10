@@ -58,4 +58,12 @@ describe("TransactionActionMenu z-level and positioning", () => {
     expect(html).toContain("bottom-full mb-2");
     expect(html).not.toContain("mt-2");
   });
+
+  it("renders with a high z-index (z-[100]) to prevent being covered by floating widgets", () => {
+    const html = renderToStaticMarkup(
+      <TransactionActionMenu {...mockProps} initialOpen={true} />
+    );
+    expect(html).toContain("z-[100]");
+    expect(html).not.toContain("z-50");
+  });
 });

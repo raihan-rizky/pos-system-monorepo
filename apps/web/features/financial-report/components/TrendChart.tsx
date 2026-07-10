@@ -124,7 +124,7 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(
     return (
       <section
         aria-label="Tren Omzet, Cost, dan Laba Kotor"
-        className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden"
+        className="rounded-2xl border border-surface-200 bg-white shadow-sm"
       >
         <header className="px-5 py-4 border-b border-surface-100 flex items-center gap-2">
           <span

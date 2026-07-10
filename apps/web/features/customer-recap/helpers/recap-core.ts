@@ -8,7 +8,15 @@ type DecimalLike = { toString: () => string };
 type NullableNumber = number | string | DecimalLike | null | undefined;
 
 export type CustomerRecapCustomerType = "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH";
-export type CustomerRecapPreset = "month" | "30d" | "90d" | "year";
+export type CustomerRecapPreset =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "yearly"
+  | "month"
+  | "30d"
+  | "90d"
+  | "year";
 
 export interface CustomerRecapCustomer {
   id: string;
@@ -104,6 +112,16 @@ export function buildCustomerRecapRange(
 ) {
   const today = jakartaDateKey(now);
 
+  if (preset === "daily") {
+    return { dateFrom: today, dateTo: today };
+  }
+
+  if (preset === "weekly") {
+    const dayOfWeek = new Date(`${today}T12:00:00+07:00`).getUTCDay();
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    return { dateFrom: addDays(today, -daysSinceMonday), dateTo: today };
+  }
+
   if (preset === "30d") {
     return { dateFrom: addDays(today, -29), dateTo: today };
   }
@@ -112,7 +130,7 @@ export function buildCustomerRecapRange(
     return { dateFrom: addDays(today, -89), dateTo: today };
   }
 
-  if (preset === "year") {
+  if (preset === "year" || preset === "yearly") {
     return { dateFrom: `${today.slice(0, 4)}-01-01`, dateTo: today };
   }
 

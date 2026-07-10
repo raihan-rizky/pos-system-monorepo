@@ -119,7 +119,7 @@ export const HelpVisualModal: React.FC<HelpVisualModalProps> = ({
         aria-label={`${guideTitle ? `${guideTitle}: ` : ""}${step.title}`}
         tabIndex={-1}
         onKeyDown={trapFocus}
-        className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+        className="flex max-h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
       >
         <div className="flex items-start justify-between gap-4 border-b border-surface-200 p-4 shrink-0">
           <div>
@@ -141,7 +141,12 @@ export const HelpVisualModal: React.FC<HelpVisualModalProps> = ({
           </button>
         </div>
         <div className="p-4 flex-1 overflow-y-auto">
-          <VisualGuideMockup visual={step.visual} stepNumber={stepNumber} stepTitle={step.title} />
+          <VisualGuideMockup
+            visual={step.visual}
+            stepNumber={stepNumber}
+            stepTitle={step.title}
+            magnifierEnabled
+          />
         </div>
       </div>
 

@@ -51,3 +51,51 @@ export function buildPriceChangePayload({
     priceChangeNote: note.trim() || undefined,
   };
 }
+
+export function buildPosCartPriceUpdate(input: {
+  productId: string;
+  currentPrice: number;
+  currentHargaDinas: number | null;
+  currentHargaAgen: number | null;
+  nextPrice: string;
+  nextHargaDinas: string;
+  nextHargaAgen: string;
+  transactionPrice: string;
+  note: string;
+}) {
+  const price = Number(input.nextPrice);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error("Harga Normal harus lebih dari 0.");
+  }
+  const hargaDinas =
+    input.nextHargaDinas.trim() === "" ? null : Number(input.nextHargaDinas);
+  const hargaAgen =
+    input.nextHargaAgen.trim() === "" ? null : Number(input.nextHargaAgen);
+  const transactionPrice =
+    input.transactionPrice.trim() === ""
+      ? null
+      : Number(input.transactionPrice);
+  if (
+    transactionPrice != null &&
+    (!Number.isFinite(transactionPrice) || transactionPrice <= 0)
+  ) {
+    throw new Error("Harga Khusus harus lebih dari 0.");
+  }
+  const masterChanged =
+    price !== input.currentPrice ||
+    hargaDinas !== (input.currentHargaDinas ?? null) ||
+    hargaAgen !== (input.currentHargaAgen ?? null);
+
+  return {
+    masterUpdate: masterChanged
+      ? {
+          id: input.productId,
+          price,
+          hargaDinas,
+          hargaAgen,
+          priceChangeNote: input.note.trim() || undefined,
+        }
+      : null,
+    transactionPrice,
+  };
+}

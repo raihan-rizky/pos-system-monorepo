@@ -5,9 +5,9 @@ import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(35);
+    expect(FAQ_WORKFLOWS).toHaveLength(36);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 35 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 36 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);
@@ -96,5 +96,20 @@ describe("FAQ workflow catalog", () => {
     expect(serializedWorkflow).toContain("foto produk/varian");
     expect(serializedWorkflow).toContain("Pilih satu produk saja per grup stok");
     expect(serializedWorkflow).toContain("approval");
+  });
+
+  it("documents customer recap export by type and AI summary", () => {
+    const customerExportWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 36);
+
+    expect(customerExportWorkflow).toMatchObject({
+      id: "faq-q36-export-customer-recap",
+      route: "/customers",
+      actionLabel: "Buka Pelanggan",
+    });
+    const serializedWorkflow = JSON.stringify(customerExportWorkflow);
+    expect(serializedWorkflow).toContain("Agen");
+    expect(serializedWorkflow).toContain("Pemerintah");
+    expect(serializedWorkflow).toContain("Top 10 Produk");
+    expect(serializedWorkflow).toContain("Analisis AI");
   });
 });
