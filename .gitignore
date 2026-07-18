@@ -25,6 +25,9 @@ packages/db/prisma/*.db
 .idea/
 *.swp
 *.swo
+ 
+# markdown rar
+markdown-files.rar
 
 # OS
 .DS_Store

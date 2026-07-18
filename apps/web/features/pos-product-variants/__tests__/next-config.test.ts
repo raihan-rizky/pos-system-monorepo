@@ -7,4 +7,8 @@ describe("Next.js Config - Image Domains", () => {
     const hostnames = remotePatterns.map((pattern) => pattern.hostname);
     expect(hostnames).toContain("hqlyyyjlemqskpurzltz.supabase.co");
   });
+
+  it("disables Vercel Image Optimization (unoptimized is true)", () => {
+    expect(nextConfig.images?.unoptimized).toBe(true);
+  });
 });
