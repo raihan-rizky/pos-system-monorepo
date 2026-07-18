@@ -8,6 +8,7 @@ import {
 } from "@/features/keuangan/helpers/keuangan-core";
 import { CATEGORY_COLORS, CATEGORY_LABELS_ID } from "@/features/keuangan/helpers/category-meta";
 import { formatRupiah } from "@/lib/utils";
+import { ProofImageUploader, deleteUploadedProof } from "@/features/proof-upload/components/ProofImageUploader";
 
 
 
@@ -87,8 +88,6 @@ export function ExpenseFormModal({
     occurredAtInput: today,
   });
   const [submitting, setSubmitting] = useState(false);
-  const [resolvingUrl, setResolvingUrl] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -111,26 +110,6 @@ export function ExpenseFormModal({
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
-
-  const handleUrlChange = async (val: string) => {
-    update("attachmentUrl", val);
-    if (val.includes("prnt.sc") && !resolvingUrl) {
-      setResolvingUrl(true);
-      try {
-        const res = await fetch(`/api/prntsc?url=${encodeURIComponent(val)}&json=true`);
-        const data = await res.json();
-        if (data.imageUrl) {
-          update("attachmentUrl", data.imageUrl);
-        }
-      } catch (e) {
-        // ignore
-      } finally {
-        setResolvingUrl(false);
-      }
-    }
-  };
-
-
 
   const handleSubmit = async () => {
     setError(null);
@@ -298,50 +277,21 @@ export function ExpenseFormModal({
           </p>
         </FormField>
 
-        <FormField label="URL Lampiran (opsional)" error={fieldErrors.attachmentUrl}>
-          <input
-            type="url"
-            value={form.attachmentUrl || ""}
-            onChange={(e) => handleUrlChange(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-surface-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
-            placeholder="https://prnt.sc/..."
-            disabled={submitting || resolvingUrl}
-          />
-          {resolvingUrl && <p className="text-[11px] text-brand-600 mt-1 animate-pulse">Mengambil gambar otomatis dari Lightshot...</p>}
-          <p className="text-[11px] text-surface-500 mt-1">
-            <strong>Cara upload gambar:</strong> Buka <a href="https://prnt.sc/" target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">prnt.sc</a> lalu klik tombol "Browse Images" atau <i>drag</i> gambar ke halaman tersebut. Tunggu hingga proses upload selesai, lalu <i>copy</i> link yang muncul dan <i>paste</i> di sini.
-          </p>
-          {form.attachmentUrl && (
-            <div className="mt-2 rounded-lg overflow-hidden border border-surface-200 bg-surface-50 relative min-h-[200px]">
-              {form.attachmentUrl.includes("prnt.sc") ? (
-                <img
-                  src={`/api/prntsc?url=${encodeURIComponent(form.attachmentUrl)}`}
-                  alt="Lampiran Prnt.sc"
-                  className="w-full h-auto object-contain max-h-[400px]"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              ) : (
-                <img
-                  src={form.attachmentUrl}
-                  alt="Lampiran"
-                  className="w-full h-auto object-contain max-h-[400px]"
-                  onError={(e) => {
-                    // Fallback to text link if image fails to load
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              )}
-              {/* Fallback link overlay in case iframe is blocked */}
-              <div className="absolute top-2 right-2">
-                 <a href={form.attachmentUrl} target="_blank" rel="noreferrer" className="text-xs bg-white border border-surface-200 px-2 py-1 rounded shadow-sm text-brand-600 hover:text-brand-700">
-                    Buka di Tab Baru
-                 </a>
-              </div>
-            </div>
-          )}
-        </FormField>
+        <ProofImageUploader
+          context="expense"
+          label="Lampiran pengeluaran (opsional)"
+          value={form.attachmentUrl || ""}
+          onChange={(url) => update("attachmentUrl", url || null)}
+          disabled={submitting}
+          onDelete={async (url) => {
+            if (mode !== "edit" || !initial?.id || initial.attachmentUrl !== url) {
+              return deleteUploadedProof(url);
+            }
+            const response = await fetch(`/api/finance/expenses/${initial.id}/attachment`, { method: "DELETE" });
+            const body = await response.json().catch(() => null) as { message?: string } | null;
+            if (!response.ok) throw new Error(body?.message || "Gagal menghapus foto bukti.");
+          }}
+        />
 
         {error && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">

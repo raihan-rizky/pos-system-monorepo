@@ -3,13 +3,36 @@ import { db } from "@pos/db";
 import { z } from "zod";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { jakartaWeekKey } from "@/features/inventory-management/helpers/inventory-management-rules";
-import { isPrntScUrl, resolvePrntScImageUrl } from "@/lib/prntsc";
+import { resolveSubmittedProofImageUrl } from "@/features/proof-upload/server/resolve-submitted-proof";
 
 const proofSchema = z.object({
   proofUrl: z.string().url(),
   note: z.string().trim().max(500).optional().nullable(),
   now: z.string().datetime().optional(),
 });
+
+export async function GET(_request: Request) {
+  try {
+    const user = await requirePermission("inventory", "read");
+    if (!user.storeId) {
+      return NextResponse.json({ message: "Pengguna harus terhubung ke toko." }, { status: 403 });
+    }
+    const task = await db.inventoryTask.findUnique({
+      where: {
+        storeId_type_periodKey: {
+          storeId: user.storeId,
+          type: "WEEKLY_CLEANING_PROOF",
+          periodKey: jakartaWeekKey(new Date()),
+        },
+      },
+      select: { id: true, proofUrl: true, resolvedProofImageUrl: true, note: true },
+    });
+    return NextResponse.json({ data: task });
+  } catch (error) {
+    const authErr = handleAuthError(error); if (authErr) return authErr;
+    return NextResponse.json({ message: "Gagal memuat bukti mingguan." }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -24,17 +47,10 @@ export async function POST(request: Request) {
     }
     const storeId = user.storeId;
 
-    if (!isPrntScUrl(input.proofUrl)) {
-      return NextResponse.json(
-        { message: "Proof URL must be a prnt.sc URL" },
-        { status: 422 },
-      );
-    }
-
-    const resolvedProofImageUrl = await resolvePrntScImageUrl(input.proofUrl);
+    const resolvedProofImageUrl = await resolveSubmittedProofImageUrl(input.proofUrl);
     if (!resolvedProofImageUrl) {
       return NextResponse.json(
-        { message: "Proof image could not be resolved" },
+        { message: "Tautan bukti tidak valid atau gambar tidak dapat dibuka." },
         { status: 422 },
       );
     }

@@ -6,6 +6,7 @@ import { AlertCircle, Search, X, Plus, Minus, PackageMinus, ShoppingCart, Send }
 import { reportDamagedProduct } from "../api/inventory-management-api";
 import type { InventorySummary } from "../types/inventory-management";
 import type { Product } from "@/hooks/useProducts";
+import { ProofImageUploader } from "@/features/proof-upload/components/ProofImageUploader";
 
 interface DamagedReportModalProps {
   open: boolean;
@@ -135,7 +136,7 @@ export function DamagedReportModal({
       return;
     }
     if (!proofUrl.trim()) {
-      setError("Link prnt.sc bukti rusak wajib diisi.");
+      setError("Bukti foto barang rusak wajib diunggah.");
       return;
     }
 
@@ -351,20 +352,14 @@ export function DamagedReportModal({
 
         {/* Footer Area - Fixed at bottom */}
         <div className="shrink-0 pt-4 border-t border-surface-100 space-y-3 bg-white mt-auto">
-          <div>
-            <label className="block text-xs font-bold text-surface-600 mb-1.5">
-              Link prnt.sc bukti rusak <span className="text-danger-500">*</span>
-            </label>
-            <input
-              name="damagedProofUrl"
-              type="url"
-              required
-              value={proofUrl}
-              onChange={(e) => setProofUrl(e.target.value)}
-              placeholder="https://prnt.sc/..."
-              className="h-10 w-full rounded-xl border-2 border-surface-200 px-3 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-surface-50 focus:bg-white text-surface-900 placeholder:text-surface-400"
-            />
-          </div>
+          <ProofImageUploader
+            context="damaged-product"
+            label="Bukti foto barang rusak"
+            value={proofUrl}
+            onChange={setProofUrl}
+            required
+            disabled={isSubmitting}
+          />
 
           <div>
             <label className="block text-xs font-bold text-surface-600 mb-1.5">

@@ -79,6 +79,7 @@ export const RESOURCE_TARGETS = [
   "rbac",
   "expense",
   "income",
+  "proof_upload",
 ] as const;
 
 type LegacyAction = "read" | "write" | "delete";
@@ -200,6 +201,12 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
 const RESOURCE_GRANULAR_ACCESS: Partial<
   Record<string, Record<ResourceAction, Role[]>>
 > = {
+  proof_upload: {
+    read: [],
+    create: [],
+    update: [],
+    delete: [],
+  },
   "inventory.out_log.verify": {
     read: ["OWNER", "ADMIN", "INVENTORY"],
     create: [],

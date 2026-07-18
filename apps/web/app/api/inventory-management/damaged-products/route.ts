@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { resolveSubmittedProofImageUrl } from "@/features/proof-upload/server/resolve-submitted-proof";
 
 const damagedProductSchema = z.object({
   productId: z.string().min(1),
@@ -9,33 +10,6 @@ const damagedProductSchema = z.object({
   proofUrl: z.string().url(),
   note: z.string().trim().max(500).optional().nullable(),
 });
-
-function isPrntScUrl(rawUrl: string) {
-  try {
-    const parsed = new URL(rawUrl);
-    return (
-      parsed.protocol === "https:" &&
-      (parsed.hostname === "prnt.sc" || parsed.hostname === "www.prnt.sc")
-    );
-  } catch {
-    return false;
-  }
-}
-
-async function resolvePrntScImage(requestUrl: string, proofUrl: string) {
-  const origin = new URL(requestUrl).origin;
-  const response = await fetch(
-    `${origin}/api/prntsc?url=${encodeURIComponent(proofUrl)}&json=true`,
-    { cache: "no-store" },
-  );
-
-  if (!response.ok) return null;
-
-  const payload = (await response.json().catch(() => null)) as {
-    imageUrl?: string;
-  } | null;
-  return payload?.imageUrl ?? null;
-}
 
 function buildDamageNote(input: {
   note: string | null;
@@ -63,20 +37,10 @@ export async function POST(request: Request) {
     }
     const storeId = user.storeId;
 
-    if (!isPrntScUrl(input.proofUrl)) {
-      return NextResponse.json(
-        { message: "Proof URL must be a prnt.sc URL" },
-        { status: 422 },
-      );
-    }
-
-    const resolvedProofImageUrl = await resolvePrntScImage(
-      request.url,
-      input.proofUrl,
-    );
+    const resolvedProofImageUrl = await resolveSubmittedProofImageUrl(input.proofUrl);
     if (!resolvedProofImageUrl) {
       return NextResponse.json(
-        { message: "Proof image could not be resolved" },
+        { message: "Tautan bukti tidak valid atau gambar tidak dapat dibuka." },
         { status: 422 },
       );
     }

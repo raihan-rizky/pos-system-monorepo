@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { POST } from "../route";
+import { GET, POST } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const inventoryTaskUpsertMock = vi.hoisted(() => vi.fn());
+const inventoryTaskFindUniqueMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -12,7 +13,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
-    inventoryTask: { upsert: inventoryTaskUpsertMock },
+    inventoryTask: { upsert: inventoryTaskUpsertMock, findUnique: inventoryTaskFindUniqueMock },
   },
 }));
 
@@ -40,6 +41,7 @@ describe("POST /api/inventory-management/weekly-cleaning-proof", () => {
       status: "SUBMITTED",
       periodKey: "2026-W26",
     });
+    vi.stubEnv("R2_PUBLIC_BASE_URL", "https://pub-example.r2.dev");
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -49,6 +51,37 @@ describe("POST /api/inventory-management/weekly-cleaning-proof", () => {
         ),
       ),
     );
+  });
+
+  it("accepts a proof from the configured R2 public origin without fetching it", async () => {
+    const proofUrl =
+      "https://pub-example.r2.dev/proofs/weekly-cleaning/store-main/proof.jpg";
+
+    const response = await post({
+      proofUrl,
+      now: "2026-06-25T08:00:00.000Z",
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(inventoryTaskUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          proofUrl,
+          resolvedProofImageUrl: proofUrl,
+        }),
+      }),
+    );
+  });
+
+  it("rejects a lookalike R2 origin", async () => {
+    const response = await post({
+      proofUrl: "https://pub-example.r2.dev.evil.test/proof.jpg",
+      now: "2026-06-25T08:00:00.000Z",
+    });
+
+    expect(response.status).toBe(422);
+    expect(inventoryTaskUpsertMock).not.toHaveBeenCalled();
   });
 
   it("resolves a prnt.sc proof URL and submits the weekly cleaning task", async () => {
@@ -127,5 +160,20 @@ describe("POST /api/inventory-management/weekly-cleaning-proof", () => {
 
     expect(response.status).toBe(403);
     expect(inventoryTaskUpsertMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/inventory-management/weekly-cleaning-proof", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    handleAuthErrorMock.mockReturnValue(null);
+    requirePermissionMock.mockResolvedValue({ id: "owner-1", storeId: "store-main" });
+    inventoryTaskFindUniqueMock.mockResolvedValue({ id: "task-1", proofUrl: "https://prnt.sc/abc", note: "Bersih" });
+  });
+  it("returns the current week's stored proof for deletion", async () => {
+    const response = await GET(new Request("http://localhost/api/inventory-management/weekly-cleaning-proof"));
+    expect(response.status).toBe(200);
+    expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "read");
+    expect((await response.json()).data).toMatchObject({ id: "task-1", proofUrl: "https://prnt.sc/abc" });
   });
 });

@@ -7,6 +7,18 @@ import {
 } from "../rbac-core";
 
 describe("RBAC settings UI helpers", () => {
+  it("exposes proof deletion as a critical configurable permission", async () => {
+    const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
+    const proofMediaModule = RBAC_PERMISSION_MODULES.find(
+      (item) => item.id === "proof-media",
+    );
+
+    expect(proofMediaModule).toMatchObject({
+      resourceTargets: ["proof_upload"],
+      sensitivity: "critical",
+    });
+  });
+
   it("covers every page and resource target in the module catalog", async () => {
     const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
     const coveredPages = new Set(RBAC_PERMISSION_MODULES.flatMap((module) => module.pageTargets));

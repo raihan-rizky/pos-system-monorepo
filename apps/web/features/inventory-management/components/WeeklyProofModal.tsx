@@ -1,11 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal, Button } from "@pos/ui";
 import { AlertCircle } from "lucide-react";
-import { getPrntScProxyUrl } from "@/lib/prntsc";
-import { submitWeeklyCleaningProof } from "../api/inventory-management-api";
+import {
+  deleteWeeklyCleaningProof,
+  fetchCurrentWeeklyCleaningProof,
+  submitWeeklyCleaningProof,
+  type WeeklyCleaningProofRecord,
+} from "../api/inventory-management-api";
 import type { InventorySummary } from "../types/inventory-management";
+import { ProofImageUploader, deleteUploadedProof } from "@/features/proof-upload/components/ProofImageUploader";
 
 interface WeeklyProofModalProps {
   open: boolean;
@@ -24,13 +29,29 @@ export function WeeklyProofModal({
   const [note, setNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [storedProof, setStoredProof] = useState<WeeklyCleaningProofRecord | null>(null);
   const trimmedProofUrl = proofUrl.trim();
-  const proofPreviewUrl = getPrntScProxyUrl(trimmedProofUrl);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void fetchCurrentWeeklyCleaningProof()
+      .then((record) => {
+        if (!active) return;
+        setStoredProof(record);
+        if (record?.proofUrl) setProofUrl(record.proofUrl);
+        if (record?.note) setNote(record.note);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Gagal memuat bukti mingguan.");
+      });
+    return () => { active = false; };
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!trimmedProofUrl) {
-      setError("Link prnt.sc wajib diisi.");
+      setError("Bukti kebersihan wajib diunggah.");
       return;
     }
     setIsSubmitting(true);
@@ -87,32 +108,23 @@ export function WeeklyProofModal({
           </div>
         )}
 
-        <div>
-          <label className="block text-xs font-bold text-slate-600 mb-1">
-            Link prnt.sc
-          </label>
-          <input
-            name="weeklyProofUrl"
-            type="url"
-            required
-            value={proofUrl}
-            onChange={(e) => setProofUrl(e.target.value)}
-            placeholder="https://prnt.sc/..."
-            className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400 transition-colors"
-          />
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            Buka prnt.sc, unggah foto kebersihan, lalu tempel link hasil upload di sini.
-          </p>
-          {proofPreviewUrl && (
-            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-              <img
-                src={proofPreviewUrl}
-                alt="Preview bukti kebersihan gudang"
-                className="max-h-56 w-full object-contain"
-              />
-            </div>
-          )}
-        </div>
+        <ProofImageUploader
+          context="weekly-cleaning"
+          label="Bukti kebersihan gudang"
+          value={proofUrl}
+          onChange={setProofUrl}
+          required
+          disabled={isSubmitting}
+          onDelete={async (url) => {
+            if (storedProof?.id && storedProof.proofUrl === url) {
+              await deleteWeeklyCleaningProof(storedProof.id);
+              setStoredProof(null);
+              onSuccess("Foto bukti mingguan berhasil dihapus.");
+              return;
+            }
+            await deleteUploadedProof(url);
+          }}
+        />
 
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">

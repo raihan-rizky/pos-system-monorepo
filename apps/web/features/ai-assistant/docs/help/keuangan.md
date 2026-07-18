@@ -11,7 +11,7 @@ Buka sidebar **Keuangan > Keuangan** (`/keuangan`) untuk memantau arus kas bulan
 
 ## Mengelola Pengeluaran & Bukti Transaksi
 - **Pencatatan Pengeluaran:** Catat nominal, pilih kategori, dan masukkan pengeluaran operasional toko. Langkah selengkapnya dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q18-bagaimana-cara-mencatat-pengeluaran-operasional-toko).
-- **Mengunggah Bukti Pengeluaran:** Lampirkan foto nota dengan mengunggah gambar ke situs prnt.sc dan menempelkan tautan gambarnya. Langkah detail dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q18-bagaimana-cara-mencatat-pengeluaran-operasional-toko).
+- **Mengunggah Bukti Pengeluaran:** Klik **Pilih gambar bukti** untuk mengunggah foto nota langsung ke R2. Jika penyimpanan R2 gagal, gunakan input prnt.sc yang muncul sebagai fallback. Langkah detail dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q20-bagaimana-cara-mencatat-pengeluaran-operasional-toko).
 
 ## Hak Akses (Role-Based Access Control)
 Akses ke menu Keuangan dan tindakan pengeluaran disesuaikan dengan peran pengguna (RBAC). Biasanya dibatasi hanya untuk Owner dan Admin.

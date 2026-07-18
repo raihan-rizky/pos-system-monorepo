@@ -112,4 +112,27 @@ describe("FAQ workflow catalog", () => {
     expect(serializedWorkflow).toContain("Top 10 Produk");
     expect(serializedWorkflow).toContain("Analisis AI");
   });
+
+  it("documents proof compression and delegated deletion", () => {
+    const proof = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 11);
+    const serialized = JSON.stringify(proof);
+    expect(serialized).toContain("dikompresi");
+    expect(serialized).toContain("Hapus foto");
+    expect(serialized).toContain("proof_upload:delete");
+  });
+
+  it("keeps proof guidance R2-first with prnt.sc limited to upload failure fallback", () => {
+    const uploadWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 11);
+    const expenseWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 20);
+    const faqSource = readFileSync(new URL("../../docs/help/faq.md", import.meta.url), "utf8");
+
+    for (const workflow of [uploadWorkflow, expenseWorkflow]) {
+      const serialized = JSON.stringify(workflow);
+      expect(serialized).toContain("Pilih gambar bukti");
+      expect(serialized).toContain("R2");
+      expect(serialized).toContain("prnt.sc");
+      expect(serialized).toContain("gagal");
+    }
+    expect(faqSource).toContain("penyimpanan R2 gagal");
+  });
 });

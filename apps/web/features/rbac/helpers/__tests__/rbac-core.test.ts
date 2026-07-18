@@ -10,6 +10,26 @@ import {
 } from "../rbac-core";
 
 describe("RBAC permission matrix", () => {
+  it("reserves proof deletion for OWNER by default and allows an explicit grant", () => {
+    const defaults = buildDefaultRolePermissions();
+
+    expect(canRolePerformAction("OWNER", "proof_upload", "delete", defaults)).toBe(true);
+    for (const role of ["ADMIN", "CASHIER", "SALES", "INVENTORY"] as const) {
+      expect(canRolePerformAction(role, "proof_upload", "delete", defaults)).toBe(false);
+    }
+
+    const granted = normalizeRolePermissions([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "proof_upload",
+        action: "delete",
+        allowed: true,
+      },
+    ]);
+    expect(canRolePerformAction("ADMIN", "proof_upload", "delete", granted)).toBe(true);
+  });
+
   it("keeps owner full-access and outside editable role settings", () => {
     expect(OWNER_ROLE).toBe("OWNER");
     expect(EDITABLE_ROLES).toEqual(["ADMIN", "CASHIER", "SALES", "INVENTORY"]);

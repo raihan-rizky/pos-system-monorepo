@@ -261,7 +261,7 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
         targets: [
           { key: "finance-expense-create", label: "Tambah Pengeluaran" },
           { key: "finance-expense-form", label: "Form Pengeluaran" },
-          { key: "finance-proof-url", label: "URL Lampiran" },
+          { key: "finance-proof-url", label: "Unggah Bukti" },
           { key: "finance-save", label: "Simpan Pengeluaran" },
         ],
       },

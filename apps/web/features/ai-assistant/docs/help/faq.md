@@ -107,12 +107,13 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 6. Setelah perubahan berhasil, cetak ulang invoice final agar nomor dan tanggal yang diterima pelanggan sudah sesuai.
 
 ### Q11: Bagaimana cara mengunggah foto nota pengeluaran atau struk bukti transaksi pelanggan?
-**A:** Karena penyimpanan file POS menggunakan URL gambar, Anda perlu mengunggah gambar bukti transaksi ke layanan pihak ketiga terlebih dahulu:
-1. Buka situs pengunggah gambar gratis seperti [prnt.sc](https://prnt.sc/) di browser Anda.
-2. Klik **Browse Images** atau seret (*drag-and-drop*) file gambar bukti/nota Anda ke sana.
-3. Setelah proses upload selesai, salin (*copy*) alamat tautan (link) gambar yang dihasilkan (misal: `https://prnt.sc/xxxxxx`).
-4. Kembali ke modal aplikasi POS, tempel (*paste*) link tersebut di kolom **URL Lampiran** pada formulir pengeluaran atau modal upload bukti transaksi.
-5. Klik **Simpan** untuk mengaitkan bukti tersebut dengan transaksi.
+**A:** Aplikasi mengunggah bukti langsung ke penyimpanan R2:
+1. Di modal bukti transaksi atau pengeluaran, klik **Pilih gambar bukti**.
+2. Pilih JPEG, PNG, WebP, GIF, atau AVIF berukuran maksimum 5 MB.
+3. Sistem mengecilkan dimensi, menghapus metadata, dan mengompresi gambar sebelum mengunggahnya ke R2. Tunggu hingga pratinjau tampil.
+4. Jika penyimpanan R2 gagal, input **prnt.sc** akan muncul. Unggah gambar ke [prnt.sc](https://prnt.sc/) lalu tempel tautannya sebagai fallback.
+5. Klik **Simpan** untuk mengaitkan bukti dengan transaksi.
+6. OWNER atau role dengan izin `proof_upload:delete` dapat memilih **Hapus foto**. Foto R2 dihapus permanen, sedangkan bukti prnt.sc hanya dikosongkan tautannya.
 
 ### Q12: Bagaimana cara memulai (buka) dan mengakhiri (tutup) shift kerja kasir?
 **A:** Ikuti langkah berikut untuk mengelola laci uang kasir:
@@ -163,14 +164,16 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 1. Masuk ke halaman **Inventaris** (`/inventory`) dan klik tombol menu **Input / Transaksi**.
 2. Pilih opsi **Laporkan Barang Rusak**.
 3. Pilih produk yang mengalami kerusakan, masukkan jumlah stok yang rusak, dan tambahkan catatan/alasan kerusakan secara jelas.
-4. Klik **Submit** untuk menyimpan laporan. Laporan barang rusak akan diproses atau diajukan untuk disetujui agar mengurangi kuantitas stok di sistem.
+4. Klik **Pilih gambar bukti** untuk mengunggah foto ke R2. Jika penyimpanan R2 gagal, gunakan input prnt.sc yang muncul.
+5. Klik **Submit** untuk menyimpan laporan. Laporan barang rusak akan diproses atau diajukan untuk disetujui agar mengurangi kuantitas stok di sistem.
 
 ### Q17: Bagaimana cara menyelesaikan tugas operasional mingguan (seperti Proof Kebersihan)?
 **A:** Ikuti langkah berikut untuk merekam kepatuhan tugas mingguan:
 1. Di halaman Inventaris, buka tab **Tugas**.
 2. Pada bagian **Tugas Mingguan**, Anda akan melihat daftar tugas operasional seperti **Proof Kebersihan Gudang**.
 3. Klik pada tugas tersebut atau tombol aksi yang tersedia.
-4. Unggah bukti foto (proof) kebersihan rak gudang Anda, kemudian klik **Submit** agar tugas tersebut tercatat sebagai selesai.
+4. Klik **Pilih gambar bukti** untuk mengunggah foto kebersihan ke R2. Jika penyimpanan R2 gagal, gunakan input prnt.sc yang muncul.
+5. Klik **Submit** agar tugas tersebut tercatat sebagai selesai.
 
 ### Q18: Bagaimana cara mengajukan Penerimaan Barang (Inbound Receipt) dari supplier?
 **A:** Buka menu Inventaris untuk mencatat barang masuk:
@@ -224,7 +227,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 1. Buka sidebar **Keuangan > Keuangan** (`/keuangan`).
 2. Klik tombol **Tambah Pengeluaran** untuk memasukkan pengeluaran baru.
 3. Isi nominal pengeluaran, pilih kategori, dan tambahkan catatan pendukung (opsional).
-4. **Unggah Bukti Pengeluaran (Attachment):** Upload foto nota belanja ke situs gratis seperti [prnt.sc](https://prnt.sc/), lalu salin tautan link gambar yang dihasilkan (misal: `https://prnt.sc/xxxxxx`). Tempel (*paste*) link tersebut di kolom **URL Lampiran** pada form pengeluaran, periksa pratinjau gambarnya, lalu klik **Simpan**.
+4. **Unggah Bukti Pengeluaran:** Klik **Pilih gambar bukti** untuk mengunggah foto nota ke R2 dan periksa pratinjaunya. Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik **Simpan**.
 
 ### Q21: Bagaimana cara mengekspor data Laporan Keuangan ke format Excel atau PDF?
 **A:** Anda dapat mengunduh salinan data laporan keuangan ke perangkat Anda:

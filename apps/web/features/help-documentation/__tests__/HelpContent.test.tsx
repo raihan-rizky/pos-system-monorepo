@@ -156,4 +156,27 @@ describe('HelpContent', () => {
     expect(html).toContain('Hanya berlaku untuk transaksi ini');
     expect(html).toContain('permission edit produk');
   });
+
+  it('documents R2-first proof uploads and prnt.sc only as a storage fallback', () => {
+    const ownerHtml = renderToStaticMarkup(
+      <HelpContent targetRole="OWNER" searchQuery="bukti transaksi" />
+    );
+    const cashierHtml = renderToStaticMarkup(
+      <HelpContent targetRole="CASHIER" searchQuery="bukti transaksi" />
+    );
+    const inventoryHtml = renderToStaticMarkup(
+      <HelpContent targetRole="INVENTORY" searchQuery="bukti kebersihan" />
+    );
+
+    for (const html of [ownerHtml, cashierHtml, inventoryHtml]) {
+      expect(html).toContain('Pilih gambar bukti');
+      expect(html).toContain('prnt.sc');
+      expect(html).toContain('R2');
+    }
+    expect(ownerHtml).not.toContain('Unggah Bukti (prnt.sc)');
+    expect(cashierHtml).not.toContain('Unggah Gambar ke prnt.sc');
+    expect(ownerHtml).toContain('dikompresi');
+    expect(ownerHtml).toContain('Hapus foto');
+    expect(ownerHtml).toContain('proof_upload');
+  });
 });

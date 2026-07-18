@@ -16,6 +16,8 @@ import {
   createInternalUseStockLog,
   approveInternalStockOutRequest,
   rejectInternalStockOutRequest,
+  fetchCurrentWeeklyCleaningProof,
+  deleteWeeklyCleaningProof,
 } from "../inventory-management-api";
 
 describe("inventory management api", () => {
@@ -86,6 +88,20 @@ describe("inventory management api", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       },
+    );
+  });
+
+  it("loads and deletes the current weekly cleaning proof", async () => {
+    await fetchCurrentWeeklyCleaningProof();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/inventory-management/weekly-cleaning-proof",
+      { cache: "no-store" },
+    );
+
+    await deleteWeeklyCleaningProof("task-1");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/inventory-management/weekly-cleaning-proof/task-1",
+      { method: "DELETE" },
     );
   });
 

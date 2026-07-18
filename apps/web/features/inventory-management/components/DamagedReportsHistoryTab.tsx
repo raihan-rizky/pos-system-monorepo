@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, Archive, Check, ExternalLink, ImageIcon, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, Archive, Check, ExternalLink, ImageIcon, RefreshCw, Trash2, X } from "lucide-react";
 import {
   type InventoryLog,
   useApproveInventoryLog,
@@ -59,12 +59,14 @@ function cleanDamageNote(note: string | null) {
 export function DamagedReportsHistoryTab() {
   const { canPerform } = useRole();
   const canApprove = canPerform("inventory.approve", "update");
+  const canDeleteProof = canPerform("proof_upload", "delete");
   const approveMutation = useApproveInventoryLog();
   const rejectMutation = useRejectInventoryLog();
   const [rejectingId, setRejectingId] = React.useState<string | null>(null);
   const [rejectReason, setRejectReason] = React.useState("");
   const [actionError, setActionError] = React.useState<string | null>(null);
-  const { data, isLoading, isError } = useInventoryLogs({
+  const [deletingProofId, setDeletingProofId] = React.useState<string | null>(null);
+  const { data, isLoading, isError, refetch } = useInventoryLogs({
     type: "OUT",
     reason: "WASTE",
     status: "PENDING,APPROVED,REJECTED",
@@ -72,6 +74,19 @@ export function DamagedReportsHistoryTab() {
     limit: 30,
     days: 90,
   });
+
+  const runDeleteProof = async (id: string) => {
+    if (!window.confirm("Hapus foto bukti kerusakan ini? Tautannya juga akan dikosongkan dari laporan terkait.")) return;
+    setDeletingProofId(id); setActionError(null);
+    try {
+      const response = await fetch(`/api/inventory-management/damaged-products/${id}/proof`, { method: "DELETE" });
+      const body = await response.json().catch(() => null) as { message?: string } | null;
+      if (!response.ok) throw new Error(body?.message || "Gagal menghapus foto bukti.");
+      await refetch?.();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Gagal menghapus foto bukti.");
+    } finally { setDeletingProofId(null); }
+  };
 
   const logs = data?.data ?? [];
   const runApprove = async (id: string) => {
@@ -174,7 +189,7 @@ export function DamagedReportsHistoryTab() {
 
                   <div className="w-full shrink-0 sm:w-32">
                     {proofImageUrl ? (
-                      <a
+                      <div className="space-y-1.5"><a
                         href={proofImageUrl}
                         target="_blank"
                         rel="noreferrer"
@@ -190,6 +205,11 @@ export function DamagedReportsHistoryTab() {
                           <ExternalLink className="h-3 w-3" />
                         </span>
                       </a>
+                      {canDeleteProof && (
+                        <button type="button" onClick={() => void runDeleteProof(log.id)} disabled={deletingProofId === log.id} className="flex w-full items-center justify-center gap-1 rounded-lg bg-rose-600 px-2 py-1.5 text-[11px] font-bold text-white disabled:opacity-60">
+                          <Trash2 className="h-3 w-3" />{deletingProofId === log.id ? "Menghapus..." : "Hapus foto"}
+                        </button>
+                      )}</div>
                     ) : (
                       <div className="flex h-24 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-400">
                         <ImageIcon className="mb-1 h-5 w-5" />

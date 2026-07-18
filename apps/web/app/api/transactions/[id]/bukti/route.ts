@@ -3,6 +3,8 @@ import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 import { getLogger } from "@/lib/logger";
+import { removeStoredProofAsset } from "@/features/proof-upload/server/remove-stored-proof";
+import { isProofStorageUnavailableError } from "@/features/proof-upload/server/r2-proof-storage";
 
 const log = getLogger("api:transactions:id:bukti");
 
@@ -67,5 +69,41 @@ export async function PATCH(
       { message: "Failed to update transaction bukti" },
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await requirePermission("proof_upload", "delete");
+    const storeId = user.storeId || "store-main";
+    const { id } = await params;
+    const body = (await request.json().catch(() => null)) as { url?: unknown } | null;
+    if (typeof body?.url !== "string") {
+      return NextResponse.json({ message: "Tautan bukti wajib diisi." }, { status: 422 });
+    }
+    const transaction = await db.transaction.findFirst({
+      where: { id, storeId },
+      select: { id: true, buktiTransaksiUrls: true },
+    });
+    if (!transaction || !transaction.buktiTransaksiUrls.includes(body.url)) {
+      return NextResponse.json({ message: "Bukti transaksi tidak ditemukan." }, { status: 404 });
+    }
+
+    const removed = await removeStoredProofAsset(body.url);
+    await db.transaction.update({
+      where: { id },
+      data: { buktiTransaksiUrls: transaction.buktiTransaksiUrls.filter((url) => url !== body.url) },
+    });
+    log.info("Transaction proof reference deleted", { userId: user.id, storeId, transactionId: id, storage: removed.storage });
+    return NextResponse.json({ data: { id, deletedUrl: body.url } });
+  } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+    log.error("Failed to delete transaction proof", error);
+    const status = error instanceof Error && error.name === "UnknownProofReferenceError" ? 422 : isProofStorageUnavailableError(error) ? 503 : 500;
+    return NextResponse.json({ message: status === 422 ? error instanceof Error ? error.message : "Tautan bukti tidak valid." : status === 503 ? "Foto bukti belum dapat dihapus dari R2. Silakan coba lagi." : "Referensi foto bukti gagal dikosongkan." }, { status });
   }
 }

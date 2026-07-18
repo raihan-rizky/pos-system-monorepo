@@ -47,13 +47,35 @@ describe("POST /api/inventory-management/damaged-products", () => {
       status: "PENDING",
       reason: "WASTE",
     });
+    vi.stubEnv("R2_PUBLIC_BASE_URL", "https://pub-example.r2.dev");
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ imageUrl: "https://image.prntscr.com/image/damaged.png" }),
-      }),
+      vi.fn().mockResolvedValue(
+        new Response(
+          '<meta property="og:image" content="https://image.prntscr.com/image/damaged.png">',
+          { status: 200 },
+        ),
+      ),
     );
+  });
+
+  it("accepts a proof from the configured R2 public origin without proxying it", async () => {
+    const proofUrl =
+      "https://pub-example.r2.dev/proofs/damaged-products/store-main/proof.jpg";
+
+    const response = await post({
+      productId: "product-1",
+      quantity: 1,
+      proofUrl,
+    });
+
+    expect(response.status).toBe(201);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(inventoryLogCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        note: expect.stringContaining(`Resolved proof: ${proofUrl}`),
+      }),
+    });
   });
 
   it("creates a pending WASTE stock-out request with resolved damage proof", async () => {

@@ -273,6 +273,34 @@ export interface StockGroupBulkPreview {
   changedVariants: StockGroupBulkPreview["variants"];
 }
 
+export type WeeklyCleaningProofRecord = {
+  id: string;
+  proofUrl: string | null;
+  resolvedProofImageUrl?: string | null;
+  note: string | null;
+};
+
+export async function fetchCurrentWeeklyCleaningProof() {
+  const response = await fetch("/api/inventory-management/weekly-cleaning-proof", {
+    cache: "no-store",
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    data?: WeeklyCleaningProofRecord | null;
+    message?: string;
+  };
+  if (!response.ok) throw new Error(body.message || "Gagal memuat bukti mingguan.");
+  return body.data ?? null;
+}
+
+export async function deleteWeeklyCleaningProof(id: string) {
+  const response = await fetch(
+    `/api/inventory-management/weekly-cleaning-proof/${id}`,
+    { method: "DELETE" },
+  );
+  const body = (await response.json().catch(() => ({}))) as { message?: string };
+  if (!response.ok) throw new Error(body.message || "Gagal menghapus foto bukti.");
+}
+
 export type ProductFirstStockMode = "GROUP_STOCK" | "PRODUCT_ONLY";
 
 export interface ProductFirstStockBulkRequestRow {

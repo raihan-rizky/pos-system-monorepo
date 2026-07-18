@@ -65,5 +65,6 @@ describe("DamagedReportsHistoryTab", () => {
     expect(html).toContain("Kemasan pecah");
     expect(html).toContain("https://image.prntscr.com/image/damaged.png");
     expect(html).toContain("Bukti foto barang rusak");
+    expect(html).toContain("Hapus foto");
   });
 });

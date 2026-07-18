@@ -167,6 +167,14 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     sensitivity: "sensitive",
   },
   {
+    id: "proof-media",
+    label: "Bukti / Media",
+    description: "Penghapusan foto bukti tersimpan dan tautan bukti lama.",
+    pageTargets: [],
+    resourceTargets: ["proof_upload"],
+    sensitivity: "critical",
+  },
+  {
     id: "help",
     label: "Bantuan",
     description: "Dokumentasi bantuan aplikasi.",
