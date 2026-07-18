@@ -3,14 +3,16 @@ import { describe, expect, it } from 'vitest';
 import HelpContent from '../components/HelpContent';
 
 describe('HelpContent', () => {
-  it('explains modal zoom and internal AppShell scrolling', () => {
+  it('explains responsive preview and device-appropriate modal zoom', () => {
     const html = renderToStaticMarkup(
       <HelpContent targetRole="OWNER" />
     );
 
     expect(html).toContain('data-help-preview-tip="true"');
     expect(html).toContain('Tips Melihat Panduan Visual');
-    expect(html).toContain('bubble zoom 2×');
+    expect(html).toContain('mengikuti ukuran perangkat');
+    expect(html).toContain('cubit layar');
+    expect(html).toContain('zoom 1×–3×');
     expect(html).toContain('scrollbar internal');
   });
 
@@ -172,6 +174,8 @@ describe('HelpContent', () => {
       expect(html).toContain('Pilih gambar bukti');
       expect(html).toContain('prnt.sc');
       expect(html).toContain('R2');
+      expect(html).toContain('Putar');
+      expect(html).toContain('Unggah foto');
     }
     expect(ownerHtml).not.toContain('Unggah Bukti (prnt.sc)');
     expect(cashierHtml).not.toContain('Unggah Gambar ke prnt.sc');

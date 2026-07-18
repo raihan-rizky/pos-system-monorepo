@@ -3,11 +3,22 @@ import {
   MAX_PROOF_FILE_SIZE_BYTES,
   getProofUploadPolicy,
   isConfiguredR2PublicUrl,
+  parseProofRotation,
   shouldRevealPrntScFallback,
   validateProofFile,
 } from "../proof-upload-core";
 
 describe("proof upload core", () => {
+  it("accepts only quarter-turn rotations", () => {
+    expect(parseProofRotation(null)).toBe(0);
+    expect(parseProofRotation("0")).toBe(0);
+    expect(parseProofRotation("90")).toBe(90);
+    expect(parseProofRotation("180")).toBe(180);
+    expect(parseProofRotation("270")).toBe(270);
+    expect(parseProofRotation("45")).toBeNull();
+    expect(parseProofRotation("360")).toBeNull();
+  });
+
   it("maps supported contexts to fixed permissions and prefixes", () => {
     expect(getProofUploadPolicy("expense")).toMatchObject({
       resource: "expense",

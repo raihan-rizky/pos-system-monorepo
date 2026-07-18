@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useReducer, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, Trash2, Upload } from "lucide-react";
+import React, { useEffect, useReducer, useState } from "react";
+import { AlertCircle, CheckCircle2, Loader2, RotateCcw, RotateCw, Trash2, Upload, X } from "lucide-react";
 import {
+  type ProofRotation,
   type ProofUploadContext,
   shouldRevealPrntScFallback,
   validateProofFile,
@@ -14,6 +15,57 @@ type ProofDeleteRequest = (
   input: string,
   init: RequestInit,
 ) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
+
+export function rotateProof(
+  rotation: ProofRotation,
+  direction: "clockwise" | "counterclockwise",
+): ProofRotation {
+  return ((rotation + (direction === "clockwise" ? 90 : 270)) % 360) as ProofRotation;
+}
+
+export function PendingProofPreview({
+  previewUrl,
+  rotation,
+  disabled,
+  onRotate,
+  onUpload,
+  onCancel,
+}: {
+  previewUrl: string;
+  rotation: ProofRotation;
+  disabled: boolean;
+  onRotate: (direction: "clockwise" | "counterclockwise") => void;
+  onUpload: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-xl border border-brand-200 bg-brand-50 p-3">
+      <div className="flex h-64 items-center justify-center overflow-hidden rounded-lg bg-surface-900/5">
+        <img
+          src={previewUrl}
+          alt="Pratinjau gambar sebelum diunggah"
+          className="max-h-full max-w-full object-contain transition-transform duration-200"
+          style={{ transform: `rotate(${rotation}deg)` }}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <button type="button" disabled={disabled} onClick={() => onRotate("counterclockwise")} className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-surface-300 bg-white px-2 text-xs font-bold text-surface-700 disabled:opacity-60">
+          <RotateCcw className="h-4 w-4" /> Putar kiri
+        </button>
+        <button type="button" disabled={disabled} onClick={() => onRotate("clockwise")} className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-surface-300 bg-white px-2 text-xs font-bold text-surface-700 disabled:opacity-60">
+          <RotateCw className="h-4 w-4" /> Putar kanan
+        </button>
+        <button type="button" disabled={disabled} onClick={onCancel} className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-surface-300 bg-white px-2 text-xs font-bold text-surface-700 disabled:opacity-60">
+          <X className="h-4 w-4" /> Batal
+        </button>
+        <button type="button" disabled={disabled} onClick={onUpload} className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-2 text-xs font-bold text-white disabled:opacity-60">
+          {disabled ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Unggah foto
+        </button>
+      </div>
+      <p className="text-center text-[11px] text-surface-600">Atur orientasi foto sebelum disimpan ke R2.</p>
+    </div>
+  );
+}
 
 export async function deleteUploadedProof(
   url: string,
@@ -88,10 +140,26 @@ export function ProofImageUploader({
     INITIAL_PROOF_UPLOAD_STATE,
   );
   const [lastFile, setLastFile] = useState<File | null>(null);
+  const [lastRotation, setLastRotation] = useState<ProofRotation>(0);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
+  const [rotation, setRotation] = useState<ProofRotation>(0);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const uploadFile = async (file: File) => {
+  useEffect(() => {
+    return () => {
+      if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+    };
+  }, [pendingPreviewUrl]);
+
+  const clearPendingFile = () => {
+    setPendingFile(null);
+    setPendingPreviewUrl(null);
+    setRotation(0);
+  };
+
+  const selectFile = (file: File) => {
     const validation = validateProofFile(file);
     if (!validation.ok) {
       dispatch({
@@ -102,11 +170,19 @@ export function ProofImageUploader({
       return;
     }
 
+    setPendingFile(file);
+    setPendingPreviewUrl(URL.createObjectURL(file));
+    setRotation(0);
+  };
+
+  const uploadFile = async (file: File, selectedRotation: ProofRotation) => {
     setLastFile(file);
+    setLastRotation(selectedRotation);
     dispatch({ type: "started" });
     const formData = new FormData();
     formData.set("context", context);
     formData.set("file", file);
+    formData.set("rotation", String(selectedRotation));
 
     try {
       const response = await fetch("/api/proof-uploads", {
@@ -130,6 +206,7 @@ export function ProofImageUploader({
       }
 
       onChange(body.data.url);
+      clearPendingFile();
       dispatch({ type: "succeeded" });
     } catch {
       dispatch({
@@ -180,7 +257,7 @@ export function ProofImageUploader({
           disabled={disabled || state.uploading}
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) void uploadFile(file);
+            if (file) selectFile(file);
             event.target.value = "";
           }}
         />
@@ -188,6 +265,19 @@ export function ProofImageUploader({
       <p className="text-[11px] text-surface-500">
         Format JPEG, PNG, WebP, GIF, atau AVIF. Maksimum 5 MB.
       </p>
+
+      {pendingFile && pendingPreviewUrl && (
+        <PendingProofPreview
+          previewUrl={pendingPreviewUrl}
+          rotation={rotation}
+          disabled={disabled || state.uploading}
+          onRotate={(direction) =>
+            setRotation((current) => rotateProof(current, direction))
+          }
+          onUpload={() => void uploadFile(pendingFile, rotation)}
+          onCancel={clearPendingFile}
+        />
+      )}
 
       {state.error && (
         <div className="flex items-start gap-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
@@ -199,7 +289,7 @@ export function ProofImageUploader({
                 type="button"
                 className="mt-1 font-bold underline"
                 disabled={disabled || state.uploading}
-                onClick={() => void uploadFile(lastFile)}
+                onClick={() => void uploadFile(lastFile, lastRotation)}
               >
                 Coba Lagi
               </button>

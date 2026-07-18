@@ -27,10 +27,11 @@ vi.mock("@/features/proof-upload/server/preprocess-proof-image", () => ({
     error instanceof Error && error.name === "ProofPreprocessingError",
 }));
 
-function makeRequest(input: { context?: string; file?: File }) {
+function makeRequest(input: { context?: string; file?: File; rotation?: string }) {
   const formData = new FormData();
   if (input.context) formData.set("context", input.context);
   if (input.file) formData.set("file", input.file);
+  if (input.rotation) formData.set("rotation", input.rotation);
   return new Request("http://localhost/api/proof-uploads", {
     method: "POST",
     body: formData,
@@ -67,12 +68,17 @@ describe("POST /api/proof-uploads", () => {
     });
 
     const response = await POST(
-      makeRequest({ context: "weekly-cleaning", file }),
+      makeRequest({ context: "weekly-cleaning", file, rotation: "90" }),
     );
     const body = await response.json();
 
     expect(response.status).toBe(201);
     expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "update");
+    expect(preprocessProofImageMock).toHaveBeenCalledWith(
+      Buffer.from([1, 2, 3]),
+      "image/jpeg",
+      90,
+    );
     expect(uploadProofToR2Mock).toHaveBeenCalledWith(
       expect.objectContaining({
         body: Buffer.from([4, 5]),
@@ -89,6 +95,20 @@ describe("POST /api/proof-uploads", () => {
       inputBytes: 3,
       outputBytes: 2,
     });
+  });
+
+  it("rejects a rotation that is not a quarter turn", async () => {
+    const response = await POST(
+      makeRequest({
+        context: "expense",
+        file: new File(["x"], "proof.png", { type: "image/png" }),
+        rotation: "45",
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(requirePermissionMock).not.toHaveBeenCalled();
+    expect(preprocessProofImageMock).not.toHaveBeenCalled();
   });
 
   it("rejects an unknown context before checking permissions", async () => {
@@ -112,7 +132,11 @@ describe("POST /api/proof-uploads", () => {
       arrayBuffer: vi.fn(),
     } as unknown as File;
     const formData = {
-      get: (key: string) => (key === "context" ? "expense" : oversizedFile),
+      get: (key: string) => {
+        if (key === "context") return "expense";
+        if (key === "file") return oversizedFile;
+        return null;
+      },
     };
     const request = {
       formData: vi.fn().mockResolvedValue(formData),

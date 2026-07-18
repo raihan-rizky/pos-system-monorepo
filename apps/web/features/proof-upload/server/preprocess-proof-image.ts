@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import type { ProofRotation } from "../helpers/proof-upload-core";
 
 export class ProofPreprocessingError extends Error {
   constructor() {
@@ -14,10 +15,12 @@ export function isProofPreprocessingError(error: unknown) {
 export async function preprocessProofImage(
   input: Buffer,
   mimeType: string,
+  rotation: ProofRotation = 0,
 ) {
   try {
     const pipeline = sharp(input, { animated: mimeType === "image/gif" })
-      .rotate()
+      .autoOrient()
+      .rotate(rotation)
       .resize({
         width: 1920,
         height: 1920,

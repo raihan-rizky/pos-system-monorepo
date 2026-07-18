@@ -12,6 +12,7 @@ import {
 } from "../components/VisualGuideMockup";
 import HelpDiagramStepper from "../components/HelpDiagramStepper";
 import { HELP_VISUAL_PAGE_CONFIG } from "../components/help-visual-registry";
+import { AUDITED_HELP_STEP_TARGETS } from "../components/audited-help-step-targets";
 
 describe("visual help guides", () => {
   it("renders the selected visual target as a read-only fake page", () => {
@@ -124,7 +125,7 @@ describe("visual help guides", () => {
     expect(posHtml).not.toContain("Data Contoh 1");
   });
 
-  it("renders a scaled full app-shell desktop canvas with sidebar and matching icons", () => {
+  it("renders the production AppShell navigation with matching active icons", () => {
     const settingsHtml = renderToStaticMarkup(
       <VisualGuideMockup
         visual={{
@@ -159,7 +160,6 @@ describe("visual help guides", () => {
       />,
     );
 
-    expect(settingsHtml).toContain('data-help-preview-canvas="1366x768"');
     expect(settingsHtml).toContain('data-help-preview-sidebar="true"');
     expect(settingsHtml).toContain('data-help-preview-nav-active="settings"');
     expect(settingsHtml).toContain('data-help-preview-assistant-button="true"');
@@ -176,7 +176,7 @@ describe("visual help guides", () => {
     expect(posHtml).toContain("lucide-shopping-cart");
   });
 
-  it("uses the real collapsed shell dimensions and keeps scrolling inside the page viewport", () => {
+  it("uses responsive shell modes and keeps scrolling inside the page viewport", () => {
     const html = renderToStaticMarkup(
       <VisualGuideMockup
         visual={{
@@ -190,10 +190,9 @@ describe("visual help guides", () => {
     );
 
     expect(html).toContain('data-help-preview-sidebar-mode="collapsed"');
-    expect(html).toContain('data-help-preview-sidebar-width="76"');
-    expect(html).toContain('data-help-preview-viewport-size="1290x768"');
+    expect(html).toContain('data-help-responsive-source="device-viewport"');
+    expect(html).toContain('data-help-shell-mode="mobile"');
     expect(html).toContain('data-help-page-scroll="both"');
-    expect(html).toContain("w-[76px]");
     expect(html).toContain("min-w-0");
     expect(html).toContain("min-h-0");
     expect(html).toContain("overflow-auto");
@@ -463,15 +462,13 @@ describe("visual help guides", () => {
 
     expect(settingsHtml).toContain('data-help-appshell-overflow-guard="true"');
     expect(settingsHtml).toContain('data-help-page-viewport="clipped"');
-    expect(settingsHtml).toContain("contain:layout paint");
     expect(settingsHtml).toContain("max-w-full");
-    expect(settingsHtml).toContain("will-change-transform");
 
     expect(settingsHtml).toContain('data-help-actual-page="settings"');
     expect(settingsHtml).toContain('data-help-fidelity-page="settings"');
     expect(settingsHtml).toContain('data-help-preview-state="settings-rbac"');
     expect(settingsHtml).toContain("Permission RBAC");
-    expect(settingsHtml).toContain("min-w-[1290px]");
+    expect(settingsHtml).toContain('data-help-responsive-page="true"');
     expect(settingsHtml).toContain("text-brand-600");
 
     expect(historyHtml).toContain('data-help-actual-page="history"');
@@ -484,7 +481,7 @@ describe("visual help guides", () => {
     expect(historyHtml).toContain("Bulanan");
     expect(historyHtml).toContain("Surat Jalan saja");
     expect(historyHtml).toContain('data-help-fidelity-page="history"');
-    expect(historyHtml).toContain("min-w-[1420px]");
+    expect(historyHtml).toContain('data-help-responsive-page="true"');
     expect(historyHtml).toContain("Tanggal");
     expect(historyHtml).toContain("Sales");
     expect(historyHtml).toContain("Item");
@@ -701,5 +698,154 @@ describe("visual help guides", () => {
     expect(posHtml).toContain('data-help-step-state="pos-payment-modal-open"');
     expect(posHtml).toContain("Modal Pembayaran");
     expect(posHtml).toContain("Metode Bayar");
+  });
+
+  it("publishes an explicit audited visual contract for every help step", () => {
+    for (const [role, guides] of Object.entries(HELP_ROLE_CONTENT)) {
+      for (const guide of guides) {
+        guide.steps.forEach((step, index) => {
+          expect(step.visual, `${role}/${guide.id}/${index + 1}/${step.title}`).toBeDefined();
+          expect(
+            isKnownHelpVisualTarget(step.visual!),
+            `${role}/${guide.id}/${index + 1}/${step.title}`,
+          ).toBe(true);
+        });
+      }
+    }
+  });
+
+  it("requires an audited catalog entry for every role guide and step", () => {
+    for (const guides of Object.values(HELP_ROLE_CONTENT)) {
+      for (const guide of guides) {
+        expect(AUDITED_HELP_STEP_TARGETS[guide.id], guide.id).toBeDefined();
+        expect(AUDITED_HELP_STEP_TARGETS[guide.id], guide.id).toHaveLength(guide.steps.length);
+      }
+    }
+  });
+
+  it("uses audited targets for workflows that keyword inference previously mapped incorrectly", () => {
+    const expected: Record<string, string[]> = {
+      "owner-rbac": [
+        "settings.settings-sidebar",
+        "settings.settings-rbac-tab",
+        "settings.settings-rbac-summary",
+        "settings.settings-rbac-matrix",
+        "settings.settings-permission-checkbox",
+        "settings.settings-review-save",
+      ],
+      "owner-reports": [
+        "finance.finance-primary",
+        "finance.finance-date-filter",
+        "finance.finance-export",
+      ],
+      "owner-performance": [
+        "salespersons.salespersons-primary",
+        "salespersons.salespersons-summary",
+        "salespersons.salespersons-detail",
+      ],
+      "owner-approval-stock": [
+        "inventory.inventory-primary",
+        "inventory.inventory-stock-log-tab",
+        "inventory.inventory-approval-actions",
+        "inventory.inventory-approval-actions",
+      ],
+      "cashier-shift": [
+        "shift.shift-primary",
+        "shift.shift-open",
+        "shift.shift-close",
+      ],
+      "cashier-pos": [
+        "pos.pos-primary",
+        "pos.pos-products",
+        "pos.pos-payment-modal",
+      ],
+      "inventory-production": [
+        "production.production-primary",
+        "production.production-status-column",
+        "production.production-whatsapp",
+        "production.production-kanban",
+      ],
+    };
+
+    const guides = Object.values(HELP_ROLE_CONTENT).flat();
+    for (const [guideId, mappings] of Object.entries(expected)) {
+      const guide = guides.find((candidate) => candidate.id === guideId);
+      expect(guide, guideId).toBeDefined();
+      expect(guide!.steps.map((step) => `${step.visual!.page}.${step.visual!.target}`)).toEqual(mappings);
+    }
+  });
+
+  it("shares the production AppShell navigation contract instead of duplicating preview navigation", () => {
+    const sidebarSource = readFileSync(
+      new URL("../../../components/Sidebar.tsx", import.meta.url),
+      "utf8",
+    );
+    const previewShellSource = readFileSync(
+      new URL("../components/app-shell-preview/AppShellPreview.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(sidebarSource).toContain("APP_SHELL_NAV_GROUPS");
+    expect(previewShellSource).toContain("APP_SHELL_NAV_GROUPS");
+    expect(previewShellSource).not.toContain("const NAV_ITEMS");
+  });
+
+  it("renders responsive production shell modes based on the device viewport", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{
+          page: "inventory",
+          target: "inventory-primary",
+          callout: "Buka workspace inventaris di aplikasi.",
+        }}
+        stepNumber={1}
+        stepTitle="Buka Inventaris"
+      />,
+    );
+
+    expect(html).toContain('data-help-responsive-source="device-viewport"');
+    expect(html).toContain('data-help-shell-mode="desktop"');
+    expect(html).toContain('data-help-shell-mode="mobile"');
+    expect(html).toContain('data-help-preview-navigation-contract="production"');
+    expect(html).not.toContain('data-help-preview-canvas="1366x768"');
+  });
+
+  it("renders a semantic spotlight, arrow, and concise in-app callout for the active step", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{
+          page: "history",
+          target: "history-action-menu",
+          callout: "Pilih ikon tiga titik pada transaksi INV-202607-0042.",
+        }}
+        stepNumber={2}
+        stepTitle="Buka Menu Tindakan"
+      />,
+    );
+
+    expect(html).toContain('data-help-overlay-spotlight="history-action-menu"');
+    expect(html).toContain('data-help-overlay-arrow="history-action-menu"');
+    expect(html).toContain('aria-describedby="help-callout-history-action-menu"');
+    expect(html).toContain('id="help-callout-history-action-menu"');
+    expect(html).toContain("Di aplikasi:");
+  });
+
+  it("shows an actionable unavailable state for an explicit target that no longer exists", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{
+          page: "history",
+          target: "history-obsolete-action",
+          callout: "Pilih aksi lama.",
+        }}
+        stepNumber={3}
+        stepTitle="Aksi Lama"
+      />,
+    );
+
+    expect(html).toContain('data-help-guide-unavailable="true"');
+    expect(html).toContain("Panduan ini sedang disesuaikan dengan tampilan terbaru");
+    expect(html).toContain("Aksi Lama");
+    expect(html).not.toContain('data-help-target-active="true"');
   });
 });

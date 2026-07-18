@@ -25,6 +25,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import HelpDiagramStepper, { Step } from "./HelpDiagramStepper";
 export { resolveHelpStepVisual } from "./help-visual-registry";
+import { AUDITED_HELP_STEP_TARGETS } from "./audited-help-step-targets";
 import type { Role } from "@/features/rbac/helpers/rbac-core";
 
 interface AccordionItem {
@@ -67,7 +68,7 @@ const ROLE_DESCRIPTIONS: Record<string, { desc: string; resps: string[] }> = {
   }
 };
 
-export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
+const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
   OWNER: [
     {
       id: "owner-rbac",
@@ -194,7 +195,7 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Buka Menu Keuangan", description: "Dari sidebar kiri, buka menu 'Keuangan' (di bawah kategori Keuangan).", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Tambah Pengeluaran", description: "Klik tombol 'Tambah Pengeluaran' di bagian atas. Isi nama pemohon, pilih kategori, jumlah nominal, dan deskripsi tambahan.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Pilih Gambar Bukti", description: "Klik 'Pilih gambar bukti' dan pilih foto nota. Sistem mengunggahnya ke penyimpanan R2 lalu menampilkan pratinjau.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', lalu gunakan 'Putar kiri' atau 'Putar kanan' sampai orientasinya benar. Klik 'Unggah foto' untuk menyimpan hasilnya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
         { title: "Kompresi & Hapus Foto", description: "Gambar otomatis dikompresi sebelum masuk R2. OWNER dapat memakai 'Hapus foto'; role lain memerlukan izin proof_upload:delete dari pengaturan RBAC. Foto R2 dihapus permanen, sedangkan prnt.sc hanya dikosongkan tautannya.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
@@ -344,7 +345,7 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Buka Halaman Keuangan", description: "Buka menu 'Keuangan' di sidebar kiri. Klik tombol 'Tambah Pengeluaran' di bagian atas.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Isi Data Pengeluaran", description: "Ketik nama pemohon, pilih kategori pengeluaran, masukkan jumlah nominal, dan keterangan pengeluaran.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Pilih Gambar Bukti", description: "Klik 'Pilih gambar bukti' untuk mengunggah foto nota langsung ke penyimpanan R2.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', atur orientasi dengan 'Putar kiri' atau 'Putar kanan', lalu klik 'Unggah foto' untuk menyimpannya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Periksa pratinjau. Jika R2 gagal, gunakan input prnt.sc yang muncul, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
@@ -577,7 +578,7 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Buka Menu Riwayat", description: "Masuk ke menu 'Riwayat' di sidebar kiri. Temukan transaksi yang ingin dilampirkan buktinya.", icon: <History className="w-8 h-8" /> },
         { title: "Pilih Upload Bukti", description: "Klik tombol titik tiga '...' di baris transaksi target, lalu pilih menu 'Upload Bukti Transaksi'.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Pilih Gambar Bukti", description: "Klik 'Pilih gambar bukti' untuk mengunggah foto pembayaran langsung ke penyimpanan R2.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', gunakan 'Putar kiri' atau 'Putar kanan' bila perlu, lalu klik 'Unggah foto' untuk menyimpan foto pembayaran ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Tambah & Simpan", description: "Periksa pratinjau dan klik '+ Tambah Gambar Lain' bila perlu. Jika R2 gagal, gunakan input prnt.sc yang muncul, lalu klik 'Simpan'.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     }
@@ -662,7 +663,7 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Cek Tugas Aktif", description: "Buka menu 'Inventaris' di sidebar kiri, lalu klik tab 'Tugas' di bagian atas halaman untuk melihat checklist tugas harian. Staf inventaris perlu Check In terlebih dahulu; OWNER dapat langsung membuka tab ini.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Lakukan Matching Stok", description: "Matching Stok Harian hanya dibuka pukul 15:00-20:00 WIB. Klik tugas 'Matching Stok Harian' (atau tombol 'Input / Transaksi' -> 'Cocokkan Stok (Harian)'), klik input Stok Gudang per baris, lalu cek indikator otomatis: hijau berarti sesuai, merah berarti selisih, dan kuning berarti belum valid. Isi catatan untuk baris selisih, lalu klik 'Submit Matching'.", icon: <History className="w-8 h-8" /> },
-        { title: "Input Laporan Kerusakan", description: "Klik tugas 'Laporan Barang Rusak', cari produk reject, isi kuantitas, lalu klik 'Pilih gambar bukti' untuk mengunggah foto ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul sebelum mengirim laporan.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Input Laporan Kerusakan", description: "Klik tugas 'Laporan Barang Rusak', cari produk reject, isi kuantitas, lalu klik 'Pilih gambar bukti'. Atur dengan tombol Putar, lalu klik 'Unggah foto'. Jika R2 gagal, gunakan input prnt.sc yang muncul sebelum mengirim laporan.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Verifikasi Log OUT Belum Diverifikasi", description: "Klik tugas 'Log OUT Belum Diverifikasi', periksa daftar barang keluar hari ini, lalu pilih 'Setujui' atau 'Perlu Koreksi'. Jika perlu koreksi, tombol Koreksi membuka form perbaikan produk, qty, alasan, dan catatan. Setelah koreksi disetujui Owner/Admin/Inventory lain, cek ulang baris tersebut lalu klik Setujui.", icon: <Settings className="w-8 h-8" /> },
         { title: "Check Out Inventaris", description: "Di akhir hari, buka widget Check In / Check Out lalu klik 'Check Out'. Periksa ringkasan pergerakan stok, status dokumen, dan workflow. Jika masih ada tugas wajib yang belum selesai, isi alasan pengecualian per kategori sebelum klik 'Tutup Hari'.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
@@ -674,7 +675,7 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Tugas Mingguan", description: "Buka menu 'Inventaris' di sidebar kiri, klik tab 'Tugas' di bagian atas halaman, lalu pilih sub-tab 'Tugas Mingguan'.", icon: <Package className="w-8 h-8" /> },
-        { title: "Pilih Gambar Bukti Kebersihan", description: "Klik tugas 'Proof Kebersihan Gudang', lalu klik 'Pilih gambar bukti' untuk mengunggah foto ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul. Cek pratinjau lalu klik 'Submit Proof'.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Gambar Bukti Kebersihan", description: "Klik tugas 'Proof Kebersihan Gudang', lalu klik 'Pilih gambar bukti'. Gunakan 'Putar kiri' atau 'Putar kanan', lalu klik 'Unggah foto'. Jika R2 gagal, gunakan input prnt.sc yang muncul. Cek pratinjau lalu klik 'Submit Proof'.", icon: <Settings className="w-8 h-8" /> },
         { title: "Stock Opname & Rekonsiliasi", description: "Lakukan perhitungan stok fisik rak gudang. Jika ada selisih, klik 'Input / Transaksi' -> 'Stock Out Internal' (jika menyusut) atau 'Penerimaan Barang' (jika berlebih) senilai jumlah selisih agar data stok sistem kembali akurat setelah disetujui Owner.", icon: <Users className="w-8 h-8" /> },
       ]
     },
@@ -858,6 +859,34 @@ export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
   ]
 };
 
+function conciseStepCallout(description: string) {
+  const sentence = description.split(/(?<=[.!?])\s/)[0]?.trim() || description.trim();
+  return sentence.length > 180 ? `${sentence.slice(0, 177).trim()}...` : sentence;
+}
+
+export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = Object.fromEntries(
+  Object.entries(RAW_HELP_ROLE_CONTENT).map(([role, guides]) => [
+    role,
+    guides.map((guide) => ({
+      ...guide,
+      steps: guide.steps.map((step, stepIndex) => {
+        const audited = AUDITED_HELP_STEP_TARGETS[guide.id]?.[stepIndex];
+        if (!audited) {
+          throw new Error(`Kontrak visual Bantuan belum tersedia: ${role}/${guide.id}/${stepIndex + 1}`);
+        }
+        return {
+          ...step,
+          visual: {
+            page: audited[0],
+            target: audited[1],
+            callout: step.visual?.callout ?? conciseStepCallout(step.description),
+          },
+        };
+      }),
+    })),
+  ]),
+);
+
 function searchInContent(item: AccordionItem, query: string): boolean {
   if (!query) return true;
   const lowerQuery = query.toLowerCase();
@@ -935,7 +964,8 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
           <div>
             <h2 className="text-sm font-bold">Tips Melihat Panduan Visual</h2>
             <p className="mt-1 text-sm leading-relaxed text-sky-800">
-              Klik preview untuk membuka modal, lalu arahkan kursor ke AppShell untuk melihat bubble zoom 2×.
+              Preview otomatis mengikuti ukuran perangkat Anda. Klik preview untuk membuka modal; di ponsel,
+              cubit layar untuk memakai zoom 1×–3×, sedangkan di desktop arahkan kursor untuk memperbesar detail.
               Gunakan scrollbar internal bila halaman lebih lebar atau lebih panjang dari area preview.
             </p>
           </div>

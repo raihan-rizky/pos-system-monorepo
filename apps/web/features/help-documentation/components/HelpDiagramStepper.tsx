@@ -56,6 +56,113 @@ interface HelpGuideVisualPanelProps {
   onOpenActiveModal: () => void;
 }
 
+const TOUCH_ZOOM_MIN = 1;
+const TOUCH_ZOOM_MAX = 3;
+
+function TouchZoomViewport({ resetKey, children }: { resetKey: string; children: React.ReactNode }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureRef = useRef({ distance: 0, scale: 1, x: 0, y: 0 });
+  const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
+
+  const clampTransform = useCallback((scale: number, x: number, y: number) => {
+    const rect = hostRef.current?.getBoundingClientRect();
+    if (!rect) return { scale, x: 0, y: 0 };
+    const maxX = Math.max(0, (rect.width * (scale - 1)) / 2);
+    const maxY = Math.max(0, (rect.height * (scale - 1)) / 2);
+    return {
+      scale,
+      x: Math.min(maxX, Math.max(-maxX, x)),
+      y: Math.min(maxY, Math.max(-maxY, y)),
+    };
+  }, []);
+
+  const reset = useCallback(() => {
+    pointersRef.current.clear();
+    gestureRef.current = { distance: 0, scale: 1, x: 0, y: 0 };
+    setTransform({ scale: 1, x: 0, y: 0 });
+  }, []);
+
+  useEffect(reset, [reset, resetKey]);
+  useEffect(() => {
+    window.addEventListener("resize", reset);
+    window.addEventListener("orientationchange", reset);
+    return () => {
+      window.removeEventListener("resize", reset);
+      window.removeEventListener("orientationchange", reset);
+    };
+  }, [reset]);
+
+  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const points = Array.from(pointersRef.current.values());
+    if (points.length === 2) {
+      gestureRef.current = {
+        distance: Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y),
+        scale: transform.scale,
+        x: transform.x,
+        y: transform.y,
+      };
+    }
+  }, [transform]);
+
+  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch" || !pointersRef.current.has(event.pointerId)) return;
+    const previous = pointersRef.current.get(event.pointerId)!;
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const points = Array.from(pointersRef.current.values());
+
+    if (points.length >= 2 && gestureRef.current.distance > 0) {
+      const distance = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+      const scale = Math.min(
+        TOUCH_ZOOM_MAX,
+        Math.max(TOUCH_ZOOM_MIN, gestureRef.current.scale * (distance / gestureRef.current.distance)),
+      );
+      setTransform(clampTransform(scale, gestureRef.current.x, gestureRef.current.y));
+      return;
+    }
+
+    if (points.length === 1 && transform.scale > TOUCH_ZOOM_MIN) {
+      setTransform(clampTransform(
+        transform.scale,
+        transform.x + event.clientX - previous.x,
+        transform.y + event.clientY - previous.y,
+      ));
+    }
+  }, [clampTransform, transform]);
+
+  const releasePointer = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size < 2) {
+      gestureRef.current = { distance: 0, scale: transform.scale, x: transform.x, y: transform.y };
+    }
+  }, [transform]);
+
+  return (
+    <div
+      ref={hostRef}
+      data-help-touch-zoom="true"
+      data-help-touch-zoom-min={TOUCH_ZOOM_MIN}
+      data-help-touch-zoom-max={TOUCH_ZOOM_MAX}
+      className="relative min-h-full overflow-hidden md:overflow-visible"
+      style={{ touchAction: "none" }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={releasePointer}
+      onPointerCancel={releasePointer}
+    >
+      <div
+        className="origin-center transition-transform duration-150 motion-reduce:transition-none"
+        style={{ transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})` }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export const HelpVisualModal: React.FC<HelpVisualModalProps> = ({
   step,
   stepNumber,
@@ -74,10 +181,19 @@ export const HelpVisualModal: React.FC<HelpVisualModalProps> = ({
   }, [onClose, onPrev, onNext]);
 
   useEffect((): (() => void) => {
+    const previousActiveElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     dialogRef.current?.focus();
     window.addEventListener("keydown", handleGlobalKeyDown);
 
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      previousActiveElement?.focus();
+    };
   }, [handleGlobalKeyDown]);
 
   const trapFocus = useCallback((event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -141,12 +257,14 @@ export const HelpVisualModal: React.FC<HelpVisualModalProps> = ({
           </button>
         </div>
         <div className="p-4 flex-1 overflow-y-auto">
-          <VisualGuideMockup
-            visual={step.visual}
-            stepNumber={stepNumber}
-            stepTitle={step.title}
-            magnifierEnabled
-          />
+          <TouchZoomViewport resetKey={step.id}>
+            <VisualGuideMockup
+              visual={step.visual}
+              stepNumber={stepNumber}
+              stepTitle={step.title}
+              magnifierEnabled
+            />
+          </TouchZoomViewport>
         </div>
       </div>
 
@@ -229,7 +347,7 @@ const HelpGuideVisualPanelComponent: React.FC<HelpGuideVisualPanelProps> = ({
             title="Klik untuk memperbesar panduan visual"
             aria-label="Buka panduan visual layar penuh"
           >
-            <div className="pointer-events-none select-none">
+            <div className="pointer-events-none select-none" aria-hidden="true">
               <VisualGuideMockup
                 visual={active.visual}
                 stepNumber={activeStep + 1}

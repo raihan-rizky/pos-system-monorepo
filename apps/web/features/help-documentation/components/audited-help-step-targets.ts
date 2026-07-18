@@ -1,0 +1,83 @@
+import type { HelpVisualPage } from "./help-visual-registry";
+
+export type AuditedHelpStepTarget = readonly [page: HelpVisualPage, target: string];
+
+const same = (page: HelpVisualPage, target: string, count: number): AuditedHelpStepTarget[] =>
+  Array.from({ length: count }, () => [page, target] as const);
+
+export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepTarget[]> = {
+  "owner-rbac": [
+    ["settings", "settings-sidebar"], ["settings", "settings-rbac-tab"],
+    ["settings", "settings-rbac-summary"], ["settings", "settings-rbac-matrix"],
+    ["settings", "settings-permission-checkbox"], ["settings", "settings-review-save"],
+  ],
+  "owner-reports": [["finance", "finance-primary"], ["finance", "finance-date-filter"], ["finance", "finance-export"]],
+  "owner-performance": [["salespersons", "salespersons-primary"], ["salespersons", "salespersons-summary"], ["salespersons", "salespersons-detail"]],
+  "owner-approval-stock": [["inventory", "inventory-primary"], ["inventory", "inventory-stock-log-tab"], ["inventory", "inventory-approval-actions"], ["inventory", "inventory-approval-actions"]],
+  "owner-approval-belanja": [["suppliers", "suppliers-shopping-tab"], ["suppliers", "suppliers-approve"], ["suppliers", "suppliers-approve"]],
+  "owner-piutang": [["customers", "customers-primary"], ["customers", "customers-filter-debt"], ["customers", "customers-profile"]],
+  "owner-performa-sales": [["salespersons", "salespersons-primary"], ["salespersons", "salespersons-summary"], ["salespersons", "salespersons-detail"]],
+  "owner-approval-transaksi": [["history", "history-filter"], ["history", "history-approval-actions"], ["history", "history-approval-actions"], ["history", "history-approval-actions"]],
+  "owner-custom-invoice-date": [["history", "history-primary"], ["history", "history-action-menu"], ["history", "history-invoice-date-action"], ["history", "history-print-button"]],
+  "owner-export-reports": [["finance", "finance-primary"], ["finance", "finance-export"], ["finance", "finance-export"], ["finance", "finance-date-filter"]],
+  "owner-expenses": [["finance", "finance-primary"], ["finance", "finance-expense-create"], ["finance", "finance-proof-url"], ["finance", "finance-save"], ["finance", "finance-proof-url"]],
+  "owner-shopping-request": [["suppliers", "suppliers-shopping-tab"], ["suppliers", "suppliers-create-request"], ["suppliers", "suppliers-add-products"], ["suppliers", "suppliers-request-quantity"]],
+  "owner-change-price": [["products", "products-primary"], ["products", "products-price-action"], ["products", "products-edit-action"], ["products", "products-price-history-tab"]],
+  "owner-change-stock-individual": [["products", "products-primary"], ["products", "products-table"], ["products", "products-edit-action"], ["products", "products-stock-field"], ["products", "products-edit-action"]],
+  "owner-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],
+  "owner-special-pricing": [["products", "products-special-price-tab"], ...same("products", "products-special-price-tab", 3), ["pos", "pos-products"]],
+  "owner-import-products": same("products", "products-import", 4),
+  "owner-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["products", "products-stock-group-tab"]],
+
+  "admin-settings": [["settings", "settings-sidebar"], ["settings", "settings-info-store"], ["settings", "settings-save"]],
+  "admin-products": [["products", "products-primary"], ["products", "products-add-button"], ["products", "products-edit-action"]],
+  "admin-suppliers": [["suppliers", "suppliers-primary"], ["suppliers", "suppliers-add"], ["suppliers", "suppliers-add"]],
+  "admin-crm": [["customers", "customers-primary"], ["customers", "customers-add"], ["customers", "customers-profile"]],
+  "admin-expenses": [["finance", "finance-primary"], ["finance", "finance-expense-form"], ["finance", "finance-proof-url"], ["finance", "finance-save"]],
+  "admin-custom-invoice-date": [["history", "history-primary"], ["history", "history-action-menu"], ["history", "history-invoice-date-action"], ["history", "history-print-button"]],
+  "admin-export-reports": [["finance", "finance-primary"], ["finance", "finance-export"], ["finance", "finance-export"], ["finance", "finance-date-filter"]],
+  "admin-export-customer-recap": [["customers", "customers-primary"], ["customers", "customers-table"], ["customers", "customers-table"], ["customers", "customers-table"], ["customers", "customers-profile"]],
+  "admin-shopping-request": [["suppliers", "suppliers-shopping-tab"], ["suppliers", "suppliers-create-request"], ["suppliers", "suppliers-add-products"], ["suppliers", "suppliers-request-quantity"]],
+  "admin-change-price": [["products", "products-primary"], ["products", "products-price-action"], ["products", "products-edit-action"], ["products", "products-price-history-tab"]],
+  "admin-change-stock-individual": [["products", "products-primary"], ["products", "products-table"], ["products", "products-edit-action"], ["products", "products-stock-field"], ["products", "products-edit-action"]],
+  "admin-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],
+  "admin-import-products": same("products", "products-import", 4),
+  "admin-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["products", "products-stock-group-tab"]],
+
+  "cashier-shift": [["shift", "shift-primary"], ["shift", "shift-open"], ["shift", "shift-close"]],
+  "cashier-pos": [["pos", "pos-primary"], ["pos", "pos-products"], ["pos", "pos-payment-modal"]],
+  "cashier-pos-quick-edit": [["pos", "pos-cart"], ["pos", "pos-cart"], ["products", "products-price-action"], ["products", "products-special-price-tab"]],
+  "cashier-credit": [["customers", "customers-debt-tab"], ["customers", "customers-pay-debt"], ["history", "history-print-button"]],
+  "cashier-return": [["history", "history-table"], ["history", "history-action-menu"], ["history", "history-approval-actions"]],
+  "cashier-expense": [["pos", "pos-expense-button"], ["finance", "finance-expense-form"], ["finance", "finance-save"]],
+  "cashier-discount": [["pos", "pos-cart"], ["pos", "pos-cart"], ["pos", "pos-payment-modal"]],
+  "kasir-alur-kerja": [["shift", "shift-open"], ["pos", "pos-primary"], ["pos", "pos-expense-button"], ["history", "history-filter"], ["history", "history-approval-actions"], ["shift", "shift-close"]],
+  "cashier-piutang-tab": [["customers", "customers-debt-tab"], ["customers", "customers-debt-tab"], ["customers", "customers-pay-debt"], ["customers", "customers-pay-debt"]],
+  "cashier-upload-bukti": [["history", "history-primary"], ["history", "history-upload-proof"], ["history", "history-upload-proof"], ["history", "history-upload-proof"]],
+
+  "sales-draft": [["pos", "pos-primary"], ["pos", "pos-products"], ["pos", "pos-cart"]],
+  "sales-invoice": [["history", "history-primary"], ["history", "history-table"], ["history", "history-print-button"]],
+  "sales-sj": [["history", "history-action-menu"], ["history", "history-surat-jalan-action"], ["history", "history-surat-jalan-action"], ["history", "history-print-button"]],
+  "sales-alur-kerja": [["customers", "customers-table"], ["pos", "pos-products"], ["pos", "pos-pay-button"], ["history", "history-print-button"], ["history", "history-print-button"], ["history", "history-debt-payment"]],
+
+  "inventory-stock": [["inventory", "inventory-primary"], ["inventory", "inventory-stock-log-tab"]],
+  "inventory-alur-kerja": [["inventory", "inventory-stock-log-tab"], ["inventory", "inventory-inbound"], ["inventory", "inventory-damaged"]],
+  "inventory-tugas-harian": [["inventory", "inventory-tasks"], ["inventory", "inventory-matching"], ["inventory", "inventory-damaged"], ["inventory", "inventory-out-log"], ["inventory", "inventory-day-session"]],
+  "inventory-tugas-mingguan": [["inventory", "inventory-tasks"], ["inventory", "inventory-weekly-proof"], ["inventory", "inventory-update-stock"]],
+  "inventory-production": [["production", "production-primary"], ["production", "production-status-column"], ["production", "production-whatsapp"], ["production", "production-kanban"]],
+  "inventory-bulk-stock-import": same("products", "products-import", 4),
+  "inventory-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],
+  "inventory-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"]],
+
+  "ai-assistant-system-help": [["assistant", "assistant-button"], ["assistant", "assistant-input"], ["assistant", "assistant-workflow-stepper"], ["assistant", "assistant-status"]],
+  "ai-assistant-product-price": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-product-stock": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-low-stock": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-daily-sales": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-top-products": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-supplier-search": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-customer-search": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-customer-debt": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-customer-recap": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+  "ai-assistant-pending-tx": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],
+};

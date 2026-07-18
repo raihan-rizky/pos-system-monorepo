@@ -4,12 +4,38 @@ import { describe, expect, it, vi } from "vitest";
 import {
   INITIAL_PROOF_UPLOAD_STATE,
   ProofImageUploader,
+  PendingProofPreview,
   deleteUploadedProof,
+  rotateProof,
   proofUploadReducer,
 } from "../ProofImageUploader";
 import { RoleProvider } from "@/components/providers/RoleProvider";
 
 describe("ProofImageUploader", () => {
+  it("cycles preview rotation in 90-degree steps", () => {
+    expect(rotateProof(0, "clockwise")).toBe(90);
+    expect(rotateProof(270, "clockwise")).toBe(0);
+    expect(rotateProof(0, "counterclockwise")).toBe(270);
+  });
+
+  it("renders rotate controls and an explicit upload action for a selected image", () => {
+    const html = renderToStaticMarkup(
+      <PendingProofPreview
+        previewUrl="blob:proof"
+        rotation={90}
+        disabled={false}
+        onRotate={vi.fn()}
+        onUpload={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Putar kiri");
+    expect(html).toContain("Putar kanan");
+    expect(html).toContain("Unggah foto");
+    expect(html).toContain("rotate(90deg)");
+  });
+
   it("starts with the R2 file picker and keeps prnt.sc fallback hidden", () => {
     const html = renderToStaticMarkup(
       <ProofImageUploader

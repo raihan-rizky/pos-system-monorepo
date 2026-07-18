@@ -198,6 +198,60 @@ describe("HelpDiagramStepper", () => {
     expect(inlineHtml).not.toContain('data-help-magnifier-enabled="true"');
   });
 
+  it("exposes bounded touch pan and pinch zoom only inside the full-screen modal", () => {
+    const modalHtml = renderToStaticMarkup(
+      <HelpVisualModal
+        step={{
+          id: "touch-step",
+          title: "Periksa target",
+          description: "Periksa target ini di aplikasi.",
+          icon: <span>1</span>,
+          visual: {
+            page: "history",
+            target: "history-action-menu",
+            callout: "Pilih ikon tiga titik pada transaksi.",
+          },
+        }}
+        stepNumber={1}
+        totalSteps={2}
+        guideTitle="Panduan Riwayat"
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(modalHtml).toContain('data-help-touch-zoom="true"');
+    expect(modalHtml).toContain('data-help-touch-zoom-min="1"');
+    expect(modalHtml).toContain('data-help-touch-zoom-max="3"');
+    expect(modalHtml).toContain("touch-action:none");
+  });
+
+  it("treats the inline preview as one accessible modal trigger", () => {
+    const source = readFileSync(
+      new URL("../components/HelpDiagramStepper.tsx", import.meta.url),
+      "utf8",
+    );
+    const html = renderToStaticMarkup(
+      <HelpDiagramStepper
+        guideId="single-trigger"
+        guideTitle="Panduan Kasir"
+        role="CASHIER"
+        steps={[
+          {
+            title: "Buka Kasir",
+            description: "Di aplikasi, buka menu Kasir.",
+            icon: <span>1</span>,
+            visual: { page: "pos", target: "pos-primary", callout: "Buka menu Kasir." },
+          },
+        ]}
+      />,
+    );
+
+    expect(html).toContain('aria-label="Buka panduan visual layar penuh"');
+    expect(html).toContain('aria-hidden="true"');
+    expect(source).toContain("previousActiveElement");
+    expect(source).toContain("document.body.style.overflow = \"hidden\"");
+  });
+
   it("keeps the right-side guide aligned with frontend development guidelines", () => {
     const stepperSource = readFileSync(new URL("../components/HelpDiagramStepper.tsx", import.meta.url), "utf8");
     const visualSource = readFileSync(new URL("../components/VisualGuideMockup.tsx", import.meta.url), "utf8");
@@ -213,9 +267,9 @@ describe("HelpDiagramStepper", () => {
 
     expect(visualSource).toContain("const VisualGuideMockupComponent: React.FC<VisualGuideMockupProps>");
     expect(visualSource).toContain("export const VisualGuideMockup = React.memo(VisualGuideMockupComponent)");
-    expect(shellSource).toContain('containerType: "inline-size"');
-    expect(shellSource).toContain('transform: "scale(calc(100cqw / 1366))"');
-    expect(shellSource).toContain("max-h-[58vh]");
+    expect(shellSource).toContain("APP_SHELL_NAV_GROUPS");
+    expect(shellSource).toContain('data-help-responsive-source="device-viewport"');
+    expect(shellSource).toContain("h-[min(68vh,768px)]");
     expect(shellSource).toContain("mx-auto");
     expect(shellSource).not.toContain("ResizeObserver");
   });

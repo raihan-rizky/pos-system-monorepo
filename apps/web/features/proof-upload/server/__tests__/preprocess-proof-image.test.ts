@@ -48,6 +48,22 @@ describe("preprocessProofImage", () => {
     expect(result.height).toBe(480);
   });
 
+  it("persists a requested clockwise quarter-turn", async () => {
+    const input = await sharp({
+      create: {
+        width: 640,
+        height: 320,
+        channels: 3,
+        background: "#f59e0b",
+      },
+    }).png().toBuffer();
+
+    const result = await preprocessProofImage(input, "image/png", 90);
+
+    expect(result.width).toBe(320);
+    expect(result.height).toBe(640);
+  });
+
   it("keeps GIF output as GIF", async () => {
     const input = await sharp({
       create: {

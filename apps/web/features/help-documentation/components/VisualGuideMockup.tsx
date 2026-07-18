@@ -29,11 +29,35 @@ const VisualGuideMockupComponent: React.FC<VisualGuideMockupProps> = ({
   magnifierEnabled = false,
 }) => {
   const config = HELP_VISUAL_PAGE_CONFIG[visual.page];
-  const activeTarget = isKnownTarget(visual) ? visual.target : config.primaryTarget;
+  if (!isKnownTarget(visual)) {
+    return (
+      <section
+        data-help-guide-unavailable="true"
+        aria-live="polite"
+        className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950"
+      >
+        <p className="text-xs font-bold uppercase tracking-wide text-amber-700">{config.label}</p>
+        <h3 className="mt-1 text-base font-bold">{stepTitle}</h3>
+        <p className="mt-2 text-sm leading-relaxed">
+          Panduan ini sedang disesuaikan dengan tampilan terbaru. Ini bukan kesalahan Anda.
+        </p>
+        <p className="mt-2 text-xs text-amber-800">Tutup tampilan ini atau kembali ke daftar panduan untuk memilih topik lain.</p>
+      </section>
+    );
+  }
+
+  const activeTarget = visual.target;
   const activeLabel = getHelpVisualTargetLabel({ page: visual.page, target: activeTarget });
   const state = resolvePreviewState(visual.page, activeTarget);
   const renderPage = PREVIEW_RENDERERS[visual.page];
-  const context = { page: visual.page, activeTarget, stepNumber, state };
+  const context = {
+    page: visual.page,
+    activeTarget,
+    stepNumber,
+    stepTitle,
+    callout: visual.callout,
+    state,
+  };
 
   return (
     <section
@@ -66,6 +90,7 @@ const VisualGuideMockupComponent: React.FC<VisualGuideMockupProps> = ({
         <p className="text-sm leading-relaxed">
           <span className="font-semibold">{activeLabel}</span>
           <span aria-hidden="true"> {"->"} </span>
+          <span className="font-semibold">Di aplikasi: </span>
           {visual.callout}
         </p>
       </div>

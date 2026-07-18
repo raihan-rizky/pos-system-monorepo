@@ -9,126 +9,15 @@ import { useRole } from "@/components/providers/RoleProvider";
 import { usePendingTransactionCount, useUnpaidDebtTransactionCount } from "@/hooks/useTransactions";
 import { useInventorySummary } from "@/features/inventory-management/hooks/useInventorySummary";
 import { clearClientAuthState } from "@/lib/auth/pos-session";
+import { APP_SHELL_NAV_GROUPS } from "@/components/app-shell/app-shell-navigation";
 import {
-  BarChart3,
-  BookOpen,
-  BriefcaseBusiness,
-  Calculator,
   ChevronLeft,
-  CircleDollarSign,
-  Grid2X2,
-  HelpCircle,
   LogOut,
-  MessageCircle,
-  Package,
-  PanelsTopLeft,
-  Settings,
-  Tags,
-  TrendingDown,
-  TrendingUp,
-  Truck,
-  User,
-  Users,
-  WalletCards,
+  type LucideIcon,
 } from "lucide-react";
 
 const sidebarIconClass = "h-5 w-5";
-
-const icons = {
-  dashboard: <Grid2X2 className={sidebarIconClass} aria-hidden="true" />,
-  pos: <Calculator className={sidebarIconClass} aria-hidden="true" />,
-  history: <WalletCards className={sidebarIconClass} aria-hidden="true" />,
-  financial: <BarChart3 className={sidebarIconClass} aria-hidden="true" />,
-  product: <Package className={sidebarIconClass} aria-hidden="true" />,
-  suppliers: <Truck className={sidebarIconClass} aria-hidden="true" />,
-  production: <PanelsTopLeft className={sidebarIconClass} aria-hidden="true" />,
-  customers: <Users className={sidebarIconClass} aria-hidden="true" />,
-  salespersons: <Tags className={sidebarIconClass} aria-hidden="true" />,
-  wa: <MessageCircle className={sidebarIconClass} aria-hidden="true" />,
-  shift: <BriefcaseBusiness className={sidebarIconClass} aria-hidden="true" />,
-  operations: <Settings className={sidebarIconClass} aria-hidden="true" />,
-  catalog: <BookOpen className={sidebarIconClass} aria-hidden="true" />,
-  crm: <User className={sidebarIconClass} aria-hidden="true" />,
-  finance: <CircleDollarSign className={sidebarIconClass} aria-hidden="true" />,
-  pemasukan: <TrendingUp className={sidebarIconClass} aria-hidden="true" />,
-  pengeluaran: <TrendingDown className={sidebarIconClass} aria-hidden="true" />,
-  settings: <Settings className={sidebarIconClass} aria-hidden="true" />,
-  help: <HelpCircle className={sidebarIconClass} aria-hidden="true" />,
-  inventory: <Package className={sidebarIconClass} aria-hidden="true" />,
-};
-const navGroups = [
-  {
-    id: "operations",
-    label: "Operasi",
-    icon: icons.operations,
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: icons.dashboard },
-      { href: "/pos", label: "Kasir", icon: icons.pos },
-      { href: "/history", label: "Riwayat", icon: icons.history },
-    ],
-  },
-  {
-    id: "catalog",
-    label: "Katalog",
-    icon: icons.catalog,
-    items: [
-      { href: "/products", label: "Produk", icon: icons.product },
-      { href: "/suppliers", label: "Supplier", icon: icons.suppliers },
-      { href: "/production", label: "Produksi", icon: icons.production },
-    ],
-  },
-  {
-    id: "inventory",
-    label: "Manajemen Inventaris",
-    icon: icons.inventory,
-    items: [
-      { href: "/inventory", label: "Inventaris", icon: icons.inventory },
-    ],
-  },
-  {
-    id: "finance",
-    label: "Keuangan",
-    icon: icons.finance,
-    items: [
-      {
-        href: "/keuangan",
-        label: "Keuangan",
-        icon: icons.finance,
-      },
-      {
-        href: "/financial-report",
-        label: "Laporan Keuangan",
-        icon: icons.financial,
-      },
-    ],
-  },
-  {
-    id: "crm",
-    label: "Pelanggan",
-    icon: icons.crm,
-    items: [
-      { href: "/customers", label: "Pelanggan", icon: icons.customers },
-      {
-        href: "/salespersons",
-        label: "Sales",
-        icon: icons.salespersons,
-      },
-    ],
-  },
-  {
-    id: "utils",
-    label: "Lainnya",
-    icon: icons.settings,
-    items: [
-      { href: "/wa", label: "WA Chat", icon: icons.wa },
-      { href: "/shift", label: "Shift Kasir", icon: icons.shift },
-      { href: "/settings", label: "Pengaturan", icon: icons.settings },
-      { href: "/help", label: "Bantuan", icon: icons.help },
-    ],
-  },
-];
-
-type NavEntry = (typeof navGroups)[number]["items"][number];
+const navGroups = APP_SHELL_NAV_GROUPS;
 
 /* ─────────────────────────────────────────────
    Reusable nav item link
@@ -136,7 +25,7 @@ type NavEntry = (typeof navGroups)[number]["items"][number];
 function NavItem({
   href,
   label,
-  icon,
+  icon: Icon,
   isActive,
   isCollapsed,
   onNavigate,
@@ -145,7 +34,7 @@ function NavItem({
 }: {
   href: string;
   label: string;
-  icon: React.ReactNode;
+  icon: LucideIcon;
   isActive: boolean;
   isCollapsed: boolean;
   onNavigate?: () => void;
@@ -183,7 +72,9 @@ function NavItem({
         }
       `}
     >
-      <div className="shrink-0 flex items-center justify-center">{icon}</div>
+      <div className="shrink-0 flex items-center justify-center">
+        <Icon className={sidebarIconClass} aria-hidden="true" />
+      </div>
       {!isCollapsed && (
         <span className="text-sm font-semibold transition-all duration-200 whitespace-nowrap overflow-hidden text-ellipsis">
           {label}
@@ -466,7 +357,9 @@ export function Sidebar() {
               {hasActive && !isOpen && (
                 <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-brand-400 z-10" />
               )}
-              <div className="shrink-0">{group.icon}</div>
+              <div className="shrink-0">
+                <group.icon className={sidebarIconClass} aria-hidden="true" />
+              </div>
               <span className="text-[9px] uppercase tracking-wider font-semibold leading-none">
                 {group.label}
               </span>
@@ -497,23 +390,12 @@ export function Sidebar() {
             </p>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span className="text-brand-400 shrink-0">
-                {activeGroupObj.icon}
+                <activeGroupObj.icon className={sidebarIconClass} aria-hidden="true" />
               </span>
               {activeGroupObj.label}
             </h3>
             <p className="text-[11px] text-surface-400 mt-1 select-none">
-              {activeGroupObj.id === "operations" &&
-                "Kelola operasional kasir, dashboard, dan riwayat harian."}
-              {activeGroupObj.id === "catalog" &&
-                "Kelola inventaris produk dan papan status antrean produksi."}
-              {activeGroupObj.id === "inventory" &&
-                "Kelola stok masuk, tugas harian, mingguan, pemakaian internal, dan rekap stok."}
-              {activeGroupObj.id === "finance" &&
-                "Pantau revenue, profit, metode pembayaran, piutang, dan shift kas."}
-              {activeGroupObj.id === "crm" &&
-                "Data relasi pelanggan tetap dan pencatatan agen pemasaran."}
-              {activeGroupObj.id === "utils" &&
-                "Fitur live chat WhatsApp, status shift kasir, dan konfigurasi umum."}
+              {activeGroupObj.description}
             </p>
           </div>
         )}
@@ -540,7 +422,7 @@ export function Sidebar() {
                   <div
                     className={`p-3 rounded-xl transition-colors ${isActive ? "bg-brand-600 text-white" : "bg-surface-700 text-surface-300"}`}
                   >
-                    {item.icon}
+                    <item.icon className={sidebarIconClass} aria-hidden="true" />
                   </div>
                   <span className="text-xs font-bold leading-none">
                     {item.label}

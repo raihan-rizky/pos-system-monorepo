@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import {
   getProofUploadPolicy,
+  parseProofRotation,
   validateProofFile,
 } from "@/features/proof-upload/helpers/proof-upload-core";
 import {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const context = formData.get("context");
     const file = formData.get("file");
+    const rotation = parseProofRotation(formData.get("rotation"));
 
     if (typeof context !== "string") {
       return jsonError("Konteks bukti wajib diisi.", 422);
@@ -50,6 +52,10 @@ export async function POST(request: Request) {
 
     if (!isFileLike(file)) {
       return jsonError("File bukti wajib dipilih.", 422);
+    }
+
+    if (rotation === null) {
+      return jsonError("Rotasi gambar tidak valid.", 422);
     }
 
     const validation = validateProofFile(file);
@@ -65,6 +71,7 @@ export async function POST(request: Request) {
     const processed = await preprocessProofImage(
       Buffer.from(await file.arrayBuffer()),
       file.type,
+      rotation,
     );
     const result = await uploadProofToR2({
       body: processed.buffer,

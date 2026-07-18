@@ -6,6 +6,8 @@ export type PreviewContext = {
   page: PreviewPage;
   activeTarget: string;
   stepNumber: number;
+  stepTitle: string;
+  callout: string;
   state: string;
 };
 

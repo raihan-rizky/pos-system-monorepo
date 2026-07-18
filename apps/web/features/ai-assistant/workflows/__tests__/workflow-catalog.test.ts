@@ -119,6 +119,8 @@ describe("FAQ workflow catalog", () => {
     expect(serialized).toContain("dikompresi");
     expect(serialized).toContain("Hapus foto");
     expect(serialized).toContain("proof_upload:delete");
+    expect(serialized).toContain("Putar kiri");
+    expect(serialized).toContain("Unggah foto");
   });
 
   it("keeps proof guidance R2-first with prnt.sc limited to upload failure fallback", () => {

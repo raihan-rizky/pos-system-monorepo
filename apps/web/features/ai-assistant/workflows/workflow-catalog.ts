@@ -240,7 +240,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "image",
     requiredCapabilities: [{ resource: "transaction", action: "update" }],
     steps: [
-      { title: "Pilih gambar bukti", description: "Di modal bukti transaksi, klik Pilih gambar bukti dan pilih foto nota atau pembayaran dari perangkat." },
+      { title: "Pilih dan putar gambar bukti", description: "Di modal bukti transaksi, klik Pilih gambar bukti. Gunakan Putar kiri atau Putar kanan sampai orientasi benar, lalu klik Unggah foto." },
       { title: "Tunggu unggahan R2", description: "Sistem mengecilkan dimensi, menghapus metadata, dan memastikan gambar dikompresi sebelum mengunggahnya ke R2 lalu menampilkan pratinjau." },
       { title: "Gunakan fallback bila perlu", description: "Jika penyimpanan R2 gagal, input prnt.sc muncul. Unggah gambar ke prnt.sc dan tempel tautannya sebagai fallback." },
       { title: "Simpan atau hapus lampiran", description: "Periksa pratinjau, tambahkan gambar lain bila perlu, lalu klik Simpan. Tombol Hapus foto tersedia bagi OWNER atau role yang diberi izin proof_upload:delete; R2 dihapus permanen dan prnt.sc hanya dikosongkan tautannya." },

@@ -109,11 +109,12 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 ### Q11: Bagaimana cara mengunggah foto nota pengeluaran atau struk bukti transaksi pelanggan?
 **A:** Aplikasi mengunggah bukti langsung ke penyimpanan R2:
 1. Di modal bukti transaksi atau pengeluaran, klik **Pilih gambar bukti**.
-2. Pilih JPEG, PNG, WebP, GIF, atau AVIF berukuran maksimum 5 MB.
-3. Sistem mengecilkan dimensi, menghapus metadata, dan mengompresi gambar sebelum mengunggahnya ke R2. Tunggu hingga pratinjau tampil.
-4. Jika penyimpanan R2 gagal, input **prnt.sc** akan muncul. Unggah gambar ke [prnt.sc](https://prnt.sc/) lalu tempel tautannya sebagai fallback.
-5. Klik **Simpan** untuk mengaitkan bukti dengan transaksi.
-6. OWNER atau role dengan izin `proof_upload:delete` dapat memilih **Hapus foto**. Foto R2 dihapus permanen, sedangkan bukti prnt.sc hanya dikosongkan tautannya.
+2. Periksa pratinjau. Gunakan **Putar kiri** atau **Putar kanan** sampai orientasi benar, lalu klik **Unggah foto**.
+3. File harus berupa JPEG, PNG, WebP, GIF, atau AVIF berukuran maksimum 5 MB.
+4. Sistem mengecilkan dimensi, menghapus metadata, mengompresi, dan menyimpan rotasi gambar ke R2.
+5. Jika penyimpanan R2 gagal, input **prnt.sc** akan muncul. Unggah gambar ke [prnt.sc](https://prnt.sc/) lalu tempel tautannya sebagai fallback.
+6. Klik **Simpan** untuk mengaitkan bukti dengan transaksi.
+7. OWNER atau role dengan izin `proof_upload:delete` dapat memilih **Hapus foto**. Foto R2 dihapus permanen, sedangkan bukti prnt.sc hanya dikosongkan tautannya.
 
 ### Q12: Bagaimana cara memulai (buka) dan mengakhiri (tutup) shift kerja kasir?
 **A:** Ikuti langkah berikut untuk mengelola laci uang kasir:

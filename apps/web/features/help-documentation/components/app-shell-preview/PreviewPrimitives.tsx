@@ -20,8 +20,9 @@ export function PreviewPageRoot({
       data-help-fidelity-page={ctx.page}
       data-help-preview-state={ctx.state}
       data-help-page-viewport="clipped"
+      data-help-responsive-page="true"
       className={cx(
-        "relative min-h-[768px] min-w-[1290px] bg-surface-50 text-surface-900",
+        "relative min-h-full min-w-0 w-full bg-surface-50 text-surface-900",
         className,
       )}
     >

@@ -1,6 +1,16 @@
 import type { Action } from "@/lib/rbac/permissions";
 
 export const MAX_PROOF_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+export type ProofRotation = 0 | 90 | 180 | 270;
+
+export function parseProofRotation(value: FormDataEntryValue | null): ProofRotation | null {
+  if (value === null) return 0;
+  if (typeof value !== "string") return null;
+  const rotation = Number(value);
+  return rotation === 0 || rotation === 90 || rotation === 180 || rotation === 270
+    ? rotation
+    : null;
+}
 
 const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   "image/jpeg": ".jpg",
