@@ -22,10 +22,64 @@ describe("buildFinancialReportRange", () => {
       dateFrom: "2026-05-01",
       dateTo: "2026-05-20",
     });
+    expect(buildFinancialReportRange("30d", now)).toEqual({
+      dateFrom: "2026-04-21",
+      dateTo: "2026-05-20",
+    });
   });
 });
 
 describe("buildFinancialReport", () => {
+  it("subtracts manual and shopping-request expenses from estimated net profit", () => {
+    const input = {
+      dateFrom: "2026-07-01",
+      dateTo: "2026-07-31",
+      transactions: [
+        {
+          id: "tx-1",
+          invoiceNumber: "INV-1",
+          createdAt: new Date("2026-07-10T02:00:00.000Z"),
+          status: "COMPLETED",
+          paymentMethod: "CASH",
+          total: 100000,
+          amountPaid: 100000,
+          discount: 0,
+          salesName: null,
+          salesperson: null,
+          items: [
+            {
+              productId: "product-1",
+              productName: "Produk",
+              quantity: 1,
+              subtotal: 100000,
+              unitCost: 40000,
+              product: null,
+            },
+          ],
+        },
+      ],
+      shifts: [],
+      inventoryLogs: [],
+      expenses: [
+        { amount: "25000.00", changeAmount: "5000.00", hasMissingCostSnapshot: false },
+        { amount: "10000.00", changeAmount: "0.00", hasMissingCostSnapshot: true },
+      ],
+    };
+
+    const report = buildFinancialReport(input);
+    const summary = report.summary as typeof report.summary & {
+      expenseTotal: number;
+      expenseEntryCount: number;
+      incompleteExpenseCount: number;
+      estimatedNetProfit: number;
+    };
+
+    expect(summary.expenseTotal).toBe(30000);
+    expect(summary.expenseEntryCount).toBe(2);
+    expect(summary.incompleteExpenseCount).toBe(1);
+    expect(summary.estimatedNetProfit).toBe(30000);
+  });
+
   it("summarizes revenue, gross profit, collections, outstanding DP, and shifts", () => {
     const report = buildFinancialReport({
       dateFrom: "2026-05-01",

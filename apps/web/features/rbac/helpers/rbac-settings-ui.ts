@@ -123,7 +123,12 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     label: "Supplier",
     description: "Data supplier dan permintaan belanja.",
     pageTargets: ["/suppliers"],
-    resourceTargets: ["supplier"],
+    resourceTargets: [
+      "supplier",
+      "supplier.shopping_request.edit",
+      "supplier.shopping_request.set_approved_qty",
+      "supplier.shopping_request.approve_stock",
+    ],
     sensitivity: "normal",
   },
   {

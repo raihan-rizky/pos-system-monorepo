@@ -9,7 +9,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 ### Q1: Bagaimana cara menambahkan produk baru ke katalog toko?
 **A:** Ikuti langkah berikut (memerlukan izin `product.create`):
 1. Buka sidebar **Katalog > Produk** (`/products`).
-2. Klik tombol hitam **Tambah Produk** di kanan atas.
+2. Klik tombol hitam **Tambah Produk** di kanan atas. Anda juga dapat meminta **Pak Teladan membuka modal Tambah Produk**; form tetap harus diperiksa, diisi, dan disimpan oleh pengguna.
 3. Isi formulir pendaftaran produk:
    - **Informasi Utama:** Nama produk, SKU (harus unik), Kategori, dan Merek bila ada. Jika merek belum tersedia, ketik nama merek baru lalu klik **Tambah**.
    - **Harga:** Harga Jual dasar, Harga Dinas (opsional), dan Harga Modal/HPP (opsional).
@@ -184,14 +184,18 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 4. Setelah draf lengkap, klik **Submit** (Ajukan). 
 5. Pengajuan ini tidak akan langsung menambah stok. Statusnya akan menjadi *Pending* hingga disetujui (Approve) oleh pihak berwenang (seperti OWNER atau admin dengan izin `inventory.approve`). Stok baru bertambah setelah disetujui.
 
-### Q19: Bagaimana cara membuat Daftar Belanja (Shopping Request) kebutuhan toko ke supplier?
-**A:** Fitur Daftar Belanja digunakan untuk mencatat kebutuhan barang/produk yang perlu dibeli dari supplier:
-1. Buka menu **Supplier** di sidebar, kemudian pilih tab **Daftar Belanja**.
-2. Klik tombol **Buat Daftar Belanja** di sebelah kanan atas tabel.
-3. Pilih nama supplier dari menu dropdown jika Anda sudah menentukan tempat pembelian (opsional).
-4. Gunakan kolom pencarian produk untuk menambahkan barang-barang yang stoknya ingin ditambah.
-5. Masukkan nominal kuantitas barang yang ingin diajukan (*requested quantity*) sesuai unitnya.
-6. Tulis keterangan pendukung pada kolom **Catatan Internal** bila perlu, lalu klik **Simpan Draft Belanja**.
+### Q19: Bagaimana cara membuat Permohonan Belanja kebutuhan toko ke supplier?
+**A:** Gunakan Permohonan Belanja untuk mencatat kebutuhan sekaligus menyiapkan update stok saat disetujui:
+1. Buka menu **Supplier**, lalu pilih tab **Permohonan Belanja** dan klik **Buat Permohonan Belanja**.
+2. Pilih supplier tujuan yang wajib diisi. Jika belum ada, isi nama dan tipe pada tambah supplier cepat; supplier baru otomatis terpilih.
+3. Cari produk melalui nama atau SKU. Gunakan thumbnail, unit, dan stok yang tampil untuk memastikan produk benar.
+4. Masukkan jumlah kebutuhan. Produk bergrup otomatis memakai **Stok Bersama**; ubah ke **Stok Produk Ini** bila diperlukan.
+5. Periksa live preview stok sebelum/sesudah, delta, dan varian yang terdampak, lalu klik **Simpan Permohonan Belanja**. Status menjadi **Diajukan** dan stok belum berubah.
+6. Sebelum ada item yang diputuskan, Owner atau role dengan izin `supplier.shopping_request.edit:update` dapat memakai **Edit** untuk mengganti supplier, produk, jumlah kebutuhan, mode stok, dan catatan.
+7. Owner atau role dengan izin `supplier.shopping_request.set_approved_qty:update` membuka **Isi Jumlah yang Di-ACC**. Isi jumlah setiap item secara eksplisit lalu simpan; langkah ini belum mengubah stok. Jumlah di atas kebutuhan memerlukan konfirmasi, sedangkan nilai 0 akan menjadi **Tidak Disetujui** ketika diproses.
+8. Pengguna dengan izin `supplier.shopping_request.approve_stock:update` membuka **Setujui**, memilih mode final, lalu memeriksa live preview stok dan **Estimasi pengeluaran** dari harga modal. Item tanpa harga modal dihitung Rp0 dan diberi peringatan.
+9. Klik **Setujui Item** untuk memproses satu barang atau setujui semua item yang masih menunggu sekaligus. Stok langsung berubah per item berdasarkan Jumlah yang Di-ACC; nilai 0 tidak mengubah stok. Keputusan item bersifat final, dan permohonan tetap **Diajukan** selama masih ada item menunggu.
+10. Setelah item terakhir diproses, permohonan selesai otomatis dan satu Pengeluaran kategori Bahan tercatat memakai tanggal permohonan. Entri berbadge **Permohonan Belanja** tidak dapat diedit atau dihapus dari halaman Keuangan, dan stok tidak ditambahkan kembali melalui Penerimaan Barang.
 
 ### Q28: Bagaimana cara melakukan Check In dan Check Out (Day Session) bagi Staf Gudang?
 **A:** Staf gudang wajib mengelola operasional harian melalui alur sesi (Day Session):
@@ -229,6 +233,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 2. Klik tombol **Tambah Pengeluaran** untuk memasukkan pengeluaran baru.
 3. Isi nominal pengeluaran, pilih kategori, dan tambahkan catatan pendukung (opsional).
 4. **Unggah Bukti Pengeluaran:** Klik **Pilih gambar bukti** untuk mengunggah foto nota ke R2 dan periksa pratinjaunya. Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik **Simpan**.
+5. Kenali sumbernya: badge **Manual** berasal dari form, sedangkan badge ungu **Permohonan Belanja** dibuat otomatis dari approval dan tidak dapat diedit atau dihapus dari Keuangan. Badge **Harga modal tidak tersedia saat approval** berarti sebagian nilai item dihitung Rp0 secara permanen pada snapshot tersebut.
 
 ### Q21: Bagaimana cara mengekspor data Laporan Keuangan ke format Excel atau PDF?
 **A:** Anda dapat mengunduh salinan data laporan keuangan ke perangkat Anda:
@@ -236,9 +241,12 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 2. Pilih format dokumen:
    - **Excel (.xlsx):** Format tabel data angka mentah, cocok jika Anda ingin mengolah kembali data laporan.
    - **PDF:** Format dokumen siap cetak yang rapi dan terstruktur.
-3. Setelah memilih format, tentukan rentang waktu laporan yang ingin diekspor: **Harian** (hari ini), **Mingguan** (7 hari terakhir), atau **Bulanan** (bulan berjalan).
+3. Setelah memilih format, tentukan rentang waktu laporan yang ingin diekspor: **Harian** (hari ini), **Mingguan** (7 hari terakhir), **30 hari terakhir**, atau **Bulanan** (bulan berjalan).
 4. Berkas laporan akan otomatis terunduh ke perangkat Anda.
    *(Pilihan rentang tanggal filter yang sedang aktif di layar visual tidak memengaruhi isi berkas yang diekspor. Berkas yang diunduh akan selalu murni mengikuti cakupan periode yang Anda pilih di dalam menu dropdown Ekspor).*
+5. Di halaman laporan, KPI **Pengeluaran** mencakup pengeluaran manual dan Permohonan Belanja. **Laba Bersih (Estimasi)** adalah Laba Kotor dikurangi seluruh pengeluaran; angka ini bukan laba akrual formal atau bukti pembayaran supplier.
+6. Anda dapat meminta Pak Teladan, misalnya **"ekspor laporan keuangan"**. Jika periode dan format tidak disebutkan, Pak Teladan memakai **30 hari terakhir** dan **PDF**.
+7. Untuk permintaan analisis keuangan, Pak Teladan membaca seluruh bagian laporan dalam rentang yang sama: ringkasan, metode pembayaran, produk teratas, kategori, sales, shift, kehilangan stok, dan tren. Saran dibuat dari gabungan metrik tersebut, bukan dari omzet saja.
 
 ### Q22: Bagaimana cara mengubah informasi profil toko yang muncul di struk belanja?
 **A:** Untuk memperbarui logo, nama, atau alamat di struk penjualan:
@@ -287,3 +295,4 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 3. Pilih periode **Harian**, **Mingguan**, **Bulanan**, atau **Tahunan**. Periode mingguan berjalan dari Senin sampai hari ini.
 4. Pilih **Excel (.xlsx)** untuk mendapatkan sheet **Agen**, **Umum**, **Pemerintah**, **Industri**, dan **Ringkasan**, atau pilih **PDF** untuk section per tipe dan halaman **Ringkasan Semua Tipe**.
 5. Setiap tipe memuat pelanggan yang bertransaksi pada periode tersebut, diurutkan berdasarkan Total Belanja, Produk Favorit, dan Top 10 Produk. Ringkasan terakhir memuat KPI dan Analisis AI.
+6. Anda juga dapat meminta **"ekspor rekap pelanggan"** kepada Pak Teladan. Jika periode dan format tidak disebutkan, ekspor memakai **30 hari terakhir** dan **PDF**.

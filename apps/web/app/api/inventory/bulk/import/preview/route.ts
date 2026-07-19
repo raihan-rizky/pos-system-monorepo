@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       durationMs: Date.now() - startedAt,
     });
     return NextResponse.json(
-      { message: "Failed to preview bulk stock import" },
+      { message: "Gagal membuat pratinjau impor stok massal" },
       { status: 500 },
     );
   }

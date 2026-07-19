@@ -215,7 +215,7 @@ export function useBulkBatchDetail(batchId: string | null) {
     enabled: Boolean(batchId),
     queryFn: async () => {
       const res = await fetch(`/api/inventory/bulk/${batchId}`);
-      if (!res.ok) throw new Error("Failed to load bulk inventory request");
+      if (!res.ok) throw new Error("Gagal memuat permintaan inventaris massal");
       return res.json() as Promise<BulkBatchDetail>;
     },
   });

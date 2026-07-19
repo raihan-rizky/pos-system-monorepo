@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { UserRole } from "../types/assistant";
+import type { AssistantClientAction, UserRole } from "../types/assistant";
 import { buildDefaultRolePermissions, type RolePermissions } from "@/features/rbac/helpers/rbac-core";
 import { getLogger, type Logger } from "@/lib/logger";
 import {
@@ -52,11 +52,12 @@ type PageContext = {
 };
 
 type ToolExecutionResult =
-  | { ok: true; tool: AssistantToolDefinition; data: unknown }
+  | { ok: true; tool: AssistantToolDefinition; data: unknown; clientAction?: AssistantClientAction }
   | { ok: false; error: string; error_code: string; tool?: AssistantToolDefinition };
 
 type ProgressEvent =
   | { type: "progress"; status: "planning" | "tool_selected" | "tool_running" | "tool_retrying" | "answer_generating"; toolName?: string }
+  | { type: "client_action"; action: AssistantClientAction; occurredAt: string }
   | { type: "final"; answer: StructuredAssistantAnswer }
   | { message: { role: "assistant"; content: string } };
 
@@ -122,6 +123,19 @@ const NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1/";
 const SSE_INITIAL_PADDING = `: ${" ".repeat(8192)}\n`;
 const DEFAULT_WORKFLOW_CLARIFICATION = "Maaf, Pak Tel belum yakin panduan mana yang kamu maksud. Sebutkan menu atau tujuan langkahnya ya.";
 const DEFAULT_ASSISTANT_DEADLINE_MS = 60_000;
+const ALWAYS_FAST_PATH_TOOLS = new Set([
+  "exportFinancialReport",
+  "exportCustomerRecap",
+  "analyzeFinancialReport",
+  "openProductModal",
+  "openCustomerModal",
+  "openSupplierModal",
+  "openSalespersonModal",
+  "openExpenseModal",
+  "openShiftModal",
+  "openStockUpdateModal",
+  "openInboundReceiptModal",
+]);
 
 const assistantWorkflowSelectionJsonSchema = {
   type: "object",
@@ -416,6 +430,9 @@ ${roleContext[role]}
 4. **RBAC**: Backend sudah mengatur akses. Jangan coba akses data di luar role aktif.
 5. **Hasil kosong**: Hasil tool kosong (stok 0, daftar kosong) bukan error — sampaikan datanya kosong dengan jelas.
 
+6. **Aksi aplikasi**: Jika tool menghasilkan aksi browser, jelaskan singkat apa yang sedang dibuka atau diekspor. Jangan pernah mengklaim form sudah disimpan.
+7. **Analisis menyeluruh**: Untuk output financial_report_analysis, periksa semua bagian coverage, prioritaskan anomali dan kualitas data, lalu beri saran konkret tanpa mengarang penyebab.
+
 ## FORMAT JAWABAN
 - Jangan gunakan heading \`#\` atau \`##\`. Maksimal \`###\` atau **bold** untuk sub-judul.
 - Jawaban tampil di chat widget kecil — tulis ringkas, mudah di-scan.
@@ -480,7 +497,11 @@ ${roleContext[role]}
       const attemptStartedAt = Date.now();
       toolLog.info("assistant.tool.attempt.started", { attempt, maxAttempts });
       try {
-        const raw = await tool.execute(validation.data, { storeId, repository: this.config.toolsRepository! });
+        const raw = await tool.execute(validation.data, {
+          storeId,
+          repository: this.config.toolsRepository!,
+          now: this.config.now?.() ?? new Date(),
+        });
         const shaped = tool.shapeOutput(raw);
         const shapedValidation = tool.outputSchema.safeParse(shaped);
         if (!shapedValidation.success) {
@@ -500,7 +521,12 @@ ${roleContext[role]}
           attempt,
           durationMs: Date.now() - attemptStartedAt,
         });
-        return { ok: true, tool, data: shapedValidation.data };
+        return {
+          ok: true,
+          tool,
+          data: shapedValidation.data,
+          clientAction: tool.clientAction?.(shapedValidation.data),
+        };
       } catch (error) {
         lastError = error;
         const retriable = isRetriableToolError(error);
@@ -741,6 +767,14 @@ ${roleContext[role]}
       requestLog.info("assistant.stream.progress", { status, toolName: safeToolName });
       return { type: "progress", status, toolName };
     };
+    const clientActionEvent = (action: AssistantClientAction): Extract<ProgressEvent, { type: "client_action" }> => {
+      requestLog.info("assistant.client_action.ready", { actionKind: action.kind });
+      return {
+        type: "client_action",
+        action,
+        occurredAt: (this.config.now?.() ?? new Date()).toISOString(),
+      };
+    };
     const forwardedProgressEvent = (event: ProgressEvent) => {
       if ("type" in event && event.type === "progress") {
         const safeToolName = event.toolName
@@ -755,13 +789,15 @@ ${roleContext[role]}
     try {
       firstFrameReadyAt = Date.now();
       yield progressEvent("planning");
-      const fastPathEnabled = candidateName !== null && this.config.fastPathIntents?.has(candidateName) === true;
+      const alwaysFastPath = candidate.kind === "tool" && ALWAYS_FAST_PATH_TOOLS.has(candidate.toolName);
+      const fastPathEnabled = alwaysFastPath
+        || (candidateName !== null && this.config.fastPathIntents?.has(candidateName) === true);
       requestLog.info("assistant.path.evaluated", {
         intent: metrics.intent,
         fastPathEnabled,
       });
 
-      if (workflowMatch.kind === "matched") {
+      if (!alwaysFastPath && workflowMatch.kind === "matched") {
         metrics.routeKind = "workflow_fast_path";
         requestLog.info("assistant.path.selected", {
           routeKind: metrics.routeKind,
@@ -775,7 +811,7 @@ ${roleContext[role]}
         return;
       }
 
-      if (workflowMatch.kind === "denied") {
+      if (!alwaysFastPath && workflowMatch.kind === "denied") {
         metrics.routeKind = "workflow_fast_path";
         metrics.failureCategory = "rbac";
         requestLog.info("assistant.path.selected", {
@@ -791,11 +827,13 @@ ${roleContext[role]}
         return;
       }
 
-      const workflowSelectionCandidates = workflowMatch.kind === "ambiguous"
-        ? workflowMatch.candidates
-        : workflowMatch.kind === "none" && isWorkflowHelpRequest(latestUserMessage)
-          ? getPermittedWorkflows(input.role, rolePermissions)
-          : [];
+      const workflowSelectionCandidates = alwaysFastPath
+        ? []
+        : workflowMatch.kind === "ambiguous"
+          ? workflowMatch.candidates
+          : workflowMatch.kind === "none" && isWorkflowHelpRequest(latestUserMessage)
+            ? getPermittedWorkflows(input.role, rolePermissions)
+            : [];
       if (workflowSelectionCandidates.length > 0) {
         metrics.routeKind = "workflow_model_selection";
         requestLog.info("assistant.path.selected", {
@@ -887,6 +925,9 @@ ${roleContext[role]}
         // to model selection if its schema contract is unexpectedly violated.
         if (directResult.ok) {
           requestLog.info("assistant.tool.completed", { toolName: candidate.toolName, durationMs: metrics.toolDurationMs });
+          if (directResult.clientAction) {
+            yield clientActionEvent(directResult.clientAction);
+          }
           yield* this.yieldFinalAnswer({
             systemPrompt,
             messages: recentMessages,
@@ -1058,6 +1099,10 @@ ${roleContext[role]}
         return;
       }
 
+      if (toolResult.clientAction) {
+        yield clientActionEvent(toolResult.clientAction);
+      }
+
       yield* this.yieldFinalAnswer({
         systemPrompt,
         messages: recentMessages,
@@ -1158,6 +1203,9 @@ ${roleContext[role]}
 - Jika tidak ada tool yang cocok, jawab langsung tanpa memanggil tool.
 - Jangan memanggil tool untuk pertanyaan sapaan, pertanyaan tentang dirimu, atau pertanyaan di luar cakupan POS.
 - Gunakan tool "get_system_help" jika user bertanya cara memakai fitur aplikasi.
+- Untuk permintaan menjalankan aksi (buka form/modal atau ekspor file), pilih tool aksi yang sesuai, bukan get_system_help.
+- Jika periode ekspor/analisis tidak disebut, gunakan 30d. Jika format ekspor tidak disebut, gunakan pdf.
+- Gunakan analyzeFinancialReport untuk analisis menyeluruh; tool itu sudah mencakup semua metrik halaman dalam satu panggilan.
 - Jika pertanyaan ambigu (bisa cocok dengan beberapa tool), pilih tool yang paling spesifik.`,
       },
       ...messages.map((message) => ({ role: message.role, content: message.content })),

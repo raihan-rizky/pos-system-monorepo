@@ -1,10 +1,23 @@
-export type ShoppingRequestStatus = "DRAFT" | "APPROVED" | "CANCELLED";
+export type ShoppingRequestStatus = "REQUESTED" | "APPROVED" | "CANCELLED";
+
+export type ShoppingRequestStockMode = "GROUP_STOCK" | "PRODUCT_ONLY";
+export type ShoppingRequestItemDecisionStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED";
 
 export const SHOPPING_REQUEST_STATUSES: ShoppingRequestStatus[] = [
-  "DRAFT",
+  "REQUESTED",
   "APPROVED",
   "CANCELLED",
 ];
+
+export interface ShoppingRequestKpiSummary {
+  pendingRequestCount: number;
+  pendingRequestedQty: number;
+  approvedRequestCount: number;
+  fulfillmentRate: number;
+}
 
 export interface ShoppingRequestListItem {
   id: string;
@@ -15,11 +28,14 @@ export interface ShoppingRequestListItem {
   requestedByName: string | null;
   approvedByName: string | null;
   itemCount: number;
+  decidedItemCount: number;
+  pendingItemCount: number;
   totalRequestedQty: number;
   totalApprovedQty: number | null;
   createdAt: string;
   approvedAt: string | null;
   note: string | null;
+  stockAppliedAt: string | null;
 }
 
 export interface ShoppingRequestItemRecord {
@@ -31,9 +47,24 @@ export interface ShoppingRequestItemRecord {
   stockOnHand: number;
   requestedQty: number;
   approvedQty: number | null;
+  stockMode: ShoppingRequestStockMode;
+  decisionStatus: ShoppingRequestItemDecisionStatus;
+  decidedById: string | null;
+  decidedByName: string | null;
+  decidedAt: string | null;
+  itemStockAppliedAt: string | null;
+  costPriceSnapshot: number | string | null;
+  imageUrl: string | null;
   product: {
+    costPrice?: number | string | null;
     unitMultiplierToBase?: number | null;
-    stockGroup?: { baseUnit: string | null } | null;
+    conversionNeedsReview?: boolean;
+    stockGroup?: {
+      id: string;
+      displayName: string;
+      baseUnit: string | null;
+      baseStock: number;
+    } | null;
   };
 }
 
@@ -44,10 +75,11 @@ export interface ShoppingRequestDetail extends ShoppingRequestListItem {
 export interface ShoppingRequestItemInput {
   productId: string;
   requestedQty: number;
+  stockMode: ShoppingRequestStockMode;
 }
 
 export interface CreateShoppingRequestInput {
-  supplierId?: string | null;
+  supplierId: string;
   requestedByName?: string | null;
   note?: string | null;
   items: ShoppingRequestItemInput[];
@@ -55,11 +87,28 @@ export interface CreateShoppingRequestInput {
 
 export interface ApproveShoppingRequestItemInput {
   id: string;
-  approvedQty: number;
+  stockMode?: ShoppingRequestStockMode;
 }
 
 export interface ApproveShoppingRequestInput {
   items: ApproveShoppingRequestItemInput[];
+  confirmOverRequested?: boolean;
+}
+
+export interface SaveShoppingRequestApprovedQuantitiesInput {
+  items: Array<{ id: string; approvedQty: number }>;
+  confirmOverRequested?: boolean;
+}
+
+export interface ApproveShoppingRequestIndividualItemInput {
+  stockMode?: ShoppingRequestStockMode;
+  confirmOverRequested?: boolean;
+}
+
+export interface UpdateShoppingRequestInput {
+  supplierId: string;
+  note?: string | null;
+  items: ShoppingRequestItemInput[];
 }
 
 export interface ShoppingRequestActor {

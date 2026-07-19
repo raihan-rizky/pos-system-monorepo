@@ -203,7 +203,7 @@ export const BulkStockGroupDrawer: React.FC<BulkStockGroupDrawerProps> = ({
               <Boxes className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-black text-slate-900">Bulk Grup Stok</p>
+              <p className="text-sm font-black text-slate-900">Grup Stok Massal</p>
               <p className="text-xs text-slate-500">{products.length} produk dipilih</p>
             </div>
           </div>

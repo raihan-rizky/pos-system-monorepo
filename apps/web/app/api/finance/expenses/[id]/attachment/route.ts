@@ -16,11 +16,25 @@ export async function DELETE(
     const storeId = user.storeId || "store-main";
     const { id } = await params;
     const expense = await db.expense.findFirst({
-      where: { id, recordedBy: { storeId } },
-      select: { id: true, attachmentUrl: true, deletedAt: true },
+      where: { id, storeId },
+      select: {
+        id: true,
+        attachmentUrl: true,
+        deletedAt: true,
+        shoppingRequestId: true,
+      },
     });
     if (!expense || expense.deletedAt || !expense.attachmentUrl) {
       return NextResponse.json({ message: "Bukti pengeluaran tidak ditemukan." }, { status: 404 });
+    }
+    if (expense.shoppingRequestId) {
+      return NextResponse.json(
+        {
+          message:
+            "Lampiran pengeluaran dari Permohonan Belanja tidak dapat diubah dari halaman Keuangan.",
+        },
+        { status: 409 },
+      );
     }
     const removed = await removeStoredProofAsset(expense.attachmentUrl);
     await db.expense.update({ where: { id }, data: { attachmentUrl: null } });

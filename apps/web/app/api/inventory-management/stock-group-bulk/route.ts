@@ -391,7 +391,7 @@ export async function POST(request: Request) {
               preview.type === "OUT"
                 ? Math.abs(variant.delta)
                 : variant.afterStock,
-            note: input.note?.trim() || `Bulk grup stok ${preview.displayName}`,
+            note: input.note?.trim() || `Grup stok massal ${preview.displayName}`,
             createdBy: user.id,
             person: user.name,
             status: "PENDING",
@@ -459,7 +459,7 @@ export async function POST(request: Request) {
         });
       }
     }
-    return apiError("Failed to process stock group bulk request", 500, {
+    return apiError("Gagal memproses permintaan grup stok massal", 500, {
       code: "InternalError",
     });
   }

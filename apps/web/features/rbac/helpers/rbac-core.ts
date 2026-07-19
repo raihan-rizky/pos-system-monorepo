@@ -66,6 +66,9 @@ export const RESOURCE_TARGETS = [
   "product",
   "product.price_log",
   "supplier",
+  "supplier.shopping_request.edit",
+  "supplier.shopping_request.set_approved_qty",
+  "supplier.shopping_request.approve_stock",
   "inventory",
   "inventory.approve",
   "inventory.out_log.verify",
@@ -201,6 +204,24 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
 const RESOURCE_GRANULAR_ACCESS: Partial<
   Record<string, Record<ResourceAction, Role[]>>
 > = {
+  "supplier.shopping_request.edit": {
+    read: [],
+    create: [],
+    update: [],
+    delete: [],
+  },
+  "supplier.shopping_request.set_approved_qty": {
+    read: [],
+    create: [],
+    update: [],
+    delete: [],
+  },
+  "supplier.shopping_request.approve_stock": {
+    read: [],
+    create: [],
+    update: [],
+    delete: [],
+  },
   proof_upload: {
     read: [],
     create: [],

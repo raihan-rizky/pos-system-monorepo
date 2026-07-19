@@ -44,6 +44,7 @@ import {
 import { useDebounce } from "@/hooks/useDebounce";
 import { useRole } from "@/components/providers/RoleProvider";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
+import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import {
   shouldShowAction,
   shouldShowDeleteAction,
@@ -1384,6 +1385,7 @@ export default function CustomersPage() {
     setEditTarget(null);
     setModalOpen(true);
   }, [canCreateCustomers]);
+  useAssistantModalAction("customer-create", openCreateModal);
 
   const openEditModal = useCallback(
     (customer: Customer) => {

@@ -197,7 +197,7 @@ export function BulkStockDrawer({
   };
 
   return (
-    <Modal open={open} onClose={close} title="Bulk Stock Update" size="5xl" className="max-h-[92dvh] max-w-[96vw] xl:max-w-7xl translate-y-0">
+    <Modal open={open} onClose={close} title="Pembaruan Stok Massal" size="5xl" className="max-h-[92dvh] max-w-[96vw] xl:max-w-7xl translate-y-0">
       <div className="space-y-4">
         {commit.data ? (
           <div className="space-y-3">
@@ -205,7 +205,7 @@ export function BulkStockDrawer({
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                 <p className="font-bold">Menunggu persetujuan owner</p>
                 <p className="mt-1">
-                  Permintaan bulk berhasil dibuat. Stok produk belum berubah sampai item disetujui.
+                  Permintaan massal berhasil dibuat. Stok produk belum berubah sampai item disetujui.
                 </p>
               </div>
             )}

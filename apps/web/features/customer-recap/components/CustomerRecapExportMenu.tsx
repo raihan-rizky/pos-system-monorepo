@@ -2,21 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
-import { customerRecapApi } from "../api/customerRecapApi";
 import { buildCustomerRecapRange } from "../helpers/recap-core";
 import type { CustomerRecapPreset } from "../helpers/recap-core";
 import type { CustomerRecapQuery } from "../types/customer-recap";
+import { exportCustomerRecapRange } from "../helpers/customer-recap-export-client";
 
 type ExportFormat = "xlsx" | "pdf";
 type ExportStep = "closed" | "period" | "format";
 
 const PERIOD_OPTIONS: Array<{
-  value: Extract<CustomerRecapPreset, "daily" | "weekly" | "monthly" | "yearly">;
+  value: Extract<CustomerRecapPreset, "daily" | "weekly" | "monthly" | "30d" | "yearly">;
   label: string;
   hint: string;
 }> = [
   { value: "daily", label: "Harian", hint: "Hari ini" },
   { value: "weekly", label: "Mingguan", hint: "Senin sampai hari ini" },
+  { value: "30d", label: "30 Hari", hint: "30 hari terakhir" },
   { value: "monthly", label: "Bulanan", hint: "Bulan berjalan" },
   { value: "yearly", label: "Tahunan", hint: "Tahun berjalan" },
 ];
@@ -73,7 +74,7 @@ export function CustomerRecapExportMenu({
   }, [busy]);
 
   const handlePeriod = useCallback(
-    (preset: Extract<CustomerRecapPreset, "daily" | "weekly" | "monthly" | "yearly">) => {
+    (preset: Extract<CustomerRecapPreset, "daily" | "weekly" | "monthly" | "30d" | "yearly">) => {
       const nextRange = buildCustomerRecapRange(preset);
       setSelectedRange(nextRange);
       onRangeChange(nextRange);
@@ -91,17 +92,7 @@ export function CustomerRecapExportMenu({
       setError(null);
       setFailedFormat(null);
       try {
-        const data = await customerRecapApi.getExportRecap(selectedRange);
-        const [{ generateCustomerRecapAiAnalysis }, exportFiles] = await Promise.all([
-          import("../helpers/customer-recap-ai"),
-          import("../helpers/export-files"),
-        ]);
-        const aiAnalysis = await generateCustomerRecapAiAnalysis(data);
-        if (format === "xlsx") {
-          await exportFiles.exportCustomerRecapXlsx(data, aiAnalysis);
-        } else {
-          await exportFiles.exportCustomerRecapPdf(data, aiAnalysis);
-        }
+        await exportCustomerRecapRange(selectedRange, format);
         setStep("closed");
       } catch (err) {
         setFailedFormat(format);

@@ -360,7 +360,7 @@ describe("visual help guides", () => {
       ["inventory", "inventory-stock-log-tab", "inventory-stock-log", "Log Stok"],
       ["inventory", "inventory-matching", "inventory-matching-modal", "Matching Stok Harian"],
       ["suppliers", "suppliers-add", "suppliers-form-open", "Tambah Supplier"],
-      ["suppliers", "suppliers-create-request", "suppliers-request-open", "Buat Daftar Belanja"],
+      ["suppliers", "suppliers-create-request", "suppliers-request-open", "Buat Permohonan Belanja"],
       ["customers", "customers-debt-tab", "customers-debt", "Piutang"],
       ["customers", "customers-pay-debt", "customers-payment-open", "Bayar Piutang"],
       ["finance", "finance-expense-form", "finance-expense-form-open", "Form Pengeluaran"],

@@ -16,7 +16,7 @@ describe("formatBulkStockImportApiErrorMessage", () => {
             stock: ["Stock cannot be negative or insufficient"],
           },
         },
-        "Failed to commit bulk stock import",
+        "Gagal menerapkan impor stok massal",
       ),
     ).toBe("Stock cannot be negative or insufficient");
   });
@@ -25,7 +25,7 @@ describe("formatBulkStockImportApiErrorMessage", () => {
     expect(
       formatBulkStockImportApiErrorMessage(
         { message: "Supplier was not found" },
-        "Failed to commit bulk stock import",
+        "Gagal menerapkan impor stok massal",
       ),
     ).toBe("Supplier was not found");
   });

@@ -3,7 +3,7 @@ import {
 } from "@/features/keuangan/helpers/category-meta";
 import type { ExpenseCategory } from "@/features/keuangan/helpers/keuangan-core";
 
-export type ReportPeriod = "daily" | "weekly" | "monthly";
+export type ReportPeriod = "daily" | "weekly" | "monthly" | "30d";
 
 export const PAYMENT_METHODS = [
   "CASH",
@@ -39,6 +39,9 @@ export function buildReportPeriodRange(
   if (period === "daily") return { from: today, to: today };
   if (period === "weekly") {
     return { from: shiftJakartaDateKey(today, -6), to: today };
+  }
+  if (period === "30d") {
+    return { from: shiftJakartaDateKey(today, -29), to: today };
   }
   // monthly: first of month → today
   return { from: `${today.slice(0, 8)}01`, to: today };
@@ -76,6 +79,8 @@ export type ReportExpenseInput = {
   description: string | null;
   amount: Decimalish;
   changeAmount: Decimalish;
+  hasMissingCostSnapshot?: boolean;
+  shoppingRequestNumber?: string | null;
 };
 
 export type ReportRow = {
@@ -125,7 +130,19 @@ function saleToRow(sale: ReportSaleInput): ReportRow {
 
 function expenseToRow(expense: ReportExpenseInput): ReportRow {
   const categoryLabel = CATEGORY_LABELS_ID[expense.category];
-  const products = expense.description?.trim() || categoryLabel;
+  const sourceLabel = expense.shoppingRequestNumber
+    ? `Permohonan Belanja ${expense.shoppingRequestNumber}`
+    : null;
+  const warning = expense.hasMissingCostSnapshot
+    ? "Harga modal tidak tersedia saat approval"
+    : null;
+  const products = [
+    sourceLabel,
+    expense.description?.trim() || categoryLabel,
+    warning,
+  ]
+    .filter(Boolean)
+    .join(" - ");
   const net = toNumber(expense.amount) - toNumber(expense.changeAmount);
   return {
     tanggal: jakartaDateKey(expense.occurredAt),

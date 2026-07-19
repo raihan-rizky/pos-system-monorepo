@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 
     const where = {
       deletedAt: null,
-      recordedBy: { storeId },
+      storeId,
       occurredAt: { gte: range.start, lt: range.end },
       ...(category ? { category } : {}),
     } as const;
@@ -80,6 +80,8 @@ export async function GET(request: Request) {
           createdAt: true,
           transactionId: true,
           attachmentUrl: true,
+          hasMissingCostSnapshot: true,
+          shoppingRequest: { select: { id: true, number: true } },
           recordedBy: { select: { id: true, name: true } },
         },
       }),
@@ -101,6 +103,14 @@ export async function GET(request: Request) {
         createdAt: row.createdAt.toISOString(),
         transactionId: row.transactionId,
         attachmentUrl: row.attachmentUrl,
+        hasMissingCostSnapshot: row.hasMissingCostSnapshot,
+        source: row.shoppingRequest
+          ? {
+              type: "SHOPPING_REQUEST" as const,
+              id: row.shoppingRequest.id,
+              number: row.shoppingRequest.number,
+            }
+          : { type: "MANUAL" as const },
         recordedBy: row.recordedBy,
       };
     });
@@ -153,6 +163,7 @@ export async function POST(request: Request) {
 
     const created = await db.expense.create({
       data: {
+        storeId,
         recordedById: user.id,
         applicantName: data.applicantName.trim(),
         category: data.category,

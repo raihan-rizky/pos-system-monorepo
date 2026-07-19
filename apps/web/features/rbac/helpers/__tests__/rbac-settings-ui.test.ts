@@ -133,6 +133,48 @@ describe("RBAC settings UI helpers", () => {
     expect(approvalModule?.resourceTargets).toContain("inventory.out_log.verify");
   });
 
+  it("exposes configurable stock approval for shopping requests with Owner-only defaults", async () => {
+    const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
+    const defaults = buildDefaultRolePermissions();
+    const supplierModule = RBAC_PERMISSION_MODULES.find(
+      (module) => module.id === "suppliers",
+    );
+
+    expect(supplierModule?.resourceTargets).toContain(
+      "supplier.shopping_request.approve_stock",
+    );
+    expect(
+      EDITABLE_ROLES.every(
+        (role) =>
+          defaults[role].resources["supplier.shopping_request.approve_stock"]
+            .update === false,
+      ),
+    ).toBe(true);
+  });
+
+  it("exposes Owner-only defaults for editing requests and filling approved quantities", async () => {
+    const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
+    const defaults = buildDefaultRolePermissions();
+    const supplierModule = RBAC_PERMISSION_MODULES.find(
+      (module) => module.id === "suppliers",
+    );
+    const resources = [
+      "supplier.shopping_request.edit",
+      "supplier.shopping_request.set_approved_qty",
+    ] as const;
+
+    expect(supplierModule?.resourceTargets).toEqual(
+      expect.arrayContaining([...resources]),
+    );
+    for (const resource of resources) {
+      expect(
+        EDITABLE_ROLES.every(
+          (role) => defaults[role].resources[resource].update === false,
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("explains page and resource mismatch warnings in practical language", async () => {
     const { buildModuleWarnings } = await import("../rbac-settings-ui");
     const permissions = buildDefaultRolePermissions();

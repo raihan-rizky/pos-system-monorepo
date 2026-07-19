@@ -159,7 +159,7 @@ export async function POST(request: Request) {
       durationMs: Date.now() - startedAt,
     });
     return NextResponse.json(
-      { message: "Failed to commit bulk stock import" },
+      { message: "Gagal menerapkan impor stok massal" },
       { status: 500 },
     );
   }

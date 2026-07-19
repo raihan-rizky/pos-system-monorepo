@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   CalendarRange,
   PackageX,
+  ReceiptText,
 } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import {
@@ -29,6 +30,7 @@ import { TrendChart } from "@/features/financial-report/components/TrendChart";
 const PRESETS: Array<{ value: FinancialReportPreset; label: string }> = [
   { value: "today", label: "Hari ini" },
   { value: "7d", label: "7 hari" },
+  { value: "30d", label: "30 hari" },
   { value: "month", label: "Bulan ini" },
 ];
 
@@ -91,10 +93,14 @@ export default function FinancialReportPage() {
   const transactionCount = summary?.transactionCount ?? 0;
   const lossStokNet = summary?.lossStokNet ?? 0;
   const lossStokUnclassifiedCount = summary?.lossStokUnclassifiedCount ?? 0;
+  const incompleteExpenseCount = summary?.incompleteExpenseCount ?? 0;
+  const estimatedNetProfit = summary?.estimatedNetProfit ?? 0;
   const lossTone = lossStokNet > 0 ? "warning" : lossStokNet < 0 ? "success" : "neutral";
   const grossMargin = summary?.grossMargin ?? 0;
   const marginTone =
     grossMargin >= 0.3 ? "success" : grossMargin >= 0.15 ? "brand" : "warning";
+  const estimatedNetProfitTone =
+    estimatedNetProfit >= 0 ? "success" : "danger";
 
   const collectionRate =
     summary && summary.revenue > 0
@@ -271,6 +277,22 @@ export default function FinancialReportPage() {
               </p>
             </div>
           )}
+
+          {!isLoading && incompleteExpenseCount > 0 && (
+            <div
+              role="note"
+              className="flex items-start gap-2 border-t border-amber-100 bg-amber-50/70 px-4 py-2.5 text-[12px] text-amber-800 md:px-5"
+            >
+              <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0"
+                aria-hidden="true"
+              />
+              <p>
+                {incompleteExpenseCount} pengeluaran bertanda Harga modal tidak tersedia saat approval.
+                Nilai Pengeluaran dan Laba Bersih (Estimasi) dapat lebih rendah dari biaya sebenarnya.
+              </p>
+            </div>
+          )}
         </section>
 
         {error && (
@@ -284,7 +306,7 @@ export default function FinancialReportPage() {
 
         <section
           aria-label="Ringkasan KPI"
-          className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6"
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"
         >
           <KpiCard
             label="Omzet"
@@ -326,6 +348,34 @@ export default function FinancialReportPage() {
               description:
                 "Sisa dari Omzet setelah dikurangi HPP barang terjual dan kerugian stok.",
               formula: "Omzet − COGS − Loss Stok",
+            }}
+          />
+          <KpiCard
+            label="Pengeluaran"
+            value={formatRupiah(summary?.expenseTotal ?? 0)}
+            hint={`${summary?.expenseEntryCount ?? 0} entri`}
+            tone="danger"
+            loading={isLoading}
+            icon={<ReceiptText className="h-4 w-4" aria-hidden="true" />}
+            infoText={{
+              title: "Pengeluaran",
+              description:
+                "Total pengeluaran manual dan Permohonan Belanja pada periode ini.",
+              formula: "jumlah - kembalian",
+            }}
+          />
+          <KpiCard
+            label="Laba Bersih (Estimasi)"
+            value={formatRupiah(summary?.estimatedNetProfit ?? 0)}
+            hint="Bukan laba akrual formal"
+            tone={estimatedNetProfitTone}
+            loading={isLoading}
+            icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
+            infoText={{
+              title: "Laba Bersih (Estimasi)",
+              description:
+                "Estimasi operasional. Approval belanja bukan bukti pembayaran supplier dan pembelian stok dapat terhitung bersama HPP.",
+              formula: "Laba Kotor - seluruh Pengeluaran",
             }}
           />
           <KpiCard

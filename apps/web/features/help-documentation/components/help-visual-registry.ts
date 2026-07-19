@@ -203,16 +203,16 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
           { key: "suppliers-primary", label: "Halaman Supplier" },
           { key: "suppliers-list", label: "Daftar Supplier" },
           { key: "suppliers-add", label: "Tambah Supplier" },
-          { key: "suppliers-shopping-tab", label: "Tab Daftar Belanja" },
+          { key: "suppliers-shopping-tab", label: "Tab Permohonan Belanja" },
         ],
       },
       {
         title: "Daftar Belanja",
         targets: [
-          { key: "suppliers-create-request", label: "Buat Daftar Belanja" },
+          { key: "suppliers-create-request", label: "Buat Permohonan Belanja" },
           { key: "suppliers-add-products", label: "Cari & Tambah Produk" },
-          { key: "suppliers-request-quantity", label: "Requested Quantity" },
-          { key: "suppliers-approve", label: "Setujui Belanja" },
+          { key: "suppliers-request-quantity", label: "Kebutuhan & Mode Stok" },
+          { key: "suppliers-approve", label: "Setujui Permohonan" },
         ],
       },
     ],
@@ -382,7 +382,7 @@ function inferPage(input: HelpStepVisualResolveInput): HelpVisualPage {
   if (includesAny(text, ["shift", "laci"])) return "shift";
   if (includesAny(text, ["produksi", "kanban", "job order", "pickup"])) return "production";
   if (includesAny(text, ["tim sales", "performa sales", "anggota sales", "salesperson"])) return "salespersons";
-  if (includesAny(text, ["supplier", "pemasok", "daftar belanja", "shopping request"])) return "suppliers";
+  if (includesAny(text, ["supplier", "pemasok", "permohonan belanja", "daftar belanja", "shopping request"])) return "suppliers";
   if (includesAny(text, ["pelanggan", "piutang", "crm", "customer", "utang", "bon"])) return "customers";
   if (includesAny(text, ["laporan keuangan", "keuangan", "pengeluaran", "expense", "ekspor laporan"])) return "finance";
   if (includesAny(text, ["inventaris", "inventory", "gudang", "log stok", "penerimaan barang", "barang rusak", "update stok", "matching stok", "check in", "check out"])) return "inventory";
@@ -453,8 +453,8 @@ function targetForPage(page: HelpVisualPage, input: HelpStepVisualResolveInput) 
       return "inventory-primary";
     case "suppliers":
       if (includesAny(text, ["tambah supplier", "tambah pemasok"])) return "suppliers-add";
-      if (includesAny(text, ["tab daftar belanja", "daftar belanja"])) return "suppliers-shopping-tab";
-      if (includesAny(text, ["buat pengajuan", "buat daftar"])) return "suppliers-create-request";
+      if (includesAny(text, ["tab permohonan belanja", "permohonan belanja", "tab daftar belanja", "daftar belanja"])) return "suppliers-shopping-tab";
+      if (includesAny(text, ["buat permohonan", "buat pengajuan", "buat daftar"])) return "suppliers-create-request";
       if (includesAny(text, ["tambah produk", "cari"])) return "suppliers-add-products";
       if (includesAny(text, ["jumlah", "quantity"])) return "suppliers-request-quantity";
       if (includesAny(text, ["setujui", "approve", "keputusan"])) return "suppliers-approve";

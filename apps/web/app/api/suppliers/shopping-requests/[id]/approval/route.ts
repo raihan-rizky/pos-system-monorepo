@@ -17,10 +17,12 @@ const approveSchema = z.object({
     .array(
       z.object({
         id: z.string().trim().min(1),
-        approvedQty: z.number().nonnegative(),
+        stockMode: z.enum(["GROUP_STOCK", "PRODUCT_ONLY"]).optional(),
       }),
     )
-    .min(1, "At least one item is required"),
+    .min(1, "Minimal satu item wajib dipilih")
+    .max(100, "Maksimal 100 item per persetujuan. Bagi permohonan menjadi beberapa proses."),
+  confirmOverRequested: z.boolean().optional(),
 });
 
 export async function POST(
@@ -28,14 +30,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("supplier", "update");
+    const user = await requirePermission(
+      "supplier.shopping_request.approve_stock",
+      "update",
+    );
     const { id } = await params;
     const parsed = approveSchema.safeParse(await request.json());
     if (!parsed.success) return apiValidationError(parsed.error);
 
     const result = await approveShoppingRequest(
       id,
-      { items: parsed.data.items },
+      parsed.data,
       { id: user.id, name: user.name, storeId: user.storeId || "store-main" },
     );
     return Response.json({ data: result });

@@ -5,6 +5,10 @@ const productFindFirstMock = vi.hoisted(() => vi.fn());
 const customerFindManyMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogFindManyMock = vi.hoisted(() => vi.fn());
+const cashierShiftFindManyMock = vi.hoisted(() => vi.fn());
+const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
+const expenseAggregateMock = vi.hoisted(() => vi.fn());
+const expenseCountMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@pos/db", () => ({
   db: {
@@ -12,6 +16,9 @@ vi.mock("@pos/db", () => ({
     customer: { findMany: customerFindManyMock },
     transaction: { findMany: transactionFindManyMock },
     debtPaymentLog: { findMany: debtPaymentLogFindManyMock },
+    cashierShift: { findMany: cashierShiftFindManyMock },
+    inventoryLog: { findMany: inventoryLogFindManyMock },
+    expense: { aggregate: expenseAggregateMock, count: expenseCountMock },
   },
 }));
 
@@ -20,6 +27,7 @@ import {
   getCustomerRecapSummary,
   getCustomerSearch,
   getDailySalesSummary,
+  getFinancialReportAnalysis,
   getLowStockItems,
   getProductPrice,
   getProductSearch,
@@ -162,5 +170,95 @@ describe("assistant tools repository", () => {
 
     expect(transactionFindManyMock).toHaveBeenCalled();
     expect(result.match).toMatchObject({ name: "Budi", transactionCount: 1, revenue: 75000, debtPaid: 25000 });
+  });
+
+  it("loads every financial-report section for a holistic analysis", async () => {
+    transactionFindManyMock.mockResolvedValueOnce([{
+      id: "tx-1",
+      invoiceNumber: "INV-1",
+      invoiceDate: new Date("2026-06-20T02:00:00.000Z"),
+      createdAt: new Date("2026-06-20T02:00:00.000Z"),
+      status: "COMPLETED",
+      paymentMethod: "CASH",
+      total: { toNumber: () => 100_000 },
+      amountPaid: { toNumber: () => 100_000 },
+      discount: { toNumber: () => 5_000 },
+      salesName: "Ari",
+      salesperson: null,
+      items: [{
+        productId: "p1",
+        productName: "Kertas",
+        quantity: 2,
+        subtotal: { toNumber: () => 100_000 },
+        unitCost: { toNumber: () => 30_000 },
+        product: { category: { name: "ATK" } },
+      }],
+    }]);
+    cashierShiftFindManyMock.mockResolvedValueOnce([{
+      id: "shift-1",
+      cashier: { name: "Rina" },
+      openedAt: new Date("2026-06-20T00:00:00.000Z"),
+      closedAt: new Date("2026-06-20T08:00:00.000Z"),
+      openingBalance: 50_000,
+      expectedBalance: 150_000,
+      closingBalance: 145_000,
+      discrepancy: -5_000,
+      status: "CLOSED",
+    }]);
+    inventoryLogFindManyMock.mockResolvedValueOnce([{
+      type: "OUT",
+      reason: "WASTE",
+      quantity: 1,
+      unitCost: 10_000,
+      createdAt: new Date("2026-06-20T03:00:00.000Z"),
+    }]);
+    expenseAggregateMock.mockResolvedValueOnce({
+      _sum: { amount: 45_000, changeAmount: 5_000 },
+      _count: { _all: 2 },
+    });
+    expenseCountMock.mockResolvedValueOnce(1);
+
+    const result = await getFinancialReportAnalysis({
+      storeId: "store-1",
+      dateFrom: "2026-06-01",
+      dateTo: "2026-06-30",
+    });
+
+    expect(transactionFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: "store-1", invoiceDate: expect.any(Object) }),
+    }));
+    expect(expenseAggregateMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        storeId: "store-1",
+        deletedAt: null,
+        occurredAt: expect.any(Object),
+      }),
+    }));
+    expect(expenseCountMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        storeId: "store-1",
+        hasMissingCostSnapshot: true,
+      }),
+    }));
+    expect(result.summary).toMatchObject({
+      revenue: 100_000,
+      collected: 100_000,
+      grossProfit: 30_000,
+      lossStokNet: 10_000,
+      shiftDiscrepancy: -5_000,
+      expenseTotal: 40_000,
+      expenseEntryCount: 2,
+      incompleteExpenseCount: 1,
+      estimatedNetProfit: -10_000,
+    });
+    expect(result).toMatchObject({
+      paymentMethods: [expect.objectContaining({ method: "CASH" })],
+      topProducts: [expect.objectContaining({ productName: "Kertas" })],
+      categories: [expect.objectContaining({ categoryName: "ATK" })],
+      salespersons: [expect.objectContaining({ name: "Ari" })],
+      lossStok: [expect.objectContaining({ reason: "WASTE" })],
+      shifts: [expect.objectContaining({ cashierName: "Rina" })],
+      trend: expect.objectContaining({ points: expect.any(Array) }),
+    });
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "@/hooks/useShift";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { useRole } from "@/components/providers/RoleProvider";
+import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import { EditShiftModal } from "@/components/EditShiftModal";
 import { OpenShiftModal } from "@/components/OpenShiftModal";
 import { CloseShiftModal } from "@/components/CloseShiftModal";
@@ -317,6 +318,11 @@ export default function ShiftHistoryPage() {
   const [selectedShift, setSelectedShift] = useState<CashierShift | null>(null);
   const [openShiftModalOpen, setOpenShiftModalOpen] = useState(false);
   const [closeShiftModalOpen, setCloseShiftModalOpen] = useState(false);
+
+  const openShiftFromAssistant = useCallback(() => {
+    if (!activeShift) setOpenShiftModalOpen(true);
+  }, [activeShift]);
+  useAssistantModalAction("shift-open", openShiftFromAssistant);
 
   const shifts = result?.data ?? [];
   const total = result?.pagination.total ?? 0;

@@ -70,6 +70,6 @@ export async function GET(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     logger.error("inventory.bulk.detail.failed", { error });
-    return apiError("Failed to load bulk inventory request", 500, { code: "InternalError" });
+    return apiError("Gagal memuat permintaan inventaris massal", 500, { code: "InternalError" });
   }
 }

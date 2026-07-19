@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     }
     logger.error("inventory.bulk_import.commit.job.create.failed", { error });
     return NextResponse.json(
-      { message: "Failed to create bulk stock import job" },
+      { message: "Gagal membuat antrean impor stok massal" },
       { status: 500 },
     );
   }

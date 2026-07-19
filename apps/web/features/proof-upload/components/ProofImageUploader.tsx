@@ -38,13 +38,17 @@ export function PendingProofPreview({
   onUpload: () => void;
   onCancel: () => void;
 }) {
+  const isQuarterTurn = rotation === 90 || rotation === 270;
+
   return (
     <div className="space-y-2 rounded-xl border border-brand-200 bg-brand-50 p-3">
-      <div className="flex h-64 items-center justify-center overflow-hidden rounded-lg bg-surface-900/5">
+      <div className="flex h-64 items-center justify-center overflow-hidden rounded-lg bg-surface-900/5 [container-type:inline-size]">
         <img
           src={previewUrl}
           alt="Pratinjau gambar sebelum diunggah"
-          className="max-h-full max-w-full object-contain transition-transform duration-200"
+          className={isQuarterTurn
+            ? "max-h-[min(100%,100cqw)] max-w-[min(100%,16rem)] object-contain transition-transform duration-200"
+            : "max-h-full max-w-full object-contain transition-transform duration-200"}
           style={{ transform: `rotate(${rotation}deg)` }}
         />
       </div>

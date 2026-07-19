@@ -201,8 +201,8 @@ export async function POST(request: Request) {
           roles: ["OWNER", "ADMIN"],
           featureKey: "inventoryRequests",
           payload: {
-            title: "Permintaan stok bulk baru",
-            body: `${user.name || "User"} membuat ${result.inventoryLogCount} permintaan stok bulk.`,
+            title: "Permintaan stok massal baru",
+            body: `${user.name || "Pengguna"} membuat ${result.inventoryLogCount} permintaan stok massal.`,
             url: "/products?tab=logs",
             tag: `bulk-inventory-request:${result.batchOperationId}`,
           },
@@ -262,7 +262,7 @@ export async function POST(request: Request) {
       }
     }
     logger.error("inventory.bulk.commit.failed", { error });
-    return apiError("Failed to commit bulk stock update", 500, { code: "InternalError" });
+    return apiError("Gagal menerapkan pembaruan stok massal", 500, { code: "InternalError" });
   }
 }
 

@@ -51,6 +51,6 @@ export async function POST(
       return apiError("Forbidden", 403, { code: "Forbidden" });
     }
     logger.error("inventory.bulk.cancel.failed", { error });
-    return mapBulkRequestError(error, "Failed to cancel bulk inventory request");
+    return mapBulkRequestError(error, "Gagal membatalkan permintaan inventaris massal");
   }
 }

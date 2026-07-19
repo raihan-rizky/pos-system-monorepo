@@ -21,11 +21,18 @@ export async function PATCH(
     const { id } = await params;
 
     const existing = await db.expense.findFirst({
-      where: { id, recordedBy: { storeId } },
-      select: { id: true, deletedAt: true },
+      where: { id, storeId },
+      select: { id: true, deletedAt: true, shoppingRequestId: true },
     });
     if (!existing || existing.deletedAt) {
       return apiError("Expense not found", 404, { code: "NotFound" });
+    }
+    if (existing.shoppingRequestId) {
+      return apiError(
+        "Pengeluaran dari Permohonan Belanja tidak dapat diedit dari halaman Keuangan.",
+        409,
+        { code: "Conflict" },
+      );
     }
 
     const body = await request.json();
@@ -113,11 +120,18 @@ export async function DELETE(
     const storeId = user.storeId || "store-main";
     const { id } = await params;
     const existing = await db.expense.findFirst({
-      where: { id, recordedBy: { storeId } },
-      select: { id: true, deletedAt: true },
+      where: { id, storeId },
+      select: { id: true, deletedAt: true, shoppingRequestId: true },
     });
     if (!existing) {
       return apiError("Expense not found", 404, { code: "NotFound" });
+    }
+    if (existing.shoppingRequestId) {
+      return apiError(
+        "Pengeluaran dari Permohonan Belanja tidak dapat dihapus dari halaman Keuangan.",
+        409,
+        { code: "Conflict" },
+      );
     }
     if (existing.deletedAt) {
       return NextResponse.json({

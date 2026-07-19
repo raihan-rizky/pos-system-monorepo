@@ -4,12 +4,23 @@ import {
   type ResourceAction,
   type RolePermissions,
 } from "@/features/rbac/helpers/rbac-core";
-import type { UserRole } from "../types/assistant";
+import {
+  buildFinancialReportRange,
+  type FinancialReportPreset,
+} from "@/features/financial-report/helpers/report-core";
+import type {
+  AssistantClientAction,
+  AssistantExportFormat,
+  AssistantModalId,
+  AssistantReportPeriod,
+  UserRole,
+} from "../types/assistant";
 import {
   getCustomerDebtSummary,
   getCustomerRecapSummary,
   getCustomerSearch,
   getDailySalesSummary,
+  getFinancialReportAnalysis,
   getLowStockItems,
   getPendingTransactions,
   getProductPrice,
@@ -32,7 +43,18 @@ export type AssistantToolName =
   | "get_customer_recap_summary"
   | "get_supplier_search"
   | "get_top_products"
-  | "get_pending_transactions";
+  | "get_pending_transactions"
+  | "exportFinancialReport"
+  | "exportCustomerRecap"
+  | "analyzeFinancialReport"
+  | "openProductModal"
+  | "openCustomerModal"
+  | "openSupplierModal"
+  | "openSalespersonModal"
+  | "openExpenseModal"
+  | "openShiftModal"
+  | "openStockUpdateModal"
+  | "openInboundReceiptModal";
 
 export type JsonObjectSchema = {
   type: "object";
@@ -54,11 +76,17 @@ export interface AssistantToolsRepository {
   getSupplierSearch(input: { query: string; limit: number }): Promise<unknown>;
   getTopProducts(input: { storeId: string; date: string }): Promise<unknown>;
   getPendingTransactions(input: { storeId: string; limit: number }): Promise<unknown>;
+  getFinancialReportAnalysis(input: {
+    storeId: string;
+    dateFrom: string;
+    dateTo: string;
+  }): Promise<unknown>;
 }
 
 type ToolContext = {
   storeId: string | null;
   repository: AssistantToolsRepository;
+  now: Date;
 };
 
 export interface AssistantToolDefinition {
@@ -78,6 +106,7 @@ export interface AssistantToolDefinition {
   sourceLabel: string;
   execute(input: unknown, context: ToolContext): Promise<unknown>;
   shapeOutput(raw: unknown): unknown;
+  clientAction?(output: unknown): AssistantClientAction | undefined;
 }
 
 const productSchema = z.object({
@@ -105,6 +134,128 @@ const customerSchema = z.object({
 
 const generatedAtSchema = z.string().min(1);
 
+const assistantReportPeriodSchema = z.enum(["daily", "weekly", "monthly", "30d"]);
+const assistantExportFormatSchema = z.enum(["pdf", "xlsx"]);
+
+const assistantClientActionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("open_modal"),
+    modal: z.enum([
+      "product-create",
+      "customer-create",
+      "supplier-create",
+      "salesperson-create",
+      "expense-create",
+      "shift-open",
+      "inventory-stock-single",
+      "inventory-inbound",
+    ]),
+    route: z.string().startsWith("/"),
+  }).strict(),
+  z.object({
+    kind: z.literal("export_financial_report"),
+    period: assistantReportPeriodSchema,
+    format: assistantExportFormatSchema,
+  }).strict(),
+  z.object({
+    kind: z.literal("export_customer_recap"),
+    period: assistantReportPeriodSchema,
+    format: assistantExportFormatSchema,
+  }).strict(),
+]);
+
+const clientActionOutputSchema = z.object({
+  kind: z.literal("client_action"),
+  action: assistantClientActionSchema,
+}).strict();
+
+const financialReportSchema = z.object({
+  dateFrom: z.string(),
+  dateTo: z.string(),
+  summary: z.object({
+    transactionCount: z.number(),
+    revenue: z.number(),
+    collected: z.number(),
+    grossProfit: z.number(),
+    grossMargin: z.number(),
+    discount: z.number(),
+    outstandingDp: z.number(),
+    shiftDiscrepancy: z.number(),
+    missingCostLineCount: z.number(),
+    lossStokNet: z.number(),
+    lossStokUnclassifiedCount: z.number(),
+    expenseTotal: z.number(),
+    expenseEntryCount: z.number(),
+    incompleteExpenseCount: z.number(),
+    estimatedNetProfit: z.number(),
+  }).strict(),
+  paymentMethods: z.array(z.object({
+    method: z.string(),
+    transactionCount: z.number(),
+    revenue: z.number(),
+    collected: z.number(),
+  }).strict()),
+  topProducts: z.array(z.object({
+    productId: z.string().nullable(),
+    productName: z.string(),
+    quantity: z.number(),
+    revenue: z.number(),
+    grossProfit: z.number(),
+  }).strict()),
+  categories: z.array(z.object({
+    categoryName: z.string(),
+    quantity: z.number(),
+    revenue: z.number(),
+    grossProfit: z.number(),
+    transactionCount: z.number(),
+  }).strict()),
+  salespersons: z.array(z.object({
+    name: z.string(),
+    transactionCount: z.number(),
+    revenue: z.number(),
+    collected: z.number(),
+    grossProfit: z.number(),
+  }).strict()),
+  shifts: z.array(z.object({
+    id: z.string(),
+    cashierName: z.string(),
+    openedAt: z.string(),
+    closedAt: z.string().nullable(),
+    openingBalance: z.number(),
+    expectedBalance: z.number(),
+    closingBalance: z.number(),
+    discrepancy: z.number(),
+    status: z.string(),
+  }).strict()),
+  lossStok: z.array(z.object({
+    reason: z.enum(["WASTE", "USAGE", "OPNAME", "MANUAL_ADJUSTMENT", "UNCLASSIFIED"]),
+    netValue: z.number(),
+    netQuantity: z.number(),
+    entryCount: z.number(),
+  }).strict()),
+  trend: z.object({
+    granularity: z.enum(["daily", "weekly", "monthly"]),
+    points: z.array(z.object({
+      bucketKey: z.string(),
+      label: z.string(),
+      omzet: z.number(),
+      cost: z.number(),
+      labaKotor: z.number(),
+    }).strict()),
+  }).strict(),
+}).strict();
+
+const financialCoverage = [
+  "summary",
+  "trend",
+  "paymentMethods",
+  "topProducts",
+  "categories",
+  "salespersons",
+  "lossStok",
+  "shifts",
+] as const;
+
 const defaultToolsRepository: AssistantToolsRepository = {
   getLowStockItems,
   getDailySalesSummary,
@@ -118,6 +269,7 @@ const defaultToolsRepository: AssistantToolsRepository = {
   getSupplierSearch,
   getTopProducts,
   getPendingTransactions,
+  getFinancialReportAnalysis,
 };
 
 const emptyJsonSchema: JsonObjectSchema = {
@@ -153,14 +305,278 @@ function createTool(definition: AssistantToolDefinition): AssistantToolDefinitio
   return definition;
 }
 
+function actionFromOutput(output: unknown): AssistantClientAction | undefined {
+  const parsed = clientActionOutputSchema.safeParse(output);
+  return parsed.success ? parsed.data.action : undefined;
+}
+
+const exportParametersJsonSchema: JsonObjectSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    period: {
+      type: "string",
+      enum: ["daily", "weekly", "monthly", "30d"],
+      default: "30d",
+      description: "Periode laporan. Gunakan 30d jika pengguna tidak menyebut periode.",
+    },
+    format: {
+      type: "string",
+      enum: ["pdf", "xlsx"],
+      default: "pdf",
+      description: "Format berkas. Gunakan pdf jika pengguna tidak menyebut format.",
+    },
+  },
+};
+
+function createExportActionTool({
+  name,
+  actionKind,
+  description,
+  allowedRoles,
+  requiredCapabilities,
+  sourceLabel,
+}: {
+  name: "exportFinancialReport" | "exportCustomerRecap";
+  actionKind: "export_financial_report" | "export_customer_recap";
+  description: string;
+  allowedRoles: UserRole[];
+  requiredCapabilities: Array<{ resource: string; action: ResourceAction }>;
+  sourceLabel: string;
+}): AssistantToolDefinition {
+  return createTool({
+    name,
+    description,
+    allowedRoles,
+    requiredCapabilities,
+    requiresStore: true,
+    inputSchema: z.object({
+      period: assistantReportPeriodSchema.default("30d"),
+      format: assistantExportFormatSchema.default("pdf"),
+    }).strict(),
+    outputSchema: clientActionOutputSchema,
+    parametersJsonSchema: exportParametersJsonSchema,
+    retry: { maxAttempts: 1 },
+    errorCodes: ["CLIENT_ACTION_FAILED"],
+    sourceLabel,
+    execute: async (input) => input,
+    shapeOutput: (raw) => {
+      const value = raw as { period?: AssistantReportPeriod; format?: AssistantExportFormat };
+      return {
+        kind: "client_action",
+        action: {
+          kind: actionKind,
+          period: value.period ?? "30d",
+          format: value.format ?? "pdf",
+        },
+      };
+    },
+    clientAction: actionFromOutput,
+  });
+}
+
+function createModalActionTool({
+  name,
+  modal,
+  route,
+  description,
+  allowedRoles,
+  requiredCapabilities,
+  sourceLabel,
+}: {
+  name: Extract<AssistantToolName, `open${string}Modal`>;
+  modal: AssistantModalId;
+  route: string;
+  description: string;
+  allowedRoles: UserRole[];
+  requiredCapabilities: Array<{ resource: string; action: ResourceAction }>;
+  sourceLabel: string;
+}): AssistantToolDefinition {
+  return createTool({
+    name,
+    description,
+    allowedRoles,
+    requiredCapabilities,
+    requiresStore: false,
+    inputSchema: z.object({}).strict(),
+    outputSchema: clientActionOutputSchema,
+    parametersJsonSchema: emptyJsonSchema,
+    retry: { maxAttempts: 1 },
+    errorCodes: ["CLIENT_ACTION_FAILED"],
+    sourceLabel,
+    execute: async () => ({}),
+    shapeOutput: () => ({
+      kind: "client_action",
+      action: { kind: "open_modal", modal, route },
+    }),
+    clientAction: actionFromOutput,
+  });
+}
+
+function reportPreset(period: AssistantReportPeriod): FinancialReportPreset {
+  if (period === "daily") return "today";
+  if (period === "weekly") return "7d";
+  if (period === "monthly") return "month";
+  return "30d";
+}
+
 export function createAssistantToolRegistry(
   repository: AssistantToolsRepository = defaultToolsRepository,
 ): AssistantToolDefinition[] {
   const allStoreRoles: UserRole[] = ["OWNER", "ADMIN", "INVENTORY", "CASHIER", "SALES"];
   const productRoles: UserRole[] = ["OWNER", "ADMIN", "INVENTORY", "CASHIER"];
   const customerRoles: UserRole[] = ["OWNER", "ADMIN", "SALES"];
+  const customerCreateRoles: UserRole[] = ["OWNER", "ADMIN", "CASHIER", "SALES"];
 
   return [
+    createExportActionTool({
+      name: "exportFinancialReport",
+      actionKind: "export_financial_report",
+      description: "Export the existing financial report as PDF or Excel. USE for: unduh, ekspor, buat file, atau rekap laporan keuangan. Defaults to the latest 30 days and PDF when omitted. DO NOT USE for: explaining or analyzing financial performance (use analyzeFinancialReport).",
+      allowedRoles: ["OWNER", "ADMIN"],
+      requiredCapabilities: [{ resource: "financial-report", action: "read" }],
+      sourceLabel: "Ekspor Laporan Keuangan",
+    }),
+    createExportActionTool({
+      name: "exportCustomerRecap",
+      actionKind: "export_customer_recap",
+      description: "Export the existing all-customer recap with AI insights as PDF or Excel. USE for: unduh, ekspor, buat file, atau rekap pelanggan per tipe. Defaults to the latest 30 days and PDF when omitted. DO NOT USE for: one named customer's transaction summary (use get_customer_recap_summary).",
+      allowedRoles: customerCreateRoles,
+      requiredCapabilities: [{ resource: "customer", action: "read" }],
+      sourceLabel: "Ekspor Rekap Pelanggan",
+    }),
+    createTool({
+      name: "analyzeFinancialReport",
+      description: "Return EVERY metric shown on the Financial Report page for one period: KPI summary including expenses and estimated net profit, trend, payment methods, top products, categories, salespersons, stock loss, and shift reconciliation. USE for: analisis menyeluruh laporan keuangan, evaluasi performa, risiko, dan saran bisnis. Defaults to the latest 30 days. DO NOT USE for: downloading a file (use exportFinancialReport) or a single daily omzet figure (use get_daily_sales_summary).",
+      allowedRoles: ["OWNER", "ADMIN"],
+      requiredCapabilities: [{ resource: "financial-report", action: "read" }],
+      requiresStore: true,
+      inputSchema: z.object({
+        period: assistantReportPeriodSchema.default("30d"),
+      }).strict(),
+      outputSchema: z.object({
+        kind: z.literal("financial_report_analysis"),
+        generatedAt: generatedAtSchema,
+        period: assistantReportPeriodSchema,
+        coverage: z.array(z.enum(financialCoverage)),
+        report: financialReportSchema,
+      }).strict(),
+      parametersJsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          period: {
+            type: "string",
+            enum: ["daily", "weekly", "monthly", "30d"],
+            default: "30d",
+            description: "Periode analisis. Gunakan 30d jika pengguna tidak menyebut periode.",
+          },
+        },
+      },
+      retry: { maxAttempts: 2 },
+      errorCodes: ["STORE_NOT_FOUND", "TIMEOUT"],
+      sourceLabel: "Seluruh metrik Laporan Keuangan",
+      execute: async (input, context) => {
+        const { period } = input as { period: AssistantReportPeriod };
+        const range = buildFinancialReportRange(reportPreset(period), context.now);
+        const report = await repository.getFinancialReportAnalysis({
+          storeId: context.storeId!,
+          dateFrom: range.dateFrom,
+          dateTo: range.dateTo,
+        });
+        return {
+          period,
+          report,
+          generatedAt: context.now.toISOString(),
+        };
+      },
+      shapeOutput: (raw) => {
+        const value = raw as {
+          period?: AssistantReportPeriod;
+          report?: unknown;
+          generatedAt?: string;
+        };
+        return {
+          kind: "financial_report_analysis",
+          generatedAt: value.generatedAt ?? new Date().toISOString(),
+          period: value.period ?? "30d",
+          coverage: [...financialCoverage],
+          report: value.report,
+        };
+      },
+    }),
+    createModalActionTool({
+      name: "openProductModal",
+      modal: "product-create",
+      route: "/products",
+      description: "Open the Tambah Produk modal. USE for: tambah, buat, atau input satu produk baru. DO NOT USE for: bulk product import, editing an existing product, or merely explaining the steps.",
+      allowedRoles: ["OWNER", "ADMIN"],
+      requiredCapabilities: [{ resource: "product", action: "create" }],
+      sourceLabel: "Aksi Tambah Produk",
+    }),
+    createModalActionTool({
+      name: "openCustomerModal",
+      modal: "customer-create",
+      route: "/customers",
+      description: "Open the Tambah Pelanggan modal. USE for: tambah, buat, atau daftarkan satu pelanggan baru. DO NOT USE for: customer search, recap, debt checks, or bulk import.",
+      allowedRoles: customerCreateRoles,
+      requiredCapabilities: [{ resource: "customer", action: "create" }],
+      sourceLabel: "Aksi Tambah Pelanggan",
+    }),
+    createModalActionTool({
+      name: "openSupplierModal",
+      modal: "supplier-create",
+      route: "/suppliers",
+      description: "Open the Tambah Supplier modal. USE for: tambah, buat, atau daftarkan supplier baru. DO NOT USE for: supplier search, shopping requests, or editing a supplier.",
+      allowedRoles: ["OWNER", "ADMIN"],
+      requiredCapabilities: [{ resource: "supplier", action: "create" }],
+      sourceLabel: "Aksi Tambah Supplier",
+    }),
+    createModalActionTool({
+      name: "openSalespersonModal",
+      modal: "salesperson-create",
+      route: "/salespersons",
+      description: "Open the Tambah Sales modal. USE for: tambah atau daftarkan salesperson baru. DO NOT USE for: salesperson performance analysis, history, or editing an existing salesperson.",
+      allowedRoles: ["OWNER", "ADMIN"],
+      requiredCapabilities: [{ resource: "salesperson", action: "create" }],
+      sourceLabel: "Aksi Tambah Sales",
+    }),
+    createModalActionTool({
+      name: "openExpenseModal",
+      modal: "expense-create",
+      route: "/keuangan",
+      description: "Open the Tambah Pengeluaran modal. USE for: catat atau tambah pengeluaran operasional baru. DO NOT USE for: financial-report analysis, income entry, or editing an existing expense.",
+      allowedRoles: ["OWNER", "ADMIN", "CASHIER"],
+      requiredCapabilities: [{ resource: "expense", action: "create" }],
+      sourceLabel: "Aksi Tambah Pengeluaran",
+    }),
+    createModalActionTool({
+      name: "openShiftModal",
+      modal: "shift-open",
+      route: "/shift",
+      description: "Open the Mulai Shift Kasir modal. USE for: buka atau mulai shift kasir. DO NOT USE for: closing an active shift, editing shift history, or checking shift metrics.",
+      allowedRoles: ["OWNER", "ADMIN", "CASHIER"],
+      requiredCapabilities: [{ resource: "shift", action: "create" }],
+      sourceLabel: "Aksi Mulai Shift",
+    }),
+    createModalActionTool({
+      name: "openStockUpdateModal",
+      modal: "inventory-stock-single",
+      route: "/inventory",
+      description: "Open the single-product Update Stok modal. USE for: tambah, kurangi, atau set stok satu produk. DO NOT USE for: reading stock, mass stock updates, or stock approval.",
+      allowedRoles: ["OWNER", "ADMIN", "INVENTORY"],
+      requiredCapabilities: [{ resource: "inventory", action: "update" }],
+      sourceLabel: "Aksi Update Stok",
+    }),
+    createModalActionTool({
+      name: "openInboundReceiptModal",
+      modal: "inventory-inbound",
+      route: "/inventory",
+      description: "Open the Penerimaan Barang modal. USE for: input atau ajukan barang datang dari supplier. DO NOT USE for: approving an inbound receipt, shopping requests, or stock lookup.",
+      allowedRoles: ["OWNER", "ADMIN", "INVENTORY"],
+      requiredCapabilities: [{ resource: "inventory", action: "create" }],
+      sourceLabel: "Aksi Penerimaan Barang",
+    }),
     createTool({
       name: "get_system_help",
       description: "Search official in-app help docs for POS workflows, menus, role permissions, and feature usage. USE for: cara pakai fitur, langkah-langkah, menu apa, hak akses. DO NOT USE for: live store data queries.",

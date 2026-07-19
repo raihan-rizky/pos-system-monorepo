@@ -19,7 +19,7 @@ import { SHOPPING_REQUEST_STATUSES } from "@/features/suppliers/shopping-request
 const log = getLogger("api:suppliers:shopping-requests");
 
 const createSchema = z.object({
-  supplierId: z.string().trim().optional().nullable(),
+  supplierId: z.string().trim().min(1, "Supplier wajib dipilih"),
   requestedByName: z.string().trim().max(120).optional().nullable(),
   note: z.string().trim().max(500).optional().nullable(),
   items: z
@@ -27,6 +27,7 @@ const createSchema = z.object({
       z.object({
         productId: z.string().trim().min(1),
         requestedQty: z.number().positive(),
+        stockMode: z.enum(["GROUP_STOCK", "PRODUCT_ONLY"]),
       }),
     )
     .min(1, "At least one item is required"),
@@ -34,7 +35,12 @@ const createSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    await requirePermission("supplier", "read");
+    const user = await requirePermission("supplier", "read");
+    if (!user.storeId) {
+      return apiError("Toko pengguna tidak tersedia", 403, {
+        code: "Forbidden",
+      });
+    }
     const { searchParams } = new URL(request.url);
     const { page, limit, skip } = parsePagination(searchParams, {
       defaultLimit: 20,
@@ -50,6 +56,7 @@ export async function GET(request: Request) {
     const supplierId = searchParams.get("supplierId") || undefined;
 
     const result = await listShoppingRequestsPage({
+      storeId: user.storeId,
       q,
       status,
       supplierId,
@@ -80,7 +87,7 @@ export async function POST(request: Request) {
 
     const result = await createShoppingRequest(
       {
-        supplierId: parsed.data.supplierId ?? null,
+        supplierId: parsed.data.supplierId,
         requestedByName: parsed.data.requestedByName || user.name || null,
         note: parsed.data.note || null,
         items: parsed.data.items,

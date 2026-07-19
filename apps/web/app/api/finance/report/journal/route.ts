@@ -19,6 +19,7 @@ const VALID_PERIODS: ReadonlySet<ReportPeriod> = new Set([
   "daily",
   "weekly",
   "monthly",
+  "30d",
 ]);
 
 function isPeriod(value: string | null): value is ReportPeriod {
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
     const periodParam = searchParams.get("period");
     if (!isPeriod(periodParam)) {
       return apiError(
-        "Query parameter 'period' is required (daily | weekly | monthly)",
+        "Query parameter 'period' is required (daily | weekly | monthly | 30d)",
         422,
         { code: "ValidationError" },
       );
@@ -80,7 +81,7 @@ export async function GET(request: Request) {
       db.expense.findMany({
         where: {
           deletedAt: null,
-          recordedBy: { storeId },
+          storeId,
           occurredAt: { gte: start, lt: end },
         },
         orderBy: { occurredAt: "asc" },
@@ -92,6 +93,8 @@ export async function GET(request: Request) {
           description: true,
           amount: true,
           changeAmount: true,
+          hasMissingCostSnapshot: true,
+          shoppingRequest: { select: { number: true } },
         },
       }),
     ]);
@@ -121,6 +124,8 @@ export async function GET(request: Request) {
         description: e.description,
         amount: e.amount.toString(),
         changeAmount: e.changeAmount.toString(),
+        hasMissingCostSnapshot: e.hasMissingCostSnapshot,
+        shoppingRequestNumber: e.shoppingRequest?.number ?? null,
       })),
     );
 

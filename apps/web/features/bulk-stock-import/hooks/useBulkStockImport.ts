@@ -96,7 +96,7 @@ async function previewBulkStockImport(file: File) {
       new Error(
         formatBulkStockImportApiErrorMessage(
           payload,
-          "Failed to preview bulk stock import",
+          "Gagal membuat pratinjau impor stok massal",
         ),
       ),
       payload,
@@ -117,7 +117,7 @@ async function commitBulkStockImport(input: BulkStockImportCommitInput) {
       new Error(
         formatBulkStockImportApiErrorMessage(
           payload,
-          "Failed to commit bulk stock import",
+          "Gagal menerapkan impor stok massal",
         ),
       ),
       payload,
@@ -147,7 +147,7 @@ export async function startBulkStockImportCommitJob(
       new Error(
         formatBulkStockImportApiErrorMessage(
           payload,
-          "Failed to start bulk stock import",
+          "Gagal memulai impor stok massal",
         ),
       ),
       payload,
@@ -164,7 +164,7 @@ export async function getBulkStockImportCommitJob(jobId: string) {
       new Error(
         formatBulkStockImportApiErrorMessage(
           payload,
-          "Failed to load bulk stock import progress",
+          "Gagal memuat progres impor stok massal",
         ),
       ),
       payload,

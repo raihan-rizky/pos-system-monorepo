@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { useProducts, type Product } from "@/hooks/useProducts";
 import { useDebounce } from "@/hooks/useDebounce";
+import { ProductStockThumbnail } from "@/features/inventory-management/components/ProductStockThumbnail";
 
 interface ProductAutocompleteProps {
   onSelect: (product: Product) => void;
@@ -84,19 +85,17 @@ export function ProductAutocomplete({
                   <button
                     type="button"
                     onClick={() => handleSelect(product)}
-                    className="flex w-full cursor-pointer flex-col gap-1 rounded-lg px-3 py-2 text-left transition-colors duration-200 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-200 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-bold text-slate-900">
-                        {product.name}
-                      </span>
-                      <span className="whitespace-nowrap text-xs font-semibold text-slate-500">
-                        Sisa: {product.stock} {product.unit}
-                      </span>
+                    <ProductStockThumbnail name={product.name} imageUrl={product.imageUrl} categoryName={product.category?.name} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="truncate font-bold text-slate-900">{product.name}</span>
+                        <span className="whitespace-nowrap text-xs font-semibold text-slate-500">Sisa: {product.stock} {product.unit}</span>
+                      </div>
+                      <span className="text-xs text-slate-500">SKU: {product.sku}</span>
+                      {product.stockGroup && <span className="ml-2 text-[10px] font-bold text-cyan-700">{product.stockGroup.displayName}</span>}
                     </div>
-                    <span className="text-xs text-slate-500">
-                      SKU: {product.sku}
-                    </span>
                   </button>
                 </li>
               ))}

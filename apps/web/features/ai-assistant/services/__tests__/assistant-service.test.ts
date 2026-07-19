@@ -15,6 +15,7 @@ const toolsRepository = {
   getSupplierSearch: vi.fn(),
   getTopProducts: vi.fn(),
   getPendingTransactions: vi.fn(),
+  getFinancialReportAnalysis: vi.fn(),
 };
 
 const finalAnswer = (answerMarkdown = "Ini jawabannya.") => ({
@@ -346,6 +347,39 @@ describe("AssistantService", () => {
 
     expect(toolsRepository.getLowStockItems).not.toHaveBeenCalled();
     expect(body).toContain("satu pengecekan data");
+  });
+
+  it("streams a trusted browser action before the final answer", async () => {
+    const create = vi.fn()
+      .mockResolvedValueOnce({
+        choices: [{
+          message: {
+            tool_calls: [{ function: { name: "exportFinancialReport", arguments: "{}" } }],
+          },
+        }],
+      })
+      .mockResolvedValueOnce(finalAnswer("File PDF 30 hari sedang disiapkan."));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "OWNER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "ekspor laporan keuangan" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(body).toContain('"type":"client_action"');
+    expect(body).toContain('"kind":"export_financial_report"');
+    expect(body).toContain('"period":"30d"');
+    expect(body).toContain('"format":"pdf"');
+    expect(body.indexOf('"type":"client_action"')).toBeLessThan(
+      body.indexOf('"type":"final"'),
+    );
   });
 
   it("streams initial planning progress before waiting for the model response", async () => {

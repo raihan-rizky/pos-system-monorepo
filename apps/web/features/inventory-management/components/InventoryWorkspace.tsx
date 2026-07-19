@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import type { InventorySummary } from "../types/inventory-management";
 import { useRole } from "@/components/providers/RoleProvider";
+import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import { sortTaskChecklistItems } from "../helpers/task-checklist";
 import type { InventoryTaskPriority } from "../helpers/task-checklist";
 import { getDailyMatchingWindowStatus } from "../helpers/inventory-management-rules";
@@ -59,6 +60,10 @@ import { InventoryDaySessionHistory } from "./InventoryDaySessionHistory";
 import { OutLogVerificationPanel } from "./OutLogVerificationPanel";
 import { ChartAiInsightButton } from "@/features/chart-ai-insight/ChartAiInsightButton";
 import type { InventoryDaySessionPreview } from "../api/inventory-management-api";
+import {
+  createStockUpdateNotification,
+  type StockUpdateNotification,
+} from "../helpers/stock-update-notification";
 
 export {
   OutLogVerificationBadge,
@@ -139,10 +144,23 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   >(null);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [stockUpdateNotification, setStockUpdateNotification] =
+    React.useState<StockUpdateNotification | null>(null);
+  const stockUpdateNotificationTimeout = React.useRef<number | null>(null);
   const [matchingWindowNow, setMatchingWindowNow] = React.useState(() => new Date());
   const [activeModal, setActiveModal] = React.useState<
     "matching" | "weeklyProof" | "damaged" | "inbound" | "internalStockOut" | "stockSingle" | "stockGroupBulk" | null
   >(null);
+  const openSingleStockUpdateFromAssistant = React.useCallback(
+    () => setActiveModal("stockSingle"),
+    [],
+  );
+  const openInboundReceiptFromAssistant = React.useCallback(
+    () => setActiveModal("inbound"),
+    [],
+  );
+  useAssistantModalAction("inventory-stock-single", openSingleStockUpdateFromAssistant);
+  useAssistantModalAction("inventory-inbound", openInboundReceiptFromAssistant);
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [isStockUpdateMenuOpen, setIsStockUpdateMenuOpen] = React.useState(false);
   const [checklistItems, setChecklistItems] = React.useState<TaskChecklistItem[]>([]);
@@ -210,6 +228,44 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
     // Dismiss banner after 5 seconds
     setTimeout(() => {
       setStatusMessage((prev) => (prev === message ? null : prev));
+    }, 5000);
+  };
+
+  const showStockUpdateNotification = (
+    kind: "success" | "error",
+    message: string,
+  ) => {
+    if (stockUpdateNotificationTimeout.current !== null) {
+      window.clearTimeout(stockUpdateNotificationTimeout.current);
+    }
+    setStockUpdateNotification(createStockUpdateNotification(kind, message));
+    stockUpdateNotificationTimeout.current = window.setTimeout(() => {
+      setStockUpdateNotification(null);
+      stockUpdateNotificationTimeout.current = null;
+    }, 5000);
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (stockUpdateNotificationTimeout.current !== null) {
+        window.clearTimeout(stockUpdateNotificationTimeout.current);
+      }
+    };
+  }, []);
+
+  const handleStockUpdateSuccess = (message: string) => {
+    setActiveModal(null);
+    handleSuccess(message);
+    showStockUpdateNotification("success", message);
+  };
+
+  const handleStockUpdateError = (message: string) => {
+    setActiveModal(null);
+    setStatusMessage(null);
+    setErrorMessage(message);
+    showStockUpdateNotification("error", message);
+    window.setTimeout(() => {
+      setErrorMessage((previous) => (previous === message ? null : previous));
     }, 5000);
   };
 
@@ -804,7 +860,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 >
                   <Layers className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                   <span>
-                    <span className="block text-xs font-black text-slate-900">Banyak Produk (Bulk)</span>
+                    <span className="block text-xs font-black text-slate-900">Banyak Produk (Massal)</span>
                     <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500">
                       Buka workflow Update Stok Massal yang sudah ada.
                     </span>
@@ -848,6 +904,27 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
           }`}
         >
           {errorMessage || statusMessage}
+        </div>
+      )}
+
+      {stockUpdateNotification && (
+        <div
+          role="alert"
+          className={`fixed right-4 top-4 z-[60] flex w-[min(28rem,calc(100vw-2rem))] max-w-md items-start gap-3 rounded-xl border px-4 py-3 shadow-xl ${
+            stockUpdateNotification.kind === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-rose-200 bg-rose-50 text-rose-800"
+          }`}
+        >
+          {stockUpdateNotification.kind === "success" ? (
+            <Check className="mt-0.5 h-5 w-5 shrink-0" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          )}
+          <div>
+            <p className="text-sm font-black">{stockUpdateNotification.title}</p>
+            <p className="mt-0.5 text-sm font-semibold">{stockUpdateNotification.message}</p>
+          </div>
         </div>
       )}
 
@@ -1712,7 +1789,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
         title="Update Stok"
         size="2xl"
       >
-        <SingleStockUpdatePanel />
+        <SingleStockUpdatePanel
+          onSuccess={handleStockUpdateSuccess}
+          onError={handleStockUpdateError}
+        />
       </Modal>
       <Modal
         open={activeModal === "stockGroupBulk"}
@@ -1720,7 +1800,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
         title="Update Stok Massal"
         size="7xl"
       >
-        <StockGroupBulkPanel />
+        <StockGroupBulkPanel
+          onSuccess={handleStockUpdateSuccess}
+          onError={handleStockUpdateError}
+        />
       </Modal>
     </main>
   );

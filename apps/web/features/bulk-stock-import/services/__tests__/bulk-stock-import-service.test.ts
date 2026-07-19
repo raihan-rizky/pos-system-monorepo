@@ -109,7 +109,7 @@ describe("commitBulkStockImport", () => {
         user: expect.objectContaining({ id: "owner-1", role: "OWNER" }),
         mode: "ADD",
         supplier: { id: "supplier-1", name: "CV Sinar Jaya" },
-        note: "Bulk stock import",
+        note: "Impor stok massal",
         impacts: [
           expect.objectContaining({
             productId: "prod-a",
@@ -483,7 +483,7 @@ describe("commitBulkStockImport", () => {
         },
       ],
       supplier: null,
-      note: "Bulk stock import",
+      note: "Impor stok massal",
     });
 
     expect(result.updatedProductCount).toBe(2);
@@ -550,7 +550,7 @@ describe("commitBulkStockImport", () => {
           },
         ],
         supplier: null,
-        note: "Bulk stock import",
+        note: "Impor stok massal",
       }),
     ).resolves.toEqual(
       expect.objectContaining({

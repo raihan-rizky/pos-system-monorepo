@@ -49,6 +49,35 @@ export interface PageContext {
   supplierId?: string;
 }
 
+export type AssistantReportPeriod = "daily" | "weekly" | "monthly" | "30d";
+export type AssistantExportFormat = "pdf" | "xlsx";
+export type AssistantModalId =
+  | "product-create"
+  | "customer-create"
+  | "supplier-create"
+  | "salesperson-create"
+  | "expense-create"
+  | "shift-open"
+  | "inventory-stock-single"
+  | "inventory-inbound";
+
+export type AssistantClientAction =
+  | {
+      kind: "open_modal";
+      modal: AssistantModalId;
+      route: string;
+    }
+  | {
+      kind: "export_financial_report";
+      period: AssistantReportPeriod;
+      format: AssistantExportFormat;
+    }
+  | {
+      kind: "export_customer_recap";
+      period: AssistantReportPeriod;
+      format: AssistantExportFormat;
+    };
+
 export interface ChatRequest {
   messages: Message[];
   pageContext?: PageContext;
@@ -72,6 +101,7 @@ export interface StructuredAssistantAnswer {
 
 export type AssistantStreamFrame =
   | { type: "progress"; status: "planning" | "tool_selected" | "tool_running" | "tool_retrying" | "answer_generating"; occurredAt: string; toolName?: string }
+  | { type: "client_action"; action: AssistantClientAction; occurredAt: string }
   | { type: "final"; answer: StructuredAssistantAnswer }
   | { message?: Message; metadata?: AssistantMessageMetadata };
 

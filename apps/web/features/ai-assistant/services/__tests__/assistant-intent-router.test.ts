@@ -111,6 +111,55 @@ describe("routeAssistantIntent", () => {
       .toEqual({ kind: "out_of_scope" });
   });
 
+  it("defaults financial exports to the latest 30 days as PDF", () => {
+    expect(routeAssistantIntent("ekspor laporan keuangan")).toEqual({
+      kind: "tool",
+      toolName: "exportFinancialReport",
+      input: { period: "30d", format: "pdf" },
+    });
+  });
+
+  it("honors an explicit export period and format", () => {
+    expect(routeAssistantIntent("ekspor laporan keuangan mingguan ke excel")).toEqual({
+      kind: "tool",
+      toolName: "exportFinancialReport",
+      input: { period: "weekly", format: "xlsx" },
+    });
+  });
+
+  it("defaults customer recap exports to the latest 30 days as PDF", () => {
+    expect(routeAssistantIntent("buatkan rekap pelanggan")).toEqual({
+      kind: "tool",
+      toolName: "exportCustomerRecap",
+      input: { period: "30d", format: "pdf" },
+    });
+  });
+
+  it("routes whole financial page analysis to the aggregate report tool", () => {
+    expect(routeAssistantIntent("analisis seluruh laporan keuangan 30 hari")).toEqual({
+      kind: "tool",
+      toolName: "analyzeFinancialReport",
+      input: { period: "30d" },
+    });
+  });
+
+  it.each([
+    ["tambah produk baru", "openProductModal"],
+    ["buka modal tambah pelanggan", "openCustomerModal"],
+    ["tambah supplier baru", "openSupplierModal"],
+    ["tambah sales baru", "openSalespersonModal"],
+    ["catat pengeluaran baru", "openExpenseModal"],
+    ["buka shift kasir", "openShiftModal"],
+    ["update stok satu produk", "openStockUpdateModal"],
+    ["input penerimaan barang", "openInboundReceiptModal"],
+  ])("routes core modal request %s to %s", (message, toolName) => {
+    expect(routeAssistantIntent(message)).toEqual({
+      kind: "tool",
+      toolName,
+      input: {},
+    });
+  });
+
   it.each([
     "cek stok yang tadi",
     "harga Kertas A4 dan cek stoknya",

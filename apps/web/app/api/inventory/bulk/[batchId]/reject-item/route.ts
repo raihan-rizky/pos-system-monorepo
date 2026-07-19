@@ -38,6 +38,6 @@ export async function POST(
       return apiValidationError(error);
     }
     logger.error("inventory.bulk.reject_item.failed", { error });
-    return mapBulkRequestError(error, "Failed to reject bulk inventory item");
+    return mapBulkRequestError(error, "Gagal menolak item inventaris massal");
   }
 }

@@ -79,14 +79,14 @@ describe("FAQ workflow catalog", () => {
     expect(serializedWorkflow).toContain("inventory.out_log.verify");
   });
 
-  it("documents product-first Update Stok single and bulk paths with duplicate safeguards", () => {
+  it("documents product-first Update Stok single and massal paths with duplicate safeguards", () => {
     const massStockWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 35);
 
     expect(massStockWorkflow).toBeDefined();
     const serializedWorkflow = JSON.stringify(massStockWorkflow);
     expect(serializedWorkflow).toContain("Update Stok");
     expect(serializedWorkflow).toContain("Satu Produk (Single)");
-    expect(serializedWorkflow).toContain("Banyak Produk (Bulk)");
+    expect(serializedWorkflow).toContain("Banyak Produk (Massal)");
     expect(serializedWorkflow).toContain("Update Stok Massal");
     expect(serializedWorkflow).not.toContain("Buka Update Stok Massal");
     expect(serializedWorkflow).not.toContain("buka tab Transaksi");
@@ -113,6 +113,20 @@ describe("FAQ workflow catalog", () => {
     expect(serializedWorkflow).toContain("Analisis AI");
   });
 
+  it("documents AI-driven defaults, full financial analysis, and modal shortcuts", () => {
+    const productWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 1);
+    const financialWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 21);
+    const customerWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 36);
+
+    expect(JSON.stringify(productWorkflow)).toContain("Pak Tel");
+    expect(JSON.stringify(productWorkflow)).toContain("modal Tambah Produk");
+    expect(JSON.stringify(financialWorkflow)).toContain("30 hari terakhir");
+    expect(JSON.stringify(financialWorkflow)).toContain("PDF");
+    expect(JSON.stringify(financialWorkflow)).toContain("seluruh metrik");
+    expect(JSON.stringify(customerWorkflow)).toContain("30 hari terakhir");
+    expect(JSON.stringify(customerWorkflow)).toContain("PDF");
+  });
+
   it("documents proof compression and delegated deletion", () => {
     const proof = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 11);
     const serialized = JSON.stringify(proof);
@@ -136,5 +150,31 @@ describe("FAQ workflow catalog", () => {
       expect(serialized).toContain("gagal");
     }
     expect(faqSource).toContain("penyimpanan R2 gagal");
+  });
+
+  it("documents automatic shopping-request expenses and estimated net profit", () => {
+    const shopping = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19);
+    const expense = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 20);
+    const report = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 21);
+
+    expect(JSON.stringify(shopping)).toContain("Estimasi pengeluaran");
+    expect(JSON.stringify(shopping)).toContain("harga modal");
+    expect(JSON.stringify(expense)).toContain("badge Permohonan Belanja");
+    expect(JSON.stringify(expense)).toContain("tidak dapat diedit atau dihapus");
+    expect(JSON.stringify(report)).toContain("Laba Bersih (Estimasi)");
+    expect(JSON.stringify(report)).toContain("pengeluaran manual dan Permohonan Belanja");
+  });
+
+  it("documents prepared quantities, edit RBAC, and individual item approval", () => {
+    const shopping = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19);
+    const serialized = JSON.stringify(shopping);
+
+    expect(serialized).toContain("Isi Jumlah yang Di-ACC");
+    expect(serialized).toContain("Setujui Item");
+    expect(serialized).toContain("Tidak Disetujui");
+    expect(serialized).toContain("supplier.shopping_request.edit:update");
+    expect(serialized).toContain(
+      "supplier.shopping_request.set_approved_qty:update",
+    );
   });
 });

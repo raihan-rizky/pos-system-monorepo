@@ -55,6 +55,6 @@ export async function POST(
       return apiValidationError(error);
     }
     logger.error("inventory.bulk.reject_all.failed", { error });
-    return mapBulkRequestError(error, "Failed to reject bulk inventory request");
+    return mapBulkRequestError(error, "Gagal menolak permintaan inventaris massal");
   }
 }

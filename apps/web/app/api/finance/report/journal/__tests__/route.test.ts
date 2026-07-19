@@ -43,11 +43,35 @@ describe("GET /api/finance/report/journal", () => {
     expect(expenseFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          recordedBy: { storeId: "store-1" },
+          storeId: "store-1",
           deletedAt: null,
         }),
       }),
     );
+  });
+
+  it("labels shopping-request expenses and missing cost snapshots in exports", async () => {
+    expenseFindManyMock.mockResolvedValueOnce([
+      {
+        id: "expense-1",
+        occurredAt: new Date("2026-07-01T02:00:00.000Z"),
+        applicantName: "CV Kertas",
+        category: "SUPPLIES",
+        description: "Permohonan Belanja DPB-202607-001 - 2 item",
+        amount: { toString: () => "0.00" },
+        changeAmount: { toString: () => "0.00" },
+        hasMissingCostSnapshot: true,
+        shoppingRequest: { id: "request-1", number: "DPB-202607-001" },
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/finance/report/journal?period=monthly"),
+    );
+    const body = await response.json();
+
+    expect(body.rows[0].products).toContain("Permohonan Belanja DPB-202607-001");
+    expect(body.rows[0].products).toContain("Harga modal tidak tersedia saat approval");
   });
 
   it("queries sales journal rows by invoiceDate", async () => {

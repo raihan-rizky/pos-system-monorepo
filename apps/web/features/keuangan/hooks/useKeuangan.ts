@@ -38,6 +38,10 @@ export type ExpenseListItem = {
   createdAt: string;
   transactionId: string | null;
   attachmentUrl: string | null;
+  hasMissingCostSnapshot: boolean;
+  source:
+    | { type: "MANUAL" }
+    | { type: "SHOPPING_REQUEST"; id: string; number: string };
   recordedBy: { id: string; name: string };
 };
 

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Card } from "@pos/ui";
 import { useRole } from "@/components/providers/RoleProvider";
+import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import { shouldShowAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
 import {
   createSalesperson,
@@ -334,6 +335,7 @@ export default function SalespersonsPage() {
     setErrorMessage(null);
     setIsModalOpen(true);
   }, [canCreateSalespersons]);
+  useAssistantModalAction("salesperson-create", openAddModal);
 
   const loadTransactionsForSalesperson = useCallback(
     async (salespersonId: string): Promise<void> => {

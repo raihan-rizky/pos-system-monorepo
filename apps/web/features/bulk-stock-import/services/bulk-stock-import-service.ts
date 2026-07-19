@@ -32,7 +32,7 @@ export interface PreviewBulkStockImportInput {
 }
 
 const DEFAULT_STORE_ID = "store-main";
-const DEFAULT_IMPORT_NOTE = "Bulk stock import";
+const DEFAULT_IMPORT_NOTE = "Impor stok massal";
 
 export async function previewBulkStockImport(
   repository: BulkStockImportRepository,

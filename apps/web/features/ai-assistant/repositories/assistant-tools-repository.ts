@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { db } from "@pos/db";
+import { buildFinancialReport } from "@/features/financial-report/helpers/report-core";
 
 type DecimalLike = { toNumber?: () => number } | number | string | null | undefined;
 
@@ -101,6 +102,156 @@ export async function getDailySalesSummary({
     transactionCount: transactions.length,
     generatedAt: new Date().toISOString(),
   };
+}
+
+export async function getFinancialReportAnalysis({
+  storeId,
+  dateFrom,
+  dateTo,
+}: {
+  storeId: string;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const start = new Date(`${dateFrom}T00:00:00+07:00`);
+  const end = new Date(`${dateTo}T00:00:00+07:00`);
+  end.setUTCDate(end.getUTCDate() + 1);
+  const dateBounds = { gte: start, lt: end };
+
+  const [
+    transactions,
+    shifts,
+    inventoryLogs,
+    expenseAggregate,
+    incompleteExpenseCount,
+  ] = await Promise.all([
+    db.transaction.findMany({
+      where: {
+        storeId,
+        status: { in: ["COMPLETED", "DP"] },
+        invoiceDate: dateBounds,
+      },
+      orderBy: { invoiceDate: "desc" },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        invoiceDate: true,
+        createdAt: true,
+        status: true,
+        paymentMethod: true,
+        total: true,
+        amountPaid: true,
+        discount: true,
+        salesName: true,
+        salesperson: { select: { name: true } },
+        items: {
+          select: {
+            productId: true,
+            productName: true,
+            quantity: true,
+            subtotal: true,
+            unitCost: true,
+            product: {
+              select: { category: { select: { name: true } } },
+            },
+          },
+        },
+      },
+    }),
+    db.cashierShift.findMany({
+      where: { storeId, openedAt: dateBounds },
+      orderBy: { openedAt: "desc" },
+      select: {
+        id: true,
+        openedAt: true,
+        closedAt: true,
+        openingBalance: true,
+        expectedBalance: true,
+        closingBalance: true,
+        discrepancy: true,
+        status: true,
+        cashier: { select: { name: true } },
+      },
+    }),
+    db.inventoryLog.findMany({
+      where: {
+        product: { storeId },
+        createdAt: dateBounds,
+        OR: [
+          { reason: { in: ["WASTE", "USAGE", "OPNAME", "MANUAL_ADJUSTMENT"] } },
+          { reason: null },
+        ],
+      },
+      select: {
+        type: true,
+        reason: true,
+        quantity: true,
+        unitCost: true,
+        createdAt: true,
+      },
+    }),
+    db.expense.aggregate({
+      where: {
+        storeId,
+        deletedAt: null,
+        occurredAt: dateBounds,
+      },
+      _sum: { amount: true, changeAmount: true },
+      _count: { _all: true },
+    }),
+    db.expense.count({
+      where: {
+        storeId,
+        deletedAt: null,
+        occurredAt: dateBounds,
+        hasMissingCostSnapshot: true,
+      },
+    }),
+  ]);
+
+  return buildFinancialReport({
+    dateFrom,
+    dateTo,
+    transactions: transactions.map((transaction) => ({
+      ...transaction,
+      createdAt: transaction.invoiceDate,
+      total: toNumber(transaction.total as DecimalLike),
+      amountPaid: toNumber(transaction.amountPaid as DecimalLike),
+      discount: toNumber(transaction.discount as DecimalLike),
+      items: transaction.items.map((item) => ({
+        ...item,
+        quantity: toNumber(item.quantity as DecimalLike),
+        subtotal: toNumber(item.subtotal as DecimalLike),
+        unitCost:
+          item.unitCost === null || item.unitCost === undefined
+            ? null
+            : toNumber(item.unitCost as DecimalLike),
+      })),
+    })),
+    shifts: shifts.map((shift) => ({
+      ...shift,
+      openingBalance: toNumber(shift.openingBalance as DecimalLike),
+      expectedBalance: toNumber(shift.expectedBalance as DecimalLike),
+      closingBalance: toNumber(shift.closingBalance as DecimalLike),
+      discrepancy: toNumber(shift.discrepancy as DecimalLike),
+    })),
+    inventoryLogs: inventoryLogs.map((row) => ({
+      type: row.type,
+      reason: row.reason,
+      quantity: toNumber(row.quantity as DecimalLike),
+      unitCost:
+        row.unitCost === null || row.unitCost === undefined
+          ? null
+          : toNumber(row.unitCost as DecimalLike),
+      createdAt: row.createdAt,
+    })),
+    expenseSummary: {
+      amount: toNumber(expenseAggregate._sum.amount as DecimalLike),
+      changeAmount: toNumber(expenseAggregate._sum.changeAmount as DecimalLike),
+      entryCount: expenseAggregate._count._all,
+      incompleteCount: incompleteExpenseCount,
+    },
+  });
 }
 
 const HELP_DOCS = [

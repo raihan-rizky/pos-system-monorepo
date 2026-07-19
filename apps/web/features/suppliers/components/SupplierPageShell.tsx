@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { useDebounce } from "@/hooks/useDebounce";
+import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import {
   useCreateSupplier,
   useSetSupplierActive,
@@ -107,6 +108,7 @@ export function SupplierPageShell() {
     setWarnings([]);
     setFormDialogOpen(true);
   };
+  useAssistantModalAction("supplier-create", openCreate);
 
   const openEdit = (supplier: SupplierListItem) => {
     setEditing(supplier);
@@ -207,7 +209,7 @@ export function SupplierPageShell() {
             onClick={() => setTab("shopping")}
             icon={<ShoppingCart className="h-4 w-4" />}
           >
-            Daftar Belanja
+            Permohonan Belanja
           </TabButton>
         </div>
 
@@ -347,7 +349,7 @@ export function SupplierPageShell() {
         ) : (
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm px-1 md:px-4">
             <div className="border-b border-slate-100 p-4">
-              <h2 className="text-base font-black text-slate-950">Daftar Belanja</h2>
+              <h2 className="text-base font-black text-slate-950">Permohonan Belanja</h2>
               <p className="text-sm text-slate-500">Buat dan cetak daftar kebutuhan barang untuk pengajuan belanja.</p>
             </div>
             <ShoppingRequestList onCreateClick={() => setShoppingCreateOpen(true)} />

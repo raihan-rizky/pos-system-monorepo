@@ -208,7 +208,15 @@ function CompactPreview({
   );
 }
 
-export const SingleStockUpdatePanel: React.FC = () => {
+interface SingleStockUpdatePanelProps {
+  onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
+}
+
+export const SingleStockUpdatePanel: React.FC<SingleStockUpdatePanelProps> = ({
+  onSuccess,
+  onError,
+}) => {
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<SelectableProduct | null>(null);
   const [mode, setMode] = useState<ProductFirstStockMode>("PRODUCT_ONLY");
@@ -293,9 +301,13 @@ export const SingleStockUpdatePanel: React.FC = () => {
       await submitStockGroupBulk({
         rows: [buildRequestRow(selectedProduct, mode, type, inputValue, note)],
       });
-      setSuccess("Permintaan update stok berhasil dibuat dan menunggu approval owner.");
+      const message = "Permintaan update stok berhasil dibuat dan menunggu approval owner.";
+      setSuccess(message);
+      onSuccess?.(message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengajukan update stok.");
+      const message = err instanceof Error ? err.message : "Gagal mengajukan update stok.";
+      setError(message);
+      onError?.(message);
     } finally {
       setIsSubmitting(false);
     }

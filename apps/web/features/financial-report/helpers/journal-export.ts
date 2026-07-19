@@ -14,7 +14,10 @@ const PERIOD_LABEL_ID: Record<ReportPeriod, string> = {
   daily: "Harian",
   weekly: "Mingguan",
   monthly: "Bulanan",
+  "30d": "30 Hari Terakhir",
 };
+
+export type ReportExportFormat = "xlsx" | "pdf";
 
 function formatRupiah(value: number): string {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -57,6 +60,26 @@ export type ExportInput = {
   footer: ReportFooter;
   categories?: ReportCategorySummary[];
 };
+
+export async function exportFinancialReportFile(
+  period: ReportPeriod,
+  format: ReportExportFormat,
+): Promise<void> {
+  const response = await fetch(`/api/finance/report/journal?period=${period}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { message?: string };
+    throw new Error(body.message || `Gagal memuat data (${response.status})`);
+  }
+
+  const input = await response.json() as ExportInput;
+  if (format === "xlsx") {
+    await exportReportXlsx(input);
+  } else {
+    await exportReportPdf(input);
+  }
+}
 
 // ── XLSX ──────────────────────────────────────────────────────────────────
 const COLOR = {

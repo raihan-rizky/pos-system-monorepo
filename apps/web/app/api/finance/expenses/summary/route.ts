@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       db.expense.findMany({
         where: {
           deletedAt: null,
-          recordedBy: { storeId },
+          storeId,
           occurredAt: { gte: range.start, lt: range.end },
         },
         select: {

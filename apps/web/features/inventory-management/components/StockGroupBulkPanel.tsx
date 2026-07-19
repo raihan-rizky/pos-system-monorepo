@@ -152,7 +152,15 @@ function buildRequestRows(rows: SelectedProductRow[]): ProductFirstStockBulkRequ
   }));
 }
 
-export const StockGroupBulkPanel: React.FC = () => {
+interface StockGroupBulkPanelProps {
+  onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
+}
+
+export const StockGroupBulkPanel: React.FC<StockGroupBulkPanelProps> = ({
+  onSuccess,
+  onError,
+}) => {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<SelectedProductRow[]>([]);
   const [preview, setPreview] = useState<ProductFirstStockGroupBulkPreview | null>(null);
@@ -247,9 +255,13 @@ export const StockGroupBulkPanel: React.FC = () => {
     try {
       const result = await submitStockGroupBulk({ rows: buildRequestRows(rows) });
       setPreview(result.preview);
-      setSuccess("Permintaan update stok massal berhasil dibuat dan menunggu approval owner.");
+      const message = "Permintaan update stok massal berhasil dibuat dan menunggu approval owner.";
+      setSuccess(message);
+      onSuccess?.(message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengajukan update stok massal.");
+      const message = err instanceof Error ? err.message : "Gagal mengajukan update stok massal.";
+      setError(message);
+      onError?.(message);
     } finally {
       setIsSubmitting(false);
     }

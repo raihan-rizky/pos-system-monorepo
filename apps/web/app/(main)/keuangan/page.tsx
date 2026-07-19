@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import {
 import { Button, Modal } from "@pos/ui";
 import { ChevronRight, MoreVertical, Plus } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
+import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import {
   useIncomeSummary,
   useExpenseSummary,
@@ -114,6 +115,14 @@ export default function KeuanganDashboardPage() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["finance"] });
 
+  const openCreateExpense = useCallback(() => {
+    if (!canCreate) return;
+    setEditing(undefined);
+    setModalMode("create");
+    setModalOpen(true);
+  }, [canCreate]);
+  useAssistantModalAction("expense-create", openCreateExpense);
+
   const handleEdit = (item: ExpenseListItem) => {
     setEditing({
       id: item.id,
@@ -204,11 +213,7 @@ export default function KeuanganDashboardPage() {
           </div>
           {canCreate && (
             <Button
-              onClick={() => {
-                setEditing(undefined);
-                setModalMode("create");
-                setModalOpen(true);
-              }}
+              onClick={openCreateExpense}
               className="w-full md:w-auto justify-center"
               icon={
                 <Plus className="h-[18px] w-[18px]" strokeWidth={2.5} aria-hidden="true" />
@@ -422,11 +427,23 @@ export default function KeuanganDashboardPage() {
           ) : (
             <>
             <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
-                {list.data.data.map((item) => (
-                  <li key={item.id} className="px-3 sm:px-4 py-2.5 flex items-start sm:items-center gap-3">
+                {list.data.data.map((item) => {
+                  const isAutomaticExpense =
+                    item.source.type === "SHOPPING_REQUEST";
+                  return (
+                  <li
+                    key={item.id}
+                    className={`px-3 sm:px-4 py-2.5 flex items-start sm:items-center gap-3 ${
+                      isAutomaticExpense ? "bg-violet-50/50" : "bg-white"
+                    }`}
+                  >
                     <span
                       className="w-1 self-stretch rounded-full shrink-0"
-                      style={{ backgroundColor: CATEGORY_COLORS[item.category] }}
+                      style={{
+                        backgroundColor: isAutomaticExpense
+                          ? "#7C3AED"
+                          : CATEGORY_COLORS[item.category],
+                      }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -442,6 +459,20 @@ export default function KeuanganDashboardPage() {
                         >
                           {CATEGORY_LABELS_ID[item.category]}
                         </span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                            isAutomaticExpense
+                              ? "border-violet-200 bg-violet-100 text-violet-800"
+                              : "border-surface-200 bg-surface-100 text-surface-600"
+                          }`}
+                        >
+                          {isAutomaticExpense ? "Permohonan Belanja" : "Manual"}
+                        </span>
+                        {item.hasMissingCostSnapshot && (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            Harga modal tidak tersedia saat approval
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-surface-500 mt-0.5 break-words sm:truncate">
                         {fullDayShort(item.occurredAt)} ·{" "}
@@ -501,7 +532,7 @@ export default function KeuanganDashboardPage() {
                         );
                       })()}
                     </div>
-                    {(canEdit || canDelete) && (
+                    {(canEdit || canDelete) && !isAutomaticExpense && (
                       <RowActions
                         canEdit={canEdit}
                         canDelete={canDelete}
@@ -510,7 +541,8 @@ export default function KeuanganDashboardPage() {
                       />
                     )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
 
               {list.data.pagination.totalPages > 1 && (

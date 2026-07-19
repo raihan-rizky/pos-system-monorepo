@@ -23,6 +23,11 @@ import { flushSync } from "react-dom";
 import { AssistantActionLog } from "./AssistantActionLog";
 import { AssistantWorkflowMessage } from "./AssistantWorkflowMessage";
 import { useRole } from "@/components/providers/RoleProvider";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  ASSISTANT_OPEN_MODAL_EVENT,
+  executeAssistantClientAction,
+} from "../helpers/assistant-client-actions";
 
 const MAX_HISTORY_MESSAGES = 10;
 
@@ -93,6 +98,8 @@ export function AssistantWidget({
   const effectiveUserId = userId ?? roleContext.userId;
   const effectiveStoreId = storeId ?? roleContext.storeId;
   const effectiveAuthorizationFingerprint = authorizationFingerprint ?? roleContext.authorizationFingerprint;
+  const pathname = usePathname() || "/";
+  const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -336,7 +343,10 @@ export function AssistantWidget({
 
     try {
       const stream = await sendChatMessage(
-        { messages: requestMessages },
+        {
+          messages: requestMessages,
+          pageContext: { page: pathname },
+        },
         { signal: controller.signal },
       );
 
@@ -352,6 +362,55 @@ export function AssistantWidget({
             }));
           });
           await waitForStatusPaint();
+          continue;
+        }
+        if ("type" in parsed && parsed.type === "client_action") {
+          flushSync(() => {
+            setMessages((current) => appendAssistantActionLogEntry(current, {
+              label: "Menjalankan aksi di aplikasi",
+              occurredAt: parsed.occurredAt,
+              status: "active",
+            }));
+          });
+          try {
+            const label = await executeAssistantClientAction(parsed.action, {
+              currentPath: pathname,
+              dispatchModal: (modal) => {
+                window.dispatchEvent(new CustomEvent(ASSISTANT_OPEN_MODAL_EVENT, {
+                  detail: { modal },
+                }));
+              },
+              navigate: (route) => router.push(route),
+              storage: window.sessionStorage,
+              exportFinancialReport: async (period, format) => {
+                const { exportFinancialReportFile } = await import(
+                  "@/features/financial-report/helpers/journal-export"
+                );
+                await exportFinancialReportFile(period, format);
+              },
+              exportCustomerRecap: async (period, format) => {
+                const { exportCustomerRecapPeriod } = await import(
+                  "@/features/customer-recap/helpers/customer-recap-export-client"
+                );
+                await exportCustomerRecapPeriod(period, format);
+              },
+            });
+            setMessages((current) => appendAssistantActionLogEntry(current, {
+              label,
+              occurredAt: new Date().toISOString(),
+              status: "done",
+            }));
+          } catch (actionError) {
+            const message = actionError instanceof Error
+              ? actionError.message
+              : "Aksi dari Pak Tel belum berhasil dijalankan.";
+            setMessages((current) => appendAssistantActionFailure(
+              current,
+              "Aksi aplikasi gagal",
+              new Date().toISOString(),
+            ));
+            setError(message);
+          }
           continue;
         }
         if ("type" in parsed && parsed.type === "final") {

@@ -8,6 +8,9 @@ Buka sidebar **Keuangan > Keuangan** (`/keuangan`) untuk memantau arus kas bulan
 - **Grafik Pemasukan vs Pengeluaran:** Visualisasi harian untuk membandingkan uang masuk dan uang keluar.
 - **Pemasukan dari Transaksi:** Total nominal yang diterima dari transaksi penjualan yang terjadi.
 - **Daftar Pengeluaran:** Catatan pengeluaran operasional toko yang dikelompokkan per kategori (misal: sewa, listrik, gaji, operasional, dll).
+- **Sumber Pengeluaran:** Badge **Manual** menandai entri dari form, sedangkan badge ungu **Permohonan Belanja** menandai entri otomatis setelah semua item permohonan diproses.
+- **Pengeluaran Otomatis:** Nominal memakai harga modal dikali jumlah yang disetujui, kategori Bahan, dan tanggal permohonan. Entri ini tidak dapat diedit atau dihapus dari halaman Keuangan.
+- **Harga Modal Kosong:** Item tanpa harga modal dihitung Rp0 dan diberi badge **Harga modal tidak tersedia saat approval**. Mengisi harga modal produk setelah approval tidak mengubah snapshot pengeluaran lama.
 
 ## Mengelola Pengeluaran & Bukti Transaksi
 - **Pencatatan Pengeluaran:** Catat nominal, pilih kategori, dan masukkan pengeluaran operasional toko. Langkah selengkapnya dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q18-bagaimana-cara-mencatat-pengeluaran-operasional-toko).

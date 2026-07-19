@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 const log = getLogger("api:finance:report");
 export const dynamic = "force-dynamic";
 
-const PRESETS = new Set<FinancialReportPreset>(["today", "7d", "month"]);
+const PRESETS = new Set<FinancialReportPreset>(["today", "7d", "30d", "month"]);
 const MAX_RANGE_DAYS = 366;
 
 function isPreset(value: string | null): value is FinancialReportPreset {
@@ -93,7 +93,13 @@ export async function GET(request: Request) {
 
     const dateBounds = toDateBounds(dateFrom, dateTo);
 
-    const [transactions, shifts, inventoryLogs] = await Promise.all([
+    const [
+      transactions,
+      shifts,
+      inventoryLogs,
+      expenseAggregate,
+      incompleteExpenseCount,
+    ] = await Promise.all([
       db.transaction.findMany({
         where: {
           storeId,
@@ -164,6 +170,23 @@ export async function GET(request: Request) {
           createdAt: true,
         },
       }),
+      db.expense.aggregate({
+        where: {
+          storeId,
+          deletedAt: null,
+          occurredAt: dateBounds,
+        },
+        _sum: { amount: true, changeAmount: true },
+        _count: { _all: true },
+      }),
+      db.expense.count({
+        where: {
+          storeId,
+          deletedAt: null,
+          occurredAt: dateBounds,
+          hasMissingCostSnapshot: true,
+        },
+      }),
     ]);
 
     return NextResponse.json(
@@ -203,6 +226,12 @@ export async function GET(request: Request) {
               : toNumber(logRow.unitCost),
           createdAt: logRow.createdAt,
         })),
+        expenseSummary: {
+          amount: toNumber(expenseAggregate._sum.amount),
+          changeAmount: toNumber(expenseAggregate._sum.changeAmount),
+          entryCount: expenseAggregate._count._all,
+          incompleteCount: incompleteExpenseCount,
+        },
       }),
     );
   } catch (error) {

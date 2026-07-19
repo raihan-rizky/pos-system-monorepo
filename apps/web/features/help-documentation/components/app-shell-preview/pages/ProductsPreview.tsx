@@ -52,7 +52,7 @@ export function ProductsPreview(ctx: PreviewContext) {
                 <PreviewButton ctx={ctx} target="products-import" icon={FileSpreadsheet}>Import</PreviewButton>
                 {importOpen ? (
                   <div className="absolute right-0 top-12 z-30 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                    {['Import Bulk Products','Import Bulk Stock','Import Foto Produk'].map((label) => <p key={label} className="rounded-xl px-3 py-3 text-xs font-bold text-slate-800">{label}</p>)}
+                    {['Impor Produk Massal','Impor Stok Massal','Impor Kode Supplier Massal','Impor Foto Produk'].map((label) => <p key={label} className="rounded-xl px-3 py-3 text-xs font-bold text-slate-800">{label}</p>)}
                   </div>
                 ) : null}
               </div>

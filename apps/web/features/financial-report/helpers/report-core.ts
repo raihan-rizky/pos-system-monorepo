@@ -1,6 +1,6 @@
 type NullableNumber = number | string | null | undefined;
 
-export type FinancialReportPreset = "today" | "7d" | "month";
+export type FinancialReportPreset = "today" | "7d" | "30d" | "month";
 
 export type FinancialReportTransaction = {
   id: string;
@@ -52,6 +52,19 @@ export type FinancialReportInventoryLog = {
   quantity: NullableNumber;
   unitCost: NullableNumber;
   createdAt?: Date | null;
+};
+
+export type FinancialReportExpense = {
+  amount: NullableNumber;
+  changeAmount: NullableNumber;
+  hasMissingCostSnapshot?: boolean;
+};
+
+export type FinancialReportExpenseSummary = {
+  amount: NullableNumber;
+  changeAmount: NullableNumber;
+  entryCount: number;
+  incompleteCount: number;
 };
 
 export type LossReason =
@@ -113,6 +126,10 @@ export function buildFinancialReportRange(
 
   if (preset === "7d") {
     return { dateFrom: addDays(today, -6), dateTo: today };
+  }
+
+  if (preset === "30d") {
+    return { dateFrom: addDays(today, -29), dateTo: today };
   }
 
   if (preset === "month") {
@@ -256,12 +273,16 @@ export function buildFinancialReport({
   transactions,
   shifts,
   inventoryLogs = [],
+  expenses = [],
+  expenseSummary,
 }: {
   dateFrom: string;
   dateTo: string;
   transactions: FinancialReportTransaction[];
   shifts: FinancialReportShift[];
   inventoryLogs?: FinancialReportInventoryLog[];
+  expenses?: FinancialReportExpense[];
+  expenseSummary?: FinancialReportExpenseSummary;
 }) {
   const paymentMap = new Map<
     string,
@@ -473,6 +494,21 @@ export function buildFinancialReport({
   }));
 
   const grossProfitNet = grossProfit - lossStokNet;
+  const expenseTotal = expenseSummary
+    ? Math.max(
+        0,
+        toNumber(expenseSummary.amount) - toNumber(expenseSummary.changeAmount),
+      )
+    : expenses.reduce(
+        (sum, expense) =>
+          sum +
+          Math.max(0, toNumber(expense.amount) - toNumber(expense.changeAmount)),
+        0,
+      );
+  const expenseEntryCount = expenseSummary?.entryCount ?? expenses.length;
+  const incompleteExpenseCount =
+    expenseSummary?.incompleteCount ??
+    expenses.filter((expense) => expense.hasMissingCostSnapshot).length;
 
   return {
     dateFrom,
@@ -492,6 +528,10 @@ export function buildFinancialReport({
       missingCostLineCount,
       lossStokNet,
       lossStokUnclassifiedCount,
+      expenseTotal,
+      expenseEntryCount,
+      incompleteExpenseCount,
+      estimatedNetProfit: grossProfitNet - expenseTotal,
     },
     paymentMethods: [...paymentMap.values()].sort((a, b) =>
       a.method.localeCompare(b.method),

@@ -12,7 +12,11 @@ type ToolIntent =
   | { kind: "tool"; toolName: "get_customer_recap_summary"; input: { query: string; preset: "30d" } }
   | { kind: "tool"; toolName: "get_supplier_search"; input: { query: string; limit: number } }
   | { kind: "tool"; toolName: "get_top_products"; input: { date: string } }
-  | { kind: "tool"; toolName: "get_pending_transactions"; input: Record<string, never> };
+  | { kind: "tool"; toolName: "get_pending_transactions"; input: Record<string, never> }
+  | { kind: "tool"; toolName: "exportFinancialReport"; input: { period: "daily" | "weekly" | "monthly" | "30d"; format: "pdf" | "xlsx" } }
+  | { kind: "tool"; toolName: "exportCustomerRecap"; input: { period: "daily" | "weekly" | "monthly" | "30d"; format: "pdf" | "xlsx" } }
+  | { kind: "tool"; toolName: "analyzeFinancialReport"; input: { period: "daily" | "weekly" | "monthly" | "30d" } }
+  | { kind: "tool"; toolName: "openProductModal" | "openCustomerModal" | "openSupplierModal" | "openSalespersonModal" | "openExpenseModal" | "openShiftModal" | "openStockUpdateModal" | "openInboundReceiptModal"; input: Record<string, never> };
 
 type AssistantIntent =
   | ToolIntent
@@ -37,6 +41,17 @@ const FAST_PATH_INTENT_NAMES = new Set<FastPathIntentName>([
   "get_supplier_search",
   "get_top_products",
   "get_pending_transactions",
+  "exportFinancialReport",
+  "exportCustomerRecap",
+  "analyzeFinancialReport",
+  "openProductModal",
+  "openCustomerModal",
+  "openSupplierModal",
+  "openSalespersonModal",
+  "openExpenseModal",
+  "openShiftModal",
+  "openStockUpdateModal",
+  "openInboundReceiptModal",
   "social_static",
   "out_of_scope",
   "unsupported_data",
@@ -116,6 +131,18 @@ function capture(text: string, pattern: RegExp) {
   return match?.[1] ? titleQuery(match[1]) : "";
 }
 
+function requestedReportPeriod(text: string): "daily" | "weekly" | "monthly" | "30d" {
+  if (/\b(?:30\s*(?:hari|days?)|tiga puluh hari|sebulan terakhir)\b/.test(text)) return "30d";
+  if (/\b(?:mingguan|minggu ini|weekly|7\s*hari)\b/.test(text)) return "weekly";
+  if (/\b(?:harian|hari ini|daily|today)\b/.test(text)) return "daily";
+  if (/\b(?:bulanan|bulan ini|monthly|month to date)\b/.test(text)) return "monthly";
+  return "30d";
+}
+
+function requestedExportFormat(text: string): "pdf" | "xlsx" {
+  return /\b(?:excel|xlsx)\b/.test(text) ? "xlsx" : "pdf";
+}
+
 /**
  * Returns a deterministic route only when the complete latest message is
  * context-independent. Anything ambiguous deliberately falls back to the LLM.
@@ -133,6 +160,52 @@ export function routeAssistantIntent(message: string, now: Date = new Date()): A
   }
 
   if (hasContextDependencyOrMixedIntent(text)) return { kind: "chat" };
+
+  if (/^(?:(?:tolong )?(?:ekspor|export|unduh|download|buatkan? file) )?(?:rekap |laporan )?(?:keuangan|finansial)(?: toko)?(?:\s+.*)?$/.test(text)
+    && /\b(?:ekspor|export|unduh|download|file|pdf|excel|xlsx)\b/.test(text)) {
+    return {
+      kind: "tool",
+      toolName: "exportFinancialReport",
+      input: {
+        period: requestedReportPeriod(text),
+        format: requestedExportFormat(text),
+      },
+    };
+  }
+
+  if (/^(?:buatkan? |ekspor |export |unduh |download )?(?:file )?rekap (?:semua )?(?:customer|pelanggan)(?:\s+(?:harian|mingguan|bulanan|30\s*hari|pdf|excel|xlsx))*[!?.]*$/.test(text)) {
+    return {
+      kind: "tool",
+      toolName: "exportCustomerRecap",
+      input: {
+        period: requestedReportPeriod(text),
+        format: requestedExportFormat(text),
+      },
+    };
+  }
+
+  if (/^(?:(?:tolong )?(?:analisis|analisa|evaluasi|review)) (?:seluruh |semua |whole )?(?:halaman )?(?:laporan )?(?:keuangan|finansial)(?:\s+.*)?[!?.]*$/.test(text)) {
+    return {
+      kind: "tool",
+      toolName: "analyzeFinancialReport",
+      input: { period: requestedReportPeriod(text) },
+    };
+  }
+
+  const modalRoutes: Array<[RegExp, ToolIntent["toolName"]]> = [
+    [/^(?:buka (?:modal|form) )?(?:tambah|buat|input) (?:produk|product)(?: baru)?[!?.]*$/, "openProductModal"],
+    [/^(?:buka (?:modal|form) )?(?:tambah|buat|daftarkan) (?:customer|pelanggan)(?: baru)?[!?.]*$/, "openCustomerModal"],
+    [/^(?:buka (?:modal|form) )?(?:tambah|buat|daftarkan) (?:supplier|pemasok)(?: baru)?[!?.]*$/, "openSupplierModal"],
+    [/^(?:buka (?:modal|form) )?(?:tambah|buat|daftarkan) (?:sales|salesperson)(?: baru)?[!?.]*$/, "openSalespersonModal"],
+    [/^(?:buka (?:modal|form) )?(?:catat|tambah|buat) pengeluaran(?: baru)?[!?.]*$/, "openExpenseModal"],
+    [/^(?:buka|mulai) shift(?: kasir)?[!?.]*$/, "openShiftModal"],
+    [/^(?:buka (?:modal|form) )?(?:update|ubah|sesuaikan) stok (?:satu |1 )?(?:produk|barang)[!?.]*$/, "openStockUpdateModal"],
+    [/^(?:buka (?:modal|form) )?(?:input|buat|ajukan) penerimaan barang[!?.]*$/, "openInboundReceiptModal"],
+  ];
+  const modalRoute = modalRoutes.find(([pattern]) => pattern.test(text));
+  if (modalRoute) {
+    return { kind: "tool", toolName: modalRoute[1] as ToolIntent["toolName"], input: {} } as ToolIntent;
+  }
 
   if (/^(?:(?:cek|lihat|tampilkan) )?(?:(?:daftar|list) )?(?:(?:produk|barang)(?: (?:apa|mana))? yang )?(?:stok(?:nya)?(?: (?:produk|barang))?|(?:produk|barang) stok(?:nya)?) (?:rendah|menipis|habis|minimum)[!?.]*$/.test(text)) {
     return { kind: "tool", toolName: "get_low_stock_items", input: {} };

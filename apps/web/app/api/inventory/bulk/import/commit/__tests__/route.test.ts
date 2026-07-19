@@ -87,7 +87,7 @@ describe("POST /api/inventory/bulk/import/commit", () => {
     expect(commitStockImportMock).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: "ADD",
-        note: "Bulk stock import",
+        note: "Impor stok massal",
         allowNegativeStock: false,
         impacts: [
           expect.objectContaining({

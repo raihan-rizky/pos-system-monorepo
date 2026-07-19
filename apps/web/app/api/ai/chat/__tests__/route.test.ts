@@ -16,6 +16,7 @@ const getCustomerRecapSummaryMock = vi.hoisted(() => vi.fn());
 const getSupplierSearchMock = vi.hoisted(() => vi.fn());
 const getTopProductsMock = vi.hoisted(() => vi.fn());
 const getPendingTransactionsMock = vi.hoisted(() => vi.fn());
+const getFinancialReportAnalysisMock = vi.hoisted(() => vi.fn());
 const getFreshGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
 const enforceRateLimitMock = vi.hoisted(() => vi.fn());
 const openAIConstructorMock = vi.hoisted(() =>
@@ -59,6 +60,7 @@ vi.mock("@/features/ai-assistant/repositories/assistant-tools-repository", () =>
   getSupplierSearch: getSupplierSearchMock,
   getTopProducts: getTopProductsMock,
   getPendingTransactions: getPendingTransactionsMock,
+  getFinancialReportAnalysis: getFinancialReportAnalysisMock,
 }));
 
 const makeRequest = (body: unknown) =>
@@ -135,6 +137,19 @@ describe("POST /api/ai/chat", () => {
     getSupplierSearchMock.mockResolvedValue({ items: [], total: 0, generatedAt: "2026-06-26T10:00:00.000Z" });
     getTopProductsMock.mockResolvedValue({ date: "2026-06-26", items: [], generatedAt: "2026-06-26T10:00:00.000Z" });
     getPendingTransactionsMock.mockResolvedValue({ items: [], total: 0, generatedAt: "2026-06-26T10:00:00.000Z" });
+    getFinancialReportAnalysisMock.mockResolvedValue({
+      dateFrom: "2026-05-28",
+      dateTo: "2026-06-26",
+      summary: {},
+      paymentMethods: [],
+      topProducts: [],
+      categories: [],
+      salespersons: [],
+      shifts: [],
+      lossStok: [],
+      trend: [],
+      generatedAt: "2026-06-26T10:00:00.000Z",
+    });
   });
 
   it("uses Nebius API key, base URL, and model from env", async () => {

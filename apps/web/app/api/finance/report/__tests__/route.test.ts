@@ -7,6 +7,8 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const cashierShiftFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
+const expenseAggregateMock = vi.hoisted(() => vi.fn());
+const expenseCountMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -24,6 +26,10 @@ vi.mock("@pos/db", () => ({
     inventoryLog: {
       findMany: inventoryLogFindManyMock,
     },
+    expense: {
+      aggregate: expenseAggregateMock,
+      count: expenseCountMock,
+    },
   },
 }));
 
@@ -38,6 +44,11 @@ describe("GET /api/finance/report", () => {
     transactionFindManyMock.mockResolvedValue([]);
     cashierShiftFindManyMock.mockResolvedValue([]);
     inventoryLogFindManyMock.mockResolvedValue([]);
+    expenseAggregateMock.mockResolvedValue({
+      _sum: { amount: null, changeAmount: null },
+      _count: { _all: 0 },
+    });
+    expenseCountMock.mockResolvedValue(0);
   });
 
   afterEach(() => {
@@ -85,6 +96,47 @@ describe("GET /api/finance/report", () => {
         }),
       }),
     );
+  });
+
+  it("aggregates store expenses and exposes expense and estimated-net-profit KPIs", async () => {
+    expenseAggregateMock.mockResolvedValue({
+      _sum: {
+        amount: { toString: () => "35000.00" },
+        changeAmount: { toString: () => "5000.00" },
+      },
+      _count: { _all: 2 },
+    });
+    expenseCountMock.mockResolvedValue(1);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31",
+      ),
+    );
+    const body = await response.json();
+
+    expect(expenseAggregateMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        deletedAt: null,
+        occurredAt: {
+          gte: new Date("2026-04-30T17:00:00.000Z"),
+          lt: new Date("2026-05-31T17:00:00.000Z"),
+        },
+      },
+      _sum: { amount: true, changeAmount: true },
+      _count: { _all: true },
+    });
+    expect(expenseCountMock).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        storeId: "store-main",
+        hasMissingCostSnapshot: true,
+      }),
+    });
+    expect(body.summary.expenseTotal).toBe(30000);
+    expect(body.summary.expenseEntryCount).toBe(2);
+    expect(body.summary.incompleteExpenseCount).toBe(1);
+    expect(body.summary.estimatedNetProfit).toBe(-30000);
   });
 
   it("rejects invalid date ranges before querying the database", async () => {

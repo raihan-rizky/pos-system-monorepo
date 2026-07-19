@@ -203,6 +203,47 @@ describe("sendChatMessage", () => {
     });
   });
 
+  it("preserves the active page context in the request payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(responseFromChunks([
+      finalFrame(),
+      "data: [DONE]\n\n",
+    ]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendChatMessage({
+      messages: [{ role: "user", content: "analisis halaman ini" }],
+      pageContext: { page: "/financial-report" },
+    });
+
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(requestInit.body))).toEqual({
+      messages: [{ role: "user", content: "analisis halaman ini" }],
+      pageContext: { page: "/financial-report" },
+    });
+  });
+
+  it("parses a trusted client-action frame before the final answer", async () => {
+    const action = {
+      kind: "export_financial_report" as const,
+      period: "30d" as const,
+      format: "pdf" as const,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(responseFromChunks([
+      `data: ${JSON.stringify({ type: "client_action", action, occurredAt: "2026-06-27T01:00:00.000Z" })}\n\n`,
+      finalFrame(),
+      "data: [DONE]\n\n",
+    ])));
+
+    const stream = await sendChatMessage({
+      messages: [{ role: "user", content: "ekspor laporan" }],
+    });
+
+    await expect(collect(stream)).resolves.toEqual([
+      { type: "client_action", action, occurredAt: "2026-06-27T01:00:00.000Z" },
+      { type: "final", answer: finalAnswer },
+    ]);
+  });
+
   it("preserves the HTTP status for a user-correctable request error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
       JSON.stringify({ error: "Request AI terlalu besar." }),

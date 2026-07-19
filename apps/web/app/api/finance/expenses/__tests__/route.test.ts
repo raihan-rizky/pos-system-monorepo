@@ -47,7 +47,7 @@ describe("finance expenses routes", () => {
     });
   });
 
-  it("scopes list queries to expenses recorded by users in the current store", async () => {
+  it("scopes list queries directly to the current store", async () => {
     const response = await GET(
       new Request("http://localhost/api/finance/expenses?month=2026-06"),
     );
@@ -56,16 +56,53 @@ describe("finance expenses routes", () => {
     expect(expenseFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          recordedBy: { storeId: "store-1" },
+          storeId: "store-1",
           deletedAt: null,
         }),
       }),
     );
     expect(expenseCountMock).toHaveBeenCalledWith({
       where: expect.objectContaining({
-        recordedBy: { storeId: "store-1" },
+        storeId: "store-1",
       }),
     });
+  });
+
+  it("returns a distinct shopping-request source and missing-cost warning", async () => {
+    expenseFindManyMock.mockResolvedValueOnce([
+      {
+        id: "expense-auto",
+        applicantName: "CV Kertas",
+        category: "SUPPLIES",
+        description: "Permohonan Belanja DPB-202607-001 - 2 item",
+        amount: { toString: () => "42500.00" },
+        changeAmount: { toString: () => "0.00" },
+        occurredAt: new Date("2026-07-02T03:15:00.000Z"),
+        createdAt: new Date("2026-07-19T01:00:00.000Z"),
+        transactionId: null,
+        attachmentUrl: null,
+        hasMissingCostSnapshot: true,
+        shoppingRequest: { id: "request-1", number: "DPB-202607-001" },
+        recordedBy: { id: "owner-1", name: "Owner" },
+      },
+    ]);
+    expenseCountMock.mockResolvedValueOnce(1);
+
+    const response = await GET(
+      new Request("http://localhost/api/finance/expenses?month=2026-07"),
+    );
+    const body = await response.json();
+
+    expect(body.data[0]).toEqual(
+      expect.objectContaining({
+        source: {
+          type: "SHOPPING_REQUEST",
+          id: "request-1",
+          number: "DPB-202607-001",
+        },
+        hasMissingCostSnapshot: true,
+      }),
+    );
   });
 
   it("rejects linked transactions from another store", async () => {

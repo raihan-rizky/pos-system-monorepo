@@ -359,7 +359,7 @@ export async function POST(
         });
       }
     }
-    return apiError("Failed to approve stock group bulk request", 500, {
+    return apiError("Gagal menyetujui permintaan grup stok massal", 500, {
       code: "InternalError",
     });
   }

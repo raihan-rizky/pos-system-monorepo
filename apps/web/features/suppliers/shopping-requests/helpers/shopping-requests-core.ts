@@ -1,4 +1,5 @@
 import type { ShoppingRequestItemInput } from "../types/shopping-request";
+import type { ShoppingRequestStockMode } from "../types/shopping-request";
 
 /**
  * Builds a shopping request number: DPB-YYYYMM-XXX
@@ -27,8 +28,14 @@ export function sanitizeShoppingRequestItems(
 }
 
 /**
- * Default approvedQty equals requestedQty (no modifier).
+ * Jumlah yang Di-ACC harus diputuskan secara eksplisit sebelum approval.
  */
-export function defaultApprovedQty(requestedQty: number): number {
-  return requestedQty;
+export function defaultApprovedQty(_requestedQty: number): null {
+  return null;
+}
+
+export function defaultShoppingRequestStockMode(
+  stockGroupId: string | null | undefined,
+): ShoppingRequestStockMode {
+  return stockGroupId ? "GROUP_STOCK" : "PRODUCT_ONLY";
 }

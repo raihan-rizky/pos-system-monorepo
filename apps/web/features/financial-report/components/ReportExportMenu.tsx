@@ -4,13 +4,12 @@ import { useEffect, useRef, useState, useCallback, type ReactNode } from "react"
 import { Button } from "@pos/ui";
 import { ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import {
-  exportReportPdf,
-  exportReportXlsx,
-  type ExportInput,
+  exportFinancialReportFile,
+  type ReportExportFormat,
 } from "@/features/financial-report/helpers/journal-export";
 import type { ReportPeriod } from "@/features/financial-report/helpers/journal-core";
 
-type ExportFormat = "xlsx" | "pdf";
+type ExportFormat = ReportExportFormat;
 type Step = "closed" | "format" | "period";
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string; hint: string }[] = [
@@ -21,6 +20,7 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string; hint: string }[] = [
 const PERIOD_OPTIONS: { value: ReportPeriod; label: string; hint: string }[] = [
   { value: "daily", label: "Harian", hint: "Hari ini" },
   { value: "weekly", label: "Mingguan", hint: "7 hari terakhir" },
+  { value: "30d", label: "30 Hari", hint: "30 hari terakhir" },
   { value: "monthly", label: "Bulanan", hint: "Bulan berjalan" },
 ];
 
@@ -31,17 +31,6 @@ const DownloadIcon = (
 const BackIcon = (
   <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
 );
-
-async function fetchReportInput(period: ReportPeriod): Promise<ExportInput> {
-  const res = await fetch(`/api/finance/report/journal?period=${period}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Gagal memuat data (${res.status})`);
-  }
-  return (await res.json()) as ExportInput;
-}
 
 export function ReportExportMenu(): ReactNode {
   const [step, setStep] = useState<Step>("closed");
@@ -84,12 +73,7 @@ export function ReportExportMenu(): ReactNode {
       setBusy(true);
       setError(null);
       try {
-        const input = await fetchReportInput(period);
-        if (format === "xlsx") {
-          await exportReportXlsx(input);
-        } else {
-          await exportReportPdf(input);
-        }
+        await exportFinancialReportFile(period, format);
         close();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Gagal mengekspor");

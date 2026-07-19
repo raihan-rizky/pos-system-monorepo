@@ -36,6 +36,23 @@ describe("ProofImageUploader", () => {
     expect(html).toContain("rotate(90deg)");
   });
 
+  it("keeps a quarter-turn preview within both axes of its viewport", () => {
+    const html = renderToStaticMarkup(
+      <PendingProofPreview
+        previewUrl="blob:portrait-proof"
+        rotation={90}
+        disabled={false}
+        onRotate={vi.fn()}
+        onUpload={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("[container-type:inline-size]");
+    expect(html).toContain("max-h-[min(100%,100cqw)]");
+    expect(html).toContain("max-w-[min(100%,16rem)]");
+  });
+
   it("starts with the R2 file picker and keeps prnt.sc fallback hidden", () => {
     const html = renderToStaticMarkup(
       <ProofImageUploader

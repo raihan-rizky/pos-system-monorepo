@@ -398,6 +398,7 @@ export class InventoryInboundReceiptRepository
       where: {
         storeId,
         status: "APPROVED",
+        stockAppliedAt: null,
         ...(search
           ? {
               OR: [

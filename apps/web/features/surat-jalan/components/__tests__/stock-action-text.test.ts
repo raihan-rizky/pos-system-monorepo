@@ -23,13 +23,13 @@ describe("Stock action helper texts", () => {
     expect(source).toContain("Invoice utama ini tidak lagi mengubah stok");
   });
 
-  it("verifies ShoppingRequestCreateModal.tsx has 'Aksi ini tidak akan mengubah stok'", () => {
+  it("explains that creating a shopping request does not change stock yet", () => {
     const source = readFileSync(join(process.cwd(), "features/suppliers/shopping-requests/components/ShoppingRequestCreateModal.tsx"), "utf8");
-    expect(source).toContain("Aksi ini tidak akan mengubah stok");
+    expect(source).toContain("Stok belum berubah sampai permohonan disetujui");
   });
 
-  it("verifies ShoppingRequestApproveModal.tsx has 'Aksi ini tidak akan mengubah stok'", () => {
+  it("explains that approval increases stock from accepted quantity", () => {
     const source = readFileSync(join(process.cwd(), "features/suppliers/shopping-requests/components/ShoppingRequestApproveModal.tsx"), "utf8");
-    expect(source).toContain("Aksi ini tidak akan mengubah stok");
+    expect(source).toContain("Stok akan bertambah sesuai Jumlah yang Di-ACC");
   });
 });

@@ -61,6 +61,6 @@ export async function POST(request: Request) {
       return apiValidationError(error);
     }
     log.error("Failed to preview bulk stock update:", error);
-    return apiError("Failed to preview bulk stock update", 500, { code: "InternalError" });
+    return apiError("Gagal membuat pratinjau pembaruan stok massal", 500, { code: "InternalError" });
   }
 }

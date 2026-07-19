@@ -41,6 +41,7 @@ import { CategoryIcon } from "@/lib/category-icons";
 import ProductFormModal from "@/components/inventory/ProductFormModal";
 import PriceUpdateModal from "@/components/inventory/PriceUpdateModal";
 import { useRole } from "@/components/providers/RoleProvider";
+import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import {
   shouldShowAction,
   shouldShowUpdateAction,
@@ -95,6 +96,11 @@ const BulkStockGroupDrawer = lazy(() =>
 const BulkPhotoImportDrawer = lazy(() =>
   import("@/features/product-import/components/BulkPhotoImportDrawer").then(
     (mod) => ({ default: mod.BulkPhotoImportDrawer }),
+  ),
+);
+const SupplierCodeImportDrawer = lazy(() =>
+  import("@/features/supplier-code-import/components/SupplierCodeImportDrawer").then(
+    (mod) => ({ default: mod.SupplierCodeImportDrawer }),
   ),
 );
 
@@ -245,6 +251,7 @@ function ProductsContent() {
   const [isBulkStockOpen, setIsBulkStockOpen] = useState(false);
   const [isBulkStockGroupOpen, setIsBulkStockGroupOpen] = useState(false);
   const [isBulkPhotoImportOpen, setIsBulkPhotoImportOpen] = useState(false);
+  const [isSupplierCodeImportOpen, setIsSupplierCodeImportOpen] = useState(false);
   const [selectedPriceLogProductId, setSelectedPriceLogProductId] =
     useState("");
   const [priceUpdateProductId, setPriceUpdateProductId] = useState<
@@ -400,6 +407,8 @@ function ProductsContent() {
     setEditingProductId(null);
     setIsProductModalOpen(true);
   };
+  useAssistantModalAction("product-create", openAdd);
+
   const openEdit = (id: string) => {
     if (!canUpdateProducts) return;
     setEditingProductId(id);
@@ -506,7 +515,7 @@ function ProductsContent() {
                   ) : (
                     <FileSpreadsheet className="w-5 h-5" />
                   )}
-                  <span>{activeImportJob ? "Import in progress" : "Import"}</span>
+                  <span>{activeImportJob ? "Impor sedang berjalan" : "Impor"}</span>
                   {importButtonProgress && (
                     <span className="rounded-lg bg-white/80 px-2 py-0.5 text-xs font-black tabular-nums text-blue-700 ring-1 ring-blue-100">
                       {importButtonProgress}
@@ -532,10 +541,10 @@ function ProductsContent() {
                         <FileSpreadsheet className="mt-0.5 h-4 w-4 text-blue-600" />
                         <span>
                           <span className="block font-black text-slate-900">
-                            Import Bulk Products
+                            Impor Produk Massal
                           </span>
                           <span className="block text-xs font-semibold text-slate-500">
-                            Add or update product catalog.
+                            Tambah atau perbarui katalog produk.
                           </span>
                         </span>
                       </button>
@@ -553,10 +562,31 @@ function ProductsContent() {
                         <TrendingUp className="mt-0.5 h-4 w-4 text-emerald-600" />
                         <span>
                           <span className="block font-black text-slate-900">
-                            Import Bulk Stock
+                            Impor Stok Massal
                           </span>
                           <span className="block text-xs font-semibold text-slate-500">
-                            Restock or set stock from Excel.
+                            Tambah atau tetapkan stok dari Excel.
+                          </span>
+                        </span>
+                      </button>
+                    )}
+                    {canUpdateProducts && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsImportMenuOpen(false);
+                          setIsSupplierCodeImportOpen(true);
+                        }}
+                        className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-slate-50"
+                      >
+                        <Boxes className="mt-0.5 h-4 w-4 text-amber-600" />
+                        <span>
+                          <span className="block font-black text-slate-900">
+                            Impor Kode Supplier Massal
+                          </span>
+                          <span className="block text-xs font-semibold text-slate-500">
+                            Hubungkan produk dan supplier melalui SKU.
                           </span>
                         </span>
                       </button>
@@ -1122,7 +1152,7 @@ function ProductsContent() {
                 onClick={() => setIsBulkStockOpen(true)}
                 className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white"
               >
-                Bulk Stock
+                Stok Massal
               </button>
               {canDeleteProducts && (
                 <button
@@ -1198,6 +1228,13 @@ function ProductsContent() {
               setIsBulkPhotoImportOpen(false);
               productsQuery.refetch();
             }}
+          />
+        )}
+        {isSupplierCodeImportOpen && canUpdateProducts && (
+          <SupplierCodeImportDrawer
+            open={isSupplierCodeImportOpen}
+            onClose={() => setIsSupplierCodeImportOpen(false)}
+            onCompleted={() => productsQuery.refetch()}
           />
         )}
       </Suspense>

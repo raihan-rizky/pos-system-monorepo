@@ -145,7 +145,7 @@ export function BulkStockImportDrawer({
     <Modal
       open={open}
       onClose={close}
-      title="Import Bulk Stock"
+      title="Impor Stok Massal"
       size="5xl"
       className="max-h-[92dvh] max-w-[96vw] xl:max-w-6xl translate-y-0"
     >
@@ -316,7 +316,7 @@ export function BulkStockImportDrawer({
             ) : activeJob.data?.status === "FAILED" ? (
               <ErrorBox
                 message={
-                  activeJob.data.errorMessage || "Bulk stock import failed"
+                  activeJob.data.errorMessage || "Impor stok massal gagal"
                 }
               />
             ) : (

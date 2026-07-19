@@ -66,6 +66,6 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     logger.error("inventory.bulk.approve_all.failed", { error });
-    return mapBulkRequestError(error, "Failed to approve bulk inventory request");
+    return mapBulkRequestError(error, "Gagal menyetujui permintaan inventaris massal");
   }
 }

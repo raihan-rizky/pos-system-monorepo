@@ -43,47 +43,47 @@ export async function GET() {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const last7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    const firstChartDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
     const last30Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+    const statsRangeStart = new Date(
+      Math.min(firstDayOfMonth.getTime(), firstChartDay.getTime()),
+    );
 
     // Parallel execution of all queries to prevent timeouts
     const [
-      todayStats,
-      monthlyStats,
+      transactionStats,
       totalProducts,
       lowStockProducts,
-      revenueChartRaw,
       topSalespersonsRaw,
       topCustomersRaw,
       topProductsRaw,
       productionStatusCountsRaw,
       dpTransactionsRaw,
       totalOutstandingDPRaw,
-      paymentMixTodayRaw,
     ] = await Promise.all([
-      // 1. Today's Revenue & Profit
+      // 1. Revenue, profit, chart, and payment mix share one transaction range.
       db.transaction.findMany({
         where: {
           storeId,
-          invoiceDate: { gte: today },
+          invoiceDate: { gte: statsRangeStart },
           status: { in: ["COMPLETED", "DP"] },
         },
-        select: { total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
-      }),
-      // 2. Monthly Revenue & Profit
-      db.transaction.findMany({
-        where: {
-          storeId,
-          invoiceDate: { gte: firstDayOfMonth },
-          status: { in: ["COMPLETED", "DP"] },
+        select: {
+          invoiceDate: true,
+          total: true,
+          status: true,
+          amountPaid: true,
+          paymentMethod: true,
+          items: {
+            select: { quantity: true, unitCost: true, subtotal: true },
+          },
         },
-        select: { total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
       }),
-      // 3. Total Products
+      // 2. Total Products
       db.product.count({
         where: { storeId, isActive: true },
       }),
-      // 4. Low Stock (Respecting dynamic minStock)
+      // 3. Low Stock (Respecting dynamic minStock)
       db.$queryRaw<LowStockProduct[]>`
         SELECT id, name, sku, stock, "minStock", "imageUrl", "categoryId"
         FROM pos_products
@@ -93,16 +93,7 @@ export async function GET() {
         ORDER BY stock ASC
         LIMIT 5
       `,
-      // 5. Chart Data (Last 7 Days)
-      db.transaction.findMany({
-        where: {
-          storeId,
-          invoiceDate: { gte: last7Days },
-          status: { in: ["COMPLETED", "DP"] },
-        },
-        select: { invoiceDate: true, total: true, status: true, amountPaid: true, items: { select: { quantity: true, unitCost: true, subtotal: true } } },
-      }),
-      // 6. Top Sales (Last 30 Days)
+      // 4. Top Sales (Last 30 Days)
       db.transaction.groupBy({
         by: ["salespersonId", "salesName"],
         where: {
@@ -115,7 +106,7 @@ export async function GET() {
         orderBy: { _sum: { total: "desc" } },
         take: 5,
       }),
-      // 7. Top Customers (Last 30 Days)
+      // 5. Top Customers (Last 30 Days)
       db.transaction.groupBy({
         by: ["customerId", "customerName"],
         where: {
@@ -128,7 +119,7 @@ export async function GET() {
         orderBy: { _sum: { total: "desc" } },
         take: 5,
       }),
-      // 8. Top Products (All Time)
+      // 6. Top Products (All Time)
       db.transactionItem.groupBy({
         by: ["productId", "productName"],
         where: {
@@ -141,7 +132,7 @@ export async function GET() {
         orderBy: { _sum: { quantity: "desc" } },
         take: 5,
       }),
-      // 9. Production Status
+      // 7. Production Status
       db.transaction.groupBy({
         by: ["productionStatus"],
         where: {
@@ -152,26 +143,17 @@ export async function GET() {
         },
         _count: { id: true },
       }),
-      // 10. Active DP (Include Items for Modal)
+      // 8. Active DP (Include Items for Modal)
       db.transaction.findMany({
         where: { storeId, status: "DP" },
         include: { items: true },
         take: 5,
         orderBy: { invoiceDate: "desc" },
       }),
-      // 11. Outstanding DP
+      // 9. Outstanding DP
       db.transaction.aggregate({
         where: { storeId, status: "DP" },
         _sum: { total: true, amountPaid: true },
-      }),
-      // 12. Payment Mix Today (group by paymentMethod, exclude voided/refunded)
-      db.transaction.findMany({
-        where: {
-          storeId,
-          invoiceDate: { gte: today },
-          status: { in: ["COMPLETED", "DP"] },
-        },
-        select: { total: true, amountPaid: true, status: true, paymentMethod: true },
       }),
     ]);
 
@@ -187,21 +169,11 @@ export async function GET() {
       return profit;
     };
 
+    // Process all overlapping transaction buckets in one pass.
     let todayRevenue = 0;
     let todayProfit = 0;
-    todayStats.forEach(t => {
-      todayRevenue += Number(t.status === "DP" ? t.amountPaid : t.total || 0);
-      todayProfit += calculateProfit(t.items);
-    });
-
     let monthlyRevenue = 0;
     let monthlyProfit = 0;
-    monthlyStats.forEach(t => {
-      monthlyRevenue += Number(t.status === "DP" ? t.amountPaid : t.total || 0);
-      monthlyProfit += calculateProfit(t.items);
-    });
-
-    // Process Chart Data (Timezone safe: UTC+7)
     const dailyData: Record<string, { revenue: number; profit: number }> = {};
     for (let i = 0; i < 7; i++) {
       const d = new Date();
@@ -209,12 +181,39 @@ export async function GET() {
       const dateStr = jakartaDateKey(d);
       dailyData[dateStr] = { revenue: 0, profit: 0 };
     }
+    const paymentMixMap = new Map<string, { revenue: number; txCount: number }>();
 
-    revenueChartRaw.forEach((item) => {
-      const dateStr = jakartaDateKey(item.invoiceDate);
+    transactionStats.forEach((transaction) => {
+      const revenue = Number(
+        transaction.status === "DP"
+          ? transaction.amountPaid
+          : transaction.total || 0,
+      );
+      const profit = calculateProfit(transaction.items);
+      const invoiceTime = transaction.invoiceDate.getTime();
+
+      if (invoiceTime >= firstDayOfMonth.getTime()) {
+        monthlyRevenue += revenue;
+        monthlyProfit += profit;
+      }
+
+      if (invoiceTime >= today.getTime()) {
+        todayRevenue += revenue;
+        todayProfit += profit;
+
+        const payment = paymentMixMap.get(transaction.paymentMethod) || {
+          revenue: 0,
+          txCount: 0,
+        };
+        payment.revenue += revenue;
+        payment.txCount += 1;
+        paymentMixMap.set(transaction.paymentMethod, payment);
+      }
+
+      const dateStr = jakartaDateKey(transaction.invoiceDate);
       if (dailyData[dateStr]) {
-        dailyData[dateStr].revenue += Number(item.status === "DP" ? item.amountPaid : item.total || 0);
-        dailyData[dateStr].profit += calculateProfit(item.items);
+        dailyData[dateStr].revenue += revenue;
+        dailyData[dateStr].profit += profit;
       }
     });
 
@@ -228,6 +227,13 @@ export async function GET() {
         ...data,
       }))
       .reverse();
+    const paymentMixToday = Array.from(paymentMixMap.entries()).map(
+      ([method, data]) => ({
+        method,
+        revenue: data.revenue,
+        transactionCount: data.txCount,
+      }),
+    );
 
     return NextResponse.json({
       todayRevenue,
@@ -262,21 +268,7 @@ export async function GET() {
       })),
       dpTransactions: dpTransactionsRaw,
       totalOutstandingDP: Number(totalOutstandingDPRaw._sum.total || 0) - Number(totalOutstandingDPRaw._sum.amountPaid || 0),
-      paymentMixToday: (() => {
-        const mixMap = new Map<string, { revenue: number; txCount: number }>();
-        paymentMixTodayRaw.forEach((t) => {
-          const rev = Number(t.status === "DP" ? t.amountPaid : t.total || 0);
-          const existing = mixMap.get(t.paymentMethod) || { revenue: 0, txCount: 0 };
-          existing.revenue += rev;
-          existing.txCount += 1;
-          mixMap.set(t.paymentMethod, existing);
-        });
-        return Array.from(mixMap.entries()).map(([method, data]) => ({
-          method,
-          revenue: data.revenue,
-          transactionCount: data.txCount,
-        }));
-      })(),
+      paymentMixToday,
     });
   } catch (error) {
     const authErr = handleAuthError(error);

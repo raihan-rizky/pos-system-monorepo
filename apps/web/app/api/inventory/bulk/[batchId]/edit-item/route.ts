@@ -54,6 +54,6 @@ export async function PATCH(
       return apiValidationError(error);
     }
     logger.error("inventory.bulk.edit_item.failed", { error });
-    return mapBulkRequestError(error, "Failed to edit bulk inventory item");
+    return mapBulkRequestError(error, "Gagal mengubah item inventaris massal");
   }
 }

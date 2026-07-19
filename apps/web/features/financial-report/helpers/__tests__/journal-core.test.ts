@@ -27,6 +27,12 @@ describe("buildReportPeriodRange (Asia/Jakarta)", () => {
     const range = buildReportPeriodRange("monthly", now);
     expect(range).toEqual({ from: "2026-05-01", to: "2026-05-20" });
   });
+
+  it("returns the latest 30 calendar days inclusive for '30d'", () => {
+    const now = new Date("2026-05-20T10:30:00.000Z");
+    const range = buildReportPeriodRange("30d", now);
+    expect(range).toEqual({ from: "2026-04-21", to: "2026-05-20" });
+  });
 });
 
 describe("buildReportRows", () => {

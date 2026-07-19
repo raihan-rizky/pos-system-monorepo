@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildShoppingRequestNumber,
+  defaultShoppingRequestStockMode,
   defaultApprovedQty,
   sanitizeShoppingRequestItems,
 } from "../shopping-requests-core";
@@ -19,19 +20,29 @@ describe("buildShoppingRequestNumber", () => {
 describe("sanitizeShoppingRequestItems", () => {
   it("removes items with non-positive requestedQty and dedupes by productId keeping last", () => {
     const sanitized = sanitizeShoppingRequestItems([
-      { productId: "p1", requestedQty: 5 },
-      { productId: "p2", requestedQty: 0 },
-      { productId: "p3", requestedQty: -1 },
-      { productId: "p1", requestedQty: 8 },
+      { productId: "p1", requestedQty: 5, stockMode: "PRODUCT_ONLY" },
+      { productId: "p2", requestedQty: 0, stockMode: "PRODUCT_ONLY" },
+      { productId: "p3", requestedQty: -1, stockMode: "GROUP_STOCK" },
+      { productId: "p1", requestedQty: 8, stockMode: "GROUP_STOCK" },
     ]);
 
-    expect(sanitized).toEqual([{ productId: "p1", requestedQty: 8 }]);
+    expect(sanitized).toEqual([
+      { productId: "p1", requestedQty: 8, stockMode: "GROUP_STOCK" },
+    ]);
+  });
+});
+
+describe("defaultShoppingRequestStockMode", () => {
+  it("uses Stok Bersama for grouped products and Stok Produk Ini otherwise", () => {
+    expect(defaultShoppingRequestStockMode("group-1")).toBe("GROUP_STOCK");
+    expect(defaultShoppingRequestStockMode(null)).toBe("PRODUCT_ONLY");
+    expect(defaultShoppingRequestStockMode(undefined)).toBe("PRODUCT_ONLY");
   });
 });
 
 describe("defaultApprovedQty", () => {
-  it("returns the requestedQty unchanged", () => {
-    expect(defaultApprovedQty(7)).toBe(7);
-    expect(defaultApprovedQty(0.5)).toBe(0.5);
+  it("requires Jumlah yang Di-ACC to be filled explicitly", () => {
+    expect(defaultApprovedQty(7)).toBeNull();
+    expect(defaultApprovedQty(0.5)).toBeNull();
   });
 });

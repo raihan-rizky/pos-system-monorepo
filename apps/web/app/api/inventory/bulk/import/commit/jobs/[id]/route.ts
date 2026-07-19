@@ -28,13 +28,13 @@ export async function GET(
       error.message === "BULK_STOCK_IMPORT_JOB_NOT_FOUND"
     ) {
       return NextResponse.json(
-        { message: "Bulk stock import job not found" },
+        { message: "Antrean impor stok massal tidak ditemukan" },
         { status: 404 },
       );
     }
     logger.error("inventory.bulk_import.commit.job.detail.failed", { error });
     return NextResponse.json(
-      { message: "Failed to load bulk stock import job" },
+      { message: "Gagal memuat antrean impor stok massal" },
       { status: 500 },
     );
   }
