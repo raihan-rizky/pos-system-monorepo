@@ -617,7 +617,7 @@ describe("AssistantService", () => {
     const response = service.toResponseStream({
       role: "OWNER",
       storeId: "store-1",
-      messages: [{ role: "user", content: "omzet hari ini?" }],
+      messages: [{ role: "user", content: "tolong cek omzet hari ini dengan detail" }],
       signal: new AbortController().signal,
     });
     const body = await readStream(response);
@@ -699,6 +699,38 @@ describe("AssistantService", () => {
     expect(body).toContain("Stok rendah ditemukan");
   });
 
+  it("always resolves today's sales date in Jakarta before calling the tool", async () => {
+    const create = vi.fn().mockResolvedValueOnce(finalAnswer("Omzet hari ini Rp 100.000."));
+    toolsRepository.getDailySalesSummary.mockResolvedValue({
+      date: "2026-07-21",
+      revenue: 100000,
+      grossProfit: 40000,
+      transactionCount: 2,
+      generatedAt: "2026-07-20T18:30:00.000Z",
+    });
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+      now: () => new Date("2026-07-20T18:30:00.000Z"),
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "OWNER",
+      storeId: "store-1",
+      messages: [{ role: "user", content: "Ringkasan penjualan hari ini" }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(toolsRepository.getDailySalesSummary).toHaveBeenCalledWith({
+      storeId: "store-1",
+      date: "2026-07-21",
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(body).toContain("Omzet hari ini");
+  });
+
   it("keeps contextual requests on the two-call model fallback", async () => {
     const create = vi.fn()
       .mockResolvedValueOnce({ choices: [{ message: { content: "no tool" } }] })
@@ -768,6 +800,32 @@ describe("AssistantService", () => {
     expect(body).toContain('"id":"faq-q01-add-product"');
     expect(body).toContain('"route":"/products"');
     expect(body).toContain("Tambah Produk");
+  });
+
+  it("keeps chart insight prompts on analysis instead of returning workflow guidance", async () => {
+    const create = vi.fn()
+      .mockResolvedValueOnce({ choices: [{ message: { content: "no tool" } }] })
+      .mockResolvedValueOnce(finalAnswer("Omzet AGEN mendominasi dibanding tipe pelanggan lain."));
+    service = new AssistantService({
+      apiKey: "test-key",
+      model: "gpt-4",
+      toolsRepository,
+      client: { chat: { completions: { create } } } as any,
+    });
+
+    const body = await readStream(service.toResponseStream({
+      role: "OWNER",
+      storeId: "store-1",
+      messages: [{
+        role: "user",
+        content: "Berikan 3–5 insight singkat dan saran actionable dari data grafik berikut.\nGrafik: Omzet & Piutang per Tipe Pelanggan\nData: [{\"label\":\"AGEN\",\"revenue\":14000000},{\"label\":\"INDUSTRI\",\"revenue\":250000}]\n\nFormat jawaban: bullet points langsung, tanpa intro.",
+      }],
+      signal: new AbortController().signal,
+    }));
+
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(body).toContain("Omzet AGEN mendominasi");
+    expect(body).not.toContain('"responseKind":"workflow"');
   });
 
   it("returns deterministic access guidance for a restricted guided workflow", async () => {

@@ -30,6 +30,17 @@ describe("Permohonan Belanja UI", () => {
     expect(source("ShoppingRequestStockPreview.tsx")).toContain("ProductStockThumbnail");
   });
 
+  it("shows each shared-stock variant change in an expandable product detail", () => {
+    const content = source("ShoppingRequestStockPreview.tsx");
+
+    expect(content).toContain("aria-expanded");
+    expect(content).toContain("row.variants.map");
+    expect(content).toContain("Perubahan varian");
+    expect(content).toContain("variant.beforeStock");
+    expect(content).toContain("variant.afterStock");
+    expect(content).toContain("variant.delta");
+  });
+
   it("lets the approver edit final modes and renders live stock impact", () => {
     const content = source("ShoppingRequestApproveModal.tsx");
 

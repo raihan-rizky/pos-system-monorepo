@@ -124,6 +124,7 @@ const SSE_INITIAL_PADDING = `: ${" ".repeat(8192)}\n`;
 const DEFAULT_WORKFLOW_CLARIFICATION = "Maaf, Pak Tel belum yakin panduan mana yang kamu maksud. Sebutkan menu atau tujuan langkahnya ya.";
 const DEFAULT_ASSISTANT_DEADLINE_MS = 60_000;
 const ALWAYS_FAST_PATH_TOOLS = new Set([
+  "get_daily_sales_summary",
   "exportFinancialReport",
   "exportCustomerRecap",
   "analyzeFinancialReport",
@@ -673,11 +674,14 @@ ${roleContext[role]}
     const recentMessages = input.messages.slice(-20);
     const latestUserMessage = [...recentMessages].reverse().find((item) => item.role === "user")?.content ?? "";
     const rolePermissions = input.rolePermissions ?? this.config.rolePermissions ?? buildDefaultRolePermissions();
-    const workflowMatch = matchAssistantWorkflow({
-      message: latestUserMessage,
-      role: input.role,
-      permissions: rolePermissions,
-    });
+    const workflowHelpRequested = isWorkflowHelpRequest(latestUserMessage);
+    const workflowMatch = workflowHelpRequested
+      ? matchAssistantWorkflow({
+          message: latestUserMessage,
+          role: input.role,
+          permissions: rolePermissions,
+        })
+      : { kind: "none" as const };
     requestLog.info("assistant.request.started", {
       messageCount: recentMessages.length,
       contextCharacters: recentMessages.reduce((total, message) => total + message.content.length, 0),
@@ -831,7 +835,7 @@ ${roleContext[role]}
         ? []
         : workflowMatch.kind === "ambiguous"
           ? workflowMatch.candidates
-          : workflowMatch.kind === "none" && isWorkflowHelpRequest(latestUserMessage)
+          : workflowMatch.kind === "none" && workflowHelpRequested
             ? getPermittedWorkflows(input.role, rolePermissions)
             : [];
       if (workflowSelectionCandidates.length > 0) {

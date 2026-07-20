@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { Loader2, TrendingUp } from "lucide-react";
+import React, { useState } from "react";
+import { ChevronDown, Loader2, TrendingUp } from "lucide-react";
 
 import { ProductStockThumbnail } from "@/features/inventory-management/components/ProductStockThumbnail";
 import type { ShoppingRequestStockPreview } from "../helpers/shopping-request-stock";
@@ -19,6 +19,7 @@ export function ShoppingRequestStockPreviewPanel({
   loading: boolean;
   error: string | null;
 }) {
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const hasRows = Boolean(
     preview && (preview.groupRows.length > 0 || preview.productRows.length > 0),
   );
@@ -43,21 +44,63 @@ export function ShoppingRequestStockPreviewPanel({
         <div className="grid gap-3 lg:grid-cols-2">
           {preview?.groupRows.map((row) => {
             const lead = row.variants[0];
+            const isExpanded = expandedGroupId === row.stockGroupId;
+            const detailId = `variant-detail-${row.stockGroupId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
             return (
-              <article key={row.stockGroupId} className="rounded-xl border border-white bg-white p-3 shadow-sm">
-                <div className="flex items-center gap-3">
-                  {lead && <ProductStockThumbnail name={row.displayName} imageUrl={lead.imageUrl} size="sm" />}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black text-slate-900">{row.displayName}</p>
-                    <p className="text-[11px] font-bold text-cyan-700">Stok Bersama · {row.itemIds.length} item</p>
+              <article key={row.stockGroupId} className="overflow-hidden rounded-xl border border-white bg-white shadow-sm">
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  aria-controls={detailId}
+                  onClick={() => setExpandedGroupId(isExpanded ? null : row.stockGroupId)}
+                  className="w-full cursor-pointer p-3 text-left transition-colors hover:bg-slate-50"
+                >
+                  <div className="flex items-center gap-3">
+                    {lead && <ProductStockThumbnail name={row.displayName} imageUrl={lead.imageUrl} size="sm" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-black text-slate-900">{row.displayName}</p>
+                      <p className="text-[11px] font-bold text-cyan-700">Stok Bersama · {row.itemIds.length} item</p>
+                    </div>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                    />
                   </div>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <PreviewMetric label="Sebelum" value={formatQty(row.beforeBaseStock)} />
-                  <PreviewMetric label="Sesudah" value={formatQty(row.afterBaseStock)} />
-                  <PreviewMetric label="Delta" value={`+${formatQty(row.baseDelta)}`} accent />
-                </div>
-                <p className="mt-2 text-[11px] font-semibold text-slate-500">Unit dasar: {row.baseUnit} · {row.variants.length} varian ikut diperbarui</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                    <PreviewMetric label="Sebelum" value={formatQty(row.beforeBaseStock)} />
+                    <PreviewMetric label="Sesudah" value={formatQty(row.afterBaseStock)} />
+                    <PreviewMetric label="Delta" value={`+${formatQty(row.baseDelta)}`} accent />
+                  </div>
+                  <p className="mt-2 text-[11px] font-semibold text-slate-500">Unit dasar: {row.baseUnit} · {row.variants.length} varian ikut diperbarui</p>
+                </button>
+
+                {isExpanded && (
+                  <div id={detailId} className="border-t border-slate-100 bg-slate-50/70 p-3">
+                    <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      Perubahan varian
+                    </p>
+                    <div className="space-y-2">
+                      {row.variants.map((variant) => (
+                        <div key={variant.id} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                          <div className="flex items-center gap-2">
+                            <ProductStockThumbnail name={variant.name} imageUrl={variant.imageUrl} size="sm" />
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-black text-slate-800">{variant.name}</p>
+                              <p className="truncate text-[10px] font-semibold text-slate-500">
+                                {variant.sku} · {variant.unit}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                            <PreviewMetric label="Sebelum" value={formatQty(variant.beforeStock)} />
+                            <PreviewMetric label="Sesudah" value={formatQty(variant.afterStock)} />
+                            <PreviewMetric label="Delta" value={`+${formatQty(variant.delta)}`} accent />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </article>
             );
           })}
