@@ -180,6 +180,7 @@ function defaultFeaturesForRole(role: string) {
     return {
       syncFailures: true,
       inventoryRequests: true,
+      shoppingRequests: true,
       pendingApprovals: true,
       pendingTransactions: true,
       productionStatus: true,

@@ -196,6 +196,7 @@ export async function POST(request: Request) {
             storeId,
             roles: ["OWNER", "ADMIN"],
             featureKey: "inventoryRequests",
+            excludeUserIds: [user.id],
             payload: {
               title: "Permintaan stok baru",
               body: `${user.name || "User"} membuat permintaan stok ${validatedData.type} sebanyak ${Math.abs(validatedData.quantity)} item.`,

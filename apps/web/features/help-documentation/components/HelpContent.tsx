@@ -73,7 +73,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-rbac",
       title: "Mengelola Akses (RBAC)",
-      description: "Menu ini dipakai untuk mengatur siapa saja yang boleh membuka halaman tertentu atau melakukan aksi di aplikasi. Tampilan ringkasan role dan matrix modul membantu Owner melihat perubahan permission sebelum disimpan.",
+      description: "Menu ini dipakai untuk mengatur siapa saja yang boleh membuka halaman tertentu atau melakukan aksi di aplikasi. Tampilan ringkasan role dan matrix modul membantu Owner melihat perubahan permission sebelum disimpan. Update operasional muncul di ikon bell dengan badge merah sesuai jumlah yang belum dibaca, termasuk Persetujuan Transaksi, permintaan stok, dan Permohonan Belanja. Klik item untuk membaca sekaligus membuka halaman terkait, atau pilih Tandai semua dibaca agar badge hilang.",
       icon: <ShieldCheck className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Pengaturan", description: "Buka menu samping (sidebar) sebelah kiri layar, gulir ke paling bawah lalu klik menu 'Pengaturan' (ikon gerigi) untuk masuk ke halaman pengaturan utama.", icon: <Settings className="w-8 h-8" /> },
@@ -744,11 +744,11 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "ai-assistant-system-help",
       title: "Tanya Cara Pakai Fitur & Menu POS",
-      description: "Bingung cara pakai menu tertentu atau mau tahu apa aja hak akses akunmu? Tanya aja langsung ke Pak Teladan. Untuk panduan operasional FAQ, jawabannya tampil sebagai diagram langkah yang aman sesuai akses role kamu. Pak Teladan juga bisa membantu membuka modal inti sesuai izin akunmu.",
+      description: "Bingung cara pakai menu tertentu atau mau tahu apa aja hak akses akunmu? Tanya aja langsung ke Pak Teladan. Daftar quick prompt role selalu disesuaikan dengan tool yang tersedia untuk role tersebut, jadi saran aksinya tetap relevan dengan aksesmu. Quick prompt Owner yang punya glow effect, yaitu Rekap finansial bulanan dan Rekap pelanggan bulanan, tetap tersedia seperti sebelumnya. Untuk panduan operasional FAQ, jawabannya tampil sebagai diagram langkah yang aman sesuai akses role kamu. Pak Teladan juga bisa membantu membuka modal inti sesuai izin akunmu. Kalau ada notifikasi belum dibaca, tombol Pak Teladan menampilkan badge merah dan panel chat langsung ngasih heads-up yang bisa kamu buka.",
       icon: <Bot className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Klik Tombol Robot", description: "Pencet tombol robot bulat warna biru (Pak Teladan) yang ngambang di pojok kanan bawah layar.", icon: <Bot className="w-8 h-8" /> },
-        { title: "Ketik Pertanyaan", description: "Tulis pertanyaanmu pakai bahasa santai sehari-hari. Contoh: 'Cara tambah barang gimana sih?' atau 'Kasir bisa buka menu apa aja?'.", icon: <Search className="w-8 h-8" /> },
+        { title: "Pilih Quick Prompt Role", description: "Pilih ide cepat yang muncul sesuai tool role kamu, atau tulis pertanyaan sendiri pakai bahasa santai sehari-hari. Contoh: Inventory mendapat prompt update stok, Sales mendapat prompt rekap pelanggan, dan Kasir mendapat prompt mulai shift.", icon: <Search className="w-8 h-8" /> },
         { title: "Baca Diagram Langkah", description: "Kalau pertanyaanmu cocok dengan panduan FAQ, Pak Teladan menampilkan stepper berisi langkah terpercaya, sumber FAQ, dan tombol buka halaman yang sesuai aksesmu.", icon: <Sparkles className="w-8 h-8" /> },
         { title: "Tetap Kamu yang Konfirmasi", description: "Pak Teladan bisa membantu navigasi dan membuka modal Tambah Produk, Pelanggan, Supplier, Sales, Pengeluaran, Shift, serta Inventori. Ia tidak mengisi atau menyimpan form secara otomatis; pemeriksaan dan konfirmasi akhir tetap kamu lakukan.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
@@ -789,7 +789,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "ai-assistant-daily-sales",
       title: "Pantau Omzet & Cuan Toko",
-      description: "Pantau performa tokomu dari mana aja dengan gampang! Pak Teladan bisa menganalisis seluruh metrik Laporan Keuangan, mengekspor PDF atau Excel sebagai kartu yang bisa di-download ulang, lalu memberi saran berdasarkan data yang sama.",
+      description: "Pantau performa tokomu dari mana aja dengan gampang! Owner bisa memakai quick prompt Rekap finansial bulanan. Pak Teladan menyiapkan kartu PDF atau Excel tanpa auto-download; klik Download saat siap, lalu gunakan Download ulang dan baca saran dari data yang sama.",
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Tanyakan Penjualan", description: "Tanya aja omzet pada tanggal tertentu, misalnya: 'Hari ini dapet omzet berapa?' atau 'Rangkuman penjualan kemarin dong'.", icon: <TrendingUp className="w-8 h-8" /> },
@@ -844,7 +844,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "ai-assistant-customer-recap",
       title: "Cek Rekap Belanja Bulanan Pelanggan",
-      description: "Pengen tahu seberapa sering pelanggan setiamu belanja? Pak Teladan bisa merangkum dan mengekspor rekap pelanggan sebagai kartu PDF atau Excel yang bisa di-download ulang, sekaligus memberi saran dari dataset yang sama. Jika periode dan format tidak disebutkan, otomatis memakai 30 hari terakhir dan PDF.",
+      description: "Pengen tahu seberapa sering pelanggan setiamu belanja? Owner bisa memakai quick prompt Rekap pelanggan bulanan. Pak Teladan menyiapkan kartu PDF atau Excel tanpa auto-download; klik Download saat siap, lalu gunakan Download ulang dan baca saran dari dataset yang sama.",
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Minta Rekap Belanja", description: "Ketik aja pesan kayak: 'Rekap belanja Pak Andi sebulan ini dong' atau 'Gimana riwayat belanjanya Toko Makmur?'.", icon: <History className="w-8 h-8" /> },

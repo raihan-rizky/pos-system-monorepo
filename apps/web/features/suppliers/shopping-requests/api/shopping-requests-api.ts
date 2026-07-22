@@ -51,7 +51,7 @@ export async function listShoppingRequests(
 
 export async function getShoppingRequestSummary(): Promise<ShoppingRequestKpiSummary> {
   const res = await fetch("/api/suppliers/shopping-requests/summary");
-  if (!res.ok) throw new Error("Gagal memuat ringkasan permohonan belanja");
+  if (!res.ok) throw new Error("Gagal memuat ringkasan daftar belanja");
   const payload = (await res.json()) as { data: ShoppingRequestKpiSummary };
   return payload.data;
 }
@@ -145,7 +145,7 @@ export async function updateShoppingRequest(
   });
   if (!res.ok) {
     const error = await res.json().catch(() => null);
-    throw new Error(error?.message || "Gagal memperbarui permohonan belanja");
+    throw new Error(error?.message || "Gagal memperbarui daftar belanja");
   }
   return res.json();
 }

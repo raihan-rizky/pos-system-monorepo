@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button, Modal } from "@pos/ui";
 import {
   PackagePlus,
@@ -61,7 +62,15 @@ const emptyForm: SupplierInput = {
 };
 
 export function SupplierPageShell() {
-  const [tab, setTab] = useState<"suppliers" | "recap" | "shopping">("suppliers");
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [tab, setTab] = useState<"suppliers" | "recap" | "shopping">(
+    requestedTab === "shopping-requests"
+      ? "shopping"
+      : requestedTab === "recap"
+        ? "recap"
+        : "suppliers",
+  );
   const [shoppingCreateOpen, setShoppingCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [type, setType] = useState<SupplierInput["type"] | "ALL">("ALL");
@@ -74,6 +83,11 @@ export function SupplierPageShell() {
   const [form, setForm] = useState<SupplierInput>(emptyForm);
   const [warnings, setWarnings] = useState<string[]>([]);
   const debouncedSearch = useDebounce(search.trim(), 300);
+
+  useEffect(() => {
+    if (requestedTab === "shopping-requests") setTab("shopping");
+    if (requestedTab === "recap") setTab("recap");
+  }, [requestedTab]);
 
   const supplierFilters = useMemo(
     () => ({
@@ -209,7 +223,7 @@ export function SupplierPageShell() {
             onClick={() => setTab("shopping")}
             icon={<ShoppingCart className="h-4 w-4" />}
           >
-            Permohonan Belanja
+            Daftar Belanja
           </TabButton>
         </div>
 
@@ -349,7 +363,7 @@ export function SupplierPageShell() {
         ) : (
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm px-1 md:px-4">
             <div className="border-b border-slate-100 p-4">
-              <h2 className="text-base font-black text-slate-950">Permohonan Belanja</h2>
+              <h2 className="text-base font-black text-slate-950">Daftar Belanja</h2>
               <p className="text-sm text-slate-500">Buat dan cetak daftar kebutuhan barang untuk pengajuan belanja.</p>
             </div>
             <ShoppingRequestList onCreateClick={() => setShoppingCreateOpen(true)} />

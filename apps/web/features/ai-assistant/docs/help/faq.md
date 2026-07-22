@@ -247,7 +247,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 5. Di halaman laporan, KPI **Pengeluaran** mencakup pengeluaran manual dan Permohonan Belanja. **Laba Bersih (Estimasi)** adalah Laba Kotor dikurangi seluruh pengeluaran; angka ini bukan laba akrual formal atau bukti pembayaran supplier.
 6. Anda dapat meminta Pak Teladan, misalnya **"ekspor laporan keuangan"**. Jika periode dan format tidak disebutkan, Pak Teladan memakai **30 hari terakhir** dan **PDF**.
 7. Untuk permintaan analisis keuangan, Pak Teladan membaca seluruh bagian laporan dalam rentang yang sama: ringkasan, metode pembayaran, produk teratas, kategori, sales, shift, kehilangan stok, dan tren. Saran dibuat dari gabungan metrik tersebut, bukan dari omzet saja.
-8. Setelah ekspor dari chat berhasil, file langsung diunduh dan kartu file tetap tampil di percakapan. Gunakan tombol **Download ulang** bila diperlukan. Pak Teladan juga menampilkan saran operasional berdasarkan angka pada laporan yang sama.
+8. Ekspor dari chat menampilkan kartu tanpa mengunduh otomatis. Klik **Download PDF/Excel** saat siap; setelah berhasil tombol berubah menjadi **Download ulang** dan Pak Teladan menampilkan saran dari laporan yang sama. OWNER dapat memakai quick prompt **Rekap finansial bulanan**.
 
 ### Q22: Bagaimana cara mengubah informasi profil toko yang muncul di struk belanja?
 **A:** Untuk memperbarui logo, nama, atau alamat di struk penjualan:
@@ -298,4 +298,13 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 4. Pilih **Excel (.xlsx)** untuk mendapatkan sheet **Agen**, **Umum**, **Pemerintah**, **Industri**, dan **Ringkasan**, atau pilih **PDF** untuk section per tipe dan halaman **Ringkasan Semua Tipe**.
 5. Setiap tipe memuat pelanggan yang bertransaksi pada periode tersebut, diurutkan berdasarkan Total Belanja, Produk Favorit, dan Top 10 Produk. Ringkasan terakhir memuat KPI dan Analisis AI.
 6. Anda juga dapat meminta **"ekspor rekap pelanggan"** kepada Pak Teladan. Jika periode dan format tidak disebutkan, ekspor memakai **30 hari terakhir** dan **PDF**.
-7. File langsung diunduh dan kartu file tetap tampil di chat dengan tombol **Download ulang**. Di bawah kartu, Pak Teladan menampilkan saran berdasarkan dataset rekap yang dipakai untuk membuat PDF atau Excel tersebut.
+7. File tidak diunduh otomatis. Klik **Download PDF/Excel** pada kartu; setelah berhasil tombol berubah menjadi **Download ulang** dan Pak Teladan menampilkan saran berdasarkan dataset yang sama. OWNER dapat memakai quick prompt **Rekap pelanggan bulanan**.
+
+### Q37: Bagaimana cara membaca notifikasi penting dari sistem dan Pak Teladan?
+**A:** Setiap akun memiliki pusat notifikasi sendiri:
+1. Periksa ikon **bell** di kanan atas. Badge merah menunjukkan jumlah notifikasi yang belum dibaca.
+2. Klik bell untuk melihat update terbaru, termasuk Persetujuan Transaksi, permintaan stok tunggal atau massal, dan Permohonan Belanja baru untuk Owner/Admin.
+3. Klik satu notifikasi untuk menandainya sebagai sudah dibaca sekaligus membuka halaman kerja terkait. Pembuat request tidak mendapat notifikasi untuk aksinya sendiri.
+4. Klik **Tandai semua dibaca** setelah seluruh update direview. Badge hilang saat tidak ada unread, tetapi riwayat yang sudah dibaca tetap tersedia.
+5. Tombol Pak Teladan memakai unread count yang sama. Saat dibuka, Pak Teladan memberi heads-up dan menampilkan hingga tiga shortcut notifikasi terbaru.
+6. Inbox tetap tersimpan di server walaupun izin browser push tidak aktif. Browser push dan suara hanya menjadi channel tambahan sesuai pengaturan perangkat.

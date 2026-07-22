@@ -123,7 +123,7 @@ export function ShoppingRequestEditModal({
       setError(
         cause instanceof Error
           ? cause.message
-          : "Gagal memperbarui permohonan belanja",
+          : "Gagal memperbarui daftar belanja",
       );
     }
   };
@@ -134,7 +134,7 @@ export function ShoppingRequestEditModal({
     items.every((item) => item.requestedQty > 0);
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Permohonan Belanja" size="4xl">
+    <Modal open={open} onClose={onClose} title="Edit Daftar Belanja" size="6xl">
       {fullDetail.isPending ? (
         <div className="p-8 text-center text-sm font-semibold text-slate-500">
           Memuat detail permohonan...

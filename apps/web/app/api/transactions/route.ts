@@ -1007,6 +1007,7 @@ export async function POST(request: Request) {
             storeId,
             roles: ["OWNER", "ADMIN"],
             featureKey: "pendingTransactions",
+            excludeUserIds: [user.id],
             payload: {
               title: "Persetujuan Transaksi",
               body: `${user.name ?? "Pengguna"} meminta persetujuan transaksi ${transaction.invoiceNumber} sejumlah Rp ${total.toLocaleString("id-ID")}`,

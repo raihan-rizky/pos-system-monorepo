@@ -2,11 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const pushSubscriptionFindManyMock = vi.hoisted(() => vi.fn());
 const sendPushToSubscriptionsMock = vi.hoisted(() => vi.fn());
+const userFindManyMock = vi.hoisted(() => vi.fn());
+const notificationCreateManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@pos/db", () => ({
   db: {
     pushSubscription: {
       findMany: pushSubscriptionFindManyMock,
+    },
+    user: {
+      findMany: userFindManyMock,
+    },
+    notification: {
+      createMany: notificationCreateManyMock,
     },
   },
 }));
@@ -24,6 +32,11 @@ describe("sendRolePushEvent", () => {
       failed: 0,
       deactivated: 0,
     });
+    userFindManyMock.mockResolvedValue([
+      { id: "owner-1" },
+      { id: "admin-1" },
+    ]);
+    notificationCreateManyMock.mockResolvedValue({ count: 2 });
   });
 
   it("selects active subscriptions by store, roles, and feature flag", async () => {
@@ -59,6 +72,27 @@ describe("sendRolePushEvent", () => {
       [subscriptions[0], subscriptions[2]],
       expect.objectContaining({ tag: "inventory-request:log-1" }),
     );
+    expect(userFindManyMock).toHaveBeenCalledWith({
+      where: {
+        isActive: true,
+        role: { in: ["OWNER", "ADMIN"] },
+        storeId: "store-main",
+      },
+      select: { id: true },
+    });
+    expect(notificationCreateManyMock).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          userId: "owner-1",
+          storeId: "store-main",
+          eventName: "inventory-request-created",
+          title: "Permintaan stok baru",
+          tag: "inventory-request:log-1",
+        }),
+        expect.objectContaining({ userId: "admin-1" }),
+      ],
+      skipDuplicates: true,
+    });
     expect(result).toEqual({
       activeCandidates: 3,
       recipients: 2,
@@ -66,6 +100,36 @@ describe("sendRolePushEvent", () => {
       sent: 1,
       failed: 0,
       deactivated: 0,
+    });
+  });
+
+  it("excludes the actor from the persistent inbox recipients", async () => {
+    const { sendRolePushEvent } = await import("../push-events");
+    pushSubscriptionFindManyMock.mockResolvedValue([]);
+    userFindManyMock.mockResolvedValue([{ id: "owner-1" }]);
+
+    await sendRolePushEvent({
+      eventName: "shopping-request-created",
+      storeId: "store-main",
+      roles: ["OWNER", "ADMIN"],
+      featureKey: "shoppingRequests",
+      excludeUserIds: ["admin-1"],
+      payload: {
+        title: "Permohonan belanja baru",
+        body: "Ada mengajukan PB-001.",
+        url: "/suppliers?tab=shopping-requests",
+        tag: "shopping-request:req-1",
+      },
+    });
+
+    expect(userFindManyMock).toHaveBeenCalledWith({
+      where: {
+        isActive: true,
+        role: { in: ["OWNER", "ADMIN"] },
+        storeId: "store-main",
+        id: { notIn: ["admin-1"] },
+      },
+      select: { id: true },
     });
   });
 

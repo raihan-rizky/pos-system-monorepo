@@ -114,18 +114,18 @@ export function ShoppingRequestList({
           icon={<ShoppingBag className="h-4 w-4" />}
           className="sm:ml-auto"
         >
-          Buat Permohonan Belanja
+          Buat Daftar Belanja
         </Button>
       </div>
 
       {list.isPending ? (
         <div className="flex items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-sm font-semibold text-slate-500">
           <Loader2 className="mr-2 h-5 w-5 animate-spin text-slate-400" />
-          Memuat permohonan belanja...
+          Memuat daftar belanja...
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500">
-          Belum ada permohonan belanja
+          Belum ada daftar belanja
         </div>
       ) : (
         <div className="grid gap-3">
@@ -323,7 +323,7 @@ function ShoppingRequestKpiGrid({
   if (isPending) {
     return (
       <section
-        aria-label="Memuat ringkasan permohonan belanja"
+        aria-label="Memuat ringkasan daftar belanja"
         className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
       >
         {Array.from({ length: 4 }, (_, index) => (
@@ -340,7 +340,7 @@ function ShoppingRequestKpiGrid({
 
   return (
     <section
-      aria-label="Ringkasan permohonan belanja"
+      aria-label="Ringkasan daftar belanja"
       className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
     >
       <ShoppingRequestKpiCard
@@ -438,7 +438,7 @@ function ShoppingRequestCancelDialog({
     <Modal
       open={detail !== null}
       onClose={onClose}
-      title="Batalkan permohonan belanja?"
+      title="Batalkan daftar belanja?"
       size="md"
     >
       <div className="space-y-3">

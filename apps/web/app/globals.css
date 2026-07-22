@@ -306,6 +306,26 @@ input[type="number"] {
   }
 }
 
+@keyframes assistant-quick-prompt-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(12, 152, 233, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(12, 152, 233, 0.55);
+  }
+}
+
+.assistant-quick-prompt-glow {
+  animation: assistant-quick-prompt-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-quick-prompt-glow {
+    animation: none;
+  }
+}
+
 /* ─── Slide To Takeover Button ────────────────────────────────────────────── */
 @keyframes slideUp {
   from {

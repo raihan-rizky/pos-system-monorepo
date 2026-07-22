@@ -201,7 +201,8 @@ describe("AssistantWidget", () => {
     expect(htmlInventory).toContain("Cek stok barang menipis");
     expect(htmlInventory).not.toContain("Barang terlaris minggu ini");
     expect(htmlInventory).toContain("Bagaimana cara melakukan stock opname?");
-    expect(htmlInventory).toContain("Cara input penerimaan barang");
+    expect(htmlInventory).toContain("Input penerimaan barang");
+    expect(htmlInventory).toContain("Update stok satu produk");
 
     // For SALES role
     const htmlSales = renderToStaticMarkup(
@@ -210,6 +211,8 @@ describe("AssistantWidget", () => {
     expect(htmlSales).toContain("Cari pelanggan Toko Makmur");
     expect(htmlSales).toContain("Cek sisa piutang Agen Sabar Subur");
     expect(htmlSales).toContain("Rekap transaksi pelanggan Budi");
+    expect(htmlSales).toContain("Buat rekap pelanggan 30 hari dalam Excel");
+    expect(htmlSales).toContain("Tambah pelanggan baru");
 
     // For CASHIER role
     const htmlCashier = renderToStaticMarkup(
@@ -218,6 +221,8 @@ describe("AssistantWidget", () => {
     expect(htmlCashier).toContain("Cek stok Kertas HVS");
     expect(htmlCashier).toContain("Berapa harga Kertas HVS?");
     expect(htmlCashier).toContain("Lihat daftar transaksi pending");
+    expect(htmlCashier).toContain("Catat pengeluaran operasional");
+    expect(htmlCashier).toContain("Mulai shift kasir");
 
     // For OWNER/ADMIN role
     const htmlOwner = renderToStaticMarkup(
@@ -226,6 +231,18 @@ describe("AssistantWidget", () => {
     expect(htmlOwner).toContain("Ringkasan penjualan hari ini");
     expect(htmlOwner).toContain("Daftar produk terlaris hari ini");
     expect(htmlOwner).toContain("Cara mengatur hak akses role RBAC");
+    expect(htmlOwner).toContain("Analisis performa finansial 30 hari terakhir");
+    expect(htmlOwner).toContain("Cari supplier Sumber Makmur");
+    expect(htmlOwner).toContain("Rekap finansial bulanan");
+    expect(htmlOwner).toContain("Rekap pelanggan bulanan");
+    expect(htmlOwner).toContain("assistant-quick-prompt-glow");
+
+    const htmlAdmin = renderToStaticMarkup(
+      <AssistantWidget defaultOpen userRole="ADMIN" />
+    );
+    expect(htmlAdmin).toContain("Tambah produk baru");
+    expect(htmlAdmin).toContain("Tambah supplier baru");
+    expect(htmlAdmin).toContain("Tambah sales baru");
   });
 
   it("explains how to use quick prompts and exposes descriptive prompt labels", () => {
@@ -252,6 +269,7 @@ describe("AssistantWidget", () => {
             label: "Rekap Pelanggan",
             action: { kind: "export_customer_recap", period: "30d", format: "xlsx" },
             advice: ["Follow up pelanggan dengan piutang tertinggi."],
+            downloaded: true,
           },
         }]}
       />,
@@ -261,6 +279,57 @@ describe("AssistantWidget", () => {
     expect(html).toContain("Download ulang");
     expect(html).toContain("Saran Pak Teladan");
     expect(html).toContain("Follow up pelanggan dengan piutang tertinggi.");
+  });
+
+  it("offers a prepared report without downloading it automatically", () => {
+    const html = renderToStaticMarkup(
+      <AssistantWidget
+        defaultOpen
+        initialMessages={[{
+          role: "assistant",
+          content: "Rekapnya siap diunduh.",
+          generatedFile: {
+            name: "laporan-keuangan-monthly.pdf",
+            format: "pdf",
+            label: "Laporan Keuangan",
+            action: { kind: "export_financial_report", period: "monthly", format: "pdf" },
+            advice: [],
+            downloaded: false,
+          },
+        }]}
+      />,
+    );
+
+    expect(html).toContain("Download PDF");
+    expect(html).not.toContain("Download ulang");
+  });
+
+  it("lets Pak Teladan proactively surface unread notifications", () => {
+    const html = renderToStaticMarkup(
+      <AssistantWidget
+        defaultOpen
+        notificationSnapshot={{
+          unreadCount: 2,
+          notifications: [
+            {
+              id: "notification-1",
+              eventName: "shopping-request-created",
+              title: "Permohonan belanja baru",
+              body: "Rina mengajukan PB-001.",
+              url: "/suppliers?tab=shopping-requests",
+              readAt: null,
+              createdAt: "2026-07-22T02:00:00.000Z",
+            },
+          ],
+          markAsRead: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(html).toContain("Pak Teladan ngabarin");
+    expect(html).toContain("2 notifikasi belum dibaca");
+    expect(html).toContain("Permohonan belanja baru");
+    expect(html).toContain('aria-label="2 notifikasi belum dibaca"');
   });
 });
 

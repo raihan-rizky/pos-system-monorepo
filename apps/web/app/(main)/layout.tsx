@@ -2,6 +2,7 @@ import React, { Suspense } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { DeferredAssistantWidget } from "@/features/ai-assistant/components/DeferredAssistantWidget";
 import MainLoading from "./loading";
+import { NotificationCenter } from "@/features/notifications/components/NotificationCenter";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,6 +20,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           {children}
         </Suspense>
       </div>
+      <NotificationCenter />
       <DeferredAssistantWidget />
     </div>
   );

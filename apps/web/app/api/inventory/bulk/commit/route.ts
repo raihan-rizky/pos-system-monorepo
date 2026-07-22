@@ -200,6 +200,7 @@ export async function POST(request: Request) {
           storeId,
           roles: ["OWNER", "ADMIN"],
           featureKey: "inventoryRequests",
+          excludeUserIds: [user.id],
           payload: {
             title: "Permintaan stok massal baru",
             body: `${user.name || "Pengguna"} membuat ${result.inventoryLogCount} permintaan stok massal.`,

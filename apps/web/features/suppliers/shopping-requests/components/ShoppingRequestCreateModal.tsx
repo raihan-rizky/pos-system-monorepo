@@ -85,7 +85,7 @@ export function ShoppingRequestCreateModal({ open, onClose }: { open: boolean; o
   };
 
   return (
-    <Modal open={open} onClose={close} title="Buat Permohonan Belanja" size="4xl">
+    <Modal open={open} onClose={close} title="Buat Daftar Belanja" size="6xl">
       <div className="flex flex-col gap-5">
         <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <SupplierSelector value={supplierId} onChange={(value) => { setSupplierId(value); setSupplierError(null); }} error={supplierError} />
@@ -133,8 +133,8 @@ export function ShoppingRequestCreateModal({ open, onClose }: { open: boolean; o
         <ShoppingRequestStockPreviewPanel preview={preview} loading={isPreviewing} error={previewError} />
         <label className="block text-sm font-bold text-slate-700">Catatan Internal (Opsional)<textarea value={note} onChange={(event) => setNote(event.target.value)} className="mt-1.5 min-h-[72px] w-full rounded-xl border border-slate-200 p-3 text-sm" placeholder="Tambahkan catatan untuk reviewer..." /></label>
         <footer className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-          <p className="text-xs font-semibold text-slate-500">Stok belum berubah sampai permohonan disetujui.</p>
-          <div className="flex gap-2"><Button type="button" variant="secondary" onClick={close}>Tutup</Button><Button type="button" loading={createRequest.isPending} disabled={!canSave || isPreviewing} onClick={save}>Simpan Permohonan Belanja</Button></div>
+          <p className="text-xs font-semibold text-slate-500">Stok belum berubah sampai daftar belanja disetujui.</p>
+          <div className="flex gap-2"><Button type="button" variant="secondary" onClick={close}>Tutup</Button><Button type="button" loading={createRequest.isPending} disabled={!canSave || isPreviewing} onClick={save}>Simpan Daftar Belanja</Button></div>
         </footer>
       </div>
     </Modal>

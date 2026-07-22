@@ -42,4 +42,4 @@ Laporan keuangan dapat diekspor ke file Excel atau PDF berdasarkan periode Haria
 
 Pak Teladan dapat menjalankan ekspor dengan fitur ekspor yang sama. Jika pengguna tidak menyebut periode atau format, default-nya adalah **30 hari terakhir** dan **PDF**. Permintaan seperti "analisis keuangan 30 hari" memeriksa seluruh bagian laporan—ringkasan, metode pembayaran, produk, kategori, sales, shift, loss stok, dan tren—sebelum memberikan temuan dan saran.
 
-Ekspor dari chat langsung mengunduh file dan menampilkan kartu file yang dapat dipakai untuk **Download ulang**. Kartu tersebut juga menyertakan saran berbasis rasio pengeluaran, arus bersih, dan metode pembayaran dari laporan yang sama.
+Ekspor dari chat tidak mengunduh file otomatis. Pak Teladan menampilkan kartu file dengan tombol **Download PDF/Excel**; setelah unduhan pertama berhasil, tombol berubah menjadi **Download ulang** dan kartu menyertakan saran berbasis laporan yang sama. Role OWNER juga memiliki quick prompt **Rekap finansial bulanan**.

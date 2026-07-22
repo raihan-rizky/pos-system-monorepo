@@ -12,13 +12,15 @@ const log = getLogger("lib:push-events");
 type PushFeatureKey =
   | "closingDeals"
   | "inventoryRequests"
-  | "pendingTransactions";
+  | "pendingTransactions"
+  | "shoppingRequests";
 
 type SendRolePushEventInput = {
   eventName: string;
   storeId: string | null;
   roles: Role[];
   featureKey: PushFeatureKey;
+  excludeUserIds?: string[];
   payload: PushPayload;
 };
 
@@ -39,8 +41,52 @@ export async function sendRolePushEvent({
   storeId,
   roles,
   featureKey,
+  excludeUserIds = [],
   payload,
 }: SendRolePushEventInput): Promise<RolePushEventResult> {
+  try {
+    const users = await db.user.findMany({
+      where: {
+        isActive: true,
+        role: { in: roles },
+        ...(storeId ? { storeId } : {}),
+        ...(excludeUserIds.length > 0
+          ? { id: { notIn: excludeUserIds } }
+          : {}),
+      },
+      select: { id: true },
+    });
+
+    if (users.length > 0) {
+      await db.notification.createMany({
+        data: users.map((user) => ({
+          userId: user.id,
+          storeId,
+          eventName,
+          title: payload.title,
+          body: payload.body,
+          url: payload.url || null,
+          tag: payload.tag || eventName,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    log.info("[push-event] Persistent inbox updated", {
+      eventName,
+      storeId,
+      recipients: users.length,
+    });
+  } catch (error) {
+    // A browser push should still be attempted if the persistent inbox has a
+    // temporary problem. Both channels are useful, but neither gates the event.
+    log.error("[push-event] Failed to update persistent inbox", {
+      eventName,
+      storeId,
+      error,
+    });
+  }
+
   const subscriptions = await db.pushSubscription.findMany({
     where: {
       isActive: true,

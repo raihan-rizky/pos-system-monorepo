@@ -12,6 +12,14 @@ Buka sidebar **Lainnya > Pengaturan** (`/settings`). Tab yang tersedia:
 
 Tab Notifikasi dan Offline Sync menyimpan atau mengelola state perangkat/browser, bukan pengaturan global semua pengguna.
 
+## Pusat Notifikasi
+
+Setiap pengguna yang login memiliki inbox notifikasi sendiri. Ikon bell di kanan atas menampilkan badge merah berisi jumlah update yang belum dibaca. Klik satu item untuk menandainya sebagai sudah dibaca sekaligus membuka halaman terkait, atau klik **Tandai semua dibaca**. Badge hilang ketika unread mencapai nol, sementara riwayat yang sudah dibaca tetap tersedia.
+
+Notifikasi operasional saat ini mencakup permintaan approval transaksi, permintaan stok tunggal atau massal, dan Permohonan Belanja baru untuk Owner/Admin yang relevan. Pembuat request tidak menerima notifikasi untuk aksinya sendiri. Browser push tetap mengikuti izin dan pengaturan perangkat, sedangkan inbox tersimpan di server.
+
+Pak Teladan memakai inbox yang sama: tombol robot ikut menampilkan badge merah, lalu panel chat memberi heads-up dan shortcut menuju maksimal tiga notifikasi terbaru yang belum dibaca.
+
 ## RBAC
 
 OWNER selalu memiliki akses penuh dan permission OWNER tidak dapat diedit. Pada tab **RBAC**, OWNER dapat mengatur role ADMIN, CASHIER, SALES, dan INVENTORY dalam dua lapisan:

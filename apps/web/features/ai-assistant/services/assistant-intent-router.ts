@@ -162,7 +162,7 @@ export function routeAssistantIntent(message: string, now: Date = new Date()): A
   if (hasContextDependencyOrMixedIntent(text)) return { kind: "chat" };
 
   if (/^(?:(?:tolong )?(?:ekspor|export|unduh|download|buatkan? file) )?(?:rekap |laporan )?(?:keuangan|finansial)(?: toko)?(?:\s+.*)?$/.test(text)
-    && /\b(?:ekspor|export|unduh|download|file|pdf|excel|xlsx)\b/.test(text)) {
+    && /\b(?:rekap|ekspor|export|unduh|download|file|pdf|excel|xlsx)\b/.test(text)) {
     return {
       kind: "tool",
       toolName: "exportFinancialReport",

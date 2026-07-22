@@ -7,6 +7,7 @@ import { useAppPrefetch } from "@/hooks/usePrefetch";
 import { RoleProvider } from "@/components/providers/RoleProvider";
 import type { Role } from "@/lib/rbac/permissions";
 import type { RolePermissions } from "@/features/rbac/helpers/rbac-core";
+import { NotificationProvider } from "@/features/notifications/components/NotificationProvider";
 
 const PwaStatusBanner = dynamic(
   () => import("@/components/PwaStatusBanner").then((mod) => mod.PwaStatusBanner),
@@ -141,8 +142,10 @@ export function Providers({
         authorizationFingerprint={authorizationFingerprint}
         permissions={permissions}
       >
-        <AppBootstrap enabled={isIdleReady}>{children}</AppBootstrap>
-        <DeferredAppServices enabled={isIdleReady} />
+        <NotificationProvider enabled={Boolean(role)}>
+          <AppBootstrap enabled={isIdleReady}>{children}</AppBootstrap>
+          <DeferredAppServices enabled={isIdleReady} />
+        </NotificationProvider>
       </RoleProvider>
     </QueryClientProvider>
   );

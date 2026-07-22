@@ -177,10 +177,12 @@ describe("AI assistant chat state", () => {
         label: "Laporan Keuangan",
         action: { kind: "export_financial_report", period: "30d", format: "pdf" },
         advice: ["Review pengeluaran terbesar minggu ini."],
+        downloaded: false,
       },
     );
 
     expect(next[0].generatedFile?.name).toBe("laporan-keuangan-30d.pdf");
     expect(next[0].generatedFile?.advice).toEqual(["Review pengeluaran terbesar minggu ini."]);
+    expect(next[0].generatedFile?.downloaded).toBe(false);
   });
 });

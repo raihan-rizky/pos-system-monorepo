@@ -13,7 +13,7 @@ function featureSource(file: string) {
   );
 }
 
-describe("Permohonan Belanja UI", () => {
+describe("Daftar Belanja UI", () => {
   it("requires the reusable supplier selector and persists a stock mode per item", () => {
     const content = source("ShoppingRequestCreateModal.tsx");
 
@@ -21,7 +21,7 @@ describe("Permohonan Belanja UI", () => {
     expect(content).toContain("stockMode");
     expect(content).toContain("Stok Bersama");
     expect(content).toContain("Stok Produk Ini");
-    expect(content).toContain("Simpan Permohonan Belanja");
+    expect(content).toContain("Simpan Daftar Belanja");
   });
 
   it("shows thumbnails in product search, selected cards, and stock preview", () => {
@@ -47,7 +47,7 @@ describe("Permohonan Belanja UI", () => {
     expect(content).toContain("previewShoppingRequestStock");
     expect(content).toContain("stockMode");
     expect(content).toContain("Jumlah yang Di-ACC");
-    expect(content).toContain("Setujui Permohonan");
+    expect(content).toContain("Setujui Daftar Belanja");
   });
 
   it("offers separate edit and approved-quantity actions beside approval", () => {
@@ -129,5 +129,48 @@ describe("Permohonan Belanja UI", () => {
     expect(hooks).toContain("useSaveShoppingRequestApprovedQuantities");
     expect(hooks).toContain("useApproveShoppingRequestItem");
     expect(hooks).toContain("useUpdateShoppingRequest");
+  });
+
+  it("opens the shopping-request tab from a notification deep link", () => {
+    const shell = readFileSync(
+      join(process.cwd(), "features/suppliers/components/SupplierPageShell.tsx"),
+      "utf8",
+    );
+
+    expect(shell).toContain("useSearchParams");
+    expect(shell).toContain('searchParams.get("tab")');
+    expect(shell).toContain('requestedTab === "shopping-requests"');
+  });
+
+  it("uses the Daftar Belanja name across the Supplier page", () => {
+    const files = [
+      "ShoppingRequestCreateModal.tsx",
+      "ShoppingRequestApproveModal.tsx",
+      "ShoppingRequestEditModal.tsx",
+      "ShoppingRequestPrintModal.tsx",
+      "ShoppingRequestList.tsx",
+    ];
+    const content = files.map(source).join("\n");
+    const shell = readFileSync(
+      join(process.cwd(), "features/suppliers/components/SupplierPageShell.tsx"),
+      "utf8",
+    );
+
+    expect(`${shell}\n${content}`).toContain("Daftar Belanja");
+    expect(`${shell}\n${content}`).not.toContain("Permohonan Belanja");
+  });
+
+  it("uses a wider responsive layout for every main Daftar Belanja modal", () => {
+    const modalFiles = [
+      "ShoppingRequestCreateModal.tsx",
+      "ShoppingRequestApproveModal.tsx",
+      "ShoppingRequestApprovedQtyModal.tsx",
+      "ShoppingRequestEditModal.tsx",
+      "ShoppingRequestPrintModal.tsx",
+    ];
+
+    for (const file of modalFiles) {
+      expect(source(file), file).toContain('size="6xl"');
+    }
   });
 });

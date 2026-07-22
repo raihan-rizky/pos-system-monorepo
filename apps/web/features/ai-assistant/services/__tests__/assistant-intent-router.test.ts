@@ -127,6 +127,19 @@ describe("routeAssistantIntent", () => {
     });
   });
 
+  it("routes the owner monthly recap quick prompts to prepared PDF exports", () => {
+    expect(routeAssistantIntent("Rekap finansial bulanan")).toEqual({
+      kind: "tool",
+      toolName: "exportFinancialReport",
+      input: { period: "monthly", format: "pdf" },
+    });
+    expect(routeAssistantIntent("Rekap pelanggan bulanan")).toEqual({
+      kind: "tool",
+      toolName: "exportCustomerRecap",
+      input: { period: "monthly", format: "pdf" },
+    });
+  });
+
   it("defaults customer recap exports to the latest 30 days as PDF", () => {
     expect(routeAssistantIntent("buatkan rekap pelanggan")).toEqual({
       kind: "tool",

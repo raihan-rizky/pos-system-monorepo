@@ -89,7 +89,7 @@ export function ShoppingRequestApprovedQtyModal({
       open={open}
       onClose={onClose}
       title="Isi Jumlah yang Di-ACC"
-      size="4xl"
+      size="6xl"
     >
       {fullDetail.isPending ? (
         <div className="p-8 text-center text-sm font-semibold text-slate-500">

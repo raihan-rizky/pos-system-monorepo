@@ -263,7 +263,7 @@ const HELP_DOCS = [
   { file: "reports.md", keywords: ["laporan", "report", "keuangan", "omzet", "revenue", "profit", "laba rugi", "penjualan", "grafik", "analisa", "statistik", "ringkasan"] },
   { file: "keuangan.md", keywords: ["keuangan", "cash flow", "arus kas", "pengeluaran", "expense", "biaya"] },
   { file: "financial-report.md", keywords: ["laporan keuangan", "financial report", "omzet", "laba kotor", "hpp", "gross profit", "loss stok"] },
-  { file: "settings-rbac.md", keywords: ["settings", "rbac", "role", "permission", "akses", "pengaturan", "hak akses", "admin", "pengguna", "user", "karyawan", "akun"] },
+  { file: "settings-rbac.md", keywords: ["settings", "rbac", "role", "permission", "akses", "pengaturan", "hak akses", "admin", "pengguna", "user", "karyawan", "akun", "notifikasi", "notification", "unread", "badge merah", "bell", "pak teladan"] },
   { file: "production.md", keywords: ["produksi", "production", "kanban", "job order", "printing", "siap diambil", "sedang diproses", "proses", "selesai", "operator", "papan produksi"] },
   { file: "salespersons.md", keywords: ["sales", "salesperson", "tim sales", "tenaga penjual", "komisi", "target", "kinerja sales", "spg", "pramuniaga"] },
   { file: "shift.md", keywords: ["shift", "laci", "modal laci", "tutup laci", "selisih", "kasir", "sesi", "uang laci", "cash drawer", "setor", "buka shift"] },

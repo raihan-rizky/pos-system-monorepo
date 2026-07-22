@@ -85,6 +85,7 @@ export interface AssistantGeneratedFile {
   label: string;
   action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>;
   advice: string[];
+  downloaded?: boolean;
 }
 
 export interface ChatRequest {

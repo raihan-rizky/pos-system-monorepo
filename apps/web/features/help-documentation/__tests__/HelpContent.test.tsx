@@ -46,6 +46,32 @@ describe('HelpContent', () => {
     expect(html).toContain('Cek Transaksi Pending &amp; Draft');
   });
 
+  it('explains that quick prompts follow role tools while owner glow prompts stay available', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="AI_ASSISTANT" searchQuery="quick prompt role" />
+    );
+
+    expect(html).toContain('quick prompt');
+    expect(html).toContain('tool yang tersedia untuk role');
+    expect(html).toContain('Rekap finansial bulanan');
+    expect(html).toContain('Rekap pelanggan bulanan');
+  });
+
+  it('explains unread notification badges and Pak Teladan alerts', () => {
+    const ownerHtml = renderToStaticMarkup(
+      <HelpContent targetRole="OWNER" searchQuery="Tandai semua dibaca" />
+    );
+    const assistantHtml = renderToStaticMarkup(
+      <HelpContent targetRole="AI_ASSISTANT" searchQuery="notifikasi belum dibaca" />
+    );
+
+    expect(ownerHtml).toContain('badge merah');
+    expect(ownerHtml).toContain('Tandai semua dibaca');
+    expect(ownerHtml).toContain('Permohonan Belanja');
+    expect(assistantHtml).toContain('Pak Teladan');
+    expect(assistantHtml).toContain('notifikasi belum dibaca');
+  });
+
   it('documents the updated inbound receipt submission and revision flow', () => {
     const html = renderToStaticMarkup(
       <HelpContent targetRole="INVENTORY" searchQuery="Ajukan ke Owner" />

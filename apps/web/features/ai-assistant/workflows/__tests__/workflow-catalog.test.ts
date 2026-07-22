@@ -5,9 +5,9 @@ import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(36);
+    expect(FAQ_WORKFLOWS).toHaveLength(37);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 36 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 37 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);
@@ -111,6 +111,21 @@ describe("FAQ workflow catalog", () => {
     expect(serializedWorkflow).toContain("Pemerintah");
     expect(serializedWorkflow).toContain("Top 10 Produk");
     expect(serializedWorkflow).toContain("Analisis AI");
+  });
+
+  it("documents the persistent notification center and Pak Teladan alert flow", () => {
+    const notifications = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 37);
+
+    expect(notifications).toMatchObject({
+      id: "faq-q37-notification-center",
+      route: "/dashboard",
+      actionLabel: "Buka Dashboard",
+    });
+    const serialized = JSON.stringify(notifications);
+    expect(serialized).toContain("badge merah");
+    expect(serialized).toContain("Tandai semua dibaca");
+    expect(serialized).toContain("Pak Teladan");
+    expect(serialized).toContain("Permohonan Belanja");
   });
 
   it("documents AI-driven defaults, full financial analysis, and modal shortcuts", () => {

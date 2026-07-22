@@ -236,8 +236,8 @@ export function ShoppingRequestApproveModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Setujui Permohonan Belanja"
-      size="4xl"
+      title="Setujui Daftar Belanja"
+      size="6xl"
     >
       {fullDetail.isPending ? (
         <div className="p-8 text-center text-sm font-semibold text-slate-500">

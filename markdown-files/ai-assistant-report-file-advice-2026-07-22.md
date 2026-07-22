@@ -4,7 +4,7 @@ Tanggal: 22 Juli 2026
 
 ## Ringkasan
 
-Pak Teladan sekarang menampilkan kartu file setelah berhasil mengekspor laporan keuangan atau rekap pelanggan. File tetap otomatis diunduh seperti sebelumnya, tetapi kartu di percakapan menyediakan tombol **Download ulang** tanpa perlu mengirim prompt baru.
+Pak Teladan menampilkan kartu file saat pengguna meminta laporan keuangan atau rekap pelanggan, tanpa mengunduh otomatis. Pengguna memulai unduhan lewat tombol **Download PDF/Excel**; setelah berhasil, tombol berubah menjadi **Download ulang** tanpa perlu mengirim prompt baru. OWNER juga mendapat quick prompt bulanan dengan glow loop.
 
 ## Advice berbasis data
 

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { useNotifications } from "@/features/notifications/components/NotificationProvider";
 
 const AssistantWidget = dynamic(
   () => import("./AssistantWidget").then((module) => module.AssistantWidget),
@@ -18,6 +19,8 @@ function AssistantLauncher({
   loading?: boolean;
   onClick?: () => void;
 }) {
+  const { unreadCount } = useNotifications();
+
   return (
     <div className="fixed bottom-24 right-4 z-50 flex flex-col items-end md:bottom-6 md:right-6">
       <button
@@ -49,6 +52,14 @@ function AssistantLauncher({
         {!loading && (
           <span className="absolute inset-0 rounded-full bg-brand-500 opacity-20 motion-safe:animate-ping" />
         )}
+        {unreadCount > 0 ? (
+          <span
+            aria-label={`${unreadCount} notifikasi belum dibaca`}
+            className="absolute -right-1.5 -top-1.5 z-20 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-surface-900"
+          >
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        ) : null}
       </button>
     </div>
   );

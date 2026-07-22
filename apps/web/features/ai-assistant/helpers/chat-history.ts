@@ -68,6 +68,7 @@ function isGeneratedFile(value: unknown): value is AssistantGeneratedFile {
     && (file.format === "pdf" || file.format === "xlsx")
     && Array.isArray(file.advice)
     && file.advice.every((item) => typeof item === "string")
+    && (file.downloaded === undefined || typeof file.downloaded === "boolean")
     && !!action
     && (action.kind === "export_financial_report" || action.kind === "export_customer_recap")
     && ["daily", "weekly", "monthly", "30d"].includes(action.period)

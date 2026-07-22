@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import {
@@ -15,6 +16,7 @@ import {
   ShoppingRequestValidationError,
 } from "@/features/suppliers/shopping-requests/services/shopping-requests-service";
 import { SHOPPING_REQUEST_STATUSES } from "@/features/suppliers/shopping-requests/types/shopping-request";
+import { sendRolePushEvent } from "@/lib/push-events";
 
 const log = getLogger("api:suppliers:shopping-requests");
 
@@ -94,6 +96,30 @@ export async function POST(request: Request) {
       },
       { id: user.id, name: user.name, storeId: user.storeId || "store-main" },
     );
+
+    after(async () => {
+      try {
+        await sendRolePushEvent({
+          eventName: "shopping-request-created",
+          storeId: user.storeId || "store-main",
+          roles: ["OWNER", "ADMIN"],
+          featureKey: "shoppingRequests",
+          excludeUserIds: [user.id],
+          payload: {
+            title: "Permohonan belanja baru",
+            body: `${user.name || "Pengguna"} mengajukan ${result.number} dengan ${result.items.length} item.`,
+            url: "/suppliers?tab=shopping-requests",
+            tag: `shopping-request:${result.id}`,
+          },
+        });
+      } catch (notificationError) {
+        log.error("shopping_requests.create.notification_failed", {
+          error: notificationError,
+          requestId: result.id,
+          storeId: user.storeId,
+        });
+      }
+    });
 
     return NextResponse.json({ data: result }, { status: 201 });
   } catch (error) {

@@ -18,7 +18,7 @@ import {
 import { buildAssistantHistoryKey, sanitizeAssistantHistoryRecord } from "../helpers/chat-history";
 import { AssistantRequestError, sendChatMessage } from "../api/assistantApi";
 import type { AssistantClientAction, AssistantStreamFrame, Message } from "../types/assistant";
-import { Send, Info, Bot, X, Trash2, Sparkles, ChevronLeft, ChevronRight, Download, FileText } from "lucide-react";
+import { Send, Info, Bot, X, Trash2, Sparkles, ChevronLeft, ChevronRight, Download, FileText, Bell } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { flushSync } from "react-dom";
 import { AssistantActionLog } from "./AssistantActionLog";
@@ -29,6 +29,12 @@ import {
   ASSISTANT_OPEN_MODAL_EVENT,
   executeAssistantClientAction,
 } from "../helpers/assistant-client-actions";
+import { useNotifications } from "@/features/notifications/components/NotificationProvider";
+import type { AppNotification } from "@/features/notifications/types/notification";
+import {
+  getQuickPromptsForRole,
+  isGlowingQuickPrompt,
+} from "../helpers/quick-prompt-catalog";
 
 const MAX_HISTORY_MESSAGES = 10;
 
@@ -39,6 +45,11 @@ type AssistantWidgetProps = {
   userId?: string | null;
   storeId?: string | null;
   authorizationFingerprint?: string | null;
+  notificationSnapshot?: {
+    unreadCount: number;
+    notifications: AppNotification[];
+    markAsRead: (id: string) => Promise<void> | void;
+  };
 };
 
 function formatMetadataTime(value: string) {
@@ -93,6 +104,7 @@ export function AssistantWidget({
   userId,
   storeId,
   authorizationFingerprint,
+  notificationSnapshot,
 }: AssistantWidgetProps) {
   const roleContext = useRole();
   const effectiveRole = userRole ?? roleContext.role ?? "ADMIN";
@@ -101,6 +113,11 @@ export function AssistantWidget({
   const effectiveAuthorizationFingerprint = authorizationFingerprint ?? roleContext.authorizationFingerprint;
   const pathname = usePathname() || "/";
   const router = useRouter();
+  const liveNotifications = useNotifications();
+  const notificationInbox = notificationSnapshot ?? liveNotifications;
+  const unreadNotifications = notificationInbox.notifications.filter(
+    (notification) => !notification.readAt,
+  );
   const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -282,44 +299,7 @@ export function AssistantWidget({
   }, [messages, open, isStreaming]);
 
   const templateQuestions = useMemo(() => {
-    switch (effectiveRole?.toUpperCase()) {
-      case "INVENTORY":
-        return [
-          "Cek stok barang menipis",
-          "Berapa stok Kertas HVS?",
-          "Bagaimana cara melakukan stock opname?",
-          "Cara input penerimaan barang",
-        ];
-      case "SALES":
-        return [
-          "Cari pelanggan Toko Makmur",
-          "Cek sisa piutang Agen Sabar Subur",
-          "Rekap transaksi pelanggan Budi",
-          "Bagaimana cara mencatat transaksi?",
-        ];
-      case "CASHIER":
-        return [
-          "Cek stok Kertas HVS",
-          "Berapa harga Kertas HVS?",
-          "Lihat daftar transaksi pending",
-          "Cara membuat transaksi baru",
-        ];
-      case "OWNER":
-      case "ADMIN":
-        return [
-          "Ringkasan penjualan hari ini",
-          "Daftar produk terlaris hari ini",
-          "Cek stok barang menipis",
-          "Cek sisa piutang Agen Sabar Subur",
-          "Cara mengatur hak akses role RBAC",
-        ];
-      default:
-        return [
-          "Cara menggunakan asisten Pak Tel",
-          "Cek stok Kertas HVS",
-          "Panduan penggunaan sistem POS",
-        ];
-    }
+    return getQuickPromptsForRole(effectiveRole);
   }, [effectiveRole]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -347,7 +327,14 @@ export function AssistantWidget({
   const handleGeneratedFileDownload = async (action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>) => {
     try {
       setError(null);
-      await downloadGeneratedFile(action);
+      const result = await downloadGeneratedFile(action);
+      setMessages((current) => current.map((message) => {
+        const file = message.generatedFile;
+        if (!file || file.action.kind !== action.kind || file.action.period !== action.period || file.action.format !== action.format) {
+          return message;
+        }
+        return { ...message, generatedFile: { ...file, advice: result.advice, downloaded: true } };
+      }));
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : "File belum berhasil diunduh ulang.");
     }
@@ -389,6 +376,25 @@ export function AssistantWidget({
           continue;
         }
         if ("type" in parsed && parsed.type === "client_action") {
+          if (parsed.action.kind !== "open_modal") {
+            const action = parsed.action;
+            const baseName = action.kind === "export_financial_report" ? "laporan-keuangan" : "rekap-pelanggan";
+            const fileLabel = action.kind === "export_financial_report" ? "Laporan Keuangan" : "Rekap Pelanggan";
+            setMessages((current) => setAssistantGeneratedFile(current, {
+              name: `${baseName}-${action.period}.${action.format}`,
+              format: action.format,
+              label: fileLabel,
+              action,
+              advice: [],
+              downloaded: false,
+            }));
+            setMessages((current) => appendAssistantActionLogEntry(current, {
+              label: "File siap diunduh",
+              occurredAt: parsed.occurredAt,
+              status: "done",
+            }));
+            continue;
+          }
           flushSync(() => {
             setMessages((current) => appendAssistantActionLogEntry(current, {
               label: "Menjalankan aksi di aplikasi",
@@ -397,7 +403,6 @@ export function AssistantWidget({
             }));
           });
           try {
-            let exportAdvice: string[] = [];
             const label = await executeAssistantClientAction(parsed.action, {
               currentPath: pathname,
               dispatchModal: (modal) => {
@@ -408,26 +413,12 @@ export function AssistantWidget({
               navigate: (route) => router.push(route),
               storage: window.sessionStorage,
               exportFinancialReport: async (period, format) => {
-                const result = await downloadGeneratedFile({ kind: "export_financial_report", period, format });
-                exportAdvice = result.advice;
+                await downloadGeneratedFile({ kind: "export_financial_report", period, format });
               },
               exportCustomerRecap: async (period, format) => {
-                const result = await downloadGeneratedFile({ kind: "export_customer_recap", period, format });
-                exportAdvice = result.advice;
+                await downloadGeneratedFile({ kind: "export_customer_recap", period, format });
               },
             });
-            if (parsed.action.kind !== "open_modal") {
-              const action = parsed.action;
-              const baseName = action.kind === "export_financial_report" ? "laporan-keuangan" : "rekap-pelanggan";
-              const fileLabel = action.kind === "export_financial_report" ? "Laporan Keuangan" : "Rekap Pelanggan";
-              setMessages((current) => setAssistantGeneratedFile(current, {
-                name: `${baseName}-${action.period}.${action.format}`,
-                format: action.format,
-                label: fileLabel,
-                action,
-                advice: exportAdvice,
-              }));
-            }
             setMessages((current) => appendAssistantActionLogEntry(current, {
               label,
               occurredAt: new Date().toISOString(),
@@ -557,6 +548,7 @@ export function AssistantWidget({
           if (open) activeRequestRef.current?.abort();
           setOpen((prev) => !prev);
         }}
+        aria-label={open ? "Tutup asisten AI" : "Buka asisten AI"}
         style={{
           background: "linear-gradient(135deg, rgba(12, 152, 233, 0.8) 0%, rgba(1, 96, 161, 0.8) 100%)",
           boxShadow: "0 0 20px rgba(12, 152, 233, 0.7), 0 0 40px rgba(0, 121, 199, 0.5), 0 0 60px rgba(1, 96, 161, 0.3)",
@@ -569,6 +561,14 @@ export function AssistantWidget({
           {open ? <X className="w-6 h-6 md:w-8 md:h-8 text-white" /> : <Bot className="w-6 h-6 md:w-8 md:h-8 text-white" />}
         </div>
         <div className="absolute inset-0 rounded-full animate-ping opacity-20 bg-brand-500"></div>
+        {notificationInbox.unreadCount > 0 ? (
+          <span
+            aria-label={`${notificationInbox.unreadCount} notifikasi belum dibaca`}
+            className="absolute -right-1.5 -top-1.5 z-20 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-surface-900"
+          >
+            {notificationInbox.unreadCount > 99 ? "99+" : notificationInbox.unreadCount}
+          </span>
+        ) : null}
       </button>
 
       {open && (
@@ -653,6 +653,47 @@ export function AssistantWidget({
               </div>
             </div>
 
+            {notificationInbox.unreadCount > 0 ? (
+              <section
+                aria-label="Info notifikasi dari Pak Teladan"
+                className="border-b border-red-400/20 bg-red-500/10 px-4 py-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black text-red-100">Pak Teladan ngabarin</p>
+                    <p className="mt-0.5 text-[11px] text-red-200/80">
+                      {notificationInbox.unreadCount} notifikasi belum dibaca.
+                    </p>
+                  </div>
+                  <Bell className="h-4 w-4 shrink-0 text-red-300" aria-hidden="true" />
+                </div>
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-0.5">
+                  {unreadNotifications.slice(0, 3).map((notification) => (
+                    <button
+                      key={notification.id}
+                      type="button"
+                      onClick={() => {
+                        void Promise.resolve(notificationInbox.markAsRead(notification.id))
+                          .catch(() => undefined)
+                          .then(() => {
+                            setOpen(false);
+                            router.push(notification.url?.startsWith("/") ? notification.url : "/dashboard");
+                          });
+                      }}
+                      className="min-w-[190px] rounded-xl border border-red-300/20 bg-surface-900/45 px-3 py-2 text-left hover:border-red-300/40 hover:bg-surface-900/70"
+                    >
+                      <span className="block truncate text-[11px] font-bold text-surface-100">
+                        {notification.title}
+                      </span>
+                      <span className="mt-0.5 line-clamp-1 block text-[10px] text-surface-300">
+                        {notification.body}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 scrollbar-thin scrollbar-thumb-surface-600 scrollbar-track-transparent text-sm">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-surface-400 opacity-80 gap-3">
@@ -694,7 +735,7 @@ export function AssistantWidget({
                             <p className="truncate text-[10px] text-surface-400">{message.generatedFile.name}</p>
                           </div>
                           <button type="button" onClick={() => void handleGeneratedFileDownload(message.generatedFile!.action)} className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-brand-500">
-                            <Download className="h-3 w-3" aria-hidden="true" /> Download ulang
+                            <Download className="h-3 w-3" aria-hidden="true" /> {message.generatedFile.downloaded === false ? `Download ${message.generatedFile.format.toUpperCase()}` : "Download ulang"}
                           </button>
                         </div>
                         {message.generatedFile.advice.length ? (
@@ -801,7 +842,7 @@ export function AssistantWidget({
                       disabled={isStreaming}
                       aria-label={`Pakai prompt: ${q}`}
                       title="Isi pesan dengan prompt ini"
-                      className="snap-start shrink-0 whitespace-nowrap rounded-full border border-surface-700/60 bg-surface-800/80 px-3.5 py-1.5 text-[11px] font-medium text-surface-300 shadow-sm transition-all duration-200 hover:border-surface-600 hover:bg-surface-700 hover:text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-400/50 disabled:opacity-50"
+                      className={`${isGlowingQuickPrompt(q) ? "assistant-quick-prompt-glow border-brand-400/70 text-brand-100" : "border-surface-700/60 text-surface-300"} snap-start shrink-0 whitespace-nowrap rounded-full border bg-surface-800/80 px-3.5 py-1.5 text-[11px] font-medium shadow-sm transition-all duration-200 hover:border-surface-600 hover:bg-surface-700 hover:text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-400/50 disabled:opacity-50`}
                     >
                       {q}
                     </button>

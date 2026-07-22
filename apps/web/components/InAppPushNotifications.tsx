@@ -8,6 +8,7 @@ import {
   isNotificationSoundEnabled,
   playNotificationSound,
 } from "@/lib/notification-sound";
+import { NOTIFICATIONS_UPDATED_EVENT } from "@/features/notifications/types/notification";
 
 const log = getLogger("ui:InAppPushNotifications");
 type PushPayload = {
@@ -61,6 +62,7 @@ export function InAppPushNotifications() {
         body: payload.body || DEFAULT_NOTIFICATION.body,
         url: payload.url || DEFAULT_NOTIFICATION.url,
       });
+      window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
 
       if (isNotificationSoundEnabled()) {
         void playNotificationSound().catch((error) => {

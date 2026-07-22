@@ -67,6 +67,7 @@ describe("AI assistant chat history", () => {
           label: "Laporan Keuangan",
           action: { kind: "export_financial_report", period: "30d", format: "pdf" },
           advice: ["Pantau pengeluaran."],
+          downloaded: false,
         },
       }],
     };
