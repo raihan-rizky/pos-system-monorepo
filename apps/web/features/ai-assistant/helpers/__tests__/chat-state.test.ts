@@ -10,6 +10,7 @@ import {
   completeAssistantActionLog,
   keepRecentMessages,
   setAssistantFinalContent,
+  setAssistantGeneratedFile,
   setAssistantWorkflowPayload,
 } from "../chat-state";
 
@@ -165,5 +166,21 @@ describe("AI assistant chat state", () => {
     );
 
     expect(next[0].workflow?.id).toBe("faq-q01-add-product");
+  });
+
+  it("attaches a generated report file and advice to the last assistant message", () => {
+    const next = setAssistantGeneratedFile(
+      [{ role: "assistant", content: "Laporan siap." }],
+      {
+        name: "laporan-keuangan-30d.pdf",
+        format: "pdf",
+        label: "Laporan Keuangan",
+        action: { kind: "export_financial_report", period: "30d", format: "pdf" },
+        advice: ["Review pengeluaran terbesar minggu ini."],
+      },
+    );
+
+    expect(next[0].generatedFile?.name).toBe("laporan-keuangan-30d.pdf");
+    expect(next[0].generatedFile?.advice).toEqual(["Review pengeluaran terbesar minggu ini."]);
   });
 });

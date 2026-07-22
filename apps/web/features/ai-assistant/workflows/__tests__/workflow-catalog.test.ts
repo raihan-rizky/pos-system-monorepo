@@ -123,8 +123,12 @@ describe("FAQ workflow catalog", () => {
     expect(JSON.stringify(financialWorkflow)).toContain("30 hari terakhir");
     expect(JSON.stringify(financialWorkflow)).toContain("PDF");
     expect(JSON.stringify(financialWorkflow)).toContain("seluruh metrik");
+    expect(JSON.stringify(financialWorkflow)).toContain("Download ulang");
+    expect(JSON.stringify(financialWorkflow)).toContain("saran");
     expect(JSON.stringify(customerWorkflow)).toContain("30 hari terakhir");
     expect(JSON.stringify(customerWorkflow)).toContain("PDF");
+    expect(JSON.stringify(customerWorkflow)).toContain("Download ulang");
+    expect(JSON.stringify(customerWorkflow)).toContain("saran");
   });
 
   it("documents proof compression and delegated deletion", () => {

@@ -383,7 +383,7 @@ export default function POSClientPage({
         setCheckoutNotice({
           tone: "success",
           message:
-            "Permintaan pembayaran berhasil dikirim ke kasir. Tunggu persetujuan sebelum menyerahkan barang.",
+            "Transaksi berhasil dikirim untuk approval. Tunggu persetujuan sebelum menyerahkan barang.",
         });
       } else {
         setCheckoutNotice({

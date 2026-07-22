@@ -8,7 +8,7 @@ Setiap transaksi yang tercatat memiliki beberapa informasi penting: Nomor Struk 
 ### Status Transaksi yang Tersedia
 - **Lunas (COMPLETED):** Pembayaran transaksi telah selesai dan lunas.
 - **DP:** Pelanggan baru membayar sebagian dari total tagihan (Down Payment) atau masih memiliki sisa hutang/piutang (Bayar Nanti).
-- **Pending (PENDING_APPROVAL):** Transaksi masih menunggu persetujuan atau verifikasi (misalnya transaksi dibuat oleh perangkat sales dari luar).
+- **Pending (PENDING_APPROVAL):** Transaksi masih menunggu persetujuan atau verifikasi karena role pembuat tidak memiliki izin Auto Approve Transaksi, atau karena transaksi offline perlu diperiksa.
 - **Dibatalkan (VOIDED):** Transaksi telah dibatalkan. Nilainya tidak akan dihitung sebagai pendapatan, dan stok barang biasanya dikembalikan.
 - **Refund:** Transaksi yang uangnya dikembalikan kepada pelanggan karena suatu alasan.
 - **Sementara (DRAFT):** Nota disimpan sementara dan belum difinalisasi menjadi transaksi utuh.
@@ -26,7 +26,7 @@ Setiap transaksi yang tercatat memiliki beberapa informasi penting: Nomor Struk 
 - **Hapus (Delete):** Fungsi penghapusan (menghapus data transaksi dari sistem secara permanen) adalah tindakan berisiko tinggi dan hanya dibatasi untuk level pengguna tertinggi (seperti Pemilik/Admin).
 
 ## Proses Transaksi Khusus
-- **Approval Transaksi Pending:** Transaksi pending dari perangkat sales luar memerlukan persetujuan kasir/admin di halaman riwayat sebelum memotong stok. Langkah persetujuan dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q7-bagaimana-cara-menyetujui-transaksi-pending-approval-process-yang-dikirim-oleh-sales-lapangan).
+- **Approval Transaksi Pending:** Transaksi dari role tanpa `transaction.auto_approve.create` memerlukan persetujuan role yang berwenang di halaman Riwayat sebelum memotong stok. Owner dapat mengaktifkan Auto Approve Transaksi per role melalui RBAC. Langkah persetujuan dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q7-bagaimana-cara-menyetujui-transaksi-pending-atau-mengatur-auto-approve-per-role).
 - **Cetak & Marking Surat Jalan:** Surat jalan pengiriman barang fisik dapat dibuat dari menu aksi transaksi berstatus Lunas/DP. Untuk keperluan inventaris/gudang, Surat Jalan wajib ditandai status penanganannya (**Marking**):
   - Status marking yang tersedia: **Selesai (COMPLETED)**, **Belum Dikirim (NOT_DELIVERED)**, **Perlu Tanda Tangan (NEEDS_SIGNATURE)**, **Perlu Follow Up (NEEDS_FOLLOW_UP)**, **Ditunda (POSTPONED)**, atau **Tidak Relevan (NOT_RELEVANT)**.
   - Penandaan status pengecualian selain *Selesai* mewajibkan penginputan alasan/catatan.

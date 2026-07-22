@@ -70,7 +70,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 8. Pilih status pembayaran **Lunas** atau **Uang Muka (DP)**, lalu tentukan tipe transaksi **Beli Langsung** atau **Job Order**.
 9. Isi jumlah uang yang dibayarkan, masukkan nominal diskon bila ada, klik **Konfirmasi Bayar** / **Bayar DP**, lalu cetak struk belanja pelanggan.
 
-### Q7: Bagaimana cara menyetujui transaksi Pending (Approval Process) yang dikirim oleh sales lapangan?
+### Q7: Bagaimana cara menyetujui transaksi Pending atau mengatur Auto Approve per role?
 **A:** Transaksi dengan status **Pending** memerlukan persetujuan dari kasir atau pemilik toko agar stok barang terpotong dan pembayaran terverifikasi:
 1. Di halaman **Riwayat Transaksi**, gunakan filter status **Pending** untuk melihat semua transaksi yang menunggu persetujuan (baris transaksi akan berwarna biru).
 2. Klik tombol **Setujui** atau **Tolak** di sebelah kanan baris transaksi (atau pilih dari menu tiga titik `...` -> **Setujui** / **Tolak**).
@@ -247,6 +247,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 5. Di halaman laporan, KPI **Pengeluaran** mencakup pengeluaran manual dan Permohonan Belanja. **Laba Bersih (Estimasi)** adalah Laba Kotor dikurangi seluruh pengeluaran; angka ini bukan laba akrual formal atau bukti pembayaran supplier.
 6. Anda dapat meminta Pak Teladan, misalnya **"ekspor laporan keuangan"**. Jika periode dan format tidak disebutkan, Pak Teladan memakai **30 hari terakhir** dan **PDF**.
 7. Untuk permintaan analisis keuangan, Pak Teladan membaca seluruh bagian laporan dalam rentang yang sama: ringkasan, metode pembayaran, produk teratas, kategori, sales, shift, kehilangan stok, dan tren. Saran dibuat dari gabungan metrik tersebut, bukan dari omzet saja.
+8. Setelah ekspor dari chat berhasil, file langsung diunduh dan kartu file tetap tampil di percakapan. Gunakan tombol **Download ulang** bila diperlukan. Pak Teladan juga menampilkan saran operasional berdasarkan angka pada laporan yang sama.
 
 ### Q22: Bagaimana cara mengubah informasi profil toko yang muncul di struk belanja?
 **A:** Untuk memperbarui logo, nama, atau alamat di struk penjualan:
@@ -264,6 +265,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
    - **Aksi Resource:** Menentukan izin `create`, `read`, `update`, dan `delete` untuk resource tertentu.
 5. Klik tombol **Review & Simpan** di pojok kanan atas.
 6. Tinjau log ringkasan perubahan pada modal yang muncul. Jika terdapat perubahan pada permission sensitif (misalnya keuangan, RBAC, nomor WhatsApp, HPP, atau approval), Anda wajib memberikan konfirmasi persetujuan tambahan sebelum data disimpan secara resmi.
+7. Untuk mengatur transaksi langsung final per role, buka modul **Auto Approve Transaksi** lalu aktifkan aksi **Buat**. Jika dimatikan, checkout role tersebut masuk `PENDING_APPROVAL`; permission ini tidak memberikan hak approve transaksi milik user lain.
 
 ---
 
@@ -296,3 +298,4 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 4. Pilih **Excel (.xlsx)** untuk mendapatkan sheet **Agen**, **Umum**, **Pemerintah**, **Industri**, dan **Ringkasan**, atau pilih **PDF** untuk section per tipe dan halaman **Ringkasan Semua Tipe**.
 5. Setiap tipe memuat pelanggan yang bertransaksi pada periode tersebut, diurutkan berdasarkan Total Belanja, Produk Favorit, dan Top 10 Produk. Ringkasan terakhir memuat KPI dan Analisis AI.
 6. Anda juga dapat meminta **"ekspor rekap pelanggan"** kepada Pak Teladan. Jika periode dan format tidak disebutkan, ekspor memakai **30 hari terakhir** dan **PDF**.
+7. File langsung diunduh dan kartu file tetap tampil di chat dengan tombol **Download ulang**. Di bawah kartu, Pak Teladan menampilkan saran berdasarkan dataset rekap yang dipakai untuk membuat PDF atau Excel tersebut.

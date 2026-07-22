@@ -1052,10 +1052,22 @@ function ModulePermissionEditor({
                 {module.resourceTargets.map((resource, idx) => (
                   <tr key={resource} className={idx % 2 === 1 ? "bg-surface-50/30" : ""}>
                     <td className="px-4 py-3">
-                      <span className="font-semibold text-surface-800">{resource}</span>
+                      <span className="font-semibold text-surface-800">
+                        {resource === "transaction.auto_approve" ? "Auto Approve Transaksi" : resource}
+                      </span>
+                      {resource === "transaction.auto_approve" ? (
+                        <p className="mt-1 max-w-xs text-[11px] font-normal text-surface-500">
+                          Aktifkan aksi Buat agar transaksi role ini langsung final tanpa menunggu approval.
+                        </p>
+                      ) : null}
                     </td>
                     {ACTIONS.map((action) => {
                       const isChecked = permissions[role].resources[resource]?.[action] ?? false;
+                      const isAutoApproveAction = resource === "transaction.auto_approve";
+
+                      if (isAutoApproveAction && action !== "create") {
+                        return <td key={action} className="px-4 py-3 text-center text-surface-300">—</td>;
+                      }
 
                       return (
                         <td key={action} className="px-4 py-3 text-center">

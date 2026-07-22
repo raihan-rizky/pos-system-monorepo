@@ -157,7 +157,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-approval-transaksi",
       title: "Approval Transaksi Pending",
-      description: "Periksa dan sahkan pesanan yang dibuat tim sales di lapangan biar barangnya bisa dikirim dan stoknya berkurang otomatis.",
+      description: "Periksa dan sahkan transaksi dari role yang tidak memiliki izin Auto Approve Transaksi. Owner dapat mengaturnya di Pengaturan > RBAC; saat izin aktif, checkout role tersebut langsung final dan stok langsung berkurang.",
       icon: <ShieldCheck className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Filter Transaksi Pending", description: "Buka menu 'Riwayat' di sidebar kiri. Gunakan filter status 'Pending' pada bagian atas tabel (baris transaksi pending akan berwarna biru).", icon: <Search className="w-8 h-8" /> },
@@ -789,7 +789,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "ai-assistant-daily-sales",
       title: "Pantau Omzet & Cuan Toko",
-      description: "Pantau performa tokomu dari mana aja dengan gampang! Pak Teladan bisa menganalisis seluruh metrik Laporan Keuangan, bukan hanya omzet harian, lalu memberi saran berdasarkan data yang saling berkaitan.",
+      description: "Pantau performa tokomu dari mana aja dengan gampang! Pak Teladan bisa menganalisis seluruh metrik Laporan Keuangan, mengekspor PDF atau Excel sebagai kartu yang bisa di-download ulang, lalu memberi saran berdasarkan data yang sama.",
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Tanyakan Penjualan", description: "Tanya aja omzet pada tanggal tertentu, misalnya: 'Hari ini dapet omzet berapa?' atau 'Rangkuman penjualan kemarin dong'.", icon: <TrendingUp className="w-8 h-8" /> },
@@ -844,7 +844,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "ai-assistant-customer-recap",
       title: "Cek Rekap Belanja Bulanan Pelanggan",
-      description: "Pengen tahu seberapa sering pelanggan setiamu belanja? Pak Teladan bisa merangkum dan mengekspor rekap pelanggan. Jika periode dan format tidak disebutkan, otomatis memakai 30 hari terakhir dan PDF.",
+      description: "Pengen tahu seberapa sering pelanggan setiamu belanja? Pak Teladan bisa merangkum dan mengekspor rekap pelanggan sebagai kartu PDF atau Excel yang bisa di-download ulang, sekaligus memberi saran dari dataset yang sama. Jika periode dan format tidak disebutkan, otomatis memakai 30 hari terakhir dan PDF.",
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Minta Rekap Belanja", description: "Ketik aja pesan kayak: 'Rekap belanja Pak Andi sebulan ini dong' atau 'Gimana riwayat belanjanya Toko Makmur?'.", icon: <History className="w-8 h-8" /> },
@@ -973,7 +973,8 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
             <p className="mt-1 text-sm leading-relaxed text-sky-800">
               Preview otomatis mengikuti ukuran perangkat Anda. Klik preview untuk membuka modal; di ponsel,
               cubit layar untuk memakai zoom 1×–3×, sedangkan di desktop arahkan kursor untuk memperbesar detail.
-              Gunakan scrollbar internal bila halaman lebih lebar atau lebih panjang dari area preview.
+              Gunakan scrollbar internal bila halaman lebih lebar atau lebih panjang dari area preview. Setiap halaman
+              utama punya animasi ambient kecil; animasi otomatis berhenti saat Reduced Motion aktif di perangkat.
             </p>
           </div>
         </aside>

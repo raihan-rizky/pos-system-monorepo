@@ -79,6 +79,14 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     sensitivity: "normal",
   },
   {
+    id: "transaction-auto-approve",
+    label: "Auto Approve Transaksi",
+    description: "Finalisasi transaksi role ini tanpa antrean approval.",
+    pageTargets: [],
+    resourceTargets: ["transaction.auto_approve"],
+    sensitivity: "critical",
+  },
+  {
     id: "transaction-approval",
     label: "Approval Transaksi",
     description: "Persetujuan, penolakan, dan pembatalan transaksi.",

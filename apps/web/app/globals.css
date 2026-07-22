@@ -263,6 +263,49 @@ input[type="number"] {
   }
 }
 
+/* Small ambient loop shared by every authenticated page. */
+@keyframes app-page-loop-orbit {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.9);
+  }
+  50% {
+    transform: translate3d(12px, 8px, 0) scale(1.08);
+  }
+}
+
+.app-page-loop-dot {
+  position: absolute;
+  display: block;
+  border-radius: 9999px;
+  will-change: transform;
+  animation: app-page-loop-orbit 4.8s ease-in-out infinite;
+}
+
+.app-page-loop-dot-primary {
+  inset: 2px auto auto 2px;
+  width: 8px;
+  height: 8px;
+  background: rgba(12, 152, 233, 0.7);
+  box-shadow: 0 0 14px rgba(12, 152, 233, 0.35);
+}
+
+.app-page-loop-dot-secondary {
+  right: 3px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  background: rgba(14, 165, 233, 0.4);
+  animation-delay: -2.4s;
+  animation-direction: reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-page-loop-dot {
+    animation: none;
+  }
+}
+
 /* ─── Slide To Takeover Button ────────────────────────────────────────────── */
 @keyframes slideUp {
   from {

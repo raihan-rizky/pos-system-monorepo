@@ -40,6 +40,7 @@ export interface Message {
   actionLog?: AssistantActionLogEntry[];
   followUps?: string[];
   workflow?: AssistantWorkflowPayload;
+  generatedFile?: AssistantGeneratedFile;
 }
 
 export interface PageContext {
@@ -77,6 +78,14 @@ export type AssistantClientAction =
       period: AssistantReportPeriod;
       format: AssistantExportFormat;
     };
+
+export interface AssistantGeneratedFile {
+  name: string;
+  format: AssistantExportFormat;
+  label: string;
+  action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>;
+  advice: string[];
+}
 
 export interface ChatRequest {
   messages: Message[];

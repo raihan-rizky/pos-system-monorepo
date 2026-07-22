@@ -61,10 +61,34 @@ export type ExportInput = {
   categories?: ReportCategorySummary[];
 };
 
+export type ReportExportResult = { advice: string[] };
+
+export function buildFinancialExportAdvice(input: ExportInput): string[] {
+  const { totalPemasukan, totalPengeluaran, grandTotal, byMethod } = input.footer;
+  if (totalPemasukan <= 0) {
+    return ["Belum ada pemasukan pada periode ini. Cek kembali periode laporan atau aktivitas transaksi toko."];
+  }
+
+  const expenseRatio = totalPengeluaran / totalPemasukan;
+  const dominantMethod = Object.entries(byMethod).sort((a, b) => b[1] - a[1])[0];
+  const advice = [
+    expenseRatio >= 0.5
+      ? `Pengeluaran mencapai ${Math.round(expenseRatio * 100)}% dari pemasukan. Review pos biaya terbesar sebelum menentukan budget berikutnya.`
+      : `Pengeluaran berada di ${Math.round(expenseRatio * 100)}% dari pemasukan. Pertahankan kontrol biaya dan pantau perubahan rasionya.`,
+    grandTotal < 0
+      ? "Arus bersih periode ini negatif. Prioritaskan penagihan dan tunda pengeluaran yang tidak mendesak."
+      : "Arus bersih periode ini positif. Sisihkan sebagian untuk buffer kas dan kebutuhan stok prioritas.",
+  ];
+  if (dominantMethod && dominantMethod[1] > 0) {
+    advice.push(`Metode pembayaran terbesar adalah ${dominantMethod[0]}. Cocokkan nilainya dengan settlement atau kas fisik.`);
+  }
+  return advice;
+}
+
 export async function exportFinancialReportFile(
   period: ReportPeriod,
   format: ReportExportFormat,
-): Promise<void> {
+): Promise<ReportExportResult> {
   const response = await fetch(`/api/finance/report/journal?period=${period}`, {
     cache: "no-store",
   });
@@ -79,6 +103,7 @@ export async function exportFinancialReportFile(
   } else {
     await exportReportPdf(input);
   }
+  return { advice: buildFinancialExportAdvice(input) };
 }
 
 // ── XLSX ──────────────────────────────────────────────────────────────────

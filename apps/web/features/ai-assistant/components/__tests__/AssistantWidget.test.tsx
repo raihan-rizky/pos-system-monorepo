@@ -227,5 +227,40 @@ describe("AssistantWidget", () => {
     expect(htmlOwner).toContain("Daftar produk terlaris hari ini");
     expect(htmlOwner).toContain("Cara mengatur hak akses role RBAC");
   });
+
+  it("explains how to use quick prompts and exposes descriptive prompt labels", () => {
+    const html = renderToStaticMarkup(
+      <AssistantWidget defaultOpen userRole="CASHIER" />
+    );
+
+    expect(html).toContain("Ide cepat buat kamu");
+    expect(html).toContain("Klik prompt untuk isi pesan");
+    expect(html).toContain('aria-label="Pakai prompt: Cek stok Kertas HVS"');
+    expect(html).toContain('title="Isi pesan dengan prompt ini"');
+  });
+
+  it("renders generated report files with download-again action and advice", () => {
+    const html = renderToStaticMarkup(
+      <AssistantWidget
+        defaultOpen
+        initialMessages={[{
+          role: "assistant",
+          content: "Rekapnya sudah siap.",
+          generatedFile: {
+            name: "rekap-pelanggan-30d.xlsx",
+            format: "xlsx",
+            label: "Rekap Pelanggan",
+            action: { kind: "export_customer_recap", period: "30d", format: "xlsx" },
+            advice: ["Follow up pelanggan dengan piutang tertinggi."],
+          },
+        }]}
+      />,
+    );
+
+    expect(html).toContain("rekap-pelanggan-30d.xlsx");
+    expect(html).toContain("Download ulang");
+    expect(html).toContain("Saran Pak Teladan");
+    expect(html).toContain("Follow up pelanggan dengan piutang tertinggi.");
+  });
 });
 

@@ -721,15 +721,21 @@ export async function POST(request: Request) {
     const total = Math.max(0, subtotal - discount);
 
     const isDP = paymentStatus === "DP";
-    const isSalesRequest = user.role === "SALES";
+    const autoApproveTransaction = canRolePerformAction(
+      user.role as Role,
+      "transaction.auto_approve",
+      "create",
+      permissions,
+    );
+    const requiresApproval = !autoApproveTransaction;
 
     const amountPaidComputed = resolvedPayments.reduce((sum, p) => sum + p.amount, 0);
-    // For SALES requests we hold the invoice open as PENDING_APPROVAL until a
-    // cashier/owner approves it; until then there is no finalized revenue and
-    // no change to return. For cashier sales we keep the legacy semantics.
+    // Roles without transaction.auto_approve hold the invoice as
+    // PENDING_APPROVAL. Until an authorized approver finalizes it, revenue and
+    // stock stay untouched and no payment change is returned.
     const changeComputed =
-      isDP || isSalesRequest ? 0 : amountPaidComputed - total;
-    const finalStatus: "COMPLETED" | "DP" | "PENDING_APPROVAL" = isSalesRequest
+      isDP || requiresApproval ? 0 : amountPaidComputed - total;
+    const finalStatus: "COMPLETED" | "DP" | "PENDING_APPROVAL" = requiresApproval
       ? "PENDING_APPROVAL"
       : isDP
         ? "DP"
@@ -761,8 +767,8 @@ export async function POST(request: Request) {
               invoiceNumber,
               invoiceDate: resolvedInvoiceDate,
               storeId,
-              cashierId: isSalesRequest ? null : user.id,
-              requestedById: isSalesRequest ? user.id : null,
+              cashierId: requiresApproval ? null : user.id,
+              requestedById: requiresApproval ? user.id : null,
               customerId: customerId || null,
               subtotal,
               discount,
@@ -901,7 +907,7 @@ export async function POST(request: Request) {
               },
             ];
           });
-          if (!isSalesRequest) {
+          if (!requiresApproval) {
             await applyProductStockDeltas(tx, {
               storeId,
               items: stockDecrementItems.map((item) => ({
@@ -943,7 +949,7 @@ export async function POST(request: Request) {
     // Schedule audit log + customer analytics writes to run AFTER the
     // response is sent. The cashier already has the receipt; these are
     // additive bookkeeping that doesn't need to gate UI latency.
-    if (transaction && !isSalesRequest) {
+    if (transaction && !requiresApproval) {
       const invoiceNumber = transaction.invoiceNumber as string;
       const productInventoryRows = buildInventoryLogRows({
         items: serverItems.filter(
@@ -993,7 +999,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (isSalesRequest) {
+    if (requiresApproval) {
       after(async () => {
         try {
           await sendRolePushEvent({
@@ -1003,7 +1009,7 @@ export async function POST(request: Request) {
             featureKey: "pendingTransactions",
             payload: {
               title: "Persetujuan Transaksi",
-              body: `${user.name ?? "Sales"} meminta persetujuan transaksi ${transaction.invoiceNumber} sejumlah Rp ${total.toLocaleString("id-ID")}`,
+              body: `${user.name ?? "Pengguna"} meminta persetujuan transaksi ${transaction.invoiceNumber} sejumlah Rp ${total.toLocaleString("id-ID")}`,
               url: "/dashboard/transactions?status=PENDING_APPROVAL",
               tag: `transaction-${transaction.id}`,
             },

@@ -1,4 +1,4 @@
-import type { AssistantWorkflowPayload, Message } from "../types/assistant";
+import type { AssistantGeneratedFile, AssistantWorkflowPayload, Message } from "../types/assistant";
 
 export const ASSISTANT_HISTORY_SCHEMA_VERSION = "v2";
 export const ASSISTANT_HISTORY_TTL_MS = 12 * 60 * 60 * 1000;
@@ -55,7 +55,23 @@ function isMessage(value: unknown): value is Message {
   if (typeof message.content !== "string") return false;
   if (message.workflow !== undefined && !isWorkflowPayload(message.workflow)) return false;
   if (message.followUps !== undefined && !Array.isArray(message.followUps)) return false;
+  if (message.generatedFile !== undefined && !isGeneratedFile(message.generatedFile)) return false;
   return true;
+}
+
+function isGeneratedFile(value: unknown): value is AssistantGeneratedFile {
+  if (!value || typeof value !== "object") return false;
+  const file = value as AssistantGeneratedFile;
+  const action = file.action;
+  return typeof file.name === "string"
+    && typeof file.label === "string"
+    && (file.format === "pdf" || file.format === "xlsx")
+    && Array.isArray(file.advice)
+    && file.advice.every((item) => typeof item === "string")
+    && !!action
+    && (action.kind === "export_financial_report" || action.kind === "export_customer_recap")
+    && ["daily", "weekly", "monthly", "30d"].includes(action.period)
+    && action.format === file.format;
 }
 
 export function sanitizeAssistantHistoryRecord(

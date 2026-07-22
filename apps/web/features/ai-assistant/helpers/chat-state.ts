@@ -1,4 +1,4 @@
-import type { AssistantActionLogEntry, AssistantMessageMetadata, AssistantWorkflowPayload, Message } from "../types/assistant";
+import type { AssistantActionLogEntry, AssistantGeneratedFile, AssistantMessageMetadata, AssistantWorkflowPayload, Message } from "../types/assistant";
 
 export function appendUserMessage(messages: Message[], content: string): Message[] {
   return keepRecentMessages([...messages, { role: "user", content }]);
@@ -128,6 +128,15 @@ export function setAssistantWorkflowPayload(
   const last = messages[messages.length - 1];
   if (last?.role !== "assistant") return messages;
   return [...messages.slice(0, -1), { ...last, workflow }];
+}
+
+export function setAssistantGeneratedFile(
+  messages: Message[],
+  generatedFile: AssistantGeneratedFile,
+): Message[] {
+  const last = messages[messages.length - 1];
+  if (last?.role !== "assistant") return messages;
+  return [...messages.slice(0, -1), { ...last, generatedFile }];
 }
 
 export function keepRecentMessages(messages: Message[]): Message[] {

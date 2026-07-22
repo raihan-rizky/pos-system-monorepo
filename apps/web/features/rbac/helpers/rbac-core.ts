@@ -58,6 +58,7 @@ export const RESOURCE_TARGETS = [
   "transaction",
   "financial-report",
   "transaction.request",
+  "transaction.auto_approve",
   "transaction.approve",
   "transaction.draft",
   "surat_jalan",
@@ -204,6 +205,12 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
 const RESOURCE_GRANULAR_ACCESS: Partial<
   Record<string, Record<ResourceAction, Role[]>>
 > = {
+  "transaction.auto_approve": {
+    read: [],
+    create: ["ADMIN", "CASHIER"],
+    update: [],
+    delete: [],
+  },
   "supplier.shopping_request.edit": {
     read: [],
     create: [],

@@ -41,3 +41,5 @@ Sistem akan memunculkan peringatan jika:
 Laporan keuangan dapat diekspor ke file Excel atau PDF berdasarkan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Jurnal memberi label pada pengeluaran dari Permohonan Belanja dan menandai snapshot harga modal yang kosong. Panduan ekspor selengkapnya dapat dibaca di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q21-bagaimana-cara-mengekspor-data-laporan-keuangan-ke-format-excel-atau-pdf).
 
 Pak Teladan dapat menjalankan ekspor dengan fitur ekspor yang sama. Jika pengguna tidak menyebut periode atau format, default-nya adalah **30 hari terakhir** dan **PDF**. Permintaan seperti "analisis keuangan 30 hari" memeriksa seluruh bagian laporan—ringkasan, metode pembayaran, produk, kategori, sales, shift, loss stok, dan tren—sebelum memberikan temuan dan saran.
+
+Ekspor dari chat langsung mengunduh file dan menampilkan kartu file yang dapat dipakai untuk **Download ulang**. Kartu tersebut juga menyertakan saran berbasis rasio pengeluaran, arus bersih, dan metode pembayaran dari laporan yang sama.

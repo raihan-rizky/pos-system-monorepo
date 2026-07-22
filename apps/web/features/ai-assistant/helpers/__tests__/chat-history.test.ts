@@ -53,4 +53,29 @@ describe("AI assistant chat history", () => {
       now,
     )).toBeNull();
   });
+
+  it("keeps valid generated report cards and rejects malformed actions", () => {
+    const now = 1_000_000;
+    const valid = {
+      timestamp: now,
+      messages: [{
+        role: "assistant",
+        content: "File siap",
+        generatedFile: {
+          name: "laporan-keuangan-30d.pdf",
+          format: "pdf",
+          label: "Laporan Keuangan",
+          action: { kind: "export_financial_report", period: "30d", format: "pdf" },
+          advice: ["Pantau pengeluaran."],
+        },
+      }],
+    };
+
+    expect(sanitizeAssistantHistoryRecord(valid, now)?.messages[0].generatedFile?.name)
+      .toBe("laporan-keuangan-30d.pdf");
+    expect(sanitizeAssistantHistoryRecord({
+      ...valid,
+      messages: [{ ...valid.messages[0], generatedFile: { ...valid.messages[0].generatedFile, action: { kind: "open_modal" } } }],
+    }, now)).toBeNull();
+  });
 });

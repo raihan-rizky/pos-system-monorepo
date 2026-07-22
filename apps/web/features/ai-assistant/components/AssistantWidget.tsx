@@ -12,12 +12,13 @@ import {
   completeAssistantActionLog,
   setAssistantFinalContent,
   setAssistantFollowUps,
+  setAssistantGeneratedFile,
   setAssistantWorkflowPayload,
 } from "../helpers/chat-state";
 import { buildAssistantHistoryKey, sanitizeAssistantHistoryRecord } from "../helpers/chat-history";
 import { AssistantRequestError, sendChatMessage } from "../api/assistantApi";
-import type { AssistantStreamFrame, Message } from "../types/assistant";
-import { Send, Info, Bot, X, Trash2, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import type { AssistantClientAction, AssistantStreamFrame, Message } from "../types/assistant";
+import { Send, Info, Bot, X, Trash2, Sparkles, ChevronLeft, ChevronRight, Download, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { flushSync } from "react-dom";
 import { AssistantActionLog } from "./AssistantActionLog";
@@ -329,6 +330,29 @@ export function AssistantWidget({
     }
   };
 
+  const handleTemplateQuestion = (question: string) => {
+    setInput(question);
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const downloadGeneratedFile = async (action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>) => {
+    if (action.kind === "export_financial_report") {
+      const { exportFinancialReportFile } = await import("@/features/financial-report/helpers/journal-export");
+      return exportFinancialReportFile(action.period, action.format);
+    }
+    const { exportCustomerRecapPeriod } = await import("@/features/customer-recap/helpers/customer-recap-export-client");
+    return exportCustomerRecapPeriod(action.period, action.format);
+  };
+
+  const handleGeneratedFileDownload = async (action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>) => {
+    try {
+      setError(null);
+      await downloadGeneratedFile(action);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "File belum berhasil diunduh ulang.");
+    }
+  };
+
   async function handleSend() {
     const content = input.trim();
     if (!content || isStreaming) return;
@@ -373,6 +397,7 @@ export function AssistantWidget({
             }));
           });
           try {
+            let exportAdvice: string[] = [];
             const label = await executeAssistantClientAction(parsed.action, {
               currentPath: pathname,
               dispatchModal: (modal) => {
@@ -383,18 +408,26 @@ export function AssistantWidget({
               navigate: (route) => router.push(route),
               storage: window.sessionStorage,
               exportFinancialReport: async (period, format) => {
-                const { exportFinancialReportFile } = await import(
-                  "@/features/financial-report/helpers/journal-export"
-                );
-                await exportFinancialReportFile(period, format);
+                const result = await downloadGeneratedFile({ kind: "export_financial_report", period, format });
+                exportAdvice = result.advice;
               },
               exportCustomerRecap: async (period, format) => {
-                const { exportCustomerRecapPeriod } = await import(
-                  "@/features/customer-recap/helpers/customer-recap-export-client"
-                );
-                await exportCustomerRecapPeriod(period, format);
+                const result = await downloadGeneratedFile({ kind: "export_customer_recap", period, format });
+                exportAdvice = result.advice;
               },
             });
+            if (parsed.action.kind !== "open_modal") {
+              const action = parsed.action;
+              const baseName = action.kind === "export_financial_report" ? "laporan-keuangan" : "rekap-pelanggan";
+              const fileLabel = action.kind === "export_financial_report" ? "Laporan Keuangan" : "Rekap Pelanggan";
+              setMessages((current) => setAssistantGeneratedFile(current, {
+                name: `${baseName}-${action.period}.${action.format}`,
+                format: action.format,
+                label: fileLabel,
+                action,
+                advice: exportAdvice,
+              }));
+            }
             setMessages((current) => appendAssistantActionLogEntry(current, {
               label,
               occurredAt: new Date().toISOString(),
@@ -652,6 +685,28 @@ export function AssistantWidget({
                     {message.role === "assistant" && message.workflow ? (
                       <AssistantWorkflowMessage workflow={message.workflow} />
                     ) : null}
+                    {message.role === "assistant" && message.generatedFile ? (
+                      <div className="mt-3 rounded-xl border border-brand-400/30 bg-brand-500/10 p-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-5 w-5 shrink-0 text-brand-300" aria-hidden="true" />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-surface-100">{message.generatedFile.label}</p>
+                            <p className="truncate text-[10px] text-surface-400">{message.generatedFile.name}</p>
+                          </div>
+                          <button type="button" onClick={() => void handleGeneratedFileDownload(message.generatedFile!.action)} className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-brand-500">
+                            <Download className="h-3 w-3" aria-hidden="true" /> Download ulang
+                          </button>
+                        </div>
+                        {message.generatedFile.advice.length ? (
+                          <div className="mt-3 border-t border-brand-400/20 pt-2">
+                            <p className="text-[11px] font-semibold text-brand-200">Saran Pak Teladan</p>
+                            <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] text-surface-200">
+                              {message.generatedFile.advice.map((advice) => <li key={advice}>{advice}</li>)}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {message.role === "assistant" && message.actionLog?.length ? (
                       <AssistantActionLog entries={message.actionLog} />
                     ) : null}
@@ -714,6 +769,13 @@ export function AssistantWidget({
             </div>
 
             <div className="px-4 pb-4 pt-1 bg-surface-800/50">
+              <div className="mb-1.5 flex items-center justify-between gap-3 px-1 text-[10px]">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-surface-300">
+                  <Sparkles className="h-3 w-3 text-brand-400" aria-hidden="true" />
+                  Ide cepat buat kamu
+                </span>
+                <span className="text-surface-500">Klik prompt untuk isi pesan</span>
+              </div>
               <div className="flex items-center justify-between gap-1">
                 {showLeftArrow && (
                   <button
@@ -731,12 +793,14 @@ export function AssistantWidget({
                   className="-mx-1 flex flex-1 min-w-0 snap-x snap-mandatory flex-nowrap items-center gap-2 overflow-x-auto px-1 py-1 [-webkit-overflow-scrolling:touch] [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden"
                   aria-label="Prompt cepat"
                 >
-                  {templateQuestions.map((q, i) => (
+                  {templateQuestions.map((q) => (
                     <button
-                      key={i}
+                      key={q}
                       type="button"
-                      onClick={() => setInput(q)}
+                      onClick={() => handleTemplateQuestion(q)}
                       disabled={isStreaming}
+                      aria-label={`Pakai prompt: ${q}`}
+                      title="Isi pesan dengan prompt ini"
                       className="snap-start shrink-0 whitespace-nowrap rounded-full border border-surface-700/60 bg-surface-800/80 px-3.5 py-1.5 text-[11px] font-medium text-surface-300 shadow-sm transition-all duration-200 hover:border-surface-600 hover:bg-surface-700 hover:text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-400/50 disabled:opacity-50"
                     >
                       {q}

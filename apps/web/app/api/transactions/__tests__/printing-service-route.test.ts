@@ -232,6 +232,7 @@ describe("POST /api/transactions printing service items", () => {
       storeId: "store-main",
       name: "Sales One",
     });
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.auto_approve");
     transactionCreateMock.mockResolvedValue({
       id: "txn-sales-1",
       invoiceNumber: "INV-20260523-0002",
@@ -277,6 +278,81 @@ describe("POST /api/transactions printing service items", () => {
     expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
   });
 
+  it("finalizes a sales transaction immediately when RBAC auto approve is enabled", async () => {
+    requireRoleMock.mockResolvedValue({
+      id: "sales-auto-1",
+      role: "SALES",
+      storeId: "store-main",
+      name: "Sales Auto",
+    });
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.auto_approve");
+    canRolePerformActionMock.mockImplementation((_role, resource, action) =>
+      resource === "transaction.request" || (resource === "transaction.auto_approve" && action === "create"),
+    );
+    transactionCreateMock.mockResolvedValue({
+      id: "txn-sales-auto-1",
+      invoiceNumber: "INV-20260523-0003",
+      status: "COMPLETED",
+      items: [],
+      salesperson: null,
+    });
+
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        items: [{ productId: "material-1", quantity: 1 }],
+        paymentMethod: "CASH",
+        amountPaid: 12000,
+        discount: 0,
+      }),
+    }));
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        cashierId: "sales-auto-1",
+        requestedById: null,
+        status: "COMPLETED",
+      }),
+    }));
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
+    expect(sendRolePushEventMock).not.toHaveBeenCalled();
+  });
+
+  it("sends any checkout role to approval when RBAC auto approve is disabled", async () => {
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.auto_approve");
+    transactionCreateMock.mockResolvedValue({
+      id: "txn-cashier-pending-1",
+      invoiceNumber: "INV-20260523-0004",
+      status: "PENDING_APPROVAL",
+      items: [],
+      salesperson: null,
+    });
+
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        items: [{ productId: "material-1", quantity: 1 }],
+        paymentMethod: "CASH",
+        amountPaid: 12000,
+        discount: 0,
+      }),
+    }));
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        cashierId: null,
+        requestedById: "cashier-1",
+        status: "PENDING_APPROVAL",
+      }),
+    }));
+    expect(queryRawMock).not.toHaveBeenCalled();
+    expect(sendRolePushEventMock).toHaveBeenCalledTimes(1);
+  });
+
   it("sends an approval notification to owners/admins when sales submits a request", async () => {
     requireRoleMock.mockResolvedValue({
       id: "sales-1",
@@ -284,6 +360,7 @@ describe("POST /api/transactions printing service items", () => {
       storeId: "store-main",
       name: "Sales One",
     });
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.auto_approve");
     transactionCreateMock.mockResolvedValue({
       id: "txn-sales-1",
       invoiceNumber: "INV-20260523-0002",
@@ -355,6 +432,7 @@ describe("POST /api/transactions printing service items", () => {
       storeId: "store-main",
       name: "Sales One",
     });
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.auto_approve");
     transactionCreateMock.mockResolvedValue({
       id: "txn-sales-dp-1",
       invoiceNumber: "INV-20260523-0004",

@@ -41,4 +41,18 @@ describe("MainLayout", () => {
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("overflow-y-hidden");
   });
+
+  it("renders a subtle shared loop animation without blocking page interaction", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MainLayout,
+        null,
+        React.createElement("main", null, "Dashboard"),
+      ),
+    );
+
+    expect(html).toContain("app-page-loop");
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("pointer-events-none");
+  });
 });

@@ -68,6 +68,19 @@ describe("RBAC permission matrix", () => {
     expect(canRolePerformAction("SALES", "customer", "delete", defaults)).toBe(false);
     expect(canRolePerformAction("ADMIN", "whatsapp", "read", defaults)).toBe(true);
     expect(canRolePerformAction("CASHIER", "whatsapp", "read", defaults)).toBe(false);
+    expect(canRolePerformAction("ADMIN", "transaction.auto_approve", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "transaction.auto_approve", "create", defaults)).toBe(true);
+    expect(canRolePerformAction("SALES", "transaction.auto_approve", "create", defaults)).toBe(false);
+  });
+
+  it("allows auto approval to be configured independently per editable role", () => {
+    const permissions = normalizeRolePermissions([
+      { role: "SALES", scope: "resource", target: "transaction.auto_approve", action: "create", allowed: true },
+      { role: "CASHIER", scope: "resource", target: "transaction.auto_approve", action: "create", allowed: false },
+    ]);
+
+    expect(canRolePerformAction("SALES", "transaction.auto_approve", "create", permissions)).toBe(true);
+    expect(canRolePerformAction("CASHIER", "transaction.auto_approve", "create", permissions)).toBe(false);
   });
 
   it("allows all four roles to create a draft transaction", () => {
