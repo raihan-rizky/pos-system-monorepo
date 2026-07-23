@@ -5,16 +5,22 @@ vi.mock(
   () => ({
     countGoodsPurchases: vi.fn(),
     createGoodsPurchaseRecord: vi.fn(),
+    addGoodsPurchaseItemRecord: vi.fn(),
+    approveGoodsPurchaseItemRecord: vi.fn(),
+    editGoodsPurchaseItemRecord: vi.fn(),
     findGoodsPurchaseById: vi.fn(),
     listEligibleShoppingRequests: vi.fn(),
     listGoodsPurchases: vi.fn(),
     listLargeUnitProducts: vi.fn(),
+    rejectGoodsPurchaseRecord: vi.fn(),
+    removeGoodsPurchaseItemRecord: vi.fn(),
   }),
 );
 
 import {
   createGoodsPurchase,
   GoodsPurchaseValidationError,
+  rejectGoodsPurchase,
 } from "../goods-purchases-service";
 
 const actor = { id: "owner-1", name: "Owner", storeId: "store-1" };
@@ -96,5 +102,11 @@ describe("goods purchases service", () => {
     const error = new GoodsPurchaseValidationError("Tidak valid", true);
     expect(error.name).toBe("GoodsPurchaseValidationError");
     expect(error.isConflict).toBe(true);
+  });
+
+  it("requires a rejection reason", async () => {
+    await expect(
+      rejectGoodsPurchase("purchase-1", "   ", actor),
+    ).rejects.toThrow("Alasan penolakan wajib diisi");
   });
 });

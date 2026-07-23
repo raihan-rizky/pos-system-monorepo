@@ -1,14 +1,18 @@
 import { db, Prisma } from "@pos/db";
+import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import {
   hasMasterHppDifference,
   isLargePurchaseUnit,
 } from "../helpers/goods-purchase-core";
 import type {
   CreateGoodsPurchaseInput,
+  AddGoodsPurchaseItemInput,
+  EditGoodsPurchaseItemInput,
   EligibleShoppingRequest,
   GoodsPurchaseActor,
   GoodsPurchaseDetail,
   GoodsPurchaseListItem,
+  GoodsPurchaseMutationResult,
   GoodsPurchaseStatus,
   LargeUnitProductOption,
 } from "../types/goods-purchase";
@@ -28,7 +32,12 @@ export class GoodsPurchaseRepositoryError extends Error {
       | "REQUEST_NOT_ELIGIBLE"
       | "ITEM_SET_MISMATCH"
       | "PRODUCT_NOT_FOUND"
-      | "ACTIVE_REQUEST_CONFLICT",
+      | "ACTIVE_REQUEST_CONFLICT"
+      | "NOT_PENDING"
+      | "ITEM_NOT_FOUND"
+      | "DUPLICATE_PRODUCT"
+      | "SMALL_UNIT"
+      | "MIN_ITEMS",
   ) {
     super(code);
     this.name = "GoodsPurchaseRepositoryError";
@@ -464,4 +473,449 @@ export async function createGoodsPurchaseRecord(
     }
     throw error;
   }
+}
+
+type TransactionClient = Prisma.TransactionClient;
+
+async function loadPendingGoodsPurchase(
+  tx: TransactionClient,
+  purchaseId: string,
+  storeId: string,
+): Promise<GoodsPurchaseRow> {
+  const purchase = await tx.goodsPurchase.findFirst({
+    where: { id: purchaseId, storeId, status: "PENDING" },
+    include: goodsPurchaseInclude,
+  });
+  if (!purchase) throw new GoodsPurchaseRepositoryError("NOT_PENDING");
+  return purchase;
+}
+
+async function loadGoodsPurchaseDetail(
+  tx: TransactionClient,
+  purchaseId: string,
+  storeId: string,
+): Promise<GoodsPurchaseDetail> {
+  const purchase = await tx.goodsPurchase.findFirst({
+    where: { id: purchaseId, storeId },
+    include: goodsPurchaseInclude,
+  });
+  if (!purchase) throw new GoodsPurchaseRepositoryError("NOT_FOUND");
+  return mapGoodsPurchaseDetail(purchase);
+}
+
+function sumLineTotals(
+  items: Array<{ lineTotal: Prisma.Decimal }>,
+): Prisma.Decimal {
+  return items
+    .reduce(
+      (total, item) => total.add(item.lineTotal),
+      new Prisma.Decimal(0),
+    )
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+async function finalizeGoodsPurchaseIfReady(
+  tx: TransactionClient,
+  purchaseId: string,
+  actor: GoodsPurchaseActor,
+  now: Date,
+): Promise<GoodsPurchaseMutationResult> {
+  const purchase = await loadPendingGoodsPurchase(
+    tx,
+    purchaseId,
+    actor.storeId,
+  );
+  if (purchase.items.length === 0) {
+    throw new GoodsPurchaseRepositoryError("MIN_ITEMS");
+  }
+  if (purchase.items.some((item) => item.reviewStatus === "PENDING")) {
+    return { data: mapGoodsPurchaseDetail(purchase), finalized: false };
+  }
+
+  const totalAmount = sumLineTotals(purchase.items);
+  const claim = await tx.goodsPurchase.updateMany({
+    where: {
+      id: purchaseId,
+      storeId: actor.storeId,
+      status: "PENDING",
+    },
+    data: {
+      status: "APPROVED",
+      totalAmount,
+      approvedById: actor.id,
+      approvedByName: actor.name,
+      approvedAt: now,
+    },
+  });
+  if (claim.count !== 1) {
+    throw new GoodsPurchaseRepositoryError("NOT_PENDING");
+  }
+
+  const hppItems = purchase.items.filter((item) => item.updateMasterHpp);
+  if (hppItems.length > 0) {
+    const products = await tx.product.findMany({
+      where: {
+        id: { in: hppItems.map((item) => item.productId) },
+        storeId: actor.storeId,
+      },
+      select: {
+        id: true,
+        price: true,
+        costPrice: true,
+        hargaAgen: true,
+        hargaDinas: true,
+      },
+    });
+    const productsById = new Map(
+      products.map((product) => [product.id, product]),
+    );
+    const logEntries = [];
+
+    for (const item of hppItems) {
+      const product = productsById.get(item.productId);
+      if (!product) {
+        throw new GoodsPurchaseRepositoryError("PRODUCT_NOT_FOUND");
+      }
+      const latestHpp = item.latestUnitPrice.toDecimalPlaces(
+        2,
+        Prisma.Decimal.ROUND_HALF_UP,
+      );
+      if (
+        !hasMasterHppDifference(
+          decimalToNumber(product.costPrice),
+          Number(latestHpp.toString()),
+        )
+      ) {
+        continue;
+      }
+
+      await tx.product.update({
+        where: { id: product.id },
+        data: { costPrice: latestHpp },
+      });
+      logEntries.push(
+        ...buildProductPriceLogEntries({
+          productId: product.id,
+          storeId: actor.storeId,
+          before: {
+            price: product.price,
+            costPrice: product.costPrice,
+            hargaAgen: product.hargaAgen,
+            hargaDinas: product.hargaDinas,
+          },
+          after: {
+            price: product.price,
+            costPrice: latestHpp,
+            hargaAgen: product.hargaAgen,
+            hargaDinas: product.hargaDinas,
+          },
+          actor,
+          source: "SYSTEM",
+          note: `Pembelian Barang ${purchase.number}`,
+        }),
+      );
+    }
+
+    if (logEntries.length > 0) {
+      await tx.productPriceLog.createMany({ data: logEntries });
+    }
+  }
+
+  await tx.expense.create({
+    data: {
+      storeId: actor.storeId,
+      recordedById: actor.id,
+      shoppingRequestId: purchase.shoppingRequestId,
+      goodsPurchaseId: purchase.id,
+      applicantName: purchase.supplierNameSnapshot,
+      category: "SUPPLIES",
+      description: `Pembelian Barang ${purchase.number} - ${purchase.items.length} produk`,
+      amount: totalAmount,
+      changeAmount: 0,
+      occurredAt: now,
+      hasMissingCostSnapshot: false,
+    },
+  });
+
+  return {
+    data: await loadGoodsPurchaseDetail(
+      tx,
+      purchaseId,
+      actor.storeId,
+    ),
+    finalized: true,
+  };
+}
+
+export async function approveGoodsPurchaseItemRecord(
+  purchaseId: string,
+  itemId: string,
+  actor: GoodsPurchaseActor,
+  now = new Date(),
+): Promise<GoodsPurchaseMutationResult> {
+  return db.$transaction(async (tx) => {
+    const purchase = await loadPendingGoodsPurchase(
+      tx,
+      purchaseId,
+      actor.storeId,
+    );
+    const item = purchase.items.find((candidate) => candidate.id === itemId);
+    if (!item) throw new GoodsPurchaseRepositoryError("ITEM_NOT_FOUND");
+
+    await tx.goodsPurchaseItem.update({
+      where: { id: itemId },
+      data: {
+        reviewStatus: "APPROVED",
+        approvedById: actor.id,
+        approvedByName: actor.name,
+        approvedAt: now,
+      },
+    });
+    return finalizeGoodsPurchaseIfReady(tx, purchaseId, actor, now);
+  });
+}
+
+export async function editGoodsPurchaseItemRecord(
+  purchaseId: string,
+  itemId: string,
+  input: EditGoodsPurchaseItemInput,
+  actor: GoodsPurchaseActor,
+): Promise<GoodsPurchaseMutationResult> {
+  return db.$transaction(async (tx) => {
+    const purchase = await loadPendingGoodsPurchase(
+      tx,
+      purchaseId,
+      actor.storeId,
+    );
+    const item = purchase.items.find((candidate) => candidate.id === itemId);
+    if (!item) throw new GoodsPurchaseRepositoryError("ITEM_NOT_FOUND");
+    if (
+      purchase.items.some(
+        (candidate) =>
+          candidate.id !== itemId &&
+          candidate.productId === input.productId,
+      )
+    ) {
+      throw new GoodsPurchaseRepositoryError("DUPLICATE_PRODUCT");
+    }
+
+    const product = await tx.product.findFirst({
+      where: {
+        id: input.productId,
+        storeId: actor.storeId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        unit: true,
+        unitMultiplierToBase: true,
+        costPrice: true,
+      },
+    });
+    if (!product) {
+      throw new GoodsPurchaseRepositoryError("PRODUCT_NOT_FOUND");
+    }
+
+    const latestUnitPrice = new Prisma.Decimal(
+      String(input.latestUnitPrice),
+    ).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    const lineTotal = latestUnitPrice
+      .mul(new Prisma.Decimal(String(input.quantity)))
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    await tx.goodsPurchaseItem.update({
+      where: { id: itemId },
+      data: {
+        productId: input.productId,
+        productNameSnapshot: product.name,
+        skuSnapshot: product.sku,
+        unitSnapshot: product.unit,
+        unitMultiplierSnapshot: product.unitMultiplierToBase,
+        quantity: input.quantity,
+        masterCostPriceSnapshot: product.costPrice,
+        latestUnitPrice,
+        lineTotal,
+        updateMasterHpp:
+          input.updateMasterHpp &&
+          hasMasterHppDifference(
+            decimalToNumber(product.costPrice),
+            input.latestUnitPrice,
+          ),
+        reviewStatus: "PENDING",
+        approvedById: null,
+        approvedByName: null,
+        approvedAt: null,
+      },
+    });
+
+    const totalAmount = sumLineTotals([
+      ...purchase.items
+        .filter((candidate) => candidate.id !== itemId)
+        .map((candidate) => ({ lineTotal: candidate.lineTotal })),
+      { lineTotal },
+    ]);
+    await tx.goodsPurchase.update({
+      where: { id: purchaseId },
+      data: { totalAmount },
+    });
+    return {
+      data: await loadGoodsPurchaseDetail(
+        tx,
+        purchaseId,
+        actor.storeId,
+      ),
+      finalized: false,
+    };
+  });
+}
+
+export async function addGoodsPurchaseItemRecord(
+  purchaseId: string,
+  input: AddGoodsPurchaseItemInput,
+  actor: GoodsPurchaseActor,
+): Promise<GoodsPurchaseMutationResult> {
+  return db.$transaction(async (tx) => {
+    const purchase = await loadPendingGoodsPurchase(
+      tx,
+      purchaseId,
+      actor.storeId,
+    );
+    if (
+      purchase.items.some((item) => item.productId === input.productId)
+    ) {
+      throw new GoodsPurchaseRepositoryError("DUPLICATE_PRODUCT");
+    }
+    const product = await tx.product.findFirst({
+      where: {
+        id: input.productId,
+        storeId: actor.storeId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        unit: true,
+        unitMultiplierToBase: true,
+        costPrice: true,
+      },
+    });
+    if (!product) {
+      throw new GoodsPurchaseRepositoryError("PRODUCT_NOT_FOUND");
+    }
+    if (!isLargePurchaseUnit(product)) {
+      throw new GoodsPurchaseRepositoryError("SMALL_UNIT");
+    }
+
+    const latestUnitPrice = new Prisma.Decimal(
+      String(input.latestUnitPrice),
+    ).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    const lineTotal = latestUnitPrice
+      .mul(new Prisma.Decimal(String(input.quantity)))
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    await tx.goodsPurchaseItem.create({
+      data: {
+        goodsPurchaseId: purchaseId,
+        productId: product.id,
+        productNameSnapshot: product.name,
+        skuSnapshot: product.sku,
+        unitSnapshot: product.unit,
+        unitMultiplierSnapshot: product.unitMultiplierToBase,
+        quantity: input.quantity,
+        masterCostPriceSnapshot: product.costPrice,
+        latestUnitPrice,
+        lineTotal,
+        updateMasterHpp:
+          input.updateMasterHpp &&
+          hasMasterHppDifference(
+            decimalToNumber(product.costPrice),
+            input.latestUnitPrice,
+          ),
+        reviewStatus: "PENDING",
+      },
+    });
+    await tx.goodsPurchase.update({
+      where: { id: purchaseId },
+      data: {
+        totalAmount: sumLineTotals([
+          ...purchase.items.map((item) => ({
+            lineTotal: item.lineTotal,
+          })),
+          { lineTotal },
+        ]),
+      },
+    });
+    return {
+      data: await loadGoodsPurchaseDetail(
+        tx,
+        purchaseId,
+        actor.storeId,
+      ),
+      finalized: false,
+    };
+  });
+}
+
+export async function removeGoodsPurchaseItemRecord(
+  purchaseId: string,
+  itemId: string,
+  actor: GoodsPurchaseActor,
+  now = new Date(),
+): Promise<GoodsPurchaseMutationResult> {
+  return db.$transaction(async (tx) => {
+    const purchase = await loadPendingGoodsPurchase(
+      tx,
+      purchaseId,
+      actor.storeId,
+    );
+    if (purchase.items.length <= 1) {
+      throw new GoodsPurchaseRepositoryError("MIN_ITEMS");
+    }
+    if (!purchase.items.some((item) => item.id === itemId)) {
+      throw new GoodsPurchaseRepositoryError("ITEM_NOT_FOUND");
+    }
+
+    await tx.goodsPurchaseItem.delete({ where: { id: itemId } });
+    await tx.goodsPurchase.update({
+      where: { id: purchaseId },
+      data: {
+        totalAmount: sumLineTotals(
+          purchase.items
+            .filter((item) => item.id !== itemId)
+            .map((item) => ({ lineTotal: item.lineTotal })),
+        ),
+      },
+    });
+    return finalizeGoodsPurchaseIfReady(tx, purchaseId, actor, now);
+  });
+}
+
+export async function rejectGoodsPurchaseRecord(
+  purchaseId: string,
+  reason: string,
+  actor: GoodsPurchaseActor,
+  now = new Date(),
+): Promise<GoodsPurchaseDetail> {
+  return db.$transaction(async (tx) => {
+    const result = await tx.goodsPurchase.updateMany({
+      where: {
+        id: purchaseId,
+        storeId: actor.storeId,
+        status: "PENDING",
+      },
+      data: {
+        status: "REJECTED",
+        activeShoppingRequestKey: null,
+        rejectedById: actor.id,
+        rejectedByName: actor.name,
+        rejectionReason: reason,
+        rejectedAt: now,
+      },
+    });
+    if (result.count !== 1) {
+      throw new GoodsPurchaseRepositoryError("NOT_PENDING");
+    }
+    return loadGoodsPurchaseDetail(tx, purchaseId, actor.storeId);
+  });
 }
