@@ -25,6 +25,7 @@
     "setup": "pnpm install && pnpm db:generate && pnpm db:push",
     "db:migrate:prod": "pnpm --filter @pos/db db:migrate:prod",
     "db:migrate:dev": "pnpm --filter @pos/db db:migrate:dev",
+    "db:migrate:create:dev": "pnpm --filter @pos/db db:migrate:create:dev",
     "db:migrate-reset:dev": "pnpm --filter @pos/db db:migrate-reset:dev",
     "db:migrate-reset:prod": "pnpm --filter @pos/db db:migrate-reset:prod",
     "product-import-worker": "pnpm --filter @pos/product-import-worker start",
@@ -45,17 +46,6 @@
     "lint-staged": "^15.5.2",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "effect": ">=3.20.0",
-      "defu": ">=6.1.5",
-      "dompurify": ">=3.4.11",
-      "picomatch@<4": "2.3.2",
-      "picomatch@>=4 <4.0.4": "4.0.4",
-      "postcss": ">=8.5.10",
-      "ws": ">=8.20.1"
-    }
   },
   "engines": {
     "node": ">=18.0.0"

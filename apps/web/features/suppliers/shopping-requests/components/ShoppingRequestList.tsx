@@ -87,7 +87,7 @@ export function ShoppingRequestList({
   const pagination = list.data?.pagination;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-3 sm:p-4">
       <ShoppingRequestKpiGrid
         summary={summary.data}
         isPending={summary.isPending}
@@ -101,7 +101,7 @@ export function ShoppingRequestList({
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm"
+          className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:w-auto"
         >
           <option value="">Semua status</option>
           <option value="REQUESTED">Diajukan</option>
@@ -112,7 +112,7 @@ export function ShoppingRequestList({
           type="button"
           onClick={onCreateClick}
           icon={<ShoppingBag className="h-4 w-4" />}
-          className="sm:ml-auto"
+          className="w-full sm:ml-auto sm:w-auto"
         >
           Buat Daftar Belanja
         </Button>
@@ -134,26 +134,26 @@ export function ShoppingRequestList({
             return (
               <article
                 key={row.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"
               >
-                <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-black text-slate-950">{row.number}</p>
+                      <p className="break-all text-base font-black text-slate-950">{row.number}</p>
                       <span
                         className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${status.className}`}
                       >
                         {status.label}
                       </span>
                     </div>
-                     <p className="mt-1 text-xs text-slate-500">
+                     <p className="mt-1 break-words text-xs leading-relaxed text-slate-500">
                       {row.supplierName ? `Supplier: ${row.supplierName} · ` : ""}
                       Pemohon: {row.requestedByName ?? "-"}
                       {row.approvedByName ? ` · Disetujui: ${row.approvedByName}` : ""}
                      </p>
                      {row.status === "REQUESTED" && (
-                       <div className="mt-2 flex items-center gap-2">
-                         <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-100">
+                       <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                         <div className="h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-slate-100">
                            <div
                              className="h-full rounded-full bg-cyan-500 transition-all"
                              style={{
@@ -167,7 +167,7 @@ export function ShoppingRequestList({
                        </div>
                      )}
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+                  <div className="grid w-full grid-cols-3 gap-2 text-xs sm:w-auto sm:text-sm">
                     <MetricPill label="Item" value={row.itemCount} />
                     <MetricPill label="Kebutuhan" value={row.totalRequestedQty} />
                     <MetricPill
@@ -175,7 +175,7 @@ export function ShoppingRequestList({
                       value={row.totalApprovedQty ?? "-"}
                     />
                   </div>
-                   <div className="flex flex-wrap gap-2 md:justify-end">
+                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
                      {row.status === "REQUESTED" &&
                        row.decidedItemCount === 0 &&
                        canEditRequest && (

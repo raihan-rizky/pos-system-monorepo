@@ -186,4 +186,24 @@ describe("Daftar Belanja UI", () => {
       expect(source(file), file).toContain('size="6xl"');
     }
   });
+
+  it("keeps the Daftar Belanja list comfortable on mobile and tablet widths", () => {
+    const content = source("ShoppingRequestList.tsx");
+    const shell = readFileSync(
+      join(process.cwd(), "features/suppliers/components/SupplierPageShell.tsx"),
+      "utf8",
+    );
+
+    expect(shell).toContain(
+      'className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"',
+    );
+    expect(content).toContain('className="space-y-3 p-3 sm:p-4"');
+    expect(content).toContain(
+      "min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:w-auto",
+    );
+    expect(content).toContain('className="w-full sm:ml-auto sm:w-auto"');
+    expect(content).toContain("xl:flex-row xl:items-center");
+    expect(content).toContain("[&>*]:w-full sm:[&>*]:w-auto");
+    expect(content).not.toContain("md:flex-row md:items-center");
+  });
 });

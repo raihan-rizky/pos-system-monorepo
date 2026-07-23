@@ -50,12 +50,14 @@ const DecimalMock = vi.hoisted(() =>
   },
 );
 
+const transactionMock = vi.hoisted(() =>
+  vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+);
+
 vi.mock("@pos/db", () => ({
   Prisma: { Decimal: DecimalMock },
   db: {
-    $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) =>
-      callback(tx),
-    ),
+    $transaction: transactionMock,
   },
 }));
 
@@ -246,6 +248,33 @@ describe("shopping request item decisions", () => {
     expect(tx.inventoryLog.create).toHaveBeenCalledTimes(1);
     expect(tx.shoppingRequest.update).not.toHaveBeenCalled();
     expect(tx.expense.create).not.toHaveBeenCalled();
+  });
+
+  it("allows enough time for the item approval transaction", async () => {
+    const approve = (repository as Record<string, unknown>)
+      .approveShoppingRequestItemsWithStock as
+      | ((input: unknown) => Promise<unknown>)
+      | undefined;
+    expect(approve).toBeTypeOf("function");
+    if (!approve) return;
+    const row = request([item("1", 4), item("2", null)]);
+    tx.shoppingRequest.findFirst
+      .mockResolvedValueOnce(row)
+      .mockResolvedValueOnce(row);
+    tx.shoppingRequestItem.count.mockResolvedValue(1);
+    tx.product.findMany.mockResolvedValue([product("product-1")]);
+
+    await approve({
+      id: "request-1",
+      actor,
+      items: [{ id: "1", stockMode: "PRODUCT_ONLY" }],
+      approveAllPending: false,
+    });
+
+    expect(transactionMock).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      { timeout: 15_000 },
+    );
   });
 
   it("records zero as rejected without a stock mutation", async () => {

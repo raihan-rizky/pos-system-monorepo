@@ -174,7 +174,7 @@ export function SupplierPageShell() {
   };
 
   return (
-    <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 px-4 py-5 pb-32 scroll-pb-32 md:px-6 md:pb-8 md:scroll-pb-8">
+    <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 px-3 py-4 pb-32 scroll-pb-32 sm:px-4 sm:py-5 md:px-6 md:pb-8 md:scroll-pb-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -192,18 +192,23 @@ export function SupplierPageShell() {
               type="button"
               variant="secondary"
               onClick={() => setImportDrawerOpen(true)}
+              className="w-full sm:w-auto"
             >
               <Upload className="mr-1.5 h-4 w-4" />
               Import Supplier
             </Button>
-            <Button type="button" onClick={openCreate}>
+            <Button type="button" onClick={openCreate} className="w-full sm:w-auto">
               <Plus className="mr-1.5 h-4 w-4" />
               Tambah Supplier
             </Button>
           </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto">
+        <div
+          role="tablist"
+          aria-label="Menu supplier"
+          className="-mx-3 flex snap-x snap-mandatory gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0"
+        >
           <TabButton
             active={tab === "suppliers"}
             onClick={() => setTab("suppliers")}
@@ -229,7 +234,7 @@ export function SupplierPageShell() {
 
         {tab === "suppliers" ? (
           <>
-            <section className="grid gap-3 md:grid-cols-4">
+            <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {summary.isPending ? (
                 <>
                   <KpiCardSkeleton />
@@ -277,7 +282,7 @@ export function SupplierPageShell() {
                 <select
                   value={type}
                   onChange={(event) => setType(event.target.value as SupplierInput["type"] | "ALL")}
-                  className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm"
+                  className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
                 >
                   <option value="ALL">Semua tipe</option>
                   {SUPPLIER_TYPES.map((supplierType) => (
@@ -361,8 +366,8 @@ export function SupplierPageShell() {
             />
           </section>
         ) : (
-          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm px-1 md:px-4">
-            <div className="border-b border-slate-100 p-4">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-3 py-4 sm:px-4">
               <h2 className="text-base font-black text-slate-950">Daftar Belanja</h2>
               <p className="text-sm text-slate-500">Buat dan cetak daftar kebutuhan barang untuk pengajuan belanja.</p>
             </div>
@@ -479,11 +484,11 @@ function SupplierFormModal({
         </div>
         <TextInput label="Alamat" value={form.address ?? ""} onChange={(value) => onChange({ ...form, address: value })} />
         <TextInput label="Catatan" value={form.notes ?? ""} onChange={(value) => onChange({ ...form, notes: value })} />
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="secondary" onClick={onClose} className="w-full sm:w-auto">
             Tutup
           </Button>
-          <Button type="button" loading={saving} disabled={!form.name.trim()} onClick={onSave}>
+          <Button type="button" loading={saving} disabled={!form.name.trim()} onClick={onSave} className="w-full sm:w-auto">
             Simpan
           </Button>
         </div>
@@ -519,8 +524,10 @@ function TabButton({
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
-      className={`inline-flex min-h-11 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border px-4 text-sm font-bold transition-colors ${active ? "border-slate-950 bg-slate-950 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"}`}
+      className={`inline-flex min-h-11 shrink-0 snap-start cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border px-4 text-sm font-bold transition-colors ${active ? "border-slate-950 bg-slate-950 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"}`}
     >
       {icon}
       {children}
@@ -539,19 +546,19 @@ function KpiCard({
 }) {
   const accent = KPI_ACCENTS[accentIndex] ?? KPI_ACCENTS[0];
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md sm:p-4">
       <div className={`mb-2 flex h-9 w-9 items-center justify-center rounded-xl ${accent.bgClass} ${accent.iconClass}`}>
         <PackagePlus className="h-4 w-4" />
       </div>
       <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="mt-1 truncate text-lg font-black text-slate-950">{value}</p>
+      <p className="mt-1 break-words text-base font-black text-slate-950 sm:text-lg">{value}</p>
     </div>
   );
 }
 
 function KpiCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div className="mb-2 h-9 w-9 animate-pulse rounded-xl bg-slate-100" />
       <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
       <div className="mt-2 h-5 w-28 animate-pulse rounded bg-slate-100" />
@@ -580,7 +587,7 @@ function ErrorBox({ message }: { message: string }) {
 function EmptyState({ variant, onAction }: { variant: "no-suppliers" | "no-match"; onAction: () => void }) {
   const content = buildEmptyStateContent(variant);
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center sm:p-10">
       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
         <Inbox className="h-6 w-6" />
       </div>
@@ -597,7 +604,7 @@ function EmptyState({ variant, onAction }: { variant: "no-suppliers" | "no-match
 
 function SupplierCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100" />
@@ -655,10 +662,10 @@ function SupplierCard({
       {...buildSupplierCardA11yProps()}
       onClick={handleClick}
       onKeyDown={buildSupplierCardKeyDown(onOpen)}
-      className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+      className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:p-4"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <p className="truncate text-base font-black text-slate-950">{supplier.name}</p>
             {supplier.code && (
@@ -674,23 +681,23 @@ function SupplierCard({
         <StatusPill isActive={supplier.isActive} />
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-2 gap-3">
         <MetricRow label="Pembelian" value={formatCurrency(metric?.purchaseValue ?? 0)} icon={<Wallet className="h-3.5 w-3.5" />} />
         <MetricRow label="Restock" value={metric?.restockCount ?? 0} icon={<Boxes className="h-3.5 w-3.5" />} />
         <MetricRow label="Kontak" value={supplier.contactPerson || supplier.phone || "-"} icon={<User className="h-3.5 w-3.5" />} />
         <MetricRow label="Produk Top" value={metric?.topProductName ?? "-"} icon={<Package className="h-3.5 w-3.5" />} />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+      <div className="mt-4 flex flex-col items-stretch gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="inline-flex items-center gap-1 text-sm font-bold text-cyan-700 transition-colors group-hover:text-cyan-800">
           Lihat Detail
           <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </span>
-        <div className="flex flex-wrap gap-2" data-card-stop="true">
-          <Button type="button" size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); onEdit(); }}>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap" data-card-stop="true">
+          <Button type="button" size="sm" variant="secondary" className="w-full sm:w-auto" onClick={(event) => { event.stopPropagation(); onEdit(); }}>
             Edit
           </Button>
-          <Button type="button" size="sm" variant={supplier.isActive ? "ghost" : "primary"} loading={statusActionPending} onClick={(event) => { event.stopPropagation(); onToggleActive(); }}>
+          <Button type="button" size="sm" variant={supplier.isActive ? "ghost" : "primary"} className="w-full sm:w-auto" loading={statusActionPending} onClick={(event) => { event.stopPropagation(); onToggleActive(); }}>
             {supplier.isActive ? "Nonaktifkan" : "Aktifkan"}
           </Button>
         </div>

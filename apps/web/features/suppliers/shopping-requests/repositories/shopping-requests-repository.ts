@@ -868,7 +868,7 @@ export async function approveShoppingRequestItemsWithStock(input: {
       },
     });
     return reify(row);
-  });
+  }, { timeout: 15_000 });
 }
 
 function loadShoppingRequestDetailRow(
