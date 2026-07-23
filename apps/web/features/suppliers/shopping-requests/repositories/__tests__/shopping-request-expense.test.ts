@@ -177,7 +177,7 @@ describe("approveShoppingRequestItems expense integration", () => {
     });
   });
 
-  it("creates one SUPPLIES expense from approved quantities and cost snapshots", async () => {
+  it("approves the request without creating expense or changing stock", async () => {
     await approveShoppingRequestItems({
       id: "request-1",
       actor: { id: "owner-1", name: "Owner", storeId: "store-1" },
@@ -192,32 +192,21 @@ describe("approveShoppingRequestItems expense integration", () => {
       where: { id: "item-1" },
       data: expect.objectContaining({ costPriceSnapshot: expect.anything() }),
     });
-    expect(tx.expense.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        storeId: "store-1",
-        recordedById: "owner-1",
-        shoppingRequestId: "request-1",
-        applicantName: "CV Kertas",
-        category: "SUPPLIES",
-        amount: expect.objectContaining({ toString: expect.any(Function) }),
-        changeAmount: 0,
-        occurredAt: createdAt,
-        hasMissingCostSnapshot: false,
-      }),
-    });
-    const amount = tx.expense.create.mock.calls[0][0].data.amount;
-    expect(amount.toString()).toBe("42500");
+    expect(tx.expense.create).not.toHaveBeenCalled();
     expect(tx.product.updateMany).not.toHaveBeenCalled();
     expect(tx.productStockGroup.updateMany).not.toHaveBeenCalled();
     expect(tx.inventoryLog.create).not.toHaveBeenCalled();
     expect(tx.shoppingRequest.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ stockAppliedAt: null }),
+        data: expect.objectContaining({
+          status: "APPROVED",
+          stockAppliedAt: null,
+        }),
       }),
     );
   });
 
-  it("keeps approval valid at Rp0 and marks a missing cost-price snapshot", async () => {
+  it("keeps approval valid when the HPP snapshot is missing", async () => {
     tx.shoppingRequest.findFirst.mockResolvedValueOnce({
       id: "request-1",
       storeId: "store-1",
@@ -257,16 +246,10 @@ describe("approveShoppingRequestItems expense integration", () => {
       where: { id: "item-1" },
       data: { costPriceSnapshot: null },
     });
-    expect(tx.expense.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        amount: expect.objectContaining({ toString: expect.any(Function) }),
-        hasMissingCostSnapshot: true,
-      }),
-    });
-    expect(tx.expense.create.mock.calls[0][0].data.amount.toString()).toBe("0");
+    expect(tx.expense.create).not.toHaveBeenCalled();
   });
 
-  it("still creates one Rp0 expense when every approved quantity is zero", async () => {
+  it("does not create an Rp0 expense when every approved quantity is zero", async () => {
     tx.shoppingRequest.findFirst.mockResolvedValueOnce({
       id: "request-1",
       storeId: "store-1",
@@ -303,9 +286,6 @@ describe("approveShoppingRequestItems expense integration", () => {
     });
 
     expect(tx.inventoryLog.create).not.toHaveBeenCalled();
-    expect(tx.expense.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ hasMissingCostSnapshot: false }),
-    });
-    expect(tx.expense.create.mock.calls[0][0].data.amount.toString()).toBe("0");
+    expect(tx.expense.create).not.toHaveBeenCalled();
   });
 });

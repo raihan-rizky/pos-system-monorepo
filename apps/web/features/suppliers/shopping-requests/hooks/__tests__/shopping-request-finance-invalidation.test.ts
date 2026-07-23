@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("approval shopping request cache invalidation", () => {
-  it("refreshes finance without refreshing stock data after approval", () => {
+  it("does not refresh finance or stock data after approval", () => {
     const content = readFileSync(
       join(
         process.cwd(),
@@ -12,8 +12,8 @@ describe("approval shopping request cache invalidation", () => {
       "utf8",
     );
 
-    expect(content).toContain('queryKey: ["finance"]');
-    expect(content).toContain('queryKey: ["financial-report"]');
+    expect(content).not.toContain('queryKey: ["finance"]');
+    expect(content).not.toContain('queryKey: ["financial-report"]');
     expect(content).not.toContain('queryKey: ["products"]');
     expect(content).not.toContain('queryKey: ["inventory-logs"]');
     expect(content).not.toContain('queryKey: ["inventory-management"]');

@@ -661,40 +661,6 @@ export async function approveShoppingRequestItems(input: {
       return reify(row);
     }
 
-    const currentIds = new Set(input.items.map((item) => item.id));
-    let expenseAmount = new Prisma.Decimal(0);
-    let hasMissingCostSnapshot = false;
-    for (const item of request.items) {
-      const approvedQty = item.approvedQty ?? 0;
-      if (approvedQty <= 0) continue;
-      const costPriceSnapshot = currentIds.has(item.id)
-        ? item.product.costPrice
-        : item.costPriceSnapshot;
-      if (costPriceSnapshot === null) hasMissingCostSnapshot = true;
-      if (costPriceSnapshot !== null) {
-        expenseAmount = expenseAmount.add(
-          new Prisma.Decimal(costPriceSnapshot)
-            .mul(new Prisma.Decimal(String(approvedQty)))
-            .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
-        );
-      }
-    }
-
-    await tx.expense.create({
-      data: {
-        storeId: input.actor.storeId,
-        recordedById: input.actor.id,
-        shoppingRequestId: request.id,
-        applicantName: request.supplier.name,
-        category: "SUPPLIES",
-        description: `Permohonan Belanja ${request.number} - ${request.items.length} item`,
-        amount: expenseAmount,
-        changeAmount: 0,
-        occurredAt: request.createdAt,
-        hasMissingCostSnapshot,
-      },
-    });
-
     const row = await tx.shoppingRequest.update({
       where: { id: input.id },
       data: {

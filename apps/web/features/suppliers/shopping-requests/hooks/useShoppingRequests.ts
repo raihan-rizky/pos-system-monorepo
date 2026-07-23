@@ -178,8 +178,6 @@ function invalidateShoppingRequestApprovalQueries(queryClient: QueryClient) {
     exact: true,
   });
   queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-  queryClient.invalidateQueries({ queryKey: ["finance"] });
-  queryClient.invalidateQueries({ queryKey: ["financial-report"] });
 }
 
 export function useCancelShoppingRequest() {
