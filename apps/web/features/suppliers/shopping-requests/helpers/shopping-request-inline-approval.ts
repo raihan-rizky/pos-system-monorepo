@@ -2,13 +2,11 @@ import type {
   ApproveShoppingRequestIndividualItemInput,
   ApproveShoppingRequestInput,
   SaveShoppingRequestApprovedQuantitiesInput,
-  ShoppingRequestStockMode,
 } from "../types/shopping-request";
 
 export interface InlineApprovalItem {
   id: string;
   approvedQty: number;
-  stockMode: ShoppingRequestStockMode;
 }
 
 export interface InlineApprovalActions {
@@ -70,7 +68,6 @@ export async function approveShoppingRequestItemWithQuantity(
     id: input.requestId,
     itemId: input.item.id,
     input: {
-      stockMode: input.item.stockMode,
       confirmOverRequested: input.confirmOverRequested,
     },
   });
@@ -98,7 +95,6 @@ export async function approveAllShoppingRequestItemsWithQuantities(
     input: {
       items: input.items.map((item) => ({
         id: item.id,
-        stockMode: item.stockMode,
       })),
       confirmOverRequested: input.confirmOverRequested,
     },

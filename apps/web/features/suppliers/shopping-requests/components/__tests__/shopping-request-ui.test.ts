@@ -14,39 +14,40 @@ function featureSource(file: string) {
 }
 
 describe("Daftar Belanja UI", () => {
-  it("requires the reusable supplier selector and persists a stock mode per item", () => {
+  it("uses the reusable supplier selector without exposing stock controls", () => {
     const content = source("ShoppingRequestCreateModal.tsx");
 
     expect(content).toContain("SupplierSelector");
-    expect(content).toContain("stockMode");
-    expect(content).toContain("Stok Bersama");
-    expect(content).toContain("Stok Produk Ini");
+    expect(content).not.toContain("stockMode");
+    expect(content).not.toContain("StockModeSelector");
+    expect(content).not.toContain("ShoppingRequestStockPreviewPanel");
+    expect(content).not.toContain("previewShoppingRequestStock");
     expect(content).toContain("Simpan Daftar Belanja");
   });
 
-  it("shows thumbnails in product search, selected cards, and stock preview", () => {
+  it("shows thumbnails in product search and selected cards", () => {
     expect(source("ProductAutocomplete.tsx")).toContain("ProductStockThumbnail");
     expect(source("ShoppingRequestCreateModal.tsx")).toContain("ProductStockThumbnail");
-    expect(source("ShoppingRequestStockPreview.tsx")).toContain("ProductStockThumbnail");
   });
 
-  it("shows each shared-stock variant change in an expandable product detail", () => {
-    const content = source("ShoppingRequestStockPreview.tsx");
+  it("only offers large-unit products in the shared shopping-request picker", () => {
+    const content = source("ProductAutocomplete.tsx");
 
-    expect(content).toContain("aria-expanded");
-    expect(content).toContain("row.variants.map");
-    expect(content).toContain("Perubahan varian");
-    expect(content).toContain("variant.beforeStock");
-    expect(content).toContain("variant.afterStock");
-    expect(content).toContain("variant.delta");
+    expect(content).toContain("getLargeUnitShoppingProducts");
+    expect(content).toContain("getLargeUnitShoppingProducts(products.data ?? [])");
+    expect(content).toContain("Produk unit besar tidak ditemukan");
   });
 
-  it("lets the approver edit final modes and renders live stock impact", () => {
+  it("shows expense impact without stock mode or live stock preview", () => {
     const content = source("ShoppingRequestApproveModal.tsx");
 
-    expect(content).toContain("previewShoppingRequestStock");
-    expect(content).toContain("stockMode");
+    expect(content).not.toContain("previewShoppingRequestStock");
+    expect(content).not.toContain("stockMode");
+    expect(content).not.toContain("ShoppingRequestStockPreviewPanel");
+    expect(content).not.toContain("StockModeSelector");
     expect(content).toContain("Jumlah yang Di-ACC");
+    expect(content).toContain("Estimasi pengeluaran");
+    expect(content).toContain("tidak mengubah stok");
     expect(content).toContain("Setujui Daftar Belanja");
   });
 
@@ -117,7 +118,7 @@ describe("Daftar Belanja UI", () => {
     expect(content).not.toContain("useApproveShoppingRequest");
   });
 
-  it("edits supplier, items, quantities, modes, and notes in a dedicated modal", () => {
+  it("edits supplier, items, quantities, and notes without stock mode", () => {
     const path = join(
       process.cwd(),
       "features/suppliers/shopping-requests/components/ShoppingRequestEditModal.tsx",
@@ -129,6 +130,8 @@ describe("Daftar Belanja UI", () => {
     expect(content).toContain("useUpdateShoppingRequest");
     expect(content).toContain("SupplierSelector");
     expect(content).toContain("ProductAutocomplete");
+    expect(content).not.toContain("stockMode");
+    expect(content).not.toContain("EditStockMode");
     expect(content).toContain("Simpan Perubahan");
   });
 

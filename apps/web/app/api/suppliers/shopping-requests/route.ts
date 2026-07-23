@@ -29,7 +29,7 @@ const createSchema = z.object({
       z.object({
         productId: z.string().trim().min(1),
         requestedQty: z.number().positive(),
-        stockMode: z.enum(["GROUP_STOCK", "PRODUCT_ONLY"]),
+        stockMode: z.enum(["GROUP_STOCK", "PRODUCT_ONLY"]).optional(),
       }),
     )
     .min(1, "At least one item is required"),

@@ -35,7 +35,7 @@ vi.mock(
     updateShoppingRequestItems: vi.fn(),
     approveShoppingRequestWithStock: vi.fn(),
     saveShoppingRequestApprovedQuantities: vi.fn(),
-    approveShoppingRequestItemsWithStock: vi.fn(),
+    approveShoppingRequestItems: vi.fn(),
     updateShoppingRequestWithItems: vi.fn(),
   }),
 );
@@ -93,7 +93,6 @@ describe("createShoppingRequest", () => {
             {
               productId: "prod-1",
               requestedQty: 5,
-              stockMode: "PRODUCT_ONLY",
             },
           ],
         },
@@ -114,7 +113,6 @@ describe("createShoppingRequest", () => {
             {
               productId: "prod-1",
               requestedQty: 5,
-              stockMode: "PRODUCT_ONLY",
             },
           ],
         },
@@ -172,7 +170,6 @@ describe("createShoppingRequest", () => {
           {
             productId: "prod-1",
             requestedQty: 5,
-            stockMode: "PRODUCT_ONLY",
           },
         ],
         requestedByName: "Admin",
@@ -287,7 +284,7 @@ describe("approveShoppingRequest", () => {
       })),
     };
     vi.mocked(repo.findShoppingRequestById).mockResolvedValue(preparedRequest);
-    vi.mocked(repo.approveShoppingRequestItemsWithStock).mockResolvedValue({
+    vi.mocked(repo.approveShoppingRequestItems).mockResolvedValue({
       ...draftRequest,
       status: "APPROVED",
       approvedByName: "Admin",
@@ -300,18 +297,18 @@ describe("approveShoppingRequest", () => {
       {
         items: [
           { id: "sri-1" },
-          { id: "sri-2", stockMode: "PRODUCT_ONLY" },
+          { id: "sri-2" },
         ],
       },
       actor,
     );
 
-    expect(repo.approveShoppingRequestItemsWithStock).toHaveBeenCalledWith({
+    expect(repo.approveShoppingRequestItems).toHaveBeenCalledWith({
       id: "sr-1",
       actor,
       items: [
-        { id: "sri-1", stockMode: "GROUP_STOCK" },
-        { id: "sri-2", stockMode: "PRODUCT_ONLY" },
+        { id: "sri-1" },
+        { id: "sri-2" },
       ],
       approveAllPending: true,
     });
@@ -327,7 +324,7 @@ describe("approveShoppingRequest", () => {
         actor,
       ),
     ).rejects.toThrow("Jumlah yang Di-ACC");
-    expect(repo.approveShoppingRequestItemsWithStock).not.toHaveBeenCalled();
+    expect(repo.approveShoppingRequestItems).not.toHaveBeenCalled();
   });
 
   it("saves approved quantities without calling stock approval", async () => {
@@ -366,7 +363,7 @@ describe("approveShoppingRequest", () => {
       actor,
       items: [{ id: "sri-1", approvedQty: 6 }],
     });
-    expect(repo.approveShoppingRequestItemsWithStock).not.toHaveBeenCalled();
+    expect(repo.approveShoppingRequestItems).not.toHaveBeenCalled();
   });
 
   it("requires confirmation when an approved quantity exceeds the request", async () => {
@@ -409,21 +406,21 @@ describe("approveShoppingRequest", () => {
         item.id === "sri-1" ? { ...item, approvedQty: 5 } : item,
       ),
     });
-    vi.mocked(repo.approveShoppingRequestItemsWithStock).mockResolvedValue(
+    vi.mocked(repo.approveShoppingRequestItems).mockResolvedValue(
       draftRequest,
     );
 
     await approveItem(
       "sr-1",
       "sri-1",
-      { stockMode: "PRODUCT_ONLY" },
+      {},
       actor,
     );
 
-    expect(repo.approveShoppingRequestItemsWithStock).toHaveBeenCalledWith({
+    expect(repo.approveShoppingRequestItems).toHaveBeenCalledWith({
       id: "sr-1",
       actor,
-      items: [{ id: "sri-1", stockMode: "PRODUCT_ONLY" }],
+      items: [{ id: "sri-1" }],
       approveAllPending: false,
     });
   });
@@ -550,7 +547,7 @@ describe("approveShoppingRequest", () => {
       {
         supplierId: "supplier-1",
         items: [
-          { productId: "prod-1", requestedQty: 1, stockMode: "PRODUCT_ONLY" },
+          { productId: "prod-1", requestedQty: 1 },
         ],
       },
       actor,
@@ -568,7 +565,7 @@ describe("approveShoppingRequest", () => {
       ...draftRequest,
       items: draftRequest.items.map((item) => ({ ...item, approvedQty: 5 })),
     });
-    vi.mocked(repo.approveShoppingRequestItemsWithStock).mockRejectedValue(
+    vi.mocked(repo.approveShoppingRequestItems).mockRejectedValue(
       new Error("ALREADY_DECIDED"),
     );
 

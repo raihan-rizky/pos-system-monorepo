@@ -185,17 +185,16 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 5. Pengajuan ini tidak akan langsung menambah stok. Statusnya akan menjadi *Pending* hingga disetujui (Approve) oleh pihak berwenang (seperti OWNER atau admin dengan izin `inventory.approve`). Stok baru bertambah setelah disetujui.
 
 ### Q19: Bagaimana cara membuat Permohonan Belanja kebutuhan toko ke supplier?
-**A:** Gunakan Permohonan Belanja untuk mencatat kebutuhan sekaligus menyiapkan update stok saat disetujui:
+**A:** Gunakan Permohonan Belanja untuk mencatat kebutuhan dan estimasi biayanya tanpa mengubah stok:
 1. Buka menu **Supplier**, lalu pilih tab **Permohonan Belanja** dan klik **Buat Permohonan Belanja**.
 2. Pilih supplier tujuan yang wajib diisi. Jika belum ada, isi nama dan tipe pada tambah supplier cepat; supplier baru otomatis terpilih.
 3. Cari produk melalui nama atau SKU. Gunakan thumbnail, unit, dan stok yang tampil untuk memastikan produk benar.
-4. Masukkan jumlah kebutuhan. Produk bergrup otomatis memakai **Stok Bersama**; ubah ke **Stok Produk Ini** bila diperlukan.
-5. Periksa live preview stok sebelum/sesudah, delta, dan varian yang terdampak, lalu klik **Simpan Permohonan Belanja**. Status menjadi **Diajukan** dan stok belum berubah.
-6. Sebelum ada item yang diputuskan, Owner atau role dengan izin `supplier.shopping_request.edit:update` dapat memakai **Edit** untuk mengganti supplier, produk, jumlah kebutuhan, mode stok, dan catatan.
-7. Owner atau role dengan izin `supplier.shopping_request.set_approved_qty:update` dapat memakai **Isi Jumlah yang Di-ACC** atau mengisi langsung di modal **Setujui Daftar Belanja**. Modal menampilkan **Kebutuhan Belanja** sebagai pembanding; input awal kosong jika belum pernah disimpan. Approver tanpa izin quantity melihat nilai secara read-only.
-8. Pengguna dengan izin `supplier.shopping_request.approve_stock:update` membuka **Setujui**, mengisi jumlah bila juga berwenang, memilih mode final, lalu memeriksa live preview stok dan **Estimasi pengeluaran** dari harga modal. Jumlah di atas kebutuhan memerlukan satu konfirmasi; item tanpa harga modal dihitung Rp0 dan diberi peringatan.
-9. Klik **Setujui Item** untuk memproses satu barang atau setujui semua item yang masih menunggu sekaligus. Jumlah yang baru diisi disimpan terlebih dahulu, lalu approval dijalankan. Stok langsung berubah per item berdasarkan Jumlah yang Di-ACC; nilai 0 menjadi **Tidak Disetujui** dan tidak mengubah stok. Keputusan item bersifat final, dan permohonan tetap **Diajukan** selama masih ada item menunggu.
-10. Setelah item terakhir diproses, permohonan selesai otomatis dan satu Pengeluaran kategori Bahan tercatat memakai tanggal permohonan. Entri berbadge **Permohonan Belanja** tidak dapat diedit atau dihapus dari halaman Keuangan, dan stok tidak ditambahkan kembali melalui Penerimaan Barang.
+4. Masukkan jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik **Simpan Permohonan Belanja**. Status menjadi **Diajukan**. Pembuatan dan approval daftar belanja tidak mengubah stok.
+5. Sebelum ada item yang diputuskan, Owner atau role dengan izin `supplier.shopping_request.edit:update` dapat memakai **Edit** untuk mengganti supplier, produk, jumlah kebutuhan, dan catatan.
+6. Owner atau role dengan izin `supplier.shopping_request.set_approved_qty:update` dapat memakai **Isi Jumlah yang Di-ACC** atau mengisi langsung di modal **Setujui Daftar Belanja**. Modal menampilkan **Kebutuhan Belanja** sebagai pembanding; input awal kosong jika belum pernah disimpan. Approver tanpa izin quantity melihat nilai secara read-only.
+7. Pengguna dengan izin `supplier.shopping_request.approve_stock:update` membuka **Setujui**, mengisi jumlah bila juga berwenang, lalu memeriksa **Estimasi pengeluaran** dari harga modal. Jumlah di atas kebutuhan memerlukan satu konfirmasi; item tanpa harga modal dihitung Rp0 dan diberi peringatan.
+8. Klik **Setujui Item** untuk memproses satu barang atau setujui semua item yang masih menunggu sekaligus. Jumlah yang baru diisi disimpan terlebih dahulu, lalu approval dijalankan. Nilai 0 menjadi **Tidak Disetujui**. Approval hanya mencatat keputusan dan pengeluaran, tanpa mengubah stok atau membuat log restock. Keputusan item bersifat final, dan permohonan tetap **Diajukan** selama masih ada item menunggu.
+9. Setelah item terakhir diproses, permohonan selesai otomatis dan satu Pengeluaran kategori Bahan tercatat memakai tanggal permohonan. Entri berbadge **Permohonan Belanja** tidak dapat diedit atau dihapus dari halaman Keuangan. Perubahan stok dilakukan melalui proses inventaris atau penerimaan barang yang terpisah.
 
 ### Q28: Bagaimana cara melakukan Check In dan Check Out (Day Session) bagi Staf Gudang?
 **A:** Staf gudang wajib mengelola operasional harian melalui alur sesi (Day Session):

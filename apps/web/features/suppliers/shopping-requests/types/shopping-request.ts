@@ -75,7 +75,6 @@ export interface ShoppingRequestDetail extends ShoppingRequestListItem {
 export interface ShoppingRequestItemInput {
   productId: string;
   requestedQty: number;
-  stockMode: ShoppingRequestStockMode;
 }
 
 export interface CreateShoppingRequestInput {
@@ -87,7 +86,6 @@ export interface CreateShoppingRequestInput {
 
 export interface ApproveShoppingRequestItemInput {
   id: string;
-  stockMode?: ShoppingRequestStockMode;
 }
 
 export interface ApproveShoppingRequestInput {
@@ -101,7 +99,6 @@ export interface SaveShoppingRequestApprovedQuantitiesInput {
 }
 
 export interface ApproveShoppingRequestIndividualItemInput {
-  stockMode?: ShoppingRequestStockMode;
   confirmOverRequested?: boolean;
 }
 

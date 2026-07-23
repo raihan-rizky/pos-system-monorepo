@@ -9,10 +9,6 @@ import type {
   SaveShoppingRequestApprovedQuantitiesInput,
   UpdateShoppingRequestInput,
 } from "../types/shopping-request";
-import type {
-  ShoppingRequestStockPreview,
-  ShoppingStockPreviewRowInput,
-} from "../helpers/shopping-request-stock";
 
 export type ShoppingRequestListParams = {
   q?: string;
@@ -148,21 +144,6 @@ export async function updateShoppingRequest(
     throw new Error(error?.message || "Gagal memperbarui daftar belanja");
   }
   return res.json();
-}
-
-export async function previewShoppingRequestStock(
-  rows: ShoppingStockPreviewRowInput[],
-): Promise<ShoppingRequestStockPreview> {
-  const res = await fetch("/api/suppliers/shopping-requests/stock-preview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rows }),
-  });
-  const payload = await res.json().catch(() => null);
-  if (!res.ok) {
-    throw new Error(payload?.message || "Gagal membuat preview perubahan stok");
-  }
-  return payload.data;
 }
 
 export async function cancelShoppingRequest(

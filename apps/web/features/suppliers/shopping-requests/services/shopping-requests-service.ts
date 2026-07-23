@@ -6,7 +6,7 @@ import {
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import {
   countShoppingRequests,
-  approveShoppingRequestItemsWithStock,
+  approveShoppingRequestItems,
   cancelShoppingRequestIfUndecided,
   createShoppingRequestWithItems,
   findShoppingRequestById,
@@ -106,7 +106,7 @@ export async function createShoppingRequest(
             unit: product.unit,
             stockOnHand: resolveProductDisplayStock(product),
             requestedQty: item.requestedQty,
-            stockMode: item.stockMode,
+            stockMode: "PRODUCT_ONLY",
           };
         }),
       },
@@ -157,16 +157,11 @@ export async function approveShoppingRequest(
     pendingItems,
     Boolean(input.confirmOverRequested),
   );
-  const modes = new Map(input.items.map((item) => [item.id, item.stockMode]));
-
   try {
-    return await approveShoppingRequestItemsWithStock({
+    return await approveShoppingRequestItems({
       id,
       actor,
-      items: pendingItems.map((item) => ({
-        id: item.id,
-        stockMode: modes.get(item.id) ?? item.stockMode,
-      })),
+      items: pendingItems.map((item) => ({ id: item.id })),
       approveAllPending: true,
     });
   } catch (error) {
@@ -242,10 +237,10 @@ export async function approveShoppingRequestItem(
   assertPreparedQuantities([item], Boolean(input.confirmOverRequested));
 
   try {
-    return await approveShoppingRequestItemsWithStock({
+    return await approveShoppingRequestItems({
       id: requestId,
       actor,
-      items: [{ id: itemId, stockMode: input.stockMode ?? item.stockMode }],
+      items: [{ id: itemId }],
       approveAllPending: false,
     });
   } catch (error) {
@@ -306,7 +301,7 @@ export async function updateShoppingRequest(
           unit: product.unit,
           stockOnHand: resolveProductDisplayStock(product),
           requestedQty: item.requestedQty,
-          stockMode: item.stockMode,
+          stockMode: "PRODUCT_ONLY",
         };
       }),
     });
@@ -367,13 +362,8 @@ function translateShoppingRequestError(error: unknown): Error {
     ALREADY_DECIDED: "Permohonan atau item sudah diproses oleh pengguna lain",
     SUPPLIER_INACTIVE:
       "Supplier tidak aktif. Aktifkan supplier sebelum menyetujui permohonan",
-    RECEIPT_CONFLICT:
-      "Permohonan sudah memiliki proses Penerimaan Barang dan tidak dapat menambah stok kembali",
     INVALID_ITEMS: "Daftar item approval tidak sesuai dengan permohonan",
     APPROVED_QTY_REQUIRED: "Jumlah yang Di-ACC wajib diisi sebelum persetujuan",
-    INVALID_CONVERSION:
-      "Konversi unit perlu ditinjau sebelum memakai Stok Bersama",
-    GROUP_NOT_FOUND: "Grup stok produk tidak ditemukan",
     PRODUCT_NOT_FOUND: "Produk tidak ditemukan atau sudah tidak aktif",
   };
   return messages[error.message]

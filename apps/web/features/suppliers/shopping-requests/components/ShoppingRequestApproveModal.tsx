@@ -19,31 +19,24 @@ import {
   useSaveShoppingRequestApprovedQuantities,
   useShoppingRequest,
 } from "../hooks/useShoppingRequests";
-import { previewShoppingRequestStock } from "../api/shopping-requests-api";
 import {
   approveAllShoppingRequestItemsWithQuantities,
   approveShoppingRequestItemWithQuantity,
   parseApprovedQuantity,
 } from "../helpers/shopping-request-inline-approval";
-import type { ShoppingRequestStockPreview } from "../helpers/shopping-request-stock";
 import type {
   ShoppingRequestDetail,
   ShoppingRequestItemDecisionStatus,
-  ShoppingRequestStockMode,
 } from "../types/shopping-request";
-import { ShoppingRequestStockPreviewPanel } from "./ShoppingRequestStockPreview";
 
 interface ApprovalRow {
   id: string;
-  productId: string;
   productName: string;
   productSku: string;
   imageUrl: string | null;
   unit: string | null;
   requestedQty: number;
   approvedQtyInput: string;
-  stockMode: ShoppingRequestStockMode;
-  hasStockGroup: boolean;
   costPrice: number | null;
   costPriceSnapshot: number | null;
   decisionStatus: ShoppingRequestItemDecisionStatus;
@@ -67,10 +60,7 @@ export function ShoppingRequestApproveModal({
   const approveItem = useApproveShoppingRequestItem();
   const saveApprovedQuantities = useSaveShoppingRequestApprovedQuantities();
   const [rows, setRows] = useState<ApprovalRow[]>([]);
-  const [preview, setPreview] = useState<ShoppingRequestStockPreview | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [isPreviewing, setIsPreviewing] = useState(false);
   const [processingItemId, setProcessingItemId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,7 +68,6 @@ export function ShoppingRequestApproveModal({
     setRows(
       fullDetail.data.items.map((item) => ({
         id: item.id,
-        productId: item.productId,
         productName: item.productName,
         productSku: item.productSku,
         imageUrl: item.imageUrl,
@@ -86,8 +75,6 @@ export function ShoppingRequestApproveModal({
         requestedQty: item.requestedQty,
         approvedQtyInput:
           item.approvedQty === null ? "" : String(item.approvedQty),
-        stockMode: item.stockMode,
-        hasStockGroup: Boolean(item.product.stockGroup),
         costPrice:
           item.product.costPrice == null ? null : Number(item.product.costPrice),
         costPriceSnapshot:
@@ -104,62 +91,12 @@ export function ShoppingRequestApproveModal({
     () => rows.filter((row) => row.decisionStatus === "PENDING"),
     [rows],
   );
-  const preparedRows = useMemo(
-    () =>
-      pendingRows.filter(
-        (row) => parseApprovedQuantity(row.approvedQtyInput) !== null,
-      ),
-    [pendingRows],
-  );
   const decidedCount = rows.length - pendingRows.length;
   const allPrepared =
     pendingRows.length > 0 &&
     pendingRows.every(
       (row) => parseApprovedQuantity(row.approvedQtyInput) !== null,
     );
-
-  useEffect(() => {
-    if (!open || preparedRows.length === 0) {
-      setPreview(null);
-      setPreviewError(null);
-      return;
-    }
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      setIsPreviewing(true);
-      previewShoppingRequestStock(
-        preparedRows.map((row) => ({
-          itemId: row.id,
-          productId: row.productId,
-          stockMode: row.stockMode,
-          quantity: parseApprovedQuantity(row.approvedQtyInput) ?? 0,
-        })),
-      )
-        .then((data) => {
-          if (!cancelled) {
-            setPreview(data);
-            setPreviewError(null);
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            setPreview(null);
-            setPreviewError(
-              error instanceof Error
-                ? error.message
-                : "Gagal membuat preview stok",
-            );
-          }
-        })
-        .finally(() => {
-          if (!cancelled) setIsPreviewing(false);
-        });
-    }, 300);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [open, preparedRows]);
 
   const expensePreview = useMemo(() => {
     const effectiveCostPrice = (row: ApprovalRow) =>
@@ -180,11 +117,6 @@ export function ShoppingRequestApproveModal({
     );
     return { missing, total };
   }, [rows]);
-
-  const updateMode = (id: string, stockMode: ShoppingRequestStockMode) =>
-    setRows((current) =>
-      current.map((row) => (row.id === id ? { ...row, stockMode } : row)),
-    );
 
   const updateApprovedQty = (id: string, approvedQtyInput: string) =>
     setRows((current) =>
@@ -222,7 +154,6 @@ export function ShoppingRequestApproveModal({
           item: {
             id: row.id,
             approvedQty,
-            stockMode: row.stockMode,
           },
           canSetApprovedQty,
           confirmOverRequested: confirmation.hasOverage,
@@ -256,7 +187,6 @@ export function ShoppingRequestApproveModal({
             id: row.id,
             approvedQty:
               parseApprovedQuantity(row.approvedQtyInput) as number,
-            stockMode: row.stockMode,
           })),
           canSetApprovedQty,
           confirmOverRequested: confirmation.hasOverage,
@@ -410,10 +340,9 @@ export function ShoppingRequestApproveModal({
                       )}
                     </div>
                     {pending ? (
-                      <StockModeSelector
-                        row={row}
-                        onChange={(stockMode) => updateMode(row.id, stockMode)}
-                      />
+                      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
+                        Approval hanya mencatat keputusan dan pengeluaran; tidak mengubah stok.
+                      </div>
                     ) : (
                       <div className="text-xs font-semibold text-slate-500">
                         <p className="inline-flex items-center gap-1 font-bold text-slate-600">
@@ -430,8 +359,6 @@ export function ShoppingRequestApproveModal({
                         size="sm"
                         disabled={
                           !prepared ||
-                          isPreviewing ||
-                          Boolean(previewError) ||
                           actionPending
                         }
                         loading={processingItemId === row.id}
@@ -458,12 +385,6 @@ export function ShoppingRequestApproveModal({
               );
             })}
           </div>
-
-          <ShoppingRequestStockPreviewPanel
-            preview={preview}
-            loading={isPreviewing}
-            error={previewError}
-          />
 
           <section className="rounded-xl border border-violet-200 bg-violet-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -516,8 +437,6 @@ export function ShoppingRequestApproveModal({
                 }
                 disabled={
                   !allPrepared ||
-                  isPreviewing ||
-                  Boolean(previewError) ||
                   actionPending
                 }
                 onClick={handleApproveAll}
@@ -552,47 +471,5 @@ function DecisionBadge({ status }: { status: ShoppingRequestItemDecisionStatus }
     <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700">
       <CircleDashed className="h-3 w-3" /> Menunggu
     </span>
-  );
-}
-
-function StockModeSelector({
-  row,
-  onChange,
-}: {
-  row: ApprovalRow;
-  onChange: (value: ShoppingRequestStockMode) => void;
-}) {
-  if (!row.hasStockGroup) {
-    return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
-        Stok Produk Ini
-      </div>
-    );
-  }
-  return (
-    <div>
-      <p className="mb-1 text-xs font-bold text-slate-600">Mode stok final</p>
-      <div className="grid grid-cols-2 gap-2">
-        {(
-          [
-            ["GROUP_STOCK", "Stok Bersama"],
-            ["PRODUCT_ONLY", "Stok Produk Ini"],
-          ] as const
-        ).map(([mode, label]) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => onChange(mode)}
-            className={`min-h-10 rounded-lg border px-3 text-xs font-black ${
-              row.stockMode === mode
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-200 bg-white text-slate-600"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }

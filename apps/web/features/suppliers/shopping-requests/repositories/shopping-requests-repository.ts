@@ -1,10 +1,4 @@
 import { db, Prisma } from "@pos/db";
-import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
-import {
-  calculateShoppingRequestStockPreview,
-  type ShoppingRequestStockPreview,
-  type ShoppingStockPreviewRowInput,
-} from "../helpers/shopping-request-stock";
 import type {
   ShoppingRequestDetail,
   ShoppingRequestItemRecord,
@@ -500,77 +494,6 @@ export async function cancelShoppingRequestIfUndecided(input: {
   });
 }
 
-function toShoppingStockProduct(product: {
-  id: string;
-  name: string;
-  sku: string;
-  unit: string;
-  stock: number;
-  imageUrl: string | null;
-  stockGroupId: string | null;
-  unitMultiplierToBase: number;
-  conversionNeedsReview: boolean;
-  stockGroup: { baseStock: number } | null;
-}) {
-  return {
-    id: product.id,
-    name: product.name,
-    sku: product.sku,
-    unit: product.unit,
-    stock: resolveProductDisplayStock(product),
-    imageUrl: product.imageUrl,
-    stockGroupId: product.stockGroupId,
-    unitMultiplierToBase: product.unitMultiplierToBase,
-    conversionNeedsReview: product.conversionNeedsReview,
-  };
-}
-
-export async function buildShoppingRequestStockPreview(
-  storeId: string,
-  rows: ShoppingStockPreviewRowInput[],
-  tx: Prisma.TransactionClient = db,
-): Promise<ShoppingRequestStockPreview> {
-  const productIds = Array.from(new Set(rows.map((row) => row.productId)));
-  const selectedProducts = await tx.product.findMany({
-    where: { id: { in: productIds }, storeId, isActive: true },
-    include: { stockGroup: { select: { baseStock: true } } },
-  });
-  if (selectedProducts.length !== productIds.length) {
-    throw new Error("PRODUCT_NOT_FOUND");
-  }
-
-  const stockGroupIds = Array.from(
-    new Set(
-      selectedProducts
-        .map((product) => product.stockGroupId)
-        .filter((id): id is string => Boolean(id)),
-    ),
-  );
-  const groups = stockGroupIds.length
-    ? await tx.productStockGroup.findMany({
-        where: { id: { in: stockGroupIds }, storeId },
-        include: { products: { where: { isActive: true } } },
-      })
-    : [];
-
-  return calculateShoppingRequestStockPreview({
-    rows,
-    products: selectedProducts.map(toShoppingStockProduct),
-    groups: groups.map((group) => ({
-      id: group.id,
-      displayName: group.displayName,
-      baseUnit: group.baseUnit,
-      baseStock: group.baseStock,
-      variants: group.products.map((product) =>
-        toShoppingStockProduct({
-          ...product,
-          stockGroup: { baseStock: group.baseStock },
-        }),
-      ),
-    })),
-  });
-}
-
 export async function saveShoppingRequestApprovedQuantities(input: {
   id: string;
   actor: ShoppingRequestActor;
@@ -620,10 +543,10 @@ export async function saveShoppingRequestApprovedQuantities(input: {
   });
 }
 
-export async function approveShoppingRequestItemsWithStock(input: {
+export async function approveShoppingRequestItems(input: {
   id: string;
   actor: ShoppingRequestActor;
-  items: Array<{ id: string; stockMode: ShoppingRequestStockMode }>;
+  items: Array<{ id: string }>;
   approveAllPending: boolean;
 }): Promise<ShoppingRequestDetail> {
   return db.$transaction(async (tx) => {
@@ -641,11 +564,6 @@ export async function approveShoppingRequestItemsWithStock(input: {
       where: { id: input.id, storeId: input.actor.storeId },
       include: {
         supplier: { select: { id: true, name: true, isActive: true } },
-        inboundReceipts: {
-          where: { status: { in: ["DRAFT", "SUBMITTED", "APPROVED"] } },
-          select: { id: true },
-          take: 1,
-        },
         items: {
           select: {
             id: true,
@@ -653,7 +571,6 @@ export async function approveShoppingRequestItemsWithStock(input: {
             productName: true,
             requestedQty: true,
             approvedQty: true,
-            stockMode: true,
             decisionStatus: true,
             costPriceSnapshot: true,
             product: { select: { costPrice: true } },
@@ -663,8 +580,7 @@ export async function approveShoppingRequestItemsWithStock(input: {
     });
     if (!request) throw new Error("NOT_FOUND");
     if (!request.supplier?.isActive) throw new Error("SUPPLIER_INACTIVE");
-    if (request.inboundReceipts.length > 0) throw new Error("RECEIPT_CONFLICT");
-    if (request.status !== "REQUESTED" || request.stockAppliedAt) {
+    if (request.status !== "REQUESTED") {
       throw new Error("ALREADY_DECIDED");
     }
     const requestItemsById = new Map(request.items.map((item) => [item.id, item]));
@@ -675,7 +591,7 @@ export async function approveShoppingRequestItemsWithStock(input: {
       throw new Error("INVALID_ITEMS");
     }
     const seen = new Set<string>();
-    const previewRows = input.items.map((item) => {
+    input.items.forEach((item) => {
       const requestItem = requestItemsById.get(item.id);
       if (
         !requestItem ||
@@ -688,12 +604,6 @@ export async function approveShoppingRequestItemsWithStock(input: {
       if (requestItem.approvedQty === null) {
         throw new Error("APPROVED_QTY_REQUIRED");
       }
-      return {
-        itemId: item.id,
-        productId: requestItem.productId,
-        stockMode: item.stockMode,
-        quantity: requestItem.approvedQty,
-      };
     });
     if (
       input.approveAllPending &&
@@ -718,34 +628,10 @@ export async function approveShoppingRequestItemsWithStock(input: {
           decidedById: input.actor.id,
           decidedByName: input.actor.name,
           decidedAt,
-          stockAppliedAt: approvedQty > 0 ? decidedAt : null,
-          stockMode: item.stockMode,
+          stockAppliedAt: null,
         },
       });
       if (claim.count !== 1) throw new Error("ALREADY_DECIDED");
-    }
-
-    const preview = await buildShoppingRequestStockPreview(
-      input.actor.storeId,
-      previewRows,
-      tx,
-    );
-
-    for (const groupRow of preview.groupRows) {
-      if (groupRow.baseDelta === 0) continue;
-      const updated = await tx.productStockGroup.updateMany({
-        where: { id: groupRow.stockGroupId, storeId: input.actor.storeId },
-        data: { baseStock: { increment: groupRow.baseDelta } },
-      });
-      if (updated.count !== 1) throw new Error("GROUP_NOT_FOUND");
-    }
-    for (const productRow of preview.productRows) {
-      if (productRow.delta === 0) continue;
-      const updated = await tx.product.updateMany({
-        where: { id: productRow.productId, storeId: input.actor.storeId },
-        data: { stock: { increment: productRow.delta } },
-      });
-      if (updated.count !== 1) throw new Error("PRODUCT_NOT_FOUND");
     }
 
     for (const item of input.items) {
@@ -756,27 +642,6 @@ export async function approveShoppingRequestItemsWithStock(input: {
         where: { id: item.id },
         data: { costPriceSnapshot },
       });
-      if (approvedQty > 0) {
-        await tx.inventoryLog.create({
-          data: {
-            productId: requestItem.productId,
-            type: "IN",
-            reason: "RESTOCK",
-            quantity: approvedQty,
-            note: `Permohonan Belanja ${request.number}\nMode: ${
-              item.stockMode === "GROUP_STOCK" ? "Stok Bersama" : "Stok Produk Ini"
-            }`,
-            supplierId: request.supplierId,
-            createdBy: input.actor.id,
-            person: input.actor.name,
-            status: "APPROVED",
-            approvedBy: input.actor.id,
-            approverName: input.actor.name,
-            decidedAt,
-            unitCost: costPriceSnapshot,
-          },
-        });
-      }
     }
 
     const pendingCount = await tx.shoppingRequestItem.count({
@@ -837,7 +702,7 @@ export async function approveShoppingRequestItemsWithStock(input: {
         approvedById: input.actor.id,
         approvedByName: input.actor.name,
         approvedAt: decidedAt,
-        stockAppliedAt: decidedAt,
+        stockAppliedAt: null,
         cancelledAt: null,
       },
       include: {

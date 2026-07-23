@@ -199,9 +199,9 @@ describe("shopping request item decisions", () => {
     expect(where).toEqual(expect.objectContaining({ storeId: "store-1" }));
   });
 
-  it("approves one item immediately and keeps the request open", async () => {
+  it("approves one item without changing stock and keeps the request open", async () => {
     const approve = (repository as Record<string, unknown>)
-      .approveShoppingRequestItemsWithStock as
+      .approveShoppingRequestItems as
       | ((input: unknown) => Promise<unknown>)
       | undefined;
     expect(approve).toBeTypeOf("function");
@@ -216,7 +216,7 @@ describe("shopping request item decisions", () => {
     await approve({
       id: "request-1",
       actor,
-      items: [{ id: "1", stockMode: "PRODUCT_ONLY" }],
+      items: [{ id: "1" }],
       approveAllPending: false,
     });
 
@@ -239,20 +239,19 @@ describe("shopping request item decisions", () => {
         decisionStatus: "APPROVED",
         decidedById: "owner-1",
         decidedByName: "Owner",
-        stockMode: "PRODUCT_ONLY",
+        stockAppliedAt: null,
       }),
     });
-    expect(tx.product.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { stock: { increment: 4 } } }),
-    );
-    expect(tx.inventoryLog.create).toHaveBeenCalledTimes(1);
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.productStockGroup.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.create).not.toHaveBeenCalled();
     expect(tx.shoppingRequest.update).not.toHaveBeenCalled();
     expect(tx.expense.create).not.toHaveBeenCalled();
   });
 
   it("allows enough time for the item approval transaction", async () => {
     const approve = (repository as Record<string, unknown>)
-      .approveShoppingRequestItemsWithStock as
+      .approveShoppingRequestItems as
       | ((input: unknown) => Promise<unknown>)
       | undefined;
     expect(approve).toBeTypeOf("function");
@@ -267,7 +266,7 @@ describe("shopping request item decisions", () => {
     await approve({
       id: "request-1",
       actor,
-      items: [{ id: "1", stockMode: "PRODUCT_ONLY" }],
+      items: [{ id: "1" }],
       approveAllPending: false,
     });
 
@@ -279,7 +278,7 @@ describe("shopping request item decisions", () => {
 
   it("records zero as rejected without a stock mutation", async () => {
     const approve = (repository as Record<string, unknown>)
-      .approveShoppingRequestItemsWithStock as
+      .approveShoppingRequestItems as
       | ((input: unknown) => Promise<unknown>)
       | undefined;
     expect(approve).toBeTypeOf("function");
@@ -294,7 +293,7 @@ describe("shopping request item decisions", () => {
     await approve({
       id: "request-1",
       actor,
-      items: [{ id: "1", stockMode: "PRODUCT_ONLY" }],
+      items: [{ id: "1" }],
       approveAllPending: false,
     });
 

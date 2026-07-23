@@ -22,7 +22,7 @@ const updateSchema = z.object({
       z.object({
         productId: z.string().trim().min(1),
         requestedQty: z.number().finite().positive(),
-        stockMode: z.enum(["GROUP_STOCK", "PRODUCT_ONLY"]),
+        stockMode: z.enum(["GROUP_STOCK", "PRODUCT_ONLY"]).optional(),
       }),
     )
     .min(1, "Minimal satu item wajib dipilih")

@@ -16,13 +16,13 @@ function createActions(events: string[]): InlineApprovalActions {
           .join(",")}`,
       );
     },
-    approveItem: async ({ itemId, input }) => {
-      events.push(`approve-item:${itemId}:${input.stockMode}`);
+    approveItem: async ({ itemId }) => {
+      events.push(`approve-item:${itemId}`);
     },
     approveAll: async ({ input }) => {
       events.push(
         `approve-all:${input.items
-          .map((item) => `${item.id}=${item.stockMode}`)
+          .map((item) => item.id)
           .join(",")}`,
       );
     },
@@ -53,7 +53,6 @@ describe("inline shopping request approval orchestration", () => {
         item: {
           id: "item-1",
           approvedQty: 0,
-          stockMode: "PRODUCT_ONLY",
         },
         canSetApprovedQty: true,
         confirmOverRequested: false,
@@ -63,7 +62,7 @@ describe("inline shopping request approval orchestration", () => {
 
     expect(events).toEqual([
       "save:item-1=0",
-      "approve-item:item-1:PRODUCT_ONLY",
+      "approve-item:item-1",
     ]);
   });
 
@@ -74,8 +73,8 @@ describe("inline shopping request approval orchestration", () => {
       {
         requestId: "request-1",
         items: [
-          { id: "item-1", approvedQty: 2, stockMode: "GROUP_STOCK" },
-          { id: "item-2", approvedQty: 0, stockMode: "PRODUCT_ONLY" },
+          { id: "item-1", approvedQty: 2 },
+          { id: "item-2", approvedQty: 0 },
         ],
         canSetApprovedQty: true,
         confirmOverRequested: true,
@@ -85,7 +84,7 @@ describe("inline shopping request approval orchestration", () => {
 
     expect(events).toEqual([
       "save:item-1=2,item-2=0",
-      "approve-all:item-1=GROUP_STOCK,item-2=PRODUCT_ONLY",
+      "approve-all:item-1,item-2",
     ]);
   });
 
@@ -98,7 +97,6 @@ describe("inline shopping request approval orchestration", () => {
         item: {
           id: "item-1",
           approvedQty: 3,
-          stockMode: "GROUP_STOCK",
         },
         canSetApprovedQty: false,
         confirmOverRequested: false,
@@ -106,7 +104,7 @@ describe("inline shopping request approval orchestration", () => {
       createActions(events),
     );
 
-    expect(events).toEqual(["approve-item:item-1:GROUP_STOCK"]);
+    expect(events).toEqual(["approve-item:item-1"]);
   });
 
   it("tidak menjalankan approval ketika penyimpanan quantity gagal", async () => {
@@ -124,7 +122,6 @@ describe("inline shopping request approval orchestration", () => {
           item: {
             id: "item-1",
             approvedQty: 2,
-            stockMode: "PRODUCT_ONLY",
           },
           canSetApprovedQty: true,
           confirmOverRequested: false,

@@ -11,11 +11,7 @@ import {
   useShoppingRequest,
   useUpdateShoppingRequest,
 } from "../hooks/useShoppingRequests";
-import { defaultShoppingRequestStockMode } from "../helpers/shopping-requests-core";
-import type {
-  ShoppingRequestDetail,
-  ShoppingRequestStockMode,
-} from "../types/shopping-request";
+import type { ShoppingRequestDetail } from "../types/shopping-request";
 import { ProductAutocomplete } from "./ProductAutocomplete";
 
 interface EditItem {
@@ -25,10 +21,8 @@ interface EditItem {
   unit: string;
   imageUrl: string | null;
   stock: number;
-  stockGroupId: string | null;
   stockGroupName: string | null;
   requestedQty: number;
-  stockMode: ShoppingRequestStockMode;
 }
 
 export function ShoppingRequestEditModal({
@@ -59,10 +53,8 @@ export function ShoppingRequestEditModal({
         unit: item.unit ?? "pcs",
         imageUrl: item.imageUrl,
         stock: item.stockOnHand,
-        stockGroupId: item.product.stockGroup?.id ?? null,
         stockGroupName: item.product.stockGroup?.displayName ?? null,
         requestedQty: item.requestedQty,
-        stockMode: item.stockMode,
       })),
     );
     setError(null);
@@ -80,12 +72,8 @@ export function ShoppingRequestEditModal({
               unit: product.unit,
               imageUrl: product.imageUrl,
               stock: product.stock,
-              stockGroupId: product.stockGroupId ?? product.stockGroup?.id ?? null,
               stockGroupName: product.stockGroup?.displayName ?? null,
               requestedQty: 1,
-              stockMode: defaultShoppingRequestStockMode(
-                product.stockGroupId ?? product.stockGroup?.id,
-              ),
             },
             ...current,
           ],
@@ -94,7 +82,7 @@ export function ShoppingRequestEditModal({
 
   const updateItem = (
     productId: string,
-    patch: Partial<Pick<EditItem, "requestedQty" | "stockMode">>,
+    patch: Pick<EditItem, "requestedQty">,
   ) =>
     setItems((current) =>
       current.map((item) =>
@@ -114,7 +102,6 @@ export function ShoppingRequestEditModal({
           items: items.map((item) => ({
             productId: item.productId,
             requestedQty: item.requestedQty,
-            stockMode: item.stockMode,
           })),
         },
       });
@@ -193,7 +180,7 @@ export function ShoppingRequestEditModal({
                       <Trash2 className="h-5 w-5" />
                     </button>
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-[180px_1fr]">
+                  <div className="mt-3 max-w-[220px]">
                     <label className="text-xs font-bold text-slate-600">
                       Jumlah Kebutuhan
                       <div className="relative mt-1">
@@ -214,11 +201,6 @@ export function ShoppingRequestEditModal({
                         </span>
                       </div>
                     </label>
-                    <EditStockMode
-                      grouped={Boolean(item.stockGroupId)}
-                      value={item.stockMode}
-                      onChange={(stockMode) => updateItem(item.productId, { stockMode })}
-                    />
                   </div>
                 </article>
               ))}
@@ -255,49 +237,5 @@ export function ShoppingRequestEditModal({
         </div>
       )}
     </Modal>
-  );
-}
-
-function EditStockMode({
-  grouped,
-  value,
-  onChange,
-}: {
-  grouped: boolean;
-  value: ShoppingRequestStockMode;
-  onChange: (value: ShoppingRequestStockMode) => void;
-}) {
-  if (!grouped) {
-    return (
-      <div className="self-end rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
-        Stok Produk Ini
-      </div>
-    );
-  }
-  return (
-    <div>
-      <p className="mb-1 text-xs font-bold text-slate-600">Mode stok</p>
-      <div className="grid grid-cols-2 gap-2">
-        {(
-          [
-            ["GROUP_STOCK", "Stok Bersama"],
-            ["PRODUCT_ONLY", "Stok Produk Ini"],
-          ] as const
-        ).map(([mode, label]) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => onChange(mode)}
-            className={`min-h-10 rounded-lg border px-3 text-xs font-black ${
-              value === mode
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-200 bg-white text-slate-600"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }

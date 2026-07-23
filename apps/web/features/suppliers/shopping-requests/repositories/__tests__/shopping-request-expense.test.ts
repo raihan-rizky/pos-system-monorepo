@@ -56,7 +56,7 @@ vi.mock("@pos/db", () => {
   };
 });
 
-import { approveShoppingRequestItemsWithStock } from "../shopping-requests-repository";
+import { approveShoppingRequestItems } from "../shopping-requests-repository";
 
 const createdAt = new Date("2026-07-02T03:15:00.000Z");
 
@@ -78,7 +78,7 @@ function product(id: string, name: string, costPrice: string) {
   };
 }
 
-describe("approveShoppingRequestItemsWithStock expense integration", () => {
+describe("approveShoppingRequestItems expense integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     tx.shoppingRequest.findFirst.mockResolvedValue({
@@ -137,7 +137,7 @@ describe("approveShoppingRequestItemsWithStock expense integration", () => {
       approvedById: "owner-1",
       approvedAt: new Date("2026-07-19T01:00:00.000Z"),
       note: null,
-      stockAppliedAt: new Date("2026-07-19T01:00:00.000Z"),
+      stockAppliedAt: null,
       createdAt,
       supplier: { id: "supplier-1", name: "CV Kertas" },
       items: [
@@ -154,7 +154,7 @@ describe("approveShoppingRequestItemsWithStock expense integration", () => {
           decidedById: "owner-1",
           decidedByName: "Owner",
           decidedAt: new Date("2026-07-19T01:00:00.000Z"),
-          stockAppliedAt: new Date("2026-07-19T01:00:00.000Z"),
+          stockAppliedAt: null,
           product: product("product-1", "Kertas", "10000.00"),
         },
         {
@@ -170,7 +170,7 @@ describe("approveShoppingRequestItemsWithStock expense integration", () => {
           decidedById: "owner-1",
           decidedByName: "Owner",
           decidedAt: new Date("2026-07-19T01:00:00.000Z"),
-          stockAppliedAt: new Date("2026-07-19T01:00:00.000Z"),
+          stockAppliedAt: null,
           product: product("product-2", "Tinta", "7500.00"),
         },
       ],
@@ -178,12 +178,12 @@ describe("approveShoppingRequestItemsWithStock expense integration", () => {
   });
 
   it("creates one SUPPLIES expense from approved quantities and cost snapshots", async () => {
-    await approveShoppingRequestItemsWithStock({
+    await approveShoppingRequestItems({
       id: "request-1",
       actor: { id: "owner-1", name: "Owner", storeId: "store-1" },
       items: [
-        { id: "item-1", stockMode: "PRODUCT_ONLY" },
-        { id: "item-2", stockMode: "PRODUCT_ONLY" },
+        { id: "item-1" },
+        { id: "item-2" },
       ],
       approveAllPending: true,
     });
@@ -207,6 +207,14 @@ describe("approveShoppingRequestItemsWithStock expense integration", () => {
     });
     const amount = tx.expense.create.mock.calls[0][0].data.amount;
     expect(amount.toString()).toBe("42500");
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.productStockGroup.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.create).not.toHaveBeenCalled();
+    expect(tx.shoppingRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ stockAppliedAt: null }),
+      }),
+    );
   });
 
   it("keeps approval valid at Rp0 and marks a missing cost-price snapshot", async () => {
@@ -238,10 +246,10 @@ describe("approveShoppingRequestItemsWithStock expense integration", () => {
       { ...product("product-1", "Kertas", "0"), costPrice: null },
     ]);
 
-    await approveShoppingRequestItemsWithStock({
+    await approveShoppingRequestItems({
       id: "request-1",
       actor: { id: "owner-1", name: "Owner", storeId: "store-1" },
-      items: [{ id: "item-1", stockMode: "PRODUCT_ONLY" }],
+      items: [{ id: "item-1" }],
       approveAllPending: true,
     });
 
@@ -287,10 +295,10 @@ describe("approveShoppingRequestItemsWithStock expense integration", () => {
       product("product-1", "Kertas", "10000.00"),
     ]);
 
-    await approveShoppingRequestItemsWithStock({
+    await approveShoppingRequestItems({
       id: "request-1",
       actor: { id: "owner-1", name: "Owner", storeId: "store-1" },
-      items: [{ id: "item-1", stockMode: "PRODUCT_ONLY" }],
+      items: [{ id: "item-1" }],
       approveAllPending: true,
     });
 

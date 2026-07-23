@@ -84,7 +84,7 @@ export function useApproveShoppingRequest() {
     }) => approveShoppingRequest(id, input),
     onSuccess: ({ data }) => {
       syncShoppingRequestApprovalCaches(queryClient, data);
-      invalidateShoppingRequestStockQueries(queryClient);
+      invalidateShoppingRequestApprovalQueries(queryClient);
     },
   });
 }
@@ -119,7 +119,7 @@ export function useApproveShoppingRequestItem() {
     }) => approveShoppingRequestItem(id, itemId, input),
     onSuccess: ({ data }) => {
       syncShoppingRequestApprovalCaches(queryClient, data);
-      invalidateShoppingRequestStockQueries(queryClient);
+      invalidateShoppingRequestApprovalQueries(queryClient);
     },
   });
 }
@@ -172,16 +172,12 @@ export function syncShoppingRequestApprovalCaches(
   );
 }
 
-function invalidateShoppingRequestStockQueries(queryClient: QueryClient) {
+function invalidateShoppingRequestApprovalQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({
     queryKey: ["shopping-requests", "summary"],
     exact: true,
   });
-  queryClient.invalidateQueries({ queryKey: ["products"] });
-  queryClient.invalidateQueries({ queryKey: ["inventory-logs"] });
-  queryClient.invalidateQueries({ queryKey: ["inventory-management"] });
   queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-  queryClient.invalidateQueries({ queryKey: ["receiving-queue"] });
   queryClient.invalidateQueries({ queryKey: ["finance"] });
   queryClient.invalidateQueries({ queryKey: ["financial-report"] });
 }
