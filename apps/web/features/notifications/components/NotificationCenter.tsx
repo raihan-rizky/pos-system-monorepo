@@ -50,7 +50,12 @@ type NotificationCenterViewProps = {
 };
 
 function notificationIcon(eventName: string) {
-  if (eventName.includes("shopping-request")) return ShoppingCart;
+  if (
+    eventName.includes("shopping-request") ||
+    eventName.includes("goods-purchase")
+  ) {
+    return ShoppingCart;
+  }
   if (eventName.includes("inventory")) return Package;
   if (eventName.includes("transaction")) return ReceiptText;
   return Bell;

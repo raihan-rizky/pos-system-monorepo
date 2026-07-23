@@ -41,7 +41,8 @@ export type ExpenseListItem = {
   hasMissingCostSnapshot: boolean;
   source:
     | { type: "MANUAL" }
-    | { type: "SHOPPING_REQUEST"; id: string; number: string };
+    | { type: "SHOPPING_REQUEST"; id: string; number: string }
+    | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };
 };
 

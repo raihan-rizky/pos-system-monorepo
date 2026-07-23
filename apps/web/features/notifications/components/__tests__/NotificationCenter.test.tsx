@@ -6,6 +6,18 @@ import { describe, expect, it, vi } from "vitest";
 import { NotificationCenterView } from "../NotificationCenter";
 
 describe("NotificationCenterView", () => {
+  it("uses the shopping cart icon for goods-purchase notifications", () => {
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        "features/notifications/components/NotificationCenter.tsx",
+      ),
+      "utf8",
+    );
+
+    expect(source).toContain('eventName.includes("goods-purchase")');
+  });
+
   it("wires pointer drag, edge snapping, resize clamp, and persistence", () => {
     const source = readFileSync(
       join(

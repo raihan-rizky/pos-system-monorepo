@@ -429,7 +429,13 @@ export default function KeuanganDashboardPage() {
             <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
                 {list.data.data.map((item) => {
                   const isAutomaticExpense =
-                    item.source.type === "SHOPPING_REQUEST";
+                    item.source.type !== "MANUAL";
+                  const sourceLabel =
+                    item.source.type === "GOODS_PURCHASE"
+                      ? "Pembelian Barang"
+                      : item.source.type === "SHOPPING_REQUEST"
+                        ? "Daftar Belanja (Legacy)"
+                        : "Manual";
                   return (
                   <li
                     key={item.id}
@@ -466,7 +472,7 @@ export default function KeuanganDashboardPage() {
                               : "border-surface-200 bg-surface-100 text-surface-600"
                           }`}
                         >
-                          {isAutomaticExpense ? "Permohonan Belanja" : "Manual"}
+                          {sourceLabel}
                         </span>
                         {item.hasMissingCostSnapshot && (
                           <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">

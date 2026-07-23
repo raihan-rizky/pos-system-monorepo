@@ -4,6 +4,7 @@ import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { removeStoredProofAsset } from "@/features/proof-upload/server/remove-stored-proof";
 import { getLogger } from "@/lib/logger";
 import { isProofStorageUnavailableError } from "@/features/proof-upload/server/r2-proof-storage";
+import { classifyAutomaticExpense } from "@/features/keuangan/helpers/automatic-expense";
 
 const log = getLogger("api:finance:expenses:attachment");
 
@@ -22,16 +23,17 @@ export async function DELETE(
         attachmentUrl: true,
         deletedAt: true,
         shoppingRequestId: true,
+        goodsPurchaseId: true,
       },
     });
     if (!expense || expense.deletedAt || !expense.attachmentUrl) {
       return NextResponse.json({ message: "Bukti pengeluaran tidak ditemukan." }, { status: 404 });
     }
-    if (expense.shoppingRequestId) {
+    const classification = classifyAutomaticExpense(expense);
+    if (classification.automatic) {
       return NextResponse.json(
         {
-          message:
-            "Lampiran pengeluaran dari Permohonan Belanja tidak dapat diubah dari halaman Keuangan.",
+          message: `Lampiran pengeluaran dari ${classification.label} tidak dapat diubah dari halaman Keuangan.`,
         },
         { status: 409 },
       );

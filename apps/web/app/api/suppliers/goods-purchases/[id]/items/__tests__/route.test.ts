@@ -4,6 +4,15 @@ const requirePermission = vi.hoisted(() => vi.fn());
 const handleAuthError = vi.hoisted(() => vi.fn());
 const addGoodsPurchaseItem = vi.hoisted(() => vi.fn());
 const approveGoodsPurchaseItem = vi.hoisted(() => vi.fn());
+const sendRolePushEvent = vi.hoisted(() => vi.fn());
+const after = vi.hoisted(() => vi.fn());
+
+vi.mock("next/server", async () => {
+  const actual = await vi.importActual<typeof import("next/server")>(
+    "next/server",
+  );
+  return { ...actual, after };
+});
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission,
@@ -12,6 +21,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ error: vi.fn() }),
 }));
+vi.mock("@/lib/push-events", () => ({ sendRolePushEvent }));
 vi.mock(
   "@/features/suppliers/goods-purchases/services/goods-purchases-service",
   () => ({
@@ -49,9 +59,13 @@ describe("goods purchase item routes", () => {
       finalized: false,
     });
     approveGoodsPurchaseItem.mockResolvedValue({
-      data: { id: "purchase-1" },
+      data: { id: "purchase-1", number: "PB-202607-001" },
       finalized: true,
     });
+    after.mockImplementation(
+      (callback: () => void | Promise<void>) => callback(),
+    );
+    sendRolePushEvent.mockResolvedValue({});
   });
 
   it("requires approve permission to add another item", async () => {
@@ -77,6 +91,7 @@ describe("goods purchase item routes", () => {
       "supplier.goods_purchase.approve",
       "update",
     );
+    expect(sendRolePushEvent).not.toHaveBeenCalled();
   });
 
   it("returns finalized state from individual approval", async () => {
@@ -96,5 +111,18 @@ describe("goods purchase item routes", () => {
       "supplier.goods_purchase.approve",
       "update",
     );
+    expect(sendRolePushEvent).toHaveBeenCalledWith({
+      eventName: "goods-purchase-approved",
+      storeId: "store-1",
+      roles: ["OWNER", "ADMIN"],
+      featureKey: "shoppingRequests",
+      excludeUserIds: ["owner-1"],
+      payload: {
+        title: "Pembelian Barang disetujui",
+        body: "Owner menyetujui PB-202607-001.",
+        url: "/suppliers?tab=goods-purchases",
+        tag: "goods-purchase:purchase-1",
+      },
+    });
   });
 });

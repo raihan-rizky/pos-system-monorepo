@@ -4,6 +4,15 @@ const requirePermission = vi.hoisted(() => vi.fn());
 const handleAuthError = vi.hoisted(() => vi.fn());
 const listGoodsPurchasesPage = vi.hoisted(() => vi.fn());
 const createGoodsPurchase = vi.hoisted(() => vi.fn());
+const sendRolePushEvent = vi.hoisted(() => vi.fn());
+const after = vi.hoisted(() => vi.fn());
+
+vi.mock("next/server", async () => {
+  const actual = await vi.importActual<typeof import("next/server")>(
+    "next/server",
+  );
+  return { ...actual, after };
+});
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission,
@@ -12,6 +21,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ error: vi.fn() }),
 }));
+vi.mock("@/lib/push-events", () => ({ sendRolePushEvent }));
 vi.mock(
   "@/features/suppliers/goods-purchases/services/goods-purchases-service",
   () => ({
@@ -39,7 +49,15 @@ describe("/api/suppliers/goods-purchases", () => {
       total: 0,
       purchases: [],
     });
-    createGoodsPurchase.mockResolvedValue({ id: "purchase-1" });
+    after.mockImplementation(
+      (callback: () => void | Promise<void>) => callback(),
+    );
+    sendRolePushEvent.mockResolvedValue({});
+    createGoodsPurchase.mockResolvedValue({
+      id: "purchase-1",
+      number: "PB-202607-001",
+      items: [{ id: "item-1" }],
+    });
   });
 
   it("lists tenant purchases with supplier read permission", async () => {
@@ -85,6 +103,19 @@ describe("/api/suppliers/goods-purchases", () => {
       expect.objectContaining({ shoppingRequestId: "request-1" }),
       { id: "owner-1", name: "Owner", storeId: "store-1" },
     );
+    expect(sendRolePushEvent).toHaveBeenCalledWith({
+      eventName: "goods-purchase-created",
+      storeId: "store-1",
+      roles: ["OWNER"],
+      featureKey: "shoppingRequests",
+      excludeUserIds: ["owner-1"],
+      payload: {
+        title: "Pembelian Barang baru",
+        body: "Owner mengajukan PB-202607-001.",
+        url: "/suppliers?tab=goods-purchases",
+        tag: "goods-purchase:purchase-1",
+      },
+    });
   });
 
   it("rejects users without a store", async () => {

@@ -22,7 +22,7 @@ vi.mock("@pos/db", () => ({
 
 import { DELETE, PATCH } from "../route";
 
-describe("automatic shopping-request expenses", () => {
+describe("automatic expenses", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermissionMock.mockResolvedValue({ id: "owner-1", storeId: "store-1" });
@@ -31,10 +31,11 @@ describe("automatic shopping-request expenses", () => {
       id: "expense-1",
       deletedAt: null,
       shoppingRequestId: "request-1",
+      goodsPurchaseId: "purchase-1",
     });
   });
 
-  it("rejects editing an expense created from a shopping request", async () => {
+  it("rejects editing an expense created from a goods purchase", async () => {
     const response = await PATCH(
       new Request("http://localhost/api/finance/expenses/expense-1", {
         method: "PATCH",
@@ -52,13 +53,13 @@ describe("automatic shopping-request expenses", () => {
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({
-        message: expect.stringContaining("Permohonan Belanja"),
+        message: expect.stringContaining("Pembelian Barang"),
       }),
     );
     expect(expenseUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("rejects deleting an expense created from a shopping request", async () => {
+  it("rejects deleting an expense created from a goods purchase", async () => {
     const response = await DELETE(
       new Request("http://localhost/api/finance/expenses/expense-1", {
         method: "DELETE",
@@ -69,7 +70,7 @@ describe("automatic shopping-request expenses", () => {
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({
-        message: expect.stringContaining("Permohonan Belanja"),
+        message: expect.stringContaining("Pembelian Barang"),
       }),
     );
     expect(expenseUpdateMock).not.toHaveBeenCalled();

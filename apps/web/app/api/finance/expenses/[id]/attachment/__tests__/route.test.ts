@@ -29,12 +29,13 @@ describe("DELETE expense attachment", () => {
     const response = await DELETE(new Request("http://localhost", { method: "DELETE" }), { params: Promise.resolve({ id: "expense-1" }) });
     expect(response.status).toBe(500);
   });
-  it("does not mutate attachments on automatic shopping-request expenses", async () => {
+  it("does not mutate attachments on automatic goods-purchase expenses", async () => {
     findFirst.mockResolvedValueOnce({
       id: "expense-1",
       attachmentUrl: "https://prnt.sc/abc",
       deletedAt: null,
       shoppingRequestId: "request-1",
+      goodsPurchaseId: "purchase-1",
     });
 
     const response = await DELETE(

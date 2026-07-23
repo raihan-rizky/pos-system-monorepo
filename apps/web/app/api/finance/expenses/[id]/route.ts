@@ -4,6 +4,7 @@ import {
   computeNetExpense,
   validateExpensePayload,
 } from "@/features/keuangan/helpers/keuangan-core";
+import { classifyAutomaticExpense } from "@/features/keuangan/helpers/automatic-expense";
 import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
@@ -22,14 +23,20 @@ export async function PATCH(
 
     const existing = await db.expense.findFirst({
       where: { id, storeId },
-      select: { id: true, deletedAt: true, shoppingRequestId: true },
+      select: {
+        id: true,
+        deletedAt: true,
+        shoppingRequestId: true,
+        goodsPurchaseId: true,
+      },
     });
     if (!existing || existing.deletedAt) {
       return apiError("Expense not found", 404, { code: "NotFound" });
     }
-    if (existing.shoppingRequestId) {
+    const classification = classifyAutomaticExpense(existing);
+    if (classification.automatic) {
       return apiError(
-        "Pengeluaran dari Permohonan Belanja tidak dapat diedit dari halaman Keuangan.",
+        `Pengeluaran dari ${classification.label} tidak dapat diedit dari halaman Keuangan.`,
         409,
         { code: "Conflict" },
       );
@@ -121,14 +128,20 @@ export async function DELETE(
     const { id } = await params;
     const existing = await db.expense.findFirst({
       where: { id, storeId },
-      select: { id: true, deletedAt: true, shoppingRequestId: true },
+      select: {
+        id: true,
+        deletedAt: true,
+        shoppingRequestId: true,
+        goodsPurchaseId: true,
+      },
     });
     if (!existing) {
       return apiError("Expense not found", 404, { code: "NotFound" });
     }
-    if (existing.shoppingRequestId) {
+    const classification = classifyAutomaticExpense(existing);
+    if (classification.automatic) {
       return apiError(
-        "Pengeluaran dari Permohonan Belanja tidak dapat dihapus dari halaman Keuangan.",
+        `Pengeluaran dari ${classification.label} tidak dapat dihapus dari halaman Keuangan.`,
         409,
         { code: "Conflict" },
       );

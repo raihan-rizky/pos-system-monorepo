@@ -62,6 +62,7 @@ describe("GET /api/finance/report/journal", () => {
         changeAmount: { toString: () => "0.00" },
         hasMissingCostSnapshot: true,
         shoppingRequest: { id: "request-1", number: "DPB-202607-001" },
+        goodsPurchase: { id: "purchase-1", number: "PB-202607-001" },
       },
     ]);
 
@@ -70,7 +71,7 @@ describe("GET /api/finance/report/journal", () => {
     );
     const body = await response.json();
 
-    expect(body.rows[0].products).toContain("Permohonan Belanja DPB-202607-001");
+    expect(body.rows[0].products).toContain("Pembelian Barang PB-202607-001");
     expect(body.rows[0].products).toContain("Harga modal tidak tersedia saat approval");
   });
 

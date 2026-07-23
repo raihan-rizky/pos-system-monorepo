@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   apiList,
@@ -16,6 +16,7 @@ import {
   handleGoodsPurchaseRouteError,
   missingStoreResponse,
 } from "./route-helpers";
+import { sendRolePushEvent } from "@/lib/push-events";
 
 const log = getLogger("api:suppliers:goods-purchases");
 
@@ -83,6 +84,29 @@ export async function POST(request: Request) {
       id: user.id,
       name: user.name,
       storeId: user.storeId,
+    });
+    after(async () => {
+      try {
+        await sendRolePushEvent({
+          eventName: "goods-purchase-created",
+          storeId: user.storeId,
+          roles: ["OWNER"],
+          featureKey: "shoppingRequests",
+          excludeUserIds: [user.id],
+          payload: {
+            title: "Pembelian Barang baru",
+            body: `${user.name || "Pengguna"} mengajukan ${data.number}.`,
+            url: "/suppliers?tab=goods-purchases",
+            tag: `goods-purchase:${data.id}`,
+          },
+        });
+      } catch (notificationError) {
+        log.error("goods_purchases.create.notification_failed", {
+          error: notificationError,
+          purchaseId: data.id,
+          storeId: user.storeId,
+        });
+      }
     });
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {

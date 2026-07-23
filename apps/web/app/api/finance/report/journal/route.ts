@@ -95,6 +95,7 @@ export async function GET(request: Request) {
           changeAmount: true,
           hasMissingCostSnapshot: true,
           shoppingRequest: { select: { number: true } },
+          goodsPurchase: { select: { number: true } },
         },
       }),
     ]);
@@ -126,6 +127,7 @@ export async function GET(request: Request) {
         changeAmount: e.changeAmount.toString(),
         hasMissingCostSnapshot: e.hasMissingCostSnapshot,
         shoppingRequestNumber: e.shoppingRequest?.number ?? null,
+        goodsPurchaseNumber: e.goodsPurchase?.number ?? null,
       })),
     );
 

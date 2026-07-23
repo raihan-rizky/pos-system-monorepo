@@ -82,6 +82,7 @@ export async function GET(request: Request) {
           attachmentUrl: true,
           hasMissingCostSnapshot: true,
           shoppingRequest: { select: { id: true, number: true } },
+          goodsPurchase: { select: { id: true, number: true } },
           recordedBy: { select: { id: true, name: true } },
         },
       }),
@@ -104,7 +105,13 @@ export async function GET(request: Request) {
         transactionId: row.transactionId,
         attachmentUrl: row.attachmentUrl,
         hasMissingCostSnapshot: row.hasMissingCostSnapshot,
-        source: row.shoppingRequest
+        source: row.goodsPurchase
+          ? {
+              type: "GOODS_PURCHASE" as const,
+              id: row.goodsPurchase.id,
+              number: row.goodsPurchase.number,
+            }
+          : row.shoppingRequest
           ? {
               type: "SHOPPING_REQUEST" as const,
               id: row.shoppingRequest.id,

@@ -9,10 +9,11 @@ describe("halaman Keuangan membedakan sumber pengeluaran", () => {
       "utf8",
     );
 
-    expect(content).toContain("Permohonan Belanja");
+    expect(content).toContain("Pembelian Barang");
+    expect(content).toContain("Daftar Belanja (Legacy)");
     expect(content).toContain("Manual");
     expect(content).toContain("hasMissingCostSnapshot");
-    expect(content).toContain('item.source.type === "SHOPPING_REQUEST"');
+    expect(content).toContain('item.source.type === "GOODS_PURCHASE"');
     expect(content).toContain("Harga modal tidak tersedia saat approval");
     expect(content).toContain("isAutomaticExpense");
   });

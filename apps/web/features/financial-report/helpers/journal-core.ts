@@ -81,6 +81,7 @@ export type ReportExpenseInput = {
   changeAmount: Decimalish;
   hasMissingCostSnapshot?: boolean;
   shoppingRequestNumber?: string | null;
+  goodsPurchaseNumber?: string | null;
 };
 
 export type ReportRow = {
@@ -130,9 +131,11 @@ function saleToRow(sale: ReportSaleInput): ReportRow {
 
 function expenseToRow(expense: ReportExpenseInput): ReportRow {
   const categoryLabel = CATEGORY_LABELS_ID[expense.category];
-  const sourceLabel = expense.shoppingRequestNumber
-    ? `Permohonan Belanja ${expense.shoppingRequestNumber}`
-    : null;
+  const sourceLabel = expense.goodsPurchaseNumber
+    ? `Pembelian Barang ${expense.goodsPurchaseNumber}`
+    : expense.shoppingRequestNumber
+      ? `Daftar Belanja ${expense.shoppingRequestNumber} (Legacy)`
+      : null;
   const warning = expense.hasMissingCostSnapshot
     ? "Harga modal tidak tersedia saat approval"
     : null;
