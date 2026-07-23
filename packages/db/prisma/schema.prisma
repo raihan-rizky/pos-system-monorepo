@@ -10,55 +10,59 @@ datasource db {
 }
 
 model User {
-  id                                  String                        @id @default(cuid())
-  username                            String                        @unique
+  id                                  String                          @id @default(cuid())
+  username                            String                          @unique
   name                                String
-  role                                Role                          @default(CASHIER)
+  role                                Role                            @default(CASHIER)
   password                            String?
   avatarUrl                           String?
-  isActive                            Boolean                       @default(true)
+  isActive                            Boolean                         @default(true)
   storeId                             String?
-  createdAt                           DateTime                      @default(now())
-  updatedAt                           DateTime                      @updatedAt
-  batchOperations                     BatchOperation[]              @relation("created_batch_operations")
-  undoneBatchOperations               BatchOperation[]              @relation("undone_batch_operations")
+  createdAt                           DateTime                        @default(now())
+  updatedAt                           DateTime                        @updatedAt
+  batchOperations                     BatchOperation[]                @relation("created_batch_operations")
+  undoneBatchOperations               BatchOperation[]                @relation("undone_batch_operations")
   shifts                              CashierShift[]
-  createdCategoryCustomerPricingRules CategoryCustomerPricingRule[] @relation("created_category_customer_pricing_rules")
-  updatedCategoryCustomerPricingRules CategoryCustomerPricingRule[] @relation("updated_category_customer_pricing_rules")
-  recordedExpenses                    Expense[]                     @relation("recorded_expenses")
-  productImportJobs                   ProductImportJob[]            @relation("created_product_import_jobs")
-  productionActivityLogs              ProductionActivityLog[]       @relation("production_activity_actor")
-  invoiceDateChangeLogs               InvoiceDateChangeLog[]        @relation("invoice_date_change_actor")
-  inventoryTasksSubmitted             InventoryTask[]               @relation("inventory_task_submitter")
-  inventoryDaySessionsCheckedIn       InventoryDaySession[]         @relation("inventory_day_session_checkin")
-  inventoryDaySessionsCheckedOut      InventoryDaySession[]         @relation("inventory_day_session_checkout")
-  inventoryTaskChecklistCreated       InventoryTaskChecklistItem[]  @relation("inventory_task_checklist_creator")
-  inventoryTaskChecklistUpdated       InventoryTaskChecklistItem[]  @relation("inventory_task_checklist_updater")
-  inventoryTaskChecklistCompleted     InventoryTaskChecklistItem[]  @relation("inventory_task_checklist_completer")
-  inboundReceiptsSubmitted            InventoryInboundReceipt[]      @relation("inventory_inbound_submitter")
-  inboundReceiptsApproved             InventoryInboundReceipt[]      @relation("inventory_inbound_approver")
-  inventoryLogVerifications           InventoryLogVerification[]     @relation("inventory_log_verifier")
+  createdCategoryCustomerPricingRules CategoryCustomerPricingRule[]   @relation("created_category_customer_pricing_rules")
+  updatedCategoryCustomerPricingRules CategoryCustomerPricingRule[]   @relation("updated_category_customer_pricing_rules")
+  recordedExpenses                    Expense[]                       @relation("recorded_expenses")
+  productImportJobs                   ProductImportJob[]              @relation("created_product_import_jobs")
+  productionActivityLogs              ProductionActivityLog[]         @relation("production_activity_actor")
+  invoiceDateChangeLogs               InvoiceDateChangeLog[]          @relation("invoice_date_change_actor")
+  inventoryTasksSubmitted             InventoryTask[]                 @relation("inventory_task_submitter")
+  inventoryDaySessionsCheckedIn       InventoryDaySession[]           @relation("inventory_day_session_checkin")
+  inventoryDaySessionsCheckedOut      InventoryDaySession[]           @relation("inventory_day_session_checkout")
+  inventoryTaskChecklistCreated       InventoryTaskChecklistItem[]    @relation("inventory_task_checklist_creator")
+  inventoryTaskChecklistUpdated       InventoryTaskChecklistItem[]    @relation("inventory_task_checklist_updater")
+  inventoryTaskChecklistCompleted     InventoryTaskChecklistItem[]    @relation("inventory_task_checklist_completer")
+  inboundReceiptsSubmitted            InventoryInboundReceipt[]       @relation("inventory_inbound_submitter")
+  inboundReceiptsApproved             InventoryInboundReceipt[]       @relation("inventory_inbound_approver")
+  inventoryLogVerifications           InventoryLogVerification[]      @relation("inventory_log_verifier")
   inventoryLogCorrectionsRequested    InventoryLogCorrectionRequest[] @relation("inventory_log_correction_requester")
   inventoryLogCorrectionsDecided      InventoryLogCorrectionRequest[] @relation("inventory_log_correction_decider")
-  internalStockOutRequestsCreated     InternalStockOutRequest[]      @relation("internal_stock_out_requester")
-  internalStockOutRequestsApproved    InternalStockOutRequest[]      @relation("internal_stock_out_approver")
-  internalStockOutRequestsRejected    InternalStockOutRequest[]      @relation("internal_stock_out_rejector")
-  transactions                        Transaction[]                 @relation("processed_transactions")
-  requestedTransactions               Transaction[]                 @relation("requested_transactions")
+  internalStockOutRequestsCreated     InternalStockOutRequest[]       @relation("internal_stock_out_requester")
+  internalStockOutRequestsApproved    InternalStockOutRequest[]       @relation("internal_stock_out_approver")
+  internalStockOutRequestsRejected    InternalStockOutRequest[]       @relation("internal_stock_out_rejector")
+  goodsPurchasesCreated               GoodsPurchase[]                 @relation("goods_purchase_creator")
+  goodsPurchasesApproved              GoodsPurchase[]                 @relation("goods_purchase_approver")
+  goodsPurchasesRejected              GoodsPurchase[]                 @relation("goods_purchase_rejector")
+  goodsPurchaseItemsApproved          GoodsPurchaseItem[]             @relation("goods_purchase_item_approver")
+  transactions                        Transaction[]                   @relation("processed_transactions")
+  requestedTransactions               Transaction[]                   @relation("requested_transactions")
   notifications                       Notification[]
-  store                               Store?                        @relation(fields: [storeId], references: [id])
+  store                               Store?                          @relation(fields: [storeId], references: [id])
 
   @@map("pos_users")
 }
 
 model Store {
-  id                           String                        @id @default(cuid())
+  id                           String                          @id @default(cuid())
   name                         String
   address                      String?
   phone                        String?
   logoUrl                      String?
-  createdAt                    DateTime                      @default(now())
-  updatedAt                    DateTime                      @updatedAt
+  createdAt                    DateTime                        @default(now())
+  updatedAt                    DateTime                        @updatedAt
   brands                       Brand[]
   batchOperations              BatchOperation[]
   shifts                       CashierShift[]
@@ -69,9 +73,9 @@ model Store {
   priceLogs                    ProductPriceLog[]
   productImportJobs            ProductImportJob[]
   inventoryTasks               InventoryTask[]
-  inventoryDaySessions          InventoryDaySession[]
-  inventoryProductionMaterials  InventoryProductionMaterial[]
-  inventoryTaskChecklistItems   InventoryTaskChecklistItem[]
+  inventoryDaySessions         InventoryDaySession[]
+  inventoryProductionMaterials InventoryProductionMaterial[]
+  inventoryTaskChecklistItems  InventoryTaskChecklistItem[]
   inventoryInboundReceipts     InventoryInboundReceipt[]
   inventoryLogVerifications    InventoryLogVerification[]
   inventoryLogCorrections      InventoryLogCorrectionRequest[]
@@ -82,6 +86,7 @@ model Store {
   products                     Product[]
   salespersons                 Salesperson[]
   shoppingRequests             ShoppingRequest[]
+  goodsPurchases               GoodsPurchase[]
   expenses                     Expense[]
   suratJalan                   SuratJalan[]
   transactions                 Transaction[]
@@ -120,47 +125,48 @@ model Brand {
 }
 
 model Product {
-  id                      String                      @id @default(cuid())
-  name                    String
-  sku                     String                      @unique
-  barcode                 String?
-  description             String?
-  price                   Decimal                     @db.Decimal(12, 2)
-  costPrice               Decimal?                    @db.Decimal(12, 2)
-  stock                   Float                       @default(0)
-  minStock                Int                         @default(5)
-  unit                    String                      @default("pcs")
-  categoryId              String
-  brandId                 String?
-  storeId                 String
-  isActive                Boolean                     @default(true)
-  imageUrl                String?
-  createdAt               DateTime                    @default(now())
-  updatedAt               DateTime                    @updatedAt
-  material                String?
-  size                    String?
-  stockGroupId            String?
-  unitMultiplierToBase    Float                       @default(1)
-  conversionNeedsReview   Boolean                     @default(false)
-  hargaDinas              Decimal?                    @db.Decimal(12, 2)
-  hargaAgen               Decimal?                    @db.Decimal(12, 2)
-  batchItems              BatchOperationItem[]
-  inventoryInboundLines    InventoryInboundReceiptLine[]
-  inventoryLogs           InventoryLog[]
-  inventoryLogCorrections InventoryLogCorrectionRequest[] @relation("inventory_log_corrected_product")
+  id                           String                          @id @default(cuid())
+  name                         String
+  sku                          String                          @unique
+  barcode                      String?
+  description                  String?
+  price                        Decimal                         @db.Decimal(12, 2)
+  costPrice                    Decimal?                        @db.Decimal(12, 2)
+  stock                        Float                           @default(0)
+  minStock                     Int                             @default(5)
+  unit                         String                          @default("pcs")
+  categoryId                   String
+  brandId                      String?
+  storeId                      String
+  isActive                     Boolean                         @default(true)
+  imageUrl                     String?
+  createdAt                    DateTime                        @default(now())
+  updatedAt                    DateTime                        @updatedAt
+  material                     String?
+  size                         String?
+  stockGroupId                 String?
+  unitMultiplierToBase         Float                           @default(1)
+  conversionNeedsReview        Boolean                         @default(false)
+  hargaDinas                   Decimal?                        @db.Decimal(12, 2)
+  hargaAgen                    Decimal?                        @db.Decimal(12, 2)
+  batchItems                   BatchOperationItem[]
+  inventoryInboundLines        InventoryInboundReceiptLine[]
+  inventoryLogs                InventoryLog[]
+  inventoryLogCorrections      InventoryLogCorrectionRequest[] @relation("inventory_log_corrected_product")
   inventoryProductionMaterials InventoryProductionMaterial[]
-  internalStockOutRequests InternalStockOutRequest[]
-  priceLogs               ProductPriceLog[]
-  productSuppliers        ProductSupplier[]
-  shoppingRequestItems    ShoppingRequestItem[]
-  stockGroupActivities    ProductStockGroupActivity[]
-  brand                   Brand?                       @relation(fields: [brandId], references: [id])
-  category                Category                    @relation(fields: [categoryId], references: [id])
-  stockGroup              ProductStockGroup?          @relation(fields: [stockGroupId], references: [id])
-  store                   Store                       @relation(fields: [storeId], references: [id])
-  suratJalanItems         SuratJalanItem[]
-  transactionProductItems TransactionItem[]           @relation("transaction_product")
-  serviceMaterialItems    TransactionItem[]           @relation("transaction_raw_material")
+  internalStockOutRequests     InternalStockOutRequest[]
+  priceLogs                    ProductPriceLog[]
+  productSuppliers             ProductSupplier[]
+  shoppingRequestItems         ShoppingRequestItem[]
+  goodsPurchaseItems           GoodsPurchaseItem[]
+  stockGroupActivities         ProductStockGroupActivity[]
+  brand                        Brand?                          @relation(fields: [brandId], references: [id])
+  category                     Category                        @relation(fields: [categoryId], references: [id])
+  stockGroup                   ProductStockGroup?              @relation(fields: [stockGroupId], references: [id])
+  store                        Store                           @relation(fields: [storeId], references: [id])
+  suratJalanItems              SuratJalanItem[]
+  transactionProductItems      TransactionItem[]               @relation("transaction_product")
+  serviceMaterialItems         TransactionItem[]               @relation("transaction_raw_material")
 
   @@index([categoryId])
   @@index([brandId])
@@ -379,21 +385,22 @@ model Customer {
 }
 
 model Supplier {
-  id               String            @id @default(cuid())
-  code             String?           @unique
+  id               String                    @id @default(cuid())
+  code             String?                   @unique
   name             String
   type             SupplierType
   phone            String?
   contactPerson    String?
   address          String?
   notes            String?
-  isActive         Boolean           @default(true)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  isActive         Boolean                   @default(true)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
   inboundReceipts  InventoryInboundReceipt[]
   inventoryLogs    InventoryLog[]
   productSuppliers ProductSupplier[]
   shoppingRequests ShoppingRequest[]
+  goodsPurchases   GoodsPurchase[]
 
   @@index([isActive])
   @@index([type])
@@ -439,7 +446,7 @@ model TransactionPayment {
   method        PaymentMethod
   createdAt     DateTime      @default(now())
 
-  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
   @@index([transactionId])
   @@map("pos_transaction_payments")
@@ -503,31 +510,31 @@ model TransactionItem {
 }
 
 model InventoryLog {
-  id              String             @id @default(cuid())
-  productId       String
-  type            InventoryType
-  quantity        Float
-  note            String?
-  createdBy       String?
-  createdAt       DateTime           @default(now())
-  person          String?
-  reason          InventoryReason?
-  unitCost        Decimal?           @db.Decimal(12, 2)
-  status          InventoryLogStatus @default(APPROVED)
-  approvedBy      String?
-  approverName    String?
-  decidedAt       DateTime?
-  rejectionReason String?
-  supplierId      String?
-  transactionId   String?
-  suratJalanId    String?
-  product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
-  verification    InventoryLogVerification?
-  correctionRequests InventoryLogCorrectionRequest[] @relation("inventory_log_correction_source")
+  id                  String                           @id @default(cuid())
+  productId           String
+  type                InventoryType
+  quantity            Float
+  note                String?
+  createdBy           String?
+  createdAt           DateTime                         @default(now())
+  person              String?
+  reason              InventoryReason?
+  unitCost            Decimal?                         @db.Decimal(12, 2)
+  status              InventoryLogStatus               @default(APPROVED)
+  approvedBy          String?
+  approverName        String?
+  decidedAt           DateTime?
+  rejectionReason     String?
+  supplierId          String?
+  transactionId       String?
+  suratJalanId        String?
+  product             Product                          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  verification        InventoryLogVerification?
+  correctionRequests  InventoryLogCorrectionRequest[]  @relation("inventory_log_correction_source")
   correctionMovements InventoryLogCorrectionMovement[]
-  supplier        Supplier?          @relation(fields: [supplierId], references: [id])
-  suratJalan      SuratJalan?        @relation(fields: [suratJalanId], references: [id])
-  transaction     Transaction?       @relation(fields: [transactionId], references: [id])
+  supplier            Supplier?                        @relation(fields: [supplierId], references: [id])
+  suratJalan          SuratJalan?                      @relation(fields: [suratJalanId], references: [id])
+  transaction         Transaction?                     @relation(fields: [transactionId], references: [id])
 
   @@index([productId])
   @@index([supplierId, createdAt])
@@ -559,26 +566,26 @@ model InventoryLogVerification {
 }
 
 model InventoryLogCorrectionRequest {
-  id                 String                       @id @default(cuid())
+  id                 String                           @id @default(cuid())
   storeId            String
   inventoryLogId     String
   correctedProductId String
   correctedQuantity  Float
   correctedReason    InventoryReason
   correctedNote      String?
-  status             InventoryLogCorrectionStatus @default(PENDING)
+  status             InventoryLogCorrectionStatus     @default(PENDING)
   requestedBy        String
   decidedBy          String?
   decidedAt          DateTime?
   rejectionReason    String?
-  version            Int                          @default(1)
-  createdAt          DateTime                     @default(now())
-  updatedAt          DateTime                     @updatedAt
-  store              Store                        @relation(fields: [storeId], references: [id])
-  inventoryLog       InventoryLog                 @relation("inventory_log_correction_source", fields: [inventoryLogId], references: [id], onDelete: Cascade)
-  correctedProduct   Product                      @relation("inventory_log_corrected_product", fields: [correctedProductId], references: [id])
-  requester          User                         @relation("inventory_log_correction_requester", fields: [requestedBy], references: [id])
-  decider            User?                        @relation("inventory_log_correction_decider", fields: [decidedBy], references: [id])
+  version            Int                              @default(1)
+  createdAt          DateTime                         @default(now())
+  updatedAt          DateTime                         @updatedAt
+  store              Store                            @relation(fields: [storeId], references: [id])
+  inventoryLog       InventoryLog                     @relation("inventory_log_correction_source", fields: [inventoryLogId], references: [id], onDelete: Cascade)
+  correctedProduct   Product                          @relation("inventory_log_corrected_product", fields: [correctedProductId], references: [id])
+  requester          User                             @relation("inventory_log_correction_requester", fields: [requestedBy], references: [id])
+  decider            User?                            @relation("inventory_log_correction_decider", fields: [decidedBy], references: [id])
   movements          InventoryLogCorrectionMovement[]
 
   @@index([storeId, status, createdAt])
@@ -652,15 +659,15 @@ model InventoryDaySession {
 }
 
 model InventoryProductionMaterial {
-  id          String   @id @default(cuid())
-  storeId     String
-  productId   String
-  source      String   @default("PINNED")
-  isPinned    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  store       Store    @relation(fields: [storeId], references: [id])
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  storeId   String
+  productId String
+  source    String   @default("PINNED")
+  isPinned  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  store     Store    @relation(fields: [storeId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, productId])
   @@index([storeId, isPinned])
@@ -668,24 +675,24 @@ model InventoryProductionMaterial {
 }
 
 model InventoryTaskChecklistItem {
-  id            String                    @id @default(cuid())
+  id            String                @id @default(cuid())
   storeId       String
   periodType    InventoryTaskPeriod
   periodKey     String
   title         String
   dueTime       String?
-  priority      InventoryTaskPriority     @default(NORMAL)
-  isCompleted   Boolean                   @default(false)
+  priority      InventoryTaskPriority @default(NORMAL)
+  isCompleted   Boolean               @default(false)
   completedById String?
   completedAt   DateTime?
   createdById   String
   updatedById   String?
-  createdAt     DateTime                  @default(now())
-  updatedAt     DateTime                  @updatedAt
-  store         Store                     @relation(fields: [storeId], references: [id])
-  creator       User                      @relation("inventory_task_checklist_creator", fields: [createdById], references: [id])
-  updater       User?                     @relation("inventory_task_checklist_updater", fields: [updatedById], references: [id])
-  completer     User?                     @relation("inventory_task_checklist_completer", fields: [completedById], references: [id])
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  store         Store                 @relation(fields: [storeId], references: [id])
+  creator       User                  @relation("inventory_task_checklist_creator", fields: [createdById], references: [id])
+  updater       User?                 @relation("inventory_task_checklist_updater", fields: [updatedById], references: [id])
+  completer     User?                 @relation("inventory_task_checklist_completer", fields: [completedById], references: [id])
 
   @@index([storeId, periodType, periodKey], map: "pos_inv_task_checklist_period_idx")
   @@index([storeId, periodType, periodKey, isCompleted], map: "pos_inv_task_checklist_period_done_idx")
@@ -694,12 +701,12 @@ model InventoryTaskChecklistItem {
 }
 
 model SuratJalan {
-  id              String           @id @default(cuid())
+  id              String                  @id @default(cuid())
   transactionId   String
   storeId         String
-  number          String           @unique
+  number          String                  @unique
   recipientName   String
-  status          SuratJalanStatus @default(PENDING)
+  status          SuratJalanStatus        @default(PENDING)
   sequence        Int
   requestedById   String?
   requestedByName String?
@@ -715,11 +722,11 @@ model SuratJalan {
   rejectedAt      DateTime?
   rejectionReason String?
   note            String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
   inventoryLogs   InventoryLog[]
-  store           Store            @relation(fields: [storeId], references: [id])
-  transaction     Transaction      @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  store           Store                   @relation(fields: [storeId], references: [id])
+  transaction     Transaction             @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   items           SuratJalanItem[]
 
   @@unique([transactionId, sequence])
@@ -754,12 +761,12 @@ model SuratJalanItem {
 }
 
 model ShoppingRequest {
-  id              String                @id @default(cuid())
+  id              String                    @id @default(cuid())
   storeId         String
-  number          String                @unique
+  number          String                    @unique
   sequence        Int
   supplierId      String?
-  status          ShoppingRequestStatus @default(REQUESTED)
+  status          ShoppingRequestStatus     @default(REQUESTED)
   requestedByName String?
   approvedById    String?
   approvedByName  String?
@@ -767,13 +774,14 @@ model ShoppingRequest {
   stockAppliedAt  DateTime?
   cancelledAt     DateTime?
   note            String?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
   inboundReceipts InventoryInboundReceipt[]
   items           ShoppingRequestItem[]
-  store           Store                 @relation(fields: [storeId], references: [id])
-  supplier        Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  store           Store                     @relation(fields: [storeId], references: [id])
+  supplier        Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   expense         Expense?
+  goodsPurchases  GoodsPurchase[]
 
   @@index([storeId, createdAt])
   @@index([status, createdAt])
@@ -783,26 +791,27 @@ model ShoppingRequest {
 }
 
 model ShoppingRequestItem {
-  id                String          @id @default(cuid())
-  shoppingRequestId String
-  productId         String
-  productName       String
-  unit              String?
-  stockOnHand       Float
-  requestedQty      Float
-  approvedQty       Float?
-  stockMode         ShoppingRequestStockMode @default(PRODUCT_ONLY)
-  decisionStatus    ShoppingRequestItemDecisionStatus @default(PENDING)
-  decidedById       String?
-  decidedByName     String?
-  decidedAt         DateTime?
-  stockAppliedAt    DateTime?
-  costPriceSnapshot Decimal?        @db.Decimal(12, 2)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  inboundLines      InventoryInboundReceiptLine[]
-  product           Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  shoppingRequest   ShoppingRequest @relation(fields: [shoppingRequestId], references: [id], onDelete: Cascade)
+  id                 String                            @id @default(cuid())
+  shoppingRequestId  String
+  productId          String
+  productName        String
+  unit               String?
+  stockOnHand        Float
+  requestedQty       Float
+  approvedQty        Float?
+  stockMode          ShoppingRequestStockMode          @default(PRODUCT_ONLY)
+  decisionStatus     ShoppingRequestItemDecisionStatus @default(PENDING)
+  decidedById        String?
+  decidedByName      String?
+  decidedAt          DateTime?
+  stockAppliedAt     DateTime?
+  costPriceSnapshot  Decimal?                          @db.Decimal(12, 2)
+  createdAt          DateTime                          @default(now())
+  updatedAt          DateTime                          @updatedAt
+  inboundLines       InventoryInboundReceiptLine[]
+  product            Product                           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shoppingRequest    ShoppingRequest                   @relation(fields: [shoppingRequestId], references: [id], onDelete: Cascade)
+  goodsPurchaseItems GoodsPurchaseItem[]
 
   @@index([shoppingRequestId])
   @@index([shoppingRequestId, decisionStatus])
@@ -810,8 +819,77 @@ model ShoppingRequestItem {
   @@map("pos_shopping_request_items")
 }
 
+model GoodsPurchase {
+  id                       String              @id @default(cuid())
+  storeId                  String
+  number                   String              @unique
+  sequence                 Int
+  shoppingRequestId        String
+  activeShoppingRequestKey String?             @unique
+  supplierId               String?
+  supplierNameSnapshot     String
+  status                   GoodsPurchaseStatus @default(PENDING)
+  totalAmount              Decimal             @db.Decimal(12, 2)
+  createdById              String
+  createdByName            String?
+  approvedById             String?
+  approvedByName           String?
+  rejectedById             String?
+  rejectedByName           String?
+  rejectionReason          String?
+  approvedAt               DateTime?
+  rejectedAt               DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  store                    Store               @relation(fields: [storeId], references: [id])
+  shoppingRequest          ShoppingRequest     @relation(fields: [shoppingRequestId], references: [id], onDelete: Restrict)
+  supplier                 Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy                User                @relation("goods_purchase_creator", fields: [createdById], references: [id])
+  approvedBy               User?               @relation("goods_purchase_approver", fields: [approvedById], references: [id])
+  rejectedBy               User?               @relation("goods_purchase_rejector", fields: [rejectedById], references: [id])
+  items                    GoodsPurchaseItem[]
+  expense                  Expense?
+
+  @@index([storeId, status, createdAt])
+  @@index([shoppingRequestId, createdAt])
+  @@index([supplierId, createdAt])
+  @@map("pos_goods_purchases")
+}
+
+model GoodsPurchaseItem {
+  id                      String                        @id @default(cuid())
+  goodsPurchaseId         String
+  shoppingRequestItemId   String?
+  productId               String
+  productNameSnapshot     String
+  skuSnapshot             String
+  unitSnapshot            String?
+  unitMultiplierSnapshot  Float
+  quantity                Float
+  masterCostPriceSnapshot Decimal?                      @db.Decimal(12, 2)
+  latestUnitPrice         Decimal                       @db.Decimal(12, 2)
+  lineTotal               Decimal                       @db.Decimal(12, 2)
+  updateMasterHpp         Boolean                       @default(false)
+  reviewStatus            GoodsPurchaseItemReviewStatus @default(PENDING)
+  approvedById            String?
+  approvedByName          String?
+  approvedAt              DateTime?
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  goodsPurchase           GoodsPurchase                 @relation(fields: [goodsPurchaseId], references: [id], onDelete: Cascade)
+  shoppingRequestItem     ShoppingRequestItem?          @relation(fields: [shoppingRequestItemId], references: [id], onDelete: SetNull)
+  product                 Product                       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  approvedBy              User?                         @relation("goods_purchase_item_approver", fields: [approvedById], references: [id])
+
+  @@unique([goodsPurchaseId, productId])
+  @@index([goodsPurchaseId, reviewStatus])
+  @@index([productId])
+  @@index([shoppingRequestItemId])
+  @@map("pos_goods_purchase_items")
+}
+
 model InventoryInboundReceipt {
-  id                String                         @id @default(cuid())
+  id                String                        @id @default(cuid())
   storeId           String
   shoppingRequestId String?
   supplierId        String?
@@ -824,14 +902,14 @@ model InventoryInboundReceipt {
   rejectionReason   String?
   revisionReason    String?
   cancelledAt       DateTime?
-  createdAt         DateTime                       @default(now())
-  updatedAt         DateTime                       @updatedAt
-  approver          User?                          @relation("inventory_inbound_approver", fields: [approvedBy], references: [id])
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
+  approver          User?                         @relation("inventory_inbound_approver", fields: [approvedBy], references: [id])
   lines             InventoryInboundReceiptLine[]
-  shoppingRequest   ShoppingRequest?               @relation(fields: [shoppingRequestId], references: [id], onDelete: SetNull)
-  store             Store                          @relation(fields: [storeId], references: [id])
-  submitter         User?                          @relation("inventory_inbound_submitter", fields: [submittedBy], references: [id])
-  supplier          Supplier?                      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  shoppingRequest   ShoppingRequest?              @relation(fields: [shoppingRequestId], references: [id], onDelete: SetNull)
+  store             Store                         @relation(fields: [storeId], references: [id])
+  submitter         User?                         @relation("inventory_inbound_submitter", fields: [submittedBy], references: [id])
+  supplier          Supplier?                     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status, createdAt])
   @@index([shoppingRequestId, status])
@@ -894,30 +972,30 @@ model ProductPriceLog {
 }
 
 model InternalStockOutRequest {
-  id                        String                         @id @default(cuid())
-  storeId                   String
-  productId                 String
-  quantity                  Float
-  reason                    String
-  status                    InternalStockOutRequestStatus @default(PENDING)
-  requestedBy               String
-  requestedByName           String
-  requestedByRole           Role
-  approvedBy                String?
-  approvedByName            String?
-  approvedAt                DateTime?
-  rejectedBy                String?
-  rejectedByName            String?
-  rejectedAt                DateTime?
-  rejectionReason           String?
-  inventoryLogId            String?
-  createdAt                 DateTime                       @default(now())
-  updatedAt                 DateTime                       @updatedAt
-  approver                  User?                          @relation("internal_stock_out_approver", fields: [approvedBy], references: [id])
-  product                   Product                        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  rejector                  User?                          @relation("internal_stock_out_rejector", fields: [rejectedBy], references: [id])
-  requester                 User                           @relation("internal_stock_out_requester", fields: [requestedBy], references: [id])
-  store                     Store                          @relation(fields: [storeId], references: [id])
+  id              String                        @id @default(cuid())
+  storeId         String
+  productId       String
+  quantity        Float
+  reason          String
+  status          InternalStockOutRequestStatus @default(PENDING)
+  requestedBy     String
+  requestedByName String
+  requestedByRole Role
+  approvedBy      String?
+  approvedByName  String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedByName  String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  inventoryLogId  String?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+  approver        User?                         @relation("internal_stock_out_approver", fields: [approvedBy], references: [id])
+  product         Product                       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rejector        User?                         @relation("internal_stock_out_rejector", fields: [rejectedBy], references: [id])
+  requester       User                          @relation("internal_stock_out_requester", fields: [requestedBy], references: [id])
+  store           Store                         @relation(fields: [storeId], references: [id])
 
   @@index([storeId, status, createdAt])
   @@index([productId, status])
@@ -1057,17 +1135,17 @@ model ProductImportJobRow {
 }
 
 model BulkStockImportJob {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   storeId         String
   createdBy       String
   createdByName   String?
   createdByRole   String
-  status          String   @default("PENDING")
-  phase           String   @default("QUEUED")
+  status          String    @default("PENDING")
+  phase           String    @default("QUEUED")
   totalRows       Int
-  processedRows   Int      @default(0)
-  successRows     Int      @default(0)
-  failedRows      Int      @default(0)
+  processedRows   Int       @default(0)
+  successRows     Int       @default(0)
+  failedRows      Int       @default(0)
   payload         Json
   result          Json?
   errorCode       String?
@@ -1076,8 +1154,8 @@ model BulkStockImportJob {
   finishedAt      DateTime?
   lastHeartbeatAt DateTime?
   retainUntil     DateTime
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([storeId, status])
   @@index([status, lastHeartbeatAt])
@@ -1313,26 +1391,28 @@ model RolePermission {
 }
 
 model Expense {
-  id            String          @id @default(cuid())
-  storeId       String
-  recordedById  String
-  applicantName String
-  category      ExpenseCategory
-  description   String?
-  amount        Decimal         @db.Decimal(12, 2)
-  changeAmount  Decimal         @default(0) @db.Decimal(12, 2)
-  occurredAt    DateTime
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  transactionId String?
-  shoppingRequestId String?     @unique
-  hasMissingCostSnapshot Boolean @default(false)
-  attachmentUrl String?
-  deletedAt     DateTime?
-  recordedBy    User            @relation("recorded_expenses", fields: [recordedById], references: [id])
-  store         Store           @relation(fields: [storeId], references: [id], onDelete: Restrict)
-  transaction   Transaction?    @relation(fields: [transactionId], references: [id])
-  shoppingRequest ShoppingRequest? @relation(fields: [shoppingRequestId], references: [id], onDelete: Restrict)
+  id                     String           @id @default(cuid())
+  storeId                String
+  recordedById           String
+  applicantName          String
+  category               ExpenseCategory
+  description            String?
+  amount                 Decimal          @db.Decimal(12, 2)
+  changeAmount           Decimal          @default(0) @db.Decimal(12, 2)
+  occurredAt             DateTime
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  transactionId          String?
+  shoppingRequestId      String?          @unique
+  goodsPurchaseId        String?          @unique
+  hasMissingCostSnapshot Boolean          @default(false)
+  attachmentUrl          String?
+  deletedAt              DateTime?
+  recordedBy             User             @relation("recorded_expenses", fields: [recordedById], references: [id])
+  store                  Store            @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  transaction            Transaction?     @relation(fields: [transactionId], references: [id])
+  shoppingRequest        ShoppingRequest? @relation(fields: [shoppingRequestId], references: [id], onDelete: Restrict)
+  goodsPurchase          GoodsPurchase?   @relation(fields: [goodsPurchaseId], references: [id], onDelete: Restrict)
 
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([storeId, deletedAt, occurredAt(sort: Desc)])
@@ -1666,6 +1746,17 @@ enum ShoppingRequestItemDecisionStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum GoodsPurchaseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum GoodsPurchaseItemReviewStatus {
+  PENDING
+  APPROVED
 }
 
 enum InventoryLogStatus {
