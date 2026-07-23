@@ -50,6 +50,10 @@ import {
   ShoppingRequestCreateModal,
   ShoppingRequestList,
 } from "@/features/suppliers/shopping-requests";
+import {
+  GoodsPurchaseCreateModal,
+  GoodsPurchaseList,
+} from "@/features/suppliers/goods-purchases";
 
 const emptyForm: SupplierInput = {
   code: "",
@@ -64,14 +68,20 @@ const emptyForm: SupplierInput = {
 export function SupplierPageShell() {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const [tab, setTab] = useState<"suppliers" | "recap" | "shopping">(
-    requestedTab === "shopping-requests"
-      ? "shopping"
-      : requestedTab === "recap"
-        ? "recap"
-        : "suppliers",
+  const [tab, setTab] = useState<
+    "suppliers" | "recap" | "shopping" | "goods-purchases"
+  >(
+    requestedTab === "goods-purchases"
+      ? "goods-purchases"
+      : requestedTab === "shopping-requests"
+        ? "shopping"
+        : requestedTab === "recap"
+          ? "recap"
+          : "suppliers",
   );
   const [shoppingCreateOpen, setShoppingCreateOpen] = useState(false);
+  const [goodsPurchaseCreateOpen, setGoodsPurchaseCreateOpen] =
+    useState(false);
   const [search, setSearch] = useState("");
   const [type, setType] = useState<SupplierInput["type"] | "ALL">("ALL");
   const [showInactive, setShowInactive] = useState(false);
@@ -85,6 +95,7 @@ export function SupplierPageShell() {
   const debouncedSearch = useDebounce(search.trim(), 300);
 
   useEffect(() => {
+    if (requestedTab === "goods-purchases") setTab("goods-purchases");
     if (requestedTab === "shopping-requests") setTab("shopping");
     if (requestedTab === "recap") setTab("recap");
   }, [requestedTab]);
@@ -230,6 +241,13 @@ export function SupplierPageShell() {
           >
             Daftar Belanja
           </TabButton>
+          <TabButton
+            active={tab === "goods-purchases"}
+            onClick={() => setTab("goods-purchases")}
+            icon={<PackagePlus className="h-4 w-4" />}
+          >
+            Pembelian Barang
+          </TabButton>
         </div>
 
         {tab === "suppliers" ? (
@@ -365,13 +383,28 @@ export function SupplierPageShell() {
               isError={recap.isError}
             />
           </section>
-        ) : (
+        ) : tab === "shopping" ? (
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-3 py-4 sm:px-4">
               <h2 className="text-base font-black text-slate-950">Daftar Belanja</h2>
               <p className="text-sm text-slate-500">Buat dan cetak daftar kebutuhan barang untuk pengajuan belanja.</p>
             </div>
             <ShoppingRequestList onCreateClick={() => setShoppingCreateOpen(true)} />
+          </section>
+        ) : (
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-3 py-4 sm:px-4">
+              <h2 className="text-base font-black text-slate-950">
+                Pembelian Barang
+              </h2>
+              <p className="text-sm text-slate-500">
+                Ajukan dan review pembelian aktual dari Daftar Belanja yang
+                sudah disetujui.
+              </p>
+            </div>
+            <GoodsPurchaseList
+              onCreateClick={() => setGoodsPurchaseCreateOpen(true)}
+            />
           </section>
         )}
       </div>
@@ -395,6 +428,11 @@ export function SupplierPageShell() {
       <ShoppingRequestCreateModal
         open={shoppingCreateOpen}
         onClose={() => setShoppingCreateOpen(false)}
+      />
+
+      <GoodsPurchaseCreateModal
+        open={goodsPurchaseCreateOpen}
+        onClose={() => setGoodsPurchaseCreateOpen(false)}
       />
 
       <SupplierDetailPopup
