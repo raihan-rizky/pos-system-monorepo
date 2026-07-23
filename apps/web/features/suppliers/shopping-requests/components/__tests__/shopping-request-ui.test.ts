@@ -67,6 +67,7 @@ describe("Daftar Belanja UI", () => {
     expect(content).toContain("Tidak Disetujui");
     expect(content).toContain("item diproses");
     expect(content).toContain("Setujui Semua Item Tersisa");
+    expect(content).not.toContain("fullDetail.refetch()");
   });
 
   it("shows server-backed operational KPI cards above the shopping request list", () => {

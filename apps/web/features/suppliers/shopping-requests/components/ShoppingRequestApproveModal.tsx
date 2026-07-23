@@ -196,7 +196,6 @@ export function ShoppingRequestApproveModal({
           confirmOverRequested: confirmation.hasOverage,
         },
       });
-      await fullDetail.refetch();
     } catch (cause) {
       setActionError(
         cause instanceof Error ? cause.message : "Gagal menyetujui item",
@@ -222,7 +221,6 @@ export function ShoppingRequestApproveModal({
           confirmOverRequested: confirmation.hasOverage,
         },
       });
-      await fullDetail.refetch();
     } catch (cause) {
       setActionError(
         cause instanceof Error

@@ -5,6 +5,7 @@ import {
   useMutation,
   useQueryClient,
   keepPreviousData,
+  type QueryClient,
 } from "@tanstack/react-query";
 import {
   listShoppingRequests,
@@ -17,12 +18,14 @@ import {
   saveShoppingRequestApprovedQuantities,
   updateShoppingRequest,
   type ShoppingRequestListParams,
+  type ShoppingRequestListResponse,
 } from "../api/shopping-requests-api";
 import type {
   CreateShoppingRequestInput,
   ApproveShoppingRequestInput,
   ApproveShoppingRequestIndividualItemInput,
   SaveShoppingRequestApprovedQuantitiesInput,
+  ShoppingRequestDetail,
   UpdateShoppingRequestInput,
 } from "../types/shopping-request";
 
@@ -79,7 +82,10 @@ export function useApproveShoppingRequest() {
       id: string;
       input: ApproveShoppingRequestInput;
     }) => approveShoppingRequest(id, input),
-    onSuccess: () => invalidateShoppingRequestStockQueries(queryClient),
+    onSuccess: ({ data }) => {
+      syncShoppingRequestApprovalCaches(queryClient, data);
+      invalidateShoppingRequestStockQueries(queryClient);
+    },
   });
 }
 
@@ -111,7 +117,10 @@ export function useApproveShoppingRequestItem() {
       itemId: string;
       input: ApproveShoppingRequestIndividualItemInput;
     }) => approveShoppingRequestItem(id, itemId, input),
-    onSuccess: () => invalidateShoppingRequestStockQueries(queryClient),
+    onSuccess: ({ data }) => {
+      syncShoppingRequestApprovalCaches(queryClient, data);
+      invalidateShoppingRequestStockQueries(queryClient);
+    },
   });
 }
 
@@ -127,10 +136,47 @@ export function useUpdateShoppingRequest() {
   });
 }
 
-function invalidateShoppingRequestStockQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-) {
-  queryClient.invalidateQueries({ queryKey: ["shopping-requests"] });
+export function syncShoppingRequestApprovalCaches(
+  queryClient: QueryClient,
+  detail: ShoppingRequestDetail,
+): void {
+  queryClient.setQueryData(["shopping-requests", detail.id], { data: detail });
+  queryClient.setQueriesData<ShoppingRequestListResponse>(
+    {
+      queryKey: ["shopping-requests"],
+      predicate: (query) => {
+        const scope = query.queryKey[1];
+        return typeof scope === "object" && scope !== null;
+      },
+    },
+    (current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        data: current.data.map((row) =>
+          row.id === detail.id
+            ? {
+                ...row,
+                status: detail.status,
+                approvedByName: detail.approvedByName,
+                decidedItemCount: detail.decidedItemCount,
+                pendingItemCount: detail.pendingItemCount,
+                totalApprovedQty: detail.totalApprovedQty,
+                approvedAt: detail.approvedAt,
+                stockAppliedAt: detail.stockAppliedAt,
+              }
+            : row,
+        ),
+      };
+    },
+  );
+}
+
+function invalidateShoppingRequestStockQueries(queryClient: QueryClient) {
+  queryClient.invalidateQueries({
+    queryKey: ["shopping-requests", "summary"],
+    exact: true,
+  });
   queryClient.invalidateQueries({ queryKey: ["products"] });
   queryClient.invalidateQueries({ queryKey: ["inventory-logs"] });
   queryClient.invalidateQueries({ queryKey: ["inventory-management"] });
