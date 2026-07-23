@@ -10,14 +10,21 @@ import {
 } from "lucide-react";
 import { Button, Modal } from "@pos/ui";
 
+import { useRole } from "@/components/providers/RoleProvider";
 import { ProductStockThumbnail } from "@/features/inventory-management/components/ProductStockThumbnail";
 import { formatRupiah } from "@/lib/utils";
 import {
   useApproveShoppingRequest,
   useApproveShoppingRequestItem,
+  useSaveShoppingRequestApprovedQuantities,
   useShoppingRequest,
 } from "../hooks/useShoppingRequests";
 import { previewShoppingRequestStock } from "../api/shopping-requests-api";
+import {
+  approveAllShoppingRequestItemsWithQuantities,
+  approveShoppingRequestItemWithQuantity,
+  parseApprovedQuantity,
+} from "../helpers/shopping-request-inline-approval";
 import type { ShoppingRequestStockPreview } from "../helpers/shopping-request-stock";
 import type {
   ShoppingRequestDetail,
@@ -34,7 +41,7 @@ interface ApprovalRow {
   imageUrl: string | null;
   unit: string | null;
   requestedQty: number;
-  approvedQty: number | null;
+  approvedQtyInput: string;
   stockMode: ShoppingRequestStockMode;
   hasStockGroup: boolean;
   costPrice: number | null;
@@ -53,9 +60,12 @@ export function ShoppingRequestApproveModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { canPerform } = useRole();
+  const canSetApprovedQty = canPerform("supplier.shopping_request.set_approved_qty", "update");
   const fullDetail = useShoppingRequest(open ? detail?.id ?? null : null);
   const approveAll = useApproveShoppingRequest();
   const approveItem = useApproveShoppingRequestItem();
+  const saveApprovedQuantities = useSaveShoppingRequestApprovedQuantities();
   const [rows, setRows] = useState<ApprovalRow[]>([]);
   const [preview, setPreview] = useState<ShoppingRequestStockPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -74,7 +84,8 @@ export function ShoppingRequestApproveModal({
         imageUrl: item.imageUrl,
         unit: item.unit,
         requestedQty: item.requestedQty,
-        approvedQty: item.approvedQty,
+        approvedQtyInput:
+          item.approvedQty === null ? "" : String(item.approvedQty),
         stockMode: item.stockMode,
         hasStockGroup: Boolean(item.product.stockGroup),
         costPrice:
@@ -94,13 +105,18 @@ export function ShoppingRequestApproveModal({
     [rows],
   );
   const preparedRows = useMemo(
-    () => pendingRows.filter((row) => row.approvedQty !== null),
+    () =>
+      pendingRows.filter(
+        (row) => parseApprovedQuantity(row.approvedQtyInput) !== null,
+      ),
     [pendingRows],
   );
   const decidedCount = rows.length - pendingRows.length;
   const allPrepared =
     pendingRows.length > 0 &&
-    pendingRows.every((row) => row.approvedQty !== null);
+    pendingRows.every(
+      (row) => parseApprovedQuantity(row.approvedQtyInput) !== null,
+    );
 
   useEffect(() => {
     if (!open || preparedRows.length === 0) {
@@ -116,7 +132,7 @@ export function ShoppingRequestApproveModal({
           itemId: row.id,
           productId: row.productId,
           stockMode: row.stockMode,
-          quantity: row.approvedQty ?? 0,
+          quantity: parseApprovedQuantity(row.approvedQtyInput) ?? 0,
         })),
       )
         .then((data) => {
@@ -152,11 +168,14 @@ export function ShoppingRequestApproveModal({
         : row.costPriceSnapshot;
     const missing = rows.filter(
       (row) =>
-        (row.approvedQty ?? 0) > 0 && effectiveCostPrice(row) === null,
+        (parseApprovedQuantity(row.approvedQtyInput) ?? 0) > 0 &&
+        effectiveCostPrice(row) === null,
     );
     const total = rows.reduce(
       (sum, row) =>
-        sum + (row.approvedQty ?? 0) * (effectiveCostPrice(row) ?? 0),
+        sum +
+        (parseApprovedQuantity(row.approvedQtyInput) ?? 0) *
+          (effectiveCostPrice(row) ?? 0),
       0,
     );
     return { missing, total };
@@ -167,9 +186,17 @@ export function ShoppingRequestApproveModal({
       current.map((row) => (row.id === id ? { ...row, stockMode } : row)),
     );
 
+  const updateApprovedQty = (id: string, approvedQtyInput: string) =>
+    setRows((current) =>
+      current.map((row) =>
+        row.id === id ? { ...row, approvedQtyInput } : row,
+      ),
+    );
+
   const confirmOverRequested = (targetRows: ApprovalRow[]) => {
     const over = targetRows.filter(
-      (row) => (row.approvedQty ?? 0) > row.requestedQty,
+      (row) =>
+        (parseApprovedQuantity(row.approvedQtyInput) ?? 0) > row.requestedQty,
     );
     return {
       hasOverage: over.length > 0,
@@ -182,20 +209,31 @@ export function ShoppingRequestApproveModal({
   };
 
   const handleApproveItem = async (row: ApprovalRow) => {
-    if (!detail || row.approvedQty === null) return;
+    const approvedQty = parseApprovedQuantity(row.approvedQtyInput);
+    if (!detail || approvedQty === null) return;
     const confirmation = confirmOverRequested([row]);
     if (!confirmation.confirmed) return;
     setActionError(null);
     setProcessingItemId(row.id);
     try {
-      await approveItem.mutateAsync({
-        id: detail.id,
-        itemId: row.id,
-        input: {
-          stockMode: row.stockMode,
+      await approveShoppingRequestItemWithQuantity(
+        {
+          requestId: detail.id,
+          item: {
+            id: row.id,
+            approvedQty,
+            stockMode: row.stockMode,
+          },
+          canSetApprovedQty,
           confirmOverRequested: confirmation.hasOverage,
         },
-      });
+        {
+          saveQuantities: (variables) =>
+            saveApprovedQuantities.mutateAsync(variables),
+          approveItem: (variables) => approveItem.mutateAsync(variables),
+          approveAll: (variables) => approveAll.mutateAsync(variables),
+        },
+      );
     } catch (cause) {
       setActionError(
         cause instanceof Error ? cause.message : "Gagal menyetujui item",
@@ -211,16 +249,25 @@ export function ShoppingRequestApproveModal({
     if (!confirmation.confirmed) return;
     setActionError(null);
     try {
-      await approveAll.mutateAsync({
-        id: detail.id,
-        input: {
+      await approveAllShoppingRequestItemsWithQuantities(
+        {
+          requestId: detail.id,
           items: pendingRows.map((row) => ({
             id: row.id,
+            approvedQty:
+              parseApprovedQuantity(row.approvedQtyInput) as number,
             stockMode: row.stockMode,
           })),
+          canSetApprovedQty,
           confirmOverRequested: confirmation.hasOverage,
         },
-      });
+        {
+          saveQuantities: (variables) =>
+            saveApprovedQuantities.mutateAsync(variables),
+          approveItem: (variables) => approveItem.mutateAsync(variables),
+          approveAll: (variables) => approveAll.mutateAsync(variables),
+        },
+      );
     } catch (cause) {
       setActionError(
         cause instanceof Error
@@ -229,6 +276,11 @@ export function ShoppingRequestApproveModal({
       );
     }
   };
+
+  const actionPending =
+    saveApprovedQuantities.isPending ||
+    approveItem.isPending ||
+    approveAll.isPending;
 
   return (
     <Modal
@@ -248,12 +300,20 @@ export function ShoppingRequestApproveModal({
           <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="font-black text-slate-950">
+                <p className="text-xs font-black uppercase tracking-wider text-cyan-700">
+                  {fullDetail.data?.number ?? "Daftar Belanja"}
+                </p>
+                <p className="mt-1 font-black text-slate-950">
                   {fullDetail.data?.supplierName ?? "Supplier tidak tersedia"}
                 </p>
                 <p className="text-xs font-semibold text-slate-500">
                   {decidedCount} dari {rows.length} item diproses
                 </p>
+                {fullDetail.data?.note && (
+                  <p className="mt-1 text-xs font-semibold text-slate-600">
+                    Catatan: {fullDetail.data.note}
+                  </p>
+                )}
               </div>
               <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700">
                 {pendingRows.length} item menunggu
@@ -272,8 +332,9 @@ export function ShoppingRequestApproveModal({
           <div className="max-h-[48vh] space-y-3 overflow-y-auto pr-1">
             {rows.map((row) => {
               const pending = row.decisionStatus === "PENDING";
-              const prepared = row.approvedQty !== null;
-              const isOver = (row.approvedQty ?? 0) > row.requestedQty;
+              const approvedQty = parseApprovedQuantity(row.approvedQtyInput);
+              const prepared = approvedQty !== null;
+              const isOver = (approvedQty ?? 0) > row.requestedQty;
               return (
                 <article
                   key={row.id}
@@ -292,28 +353,61 @@ export function ShoppingRequestApproveModal({
                         {row.productName}
                       </p>
                       <p className="text-xs font-semibold text-slate-500">
-                        {row.productSku} · Kebutuhan {row.requestedQty} {row.unit}
+                        {row.productSku}
                       </p>
                     </div>
                     <DecisionBadge status={row.decisionStatus} />
                   </div>
 
-                  <div className="mt-3 grid gap-3 md:grid-cols-[180px_1fr_auto] md:items-end">
+                  <div className="mt-3 grid gap-3 md:grid-cols-[150px_180px_1fr_auto] md:items-end">
+                    <div>
+                      <p className="text-xs font-bold text-slate-600">
+                        Kebutuhan Belanja
+                      </p>
+                      <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right font-black text-slate-700">
+                        {row.requestedQty} {row.unit}
+                      </div>
+                    </div>
                     <div>
                       <p className="text-xs font-bold text-slate-600">
                         Jumlah yang Di-ACC
                       </p>
-                      <div
-                        className={`mt-1 rounded-lg border px-3 py-2 text-right font-black ${
-                          prepared
-                            ? isOver
-                              ? "border-amber-300 bg-amber-50 text-amber-900"
-                              : "border-slate-200 bg-white text-slate-950"
-                            : "border-dashed border-slate-300 bg-slate-50 text-slate-400"
-                        }`}
-                      >
-                        {prepared ? row.approvedQty : "Belum diisi"} {row.unit}
-                      </div>
+                      {pending && canSetApprovedQty ? (
+                        <div className="relative mt-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            inputMode="decimal"
+                            placeholder="Masukkan jumlah"
+                            value={row.approvedQtyInput}
+                            disabled={actionPending}
+                            onChange={(event) =>
+                              updateApprovedQty(row.id, event.target.value)
+                            }
+                            className={`w-full rounded-lg border py-2 pl-3 pr-12 text-right font-black outline-none transition focus:ring-2 ${
+                              isOver
+                                ? "border-amber-300 bg-amber-50 text-amber-900 focus:ring-amber-200"
+                                : "border-slate-200 bg-white text-slate-950 focus:border-cyan-400 focus:ring-cyan-100"
+                            }`}
+                          />
+                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-slate-500">
+                            {row.unit}
+                          </span>
+                        </div>
+                      ) : (
+                        <div
+                          className={`mt-1 rounded-lg border px-3 py-2 text-right font-black ${
+                            prepared
+                              ? isOver
+                                ? "border-amber-300 bg-amber-50 text-amber-900"
+                                : "border-slate-200 bg-white text-slate-950"
+                              : "border-dashed border-slate-300 bg-slate-50 text-slate-400"
+                          }`}
+                        >
+                          {prepared ? approvedQty : "Belum diisi"} {row.unit}
+                        </div>
+                      )}
                     </div>
                     {pending ? (
                       <StockModeSelector
@@ -334,7 +428,12 @@ export function ShoppingRequestApproveModal({
                       <Button
                         type="button"
                         size="sm"
-                        disabled={!prepared || isPreviewing || Boolean(previewError)}
+                        disabled={
+                          !prepared ||
+                          isPreviewing ||
+                          Boolean(previewError) ||
+                          actionPending
+                        }
                         loading={processingItemId === row.id}
                         onClick={() => handleApproveItem(row)}
                         icon={<CheckCircle2 className="h-4 w-4" />}
@@ -345,7 +444,9 @@ export function ShoppingRequestApproveModal({
                   </div>
                   {pending && !prepared && (
                     <p className="mt-2 text-xs font-bold text-amber-700">
-                      Isi jumlah terlebih dahulu melalui tombol Isi Jumlah yang Di-ACC.
+                      {canSetApprovedQty
+                        ? "Isi Jumlah yang Di-ACC sebelum menyetujui item."
+                        : "Jumlah yang Di-ACC belum disiapkan oleh pengguna yang berwenang."}
                     </p>
                   )}
                   {pending && isOver && (
@@ -408,8 +509,17 @@ export function ShoppingRequestApproveModal({
               </Button>
               <Button
                 type="button"
-                loading={approveAll.isPending}
-                disabled={!allPrepared || isPreviewing || Boolean(previewError)}
+                loading={
+                  approveAll.isPending ||
+                  (saveApprovedQuantities.isPending &&
+                    processingItemId === null)
+                }
+                disabled={
+                  !allPrepared ||
+                  isPreviewing ||
+                  Boolean(previewError) ||
+                  actionPending
+                }
                 onClick={handleApproveAll}
                 icon={<CheckCircle2 className="h-4 w-4" />}
               >

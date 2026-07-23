@@ -19,6 +19,8 @@ packages/db/prisma/*.db
 .env.development
 .env.production
 .env*.local
+**/env.development.env
+**/env.production.env
 
 # IDE
 .vscode/

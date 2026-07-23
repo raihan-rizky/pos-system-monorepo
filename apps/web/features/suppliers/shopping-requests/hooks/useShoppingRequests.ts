@@ -99,8 +99,8 @@ export function useSaveShoppingRequestApprovedQuantities() {
       id: string;
       input: SaveShoppingRequestApprovedQuantitiesInput;
     }) => saveShoppingRequestApprovedQuantities(id, input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shopping-requests"] });
+    onSuccess: ({ data }) => {
+      syncShoppingRequestApprovalCaches(queryClient, data);
     },
   });
 }

@@ -195,5 +195,8 @@ describe("FAQ workflow catalog", () => {
     expect(serialized).toContain(
       "supplier.shopping_request.set_approved_qty:update",
     );
+    expect(serialized).toContain("langsung di modal Setujui Daftar Belanja");
+    expect(serialized).toContain("Kebutuhan Belanja");
+    expect(serialized).toContain("read-only");
   });
 });

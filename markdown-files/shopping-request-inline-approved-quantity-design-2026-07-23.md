@@ -96,3 +96,21 @@ TDD mencakup:
 - Menggabungkan endpoint save quantity dan approval menjadi satu endpoint baru.
 - Mengubah schema database atau status lifecycle Daftar Belanja.
 - Mengubah definisi permission RBAC existing.
+
+## Status Implementasi
+
+Diimplementasikan pada 2026-07-23:
+
+- Parser murni membedakan input kosong dari nilai `0` yang valid.
+- Orkestrasi teruji menyimpan Jumlah yang Di-ACC sebelum approval individual atau massal.
+- Modal approval menampilkan input Jumlah yang Di-ACC, Kebutuhan Belanja, nomor permohonan, supplier, dan catatan.
+- Permission `supplier.shopping_request.set_approved_qty:update` menentukan input editable; approver lain mendapat tampilan read-only.
+- Bantuan, FAQ, dokumentasi Supplier, dan workflow catalog AI telah disinkronkan.
+
+Evidence verifikasi final:
+
+- Focused feature suite: 5 files, 41 tests lulus.
+- Full shopping-request regression: 12 files, 69 tests lulus.
+- ESLint untuk seluruh file TypeScript/TSX yang berubah: lulus.
+- TypeScript `tsc --noEmit`: lulus.
+- Dev server existing merespons `/login` dengan HTTP 200 dan HMR berhasil compile.

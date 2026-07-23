@@ -17,5 +17,8 @@ describe("Bantuan approval item Permohonan Belanja", () => {
     expect(source).toContain("Tidak Disetujui");
     expect(source).toContain("supplier.shopping_request.edit");
     expect(source).toContain("supplier.shopping_request.set_approved_qty");
+    expect(source).toContain("langsung di modal Setujui Daftar Belanja");
+    expect(source).toContain("Kebutuhan Belanja");
+    expect(source).toContain("read-only");
   });
 });

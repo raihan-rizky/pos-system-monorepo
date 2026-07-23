@@ -1,9 +1,32 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import * as shoppingRequestHooks from "../useShoppingRequests";
 
 describe("shopping request approval cache", () => {
+  it("publishes saved quantities without starting a competing detail refetch", () => {
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        "features/suppliers/shopping-requests/hooks/useShoppingRequests.ts",
+      ),
+      "utf8",
+    );
+    const start = source.indexOf(
+      "export function useSaveShoppingRequestApprovedQuantities",
+    );
+    const end = source.indexOf(
+      "export function useApproveShoppingRequestItem",
+      start,
+    );
+    const saveHook = source.slice(start, end);
+
+    expect(saveHook).toContain("syncShoppingRequestApprovalCaches");
+    expect(saveHook).not.toContain("invalidateQueries");
+  });
+
   it("publishes the authoritative approval response to detail and list views", () => {
     const syncApproval = (
       shoppingRequestHooks as Record<string, unknown>

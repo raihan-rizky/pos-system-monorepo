@@ -50,6 +50,18 @@ describe("Daftar Belanja UI", () => {
     expect(content).toContain("Setujui Daftar Belanja");
   });
 
+  it("lets authorized approvers input an approved quantity beside its requirement", () => {
+    const content = source("ShoppingRequestApproveModal.tsx");
+
+    expect(content).toContain("Kebutuhan Belanja");
+    expect(content).toContain('placeholder="Masukkan jumlah"');
+    expect(content).toContain(
+      'canPerform("supplier.shopping_request.set_approved_qty", "update")',
+    );
+    expect(content).toContain("useSaveShoppingRequestApprovedQuantities");
+    expect(content).toContain("approvedQtyInput");
+  });
+
   it("offers separate edit and approved-quantity actions beside approval", () => {
     const content = source("ShoppingRequestList.tsx");
 
