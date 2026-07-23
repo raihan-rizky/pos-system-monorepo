@@ -70,6 +70,8 @@ export const RESOURCE_TARGETS = [
   "supplier.shopping_request.edit",
   "supplier.shopping_request.set_approved_qty",
   "supplier.shopping_request.approve_stock",
+  "supplier.goods_purchase.approve",
+  "supplier.goods_purchase.reject",
   "inventory",
   "inventory.approve",
   "inventory.out_log.verify",
@@ -224,6 +226,18 @@ const RESOURCE_GRANULAR_ACCESS: Partial<
     delete: [],
   },
   "supplier.shopping_request.approve_stock": {
+    read: [],
+    create: [],
+    update: [],
+    delete: [],
+  },
+  "supplier.goods_purchase.approve": {
+    read: [],
+    create: [],
+    update: [],
+    delete: [],
+  },
+  "supplier.goods_purchase.reject": {
     read: [],
     create: [],
     update: [],

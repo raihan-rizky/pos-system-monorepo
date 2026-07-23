@@ -136,6 +136,8 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
       "supplier.shopping_request.edit",
       "supplier.shopping_request.set_approved_qty",
       "supplier.shopping_request.approve_stock",
+      "supplier.goods_purchase.approve",
+      "supplier.goods_purchase.reject",
     ],
     sensitivity: "normal",
   },

@@ -184,6 +184,44 @@ describe("RBAC settings UI helpers", () => {
     }
   });
 
+  it("exposes Owner-default goods purchase decision permissions", async () => {
+    const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
+    const { canRolePerformAction } = await import("../rbac-core");
+    const defaults = buildDefaultRolePermissions();
+    const resources = [
+      "supplier.goods_purchase.approve",
+      "supplier.goods_purchase.reject",
+    ] as const;
+    const supplierModule = RBAC_PERMISSION_MODULES.find(
+      (permissionModule) => permissionModule.id === "suppliers",
+    );
+
+    expect(supplierModule?.resourceTargets).toEqual(
+      expect.arrayContaining([...resources]),
+    );
+    expect(
+      resources.every((resource) =>
+        EDITABLE_ROLES.every(
+          (role) => defaults[role].resources[resource].update === false,
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      canRolePerformAction(
+        "OWNER",
+        "supplier.goods_purchase.approve",
+        "update",
+      ),
+    ).toBe(true);
+    expect(
+      canRolePerformAction(
+        "OWNER",
+        "supplier.goods_purchase.reject",
+        "update",
+      ),
+    ).toBe(true);
+  });
+
   it("explains page and resource mismatch warnings in practical language", async () => {
     const { buildModuleWarnings } = await import("../rbac-settings-ui");
     const permissions = buildDefaultRolePermissions();
