@@ -93,14 +93,14 @@ describe("Daftar Belanja UI", () => {
     expect(content).toContain("Rasio Qty Di-ACC");
   });
 
-  it("shows the estimated expense and missing cost snapshots before approval", () => {
+  it("shows a non-posting expense estimate and missing cost snapshots before approval", () => {
     const content = source("ShoppingRequestApproveModal.tsx");
 
     expect(content).toContain("Estimasi pengeluaran");
     expect(content).toContain("costPrice");
     expect(content).toContain("costPriceSnapshot");
     expect(content).toContain("Harga modal tidak tersedia saat approval");
-    expect(content).toContain("mengikuti tanggal permohonan");
+    expect(content).toContain("Estimasi saja, belum menjadi pengeluaran tercatat");
   });
 
   it("uses a save-only modal for approved quantities", () => {

@@ -341,7 +341,7 @@ export function ShoppingRequestApproveModal({
                     </div>
                     {pending ? (
                       <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
-                        Approval hanya mencatat keputusan; tidak membuat pengeluaran atau mengubah stok.
+                        Approval hanya mencatat keputusan dan tidak mengubah stok atau membuat pengeluaran.
                       </div>
                     ) : (
                       <div className="text-xs font-semibold text-slate-500">
@@ -397,14 +397,14 @@ export function ShoppingRequestApproveModal({
                 </p>
               </div>
               <span className="rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-bold text-violet-700">
-                Tanggal pengeluaran mengikuti tanggal permohonan
+                 Estimasi saja, belum menjadi pengeluaran tercatat
               </span>
             </div>
             {expensePreview.missing.length > 0 && (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
                 <p className="font-black">Harga modal tidak tersedia saat approval</p>
                 <p className="mt-1">
-                  {expensePreview.missing.map((row) => row.productName).join(", ")} dihitung Rp0. Snapshot pengeluaran tidak berubah otomatis.
+                   {expensePreview.missing.map((row) => row.productName).join(", ")} dihitung Rp0. Estimasi tidak berubah otomatis.
                 </p>
               </div>
             )}
