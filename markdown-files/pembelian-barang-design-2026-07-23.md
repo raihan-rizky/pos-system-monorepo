@@ -17,6 +17,10 @@ Pembuatan maupun approval Pembelian Barang tidak mengubah stok dan tidak membuat
 - Jika Pembelian Barang `REJECTED`, record tetap tersimpan sebagai riwayat dan Daftar Belanja boleh diajukan kembali.
 - Pengajuan baru selalu berstatus `PENDING`.
 - Pembelian Barang membutuhkan aksi approve dan reject.
+- Approval Pembelian dilakukan per produk dan setiap aksi langsung tersimpan.
+- Status Pembelian tetap `PENDING` sampai semua produk tersisa disetujui.
+- Owner dapat mengedit, menghapus, dan menambahkan produk selama Pembelian masih `PENDING`.
+- Pembelian otomatis menjadi `APPROVED` setelah semua produk tersisa disetujui.
 - Reject wajib memiliki alasan.
 - Approval mencatat satu Pengeluaran berdasarkan total transaksi aktual.
 - Pengeluaran tidak lagi dibuat ketika Daftar Belanja selesai disetujui.
@@ -56,14 +60,20 @@ Menyimpan detail transaksi dan snapshot:
 - `goodsPurchaseId`
 - `productId`
 - snapshot nama dan kode produk
+- snapshot nama satuan dan multiplier satuan
 - `quantity`
 - `masterCostPriceSnapshot`
 - `latestUnitPrice`
 - `lineTotal`
 - `updateMasterHpp`
+- `reviewStatus`: `PENDING` atau `APPROVED`
+- `approvedById`, nullable
+- `approvedAt`, nullable
 - timestamps
 
 `lineTotal` dihitung server-side dari `quantity x latestUnitPrice`. `totalAmount` merupakan penjumlahan seluruh `lineTotal`.
+
+Item yang dihapus benar-benar dihapus dari transaksi dan tidak disimpan sebagai audit trail. Pembelian harus selalu memiliki minimal satu item.
 
 ### Expense
 
@@ -100,7 +110,7 @@ Bagian utama berisi:
 - daftar riwayat dengan pagination/filter mengikuti pola existing;
 - kolom nomor pembelian, nomor Daftar Belanja, supplier, jumlah produk, total pengeluaran, status, pembuat, dan tanggal;
 - aksi melihat detail;
-- tombol **Approve** dan **Reject** untuk record `PENDING`, hanya ketika user memiliki permission yang sesuai.
+- tombol **Approve** untuk membuka modal review per produk dan **Reject** untuk menolak seluruh transaksi, hanya ketika user memiliki permission yang sesuai.
 
 Status ditampilkan dengan label Indonesia yang ramah:
 
@@ -126,7 +136,7 @@ Status ditampilkan dengan label Indonesia yang ramah:
 
 Total pada UI bersifat preview. Server selalu menghitung ulang total final.
 
-### Detail dan Approval
+### Detail
 
 Detail Pembelian Barang menampilkan:
 
@@ -136,14 +146,58 @@ Detail Pembelian Barang menampilkan:
 - total pengeluaran;
 - status, pembuat, approver/rejector, timestamps, serta alasan reject.
 
-Sebelum approve, tampilkan confirmation dialog berisi:
-
-- nomor Pembelian Barang;
-- total Pengeluaran yang akan dicatat;
-- daftar produk yang HPP master-nya akan berubah beserta nilai lama dan baru;
-- penegasan bahwa stok tidak akan berubah.
-
 Reject membuka dialog dengan input alasan wajib.
+
+### Modal Approval per Produk
+
+Ketika Owner menekan **Approve**, buka modal review produk:
+
+- setiap item memiliki status **Belum Ada Aksi** atau **Disetujui**;
+- bagian header menampilkan counter, misalnya **1 Produk Belum Ada Aksi**;
+- status Pembelian tetap `PENDING` selama counter lebih dari nol;
+- setiap item menyediakan aksi **Setujui**, **Edit**, dan **Hapus**;
+- semua aksi langsung disimpan ke server;
+- tombol edit memungkinkan perubahan satuan, jumlah, harga terbaru, dan pilihan update HPP;
+- perubahan jumlah atau harga langsung menghitung ulang subtotal dan total Pembelian.
+
+Jika item berstatus **Disetujui** diedit, tampilkan konfirmasi:
+
+> Barang ini sudah disetujui. Apakah ingin mengedit kembali? Status akan kembali menjadi Belum Ada Aksi.
+
+Setelah edit disimpan, status item kembali menjadi `PENDING` dan harus disetujui ulang.
+
+Penghapusan item berstatus **Disetujui** juga memerlukan confirmation popup karena langsung memengaruhi total. Item yang dihapus hilang dari transaksi tanpa audit trail. Sistem menolak penghapusan jika item tersebut merupakan satu-satunya item tersisa.
+
+### Tambah Produk saat Approval
+
+Di bagian bawah daftar produk tersedia tombol **Tambah Produk**:
+
+- Owner dapat memilih produk apa pun dari master produk aktif milik toko;
+- hanya varian satuan besar yang ditampilkan;
+- varian dianggap satuan besar jika `unitMultiplierToBase > 1` atau nama unit termasuk daftar kemasan besar yang dinormalisasi, minimal: dus, box, pak, krat, karton, bal, dan sak;
+- jika produk mempunyai beberapa varian satuan besar, Owner memilih varian/satuannya;
+- jumlah default `1`;
+- harga terbaru default dari HPP varian produk yang dipilih;
+- pilihan update HPP mengikuti rule selisih harga yang sama;
+- item baru berstatus **Belum Ada Aksi**.
+
+Karena model existing menyimpan setiap satuan sebagai varian Product tersendiri, HPP default diambil langsung dari varian yang dipilih. Contoh: `Air Mineral - dus` memakai HPP dus dan tidak mengalikan HPP botol.
+
+### Finalisasi Otomatis
+
+Setelah setiap aksi item, server memeriksa jumlah item `PENDING`. Jika tidak ada item yang belum diproses dan minimal satu item masih tersisa, server melakukan finalisasi dalam transaction yang sama:
+
+1. hitung ulang seluruh subtotal dan total;
+2. update HPP untuk item yang memilih update HPP;
+3. buat satu Pengeluaran otomatis;
+4. ubah status Pembelian menjadi `APPROVED`;
+5. simpan approver dan timestamp.
+
+Jika finalisasi berhasil, modal otomatis tertutup dan tampil popup:
+
+> Pembelian Barang Telah Disetujui
+
+Finalisasi juga dapat terpicu ketika aksi terakhir adalah menghapus satu item dan semua item yang tersisa sudah disetujui. Tidak ada perubahan stok pada seluruh proses.
 
 ## Backend dan Transaction Boundary
 
@@ -152,7 +206,11 @@ Pisahkan operasi utama menjadi:
 - list/detail riwayat;
 - list Daftar Belanja eligible;
 - create Pembelian Barang;
-- approve Pembelian Barang;
+- approve satu item;
+- edit satu item;
+- hapus satu item;
+- list dan tambah produk satuan besar;
+- finalisasi otomatis Pembelian Barang;
 - reject Pembelian Barang.
 
 Semua endpoint:
@@ -174,22 +232,46 @@ Dalam transaction:
 5. Validasi jumlah dan harga.
 6. Hitung subtotal dan total dengan tipe decimal yang aman untuk uang.
 7. Simpan header serta items sebagai snapshot.
-8. Buat status awal `PENDING`.
+8. Buat status awal `PENDING` untuk header dan seluruh item.
 
 Create tidak membuat Pengeluaran, tidak mengubah HPP, dan tidak menyentuh stok.
 
-### Approve
+### Review Item dan Approve
 
-Dalam satu database transaction:
+Seluruh aksi review item hanya tersedia ketika header masih `PENDING` dan user memiliki permission approve.
 
-1. Lock atau lakukan conditional update terhadap Pembelian Barang `PENDING`.
-2. Tolak double approval maupun status final.
-3. Verifikasi permission approve.
-4. Untuk setiap item dengan `updateMasterHpp = true`, update HPP hanya jika harga transaksi memang berbeda.
-5. Buat satu Pengeluaran otomatis sebesar `totalAmount`.
-6. Ubah status menjadi `APPROVED` dan simpan approver serta timestamp.
+Approve item dalam satu transaction:
 
-Jika update HPP atau pembuatan Pengeluaran gagal, seluruh perubahan rollback. Tidak ada mutasi stok atau stock log.
+1. Lock atau conditional-update item yang masih `PENDING`.
+2. Ubah item menjadi `APPROVED`, lalu simpan approver dan timestamp.
+3. Jalankan pemeriksaan finalisasi otomatis.
+
+Edit item dalam satu transaction:
+
+1. Validasi item berasal dari Pembelian dan toko yang benar.
+2. Validasi varian satuan, jumlah, harga, serta pilihan update HPP.
+3. Hitung ulang subtotal.
+4. Jika sebelumnya `APPROVED`, reset status item ke `PENDING` serta kosongkan approver dan timestamp.
+5. Hitung ulang total header.
+
+Hapus item dalam satu transaction:
+
+1. Pastikan minimal dua item tersedia sebelum delete.
+2. Hapus item tanpa membuat audit trail.
+3. Hitung ulang total header.
+4. Jalankan pemeriksaan finalisasi otomatis.
+
+Tambah item dalam satu transaction:
+
+1. Pastikan Product aktif, milik toko, dan merupakan varian satuan besar.
+2. Tolak varian Product yang sama jika sudah ada dalam transaksi.
+3. Ambil snapshot produk, satuan, multiplier, dan HPP terkini.
+4. Simpan jumlah, harga, subtotal, pilihan update HPP, dan status `PENDING`.
+5. Hitung ulang total header.
+
+Finalisasi otomatis melakukan conditional update terhadap header `PENDING`, memastikan minimal satu item tersedia dan seluruh item sudah `APPROVED`, lalu meng-update HPP pilihan, membuat satu Pengeluaran, dan mengubah header menjadi `APPROVED`.
+
+Jika update HPP atau pembuatan Pengeluaran gagal, seluruh finalisasi rollback. Tidak ada mutasi stok atau stock log.
 
 ### Reject
 
@@ -244,6 +326,10 @@ Error domain minimal:
 - Jumlah atau harga tidak valid.
 - Pembelian Barang tidak ditemukan.
 - Pembelian Barang sudah diproses.
+- Item Pembelian tidak ditemukan atau sudah diproses.
+- Minimal satu produk wajib tersisa.
+- Produk tambahan bukan satuan besar.
+- Varian produk sudah ada dalam Pembelian.
 - Alasan reject wajib diisi.
 - User tidak memiliki permission.
 - Supplier atau produk sudah tidak tersedia untuk transaksi baru.
@@ -262,6 +348,21 @@ Coverage minimal:
 - daftar rejected dapat dipakai kembali;
 - approve membuat tepat satu Pengeluaran;
 - approve hanya meng-update HPP item yang dipilih;
+- approve satu item langsung tersimpan;
+- counter item yang belum diproses;
+- header tetap `PENDING` selama masih ada item `PENDING`;
+- item terakhir yang disetujui memicu finalisasi otomatis;
+- edit item approved meminta konfirmasi dan mereset status ke `PENDING`;
+- edit item pending menghitung ulang subtotal dan total;
+- hapus item approved meminta konfirmasi;
+- hapus item tidak menyimpan audit trail;
+- item terakhir tidak boleh dihapus;
+- penghapusan yang menyelesaikan seluruh review memicu finalisasi;
+- tambah produk hanya menerima varian satuan besar;
+- unit besar terdeteksi dari multiplier atau nama kemasan besar yang dinormalisasi;
+- produk multi-unit memungkinkan pemilihan varian satuan;
+- item tambahan default jumlah `1`, HPP varian terkini, dan status `PENDING`;
+- produk tambahan duplikat ditolak;
 - reject wajib alasan dan tidak membuat side effect finansial;
 - permission approve/reject dan default OWNER;
 - conditional update mencegah double approval;
@@ -272,6 +373,7 @@ Coverage minimal:
 - total live;
 - refresh cache setelah mutasi;
 - history, detail, badge status, confirmation approval, dan dialog reject;
+- modal approval menutup otomatis dan menampilkan popup sukses setelah finalisasi;
 - HelpContent serta workflow catalog mencerminkan flow baru;
 - regresi laporan finance dan proteksi Pengeluaran otomatis.
 
@@ -284,11 +386,17 @@ Validasi akhir menggunakan test terarah, lint pada file terkait, dan type-check.
 3. Produk dan nilai default mengikuti requirement.
 4. Total pengeluaran tampil dan dihitung ulang oleh server.
 5. Pengajuan baru muncul di history dengan status `PENDING`.
-6. User berizin dapat approve atau reject; reject mewajibkan alasan.
-7. Pengajuan rejected tidak mengunci Daftar Belanja.
-8. Approval membuat Pengeluaran aktual tepat satu kali.
-9. Update HPP terjadi per pilihan item dan hanya saat approval.
-10. Tidak ada perubahan stok pada seluruh workflow Pembelian Barang.
-11. Permission approve/reject baru tersedia dan default hanya untuk OWNER.
-12. Daftar Belanja tidak lagi membuat Pengeluaran otomatis saat approval.
-13. Dokumentasi Bantuan dan workflow AI Assistant sesuai dengan flow baru.
+6. Owner dapat menyetujui, mengedit, menghapus, dan menambahkan produk dari modal approval.
+7. Status tetap `PENDING` dan counter ditampilkan selama masih ada produk Belum Ada Aksi.
+8. Edit produk approved meminta konfirmasi dan mengembalikan status item ke Belum Ada Aksi.
+9. Hapus produk approved meminta konfirmasi dan minimal satu produk wajib tersisa.
+10. Produk tambahan berasal dari master produk toko dan dibatasi ke satuan besar.
+11. Setelah semua produk tersisa disetujui, Pembelian otomatis approved, modal tertutup, dan popup sukses muncul.
+12. User berizin dapat reject seluruh Pembelian dan wajib mengisi alasan.
+13. Pengajuan rejected tidak mengunci Daftar Belanja.
+14. Approval membuat Pengeluaran aktual tepat satu kali.
+15. Update HPP terjadi per pilihan item dan hanya saat finalisasi approval.
+16. Tidak ada perubahan stok pada seluruh workflow Pembelian Barang.
+17. Permission approve/reject baru tersedia dan default hanya untuk OWNER.
+18. Daftar Belanja tidak lagi membuat Pengeluaran otomatis saat approval.
+19. Dokumentasi Bantuan dan workflow AI Assistant sesuai dengan flow baru.
