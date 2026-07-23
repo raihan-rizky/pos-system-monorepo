@@ -184,17 +184,17 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 4. Setelah draf lengkap, klik **Submit** (Ajukan). 
 5. Pengajuan ini tidak akan langsung menambah stok. Statusnya akan menjadi *Pending* hingga disetujui (Approve) oleh pihak berwenang (seperti OWNER atau admin dengan izin `inventory.approve`). Stok baru bertambah setelah disetujui.
 
-### Q19: Bagaimana cara membuat Permohonan Belanja kebutuhan toko ke supplier?
-**A:** Gunakan Permohonan Belanja untuk mencatat kebutuhan dan estimasi biayanya tanpa mengubah stok:
-1. Buka menu **Supplier**, lalu pilih tab **Permohonan Belanja** dan klik **Buat Permohonan Belanja**.
+### Q19: Bagaimana cara membuat Daftar Belanja kebutuhan toko ke supplier?
+**A:** Gunakan Daftar Belanja untuk mencatat kebutuhan dan estimasi biayanya tanpa mengubah stok:
+1. Buka menu **Supplier**, lalu pilih tab **Daftar Belanja** dan klik **Buat Daftar Belanja**.
 2. Pilih supplier tujuan yang wajib diisi. Jika belum ada, isi nama dan tipe pada tambah supplier cepat; supplier baru otomatis terpilih.
 3. Cari produk melalui nama atau SKU. Gunakan thumbnail, unit, dan stok yang tampil untuk memastikan produk benar.
-4. Masukkan jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik **Simpan Permohonan Belanja**. Status menjadi **Diajukan**. Pembuatan dan approval daftar belanja tidak mengubah stok.
+4. Masukkan jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik **Simpan Daftar Belanja**. Status menjadi **Diajukan**. Pembuatan dan approval daftar belanja tidak mengubah stok atau membuat Pengeluaran.
 5. Sebelum ada item yang diputuskan, Owner atau role dengan izin `supplier.shopping_request.edit:update` dapat memakai **Edit** untuk mengganti supplier, produk, jumlah kebutuhan, dan catatan.
 6. Owner atau role dengan izin `supplier.shopping_request.set_approved_qty:update` dapat memakai **Isi Jumlah yang Di-ACC** atau mengisi langsung di modal **Setujui Daftar Belanja**. Modal menampilkan **Kebutuhan Belanja** sebagai pembanding; input awal kosong jika belum pernah disimpan. Approver tanpa izin quantity melihat nilai secara read-only.
 7. Pengguna dengan izin `supplier.shopping_request.approve_stock:update` membuka **Setujui**, mengisi jumlah bila juga berwenang, lalu memeriksa **Estimasi pengeluaran** dari harga modal. Jumlah di atas kebutuhan memerlukan satu konfirmasi; item tanpa harga modal dihitung Rp0 dan diberi peringatan.
-8. Klik **Setujui Item** untuk memproses satu barang atau setujui semua item yang masih menunggu sekaligus. Jumlah yang baru diisi disimpan terlebih dahulu, lalu approval dijalankan. Nilai 0 menjadi **Tidak Disetujui**. Approval hanya mencatat keputusan dan pengeluaran, tanpa mengubah stok atau membuat log restock. Keputusan item bersifat final, dan permohonan tetap **Diajukan** selama masih ada item menunggu.
-9. Setelah item terakhir diproses, permohonan selesai otomatis dan satu Pengeluaran kategori Bahan tercatat memakai tanggal permohonan. Entri berbadge **Permohonan Belanja** tidak dapat diedit atau dihapus dari halaman Keuangan. Perubahan stok dilakukan melalui proses inventaris atau penerimaan barang yang terpisah.
+8. Klik **Setujui Item** untuk memproses satu barang atau setujui semua item yang masih menunggu sekaligus. Jumlah yang baru diisi disimpan terlebih dahulu, lalu approval dijalankan. Nilai 0 menjadi **Tidak Disetujui**. Approval hanya mencatat keputusan, tanpa membuat Pengeluaran, mengubah stok, atau membuat log restock. Keputusan item bersifat final, dan daftar tetap **Diajukan** selama masih ada item menunggu.
+9. Setelah item terakhir diproses, daftar selesai otomatis dan dapat dipilih sebagai sumber **Pembelian Barang**. Pengeluaran baru dibuat setelah semua produk Pembelian Barang disetujui. Perubahan stok dilakukan melalui proses inventaris yang terpisah.
 
 ### Q28: Bagaimana cara melakukan Check In dan Check Out (Day Session) bagi Staf Gudang?
 **A:** Staf gudang wajib mengelola operasional harian melalui alur sesi (Day Session):
@@ -232,7 +232,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 2. Klik tombol **Tambah Pengeluaran** untuk memasukkan pengeluaran baru.
 3. Isi nominal pengeluaran, pilih kategori, dan tambahkan catatan pendukung (opsional).
 4. **Unggah Bukti Pengeluaran:** Klik **Pilih gambar bukti** untuk mengunggah foto nota ke R2 dan periksa pratinjaunya. Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik **Simpan**.
-5. Kenali sumbernya: badge **Manual** berasal dari form, sedangkan badge ungu **Permohonan Belanja** dibuat otomatis dari approval dan tidak dapat diedit atau dihapus dari Keuangan. Badge **Harga modal tidak tersedia saat approval** berarti sebagian nilai item dihitung Rp0 secara permanen pada snapshot tersebut.
+5. Kenali sumbernya: badge **Manual** berasal dari form, badge **Pembelian Barang** dibuat otomatis setelah approval final dan tidak dapat diedit atau dihapus dari Keuangan, sedangkan badge **Daftar Belanja (Legacy)** hanya menandai data lama.
 
 ### Q21: Bagaimana cara mengekspor data Laporan Keuangan ke format Excel atau PDF?
 **A:** Anda dapat mengunduh salinan data laporan keuangan ke perangkat Anda:
@@ -243,7 +243,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 3. Setelah memilih format, tentukan rentang waktu laporan yang ingin diekspor: **Harian** (hari ini), **Mingguan** (7 hari terakhir), **30 hari terakhir**, atau **Bulanan** (bulan berjalan).
 4. Berkas laporan akan otomatis terunduh ke perangkat Anda.
    *(Pilihan rentang tanggal filter yang sedang aktif di layar visual tidak memengaruhi isi berkas yang diekspor. Berkas yang diunduh akan selalu murni mengikuti cakupan periode yang Anda pilih di dalam menu dropdown Ekspor).*
-5. Di halaman laporan, KPI **Pengeluaran** mencakup pengeluaran manual dan Permohonan Belanja. **Laba Bersih (Estimasi)** adalah Laba Kotor dikurangi seluruh pengeluaran; angka ini bukan laba akrual formal atau bukti pembayaran supplier.
+5. Di halaman laporan, KPI **Pengeluaran** mencakup pengeluaran manual dan Pembelian Barang. **Laba Bersih (Estimasi)** adalah Laba Kotor dikurangi seluruh pengeluaran; angka ini bukan laba akrual formal atau bukti pembayaran supplier.
 6. Anda dapat meminta Pak Teladan, misalnya **"ekspor laporan keuangan"**. Jika periode dan format tidak disebutkan, Pak Teladan memakai **30 hari terakhir** dan **PDF**.
 7. Untuk permintaan analisis keuangan, Pak Teladan membaca seluruh bagian laporan dalam rentang yang sama: ringkasan, metode pembayaran, produk teratas, kategori, sales, shift, kehilangan stok, dan tren. Saran dibuat dari gabungan metrik tersebut, bukan dari omzet saja.
 8. Ekspor dari chat menampilkan kartu tanpa mengunduh otomatis. Klik **Download PDF/Excel** saat siap; setelah berhasil tombol berubah menjadi **Download ulang** dan Pak Teladan menampilkan saran dari laporan yang sama. OWNER dapat memakai quick prompt **Rekap finansial bulanan**.
@@ -302,8 +302,20 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 ### Q37: Bagaimana cara membaca notifikasi penting dari sistem dan Pak Teladan?
 **A:** Setiap akun memiliki pusat notifikasi sendiri:
 1. Periksa ikon **bell** di kanan atas. Badge merah menunjukkan jumlah notifikasi yang belum dibaca.
-2. Klik bell untuk melihat update terbaru, termasuk Persetujuan Transaksi, permintaan stok tunggal atau massal, dan Permohonan Belanja baru untuk Owner/Admin.
+2. Klik bell untuk melihat update terbaru, termasuk Persetujuan Transaksi, permintaan stok tunggal atau massal, Daftar Belanja, dan Pembelian Barang.
 3. Klik satu notifikasi untuk menandainya sebagai sudah dibaca sekaligus membuka halaman kerja terkait. Pembuat request tidak mendapat notifikasi untuk aksinya sendiri.
 4. Klik **Tandai semua dibaca** setelah seluruh update direview. Badge hilang saat tidak ada unread, tetapi riwayat yang sudah dibaca tetap tersedia.
 5. Tombol Pak Teladan memakai unread count yang sama. Saat dibuka, Pak Teladan memberi heads-up dan menampilkan hingga tiga shortcut notifikasi terbaru.
 6. Inbox tetap tersimpan di server walaupun izin browser push tidak aktif. Browser push dan suara hanya menjadi channel tambahan sesuai pengaturan perangkat.
+
+### Q38: Bagaimana cara mengajukan dan memutuskan Pembelian Barang?
+**A:** Gunakan Pembelian Barang untuk mencatat pembelian aktual setelah Daftar Belanja disetujui:
+1. Buka **Supplier > Pembelian Barang**, lalu klik **Buat Pembelian Barang**.
+2. Pilih **Daftar Belanja yang sudah disetujui**. Supplier dan seluruh produk yang di-ACC muncul otomatis. Satu Daftar Belanja hanya dapat memiliki satu pembelian PENDING atau APPROVED; jika pembelian ditolak, daftar dapat dipilih kembali.
+3. Periksa jumlah setiap produk. Nilai awal mengikuti jumlah yang di-ACC. Isi **harga produk terbaru** yang nilai awalnya memakai HPP master.
+4. Jika harga terbaru berbeda dari HPP master, tentukan per produk apakah sistem perlu **update HPP**. Periksa **Total pengeluaran**, lalu klik **Ajukan Pembelian Barang**. Status awalnya **PENDING**.
+5. Role dengan `supplier.goods_purchase.approve:update` membuka review dan memutuskan setiap produk lewat **Setujui**, **Edit**, atau **Hapus**. Produk baru dapat ditambahkan dari master produk toko selama memakai unit besar seperti dus, box, pak, karton, bal, atau sak.
+6. Produk yang belum diputuskan ditandai **Belum Ada Aksi**. Mengedit produk yang sudah disetujui memerlukan konfirmasi dan mengembalikannya ke status tersebut. Perubahan tersimpan langsung, dan minimal satu produk harus tetap ada.
+7. Ketika seluruh produk disetujui, Pembelian Barang otomatis menjadi **APPROVED**, modal tertutup, pilihan update HPP diterapkan, dan satu **Pengeluaran kategori Bahan** dibuat dari total final.
+8. Role dengan `supplier.goods_purchase.reject:update` dapat menolak seluruh pembelian dengan alasan wajib. Default izin approve dan reject hanya OWNER serta dapat didelegasikan melalui RBAC.
+9. Pengajuan, review, approval final, penolakan, dan retry Pembelian Barang **tidak mengubah stok sama sekali**. Barang fisik tetap diproses melalui workflow inventaris yang terpisah.

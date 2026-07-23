@@ -16,7 +16,7 @@ Tab Notifikasi dan Offline Sync menyimpan atau mengelola state perangkat/browser
 
 Setiap pengguna yang login memiliki inbox notifikasi sendiri. Ikon bell di kanan atas menampilkan badge merah berisi jumlah update yang belum dibaca. Klik satu item untuk menandainya sebagai sudah dibaca sekaligus membuka halaman terkait, atau klik **Tandai semua dibaca**. Badge hilang ketika unread mencapai nol, sementara riwayat yang sudah dibaca tetap tersedia.
 
-Notifikasi operasional saat ini mencakup permintaan approval transaksi, permintaan stok tunggal atau massal, dan Permohonan Belanja baru untuk Owner/Admin yang relevan. Pembuat request tidak menerima notifikasi untuk aksinya sendiri. Browser push tetap mengikuti izin dan pengaturan perangkat, sedangkan inbox tersimpan di server.
+Notifikasi operasional saat ini mencakup permintaan approval transaksi, permintaan stok tunggal atau massal, Daftar Belanja baru, serta Pembelian Barang yang diajukan, disetujui, atau ditolak. Pembuat request tidak menerima notifikasi untuk aksinya sendiri. Browser push tetap mengikuti izin dan pengaturan perangkat, sedangkan inbox tersimpan di server.
 
 Pak Teladan memakai inbox yang sama: tombol robot ikut menampilkan badge merah, lalu panel chat memberi heads-up dan shortcut menuju maksimal tiga notifikasi terbaru yang belum dibaca.
 
@@ -28,6 +28,8 @@ OWNER selalu memiliki akses penuh dan permission OWNER tidak dapat diedit. Pada 
 2. **Aksi Resource** menentukan izin `create`, `read`, `update`, dan `delete` untuk resource seperti transaction, product, customer, supplier, inventory, expense, settings, dan lainnya.
 
 Akses halaman saja tidak otomatis memberi izin menjalankan aksi backend, dan izin resource saja tidak otomatis menampilkan halaman. Keduanya harus konsisten. Permission `inventory.approve` dikunci untuk OWNER dan tidak dapat didelegasikan kepada role lain.
+
+Untuk Pembelian Barang, keputusan approve dan reject memakai resource terpisah: `supplier.goods_purchase.approve:update` serta `supplier.goods_purchase.reject:update`. Default kedua izin hanya OWNER, tetapi Owner dapat mendelegasikannya per role lewat RBAC.
 
 ### Auto Approve Transaksi
 

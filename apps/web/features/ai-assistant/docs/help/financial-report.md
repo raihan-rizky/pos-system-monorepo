@@ -21,7 +21,7 @@ Anda dapat memilih rentang analisis menggunakan preset berikut:
 4. **Margin Laba:** Persentase keuntungan kotor dibandingkan omzet.
 5. **Outstanding DP:** Sisa piutang/tagihan tempo pelanggan yang belum tertagih.
 6. **Loss Stok:** Nilai kerugian akibat stok barang yang hilang, rusak, atau menyusut.
-7. **Pengeluaran:** Total pengeluaran manual dan Permohonan Belanja pada periode terpilih.
+7. **Pengeluaran:** Total pengeluaran manual dan Pembelian Barang pada periode terpilih.
 8. **Laba Bersih (Estimasi):** Laba Kotor dikurangi seluruh Pengeluaran. Angka ini adalah estimasi operasional, bukan laba akrual formal atau bukti pembayaran supplier.
 
 ## Analisis Detail
@@ -35,10 +35,10 @@ Anda dapat memilih rentang analisis menggunakan preset berikut:
 Sistem akan memunculkan peringatan jika:
 - Ada produk terjual yang belum diisi nilai **HPP**-nya (karena item tanpa HPP akan menyumbang Gross Profit senilai 0).
 - Ada alasan **Loss Stok** (barang rusak/hilang) yang belum diklasifikasikan dengan benar.
-- Ada pengeluaran Permohonan Belanja dengan harga modal yang tidak tersedia saat approval. Nilainya dihitung Rp0 sehingga Pengeluaran dan Laba Bersih (Estimasi) dapat lebih rendah dari biaya sebenarnya.
+- Ada data lama Daftar Belanja dengan harga modal yang tidak tersedia saat approval. Nilainya dihitung Rp0 sehingga Pengeluaran dan Laba Bersih (Estimasi) dapat lebih rendah dari biaya sebenarnya.
 
 ## Ekspor Laporan Keuangan
-Laporan keuangan dapat diekspor ke file Excel atau PDF berdasarkan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Jurnal memberi label pada pengeluaran dari Permohonan Belanja dan menandai snapshot harga modal yang kosong. Panduan ekspor selengkapnya dapat dibaca di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q21-bagaimana-cara-mengekspor-data-laporan-keuangan-ke-format-excel-atau-pdf).
+Laporan keuangan dapat diekspor ke file Excel atau PDF berdasarkan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Jurnal memberi label pada pengeluaran dari Pembelian Barang; data otomatis lama tetap berlabel Daftar Belanja (Legacy). Panduan ekspor selengkapnya dapat dibaca di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q21-bagaimana-cara-mengekspor-data-laporan-keuangan-ke-format-excel-atau-pdf).
 
 Pak Teladan dapat menjalankan ekspor dengan fitur ekspor yang sama. Jika pengguna tidak menyebut periode atau format, default-nya adalah **30 hari terakhir** dan **PDF**. Permintaan seperti "analisis keuangan 30 hari" memeriksa seluruh bagian laporan—ringkasan, metode pembayaran, produk, kategori, sales, shift, loss stok, dan tren—sebelum memberikan temuan dan saran.
 

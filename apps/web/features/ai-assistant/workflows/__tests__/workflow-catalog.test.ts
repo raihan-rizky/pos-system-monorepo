@@ -5,9 +5,9 @@ import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(37);
+    expect(FAQ_WORKFLOWS).toHaveLength(38);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 37 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 38 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);
@@ -125,7 +125,7 @@ describe("FAQ workflow catalog", () => {
     expect(serialized).toContain("badge merah");
     expect(serialized).toContain("Tandai semua dibaca");
     expect(serialized).toContain("Pak Teladan");
-    expect(serialized).toContain("Permohonan Belanja");
+    expect(serialized).toContain("Pembelian Barang");
   });
 
   it("documents AI-driven defaults, full financial analysis, and modal shortcuts", () => {
@@ -171,17 +171,40 @@ describe("FAQ workflow catalog", () => {
     expect(faqSource).toContain("penyimpanan R2 gagal");
   });
 
-  it("documents automatic shopping-request expenses and estimated net profit", () => {
+  it("documents automatic goods-purchase expenses and estimated net profit", () => {
     const shopping = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19);
     const expense = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 20);
     const report = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 21);
+    const purchase = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 38);
 
     expect(JSON.stringify(shopping)).toContain("Estimasi pengeluaran");
     expect(JSON.stringify(shopping)).toContain("harga modal");
-    expect(JSON.stringify(expense)).toContain("badge Permohonan Belanja");
+    expect(JSON.stringify(shopping)).toContain("tidak membuat Pengeluaran");
+    expect(JSON.stringify(expense)).toContain("Badge Pembelian Barang");
     expect(JSON.stringify(expense)).toContain("tidak dapat diedit atau dihapus");
     expect(JSON.stringify(report)).toContain("Laba Bersih (Estimasi)");
-    expect(JSON.stringify(report)).toContain("pengeluaran manual dan Permohonan Belanja");
+    expect(JSON.stringify(report)).toContain("pengeluaran manual dan Pembelian Barang");
+    expect(JSON.stringify(purchase)).toContain("Pengeluaran kategori Bahan");
+  });
+
+  it("documents the complete goods-purchase submission and individual approval flow", () => {
+    const purchase = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 38);
+
+    expect(purchase).toMatchObject({
+      id: "faq-q38-goods-purchase",
+      route: "/suppliers?tab=goods-purchases",
+      actionLabel: "Buka Pembelian Barang",
+    });
+    const serialized = JSON.stringify(purchase);
+    expect(serialized).toContain("Daftar Belanja yang sudah disetujui");
+    expect(serialized).toContain("harga produk terbaru");
+    expect(serialized).toContain("update HPP");
+    expect(serialized).toContain("PENDING");
+    expect(serialized).toContain("Belum Ada Aksi");
+    expect(serialized).toContain("unit besar");
+    expect(serialized).toContain("supplier.goods_purchase.approve");
+    expect(serialized).toContain("supplier.goods_purchase.reject");
+    expect(serialized).toContain("tidak mengubah stok");
   });
 
   it("documents prepared quantities, edit RBAC, and individual item approval", () => {

@@ -85,6 +85,9 @@ const suppliersState = (target: string) => {
   if (["suppliers-create-request", "suppliers-add-products", "suppliers-request-quantity"].includes(target)) return "suppliers-request-open";
   if (target === "suppliers-approve") return "suppliers-approve-open";
   if (target === "suppliers-shopping-tab") return "suppliers-shopping";
+  if (target === "suppliers-goods-purchase-tab") return "suppliers-goods-purchase";
+  if (["suppliers-goods-purchase-create", "suppliers-goods-purchase-form"].includes(target)) return "suppliers-goods-purchase-create-open";
+  if (target === "suppliers-goods-purchase-approve") return "suppliers-goods-purchase-approve-open";
   return "suppliers-list";
 };
 

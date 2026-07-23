@@ -360,7 +360,7 @@ export default function FinancialReportPage() {
             infoText={{
               title: "Pengeluaran",
               description:
-                "Total pengeluaran manual dan Permohonan Belanja pada periode ini.",
+                "Total pengeluaran manual dan Pembelian Barang pada periode ini.",
               formula: "jumlah - kembalian",
             }}
           />
@@ -374,7 +374,7 @@ export default function FinancialReportPage() {
             infoText={{
               title: "Laba Bersih (Estimasi)",
               description:
-                "Estimasi operasional. Approval belanja bukan bukti pembayaran supplier dan pembelian stok dapat terhitung bersama HPP.",
+                "Estimasi operasional. Pembelian Barang yang disetujui tercatat sebagai pengeluaran, tetapi tidak mengubah stok.",
               formula: "Laba Kotor - seluruh Pengeluaran",
             }}
           />

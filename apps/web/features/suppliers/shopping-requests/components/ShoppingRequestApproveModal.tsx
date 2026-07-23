@@ -341,7 +341,7 @@ export function ShoppingRequestApproveModal({
                     </div>
                     {pending ? (
                       <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
-                        Approval hanya mencatat keputusan dan pengeluaran; tidak mengubah stok.
+                        Approval hanya mencatat keputusan; tidak membuat pengeluaran atau mengubah stok.
                       </div>
                     ) : (
                       <div className="text-xs font-semibold text-slate-500">

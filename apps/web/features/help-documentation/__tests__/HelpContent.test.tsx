@@ -67,7 +67,7 @@ describe('HelpContent', () => {
 
     expect(ownerHtml).toContain('badge merah');
     expect(ownerHtml).toContain('Tandai semua dibaca');
-    expect(ownerHtml).toContain('Permohonan Belanja');
+    expect(ownerHtml).toContain('Pembelian Barang');
     expect(ownerHtml).toContain('tab &gt;');
     expect(ownerHtml).toContain('geser');
     expect(ownerHtml).toContain('sembunyikan');

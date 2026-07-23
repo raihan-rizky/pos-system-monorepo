@@ -73,7 +73,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-rbac",
       title: "Mengelola Akses (RBAC)",
-      description: "Menu ini dipakai untuk mengatur siapa saja yang boleh membuka halaman tertentu atau melakukan aksi di aplikasi. Tampilan ringkasan role dan matrix modul membantu Owner melihat perubahan permission sebelum disimpan. Update operasional muncul di ikon bell dengan badge merah sesuai jumlah yang belum dibaca, termasuk Persetujuan Transaksi, permintaan stok, dan Permohonan Belanja. Klik item untuk membaca sekaligus membuka halaman terkait, atau pilih Tandai semua dibaca agar badge hilang. Ikon notifikasi awalnya disembunyikan di balik tab > pada tepi layar. Klik tab untuk menampilkan bell, geser bell atau tab ke posisi yang nyaman lalu lepas agar otomatis menempel ke sisi kiri atau kanan terdekat. Gunakan tombol sembunyikan di samping bell jika ingin menciutkannya lagi; sisi dan posisi terakhir tetap tersimpan setelah halaman dimuat ulang.",
+      description: "Menu ini dipakai untuk mengatur siapa saja yang boleh membuka halaman tertentu atau melakukan aksi di aplikasi. Tampilan ringkasan role dan matrix modul membantu Owner melihat perubahan permission sebelum disimpan. Update operasional muncul di ikon bell dengan badge merah sesuai jumlah yang belum dibaca, termasuk Persetujuan Transaksi, permintaan stok, Daftar Belanja, dan Pembelian Barang. Klik item untuk membaca sekaligus membuka halaman terkait, atau pilih Tandai semua dibaca agar badge hilang. Ikon notifikasi awalnya disembunyikan di balik tab > pada tepi layar. Klik tab untuk menampilkan bell, geser bell atau tab ke posisi yang nyaman lalu lepas agar otomatis menempel ke sisi kiri atau kanan terdekat. Gunakan tombol sembunyikan di samping bell jika ingin menciutkannya lagi; sisi dan posisi terakhir tetap tersimpan setelah halaman dimuat ulang.",
       icon: <ShieldCheck className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Pengaturan", description: "Buka menu samping (sidebar) sebelah kiri layar, gulir ke paling bawah lalu klik menu 'Pengaturan' (ikon gerigi) untuk masuk ke halaman pengaturan utama.", icon: <Settings className="w-8 h-8" /> },
@@ -120,16 +120,32 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     },
     {
       id: "owner-approval-belanja",
-      title: "Menyetujui Permohonan Belanja",
+      title: "Menyetujui Daftar Belanja",
       description: "Periksa jumlah yang disetujui dan estimasi pengeluaran sebelum menyetujui permohonan belanja ke supplier.",
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Permohonan Belanja", description: "Buka menu Supplier, lalu pilih tab 'Permohonan Belanja'. Gunakan kartu Perlu Diproses dan Qty Menunggu untuk melihat antrean yang perlu ditangani, lalu cari dokumen berstatus 'Diajukan'.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Buka Daftar Belanja", description: "Buka menu Supplier, lalu pilih tab 'Daftar Belanja'. Gunakan kartu Perlu Diproses dan Qty Menunggu untuk melihat antrean yang perlu ditangani, lalu cari dokumen berstatus 'Diajukan'.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Edit sebelum diproses", description: "Jika perlu, klik 'Edit' untuk mengganti supplier, produk, jumlah kebutuhan, atau catatan. Aksi ini memerlukan izin supplier.shopping_request.edit:update dan hanya tersedia selama belum ada item yang diputuskan.", icon: <Settings className="w-8 h-8" /> },
         { title: "Isi Jumlah yang Di-ACC", description: "Dengan izin supplier.shopping_request.set_approved_qty:update, jumlah dapat disiapkan lewat tombol 'Isi Jumlah yang Di-ACC' atau diisi langsung di modal Setujui Daftar Belanja. Modal menampilkan Kebutuhan Belanja sebagai pembanding; input awal kosong jika belum pernah disimpan. Pengguna tanpa izin quantity tetap melihat nilainya secara read-only.", icon: <Package className="w-8 h-8" /> },
         { title: "Periksa estimasi pengeluaran", description: "Klik 'Setujui', isi Jumlah yang Di-ACC bila berwenang, lalu periksa Estimasi pengeluaran dari harga modal. Item tanpa harga modal dihitung Rp0 dan diberi peringatan. Jumlah melebihi kebutuhan memerlukan satu konfirmasi.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Setujui item atau semua", description: "Dengan izin supplier.shopping_request.approve_stock:update, klik 'Setujui Item' untuk memproses satu barang atau setujui semua item tersisa sekaligus. Jumlah yang baru diisi disimpan otomatis sebelum approval. Approval hanya mencatat keputusan dan tidak mengubah stok; jumlah 0 dikunci sebagai Tidak Disetujui.", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Selesaikan permohonan", description: "Permohonan tetap Diajukan sampai semua item diputuskan. Keputusan per item bersifat final. Setelah item terakhir diproses, status otomatis selesai dan satu Pengeluaran kategori Bahan tercatat memakai tanggal permohonan. Perubahan stok dilakukan lewat proses inventaris atau penerimaan barang yang terpisah.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Selesaikan permohonan", description: "Permohonan tetap Diajukan sampai semua item diputuskan. Keputusan per item bersifat final. Setelah item terakhir diproses, status otomatis selesai dan dapat dipilih sebagai sumber Pembelian Barang. Approval Daftar Belanja tidak membuat Pengeluaran; perubahan stok juga tetap dilakukan lewat proses inventaris yang terpisah.", icon: <FileText className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-goods-purchase",
+      title: "Mengajukan & Menyetujui Pembelian Barang",
+      description: "Catat pembelian aktual dari Daftar Belanja, review harga supplier per produk, lalu buat pengeluaran tanpa mengubah stok.",
+      icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Pembelian Barang", description: "Masuk ke menu Supplier, pilih tab 'Pembelian Barang', lalu klik 'Buat Pembelian Barang'.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Pilih Daftar Belanja", description: "Pilih Daftar Belanja yang sudah disetujui. Nama supplier dan semua produk yang di-ACC akan tampil otomatis.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Periksa jumlah & harga", description: "Jumlah awal mengikuti nilai yang di-ACC, sedangkan harga produk terbaru mengikuti HPP master. Jika harga berbeda, tentukan per produk apakah perlu update HPP master, lalu cek Total pengeluaran.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Ajukan pembelian", description: "Klik 'Ajukan Pembelian Barang'. Dokumen masuk ke riwayat dengan status PENDING; langkah ini belum membuat Pengeluaran dan tidak mengubah stok.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Review per produk", description: "Dengan izin supplier.goods_purchase.approve:update, pilih Setujui, Edit, Hapus, atau tambah produk unit besar di bawah daftar. Produk yang belum diputuskan ditandai Belum Ada Aksi.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Edit keputusan", description: "Jika produk sudah disetujui, konfirmasi edit akan mengembalikannya menjadi Belum Ada Aksi. Perubahan tersimpan langsung dan minimal satu produk harus tersisa.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Selesaikan atau tolak", description: "Saat seluruh produk disetujui, status otomatis APPROVED, update HPP terpilih diterapkan, dan satu Pengeluaran kategori Bahan dibuat. Penolakan wajib memakai alasan dan izin supplier.goods_purchase.reject:update.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Catat barang fisik terpisah", description: "Pembelian Barang tidak mengubah stok pada tahap apa pun. Saat barang benar-benar datang, gunakan workflow inventaris atau penerimaan barang yang sesuai.", icon: <Warehouse className="w-8 h-8" /> },
       ]
     },
     {
@@ -205,14 +221,14 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     },
     {
       id: "owner-shopping-request",
-      title: "Membuat Permohonan Belanja",
+      title: "Membuat Daftar Belanja",
       description: "Buat daftar barang yang perlu dibeli, lengkap dengan supplier, foto produk, jumlah kebutuhan, dan catatan.",
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Permohonan Belanja", description: "Masuk ke menu Supplier lalu klik tab 'Permohonan Belanja'. Kartu ringkasan menampilkan antrean aktif, total qty menunggu, jumlah yang sudah disetujui, dan rasio qty di-ACC. Klik 'Buat Permohonan Belanja' untuk membuat pengajuan baru.", icon: <Truck className="w-8 h-8" /> },
+        { title: "Buka Daftar Belanja", description: "Masuk ke menu Supplier lalu klik tab 'Daftar Belanja'. Kartu ringkasan menampilkan antrean aktif, total qty menunggu, jumlah yang sudah disetujui, dan rasio qty di-ACC. Klik 'Buat Daftar Belanja' untuk membuat pengajuan baru.", icon: <Truck className="w-8 h-8" /> },
         { title: "Pilih atau Tambah Supplier", description: "Supplier tujuan wajib dipilih. Jika belum tersedia, gunakan tambah supplier cepat dengan mengisi nama dan tipe.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tambah Produk", description: "Cari produk melalui nama atau SKU. Thumbnail, stok terkini, unit, dan grup membantu memastikan produk yang dipilih sudah tepat.", icon: <Package className="w-8 h-8" /> },
-        { title: "Isi Kebutuhan & Simpan", description: "Isi jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik 'Simpan Permohonan Belanja'. Statusnya menjadi Diajukan. Pembuatan maupun approval daftar belanja tidak mengubah stok. Sebelum item pertama diputuskan, Owner atau role dengan izin supplier.shopping_request.edit:update dapat mengedit kembali permohonan.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Isi Kebutuhan & Simpan", description: "Isi jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik 'Simpan Daftar Belanja'. Statusnya menjadi Diajukan. Pembuatan maupun approval daftar belanja tidak mengubah stok dan tidak membuat Pengeluaran. Sebelum item pertama diputuskan, Owner atau role dengan izin supplier.shopping_request.edit:update dapat mengedit kembali permohonan.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -351,7 +367,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Isi Data Pengeluaran", description: "Ketik nama pemohon, pilih kategori pengeluaran, masukkan jumlah nominal, dan keterangan pengeluaran.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', atur orientasi dengan 'Putar kiri' atau 'Putar kanan', lalu klik 'Unggah foto' untuk menyimpannya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Periksa pratinjau. Jika R2 gagal, gunakan input prnt.sc yang muncul, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Kenali Badge Sumber", description: "Badge Manual berasal dari form pengeluaran. Badge Permohonan Belanja dibuat otomatis saat belanja disetujui, memakai warna ungu, dan tidak dapat diedit atau dihapus dari halaman Keuangan.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Kenali Badge Sumber", description: "Badge Manual berasal dari form pengeluaran. Badge Pembelian Barang dibuat otomatis setelah seluruh produknya disetujui dan tidak dapat diedit atau dihapus dari halaman Keuangan. Badge Daftar Belanja (Legacy) hanya menandai data lama.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {
@@ -375,8 +391,8 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },
         { title: "Buka Menu Ekspor", description: "Di pojok kanan atas halaman, klik tombol 'Ekspor'.", icon: <FileText className="w-8 h-8" /> },
         { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, termasuk revenue per kategori produk, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Periksa KPI Biaya", description: "KPI Pengeluaran menjumlahkan entri manual dan Permohonan Belanja. Laba Bersih (Estimasi) adalah Laba Kotor dikurangi seluruh pengeluaran dan bukan laporan laba akrual formal.", icon: <TrendingUp className="w-8 h-8" /> },
-        { title: "Pilih Periode Ekspor", description: "Tentukan cakupan waktu ekspor: Harian (hari ini), Mingguan (7 hari terakhir), atau Bulanan (bulan berjalan). Pengeluaran dari Permohonan Belanja dan peringatan harga modal ikut diberi label pada jurnal.", icon: <History className="w-8 h-8" /> },
+        { title: "Periksa KPI Biaya", description: "KPI Pengeluaran menjumlahkan entri manual dan Pembelian Barang. Laba Bersih (Estimasi) adalah Laba Kotor dikurangi seluruh pengeluaran dan bukan laporan laba akrual formal.", icon: <TrendingUp className="w-8 h-8" /> },
+        { title: "Pilih Periode Ekspor", description: "Tentukan cakupan waktu ekspor: Harian (hari ini), Mingguan (7 hari terakhir), atau Bulanan (bulan berjalan). Pengeluaran dari Pembelian Barang dan peringatan harga modal ikut diberi label pada jurnal.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {
@@ -394,14 +410,14 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     },
     {
       id: "admin-shopping-request",
-      title: "Membuat Permohonan Belanja",
+      title: "Membuat Daftar Belanja",
       description: "Buat daftar barang yang perlu dibeli, lengkap dengan supplier, foto produk, jumlah kebutuhan, dan catatan.",
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Permohonan Belanja", description: "Masuk ke menu Supplier lalu klik tab 'Permohonan Belanja'. Kartu ringkasan menampilkan antrean aktif, total qty menunggu, jumlah yang sudah disetujui, dan rasio qty di-ACC. Klik 'Buat Permohonan Belanja' untuk membuat pengajuan baru.", icon: <Truck className="w-8 h-8" /> },
+        { title: "Buka Daftar Belanja", description: "Masuk ke menu Supplier lalu klik tab 'Daftar Belanja'. Kartu ringkasan menampilkan antrean aktif, total qty menunggu, jumlah yang sudah disetujui, dan rasio qty di-ACC. Klik 'Buat Daftar Belanja' untuk membuat pengajuan baru.", icon: <Truck className="w-8 h-8" /> },
         { title: "Pilih atau Tambah Supplier", description: "Supplier tujuan wajib dipilih. Jika belum tersedia, gunakan tambah supplier cepat dengan mengisi nama dan tipe.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tambah Produk", description: "Cari produk melalui nama atau SKU. Thumbnail, stok terkini, unit, dan grup membantu memastikan produk yang dipilih sudah tepat.", icon: <Package className="w-8 h-8" /> },
-        { title: "Isi Kebutuhan & Simpan", description: "Isi jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik 'Simpan Permohonan Belanja'. Statusnya menjadi Diajukan. Pembuatan maupun approval daftar belanja tidak mengubah stok. Edit dan pengisian Jumlah yang Di-ACC mengikuti izin RBAC granular yang diatur Owner.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Isi Kebutuhan & Simpan", description: "Isi jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik 'Simpan Daftar Belanja'. Statusnya menjadi Diajukan. Pembuatan maupun approval daftar belanja tidak mengubah stok dan tidak membuat Pengeluaran. Edit dan pengisian Jumlah yang Di-ACC mengikuti izin RBAC granular yang diatur Owner.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
