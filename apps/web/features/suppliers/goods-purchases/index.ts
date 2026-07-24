@@ -5,6 +5,7 @@ export * from "./components/GoodsPurchaseCreateModal";
 export * from "./components/GoodsPurchaseDetailModal";
 export * from "./components/GoodsPurchaseItemEditor";
 export * from "./components/GoodsPurchaseList";
+export * from "./components/GoodsPurchaseReceivingComparisonModal";
 export * from "./components/GoodsPurchaseRejectModal";
 export * from "./helpers/goods-purchase-core";
 export * from "./hooks/useGoodsPurchases";

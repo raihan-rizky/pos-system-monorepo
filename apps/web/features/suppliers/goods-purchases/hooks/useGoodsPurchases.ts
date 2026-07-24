@@ -200,3 +200,15 @@ export function invalidateGoodsPurchaseMutationQueries(
     queryClient.invalidateQueries({ queryKey });
   }
 }
+
+export function invalidateGoodsReceiptQueries(
+  queryClient: QueryClient,
+): void {
+  for (const queryKey of [
+    ["goods-purchases"],
+    ["inventory-management"],
+    ["inventory-logs"],
+  ]) {
+    queryClient.invalidateQueries({ queryKey });
+  }
+}

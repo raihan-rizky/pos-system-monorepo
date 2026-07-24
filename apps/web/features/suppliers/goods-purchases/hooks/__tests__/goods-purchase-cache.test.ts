@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  invalidateGoodsReceiptQueries,
   invalidateGoodsPurchaseMutationQueries,
   syncGoodsPurchaseCaches,
 } from "../useGoodsPurchases";
@@ -17,6 +18,7 @@ const detail: GoodsPurchaseDetail = {
   supplierId: "supplier-1",
   supplierName: "CV Kertas",
   status: "PENDING",
+  fulfillmentStatus: "NOT_RECEIVED",
   itemCount: 1,
   pendingItemCount: 1,
   totalAmount: 20_000,
@@ -89,6 +91,22 @@ describe("goods purchase cache helpers", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["products"],
+    });
+  });
+
+  it("invalidates purchase, receipt, and stock-log caches after receiving", () => {
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    invalidateGoodsReceiptQueries(queryClient);
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["goods-purchases"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["inventory-management"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["inventory-logs"],
     });
   });
 });

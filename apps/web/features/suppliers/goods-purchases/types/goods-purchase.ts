@@ -1,4 +1,8 @@
 export type GoodsPurchaseStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type GoodsPurchaseFulfillmentStatus =
+  | "NOT_RECEIVED"
+  | "PARTIALLY_RECEIVED"
+  | "RECEIVED";
 export type GoodsPurchaseItemReviewStatus = "PENDING" | "APPROVED";
 
 export type GoodsPurchaseActor = {
@@ -48,6 +52,7 @@ export type GoodsPurchaseListItem = {
   shoppingRequestNumber: string;
   supplierName: string;
   status: GoodsPurchaseStatus;
+  fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
   itemCount: number;
   pendingItemCount: number;
   totalAmount: number;

@@ -13,6 +13,7 @@ import {
 import { useRole } from "@/components/providers/RoleProvider";
 import { useGoodsPurchases } from "../hooks/useGoodsPurchases";
 import type { GoodsPurchaseStatus } from "../types/goods-purchase";
+import type { GoodsPurchaseListItem } from "../types/goods-purchase";
 import { GoodsPurchaseApprovalModal } from "./GoodsPurchaseApprovalModal";
 import { GoodsPurchaseApprovedDialog } from "./GoodsPurchaseApprovedDialog";
 import { GoodsPurchaseDetailModal } from "./GoodsPurchaseDetailModal";
@@ -33,10 +34,38 @@ const STATUS_LABELS = {
   },
 } as const;
 
+export function goodsPurchaseDisplayStatus(row: GoodsPurchaseListItem) {
+  if (row.status !== "APPROVED") return row.status;
+  if (row.fulfillmentStatus === "RECEIVED") {
+    return "BARANG DITERIMA" as const;
+  }
+  if (row.fulfillmentStatus === "PARTIALLY_RECEIVED") {
+    return "BARANG DITERIMA SEBAGIAN" as const;
+  }
+  return "APPROVED" as const;
+}
+
+const FULFILLMENT_STATUS_LABELS = {
+  "BARANG DITERIMA": {
+    label: "BARANG DITERIMA",
+    className: "border-sky-200 bg-sky-50 text-sky-700",
+  },
+  "BARANG DITERIMA SEBAGIAN": {
+    label: "BARANG DITERIMA SEBAGIAN",
+    className: "border-cyan-200 bg-cyan-50 text-cyan-700",
+  },
+} as const;
+
 export function GoodsPurchaseList({
   onCreateClick,
+  onReceive,
+  onViewReceiptHistory,
+  onCompare,
 }: {
   onCreateClick: () => void;
+  onReceive: (purchaseId: string) => void;
+  onViewReceiptHistory: (purchaseId: string) => void;
+  onCompare: (purchaseId: string) => void;
 }) {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
@@ -55,6 +84,7 @@ export function GoodsPurchaseList({
     "supplier.goods_purchase.reject",
     "update",
   );
+  const canReceive = canPerform("inventory", "update");
   const list = useGoodsPurchases({
     page,
     limit: 10,
@@ -120,10 +150,21 @@ export function GoodsPurchaseList({
       ) : (
         <div className="space-y-3">
           {rows.map((row) => {
-            const statusInfo = STATUS_LABELS[row.status];
+            const displayStatus = goodsPurchaseDisplayStatus(row);
+            const statusInfo =
+              displayStatus === "BARANG DITERIMA" ||
+              displayStatus === "BARANG DITERIMA SEBAGIAN"
+                ? FULFILLMENT_STATUS_LABELS[displayStatus]
+                : STATUS_LABELS[displayStatus];
+            const hasReceipt =
+              row.status === "APPROVED" &&
+              row.fulfillmentStatus !== "NOT_RECEIVED";
             return (
               <article
                 key={row.id}
+                onClick={
+                  hasReceipt ? () => onCompare(row.id) : undefined
+                }
                 className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"
               >
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
@@ -163,7 +204,10 @@ export function GoodsPurchaseList({
                       type="button"
                       size="sm"
                       variant="secondary"
-                      onClick={() => setDetailId(row.id)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDetailId(row.id);
+                      }}
                       icon={<Eye className="h-4 w-4" />}
                     >
                       Detail
@@ -172,7 +216,10 @@ export function GoodsPurchaseList({
                       <Button
                         type="button"
                         size="sm"
-                        onClick={() => setApprovalId(row.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setApprovalId(row.id);
+                        }}
                         icon={<CheckCircle2 className="h-4 w-4" />}
                       >
                         Proses
@@ -183,10 +230,53 @@ export function GoodsPurchaseList({
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => setRejectId(row.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setRejectId(row.id);
+                        }}
                         icon={<XCircle className="h-4 w-4" />}
                       >
                         Tolak
+                      </Button>
+                    )}
+                    {row.status === "APPROVED" &&
+                      row.fulfillmentStatus !== "RECEIVED" &&
+                      canReceive && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onReceive(row.id);
+                          }}
+                        >
+                          Barang Sudah Diterima?
+                        </Button>
+                      )}
+                    {row.status === "APPROVED" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onViewReceiptHistory(row.id);
+                        }}
+                      >
+                        Lihat Riwayat Penerimaan Barang
+                      </Button>
+                    )}
+                    {hasReceipt && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onCompare(row.id);
+                        }}
+                      >
+                        Lihat Perbandingan
                       </Button>
                     )}
                   </div>

@@ -21,6 +21,7 @@ const inboundApi = inventoryApi as unknown as {
       | "APPROVED"
       | "REJECTED"
       | "CANCELLED";
+    goodsPurchaseId?: string;
   }): Promise<unknown>;
   fetchReceivingQueue(input?: {
     search?: string;

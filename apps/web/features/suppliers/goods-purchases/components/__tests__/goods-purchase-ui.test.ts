@@ -54,6 +54,27 @@ describe("goods purchase supplier UI", () => {
     expect(detail).toContain("Alasan penolakan");
   });
 
+  it("connects approved purchases to receiving history and comparison", () => {
+    const list = source("GoodsPurchaseList.tsx");
+    const comparison = source(
+      "GoodsPurchaseReceivingComparisonModal.tsx",
+    );
+
+    expect(list).toContain("BARANG DITERIMA SEBAGIAN");
+    expect(list).toContain("BARANG DITERIMA");
+    expect(list).toContain("Barang Sudah Diterima?");
+    expect(list).toContain("Lihat Riwayat Penerimaan Barang");
+    expect(list).toContain('canPerform("inventory", "update")');
+    expect(comparison).toContain("Dipesan");
+    expect(comparison).toContain("Diterima");
+    expect(comparison).toContain("Pending");
+    expect(comparison).toContain("Sisa");
+    expect(shell).toContain("initialGoodsPurchaseId");
+    expect(shell).toContain(
+      "/inventory?tab=transactions&subtab=inbound&goodsPurchaseId=",
+    );
+  });
+
   it("reviews products individually and shows the pending counter", () => {
     const modal = source("GoodsPurchaseApprovalModal.tsx");
     expect(modal).toContain("Produk Belum Ada Aksi");

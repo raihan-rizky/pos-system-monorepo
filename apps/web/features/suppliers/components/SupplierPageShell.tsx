@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button, Modal } from "@pos/ui";
 import {
   PackagePlus,
@@ -53,7 +54,10 @@ import {
 import {
   GoodsPurchaseCreateModal,
   GoodsPurchaseList,
+  GoodsPurchaseReceivingComparisonModal,
+  invalidateGoodsReceiptQueries,
 } from "@/features/suppliers/goods-purchases";
+import { InboundReceiptModal } from "@/features/inventory-management";
 
 const emptyForm: SupplierInput = {
   code: "",
@@ -66,6 +70,8 @@ const emptyForm: SupplierInput = {
 };
 
 export function SupplierPageShell() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const [tab, setTab] = useState<
@@ -82,6 +88,10 @@ export function SupplierPageShell() {
   const [shoppingCreateOpen, setShoppingCreateOpen] = useState(false);
   const [goodsPurchaseCreateOpen, setGoodsPurchaseCreateOpen] =
     useState(false);
+  const [receivingGoodsPurchaseId, setReceivingGoodsPurchaseId] =
+    useState<string | null>(null);
+  const [comparisonGoodsPurchaseId, setComparisonGoodsPurchaseId] =
+    useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [type, setType] = useState<SupplierInput["type"] | "ALL">("ALL");
   const [showInactive, setShowInactive] = useState(false);
@@ -404,6 +414,13 @@ export function SupplierPageShell() {
             </div>
             <GoodsPurchaseList
               onCreateClick={() => setGoodsPurchaseCreateOpen(true)}
+              onReceive={setReceivingGoodsPurchaseId}
+              onCompare={setComparisonGoodsPurchaseId}
+              onViewReceiptHistory={(purchaseId) =>
+                router.push(
+                  `/inventory?tab=transactions&subtab=inbound&goodsPurchaseId=${purchaseId}`,
+                )
+              }
             />
           </section>
         )}
@@ -433,6 +450,21 @@ export function SupplierPageShell() {
       <GoodsPurchaseCreateModal
         open={goodsPurchaseCreateOpen}
         onClose={() => setGoodsPurchaseCreateOpen(false)}
+      />
+
+      <InboundReceiptModal
+        open={receivingGoodsPurchaseId !== null}
+        initialGoodsPurchaseId={receivingGoodsPurchaseId}
+        onClose={() => setReceivingGoodsPurchaseId(null)}
+        onSuccess={() => {
+          setReceivingGoodsPurchaseId(null);
+          invalidateGoodsReceiptQueries(queryClient);
+        }}
+      />
+
+      <GoodsPurchaseReceivingComparisonModal
+        purchaseId={comparisonGoodsPurchaseId}
+        onClose={() => setComparisonGoodsPurchaseId(null)}
       />
 
       <SupplierDetailPopup

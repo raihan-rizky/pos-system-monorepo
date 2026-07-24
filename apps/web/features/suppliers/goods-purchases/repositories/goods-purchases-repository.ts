@@ -74,6 +74,7 @@ function mapGoodsPurchaseListItem(
     shoppingRequestNumber: row.shoppingRequest.number,
     supplierName: row.supplierNameSnapshot,
     status: row.status,
+    fulfillmentStatus: row.fulfillmentStatus,
     itemCount: row.items.length,
     pendingItemCount: row.items.filter(
       (item) => item.reviewStatus === "PENDING",
