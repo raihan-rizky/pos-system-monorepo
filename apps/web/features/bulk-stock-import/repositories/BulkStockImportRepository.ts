@@ -76,6 +76,13 @@ interface GroupStockUpdate {
   targetUnitMultiplierToBase: number;
 }
 
+interface SharedStockUndoMetadata {
+  stockGroupId: string;
+  baseStockBefore: number;
+  baseStockAfter: number;
+  unitMultiplier: number;
+}
+
 async function findStockImportProductRecords(storeId: string) {
   return db.product.findMany({
     where: { storeId, isActive: true },
@@ -128,6 +135,22 @@ function normalizeUnitMultiplier(multiplier: number | null | undefined) {
   return Number.isFinite(multiplier) && Number(multiplier) > 0
     ? Number(multiplier)
     : 1;
+}
+
+function withSharedStockUndo(
+  snapshot: unknown,
+  metadata: SharedStockUndoMetadata,
+  canonicalStock?: number,
+): Prisma.InputJsonValue {
+  const productSnapshot =
+    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
+      ? (snapshot as Record<string, unknown>)
+      : {};
+  return {
+    ...productSnapshot,
+    ...(canonicalStock === undefined ? {} : { stock: canonicalStock }),
+    sharedStockUndo: { ...metadata },
+  } as unknown as Prisma.InputJsonValue;
 }
 
 function roundedDisplayTargetTolerance(
@@ -487,6 +510,33 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
       }
 
       if (isOwner) {
+        for (const item of batchOperationItemsToCreate) {
+          if (!item.productId) continue;
+          const product = productsById.get(item.productId);
+          if (!product?.stockGroupId || !product.stockGroup) continue;
+
+          const groupUpdate = groupDeltas.get(product.stockGroupId);
+          const metadata: SharedStockUndoMetadata = {
+            stockGroupId: product.stockGroupId,
+            baseStockBefore: product.stockGroup.baseStock,
+            baseStockAfter:
+              product.stockGroup.baseStock +
+              (groupUpdate?.baseDelta ?? 0),
+            unitMultiplier: normalizeUnitMultiplier(
+              product.unitMultiplierToBase,
+            ),
+          };
+          item.beforeSnapshot = withSharedStockUndo(
+            item.beforeSnapshot,
+            metadata,
+          );
+          item.afterSnapshot = withSharedStockUndo(
+            item.afterSnapshot,
+            metadata,
+            metadata.baseStockAfter / metadata.unitMultiplier,
+          );
+        }
+
         assertGroupedStockUpdates(productsById, groupDeltas, allowNegative);
         await applyBulkStandaloneStockUpdates(tx, {
           storeId: input.storeId,

@@ -584,89 +584,91 @@ export async function DELETE(request: Request) {
     }
 
     const storeId = user.storeId || "store-main";
-    const results = await db.$transaction(async (tx) => {
-      const productHints = await tx.product.findMany({
-        where: { id: { in: productIds }, storeId },
-        select: { id: true, stockGroupId: true, isActive: true },
-      });
-      if (productHints.length !== productIds.length) {
-        throw new Error("PRODUCT_NOT_FOUND");
-      }
+    const existingProducts = await db.product.findMany({
+      where: { id: { in: productIds }, storeId },
+      select: { id: true },
+    });
+    if (existingProducts.length !== productIds.length) {
+      throw new Error("PRODUCT_NOT_FOUND");
+    }
 
-      const stockGroupIds = productHints
-        .map((product) => product.stockGroupId)
-        .filter((stockGroupId): stockGroupId is string =>
-          Boolean(stockGroupId),
-        );
-      const locks = await lockStockMutationRows(tx, {
-        storeId,
-        stockGroupIds,
-        productIds,
-      });
-      if (
-        locks.lockedStockGroupIds.length !== new Set(stockGroupIds).size ||
-        locks.lockedProductIds.length !== productIds.length
-      ) {
-        throw new StockMutationConflictError();
-      }
+    const results: Array<{
+      id: string;
+      status: "hard_deleted" | "soft_deleted" | "error";
+      message?: string;
+    }> = [];
+    for (const id of productIds) {
+      try {
+        const status = await db.$transaction(async (tx) => {
+          const productHint = await tx.product.findFirst({
+            where: { id, storeId },
+            select: { id: true, stockGroupId: true, isActive: true },
+          });
+          if (!productHint) throw new Error("PRODUCT_NOT_FOUND");
 
-      const currentProducts = await tx.product.findMany({
-        where: { id: { in: productIds }, storeId },
-        select: { id: true, stockGroupId: true, isActive: true },
-      });
-      const hintById = new Map(
-        productHints.map((product) => [product.id, product]),
-      );
-      if (
-        currentProducts.length !== productIds.length ||
-        currentProducts.some((product) => {
-          const hint = hintById.get(product.id);
-          return (
-            !hint ||
-            hint.stockGroupId !== product.stockGroupId ||
-            hint.isActive !== product.isActive
-          );
-        })
-      ) {
-        throw new StockMutationConflictError();
-      }
+          const locks = await lockStockMutationRows(tx, {
+            storeId,
+            stockGroupIds: productHint.stockGroupId
+              ? [productHint.stockGroupId]
+              : [],
+            productIds: [productHint.id],
+          });
+          if (
+            !locks.lockedProductIds.includes(productHint.id) ||
+            (productHint.stockGroupId &&
+              !locks.lockedStockGroupIds.includes(
+                productHint.stockGroupId,
+              ))
+          ) {
+            throw new StockMutationConflictError();
+          }
 
-      // Tetap proses per produk supaya response lama tetap menjelaskan item yang gagal.
-      const deletionResults: Array<{
-        id: string;
-        status: "hard_deleted" | "soft_deleted" | "error";
-        message?: string;
-      }> = [];
-      for (const id of productIds) {
-        try {
+          const currentProduct = await tx.product.findFirst({
+            where: { id, storeId },
+            select: { id: true, stockGroupId: true, isActive: true },
+          });
+          if (
+            !currentProduct ||
+            currentProduct.stockGroupId !== productHint.stockGroupId ||
+            currentProduct.isActive !== productHint.isActive
+          ) {
+            throw new StockMutationConflictError();
+          }
+
           const transactionsCount = await tx.transactionItem.count({
             where: { productId: id },
           });
-
           if (transactionsCount > 0) {
             await tx.product.update({
               where: { id },
               data: { isActive: false },
             });
-            deletionResults.push({ id, status: "soft_deleted" });
-          } else {
-            await tx.product.delete({ where: { id } });
-            deletionResults.push({ id, status: "hard_deleted" });
+            return "soft_deleted" as const;
           }
-        } catch (itemError) {
-          log.error(`Failed to delete product ${id}:`, itemError);
-          deletionResults.push({
-            id,
-            status: "error",
-            message:
-              itemError instanceof Error
-                ? itemError.message
-                : "Failed to delete product",
-          });
+
+          await tx.product.delete({ where: { id } });
+          return "hard_deleted" as const;
+        });
+        results.push({ id, status });
+      } catch (itemError) {
+        if (
+          isStockMutationConflict(itemError) ||
+          (itemError instanceof Error &&
+            itemError.message === "PRODUCT_NOT_FOUND")
+        ) {
+          throw itemError;
         }
+        log.error(`Failed to delete product ${id}:`, itemError);
+        results.push({
+          id,
+          status: "error",
+          message:
+            itemError instanceof Error
+              ? itemError.message
+              : "Failed to delete product",
+        });
       }
-      return deletionResults;
-    });
+    }
 
     const hardDeleted = results.filter((r) => r.status === "hard_deleted").length;
     const softDeleted = results.filter((r) => r.status === "soft_deleted").length;

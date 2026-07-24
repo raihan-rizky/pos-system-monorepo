@@ -15,8 +15,60 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("api:batch-operations:undo");
 
-function asSnapshot(value: Prisma.JsonValue | null | undefined) {
-  return value as unknown as ProductSnapshot | null;
+interface SharedStockUndoMetadata {
+  stockGroupId: string;
+  baseStockBefore: number;
+  baseStockAfter: number;
+  unitMultiplier: number;
+}
+
+type UndoProductSnapshot = ProductSnapshot & {
+  sharedStockUndo?: SharedStockUndoMetadata;
+};
+
+function asSnapshot(
+  value: Prisma.JsonValue | null | undefined,
+): UndoProductSnapshot | null {
+  return value as unknown as UndoProductSnapshot | null;
+}
+
+function productFieldsOnly(
+  snapshot: UndoProductSnapshot,
+): ProductSnapshot {
+  const {
+    sharedStockUndo: _sharedStockUndo,
+    ...productFields
+  } = snapshot;
+  return productFields;
+}
+
+function normalizedMultiplier(value: number | null | undefined) {
+  return Number.isFinite(value) && Number(value) > 0 ? Number(value) : 1;
+}
+
+function sameNumber(left: number, right: number) {
+  return Math.abs(left - right) <= 1e-6;
+}
+
+function isStockAction(action: string) {
+  return (
+    action === "STOCK_IN" ||
+    action === "STOCK_OUT" ||
+    action === "ADJUSTMENT"
+  );
+}
+
+function isValidSharedStockUndo(
+  value: SharedStockUndoMetadata | undefined,
+): value is SharedStockUndoMetadata {
+  return Boolean(
+    value &&
+      value.stockGroupId &&
+      Number.isFinite(value.baseStockBefore) &&
+      Number.isFinite(value.baseStockAfter) &&
+      Number.isFinite(value.unitMultiplier) &&
+      value.unitMultiplier > 0,
+  );
 }
 
 async function restoreProductSupplierLinks(
@@ -78,19 +130,120 @@ export async function POST(
         where: { id: { in: productIds }, storeId },
         include: { productSuppliers: { select: { supplierId: true } } },
       });
-      const stockGroupIds = productHints
-        .map((product) => product.stockGroupId)
-        .filter((stockGroupId): stockGroupId is string =>
-          Boolean(stockGroupId),
+      const hintById = new Map(
+        productHints.map((product) => [product.id, product]),
+      );
+      const metadataByProductId = new Map<
+        string,
+        SharedStockUndoMetadata
+      >();
+      const groupUndoPlans = new Map<
+        string,
+        {
+          stockGroupId: string;
+          baseStockBefore: number;
+          baseStockAfter: number;
+        }
+      >();
+
+      for (const item of batch.items) {
+        if (!item.productId || !isStockAction(item.action)) continue;
+        const beforeSnapshot = asSnapshot(item.beforeSnapshot);
+        const afterSnapshot = asSnapshot(item.afterSnapshot);
+        const beforeMetadata = beforeSnapshot?.sharedStockUndo;
+        const afterMetadata = afterSnapshot?.sharedStockUndo;
+        const currentHint = hintById.get(item.productId);
+
+        if (!currentHint?.stockGroupId) {
+          if (beforeMetadata || afterMetadata) {
+            throw new StockMutationConflictError();
+          }
+          continue;
+        }
+        if (
+          !isValidSharedStockUndo(beforeMetadata) ||
+          !isValidSharedStockUndo(afterMetadata) ||
+          beforeMetadata.stockGroupId !== afterMetadata.stockGroupId ||
+          !sameNumber(
+            beforeMetadata.baseStockBefore,
+            afterMetadata.baseStockBefore,
+          ) ||
+          !sameNumber(
+            beforeMetadata.baseStockAfter,
+            afterMetadata.baseStockAfter,
+          ) ||
+          !sameNumber(
+            beforeMetadata.unitMultiplier,
+            afterMetadata.unitMultiplier,
+          )
+        ) {
+          throw new StockMutationConflictError();
+        }
+
+        const existingPlan = groupUndoPlans.get(
+          beforeMetadata.stockGroupId,
         );
+        if (
+          existingPlan &&
+          (!sameNumber(
+            existingPlan.baseStockBefore,
+            beforeMetadata.baseStockBefore,
+          ) ||
+            !sameNumber(
+              existingPlan.baseStockAfter,
+              beforeMetadata.baseStockAfter,
+            ))
+        ) {
+          throw new StockMutationConflictError();
+        }
+        groupUndoPlans.set(beforeMetadata.stockGroupId, {
+          stockGroupId: beforeMetadata.stockGroupId,
+          baseStockBefore: beforeMetadata.baseStockBefore,
+          baseStockAfter: beforeMetadata.baseStockAfter,
+        });
+        metadataByProductId.set(item.productId, beforeMetadata);
+      }
+
+      const stockGroupIds = Array.from(
+        new Set([
+          ...productHints
+            .map((product) => product.stockGroupId)
+            .filter((stockGroupId): stockGroupId is string =>
+              Boolean(stockGroupId),
+            ),
+          ...groupUndoPlans.keys(),
+        ]),
+      ).sort((left, right) => left.localeCompare(right));
+      const variantHints =
+        stockGroupIds.length === 0
+          ? []
+          : await tx.product.findMany({
+              where: {
+                storeId,
+                isActive: true,
+                stockGroupId: { in: stockGroupIds },
+              },
+              select: {
+                id: true,
+                stockGroupId: true,
+                isActive: true,
+                unitMultiplierToBase: true,
+              },
+            });
+      const candidateProductIds = Array.from(
+        new Set([
+          ...productIds,
+          ...variantHints.map((product) => product.id),
+        ]),
+      ).sort((left, right) => left.localeCompare(right));
       const locks = await lockStockMutationRows(tx, {
         storeId,
         stockGroupIds,
-        productIds,
+        productIds: candidateProductIds,
       });
       if (
-        locks.lockedStockGroupIds.length !== new Set(stockGroupIds).size ||
-        locks.lockedProductIds.length !== productIds.length
+        locks.lockedStockGroupIds.length !== stockGroupIds.length ||
+        locks.lockedProductIds.length !== candidateProductIds.length
       ) {
         throw new StockMutationConflictError();
       }
@@ -99,9 +252,22 @@ export async function POST(
         where: { id: { in: productIds }, storeId },
         include: { productSuppliers: { select: { supplierId: true } } },
       });
-      const hintById = new Map(
-        productHints.map((product) => [product.id, product]),
-      );
+      const variantsAfterLock =
+        stockGroupIds.length === 0
+          ? []
+          : await tx.product.findMany({
+              where: {
+                storeId,
+                isActive: true,
+                stockGroupId: { in: stockGroupIds },
+              },
+              select: {
+                id: true,
+                stockGroupId: true,
+                isActive: true,
+                unitMultiplierToBase: true,
+              },
+            });
       if (
         productsAfterLock.length !== productIds.length ||
         productsAfterLock.some((product) => {
@@ -116,16 +282,93 @@ export async function POST(
         throw new StockMutationConflictError();
       }
 
+      const variantHintById = new Map(
+        variantHints.map((product) => [product.id, product]),
+      );
+      if (
+        variantsAfterLock.length !== variantHints.length ||
+        variantsAfterLock.some((product) => {
+          const hint = variantHintById.get(product.id);
+          return (
+            !hint ||
+            hint.stockGroupId !== product.stockGroupId ||
+            hint.isActive !== product.isActive ||
+            !sameNumber(
+              normalizedMultiplier(hint.unitMultiplierToBase),
+              normalizedMultiplier(product.unitMultiplierToBase),
+            )
+          );
+        })
+      ) {
+        throw new StockMutationConflictError();
+      }
+
       const productById = new Map(
         productsAfterLock.map((product) => [product.id, product]),
       );
+      for (const [productId, metadata] of metadataByProductId) {
+        const current = productById.get(productId);
+        if (
+          !current ||
+          current.stockGroupId !== metadata.stockGroupId ||
+          !sameNumber(
+            normalizedMultiplier(current.unitMultiplierToBase),
+            metadata.unitMultiplier,
+          )
+        ) {
+          throw new StockMutationConflictError();
+        }
+      }
+
+      const groupIdsToRestore = Array.from(groupUndoPlans.keys()).sort(
+        (left, right) => left.localeCompare(right),
+      );
+      const groupsAfterLock =
+        groupIdsToRestore.length === 0
+          ? []
+          : await tx.productStockGroup.findMany({
+              where: {
+                id: { in: groupIdsToRestore },
+                storeId,
+              },
+              select: {
+                id: true,
+                storeId: true,
+                baseStock: true,
+              },
+            });
+      const groupAfterLockById = new Map(
+        groupsAfterLock.map((group) => [group.id, group]),
+      );
+      if (
+        groupsAfterLock.length !== groupIdsToRestore.length ||
+        groupIdsToRestore.some((stockGroupId) => {
+          const plan = groupUndoPlans.get(stockGroupId);
+          const group = groupAfterLockById.get(stockGroupId);
+          return (
+            !plan ||
+            !group ||
+            !sameNumber(group.baseStock, plan.baseStockAfter)
+          );
+        })
+      ) {
+        throw new StockMutationConflictError();
+      }
+
       const blockedProducts: string[] = [];
 
       for (const item of batch.items) {
         if (!item.productId || item.action === "SKIP") continue;
         const current = productById.get(item.productId);
         const expected = asSnapshot(item.afterSnapshot);
-        if (!current || !expected || !snapshotsMatch(productSnapshot(current), expected)) {
+        if (
+          !current ||
+          !expected ||
+          !snapshotsMatch(
+            productSnapshot(current),
+            productFieldsOnly(expected),
+          )
+        ) {
           blockedProducts.push(item.sku);
         }
       }
@@ -175,6 +418,45 @@ export async function POST(
 
       let reversalInventoryLogCount = 0;
 
+      for (const stockGroupId of groupIdsToRestore) {
+        const plan = groupUndoPlans.get(stockGroupId);
+        if (!plan) throw new StockMutationConflictError();
+
+        const restoredGroup = await tx.productStockGroup.updateMany({
+          where: {
+            id: stockGroupId,
+            storeId,
+            baseStock: plan.baseStockAfter,
+          },
+          data: { baseStock: plan.baseStockBefore },
+        });
+        if (restoredGroup.count !== 1) {
+          throw new StockMutationConflictError();
+        }
+
+        const groupVariants = variantsAfterLock
+          .filter((variant) => variant.stockGroupId === stockGroupId)
+          .sort((left, right) => left.id.localeCompare(right.id));
+        for (const variant of groupVariants) {
+          const synced = await tx.product.updateMany({
+            where: {
+              id: variant.id,
+              storeId,
+              stockGroupId,
+              isActive: true,
+            },
+            data: {
+              stock:
+                plan.baseStockBefore /
+                normalizedMultiplier(variant.unitMultiplierToBase),
+            },
+          });
+          if (synced.count !== 1) {
+            throw new StockMutationConflictError();
+          }
+        }
+      }
+
       for (const item of batch.items) {
         if (!item.productId || item.action === "SKIP") continue;
         const current = productById.get(item.productId);
@@ -220,6 +502,11 @@ export async function POST(
 
         if (!beforeSnapshot) continue;
         const delta = beforeSnapshot.stock - current.stock;
+        const sharedStockUndo = metadataByProductId.get(current.id);
+        const restoredStock = sharedStockUndo
+          ? sharedStockUndo.baseStockBefore /
+            sharedStockUndo.unitMultiplier
+          : beforeSnapshot.stock;
         const restored = await tx.product.update({
           where: { id: current.id },
           data: {
@@ -231,7 +518,7 @@ export async function POST(
             costPrice: beforeSnapshot.costPrice,
             hargaDinas: beforeSnapshot.hargaDinas,
             hargaAgen: beforeSnapshot.hargaAgen,
-            stock: beforeSnapshot.stock,
+            stock: restoredStock,
             minStock: beforeSnapshot.minStock,
             unit: beforeSnapshot.unit,
             size: beforeSnapshot.size,

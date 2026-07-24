@@ -4,6 +4,7 @@ import { DELETE, GET, POST } from "../route";
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const productFindUniqueMock = vi.hoisted(() => vi.fn());
+const productFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const productCountMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindManyMock = vi.hoisted(() => vi.fn());
@@ -28,6 +29,7 @@ vi.mock("@pos/db", () => ({
   db: {
     product: {
       findUnique: productFindUniqueMock,
+      findFirst: productFindFirstMock,
       findMany: productFindManyMock,
       count: productCountMock,
       create: productCreateMock,
@@ -572,13 +574,20 @@ describe("GET /api/products", () => {
 
 describe("DELETE /api/products", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     requirePermissionMock.mockResolvedValue({
       id: "user-1",
       name: "Owner User",
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    productFindFirstMock.mockImplementation(
+      async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        stockGroupId: null,
+        isActive: true,
+      }),
+    );
     productUpdateMock.mockResolvedValue({ id: "product-1" });
     productDeleteMock.mockResolvedValue({ id: "product-1" });
     groupRowLockMock.mockImplementation(
@@ -588,6 +597,7 @@ describe("DELETE /api/products", () => {
       callback({
         $queryRaw: groupRowLockMock,
         product: {
+          findFirst: productFindFirstMock,
           findMany: productFindManyMock,
           update: productUpdateMock,
           delete: productDeleteMock,
@@ -673,21 +683,145 @@ describe("DELETE /api/products", () => {
     ]);
   });
 
-  it("locks mixed source groups before sorted products and reloads before deleting", async () => {
+  it("rolls back only the failed item transaction and continues in original order", async () => {
+    const products = [
+      {
+        id: "product-fail",
+        stockGroupId: "group-z",
+        isActive: true,
+      },
+      {
+        id: "product-ok",
+        stockGroupId: "group-a",
+        isActive: true,
+      },
+    ];
+    const events: string[] = [];
+    let transactionNumber = 0;
+    productFindManyMock.mockResolvedValue(products);
+    transactionMock.mockImplementation(async (callback) => {
+      transactionNumber += 1;
+      const txName = `tx${transactionNumber}`;
+      let poisoned = false;
+      const readCountByProduct = new Map<string, number>();
+      events.push(`${txName}:begin`);
+
+      try {
+        const result = await callback({
+          $queryRaw: async (
+            strings: TemplateStringsArray,
+            rowId: string,
+          ) => {
+            const kind = strings
+              .join(" ")
+              .includes("pos_product_stock_groups")
+              ? "group"
+              : "product";
+            events.push(`${txName}:lock:${kind}:${rowId}`);
+            return [{ id: rowId }];
+          },
+          product: {
+            findMany: productFindManyMock,
+            findFirst: async ({
+              where,
+            }: {
+              where: { id: string };
+            }) => {
+              const reads = readCountByProduct.get(where.id) ?? 0;
+              readCountByProduct.set(where.id, reads + 1);
+              events.push(
+                `${txName}:${reads === 0 ? "hint" : "reload"}:${where.id}`,
+              );
+              return products.find((product) => product.id === where.id);
+            },
+            update: productUpdateMock,
+            delete: async ({ where }: { where: { id: string } }) => {
+              events.push(`${txName}:delete:${where.id}`);
+              if (where.id === "product-fail") {
+                poisoned = true;
+                throw new Error("FK constraint");
+              }
+              if (poisoned) {
+                throw new Error("current transaction is aborted");
+              }
+              return { id: where.id };
+            },
+          },
+          transactionItem: {
+            count: async () => {
+              if (poisoned) {
+                throw new Error("current transaction is aborted");
+              }
+              return 0;
+            },
+          },
+        });
+        if (poisoned) {
+          throw new Error("current transaction is aborted");
+        }
+        events.push(`${txName}:commit`);
+        return result;
+      } catch (error) {
+        events.push(`${txName}:rollback`);
+        throw error;
+      }
+    });
+
+    const response = await DELETE(
+      new Request(
+        "http://localhost/api/products?ids=product-fail,product-ok",
+        { method: "DELETE" },
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(207);
+    expect(transactionMock).toHaveBeenCalledTimes(2);
+    expect(body.results).toEqual([
+      {
+        id: "product-fail",
+        status: "error",
+        message: "FK constraint",
+      },
+      { id: "product-ok", status: "hard_deleted" },
+    ]);
+    expect(events).toEqual([
+      "tx1:begin",
+      "tx1:hint:product-fail",
+      "tx1:lock:group:group-z",
+      "tx1:lock:product:product-fail",
+      "tx1:reload:product-fail",
+      "tx1:delete:product-fail",
+      "tx1:rollback",
+      "tx2:begin",
+      "tx2:hint:product-ok",
+      "tx2:lock:group:group-a",
+      "tx2:lock:product:product-ok",
+      "tx2:reload:product-ok",
+      "tx2:delete:product-ok",
+      "tx2:commit",
+    ]);
+  });
+
+  it("locks and reloads each mixed-group product inside its item transaction", async () => {
     const order: string[] = [];
     const products = [
       { id: "product-z", stockGroupId: "group-z", isActive: true },
       { id: "product-a", stockGroupId: "group-a", isActive: true },
     ];
-    productFindManyMock
-      .mockImplementationOnce(async () => {
-        order.push("hint-products");
-        return products;
-      })
-      .mockImplementationOnce(async () => {
-        order.push("reload-products");
-        return products;
-      });
+    const readsByProduct = new Map<string, number>();
+    productFindManyMock.mockImplementation(async () => {
+      order.push("validate-products");
+      return products;
+    });
+    productFindFirstMock.mockImplementation(
+      async ({ where }: { where: { id: string } }) => {
+        const reads = readsByProduct.get(where.id) ?? 0;
+        readsByProduct.set(where.id, reads + 1);
+        order.push(`${reads === 0 ? "hint" : "reload"}:${where.id}`);
+        return products.find((product) => product.id === where.id);
+      },
+    );
     groupRowLockMock.mockImplementation(
       async (strings: TemplateStringsArray, rowId: string) => {
         order.push(
@@ -724,14 +858,17 @@ describe("DELETE /api/products", () => {
 
     expect(response.status).toBe(200);
     expect(order).toEqual([
-      "hint-products",
-      "group:group-a",
+      "validate-products",
+      "hint:product-z",
       "group:group-z",
-      "product:product-a",
       "product:product-z",
-      "reload-products",
+      "reload:product-z",
       "count:product-z",
       "soft:product-z",
+      "hint:product-a",
+      "group:group-a",
+      "product:product-a",
+      "reload:product-a",
       "count:product-a",
       "hard:product-a",
     ]);

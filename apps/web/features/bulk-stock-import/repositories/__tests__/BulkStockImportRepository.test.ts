@@ -314,6 +314,20 @@ describe("bulkStockImportRepository", () => {
     });
 
     expect(queryRawMock).toHaveBeenCalledTimes(4);
+    const createdItem =
+      batchOperationItemCreateManyMock.mock.calls[0][0].data[0];
+    expect(createdItem.beforeSnapshot.sharedStockUndo).toEqual({
+      stockGroupId: "group-1",
+      baseStockBefore: 20,
+      baseStockAfter: 30,
+      unitMultiplier: 2,
+    });
+    expect(createdItem.afterSnapshot.sharedStockUndo).toEqual({
+      stockGroupId: "group-1",
+      baseStockBefore: 20,
+      baseStockAfter: 30,
+      unitMultiplier: 2,
+    });
   });
 
   it("locks shared-stock rows group-first and recomputes from the post-lock reload", async () => {
@@ -546,6 +560,40 @@ describe("bulkStockImportRepository", () => {
     );
 
     expect(queryRawMock).toHaveBeenCalledTimes(5);
+    const createdItems =
+      batchOperationItemCreateManyMock.mock.calls[0][0].data;
+    expect(
+      createdItems.map(
+        (item: {
+          afterSnapshot: {
+            stock: number;
+            sharedStockUndo: Record<string, unknown>;
+          };
+        }) => ({
+          stock: item.afterSnapshot.stock,
+          sharedStockUndo: item.afterSnapshot.sharedStockUndo,
+        }),
+      ),
+    ).toEqual([
+      {
+        stock: 5,
+        sharedStockUndo: {
+          stockGroupId: "group-1",
+          baseStockBefore: 20,
+          baseStockAfter: 5,
+          unitMultiplier: 1,
+        },
+      },
+      {
+        stock: 0.5,
+        sharedStockUndo: {
+          stockGroupId: "group-1",
+          baseStockBefore: 20,
+          baseStockAfter: 5,
+          unitMultiplier: 10,
+        },
+      },
+    ]);
   });
 });
 

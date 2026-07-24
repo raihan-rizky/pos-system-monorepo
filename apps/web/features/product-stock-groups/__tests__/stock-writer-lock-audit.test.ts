@@ -68,8 +68,9 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     relativePath: "app/api/products/route.ts",
     startMarker: "export async function DELETE(",
     requiredMarkers: [
+      "await db.$transaction(",
       "lockStockMutationRows(",
-      "const currentProducts = await tx.product.findMany(",
+      "const currentProduct = await tx.product.findFirst(",
     ],
   },
   {
