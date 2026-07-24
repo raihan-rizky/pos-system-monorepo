@@ -416,12 +416,13 @@ describe("InventoryWorkspace", () => {
     );
 
     expect(html).toContain("Proof Kebersihan Gudang");
-    expect(html).toContain("name=\"weeklyProofUrl\"");
+    expect(html).toContain("Bukti kebersihan gudang");
+    expect(html).toContain('type="file"');
     expect(html).toContain("name=\"weeklyProofNote\"");
     expect(html).toContain("Laporkan Barang Rusak");
     expect(html).toContain("Cari Produk");
     expect(html).toContain("Keranjang Barang Rusak");
-    expect(html).toContain("name=\"damagedProofUrl\"");
+    expect(html).toContain("Bukti foto barang rusak");
     expect(html).toContain("Matching Stok Harian");
     expect(html).toContain("Submit Matching");
   });
@@ -594,7 +595,7 @@ describe("InventoryWorkspace", () => {
 
     expect(html).toContain("Update Stok");
     expect(html).toContain("Satu Produk (Single)");
-    expect(html).toContain("Banyak Produk (Bulk)");
+    expect(html).toContain("Banyak Produk (Massal)");
     expect(html).toContain("Update satu produk");
     expect(html).toContain("Preview perubahan");
     expect(html).toContain("shadow-cyan-500/30");
