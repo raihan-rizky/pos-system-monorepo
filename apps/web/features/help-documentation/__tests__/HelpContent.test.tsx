@@ -86,7 +86,7 @@ describe('HelpContent', () => {
     expect(html).toContain('Sesuai');
     expect(html).toContain('Tidak Sesuai');
     expect(html).toContain('jumlah diterima berbeda');
-    expect(html).toContain('penerimaan menunggu persetujuan');
+    expect(html).toContain('penerimaan lain yang masih PENDING');
     expect(html).not.toContain('pilih invoice');
   });
 
