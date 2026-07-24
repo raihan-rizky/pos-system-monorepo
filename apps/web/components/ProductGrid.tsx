@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Search } from "lucide-react";
 import type { Product } from "@/hooks/useProducts";
 import { ProductCard } from "@/features/pos-product-variants";
@@ -44,9 +44,10 @@ export function ProductGrid({
     [onAddToCart]
   );
 
-  const showRegularPriceHintFor = useCallback(
-    (product: Product) => {
-      if (!customerType || !categoryPricingRules) return false;
+  const regularPriceHintByProductId = useMemo(() => {
+    const map = new Map<string, boolean>();
+    if (!customerType || !categoryPricingRules) return map;
+    for (const product of products) {
       const priced = priceProductForCustomerType(
         {
           categoryId: product.category.id,
@@ -58,13 +59,16 @@ export function ProductGrid({
         customerType,
         categoryPricingRules,
       );
-      return isRegularPriceFallback({
-        appliedPricing: priced.appliedPricing,
-        customerType,
-      });
-    },
-    [customerType, categoryPricingRules],
-  );
+      map.set(
+        product.id,
+        isRegularPriceFallback({
+          appliedPricing: priced.appliedPricing,
+          customerType,
+        }),
+      );
+    }
+    return map;
+  }, [products, customerType, categoryPricingRules]);
 
   if (isLoading) {
     return (
@@ -98,7 +102,7 @@ export function ProductGrid({
           isEditMode={isEditMode}
           onEditProduct={onEditProduct}
           onDeleteProduct={onDeleteProduct}
-          showRegularPriceHint={showRegularPriceHintFor(product)}
+          showRegularPriceHint={regularPriceHintByProductId.get(product.id) ?? false}
         />
       ))}
     </div>
