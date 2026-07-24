@@ -71,7 +71,6 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
         relative flex h-full flex-col items-start p-3.5
         rounded-2xl border text-left
         transition-all duration-200
-        animate-fade-in
         ${isEditMode
           ? "bg-white border-brand-300 ring-2 ring-brand-100 ring-opacity-50"
           : isOutOfStock
@@ -263,7 +262,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
       {/* Low stock indicator */}
       {isLowStock && !isOutOfStock && !isEditMode && (
-        <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+        <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400" />
       )}
     </div>
   );
