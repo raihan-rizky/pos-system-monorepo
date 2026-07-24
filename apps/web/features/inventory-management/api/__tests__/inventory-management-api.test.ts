@@ -1,14 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as inventoryApi from "../inventory-management-api";
 import {
-  approveInboundReceipt,
-  createInboundReceipt,
-  fetchInboundReceipts,
-  fetchReceivingQueue,
-  needsRevisionInboundReceipt,
-  rejectInboundReceipt,
-  submitInboundReceipt,
-  updateAndSubmitInboundReceipt,
   submitDailyStockMatching,
   reportDamagedProduct,
   submitWeeklyCleaningProof,
@@ -19,6 +11,48 @@ import {
   fetchCurrentWeeklyCleaningProof,
   deleteWeeklyCleaningProof,
 } from "../inventory-management-api";
+
+const inboundApi = inventoryApi as unknown as {
+  fetchInboundReceipts(input?: {
+    status?:
+      | "DRAFT"
+      | "SUBMITTED"
+      | "NEEDS_REVISION"
+      | "APPROVED"
+      | "REJECTED"
+      | "CANCELLED";
+  }): Promise<unknown>;
+  fetchReceivingQueue(input?: {
+    search?: string;
+    take?: number;
+    goodsPurchaseId?: string;
+  }): Promise<unknown>;
+  fetchGoodsPurchaseReceivingComparison(
+    goodsPurchaseId: string,
+  ): Promise<unknown>;
+  createInboundReceipt(input: {
+    goodsPurchaseId: string;
+    note?: string | null;
+    lines: Array<{
+      goodsPurchaseItemId: string;
+      matchStatus: "MATCHED" | "MISMATCHED";
+      receivedQuantity: number;
+      note?: string | null;
+    }>;
+  }): Promise<unknown>;
+  approveInboundReceiptItem(id: string, itemId: string): Promise<unknown>;
+  editInboundReceiptItem(
+    id: string,
+    itemId: string,
+    input: {
+      matchStatus: "MATCHED" | "MISMATCHED";
+      receivedQuantity: number;
+      note?: string | null;
+    },
+  ): Promise<unknown>;
+  deleteInboundReceiptItem(id: string, itemId: string): Promise<unknown>;
+  rejectInboundReceipt(id: string, rejectionReason: string): Promise<unknown>;
+};
 
 describe("inventory management api", () => {
   beforeEach(() => {
@@ -214,13 +248,15 @@ describe("inventory management api", () => {
     ).rejects.toThrow("Proof image could not be resolved");
   });
 
-  it("loads inbound receipts through the workspace endpoint", async () => {
+  it("loads filtered inbound receipt history through the workspace endpoint", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ data: [{ id: "receipt-1" }] }),
     } as Response);
 
-    const result = await fetchInboundReceipts({ status: "SUBMITTED" });
+    const result = await inboundApi.fetchInboundReceipts({
+      status: "SUBMITTED",
+    });
 
     expect(fetch).toHaveBeenCalledWith(
       "/api/inventory-management/inbound-receipts?status=SUBMITTED",
@@ -228,120 +264,165 @@ describe("inventory management api", () => {
     expect(result).toEqual([{ id: "receipt-1" }]);
   });
 
-  it("loads receiving queue through the workspace endpoint", async () => {
+  it("loads the Goods Purchase receiving queue with its supported filters", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { items: [{ shoppingRequestId: "shopping-1" }] } }),
+      json: async () => ({
+        data: {
+          purchases: [{ id: "gp-2", number: "PB-202607-002", items: [] }],
+          items: [],
+        },
+      }),
     } as Response);
 
-    const result = await fetchReceivingQueue({ search: "DPB", take: 10 });
+    const result = await inboundApi.fetchReceivingQueue({
+      search: "PB",
+      take: 10,
+      goodsPurchaseId: "gp-2",
+    });
 
     expect(fetch).toHaveBeenCalledWith(
-      "/api/inventory-management/receiving-queue?search=DPB&take=10",
+      "/api/inventory-management/receiving-queue?search=PB&take=10&goodsPurchaseId=gp-2",
     );
-    expect(result).toEqual({ items: [{ shoppingRequestId: "shopping-1" }] });
+    expect(result).toEqual({
+      purchases: [{ id: "gp-2", number: "PB-202607-002", items: [] }],
+      items: [],
+    });
   });
 
-  it("creates and transitions inbound receipts through feature-local API helpers", async () => {
-    await createInboundReceipt({
-      supplierId: "supplier-1",
-      shoppingRequestId: "shopping-1",
-      submitImmediately: true,
-      note: "Invoice A",
+  it("creates a submitted receipt from the authoritative Goods Purchase payload", async () => {
+    await inboundApi.createInboundReceipt({
+      goodsPurchaseId: "gp-1",
+      note: "Barang tiba pagi",
       lines: [
         {
-          productId: "product-1",
-          expectedQuantity: 10,
+          goodsPurchaseItemId: "gpi-1",
+          matchStatus: "MISMATCHED",
           receivedQuantity: 8,
-          status: "PARTIAL",
-          note: "Kurang 2",
-        },
-      ],
-    });
-    await submitInboundReceipt("receipt-1");
-    await approveInboundReceipt("receipt-1");
-    await needsRevisionInboundReceipt("receipt-1", "Perlu cek ulang");
-    await rejectInboundReceipt("receipt-2", "Tidak cocok");
-    await updateAndSubmitInboundReceipt("receipt-3", {
-      note: "Sudah dicek ulang",
-      lines: [
-        {
-          id: "line-1",
-          productId: "product-1",
-          expectedQuantity: 10,
-          receivedQuantity: 8,
-          status: "PARTIAL",
-          note: "Kurang 2",
+          note: "Kurang 2 dus",
         },
       ],
     });
 
-    expect(fetch).toHaveBeenNthCalledWith(
-      1,
+    expect(fetch).toHaveBeenCalledWith(
       "/api/inventory-management/inbound-receipts",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          supplierId: "supplier-1",
-          shoppingRequestId: "shopping-1",
-          submitImmediately: true,
-          note: "Invoice A",
+          goodsPurchaseId: "gp-1",
+          note: "Barang tiba pagi",
           lines: [
             {
-              productId: "product-1",
-              expectedQuantity: 10,
+              goodsPurchaseItemId: "gpi-1",
+              matchStatus: "MISMATCHED",
               receivedQuantity: 8,
-              status: "PARTIAL",
-              note: "Kurang 2",
+              note: "Kurang 2 dus",
             },
           ],
         }),
       }),
     );
+  });
+
+  it("loads the receiving comparison and exposes per-item receipt actions", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { goodsPurchaseId: "gp-1", receipts: [] },
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { id: "receipt-1", status: "SUBMITTED" },
+          finalized: false,
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { id: "receipt-1", status: "SUBMITTED" },
+          finalized: false,
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { id: "receipt-1", status: "SUBMITTED" },
+          finalized: false,
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { id: "receipt-1", status: "REJECTED" },
+          finalized: false,
+        }),
+      } as Response);
+
+    await inboundApi.fetchGoodsPurchaseReceivingComparison("gp-1");
+    const approval = await inboundApi.approveInboundReceiptItem(
+      "receipt-1",
+      "line-1",
+    );
+    const edit = await inboundApi.editInboundReceiptItem("receipt-1", "line-2", {
+      matchStatus: "MISMATCHED",
+      receivedQuantity: 4,
+      note: "Kurang 1",
+    });
+    const deletion = await inboundApi.deleteInboundReceiptItem(
+      "receipt-1",
+      "line-3",
+    );
+    const rejection = await inboundApi.rejectInboundReceipt(
+      "receipt-1",
+      "Barang bukan pesanan",
+    );
+
+    expect(approval).toEqual({
+      data: { id: "receipt-1", status: "SUBMITTED" },
+      finalized: false,
+    });
+    expect(edit).toEqual(approval);
+    expect(deletion).toEqual(approval);
+    expect(rejection).toEqual({
+      data: { id: "receipt-1", status: "REJECTED" },
+      finalized: false,
+    });
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/suppliers/goods-purchases/gp-1/receiving-comparison",
+    );
     expect(fetch).toHaveBeenNthCalledWith(
       2,
-      "/api/inventory-management/inbound-receipts/receipt-1/submit",
+      "/api/inventory-management/inbound-receipts/receipt-1/items/line-1/approval",
       expect.objectContaining({ method: "POST" }),
     );
     expect(fetch).toHaveBeenNthCalledWith(
       3,
-      "/api/inventory-management/inbound-receipts/receipt-1/approve",
-      expect.objectContaining({ method: "POST" }),
-    );
-    expect(fetch).toHaveBeenNthCalledWith(
-      4,
-      "/api/inventory-management/inbound-receipts/receipt-1/needs-revision",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ revisionReason: "Perlu cek ulang" }),
-      }),
-    );
-    expect(fetch).toHaveBeenNthCalledWith(
-      5,
-      "/api/inventory-management/inbound-receipts/receipt-2/reject",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ rejectionReason: "Tidak cocok" }),
-      }),
-    );
-    expect(fetch).toHaveBeenNthCalledWith(
-      6,
-      "/api/inventory-management/inbound-receipts/receipt-3",
+      "/api/inventory-management/inbound-receipts/receipt-1/items/line-2",
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({
-          note: "Sudah dicek ulang",
-          lines: [
-            {
-              id: "line-1",
-              productId: "product-1",
-              expectedQuantity: 10,
-              receivedQuantity: 8,
-              status: "PARTIAL",
-              note: "Kurang 2",
-            },
-          ],
+          matchStatus: "MISMATCHED",
+          receivedQuantity: 4,
+          note: "Kurang 1",
         }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      "/api/inventory-management/inbound-receipts/receipt-1/items/line-3",
+      { method: "DELETE" },
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      5,
+      "/api/inventory-management/inbound-receipts/receipt-1/reject",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ rejectionReason: "Barang bukan pesanan" }),
       }),
     );
   });

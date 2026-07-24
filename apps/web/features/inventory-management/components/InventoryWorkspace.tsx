@@ -1775,7 +1775,6 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       <InboundReceiptModal
         open={activeModal === "inbound"}
         onClose={() => setActiveModal(null)}
-        initialSummary={initialSummary}
         onSuccess={handleSuccess}
       />
       <InternalStockOutModal

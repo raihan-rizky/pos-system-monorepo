@@ -76,15 +76,18 @@ describe('HelpContent', () => {
     expect(assistantHtml).toContain('notifikasi belum dibaca');
   });
 
-  it('documents the updated inbound receipt submission and revision flow', () => {
+  it('documents the Goods Purchase inbound receipt submission flow', () => {
     const html = renderToStaticMarkup(
       <HelpContent targetRole="INVENTORY" searchQuery="Ajukan ke Owner" />
     );
 
     expect(html).toContain('Ajukan ke Owner');
-    expect(html).toContain('Sudah dibuat');
-    expect(html).toContain('Perlu Revisi');
-    expect(html).toContain('Edit &amp; Ajukan');
+    expect(html).toContain('Pilih Pembelian Barang');
+    expect(html).toContain('Sesuai');
+    expect(html).toContain('Tidak Sesuai');
+    expect(html).toContain('jumlah diterima berbeda');
+    expect(html).toContain('penerimaan menunggu persetujuan');
+    expect(html).not.toContain('pilih invoice');
   });
 
   it('documents the Log OUT verification queue and correction-only Stock Log history', () => {

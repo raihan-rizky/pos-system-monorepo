@@ -1,8 +1,13 @@
-import type { InventorySummary } from "../types/inventory-management";
 import type {
+  GoodsPurchaseReceivingComparison,
+  InboundReceiptData,
   InboundReceiptLineStatus,
+  InboundReceiptMutationResult,
   InboundReceiptStatus,
+  InventorySummary,
+  ReceivingQueueResult,
 } from "../types/inventory-management";
+import type { InboundReceiptMatchStatus } from "../helpers/inbound-receipt-rules";
 import type { OutLogVerificationState } from "../helpers/inventory-management-rules";
 
 export async function fetchInventorySummary(): Promise<InventorySummary> {
@@ -31,6 +36,20 @@ async function postInventoryManagement<T>(url: string, body: unknown): Promise<T
   }
 
   return payload.data as T;
+}
+
+async function mutateInventoryManagement<T>(
+  url: string,
+  init: RequestInit,
+): Promise<T> {
+  const response = await fetch(url, init);
+  const payload = (await response.json().catch(() => ({}))) as T & {
+    message?: string;
+  };
+  if (!response.ok) {
+    throw new Error(payload.message || "Inventory management request failed");
+  }
+  return payload;
 }
 
 export function submitWeeklyCleaningProof(input: {
@@ -397,16 +416,12 @@ export function approveStockGroupBulk(
 }
 
 export interface CreateInboundReceiptInput {
-  supplierId?: string | null;
-  shoppingRequestId?: string | null;
-  submitImmediately?: boolean;
+  goodsPurchaseId: string;
   note?: string | null;
   lines: Array<{
-    productId: string;
-    shoppingRequestItemId?: string | null;
-    expectedQuantity: number;
+    goodsPurchaseItemId: string;
+    matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
-    status: InboundReceiptLineStatus;
     note?: string | null;
   }>;
 }
@@ -454,23 +469,90 @@ export async function fetchInboundReceipts(input: {
 export async function fetchReceivingQueue(input: {
   search?: string;
   take?: number;
-} = {}) {
+  goodsPurchaseId?: string;
+} = {}): Promise<ReceivingQueueResult> {
   const params = new URLSearchParams();
   if (input.search) params.set("search", input.search);
   if (input.take) params.set("take", String(input.take));
+  if (input.goodsPurchaseId) {
+    params.set("goodsPurchaseId", input.goodsPurchaseId);
+  }
   const url = `/api/inventory-management/receiving-queue${params.size ? `?${params}` : ""}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error("Failed to load receiving queue");
   }
-  const body = (await response.json()) as { data: unknown };
+  const body = (await response.json()) as { data: ReceivingQueueResult };
   return body.data;
 }
 
-export function createInboundReceipt(input: CreateInboundReceiptInput) {
-  return postInventoryManagement(
+export function createInboundReceipt(
+  input: CreateInboundReceiptInput,
+): Promise<InboundReceiptData> {
+  return postInventoryManagement<InboundReceiptData>(
     "/api/inventory-management/inbound-receipts",
     input,
+  );
+}
+
+export async function fetchGoodsPurchaseReceivingComparison(
+  goodsPurchaseId: string,
+): Promise<GoodsPurchaseReceivingComparison> {
+  const response = await fetch(
+    `/api/suppliers/goods-purchases/${goodsPurchaseId}/receiving-comparison`,
+  );
+  const payload = (await response.json().catch(() => ({}))) as {
+    data?: GoodsPurchaseReceivingComparison;
+    message?: string;
+  };
+  if (!response.ok || !payload.data) {
+    throw new Error(
+      payload.message || "Gagal memuat perbandingan penerimaan barang.",
+    );
+  }
+  return payload.data;
+}
+
+export function approveInboundReceiptItem(
+  id: string,
+  itemId: string,
+): Promise<InboundReceiptMutationResult> {
+  return mutateInventoryManagement<InboundReceiptMutationResult>(
+    `/api/inventory-management/inbound-receipts/${id}/items/${itemId}/approval`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export async function editInboundReceiptItem(
+  id: string,
+  itemId: string,
+  input: {
+    matchStatus: InboundReceiptMatchStatus;
+    receivedQuantity: number;
+    note?: string | null;
+  },
+): Promise<InboundReceiptMutationResult> {
+  return mutateInventoryManagement<InboundReceiptMutationResult>(
+    `/api/inventory-management/inbound-receipts/${id}/items/${itemId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function deleteInboundReceiptItem(
+  id: string,
+  itemId: string,
+): Promise<InboundReceiptMutationResult> {
+  return mutateInventoryManagement<InboundReceiptMutationResult>(
+    `/api/inventory-management/inbound-receipts/${id}/items/${itemId}`,
+    { method: "DELETE" },
   );
 }
 
@@ -525,10 +607,17 @@ export function needsRevisionInboundReceipt(id: string, revisionReason: string) 
   );
 }
 
-export function rejectInboundReceipt(id: string, rejectionReason: string) {
-  return postInventoryManagement(
+export function rejectInboundReceipt(
+  id: string,
+  rejectionReason: string,
+): Promise<InboundReceiptMutationResult> {
+  return mutateInventoryManagement<InboundReceiptMutationResult>(
     `/api/inventory-management/inbound-receipts/${id}/reject`,
-    { rejectionReason },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rejectionReason }),
+    },
   );
 }
 
