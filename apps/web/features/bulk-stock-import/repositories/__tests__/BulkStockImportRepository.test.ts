@@ -88,7 +88,7 @@ describe("bulkStockImportRepository", () => {
       pendingApproval: false,
       undoAvailable: true,
     });
-    expect(queryRawMock).toHaveBeenCalledTimes(1);
+    expect(queryRawMock).toHaveBeenCalledTimes(2);
     expect(inventoryLogCreateMock).not.toHaveBeenCalled();
     expect(batchOperationItemCreateMock).not.toHaveBeenCalled();
     expect(inventoryLogCreateManyMock).toHaveBeenCalledWith(
@@ -180,7 +180,7 @@ describe("bulkStockImportRepository", () => {
       ],
     });
 
-    expect(queryRawMock).toHaveBeenCalledTimes(1);
+    expect(queryRawMock).toHaveBeenCalledTimes(2);
     expect(inventoryLogCreateMock).not.toHaveBeenCalled();
     expect(batchOperationItemCreateMock).not.toHaveBeenCalled();
     expect(inventoryLogCreateManyMock).toHaveBeenCalledWith(
@@ -254,7 +254,7 @@ describe("bulkStockImportRepository", () => {
       ],
     });
 
-    expect(queryRawMock).toHaveBeenCalledTimes(1);
+    expect(queryRawMock).toHaveBeenCalledTimes(2);
   });
 
   it("bulk-updates shared stock groups and syncs grouped product display stock", async () => {
@@ -271,6 +271,8 @@ describe("bulkStockImportRepository", () => {
     const batchOperationItemCreateManyMock = vi.fn().mockResolvedValue({ count: 1 });
     const queryRawMock = vi
       .fn()
+      .mockResolvedValueOnce([{ id: "group-1" }])
+      .mockResolvedValueOnce([{ id: "prod-a" }])
       .mockResolvedValueOnce([{ id: "group-1" }])
       .mockResolvedValueOnce([{ id: "prod-a" }]);
 
@@ -311,7 +313,106 @@ describe("bulkStockImportRepository", () => {
       ],
     });
 
-    expect(queryRawMock).toHaveBeenCalledTimes(2);
+    expect(queryRawMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("locks shared-stock rows group-first and recomputes from the post-lock reload", async () => {
+    const events: string[] = [];
+    const productFindManyMock = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        events.push("read:hint");
+        return [
+          product("prod-a", "SKU-A", 10, {
+            stockGroupId: "group-1",
+            unitMultiplierToBase: 2,
+            stockGroup: { id: "group-1", baseStock: 20 },
+          }),
+        ];
+      })
+      .mockImplementationOnce(async () => {
+        events.push("read:fresh");
+        return [
+          product("prod-a", "SKU-A", 15, {
+            stockGroupId: "group-1",
+            unitMultiplierToBase: 2,
+            stockGroup: { id: "group-1", baseStock: 30 },
+          }),
+        ];
+      });
+    const queryRawMock = vi.fn(
+      async (strings: TemplateStringsArray, ...values: unknown[]) => {
+        const sql = strings.join(" ");
+        if (sql.includes("SELECT") && sql.includes("pos_product_stock_groups")) {
+          events.push("lock:group");
+          return [{ id: "group-1" }];
+        }
+        if (sql.includes("SELECT") && sql.includes("pos_products")) {
+          events.push("lock:product");
+          return [{ id: "prod-a" }];
+        }
+        if (sql.includes("UPDATE pos_product_stock_groups")) {
+          events.push("write:group");
+          expect(values[1]).toEqual([-20]);
+          return [{ id: "group-1" }];
+        }
+        if (sql.includes("UPDATE pos_products")) {
+          events.push("write:products");
+          return [{ id: "prod-a" }];
+        }
+        return [];
+      },
+    );
+
+    dbTransactionMock.mockImplementation(async (callback) =>
+      callback({
+        product: { findMany: productFindManyMock },
+        batchOperation: {
+          create: vi.fn().mockResolvedValue({ id: "batch-1" }),
+          update: vi.fn().mockResolvedValue({ id: "batch-1" }),
+        },
+        inventoryLog: {
+          createMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        batchOperationItem: {
+          createMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        $queryRaw: queryRawMock,
+      }),
+    );
+
+    await bulkStockImportRepository.commitStockImport({
+      storeId: "store-1",
+      user: {
+        id: "owner-1",
+        name: "Owner",
+        role: "OWNER",
+        storeId: "store-1",
+      },
+      mode: "SET",
+      supplier: null,
+      note: "fresh grouped stock",
+      impacts: [
+        {
+          productId: "prod-a",
+          sku: "SKU-A",
+          quantity: 5,
+          delta: -5,
+          beforeStock: 10,
+          afterStock: 5,
+          sourceRowNumbers: [2],
+        },
+      ],
+    });
+
+    expect(events).toEqual([
+      "read:hint",
+      "lock:group",
+      "lock:product",
+      "read:fresh",
+      "write:group",
+      "write:products",
+    ]);
   });
 
   it("rejects owner imports that would make bulk stock negative", async () => {
@@ -319,7 +420,7 @@ describe("bulkStockImportRepository", () => {
       product("prod-a", "SKU-A", 2),
     ]);
     const batchOperationCreateMock = vi.fn().mockResolvedValue({ id: "batch-1" });
-    const queryRawMock = vi.fn();
+    const queryRawMock = vi.fn().mockResolvedValue([{ id: "prod-a" }]);
 
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
@@ -356,7 +457,7 @@ describe("bulkStockImportRepository", () => {
         ],
       }),
     ).rejects.toThrow("INSUFFICIENT_STOCK");
-    expect(queryRawMock).not.toHaveBeenCalled();
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not throw INCONSISTENT_STOCK_GROUP_TARGET for SET mode with multiple grouped products", async () => {
@@ -382,6 +483,9 @@ describe("bulkStockImportRepository", () => {
     const batchOperationItemCreateManyMock = vi.fn().mockResolvedValue({ count: 2 });
     const queryRawMock = vi
       .fn()
+      .mockResolvedValueOnce([{ id: "group-1" }])
+      .mockResolvedValueOnce([{ id: "prod-a" }])
+      .mockResolvedValueOnce([{ id: "prod-b" }])
       .mockResolvedValueOnce([{ id: "group-1" }])
       .mockResolvedValueOnce([{ id: "prod-a" }, { id: "prod-b" }]);
 
@@ -441,7 +545,7 @@ describe("bulkStockImportRepository", () => {
       }),
     );
 
-    expect(queryRawMock).toHaveBeenCalledTimes(2);
+    expect(queryRawMock).toHaveBeenCalledTimes(5);
   });
 });
 

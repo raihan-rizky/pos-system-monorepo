@@ -86,12 +86,15 @@ describe("GET /api/product-stock-groups/[id]", () => {
 describe("POST /api/product-stock-groups/[id]/products", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    productFindManyMock.mockReset();
+    productStockGroupFindFirstMock.mockReset();
     requirePermissionMock.mockResolvedValue({
       id: "owner-1",
       name: "Owner",
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    groupRowLockMock.mockResolvedValue([{ id: "locked" }]);
     productStockGroupFindFirstMock.mockResolvedValue({
       id: "group-1",
       storeId: "store-main",
@@ -101,14 +104,27 @@ describe("POST /api/product-stock-groups/[id]/products", () => {
       products: [],
     });
     productFindManyMock.mockResolvedValue([
-      { id: "rim", unit: "rim", stock: 4, unitMultiplierToBase: 500 },
-      { id: "pack", unit: "pack", stock: 20, unitMultiplierToBase: 100 },
+      {
+        id: "rim",
+        unit: "rim",
+        stock: 4,
+        stockGroupId: null,
+        unitMultiplierToBase: 500,
+      },
+      {
+        id: "pack",
+        unit: "pack",
+        stock: 20,
+        stockGroupId: null,
+        unitMultiplierToBase: 100,
+      },
     ]);
     productStockGroupUpdateMock.mockResolvedValue({ id: "group-1", baseStock: 2000 });
     productUpdateMock.mockResolvedValue({});
     inventoryLogCreateManyMock.mockResolvedValue({ count: 2 });
     dbTransactionMock.mockImplementation((callback) =>
       callback({
+        $queryRaw: groupRowLockMock,
         productStockGroup: {
           findFirst: productStockGroupFindFirstMock,
           update: productStockGroupUpdateMock,
@@ -154,8 +170,153 @@ describe("POST /api/product-stock-groups/[id]/products", () => {
     });
   });
 
+  it("locks source and target groups before products, then reloads authoritative state", async () => {
+    const order: string[] = [];
+    const products = [
+      {
+        id: "rim",
+        unit: "rim",
+        stock: 4,
+        stockGroupId: "group-z",
+        unitMultiplierToBase: 500,
+      },
+      {
+        id: "pack",
+        unit: "pack",
+        stock: 20,
+        stockGroupId: "group-a",
+        unitMultiplierToBase: 100,
+      },
+    ];
+    productFindManyMock
+      .mockImplementationOnce(async () => {
+        order.push("hint");
+        return products;
+      })
+      .mockImplementationOnce(async () => {
+        order.push("reload-products");
+        return products;
+      });
+    groupRowLockMock.mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        order.push(
+          `${strings.join(" ").includes("pos_product_stock_groups") ? "group" : "product"}:${rowId}`,
+        );
+        return [{ id: rowId }];
+      },
+    );
+    productStockGroupFindFirstMock
+      .mockImplementationOnce(async () => {
+        order.push("group-hint");
+        return {
+          id: "group-1",
+          storeId: "store-main",
+          displayName: "Kertas A4",
+          baseUnit: "lembar",
+          baseStock: 1000,
+          products: [],
+        };
+      })
+      .mockImplementationOnce(async () => {
+        order.push("reload-group");
+        return {
+          id: "group-1",
+          storeId: "store-main",
+          displayName: "Kertas A4",
+          baseUnit: "lembar",
+          baseStock: 1000,
+          products: [],
+        };
+      });
+
+    const { POST } = await import("../products/route");
+    const response = await POST(
+      new Request("http://localhost/api/product-stock-groups/group-1/products", {
+        method: "POST",
+        body: JSON.stringify({
+          sharedStock: 2000,
+          stockInput: { mode: "BASE" },
+          products: [
+            { productId: "rim", unitMultiplierToBase: 500 },
+            { productId: "pack", unitMultiplierToBase: 100 },
+          ],
+        }),
+      }),
+      { params: Promise.resolve({ id: "group-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(order).toEqual([
+      "group-hint",
+      "hint",
+      "group:group-1",
+      "group:group-a",
+      "group:group-z",
+      "product:pack",
+      "product:rim",
+      "reload-group",
+      "reload-products",
+    ]);
+  });
+
+  it("returns conflict when a product changes source membership after locking candidates", async () => {
+    productFindManyMock
+      .mockResolvedValueOnce([
+        {
+          id: "rim",
+          unit: "rim",
+          stock: 4,
+          stockGroupId: null,
+          unitMultiplierToBase: 500,
+        },
+        {
+          id: "pack",
+          unit: "pack",
+          stock: 20,
+          stockGroupId: null,
+          unitMultiplierToBase: 100,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "rim",
+          unit: "rim",
+          stock: 4,
+          stockGroupId: "group-other",
+          unitMultiplierToBase: 500,
+        },
+        {
+          id: "pack",
+          unit: "pack",
+          stock: 20,
+          stockGroupId: null,
+          unitMultiplierToBase: 100,
+        },
+      ]);
+
+    const { POST } = await import("../products/route");
+    const response = await POST(
+      new Request("http://localhost/api/product-stock-groups/group-1/products", {
+        method: "POST",
+        body: JSON.stringify({
+          sharedStock: 2000,
+          stockInput: { mode: "BASE" },
+          products: [
+            { productId: "rim", unitMultiplierToBase: 500 },
+            { productId: "pack", unitMultiplierToBase: 100 },
+          ],
+        }),
+      }),
+      { params: Promise.resolve({ id: "group-1" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
+    expect(productUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("rejects products with units already present in the target group", async () => {
-    productStockGroupFindFirstMock.mockResolvedValueOnce({
+    productStockGroupFindFirstMock.mockResolvedValue({
       id: "group-1",
       storeId: "store-main",
       displayName: "Kertas A4",
@@ -163,9 +324,9 @@ describe("POST /api/product-stock-groups/[id]/products", () => {
       baseStock: 4,
       products: [{ id: "existing-rim", unit: "rim", stock: 4, unitMultiplierToBase: 1 }],
     });
-    productFindManyMock.mockResolvedValueOnce([
-      { id: "new-rim", unit: "rim", stock: 2 },
-      { id: "dus", unit: "dus", stock: 1 },
+    productFindManyMock.mockResolvedValue([
+      { id: "new-rim", unit: "rim", stock: 2, stockGroupId: null },
+      { id: "dus", unit: "dus", stock: 1, stockGroupId: null },
     ]);
 
     const { POST } = await import("../products/route");
@@ -215,8 +376,16 @@ describe("PATCH /api/product-stock-groups/[id]", () => {
       baseUnit: "lembar",
       baseStock: 1000,
       products: [
-        { id: "rim", unitMultiplierToBase: 500 },
-        { id: "pack", unitMultiplierToBase: 100 },
+        {
+          id: "rim",
+          stockGroupId: "group-1",
+          unitMultiplierToBase: 500,
+        },
+        {
+          id: "pack",
+          stockGroupId: "group-1",
+          unitMultiplierToBase: 100,
+        },
       ],
     });
     productStockGroupUpdateMock.mockResolvedValue({ id: "group-1", baseStock: 1500 });
@@ -263,25 +432,44 @@ describe("PATCH /api/product-stock-groups/[id]", () => {
   it("locks before reading the base stock used for the absolute update and audit delta", async () => {
     let currentBaseStock = 1000;
     const order: string[] = [];
-    groupRowLockMock.mockImplementationOnce(async () => {
-      order.push("lock");
-      currentBaseStock = 1200;
-      return [{ id: "group-1" }];
+    const groupState = () => ({
+      id: "group-1",
+      storeId: "store-main",
+      displayName: "Kertas A4",
+      baseUnit: "lembar",
+      baseStock: currentBaseStock,
+      products: [
+        {
+          id: "rim",
+          stockGroupId: "group-1",
+          unitMultiplierToBase: 500,
+        },
+        {
+          id: "pack",
+          stockGroupId: "group-1",
+          unitMultiplierToBase: 100,
+        },
+      ],
     });
-    productStockGroupFindFirstMock.mockImplementationOnce(async () => {
-      order.push("read");
-      return {
-        id: "group-1",
-        storeId: "store-main",
-        displayName: "Kertas A4",
-        baseUnit: "lembar",
-        baseStock: currentBaseStock,
-        products: [
-          { id: "rim", unitMultiplierToBase: 500 },
-          { id: "pack", unitMultiplierToBase: 100 },
-        ],
-      };
-    });
+    groupRowLockMock.mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        const table = strings.join(" ").includes("pos_product_stock_groups")
+          ? "group"
+          : "product";
+        order.push(`${table}:${rowId}`);
+        if (table === "group") currentBaseStock = 1200;
+        return [{ id: rowId }];
+      },
+    );
+    productStockGroupFindFirstMock
+      .mockImplementationOnce(async () => {
+        order.push("hint");
+        return groupState();
+      })
+      .mockImplementationOnce(async () => {
+        order.push("read");
+        return groupState();
+      });
 
     const { PATCH } = await import("../route");
     const response = await PATCH(
@@ -297,10 +485,61 @@ describe("PATCH /api/product-stock-groups/[id]", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(order).toEqual(["lock", "read"]);
+    expect(order).toEqual([
+      "hint",
+      "group:group-1",
+      "product:pack",
+      "product:rim",
+      "read",
+    ]);
     const rows = inventoryLogCreateManyMock.mock.calls[0]?.[0].data;
     expect(rows[0]).toMatchObject({ productId: "rim" });
     expect(rows[0].quantity).toBeCloseTo(0.6);
     expect(rows[1]).toMatchObject({ productId: "pack", quantity: 3 });
+  });
+
+  it("returns conflict when active group membership changes before reload", async () => {
+    const hint = {
+        id: "group-1",
+        storeId: "store-main",
+        displayName: "Kertas A4",
+        baseUnit: "lembar",
+        baseStock: 1000,
+        products: [
+          {
+            id: "rim",
+            stockGroupId: "group-1",
+            unitMultiplierToBase: 500,
+          },
+          {
+            id: "pack",
+            stockGroupId: "group-1",
+            unitMultiplierToBase: 100,
+          },
+        ],
+      };
+    productStockGroupFindFirstMock
+      .mockResolvedValueOnce(hint)
+      .mockResolvedValueOnce({
+        ...hint,
+        products: hint.products.slice(0, 1),
+      });
+
+    const { PATCH } = await import("../route");
+    const response = await PATCH(
+      new Request("http://localhost/api/product-stock-groups/group-1", {
+        method: "PATCH",
+        body: JSON.stringify({
+          sharedStock: 3,
+          stockInput: { mode: "VARIANT", variantProductId: "rim" },
+          note: "Manual shared update",
+        }),
+      }),
+      { params: Promise.resolve({ id: "group-1" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
   });
 });

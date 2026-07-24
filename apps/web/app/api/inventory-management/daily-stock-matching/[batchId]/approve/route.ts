@@ -5,6 +5,11 @@ import { z } from "zod";
 import { productSnapshot } from "@/features/batch-operations/helpers/snapshots";
 import { summarizeBulkApprovalBundle } from "@/features/bulk-stock-approval/helpers/bundle-status";
 import { calculateBaseQuantity, resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+import {
+  isStockMutationConflict,
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 import { apiError, apiValidationError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
@@ -19,6 +24,10 @@ const approveSchema = z.object({
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+function sortedUniqueIds(ids: ReadonlyArray<string>) {
+  return Array.from(new Set(ids.filter(Boolean))).sort();
 }
 
 export async function POST(
@@ -51,9 +60,100 @@ export async function POST(
       });
       const logById = new Map(logs.map((log) => [log.id, log]));
       const productIds = Array.from(new Set(batch.items.map((item) => item.productId).filter(Boolean))) as string[];
-      const products = await tx.product.findMany({
+      productIds.sort();
+      const productHints = await tx.product.findMany({
         where: { id: { in: productIds }, storeId: batch.storeId },
         include: { stockGroup: true },
+      });
+      if (productHints.length !== productIds.length) {
+        throw new StockMutationConflictError();
+      }
+
+      const hintedGroupIds = sortedUniqueIds(
+        productHints
+          .map((product) => product.stockGroupId)
+          .filter((stockGroupId): stockGroupId is string =>
+            Boolean(stockGroupId),
+          ),
+      );
+      const affectedHints = await tx.product.findMany({
+        where: {
+          storeId: batch.storeId,
+          OR: [
+            { id: { in: productIds } },
+            ...(hintedGroupIds.length > 0
+              ? [{ stockGroupId: { in: hintedGroupIds } }]
+              : []),
+          ],
+        },
+        include: { stockGroup: true },
+      });
+      const firstHintById = new Map(
+        productHints.map((product) => [product.id, product]),
+      );
+      if (
+        productIds.some(
+          (productId) =>
+            firstHintById.get(productId)?.stockGroupId !==
+            affectedHints.find((product) => product.id === productId)
+              ?.stockGroupId,
+        )
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const affectedProductIds = sortedUniqueIds(
+        affectedHints.map((product) => product.id),
+      );
+      const locks = await lockStockMutationRows(tx, {
+        storeId: batch.storeId,
+        stockGroupIds: hintedGroupIds,
+        productIds: affectedProductIds,
+      });
+      if (
+        locks.lockedStockGroupIds.length !== hintedGroupIds.length ||
+        locks.lockedProductIds.length !== affectedProductIds.length
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const productsAfterLock = await tx.product.findMany({
+        where: {
+          storeId: batch.storeId,
+          OR: [
+            { id: { in: affectedProductIds } },
+            ...(hintedGroupIds.length > 0
+              ? [{ stockGroupId: { in: hintedGroupIds } }]
+              : []),
+          ],
+        },
+        include: { stockGroup: true },
+      });
+      const affectedHintById = new Map(
+        affectedHints.map((product) => [product.id, product]),
+      );
+      if (
+        productsAfterLock.length !== affectedProductIds.length ||
+        productsAfterLock.some((product) => {
+          const hint = affectedHintById.get(product.id);
+          return (
+            !hint ||
+            hint.stockGroupId !== product.stockGroupId ||
+            (product.stockGroupId !== null &&
+              product.stockGroup?.id !== product.stockGroupId)
+          );
+        })
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const currentById = new Map(
+        productsAfterLock.map((product) => [product.id, product]),
+      );
+      const products = productIds.map((productId) => {
+        const product = currentById.get(productId);
+        if (!product) throw new StockMutationConflictError();
+        return product;
       });
       const productById = new Map(products.map((product) => [product.id, product]));
 
@@ -188,6 +288,13 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) return apiValidationError(error);
+    if (isStockMutationConflict(error)) {
+      return apiError(
+        "Data stok berubah saat persetujuan diproses. Silakan coba lagi.",
+        409,
+        { code: "Conflict" },
+      );
+    }
     if (error instanceof Error) {
       if (error.message === "BATCH_NOT_FOUND") {
         return apiError("Bundle tidak ditemukan", 404, { code: "NotFound" });

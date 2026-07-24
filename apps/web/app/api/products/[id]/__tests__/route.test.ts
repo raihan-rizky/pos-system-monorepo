@@ -10,9 +10,12 @@ const categoryFindFirstMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
 const productUpdateManyMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindFirstMock = vi.hoisted(() => vi.fn());
+const productStockGroupFindUniqueMock = vi.hoisted(() => vi.fn());
+const productStockGroupCreateMock = vi.hoisted(() => vi.fn());
 const productStockGroupUpdateMock = vi.hoisted(() => vi.fn());
 const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
+const stockRowLockMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -35,6 +38,8 @@ vi.mock("@pos/db", () => ({
     },
     productStockGroup: {
       findFirst: productStockGroupFindFirstMock,
+      findUnique: productStockGroupFindUniqueMock,
+      create: productStockGroupCreateMock,
       update: productStockGroupUpdateMock,
     },
     productPriceLog: {
@@ -48,6 +53,8 @@ vi.mock("@pos/db", () => ({
 describe("PUT /api/products/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    productFindFirstMock.mockReset();
+    productStockGroupFindUniqueMock.mockReset();
     requirePermissionMock.mockResolvedValue({
       id: "user-1",
       name: "Admin User",
@@ -59,9 +66,39 @@ describe("PUT /api/products/[id]", () => {
     productFindManyMock.mockResolvedValue([]);
     productUpdateManyMock.mockResolvedValue({ count: 0 });
     productStockGroupFindFirstMock.mockResolvedValue(null);
+    productStockGroupFindUniqueMock.mockResolvedValue({
+      id: "stock-group-1",
+      storeId: "store-main",
+      groupKey: "banner flexi|cat-1||",
+      displayName: "Banner Flexi",
+      baseUnit: "pcs",
+      baseStock: 10,
+    });
+    productStockGroupCreateMock.mockResolvedValue({
+      id: "stock-group-new",
+      storeId: "store-main",
+      groupKey: "banner flexi|cat-1||",
+      displayName: "Banner Flexi",
+      baseUnit: "pcs",
+      baseStock: 10,
+    });
     productStockGroupUpdateMock.mockResolvedValue({ id: "stock-group-1" });
+    stockRowLockMock.mockResolvedValue([{ id: "locked" }]);
     productFindFirstMock.mockResolvedValue({
       id: "product-1",
+      storeId: "store-main",
+      name: "Banner Flexi",
+      sku: "BNR-FLX",
+      categoryId: "cat-1",
+      brandId: null,
+      material: null,
+      size: null,
+      unit: "pcs",
+      stock: 10,
+      stockGroupId: null,
+      stockGroup: null,
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
       price: "15000.00",
       costPrice: "9000.00",
     });
@@ -72,14 +109,29 @@ describe("PUT /api/products/[id]", () => {
       price: "17000.00",
       costPrice: "10000.00",
       category: { id: "cat-1", name: "Jasa Cetak", icon: null, color: null },
+      stockGroup: {
+        id: "stock-group-1",
+        groupKey: "banner flexi|cat-1||",
+        displayName: "Banner Flexi",
+        baseUnit: "pcs",
+        baseStock: 10,
+      },
+      unitMultiplierToBase: 1,
     });
     productPriceLogCreateManyMock.mockResolvedValue({ count: 2 });
     transactionMock.mockImplementation((callback) =>
       callback({
+        $queryRaw: stockRowLockMock,
         product: {
+          findFirst: productFindFirstMock,
           update: productUpdateMock,
           findMany: productFindManyMock,
           updateMany: productUpdateManyMock,
+        },
+        productStockGroup: {
+          findUnique: productStockGroupFindUniqueMock,
+          create: productStockGroupCreateMock,
+          update: productStockGroupUpdateMock,
         },
         productPriceLog: {
           createMany: productPriceLogCreateManyMock,
@@ -149,6 +201,135 @@ describe("PUT /api/products/[id]", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
+  it("locks sorted source and target groups before the product and reloads inside the transaction", async () => {
+    const order: string[] = [];
+    const existing = {
+      id: "product-1",
+      storeId: "store-main",
+      name: "Banner Flexi",
+      sku: "BNR-FLX",
+      categoryId: "cat-1",
+      brandId: null,
+      material: null,
+      size: null,
+      unit: "pcs",
+      stock: 0,
+      stockGroupId: "group-z",
+      stockGroup: { id: "group-z", baseStock: 10 },
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      price: "15000.00",
+      costPrice: "9000.00",
+      hargaAgen: null,
+      hargaDinas: null,
+    };
+    productFindFirstMock
+      .mockResolvedValueOnce(existing)
+      .mockImplementationOnce(async () => {
+        order.push("reload-product");
+        return existing;
+      });
+    productStockGroupFindUniqueMock
+      .mockImplementationOnce(async () => {
+        order.push("target-hint");
+        return {
+          id: "group-a",
+          storeId: "store-main",
+          groupKey: "banner flexi|cat-1||",
+          displayName: "Banner Flexi",
+          baseUnit: "pcs",
+          baseStock: 20,
+        };
+      })
+      .mockImplementationOnce(async () => {
+        order.push("reload-target");
+        return {
+          id: "group-a",
+          storeId: "store-main",
+          groupKey: "banner flexi|cat-1||",
+          displayName: "Banner Flexi",
+          baseUnit: "pcs",
+          baseStock: 20,
+        };
+      });
+    stockRowLockMock.mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        order.push(
+          `${strings.join(" ").includes("pos_product_stock_groups") ? "group" : "product"}:${rowId}`,
+        );
+        return [{ id: rowId }];
+      },
+    );
+
+    const response = await PUT(
+      new Request("http://localhost/api/products/product-1", {
+        method: "PUT",
+        body: JSON.stringify({ price: 17000 }),
+      }),
+      { params: Promise.resolve({ id: "product-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(order).toEqual([
+      "target-hint",
+      "group:group-a",
+      "group:group-z",
+      "product:product-1",
+      "reload-product",
+      "reload-target",
+    ]);
+  });
+
+  it("returns conflict when product membership changed before the post-lock reload", async () => {
+    const hint = {
+      id: "product-1",
+      storeId: "store-main",
+      name: "Banner Flexi",
+      sku: "BNR-FLX",
+      categoryId: "cat-1",
+      brandId: null,
+      material: null,
+      size: null,
+      unit: "pcs",
+      stock: 0,
+      stockGroupId: "group-a",
+      stockGroup: { id: "group-a", baseStock: 10 },
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      price: "15000.00",
+      costPrice: "9000.00",
+      hargaAgen: null,
+      hargaDinas: null,
+    };
+    productFindFirstMock
+      .mockResolvedValueOnce(hint)
+      .mockResolvedValueOnce({
+        ...hint,
+        stockGroupId: "group-b",
+        stockGroup: { id: "group-b", baseStock: 10 },
+      });
+    productStockGroupFindUniqueMock.mockResolvedValue({
+      id: "group-a",
+      storeId: "store-main",
+      groupKey: "banner flexi|cat-1||",
+      displayName: "Banner Flexi",
+      baseUnit: "pcs",
+      baseStock: 10,
+    });
+
+    const response = await PUT(
+      new Request("http://localhost/api/products/product-1", {
+        method: "PUT",
+        body: JSON.stringify({ price: 17000 }),
+      }),
+      { params: Promise.resolve({ id: "product-1" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(productUpdateMock).not.toHaveBeenCalled();
+    expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("updates the selected stock group metadata atomically for every variant", async () => {
     productFindFirstMock.mockResolvedValue({
       id: "product-1",
@@ -162,13 +343,14 @@ describe("PUT /api/products/[id]", () => {
       size: null,
     });
     productFindManyMock.mockResolvedValue([
-      { id: "product-1" },
-      { id: "product-2" },
+      { id: "product-1", stockGroupId: "stock-group-1" },
+      { id: "product-2", stockGroupId: "stock-group-1" },
     ]);
     categoryFindFirstMock.mockResolvedValue({ id: "cat-office", name: "Kantor" });
     brandFindFirstMock.mockResolvedValue({ id: "brand-joyko" });
     transactionMock.mockImplementation((callback) =>
       callback({
+        $queryRaw: stockRowLockMock,
         product: {
           findMany: productFindManyMock,
           updateMany: productUpdateManyMock,

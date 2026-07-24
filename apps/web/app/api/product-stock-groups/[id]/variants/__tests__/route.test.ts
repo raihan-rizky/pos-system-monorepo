@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const groupRowLockMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindUniqueMock = vi.hoisted(() => vi.fn());
 const productCreateMock = vi.hoisted(() => vi.fn());
@@ -35,6 +36,9 @@ describe("POST /api/product-stock-groups/[id]/variants", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    groupRowLockMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
     productStockGroupFindFirstMock.mockResolvedValue({
       id: "group-1",
       storeId: "store-main",
@@ -42,6 +46,7 @@ describe("POST /api/product-stock-groups/[id]/variants", () => {
       products: [
         {
           id: "rim",
+          stockGroupId: "group-1",
           name: "HVS A4",
           sku: "HVS-A4-RIM",
           unit: "rim",
@@ -66,6 +71,7 @@ describe("POST /api/product-stock-groups/[id]/variants", () => {
     groupActivityCreateMock.mockResolvedValue({});
     dbTransactionMock.mockImplementation((callback) =>
       callback({
+        $queryRaw: groupRowLockMock,
         productStockGroup: {
           findFirst: productStockGroupFindFirstMock,
         },
@@ -146,6 +152,132 @@ describe("POST /api/product-stock-groups/[id]/variants", () => {
 
     expect(response.status).toBe(422);
     expect(body.errors.unit).toContain("DUPLICATE_UNIT");
+    expect(productCreateMock).not.toHaveBeenCalled();
+    expect(groupActivityCreateMock).not.toHaveBeenCalled();
+  }, 15000);
+
+  it("locks the group and existing variants before reloading authoritative state", async () => {
+    const order: string[] = [];
+    const groupState = {
+      id: "group-1",
+      storeId: "store-main",
+      displayName: "HVS A4",
+      products: [
+        {
+          id: "rim",
+          stockGroupId: "group-1",
+          name: "HVS A4",
+          sku: "HVS-A4-RIM",
+          unit: "rim",
+          categoryId: "cat-paper",
+          material: "70gsm",
+          size: "A4",
+          unitMultiplierToBase: 1,
+        },
+      ],
+    };
+    productStockGroupFindFirstMock
+      .mockImplementationOnce(async () => {
+        order.push("hint");
+        return groupState;
+      })
+      .mockImplementationOnce(async () => {
+        order.push("read");
+        return groupState;
+      });
+    groupRowLockMock.mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        order.push(
+          `${strings.join(" ").includes("pos_product_stock_groups") ? "group" : "product"}:${rowId}`,
+        );
+        return [{ id: rowId }];
+      },
+    );
+    productCreateMock.mockImplementationOnce(async () => {
+      order.push("create");
+      return {
+        id: "dus",
+        name: "HVS A4",
+        sku: "HVS-A4-DUS",
+        unit: "dus",
+        price: 250000,
+        costPrice: 200000,
+        conversionNeedsReview: false,
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/product-stock-groups/group-1/variants", {
+        method: "POST",
+        body: JSON.stringify({
+          unit: "dus",
+          price: 250000,
+          costPrice: 200000,
+          stock: 4,
+          minStock: 1,
+          conversionPair: {
+            fromQuantity: 1,
+            toProductId: "rim",
+            toQuantity: 5,
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: "group-1" }) },
+    );
+
+    expect(response.status).toBe(201);
+    expect(order).toEqual([
+      "hint",
+      "group:group-1",
+      "product:rim",
+      "read",
+      "create",
+    ]);
+  }, 15000);
+
+  it("returns conflict when group membership changes before the reload", async () => {
+    const hint = {
+      id: "group-1",
+      storeId: "store-main",
+      displayName: "HVS A4",
+      products: [
+        {
+          id: "rim",
+          stockGroupId: "group-1",
+          name: "HVS A4",
+          sku: "HVS-A4-RIM",
+          unit: "rim",
+          categoryId: "cat-paper",
+          material: "70gsm",
+          size: "A4",
+          unitMultiplierToBase: 1,
+        },
+      ],
+    };
+    productStockGroupFindFirstMock
+      .mockResolvedValueOnce(hint)
+      .mockResolvedValueOnce({ ...hint, products: [] });
+
+    const response = await POST(
+      new Request("http://localhost/api/product-stock-groups/group-1/variants", {
+        method: "POST",
+        body: JSON.stringify({
+          unit: "dus",
+          price: 250000,
+          costPrice: 200000,
+          stock: 4,
+          minStock: 1,
+          conversionPair: {
+            fromQuantity: 1,
+            toProductId: "rim",
+            toQuantity: 5,
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: "group-1" }) },
+    );
+
+    expect(response.status).toBe(409);
     expect(productCreateMock).not.toHaveBeenCalled();
     expect(groupActivityCreateMock).not.toHaveBeenCalled();
   }, 15000);

@@ -1,6 +1,10 @@
-import { Prisma } from "@pos/db";
+import type { Prisma } from "@pos/db";
 
 import { calculateBaseQuantity, resolveProductDisplayStock } from "./stock-display";
+import {
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "./stock-group-lock";
 
 type Tx = Prisma.TransactionClient;
 
@@ -28,62 +32,141 @@ export interface StockMutationResult {
   baseDelta: number;
 }
 
-export async function applyProductStockDelta(
+interface ProductStockState {
+  id: string;
+  stock: number;
+  stockGroupId: string | null;
+  unitMultiplierToBase: number | null;
+  conversionNeedsReview: boolean;
+  stockGroup: { id: string; baseStock: number } | null;
+}
+
+const productStockSelect = {
+  id: true,
+  stock: true,
+  stockGroupId: true,
+  unitMultiplierToBase: true,
+  conversionNeedsReview: true,
+  stockGroup: { select: { id: true, baseStock: true } },
+} as const;
+
+async function loadProductStockState(
   tx: Tx,
   input: {
     storeId: string;
     productId: string;
-    delta: number;
-    allowNegative?: boolean;
-    currentStock?: number;
-    productInfo?: {
-      id: string;
-      stock: number;
-      stockGroupId: string | null;
-      unitMultiplierToBase: number | null;
-      conversionNeedsReview: boolean;
-      stockGroup: { id: string; baseStock: number } | null;
-    };
   },
-): Promise<StockMutationResult> {
-  const productSelect = {
-    id: true,
-    stock: true,
-    stockGroupId: true,
-    unitMultiplierToBase: true,
-    conversionNeedsReview: true,
-    stockGroup: { select: { id: true, baseStock: true } },
-  };
-  const product = input.productInfo
-    ? input.productInfo
-    : typeof tx.product.findFirst === "function"
-      ? await tx.product.findFirst({
-          where: { id: input.productId, storeId: input.storeId },
-          select: productSelect,
-        })
-      : typeof tx.product.findUnique === "function"
-        ? await tx.product.findUnique({
-            where: { id: input.productId },
-            select: productSelect,
-          })
-        : input.currentStock !== undefined
-          ? {
-              id: input.productId,
-              stock: input.currentStock,
-              stockGroupId: null,
-              unitMultiplierToBase: 1,
-              conversionNeedsReview: false,
-              stockGroup: null,
-            }
-          : null;
+): Promise<ProductStockState | null> {
+  if (typeof tx.product.findFirst === "function") {
+    return tx.product.findFirst({
+      where: { id: input.productId, storeId: input.storeId },
+      select: productStockSelect,
+    });
+  }
+  if (typeof tx.product.findUnique === "function") {
+    return tx.product.findUnique({
+      where: { id: input.productId },
+      select: productStockSelect,
+    });
+  }
+  return null;
+}
 
-  if (!product) {
+async function loadProductStockStates(
+  tx: Tx,
+  input: {
+    storeId: string;
+    productIds: ReadonlyArray<string>;
+  },
+): Promise<ProductStockState[]> {
+  if (typeof tx.product.findMany === "function") {
+    return tx.product.findMany({
+      where: {
+        id: { in: [...input.productIds] },
+        storeId: input.storeId,
+      },
+      select: productStockSelect,
+    });
+  }
+
+  const products: ProductStockState[] = [];
+  for (const productId of input.productIds) {
+    const product = await loadProductStockState(tx, {
+      storeId: input.storeId,
+      productId,
+    });
+    if (product) products.push(product);
+  }
+  return products;
+}
+
+function assertMembershipUnchanged(
+  hint: ProductStockState,
+  current: ProductStockState,
+) {
+  if (
+    hint.id !== current.id ||
+    hint.stockGroupId !== current.stockGroupId ||
+    (current.stockGroupId !== null &&
+      current.stockGroup?.id !== current.stockGroupId)
+  ) {
+    throw new StockMutationConflictError(
+      "Keanggotaan grup stok produk berubah saat diproses",
+    );
+  }
+}
+
+async function lockAndReloadProductStockState(
+  tx: Tx,
+  input: {
+    storeId: string;
+    productId: string;
+  },
+) {
+  const hint = await loadProductStockState(tx, input);
+
+  if (!hint) {
     throw new StockMutationError("PRODUCT_NOT_FOUND", {
       productId: input.productId,
     });
   }
 
-  const productId = product.id ?? input.productId;
+  const locks = await lockStockMutationRows(tx, {
+    storeId: input.storeId,
+    stockGroupIds: hint.stockGroupId ? [hint.stockGroupId] : [],
+    productIds: [hint.id],
+  });
+  if (
+    !locks.lockedProductIds.includes(hint.id) ||
+    (hint.stockGroupId !== null &&
+      !locks.lockedStockGroupIds.includes(hint.stockGroupId))
+  ) {
+    throw new StockMutationConflictError(
+      "Produk atau grup stok tidak lagi tersedia saat diproses",
+    );
+  }
+
+  const current = await loadProductStockState(tx, input);
+  if (!current) {
+    throw new StockMutationConflictError(
+      "Produk tidak lagi tersedia saat diproses",
+    );
+  }
+  assertMembershipUnchanged(hint, current);
+  return current;
+}
+
+async function applyLockedProductStockDelta(
+  tx: Tx,
+  input: {
+    storeId: string;
+    delta: number;
+    allowNegative?: boolean;
+    product: ProductStockState;
+  },
+): Promise<StockMutationResult> {
+  const product = input.product;
+  const productId = product.id;
   const beforeStock = resolveProductDisplayStock(product);
 
   if (!product.stockGroupId || !product.stockGroup) {
@@ -176,6 +259,32 @@ export async function applyProductStockDelta(
   };
 }
 
+export async function applyProductStockDelta(
+  tx: Tx,
+  input: {
+    storeId: string;
+    productId: string;
+    delta: number;
+    allowNegative?: boolean;
+    currentStock?: number;
+    productInfo?: ProductStockState;
+  },
+): Promise<StockMutationResult> {
+  const product =
+    input.productInfo ??
+    (await lockAndReloadProductStockState(tx, {
+      storeId: input.storeId,
+      productId: input.productId,
+    }));
+
+  return applyLockedProductStockDelta(tx, {
+    storeId: input.storeId,
+    delta: input.delta,
+    allowNegative: input.allowNegative,
+    product,
+  });
+}
+
 export async function setProductDisplayStock(
   tx: Tx,
   input: {
@@ -186,44 +295,13 @@ export async function setProductDisplayStock(
     currentStock?: number;
   },
 ) {
-  const product =
-    typeof tx.product.findFirst === "function"
-      ? await tx.product.findFirst({
-          where: { id: input.productId, storeId: input.storeId },
-          select: {
-            stock: true,
-            unitMultiplierToBase: true,
-            conversionNeedsReview: true,
-            stockGroup: { select: { baseStock: true } },
-          },
-        })
-      : typeof tx.product.findUnique === "function"
-        ? await tx.product.findUnique({
-            where: { id: input.productId },
-            select: {
-              stock: true,
-              unitMultiplierToBase: true,
-              conversionNeedsReview: true,
-              stockGroup: { select: { baseStock: true } },
-            },
-          })
-        : input.currentStock !== undefined
-          ? {
-              stock: input.currentStock,
-              unitMultiplierToBase: 1,
-              conversionNeedsReview: false,
-              stockGroup: null,
-            }
-          : null;
-  if (!product) {
-    throw new StockMutationError("PRODUCT_NOT_FOUND", {
-      productId: input.productId,
-    });
-  }
-
-  return applyProductStockDelta(tx, {
+  const product = await lockAndReloadProductStockState(tx, {
     storeId: input.storeId,
     productId: input.productId,
+  });
+  return applyLockedProductStockDelta(tx, {
+    storeId: input.storeId,
+    product,
     delta: input.stock - resolveProductDisplayStock(product),
     allowNegative: input.allowNegative,
   });
@@ -245,54 +323,97 @@ export async function applyProductStockDeltas(
     merged.set(item.productId, (merged.get(item.productId) ?? 0) + item.delta);
   }
 
-  if (!("product" in tx) && typeof (tx as any).$queryRaw === "function") {
-    const values = Array.from(merged.entries());
-    if (values.length === 0) return [];
-    if (values.every(([, delta]) => delta < 0)) {
-      const productIds = values.map(([productId]) => productId);
-      const quantities = values.map(([, delta]) => Math.abs(delta));
-      const updated = await (tx as any).$queryRaw<Array<{ id: string }>>`
-        UPDATE pos_products AS p
-        SET stock = p.stock - v.qty
-        FROM unnest(${productIds}::text[], ${quantities}::float8[])
-          AS v(id, qty)
-        WHERE p.id = v.id
-          AND p."storeId" = ${input.storeId}
-          ${input.allowNegative ? Prisma.empty : Prisma.sql`AND p.stock >= v.qty`}
-        RETURNING p.id
-      `;
-      if (updated.length !== values.length) {
-        throw new StockMutationError("INSUFFICIENT_STOCK", {
-          productId: values[0]?.[0] ?? "",
-        });
-      }
-      return [];
+  const entries = Array.from(merged.entries()).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) return [];
+
+  const productIds = entries.map(([productId]) => productId);
+  const hints = await loadProductStockStates(tx, {
+    storeId: input.storeId,
+    productIds,
+  });
+  const hintById = new Map(hints.map((product) => [product.id, product]));
+  const missingProductId = productIds.find(
+    (productId) => !hintById.has(productId),
+  );
+  if (missingProductId) {
+    throw new StockMutationError("PRODUCT_NOT_FOUND", {
+      productId: missingProductId,
+    });
+  }
+
+  const stockGroupIds = hints
+    .map((product) => product.stockGroupId)
+    .filter((stockGroupId): stockGroupId is string => Boolean(stockGroupId));
+  const locks = await lockStockMutationRows(tx, {
+    storeId: input.storeId,
+    stockGroupIds,
+    productIds,
+  });
+  if (
+    locks.lockedProductIds.length !== productIds.length ||
+    locks.lockedStockGroupIds.length !== new Set(stockGroupIds).size
+  ) {
+    throw new StockMutationConflictError(
+      "Produk atau grup stok berubah saat transaksi diproses",
+    );
+  }
+
+  const currentProducts = await loadProductStockStates(tx, {
+    storeId: input.storeId,
+    productIds,
+  });
+  const currentById = new Map(
+    currentProducts.map((product) => [product.id, product]),
+  );
+  for (const productId of productIds) {
+    const hint = hintById.get(productId);
+    const current = currentById.get(productId);
+    if (!hint || !current) {
+      throw new StockMutationConflictError(
+        "Produk berubah saat transaksi diproses",
+      );
     }
-    if (values.every(([, delta]) => delta > 0)) {
-      const productIds = values.map(([productId]) => productId);
-      const quantities = values.map(([, delta]) => delta);
-      await (tx as any).$queryRaw`
-        UPDATE pos_products AS p
-        SET stock = p.stock + v.qty
-        FROM unnest(${productIds}::text[], ${quantities}::float8[])
-          AS v(id, qty)
-        WHERE p.id = v.id
-          AND p."storeId" = ${input.storeId}
-      `;
-      return [];
-    }
+    assertMembershipUnchanged(hint, current);
   }
 
   const results: StockMutationResult[] = [];
-  for (const [productId, delta] of merged) {
-    results.push(
-      await applyProductStockDelta(tx, {
-        storeId: input.storeId,
-        productId,
-        delta,
-        allowNegative: input.allowNegative,
-      }),
-    );
+  const currentBaseStockByGroupId = new Map<string, number>();
+  for (const [productId, delta] of entries) {
+    const current = currentById.get(productId);
+    if (!current) {
+      throw new StockMutationConflictError(
+        "Produk berubah saat transaksi diproses",
+      );
+    }
+    const stockGroup = current.stockGroup;
+    const product =
+      current.stockGroupId && stockGroup
+        ? {
+            ...current,
+            stockGroup: {
+              ...stockGroup,
+              baseStock:
+                currentBaseStockByGroupId.get(current.stockGroupId) ??
+                stockGroup.baseStock,
+            },
+          }
+        : current;
+    const result = await applyLockedProductStockDelta(tx, {
+      storeId: input.storeId,
+      product,
+      delta,
+      allowNegative: input.allowNegative,
+    });
+    results.push(result);
+    if (result.stockGroupId) {
+      const beforeBaseStock = product.stockGroup?.baseStock ?? 0;
+      currentBaseStockByGroupId.set(
+        result.stockGroupId,
+        beforeBaseStock + result.baseDelta,
+      );
+    }
   }
 
   return results;

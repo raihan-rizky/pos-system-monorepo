@@ -9,6 +9,7 @@ const productCountMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindManyMock = vi.hoisted(() => vi.fn());
 const brandFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
+const groupRowLockMock = vi.hoisted(() => vi.fn());
 const productCreateMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
 const productDeleteMock = vi.hoisted(() => vi.fn());
@@ -61,6 +62,20 @@ describe("POST /api/products", () => {
     handleAuthErrorMock.mockReturnValue(null);
     productFindUniqueMock.mockResolvedValue(null);
     brandFindFirstMock.mockResolvedValue(null);
+    groupRowLockMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
+    txProductStockGroupFindUniqueMock.mockReset();
+    txProductStockGroupFindUniqueMock.mockResolvedValue(null);
+    txProductStockGroupCreateMock.mockReset();
+    txProductStockGroupCreateMock.mockResolvedValue({
+      id: "group-created",
+      storeId: "store-main",
+      groupKey: "banner flexi|cat-1||",
+      displayName: "Banner Flexi",
+      baseUnit: "meter",
+      baseStock: 0,
+    });
     productCreateMock.mockResolvedValue({
       id: "product-1",
       name: "Banner Flexi",
@@ -73,7 +88,12 @@ describe("POST /api/products", () => {
     productPriceLogCreateManyMock.mockResolvedValue({ count: 2 });
     transactionMock.mockImplementation((callback) =>
       callback({
+        $queryRaw: groupRowLockMock,
         product: { create: productCreateMock },
+        productStockGroup: {
+          findUnique: txProductStockGroupFindUniqueMock,
+          create: txProductStockGroupCreateMock,
+        },
         productPriceLog: { createMany: productPriceLogCreateManyMock },
       }),
     );
@@ -293,6 +313,116 @@ describe("POST /api/products", () => {
       select: { id: true },
     });
     expect(productCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("locks an existing target group and its products before reloading it", async () => {
+    const order: string[] = [];
+    const targetGroup = {
+      id: "group-1",
+      storeId: "store-main",
+      groupKey: "banner flexi|cat-1||",
+      displayName: "Banner Flexi",
+      baseUnit: "meter",
+      baseStock: 12,
+      products: [
+        {
+          id: "existing-meter",
+          stockGroupId: "group-1",
+        },
+      ],
+    };
+    txProductStockGroupFindUniqueMock
+      .mockImplementationOnce(async () => {
+        order.push("hint");
+        return targetGroup;
+      })
+      .mockImplementationOnce(async () => {
+        order.push("read");
+        return targetGroup;
+      });
+    groupRowLockMock.mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        order.push(
+          `${strings.join(" ").includes("pos_product_stock_groups") ? "group" : "product"}:${rowId}`,
+        );
+        return [{ id: rowId }];
+      },
+    );
+    productCreateMock.mockImplementationOnce(async () => {
+      order.push("create");
+      return {
+        id: "product-1",
+        name: "Banner Flexi",
+        sku: "BNR-FLX",
+        price: 15000,
+        costPrice: 9000,
+        storeId: "store-main",
+        stockGroup: targetGroup,
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/products", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Banner Flexi",
+          sku: "BNR-FLX",
+          categoryId: "cat-1",
+          price: 15000,
+          costPrice: 9000,
+          stock: 0,
+          unit: "meter",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(order).toEqual([
+      "hint",
+      "group:group-1",
+      "product:existing-meter",
+      "read",
+      "create",
+    ]);
+  });
+
+  it("returns conflict when target-group membership changes before reload", async () => {
+    const targetGroup = {
+      id: "group-1",
+      storeId: "store-main",
+      groupKey: "banner flexi|cat-1||",
+      displayName: "Banner Flexi",
+      baseUnit: "meter",
+      baseStock: 12,
+      products: [
+        {
+          id: "existing-meter",
+          stockGroupId: "group-1",
+        },
+      ],
+    };
+    txProductStockGroupFindUniqueMock
+      .mockResolvedValueOnce(targetGroup)
+      .mockResolvedValueOnce({ ...targetGroup, products: [] });
+
+    const response = await POST(
+      new Request("http://localhost/api/products", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Banner Flexi",
+          sku: "BNR-FLX",
+          categoryId: "cat-1",
+          price: 15000,
+          costPrice: 9000,
+          stock: 0,
+          unit: "meter",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(productCreateMock).not.toHaveBeenCalled();
+    expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
   });
 });
 

@@ -16,10 +16,14 @@ import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-
 import { withCalculatedStock } from "@/features/product-stock-groups/stock-display";
 import {
   buildStockGroupCreateData,
-  ensureProductStockGroup,
   shouldMarkConversionForReview,
 } from "@/features/product-stock-groups/product-stock-groups-service";
 import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
+import {
+  isStockMutationConflict,
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 import { groupProductsByNameAndCategory } from "@/features/pos-search/services/product-grouping-service";
 
 import { getLogger } from "@/lib/logger";
@@ -250,22 +254,21 @@ export async function POST(request: Request) {
           include: {
             products: {
               where: { isActive: true },
-              select: { id: true, unit: true },
+              select: { id: true, stockGroupId: true, unit: true },
             },
           },
         });
         if (existingGroup) throw new Error("STOCK_GROUP_ALREADY_EXISTS");
 
         const baseStock = Number(validatedData.stock ?? 0) * multiplier;
-        const { group } = await ensureProductStockGroup(tx, {
-          storeId,
-          name: validatedData.name,
-          categoryId: validatedData.categoryId,
-          material: validatedData.material,
-          size: validatedData.size,
-          displayName: validatedData.name,
-          baseUnit: smallest.unit,
-          baseStock,
+        const group = await tx.productStockGroup.create({
+          data: {
+            storeId,
+            groupKey,
+            displayName: validatedData.name,
+            baseUnit: smallest.unit,
+            baseStock,
+          },
         });
         const { smallestUnitVariant: _smallestUnitVariant, ...packagingData } =
           validatedData;
@@ -390,16 +393,85 @@ export async function POST(request: Request) {
         unitMultiplierToBase: validatedData.unitMultiplierToBase,
         stock: validatedData.stock,
       });
-      const { group, created: groupCreated } = await ensureProductStockGroup(tx, {
-        storeId,
+      const groupKey = normalizeStockGroupKey({
         name: validatedData.name,
         categoryId: validatedData.categoryId,
         material: validatedData.material,
         size: validatedData.size,
-        displayName: validatedData.name,
-        baseUnit: validatedData.unit,
-        baseStock,
       });
+      const groupHint = await tx.productStockGroup.findUnique({
+        where: { storeId_groupKey: { storeId, groupKey } },
+        include: {
+          products: {
+            where: { isActive: true },
+            select: { id: true, stockGroupId: true },
+          },
+        },
+      });
+
+      let group = groupHint;
+      if (groupHint) {
+        const candidateProductIds = groupHint.products
+          .map((existing) => existing.id)
+          .sort((left, right) => left.localeCompare(right));
+        const locks = await lockStockMutationRows(tx, {
+          storeId,
+          stockGroupIds: [groupHint.id],
+          productIds: candidateProductIds,
+        });
+        if (
+          locks.lockedStockGroupIds.length !== 1 ||
+          locks.lockedProductIds.length !== candidateProductIds.length
+        ) {
+          throw new StockMutationConflictError();
+        }
+
+        group = await tx.productStockGroup.findUnique({
+          where: { storeId_groupKey: { storeId, groupKey } },
+          include: {
+            products: {
+              where: { isActive: true },
+              select: { id: true, stockGroupId: true },
+            },
+          },
+        });
+        if (!group || group.id !== groupHint.id) {
+          throw new StockMutationConflictError();
+        }
+
+        const reloadedProductIds = group.products
+          .map((existing) => existing.id)
+          .sort((left, right) => left.localeCompare(right));
+        if (
+          reloadedProductIds.length !== candidateProductIds.length ||
+          reloadedProductIds.some(
+            (productId, index) => productId !== candidateProductIds[index],
+          ) ||
+          group.products.some(
+            (existing) => existing.stockGroupId !== groupHint.id,
+          )
+        ) {
+          throw new StockMutationConflictError();
+        }
+      } else {
+        group = await tx.productStockGroup.create({
+          data: {
+            storeId,
+            groupKey,
+            displayName: validatedData.name,
+            baseUnit: validatedData.unit,
+            baseStock,
+          },
+          include: {
+            products: {
+              where: { isActive: true },
+              select: { id: true, stockGroupId: true },
+            },
+          },
+        });
+      }
+      const groupCreated = groupHint === null;
+
       const created = await tx.product.create({
         data: {
           ...validatedData,
@@ -468,6 +540,20 @@ export async function POST(request: Request) {
         {
           message:
             "A matching stock group already exists. Add or manage unit variants from the existing stock group.",
+        },
+        { status: 409 },
+      );
+    }
+    if (
+      isStockMutationConflict(error) ||
+      (error &&
+        typeof error === "object" &&
+        (error as { code?: unknown }).code === "P2002")
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Data grup stok berubah saat produk dibuat. Silakan coba lagi.",
         },
         { status: 409 },
       );

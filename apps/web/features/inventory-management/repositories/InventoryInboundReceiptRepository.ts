@@ -1,5 +1,8 @@
 import { db, Prisma } from "@pos/db";
-import { lockProductStockGroupRow } from "@/features/product-stock-groups/stock-group-lock";
+import {
+  lockProductRow,
+  lockProductStockGroupRow,
+} from "@/features/product-stock-groups/stock-group-lock";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
 import {
   calculateInboundAvailability,
@@ -408,16 +411,8 @@ export class InventoryInboundReceiptRepository
       quantity: number;
     },
   ) {
-    const locked = await tx.$queryRaw<Array<{ id: string }>>`
-      SELECT "id"
-      FROM "pos_products"
-      WHERE "id" = ${input.productId}
-        AND "storeId" = ${input.storeId}
-        AND "stockGroupId" IS NULL
-        AND "isActive" = true
-      FOR UPDATE
-    `;
-    if (locked.length !== 1) {
+    const locked = await lockProductRow(tx, input);
+    if (!locked) {
       throw new Error("INBOUND_RECEIPT_CONFLICT");
     }
 

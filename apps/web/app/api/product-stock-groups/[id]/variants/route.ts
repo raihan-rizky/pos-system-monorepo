@@ -9,6 +9,11 @@ import {
   assertUniqueActiveUnits,
   generateVariantSku,
 } from "@/features/product-stock-groups/bulk-stock-groups";
+import {
+  isStockMutationConflict,
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 
 const log = getLogger("api:product-stock-groups:variants");
@@ -40,13 +45,14 @@ export async function POST(
     const input = createVariantSchema.parse(await request.json());
 
     const result = await db.$transaction(async (tx) => {
-      const group = await tx.productStockGroup.findFirst({
+      const groupHint = await tx.productStockGroup.findFirst({
         where: { id, storeId },
         include: {
           products: {
             where: { isActive: true },
             select: {
               id: true,
+              stockGroupId: true,
               name: true,
               sku: true,
               unit: true,
@@ -58,7 +64,58 @@ export async function POST(
           },
         },
       });
-      if (!group || group.products.length === 0) throw new Error("GROUP_NOT_FOUND");
+      if (!groupHint || groupHint.products.length === 0) {
+        throw new Error("GROUP_NOT_FOUND");
+      }
+
+      const candidateProductIds = groupHint.products
+        .map((product) => product.id)
+        .sort((left, right) => left.localeCompare(right));
+      const locks = await lockStockMutationRows(tx, {
+        storeId,
+        stockGroupIds: [id],
+        productIds: candidateProductIds,
+      });
+      if (
+        locks.lockedStockGroupIds.length !== 1 ||
+        locks.lockedProductIds.length !== candidateProductIds.length
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const group = await tx.productStockGroup.findFirst({
+        where: { id, storeId },
+        include: {
+          products: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              stockGroupId: true,
+              name: true,
+              sku: true,
+              unit: true,
+              categoryId: true,
+              material: true,
+              size: true,
+              unitMultiplierToBase: true,
+            },
+          },
+        },
+      });
+      if (!group) throw new StockMutationConflictError();
+
+      const reloadedProductIds = group.products
+        .map((product) => product.id)
+        .sort((left, right) => left.localeCompare(right));
+      if (
+        reloadedProductIds.length !== candidateProductIds.length ||
+        reloadedProductIds.some(
+          (productId, index) => productId !== candidateProductIds[index],
+        ) ||
+        group.products.some((product) => product.stockGroupId !== id)
+      ) {
+        throw new StockMutationConflictError();
+      }
 
       assertUniqueActiveUnits([...group.products, { unit: input.unit }]);
 
@@ -152,6 +209,13 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) return apiValidationError(error);
+    if (isStockMutationConflict(error)) {
+      return apiError(
+        "Data grup stok berubah saat varian ditambahkan. Silakan coba lagi.",
+        409,
+        { code: "Conflict" },
+      );
+    }
     if (error instanceof Error) {
       if (error.message === "GROUP_NOT_FOUND") {
         return apiError("Stock group not found", 404, { code: "NotFound" });

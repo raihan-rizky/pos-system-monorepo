@@ -11,6 +11,10 @@ import {
   calculateBaseQuantity,
   resolveProductDisplayStock,
 } from "@/features/product-stock-groups/stock-display";
+import {
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 import { StockMutationError } from "@/features/product-stock-groups/stock-mutations";
 
 export interface BulkStockImportUser {
@@ -340,19 +344,56 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
     const inventoryType = inventoryTypeForMode(input.mode);
 
     return db.$transaction(async (tx: Tx) => {
-      const products = await tx.product.findMany({
+      const productIds = input.impacts.map((impact) => impact.productId);
+      const productHints = await tx.product.findMany({
         where: {
-          id: { in: input.impacts.map((impact) => impact.productId) },
+          id: { in: productIds },
           storeId: input.storeId,
           isActive: true,
         },
         include: { stockGroup: true },
       });
-      const productsById = new Map(products.map((product) => [product.id, product]));
 
-      if (products.length !== input.impacts.length) {
+      if (productHints.length !== input.impacts.length) {
         throw new Error("PRODUCT_NOT_FOUND");
       }
+
+      let products = productHints;
+      if (isOwner) {
+        const locks = await lockStockMutationRows(tx, {
+          storeId: input.storeId,
+          stockGroupIds: productHints.map((product) => product.stockGroupId ?? ""),
+          productIds,
+        });
+        if (
+          locks.lockedStockGroupIds.length !== locks.stockGroupIds.length ||
+          locks.lockedProductIds.length !== locks.productIds.length
+        ) {
+          throw new StockMutationConflictError();
+        }
+
+        products = await tx.product.findMany({
+          where: {
+            id: { in: productIds },
+            storeId: input.storeId,
+            isActive: true,
+          },
+          include: { stockGroup: true },
+        });
+        const hintsById = new Map(
+          productHints.map((product) => [product.id, product]),
+        );
+        if (
+          products.length !== productHints.length ||
+          products.some(
+            (product) =>
+              product.stockGroupId !== hintsById.get(product.id)?.stockGroupId,
+          )
+        ) {
+          throw new StockMutationConflictError();
+        }
+      }
+      const productsById = new Map(products.map((product) => [product.id, product]));
 
       const batch = await tx.batchOperation.create({
         data: {

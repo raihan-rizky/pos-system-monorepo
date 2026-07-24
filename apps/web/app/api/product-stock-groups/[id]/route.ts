@@ -6,7 +6,11 @@ import { apiError, apiValidationError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { calculateDisplayStock } from "@/features/product-stock-groups/stock-display";
-import { lockProductStockGroupRow } from "@/features/product-stock-groups/stock-group-lock";
+import {
+  isStockMutationConflict,
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 import {
   buildConversionPairSummaries,
   buildSharedStockInventoryLogRows,
@@ -121,23 +125,63 @@ export async function PATCH(
     const input = updateGroupSchema.parse(await request.json());
 
     const result = await db.$transaction(async (tx) => {
-      const locked = await lockProductStockGroupRow(tx, {
-        storeId,
-        stockGroupId: id,
+      const groupHint = await tx.productStockGroup.findFirst({
+        where: { id, storeId },
+        include: {
+          products: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              stockGroupId: true,
+              unitMultiplierToBase: true,
+            },
+          },
+        },
       });
-      if (!locked) throw new Error("GROUP_NOT_FOUND");
+      if (!groupHint) throw new Error("GROUP_NOT_FOUND");
+
+      const candidateProductIds = groupHint.products
+        .map((product) => product.id)
+        .sort((left, right) => left.localeCompare(right));
+      const locks = await lockStockMutationRows(tx, {
+        storeId,
+        stockGroupIds: [id],
+        productIds: candidateProductIds,
+      });
+      if (
+        locks.lockedStockGroupIds.length !== 1 ||
+        locks.lockedProductIds.length !== candidateProductIds.length
+      ) {
+        throw new StockMutationConflictError();
+      }
 
       const group = await tx.productStockGroup.findFirst({
         where: { id, storeId },
         include: {
           products: {
             where: { isActive: true },
-            select: { id: true, unitMultiplierToBase: true },
+            select: {
+              id: true,
+              stockGroupId: true,
+              unitMultiplierToBase: true,
+            },
           },
         },
       });
+      if (!group) throw new StockMutationConflictError();
 
-      if (!group) throw new Error("GROUP_NOT_FOUND");
+      const reloadedProductIds = group.products
+        .map((product) => product.id)
+        .sort((left, right) => left.localeCompare(right));
+      if (
+        reloadedProductIds.length !== candidateProductIds.length ||
+        reloadedProductIds.some(
+          (productId, index) => productId !== candidateProductIds[index],
+        ) ||
+        group.products.some((product) => product.stockGroupId !== id)
+      ) {
+        throw new StockMutationConflictError();
+      }
 
       const variants = group.products.map((product) => ({
         id: product.id,
@@ -173,6 +217,13 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) return apiValidationError(error);
+    if (isStockMutationConflict(error)) {
+      return apiError(
+        "Data grup stok berubah saat stok diperbarui. Silakan coba lagi.",
+        409,
+        { code: "Conflict" },
+      );
+    }
     if (error instanceof Error) {
       if (error.message === "GROUP_NOT_FOUND") {
         return apiError("Stock group not found", 404, { code: "NotFound" });

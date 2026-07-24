@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const stockRowLockMock = vi.hoisted(() => vi.fn());
 const batchOperationFindUniqueMock = vi.hoisted(() => vi.fn());
 const batchOperationUpdateMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindManyMock = vi.hoisted(() => vi.fn());
@@ -63,14 +64,17 @@ function call(post: ApprovePost, batchId = "batch-1") {
 describe("POST /api/inventory-management/stock-group-bulk/[batchId]/approve", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    productStockGroupFindManyMock.mockReset();
     handleAuthErrorMock.mockReturnValue(null);
     requirePermissionMock.mockResolvedValue({
       id: "owner-1",
       name: "Owner",
       storeId: "store-main",
     });
+    stockRowLockMock.mockResolvedValue([{ id: "locked" }]);
     dbTransactionMock.mockImplementation((callback) =>
       callback({
+        $queryRaw: stockRowLockMock,
         batchOperation: {
           findUnique: batchOperationFindUniqueMock,
           update: batchOperationUpdateMock,
@@ -160,5 +164,177 @@ describe("POST /api/inventory-management/stock-group-bulk/[batchId]/approve", ()
       }),
     );
     expect(body.data.batchId).toBe("batch-1");
+  });
+
+  it("locks multiple groups before products in sorted order and computes from the reload", async () => {
+    const order: string[] = [];
+    const productA = product({
+      id: "product-a",
+      sku: "SKU-A",
+      stockGroupId: "group-a",
+      unitMultiplierToBase: 1,
+    });
+    const productZ = product({
+      id: "product-z",
+      sku: "SKU-Z",
+      stockGroupId: "group-z",
+      unitMultiplierToBase: 1,
+    });
+    batchOperationFindUniqueMock.mockResolvedValue({
+      id: "batch-1",
+      type: "BULK_STOCK_GROUP_ADJUSTMENT",
+      status: "PENDING",
+      storeId: "store-main",
+      summary: {
+        source: "PRODUCT_FIRST_STOCK_GROUP_BULK",
+        rows: [
+          {
+            productId: "product-z",
+            stockGroupId: "group-z",
+            type: "IN",
+            stockInput: { mode: "BASE" },
+            inputValue: 2,
+          },
+          {
+            productId: "product-a",
+            stockGroupId: "group-a",
+            type: "IN",
+            stockInput: { mode: "BASE" },
+            inputValue: 2,
+          },
+        ],
+      },
+      items: [
+        { id: "item-a", productId: "product-a", inventoryLogId: "log-a" },
+        { id: "item-z", productId: "product-z", inventoryLogId: "log-z" },
+      ],
+    });
+    productStockGroupFindManyMock
+      .mockImplementationOnce(async () => {
+        order.push("hint");
+        return [
+          {
+            id: "group-z",
+            displayName: "Group Z",
+            baseUnit: "pcs",
+            baseStock: 10,
+            products: [productZ],
+          },
+          {
+            id: "group-a",
+            displayName: "Group A",
+            baseUnit: "pcs",
+            baseStock: 20,
+            products: [productA],
+          },
+        ];
+      })
+      .mockImplementationOnce(async () => {
+        order.push("reload");
+        return [
+          {
+            id: "group-z",
+            displayName: "Group Z",
+            baseUnit: "pcs",
+            baseStock: 15,
+            products: [productZ],
+          },
+          {
+            id: "group-a",
+            displayName: "Group A",
+            baseUnit: "pcs",
+            baseStock: 25,
+            products: [productA],
+          },
+        ];
+      });
+    stockRowLockMock.mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        order.push(
+          `${strings.join(" ").includes("pos_product_stock_groups") ? "group" : "product"}:${rowId}`,
+        );
+        return [{ id: rowId }];
+      },
+    );
+
+    const { POST } = await import("../route");
+    const response = await call(POST);
+
+    expect(response.status).toBe(200);
+    expect(order).toEqual([
+      "hint",
+      "group:group-a",
+      "group:group-z",
+      "product:product-a",
+      "product:product-z",
+      "reload",
+    ]);
+    expect(productStockGroupUpdateMock).toHaveBeenCalledWith({
+      where: { id: "group-a" },
+      data: { baseStock: 27 },
+    });
+    expect(productStockGroupUpdateMock).toHaveBeenCalledWith({
+      where: { id: "group-z" },
+      data: { baseStock: 17 },
+    });
+  });
+
+  it("returns conflict when a batch product leaves its hinted group before reload", async () => {
+    const grouped = product({
+      id: "product-1",
+      stockGroupId: "group-1",
+      unitMultiplierToBase: 1,
+    });
+    batchOperationFindUniqueMock.mockResolvedValue({
+      id: "batch-1",
+      type: "BULK_STOCK_GROUP_ADJUSTMENT",
+      status: "PENDING",
+      storeId: "store-main",
+      summary: {
+        source: "PRODUCT_FIRST_STOCK_GROUP_BULK",
+        rows: [
+          {
+            productId: "product-1",
+            stockGroupId: "group-1",
+            type: "IN",
+            stockInput: { mode: "BASE" },
+            inputValue: 2,
+          },
+        ],
+      },
+      items: [
+        {
+          id: "item-1",
+          productId: "product-1",
+          inventoryLogId: "log-1",
+        },
+      ],
+    });
+    productStockGroupFindManyMock
+      .mockResolvedValueOnce([
+        {
+          id: "group-1",
+          displayName: "Group 1",
+          baseUnit: "pcs",
+          baseStock: 10,
+          products: [grouped],
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "group-1",
+          displayName: "Group 1",
+          baseUnit: "pcs",
+          baseStock: 10,
+          products: [],
+        },
+      ]);
+
+    const { POST } = await import("../route");
+    const response = await call(POST);
+
+    expect(response.status).toBe(409);
+    expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
+    expect(inventoryLogUpdateMock).not.toHaveBeenCalled();
   });
 });

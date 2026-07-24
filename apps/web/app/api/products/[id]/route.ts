@@ -9,11 +9,15 @@ import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-
 import { withCalculatedStock } from "@/features/product-stock-groups/stock-display";
 import {
   buildStockGroupCreateData,
-  ensureProductStockGroup,
   resolveGroupedStockUpdate,
   shouldMarkConversionForReview,
 } from "@/features/product-stock-groups/product-stock-groups-service";
 import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
+import {
+  isStockMutationConflict,
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 
 const log = getLogger("api:products:id");
 const updateProductSchema = z.object({
@@ -114,19 +118,74 @@ export async function PUT(
 
       try {
         const productIds = await db.$transaction(async (tx) => {
-          const groupProducts = await tx.product.findMany({
-            where: existingProduct.stockGroupId
-              ? { storeId, stockGroupId: existingProduct.stockGroupId }
-              : {
-                  storeId,
-                  name: { equals: existingProduct.name, mode: "insensitive" },
-                  categoryId: existingProduct.categoryId,
-                },
-            select: { id: true },
+          const groupWhere = existingProduct.stockGroupId
+            ? { storeId, stockGroupId: existingProduct.stockGroupId }
+            : {
+                storeId,
+                name: { equals: existingProduct.name, mode: "insensitive" as const },
+                categoryId: existingProduct.categoryId,
+              };
+          const groupProductHints = await tx.product.findMany({
+            where: groupWhere,
+            select: { id: true, stockGroupId: true },
           });
-          const groupProductIds = groupProducts.map((product) => product.id);
+          const groupProductIds = groupProductHints
+            .map((product) => product.id)
+            .sort();
           if (groupProductIds.length === 0) {
             throw new Error("QUICK_EDIT_GROUP_NOT_FOUND");
+          }
+
+          const locks = await lockStockMutationRows(tx, {
+            storeId,
+            stockGroupIds: existingProduct.stockGroupId
+              ? [existingProduct.stockGroupId]
+              : [],
+            productIds: groupProductIds,
+          });
+          if (
+            locks.lockedProductIds.length !== groupProductIds.length ||
+            (existingProduct.stockGroupId &&
+              !locks.lockedStockGroupIds.includes(
+                existingProduct.stockGroupId,
+              ))
+          ) {
+            throw new StockMutationConflictError();
+          }
+
+          const groupProducts = await tx.product.findMany({
+            where: groupWhere,
+            select: { id: true, stockGroupId: true },
+          });
+          const currentIds = groupProducts
+            .map((product) => product.id)
+            .sort();
+          const hintById = new Map(
+            groupProductHints.map((product) => [product.id, product]),
+          );
+          if (
+            currentIds.length !== groupProductIds.length ||
+            currentIds.some(
+              (productId, index) => productId !== groupProductIds[index],
+            ) ||
+            groupProducts.some(
+              (product) =>
+                hintById.get(product.id)?.stockGroupId !==
+                product.stockGroupId,
+            )
+          ) {
+            throw new StockMutationConflictError();
+          }
+
+          if (existingProduct.stockGroupId) {
+            const currentProduct = groupProducts.find(
+              (product) => product.id === existingProduct.id,
+            );
+            if (
+              currentProduct?.stockGroupId !== existingProduct.stockGroupId
+            ) {
+              throw new StockMutationConflictError();
+            }
           }
 
           if (existingProduct.stockGroupId) {
@@ -197,32 +256,104 @@ export async function PUT(
     }
 
     const product = await db.$transaction(async (tx) => {
-      const nextName = validatedData.name ?? existingProduct.name;
-      const nextCategoryId = validatedData.categoryId ?? existingProduct.categoryId;
-      const nextMaterial = validatedData.material ?? existingProduct.material;
-      const nextSize = validatedData.size ?? existingProduct.size;
-      const nextUnit = validatedData.unit ?? existingProduct.unit;
-      const currentMultiplier = existingProduct.unitMultiplierToBase ?? 1;
+      const hintedNextName = validatedData.name ?? existingProduct.name;
+      const hintedNextCategoryId =
+        validatedData.categoryId ?? existingProduct.categoryId;
+      const hintedNextMaterial =
+        validatedData.material ?? existingProduct.material;
+      const hintedNextSize = validatedData.size ?? existingProduct.size;
+      const targetGroupKey = normalizeStockGroupKey({
+        name: hintedNextName,
+        categoryId: hintedNextCategoryId,
+        material: hintedNextMaterial,
+        size: hintedNextSize,
+      });
+      const targetGroupHint = await tx.productStockGroup.findUnique({
+        where: {
+          storeId_groupKey: { storeId, groupKey: targetGroupKey },
+        },
+      });
+
+      const candidateGroupIds = [
+        ...(existingProduct.stockGroupId
+          ? [existingProduct.stockGroupId]
+          : []),
+        ...(targetGroupHint ? [targetGroupHint.id] : []),
+      ];
+      const locks = await lockStockMutationRows(tx, {
+        storeId,
+        stockGroupIds: candidateGroupIds,
+        productIds: [existingProduct.id],
+      });
+      if (
+        !locks.lockedProductIds.includes(existingProduct.id) ||
+        candidateGroupIds.some(
+          (stockGroupId) =>
+            !locks.lockedStockGroupIds.includes(stockGroupId),
+        )
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const currentProduct = await tx.product.findFirst({
+        where: { id: existingProduct.id, storeId },
+        include: { stockGroup: true },
+      });
+      if (
+        !currentProduct ||
+        currentProduct.stockGroupId !== existingProduct.stockGroupId
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const nextName = validatedData.name ?? currentProduct.name;
+      const nextCategoryId =
+        validatedData.categoryId ?? currentProduct.categoryId;
+      const nextMaterial = validatedData.material ?? currentProduct.material;
+      const nextSize = validatedData.size ?? currentProduct.size;
+      const nextUnit = validatedData.unit ?? currentProduct.unit;
+      const currentTargetGroupKey = normalizeStockGroupKey({
+        name: nextName,
+        categoryId: nextCategoryId,
+        material: nextMaterial,
+        size: nextSize,
+      });
+      if (currentTargetGroupKey !== targetGroupKey) {
+        throw new StockMutationConflictError();
+      }
+
+      const targetGroup = await tx.productStockGroup.findUnique({
+        where: {
+          storeId_groupKey: { storeId, groupKey: targetGroupKey },
+        },
+      });
+      if (targetGroupHint?.id !== targetGroup?.id) {
+        throw new StockMutationConflictError();
+      }
+
+      const currentMultiplier = currentProduct.unitMultiplierToBase ?? 1;
       const nextMultiplier =
         validatedData.unitMultiplierToBase ?? currentMultiplier;
-      const currentDisplayStock = existingProduct.stockGroup
-        ? existingProduct.stockGroup.baseStock / currentMultiplier
-        : existingProduct.stock;
+      const currentDisplayStock = currentProduct.stockGroup
+        ? currentProduct.stockGroup.baseStock / currentMultiplier
+        : currentProduct.stock;
       const requestedStock = validatedData.stock;
       const { baseStock } = buildStockGroupCreateData({
         unitMultiplierToBase: nextMultiplier,
         stock: requestedStock ?? currentDisplayStock,
       });
-      const { group, created: groupCreated } = await ensureProductStockGroup(tx, {
-        storeId,
-        name: nextName,
-        categoryId: nextCategoryId,
-        material: nextMaterial,
-        size: nextSize,
-        displayName: nextName,
-        baseUnit: nextUnit,
-        baseStock,
-      });
+      const group =
+        targetGroup ??
+        (await tx.productStockGroup.create({
+          data: {
+            storeId,
+            groupKey: targetGroupKey,
+            displayName: nextName,
+            baseUnit: nextUnit,
+            baseStock,
+          },
+        }));
+      const groupCreated = targetGroup === null;
       const shouldUseGroupedStock = Boolean(group.id);
       const productData = {
         ...validatedData,
@@ -232,8 +363,8 @@ export async function PUT(
         conversionNeedsReview:
           validatedData.unitMultiplierToBase !== undefined
             ? false
-            : group.id === existingProduct.stockGroupId
-              ? existingProduct.conversionNeedsReview
+            : group.id === currentProduct.stockGroupId
+              ? currentProduct.conversionNeedsReview
               : shouldMarkConversionForReview({
                   groupCreated,
                   unitMultiplierProvided: false,
@@ -279,10 +410,10 @@ export async function PUT(
         productId: updated.id,
         storeId,
         before: {
-          price: existingProduct.price,
-          costPrice: existingProduct.costPrice,
-          hargaAgen: existingProduct.hargaAgen,
-          hargaDinas: existingProduct.hargaDinas,
+          price: currentProduct.price,
+          costPrice: currentProduct.costPrice,
+          hargaAgen: currentProduct.hargaAgen,
+          hargaDinas: currentProduct.hargaDinas,
         },
         after: {
           price: updated.price,
@@ -312,6 +443,15 @@ export async function PUT(
       return NextResponse.json(
         { message: "Validation error", errors: error.flatten().fieldErrors },
         { status: 422 }
+      );
+    }
+    if (isStockMutationConflict(error)) {
+      return NextResponse.json(
+        {
+          message:
+            "Data produk atau grup stok berubah saat diproses. Silakan coba lagi.",
+        },
+        { status: 409 },
       );
     }
     return NextResponse.json(

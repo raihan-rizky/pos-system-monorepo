@@ -12,6 +12,10 @@ import {
   type EnsureStockGroupInput,
 } from "@/features/product-stock-groups/product-stock-groups-service";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+import {
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import { getLogger } from "@/lib/logger";
 
@@ -949,6 +953,57 @@ async function preEnsureImportStockGroups(input: {
   return ensureProductStockGroups(input.tx, groupInputs);
 }
 
+async function reloadEnsuredImportStockGroups(
+  tx: Tx,
+  hints: EnsuredImportStockGroups,
+  storeId: string,
+): Promise<EnsuredImportStockGroups> {
+  if (hints.size === 0) return hints;
+
+  const groups = await tx.productStockGroup.findMany({
+    where: {
+      id: {
+        in: Array.from(hints.values(), ({ group }) => group.id),
+      },
+      storeId,
+    },
+  });
+  const groupsById = new Map(groups.map((group) => [group.id, group]));
+  const reloaded: EnsuredImportStockGroups = new Map();
+
+  for (const [cacheKey, hint] of hints) {
+    const group = groupsById.get(hint.group.id);
+    if (!group || `${group.storeId}|${group.groupKey}` !== cacheKey) {
+      throw new StockMutationConflictError();
+    }
+    reloaded.set(cacheKey, {
+      group,
+      created: hint.created,
+    });
+  }
+
+  return reloaded;
+}
+
+function assertProductImportMembershipUnchanged(
+  hint: Awaited<ReturnType<typeof loadChunkExecutionPlan>>,
+  fresh: Awaited<ReturnType<typeof loadChunkExecutionPlan>>,
+) {
+  if (hint.existingById.size !== fresh.existingById.size) {
+    throw new StockMutationConflictError();
+  }
+
+  for (const [productId, hintedProduct] of hint.existingById) {
+    const freshProduct = fresh.existingById.get(productId);
+    if (
+      !freshProduct ||
+      freshProduct.stockGroupId !== hintedProduct.stockGroupId
+    ) {
+      throw new StockMutationConflictError();
+    }
+  }
+}
+
 async function resolveImportStockGroup(input: {
   ensuredGroups: EnsuredImportStockGroups;
   fallbackEnsure: ReturnType<typeof createProductStockGroupEnsurer>;
@@ -969,16 +1024,11 @@ async function processResolvedRows(input: {
   decisions: Record<string, "create" | "update" | "skip" | "create-variant">;
   user: ProductImportActor;
   storeId: string;
+  ensuredImportStockGroups: EnsuredImportStockGroups;
 }) {
   const counts: CommitCounts = { ...EMPTY_COUNTS };
   const ensureImportStockGroup = createProductStockGroupEnsurer(input.tx);
-  const ensuredImportStockGroups = await preEnsureImportStockGroups({
-    tx: input.tx,
-    rows: input.rows,
-    skippedSourceRowNumbers: input.skippedSourceRowNumbers,
-    plan: input.plan,
-    storeId: input.storeId,
-  });
+  const ensuredImportStockGroups = input.ensuredImportStockGroups;
 
   // --- Accumulators ---
   const bulkProductInserts: BulkProductInsert[] = [];
@@ -1447,7 +1497,58 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
           .map((item) => item.sourceRowNumber)
           .filter((value): value is number => value != null),
       );
-      const plan = await loadChunkExecutionPlan(tx, rowSlice, storeId);
+      const planHint = await loadChunkExecutionPlan(tx, rowSlice, storeId);
+      const hintedFastPath = isFastPriceOrSkipChunk({
+        rows: rowSlice,
+        committedRowNumbers,
+        plan: planHint,
+      });
+      let ensuredImportStockGroups: EnsuredImportStockGroups = new Map();
+      if (!hintedFastPath) {
+        ensuredImportStockGroups = await preEnsureImportStockGroups({
+          tx,
+          rows: rowSlice,
+          skippedSourceRowNumbers: committedRowNumbers,
+          plan: planHint,
+          storeId,
+        });
+      }
+
+      let plan = planHint;
+      const hasMutationRows = rowSlice.some(
+        (row) =>
+          !committedRowNumbers.has(row.rowNumber) &&
+          row.plannedCommitAction !== "skip",
+      );
+      if (hasMutationRows) {
+        const hintedProducts = Array.from(planHint.existingById.values());
+        const locks = await lockStockMutationRows(tx, {
+          storeId,
+          stockGroupIds: [
+            ...hintedProducts.map((product) => product.stockGroupId ?? ""),
+            ...Array.from(
+              ensuredImportStockGroups.values(),
+              ({ group }) => group.id,
+            ),
+          ],
+          productIds: hintedProducts.map((product) => product.id),
+        });
+        if (
+          locks.lockedStockGroupIds.length !== locks.stockGroupIds.length ||
+          locks.lockedProductIds.length !== locks.productIds.length
+        ) {
+          throw new StockMutationConflictError();
+        }
+
+        plan = await loadChunkExecutionPlan(tx, rowSlice, storeId);
+        assertProductImportMembershipUnchanged(planHint, plan);
+        ensuredImportStockGroups = await reloadEnsuredImportStockGroups(
+          tx,
+          ensuredImportStockGroups,
+          storeId,
+        );
+      }
+
       const useFastPath = isFastPriceOrSkipChunk({
         rows: rowSlice,
         committedRowNumbers,
@@ -1472,6 +1573,7 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
           decisions: {},
           user,
           storeId,
+          ensuredImportStockGroups,
         });
       const processedRowNumbers = rowNumbers.filter((rowNumber) => !committedRowNumbers.has(rowNumber));
       if (processedRowNumbers.length > 0) {

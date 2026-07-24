@@ -10,6 +10,11 @@ import {
   type StockGroupBulkType,
 } from "@/features/inventory-management/helpers/stock-group-bulk";
 import { summarizeBulkApprovalBundle } from "@/features/bulk-stock-approval/helpers/bundle-status";
+import {
+  isStockMutationConflict,
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 import { apiError, apiValidationError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
@@ -55,6 +60,48 @@ function readProductFirstRows(summary: Record<string, unknown>) {
   }).filter((row) => row.productId && row.stockGroupId && Number.isFinite(row.inputValue));
 }
 
+function sortedUniqueIds(ids: ReadonlyArray<string>) {
+  return Array.from(new Set(ids.filter(Boolean))).sort();
+}
+
+function sameIds(left: ReadonlyArray<string>, right: ReadonlyArray<string>) {
+  const sortedLeft = sortedUniqueIds(left);
+  const sortedRight = sortedUniqueIds(right);
+  return (
+    sortedLeft.length === sortedRight.length &&
+    sortedLeft.every((id, index) => id === sortedRight[index])
+  );
+}
+
+function assertGroupMembershipsUnchanged(
+  hints: ReadonlyArray<{
+    id: string;
+    products: ReadonlyArray<{ id: string; stockGroupId: string | null }>;
+  }>,
+  current: ReadonlyArray<{
+    id: string;
+    products: ReadonlyArray<{ id: string; stockGroupId: string | null }>;
+  }>,
+) {
+  if (!sameIds(hints.map((group) => group.id), current.map((group) => group.id))) {
+    throw new StockMutationConflictError();
+  }
+  const currentById = new Map(current.map((group) => [group.id, group]));
+  for (const hint of hints) {
+    const group = currentById.get(hint.id);
+    if (
+      !group ||
+      !sameIds(
+        hint.products.map((product) => product.id),
+        group.products.map((product) => product.id),
+      ) ||
+      group.products.some((product) => product.stockGroupId !== group.id)
+    ) {
+      throw new StockMutationConflictError();
+    }
+  }
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ batchId: string }> },
@@ -79,9 +126,12 @@ export async function POST(
         const rows = readProductFirstRows(summary);
         if (rows.length === 0) throw new Error("NO_CHANGES");
 
-        const groups = await tx.productStockGroup.findMany({
+        const stockGroupIds = sortedUniqueIds(
+          rows.map((row) => row.stockGroupId),
+        );
+        const groupHints = await tx.productStockGroup.findMany({
           where: {
-            id: { in: Array.from(new Set(rows.map((row) => row.stockGroupId))) },
+            id: { in: stockGroupIds },
             storeId: batch.storeId,
           },
           include: {
@@ -91,6 +141,41 @@ export async function POST(
             },
           },
         });
+        if (groupHints.length !== stockGroupIds.length) {
+          throw new Error("GROUP_NOT_FOUND");
+        }
+
+        const affectedProductIds = sortedUniqueIds([
+          ...rows.map((row) => row.productId),
+          ...groupHints.flatMap((group) =>
+            group.products.map((product) => product.id),
+          ),
+        ]);
+        const locks = await lockStockMutationRows(tx, {
+          storeId: batch.storeId,
+          stockGroupIds,
+          productIds: affectedProductIds,
+        });
+        if (
+          locks.lockedStockGroupIds.length !== stockGroupIds.length ||
+          locks.lockedProductIds.length !== affectedProductIds.length
+        ) {
+          throw new StockMutationConflictError();
+        }
+
+        const groups = await tx.productStockGroup.findMany({
+          where: {
+            id: { in: stockGroupIds },
+            storeId: batch.storeId,
+          },
+          include: {
+            products: {
+              where: { isActive: true },
+              orderBy: [{ unit: "asc" }, { name: "asc" }],
+            },
+          },
+        });
+        assertGroupMembershipsUnchanged(groupHints, groups);
         const groupById = new Map(groups.map((group) => [group.id, group]));
         const productById = new Map(groups.flatMap((group) => group.products).map((product) => [product.id, product]));
         const itemByProductId = new Map(
@@ -100,10 +185,16 @@ export async function POST(
         );
         const logStatuses: Array<{ status: "APPROVED" | "REJECTED" }> = [];
         const reviewedRows: Array<Record<string, unknown>> = [];
+        const currentBaseStockByGroupId = new Map<string, number>();
 
         for (const row of rows) {
           const group = groupById.get(row.stockGroupId);
           if (!group) throw new Error("GROUP_NOT_FOUND");
+          if (!group.products.some((product) => product.id === row.productId)) {
+            throw new StockMutationConflictError();
+          }
+          const currentBaseStock =
+            currentBaseStockByGroupId.get(group.id) ?? group.baseStock;
           const preview = calculateStockGroupBulkPreview({
             type: row.type as StockGroupBulkType,
             stockInput: row.stockInput as StockGroupBulkBasis,
@@ -112,7 +203,7 @@ export async function POST(
               id: group.id,
               displayName: group.displayName,
               baseUnit: group.baseUnit,
-              baseStock: group.baseStock,
+              baseStock: currentBaseStock,
               variants: group.products.map((product) => ({
                 id: product.id,
                 name: product.name,
@@ -131,6 +222,7 @@ export async function POST(
             where: { id: group.id },
             data: { baseStock: preview.afterBaseStock },
           });
+          currentBaseStockByGroupId.set(group.id, preview.afterBaseStock);
 
           for (const variant of preview.changedVariants) {
             const product = productById.get(variant.id);
@@ -207,6 +299,32 @@ export async function POST(
         (summary.stockInput as { mode: "BASE" } | { mode: "VARIANT"; variantProductId: string });
       const inputValue = input.inputValue ?? Number(summary.inputValue);
 
+      const groupHint = await tx.productStockGroup.findFirst({
+        where: { id: stockGroupId, storeId: batch.storeId },
+        include: {
+          products: {
+            where: { isActive: true },
+            orderBy: [{ unit: "asc" }, { name: "asc" }],
+          },
+        },
+      });
+      if (!groupHint) throw new Error("GROUP_NOT_FOUND");
+
+      const affectedProductIds = sortedUniqueIds(
+        groupHint.products.map((product) => product.id),
+      );
+      const locks = await lockStockMutationRows(tx, {
+        storeId: batch.storeId,
+        stockGroupIds: [stockGroupId],
+        productIds: affectedProductIds,
+      });
+      if (
+        !locks.lockedStockGroupIds.includes(stockGroupId) ||
+        locks.lockedProductIds.length !== affectedProductIds.length
+      ) {
+        throw new StockMutationConflictError();
+      }
+
       const group = await tx.productStockGroup.findFirst({
         where: { id: stockGroupId, storeId: batch.storeId },
         include: {
@@ -216,7 +334,8 @@ export async function POST(
           },
         },
       });
-      if (!group) throw new Error("GROUP_NOT_FOUND");
+      if (!group) throw new StockMutationConflictError();
+      assertGroupMembershipsUnchanged([groupHint], [group]);
 
       const preview = calculateStockGroupBulkPreview({
         type,
@@ -336,6 +455,13 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) return apiValidationError(error);
+    if (isStockMutationConflict(error)) {
+      return apiError(
+        "Data grup stok berubah saat persetujuan diproses. Silakan coba lagi.",
+        409,
+        { code: "Conflict" },
+      );
+    }
     if (error instanceof Error) {
       if (["BATCH_NOT_FOUND", "GROUP_NOT_FOUND"].includes(error.message)) {
         return apiError("Bundle tidak ditemukan", 404, { code: "NotFound" });
