@@ -12,6 +12,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 }));
 
 const txMock = {
+  $queryRaw: vi.fn(),
   batchOperation: {
     create: vi.fn(),
     findFirst: vi.fn(),
@@ -95,6 +96,9 @@ describe("POST /api/batch-operations/[id]/undo", () => {
     txMock.productSupplier.deleteMany.mockResolvedValue({ count: 1 });
     txMock.productSupplier.createMany.mockResolvedValue({ count: 1 });
     txMock.transactionItem.findMany.mockResolvedValue([]);
+    txMock.$queryRaw.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
   });
 
   it("restores product supplier links from product import snapshots", async () => {
@@ -151,6 +155,77 @@ describe("POST /api/batch-operations/[id]/undo", () => {
     expect(txMock.productSupplier.createMany).toHaveBeenCalledWith({
       data: [{ productId: "prod-1", supplierId: "supplier-old" }],
       skipDuplicates: true,
+    });
+  });
+
+  it("locks a created grouped variant and reloads it before undo deactivation", async () => {
+    const order: string[] = [];
+    const currentProduct = product({
+      stockGroupId: "group-z",
+      unitMultiplierToBase: 1,
+    });
+
+    txMock.batchOperation.findFirst.mockResolvedValue({
+      id: "batch-1",
+      type: "PRODUCT_IMPORT",
+      status: "COMMITTED",
+      storeId: "store-main",
+      createdAt: new Date("2026-07-01"),
+      undoOfBatchId: null,
+      items: [
+        {
+          id: "item-1",
+          batchOperationId: "batch-1",
+          productId: "prod-1",
+          sku: "AMP-001",
+          action: "CREATE",
+          beforeSnapshot: null,
+          afterSnapshot: snapshot(),
+          inventoryLogId: null,
+          createdAt: new Date("2026-07-01"),
+          sourceRowNumber: 2,
+        },
+      ],
+    });
+    txMock.product.findMany
+      .mockImplementationOnce(async () => {
+        order.push("hint-products");
+        return [currentProduct];
+      })
+      .mockImplementationOnce(async () => {
+        order.push("reload-products");
+        return [currentProduct];
+      });
+    txMock.$queryRaw.mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        order.push(
+          `${strings.join(" ").includes("pos_product_stock_groups") ? "group" : "product"}:${rowId}`,
+        );
+        return [{ id: rowId }];
+      },
+    );
+    txMock.product.update.mockImplementation(async () => {
+      order.push("deactivate-product");
+      return { ...currentProduct, stock: 0, isActive: false };
+    });
+    txMock.inventoryLog.create.mockResolvedValue({ id: "log-1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/batch-operations/batch-1/undo"),
+      { params: Promise.resolve({ id: "batch-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(order).toEqual([
+      "hint-products",
+      "group:group-z",
+      "product:prod-1",
+      "reload-products",
+      "deactivate-product",
+    ]);
+    expect(txMock.product.update).toHaveBeenCalledWith({
+      where: { id: "prod-1" },
+      data: { stock: 0, isActive: false },
     });
   });
 });

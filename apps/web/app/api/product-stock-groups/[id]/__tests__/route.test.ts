@@ -170,6 +170,61 @@ describe("POST /api/product-stock-groups/[id]/products", () => {
     });
   });
 
+  it("preserves authoritative locked source-group stock when assigning products", async () => {
+    productStockGroupFindFirstMock.mockResolvedValue({
+      id: "group-1",
+      storeId: "store-main",
+      displayName: "Amplop",
+      baseUnit: "piece",
+      baseStock: 0,
+      products: [],
+    });
+    productFindManyMock
+      .mockResolvedValueOnce([
+        { id: "box", stockGroupId: "source-group" },
+        { id: "piece", stockGroupId: null },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "box",
+          unit: "box",
+          stock: 10,
+          stockGroupId: "source-group",
+          unitMultiplierToBase: 12,
+          stockGroup: { id: "source-group", baseStock: 144 },
+        },
+        {
+          id: "piece",
+          unit: "piece",
+          stock: 144,
+          stockGroupId: null,
+          unitMultiplierToBase: 1,
+          stockGroup: null,
+        },
+      ]);
+
+    const { POST } = await import("../products/route");
+    const response = await POST(
+      new Request("http://localhost/api/product-stock-groups/group-1/products", {
+        method: "POST",
+        body: JSON.stringify({
+          sourceProductId: "box",
+          products: [
+            { productId: "box", unitMultiplierToBase: 12 },
+            { productId: "piece", unitMultiplierToBase: 1 },
+          ],
+        }),
+      }),
+      { params: Promise.resolve({ id: "group-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(productStockGroupUpdateMock).toHaveBeenCalledWith({
+      where: { id: "group-1" },
+      data: { baseStock: 144 },
+    });
+  });
+
   it("locks source and target groups before products, then reloads authoritative state", async () => {
     const order: string[] = [];
     const products = [

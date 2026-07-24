@@ -187,6 +187,54 @@ describe("POST /api/product-stock-groups", () => {
     });
   });
 
+  it("preserves authoritative locked source-group stock when creating a new group", async () => {
+    productFindManyMock
+      .mockResolvedValueOnce([
+        { id: "box", stockGroupId: "source-group" },
+        { id: "piece", stockGroupId: null },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "box",
+          unit: "box",
+          stock: 10,
+          stockGroupId: "source-group",
+          unitMultiplierToBase: 12,
+          stockGroup: { id: "source-group", baseStock: 144 },
+        },
+        {
+          id: "piece",
+          unit: "piece",
+          stock: 144,
+          stockGroupId: null,
+          unitMultiplierToBase: 1,
+          stockGroup: null,
+        },
+      ]);
+
+    const { POST } = await import("../route");
+    const response = await POST(
+      new Request("http://localhost/api/product-stock-groups", {
+        method: "POST",
+        body: JSON.stringify({
+          displayName: "Amplop",
+          sourceProductId: "box",
+          products: [
+            { productId: "box", unitMultiplierToBase: 12 },
+            { productId: "piece", unitMultiplierToBase: 1 },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(productStockGroupCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ baseStock: 144 }),
+      }),
+    );
+  });
+
   it("locks standalone products in sorted order and reloads them before creating the group", async () => {
     const order: string[] = [];
     const products = [

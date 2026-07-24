@@ -3,29 +3,47 @@ import { describe, expect, it, vi } from "vitest";
 import { InventoryInboundReceiptRepository } from "../InventoryInboundReceiptRepository";
 
 describe("InventoryInboundReceiptRepository lockStockGroup", () => {
-  it("raw-locks the tenant group row before its authoritative ORM reload", async () => {
+  it("locks the group, discovers variants, locks variants in sorted order, then reloads", async () => {
     const order: string[] = [];
-    const queryRaw = vi.fn().mockImplementation(async () => {
-      order.push("lock");
-      return [{ id: "group-1" }];
-    });
-    const findFirst = vi.fn().mockImplementation(async () => {
-      order.push("read");
-      return {
-        id: "group-1",
-        storeId: "store-main",
-        baseStock: 120,
-        products: [
-          {
-            id: "product-1",
-            storeId: "store-main",
-            stockGroupId: "group-1",
-            unitMultiplierToBase: 10,
-            conversionNeedsReview: false,
-          },
-        ],
-      };
-    });
+    const queryRaw = vi.fn().mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        order.push(
+          `${strings.join(" ").includes("pos_product_stock_groups") ? "group" : "product"}:${rowId}`,
+        );
+        return [{ id: rowId }];
+      },
+    );
+    const groupHint = {
+      id: "group-1",
+      storeId: "store-main",
+      baseStock: 120,
+      products: [
+        {
+          id: "product-z",
+          storeId: "store-main",
+          stockGroupId: "group-1",
+          unitMultiplierToBase: 10,
+          conversionNeedsReview: false,
+        },
+        {
+          id: "product-a",
+          storeId: "store-main",
+          stockGroupId: "group-1",
+          unitMultiplierToBase: 1,
+          conversionNeedsReview: false,
+        },
+      ],
+    };
+    const findFirst = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        order.push("read-hint");
+        return groupHint;
+      })
+      .mockImplementationOnce(async () => {
+        order.push("read-fresh");
+        return groupHint;
+      });
     const repository = new InventoryInboundReceiptRepository();
 
     const result = await repository.lockStockGroup(
@@ -36,18 +54,109 @@ describe("InventoryInboundReceiptRepository lockStockGroup", () => {
       { storeId: "store-main", stockGroupId: "group-1" },
     );
 
-    expect(order).toEqual(["lock", "read"]);
+    expect(order).toEqual([
+      "group:group-1",
+      "read-hint",
+      "product:product-a",
+      "product:product-z",
+      "read-fresh",
+    ]);
     expect(result).toEqual({
       id: "group-1",
       storeId: "store-main",
       baseStock: 120,
-      variants: [
-        expect.objectContaining({
-          id: "product-1",
+      variants: groupHint.products,
+    });
+  });
+
+  it("returns null when active variant membership drifts after variant locks", async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: "group-1",
+        storeId: "store-main",
+        baseStock: 120,
+        products: [
+          {
+            id: "product-a",
+            storeId: "store-main",
+            stockGroupId: "group-1",
+            unitMultiplierToBase: 1,
+            conversionNeedsReview: false,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        id: "group-1",
+        storeId: "store-main",
+        baseStock: 120,
+        products: [
+          {
+            id: "product-a",
+            storeId: "store-main",
+            stockGroupId: "group-1",
+            unitMultiplierToBase: 1,
+            conversionNeedsReview: false,
+          },
+          {
+            id: "product-b",
+            storeId: "store-main",
+            stockGroupId: "group-1",
+            unitMultiplierToBase: 10,
+            conversionNeedsReview: false,
+          },
+        ],
+      });
+    const repository = new InventoryInboundReceiptRepository();
+
+    const result = await repository.lockStockGroup(
+      {
+        $queryRaw: vi.fn().mockImplementation(
+          async (_strings: TemplateStringsArray, rowId: string) => [
+            { id: rowId },
+          ],
+        ),
+        productStockGroup: { findFirst },
+      } as never,
+      { storeId: "store-main", stockGroupId: "group-1" },
+    );
+
+    expect(result).toBeNull();
+    expect(findFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns null without a reload when one discovered variant lock misses", async () => {
+    const findFirst = vi.fn().mockResolvedValue({
+      id: "group-1",
+      storeId: "store-main",
+      baseStock: 120,
+      products: [
+        {
+          id: "product-a",
+          storeId: "store-main",
           stockGroupId: "group-1",
-        }),
+          unitMultiplierToBase: 1,
+          conversionNeedsReview: false,
+        },
       ],
     });
+    const repository = new InventoryInboundReceiptRepository();
+
+    const result = await repository.lockStockGroup(
+      {
+        $queryRaw: vi.fn().mockImplementation(
+          async (strings: TemplateStringsArray, rowId: string) =>
+            strings.join(" ").includes("pos_product_stock_groups")
+              ? [{ id: rowId }]
+              : [],
+        ),
+        productStockGroup: { findFirst },
+      } as never,
+      { storeId: "store-main", stockGroupId: "group-1" },
+    );
+
+    expect(result).toBeNull();
+    expect(findFirst).toHaveBeenCalledTimes(1);
   });
 
   it("does not issue an ORM read when the tenant-scoped raw lock misses", async () => {

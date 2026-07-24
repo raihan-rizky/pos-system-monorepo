@@ -2,6 +2,7 @@ import { db, Prisma } from "@pos/db";
 import {
   lockProductRow,
   lockProductStockGroupRow,
+  lockStockMutationRows,
 } from "@/features/product-stock-groups/stock-group-lock";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
 import {
@@ -356,6 +357,35 @@ export class InventoryInboundReceiptRepository
     const locked = await lockProductStockGroupRow(tx, input);
     if (!locked) return null;
 
+    const groupHint = await tx.productStockGroup.findFirst({
+      where: {
+        id: input.stockGroupId,
+        storeId: input.storeId,
+      },
+      include: {
+        products: {
+          where: {
+            storeId: input.storeId,
+            isActive: true,
+          },
+          orderBy: { id: "asc" },
+        },
+      },
+    });
+    if (!groupHint) return null;
+
+    const candidateProductIds = groupHint.products
+      .map((product) => product.id)
+      .sort((left, right) => left.localeCompare(right));
+    const locks = await lockStockMutationRows(tx, {
+      storeId: input.storeId,
+      stockGroupIds: [],
+      productIds: candidateProductIds,
+    });
+    if (locks.lockedProductIds.length !== candidateProductIds.length) {
+      return null;
+    }
+
     const group = await tx.productStockGroup.findFirst({
       where: {
         id: input.stockGroupId,
@@ -372,6 +402,21 @@ export class InventoryInboundReceiptRepository
       },
     });
     if (!group) return null;
+
+    const currentProductIds = group.products
+      .map((product) => product.id)
+      .sort((left, right) => left.localeCompare(right));
+    if (
+      currentProductIds.length !== candidateProductIds.length ||
+      currentProductIds.some(
+        (productId, index) => productId !== candidateProductIds[index],
+      ) ||
+      group.products.some(
+        (product) => product.stockGroupId !== input.stockGroupId,
+      )
+    ) {
+      return null;
+    }
 
     return {
       id: group.id,

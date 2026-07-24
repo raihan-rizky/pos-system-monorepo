@@ -6,6 +6,11 @@ import {
   snapshotsMatch,
   type ProductSnapshot,
 } from "@/features/batch-operations/helpers/snapshots";
+import {
+  isStockMutationConflict,
+  lockStockMutationRows,
+  StockMutationConflictError,
+} from "@/features/product-stock-groups/stock-group-lock";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("api:batch-operations:undo");
@@ -52,7 +57,13 @@ export async function POST(
       if (batch.status === "UNDONE") throw new Error("ALREADY_UNDONE");
       if (batch.undoOfBatchId) throw new Error("CANNOT_UNDO_UNDO");
 
-      const productIds = batch.items.map((item) => item.productId).filter((value): value is string => Boolean(value));
+      const productIds = Array.from(
+        new Set(
+          batch.items
+            .map((item) => item.productId)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort((left, right) => left.localeCompare(right));
       const laterTouch = await tx.batchOperationItem.findFirst({
         where: {
           productId: { in: productIds },
@@ -63,11 +74,51 @@ export async function POST(
       });
       if (laterTouch) throw new Error(`LATER_BATCH_TOUCH:${laterTouch.sku}`);
 
-      const products = await tx.product.findMany({
+      const productHints = await tx.product.findMany({
         where: { id: { in: productIds }, storeId },
         include: { productSuppliers: { select: { supplierId: true } } },
       });
-      const productById = new Map(products.map((product) => [product.id, product]));
+      const stockGroupIds = productHints
+        .map((product) => product.stockGroupId)
+        .filter((stockGroupId): stockGroupId is string =>
+          Boolean(stockGroupId),
+        );
+      const locks = await lockStockMutationRows(tx, {
+        storeId,
+        stockGroupIds,
+        productIds,
+      });
+      if (
+        locks.lockedStockGroupIds.length !== new Set(stockGroupIds).size ||
+        locks.lockedProductIds.length !== productIds.length
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const productsAfterLock = await tx.product.findMany({
+        where: { id: { in: productIds }, storeId },
+        include: { productSuppliers: { select: { supplierId: true } } },
+      });
+      const hintById = new Map(
+        productHints.map((product) => [product.id, product]),
+      );
+      if (
+        productsAfterLock.length !== productIds.length ||
+        productsAfterLock.some((product) => {
+          const hint = hintById.get(product.id);
+          return (
+            !hint ||
+            hint.stockGroupId !== product.stockGroupId ||
+            hint.isActive !== product.isActive
+          );
+        })
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const productById = new Map(
+        productsAfterLock.map((product) => [product.id, product]),
+      );
       const blockedProducts: string[] = [];
 
       for (const item of batch.items) {
@@ -252,6 +303,15 @@ export async function POST(
       if (error.message.startsWith("LATER_BATCH_TOUCH:")) {
         return NextResponse.json({ message: "A later batch touched at least one affected product", blockedProducts: [error.message.replace("LATER_BATCH_TOUCH:", "")] }, { status: 409 });
       }
+    }
+    if (isStockMutationConflict(error)) {
+      return NextResponse.json(
+        {
+          message:
+            "Data produk atau grup stok berubah saat undo diproses. Silakan coba lagi.",
+        },
+        { status: 409 },
+      );
     }
     logger.error("batch.undo.failed", { error });
     return NextResponse.json({ message: "Failed to undo batch operation" }, { status: 500 });

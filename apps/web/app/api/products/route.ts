@@ -572,7 +572,9 @@ export async function DELETE(request: Request) {
     const user = await requirePermission("product", "delete");
     const { searchParams } = new URL(request.url);
     const idsParam = searchParams.get("ids") || "";
-    const productIds = idsParam.split(",").map((s) => s.trim()).filter(Boolean);
+    const productIds = Array.from(
+      new Set(idsParam.split(",").map((s) => s.trim()).filter(Boolean)),
+    );
 
     if (productIds.length === 0) {
       return NextResponse.json(
@@ -582,55 +584,89 @@ export async function DELETE(request: Request) {
     }
 
     const storeId = user.storeId || "store-main";
-
-    const products = await db.product.findMany({
-      where: { id: { in: productIds }, storeId },
-      select: { id: true },
-    });
-
-    if (products.length !== productIds.length) {
-      return NextResponse.json(
-        { message: "Some products not found or do not belong to your store" },
-        { status: 404 }
-      );
-    }
-
-    // Per-product delete so each product follows the same soft/hard rule as single delete.
-    // Fail-soft: one product failing (e.g. FK conflict) is reported as an error, others still processed.
-    const results: Array<{
-      id: string;
-      status: "hard_deleted" | "soft_deleted" | "error";
-      message?: string;
-    }> = [];
-
-    for (const id of productIds) {
-      try {
-        const transactionsCount = await db.transactionItem.count({
-          where: { productId: id },
-        });
-
-        if (transactionsCount > 0) {
-          await db.product.update({
-            where: { id },
-            data: { isActive: false },
-          });
-          results.push({ id, status: "soft_deleted" });
-        } else {
-          await db.product.delete({ where: { id } });
-          results.push({ id, status: "hard_deleted" });
-        }
-      } catch (itemError) {
-        log.error(`Failed to delete product ${id}:`, itemError);
-        results.push({
-          id,
-          status: "error",
-          message:
-            itemError instanceof Error
-              ? itemError.message
-              : "Failed to delete product",
-        });
+    const results = await db.$transaction(async (tx) => {
+      const productHints = await tx.product.findMany({
+        where: { id: { in: productIds }, storeId },
+        select: { id: true, stockGroupId: true, isActive: true },
+      });
+      if (productHints.length !== productIds.length) {
+        throw new Error("PRODUCT_NOT_FOUND");
       }
-    }
+
+      const stockGroupIds = productHints
+        .map((product) => product.stockGroupId)
+        .filter((stockGroupId): stockGroupId is string =>
+          Boolean(stockGroupId),
+        );
+      const locks = await lockStockMutationRows(tx, {
+        storeId,
+        stockGroupIds,
+        productIds,
+      });
+      if (
+        locks.lockedStockGroupIds.length !== new Set(stockGroupIds).size ||
+        locks.lockedProductIds.length !== productIds.length
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const currentProducts = await tx.product.findMany({
+        where: { id: { in: productIds }, storeId },
+        select: { id: true, stockGroupId: true, isActive: true },
+      });
+      const hintById = new Map(
+        productHints.map((product) => [product.id, product]),
+      );
+      if (
+        currentProducts.length !== productIds.length ||
+        currentProducts.some((product) => {
+          const hint = hintById.get(product.id);
+          return (
+            !hint ||
+            hint.stockGroupId !== product.stockGroupId ||
+            hint.isActive !== product.isActive
+          );
+        })
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      // Tetap proses per produk supaya response lama tetap menjelaskan item yang gagal.
+      const deletionResults: Array<{
+        id: string;
+        status: "hard_deleted" | "soft_deleted" | "error";
+        message?: string;
+      }> = [];
+      for (const id of productIds) {
+        try {
+          const transactionsCount = await tx.transactionItem.count({
+            where: { productId: id },
+          });
+
+          if (transactionsCount > 0) {
+            await tx.product.update({
+              where: { id },
+              data: { isActive: false },
+            });
+            deletionResults.push({ id, status: "soft_deleted" });
+          } else {
+            await tx.product.delete({ where: { id } });
+            deletionResults.push({ id, status: "hard_deleted" });
+          }
+        } catch (itemError) {
+          log.error(`Failed to delete product ${id}:`, itemError);
+          deletionResults.push({
+            id,
+            status: "error",
+            message:
+              itemError instanceof Error
+                ? itemError.message
+                : "Failed to delete product",
+          });
+        }
+      }
+      return deletionResults;
+    });
 
     const hardDeleted = results.filter((r) => r.status === "hard_deleted").length;
     const softDeleted = results.filter((r) => r.status === "soft_deleted").length;
@@ -653,6 +689,21 @@ export async function DELETE(request: Request) {
     if (authErr) return authErr;
 
     log.error("Failed to bulk-delete products:", error);
+    if (error instanceof Error && error.message === "PRODUCT_NOT_FOUND") {
+      return NextResponse.json(
+        { message: "Some products not found or do not belong to your store" },
+        { status: 404 },
+      );
+    }
+    if (isStockMutationConflict(error)) {
+      return NextResponse.json(
+        {
+          message:
+            "Data produk atau grup stok berubah saat dihapus. Silakan coba lagi.",
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { message: "Failed to delete products" },
       { status: 500 }

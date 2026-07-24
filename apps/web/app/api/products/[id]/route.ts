@@ -469,35 +469,55 @@ export async function DELETE(
     const user = await requirePermission("product", "delete");
     const { id } = await params;
     const storeId = user.storeId || "store-main";
-    const existingProduct = await db.product.findFirst({
-      where: { id, storeId },
-      select: { id: true },
-    });
-
-    if (!existingProduct) {
-      return NextResponse.json(
-        { message: "Product not found" },
-        { status: 404 }
-      );
-    }
-    
-    // Check if product is in any transactions
-    const transactionsCount = await db.transactionItem.count({
-      where: { productId: existingProduct.id },
-    });
-
-    if (transactionsCount > 0) {
-      // Soft delete by setting isActive to false
-      await db.product.update({
-        where: { id: existingProduct.id },
-        data: { isActive: false },
+    await db.$transaction(async (tx) => {
+      const productHint = await tx.product.findFirst({
+        where: { id, storeId },
+        select: { id: true, stockGroupId: true, isActive: true },
       });
-      return new NextResponse(null, { status: 204 });
-    }
+      if (!productHint) throw new Error("PRODUCT_NOT_FOUND");
 
-    // Hard delete if it has never been sold
-    await db.product.delete({
-      where: { id: existingProduct.id },
+      const locks = await lockStockMutationRows(tx, {
+        storeId,
+        stockGroupIds: productHint.stockGroupId
+          ? [productHint.stockGroupId]
+          : [],
+        productIds: [productHint.id],
+      });
+      if (
+        !locks.lockedProductIds.includes(productHint.id) ||
+        (productHint.stockGroupId &&
+          !locks.lockedStockGroupIds.includes(productHint.stockGroupId))
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const currentProduct = await tx.product.findFirst({
+        where: { id, storeId },
+        select: { id: true, stockGroupId: true, isActive: true },
+      });
+      if (
+        !currentProduct ||
+        currentProduct.stockGroupId !== productHint.stockGroupId ||
+        currentProduct.isActive !== productHint.isActive
+      ) {
+        throw new StockMutationConflictError();
+      }
+
+      const transactionsCount = await tx.transactionItem.count({
+        where: { productId: currentProduct.id },
+      });
+
+      if (transactionsCount > 0) {
+        await tx.product.update({
+          where: { id: currentProduct.id },
+          data: { isActive: false },
+        });
+        return;
+      }
+
+      await tx.product.delete({
+        where: { id: currentProduct.id },
+      });
     });
 
     return new NextResponse(null, { status: 204 });
@@ -506,6 +526,18 @@ export async function DELETE(
     if (authErr) return authErr;
 
     log.error("Failed to delete product:", error);
+    if (error instanceof Error && error.message === "PRODUCT_NOT_FOUND") {
+      return NextResponse.json({ message: "Product not found" }, { status: 404 });
+    }
+    if (isStockMutationConflict(error)) {
+      return NextResponse.json(
+        {
+          message:
+            "Data produk atau grup stok berubah saat dihapus. Silakan coba lagi.",
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { message: "Failed to delete product" },
       { status: 500 }

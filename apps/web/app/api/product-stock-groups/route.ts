@@ -14,6 +14,7 @@ import {
   lockStockMutationRows,
   StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
+import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 
 const log = getLogger("api:product-stock-groups");
 
@@ -154,6 +155,13 @@ export async function POST(request: Request) {
           unit: true,
           stock: true,
           stockGroupId: true,
+          unitMultiplierToBase: true,
+          stockGroup: {
+            select: {
+              id: true,
+              baseStock: true,
+            },
+          },
         },
       });
       if (products.length !== productIds.length) {
@@ -172,7 +180,10 @@ export async function POST(request: Request) {
       }
 
       const resolved = resolveConfirmedGroupStock({
-        products,
+        products: products.map((product) => ({
+          ...product,
+          stock: resolveProductDisplayStock(product),
+        })),
         assignments: input.products,
         sourceProductId: input.sourceProductId,
         conversionPairs: input.conversionPairs,

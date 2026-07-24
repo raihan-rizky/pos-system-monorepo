@@ -581,6 +581,22 @@ describe("DELETE /api/products", () => {
     handleAuthErrorMock.mockReturnValue(null);
     productUpdateMock.mockResolvedValue({ id: "product-1" });
     productDeleteMock.mockResolvedValue({ id: "product-1" });
+    groupRowLockMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
+    transactionMock.mockImplementation((callback) =>
+      callback({
+        $queryRaw: groupRowLockMock,
+        product: {
+          findMany: productFindManyMock,
+          update: productUpdateMock,
+          delete: productDeleteMock,
+        },
+        transactionItem: {
+          count: transactionItemCountMock,
+        },
+      }),
+    );
   });
 
   it("hard-deletes products with no transactions and soft-deletes products with transactions", async () => {
@@ -654,6 +670,70 @@ describe("DELETE /api/products", () => {
     expect(body.results).toEqual([
       { id: "product-1", status: "hard_deleted" },
       { id: "product-2", status: "error", message: "FK constraint" },
+    ]);
+  });
+
+  it("locks mixed source groups before sorted products and reloads before deleting", async () => {
+    const order: string[] = [];
+    const products = [
+      { id: "product-z", stockGroupId: "group-z", isActive: true },
+      { id: "product-a", stockGroupId: "group-a", isActive: true },
+    ];
+    productFindManyMock
+      .mockImplementationOnce(async () => {
+        order.push("hint-products");
+        return products;
+      })
+      .mockImplementationOnce(async () => {
+        order.push("reload-products");
+        return products;
+      });
+    groupRowLockMock.mockImplementation(
+      async (strings: TemplateStringsArray, rowId: string) => {
+        order.push(
+          `${strings.join(" ").includes("pos_product_stock_groups") ? "group" : "product"}:${rowId}`,
+        );
+        return [{ id: rowId }];
+      },
+    );
+    transactionItemCountMock.mockImplementation(
+      async ({ where }: { where: { productId: string } }) => {
+        order.push(`count:${where.productId}`);
+        return where.productId === "product-z" ? 1 : 0;
+      },
+    );
+    productUpdateMock.mockImplementation(
+      async ({ where }: { where: { id: string } }) => {
+        order.push(`soft:${where.id}`);
+        return { id: where.id };
+      },
+    );
+    productDeleteMock.mockImplementation(
+      async ({ where }: { where: { id: string } }) => {
+        order.push(`hard:${where.id}`);
+        return { id: where.id };
+      },
+    );
+
+    const response = await DELETE(
+      new Request(
+        "http://localhost/api/products?ids=product-z,product-a",
+        { method: "DELETE" },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(order).toEqual([
+      "hint-products",
+      "group:group-a",
+      "group:group-z",
+      "product:product-a",
+      "product:product-z",
+      "reload-products",
+      "count:product-z",
+      "soft:product-z",
+      "count:product-a",
+      "hard:product-a",
     ]);
   });
 });
