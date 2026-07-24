@@ -99,9 +99,36 @@ export interface InboundReceiptForApproval {
   lines: InboundReceiptApprovalLine[];
 }
 
-export interface InboundReceiptMutationResult {
+export interface InboundReceiptData {
   id: string;
   status: InboundReceiptStatus;
+}
+
+export interface InboundReceiptMutationResult {
+  data: InboundReceiptData;
+  finalized: boolean;
+  conflict?: boolean;
+}
+
+export interface LockedSubmittedInboundReceiptLine {
+  id: string;
+  expectedQuantity: number;
+  receivedQuantity: number;
+  matchStatus: InboundReceiptMatchStatus | null;
+  reviewStatus: "PENDING" | "APPROVED" | null;
+  approvedById: string | null;
+  approvedByName: string | null;
+  approvedAt: Date | null;
+  note: string | null;
+  goodsPurchaseItem: { quantity: number } | null;
+  approvedReceivedExcludingCurrentReceipt: number;
+}
+
+export interface LockedSubmittedInboundReceipt {
+  id: string;
+  storeId: string;
+  status: "SUBMITTED";
+  lines: LockedSubmittedInboundReceiptLine[];
 }
 
 export interface CreateInboundReceiptDraftInput {
@@ -257,7 +284,7 @@ export interface InventoryInboundReceiptRepository {
       approvedAt: Date;
       lineLogIds: Array<{ lineId: string; inventoryLogId: string }>;
     },
-  ): Promise<InboundReceiptMutationResult>;
+  ): Promise<InboundReceiptData>;
   markReceiptRejected(
     tx: unknown,
     input: {
@@ -266,7 +293,7 @@ export interface InventoryInboundReceiptRepository {
       rejectedBy: string;
       rejectionReason: string;
     },
-  ): Promise<InboundReceiptMutationResult>;
+  ): Promise<InboundReceiptData>;
   markReceiptNeedsRevision(
     tx: unknown,
     input: {
@@ -275,7 +302,7 @@ export interface InventoryInboundReceiptRepository {
       revisedBy: string;
       revisionReason: string;
     },
-  ): Promise<InboundReceiptMutationResult>;
+  ): Promise<InboundReceiptData>;
   markReceiptSubmitted(
     tx: unknown,
     input: {
@@ -284,7 +311,7 @@ export interface InventoryInboundReceiptRepository {
       submittedBy: string;
       submittedAt: Date;
     },
-  ): Promise<InboundReceiptMutationResult>;
+  ): Promise<InboundReceiptData>;
   findReceiptForEdit(
     tx: unknown,
     input: { storeId: string; receiptId: string },
@@ -304,11 +331,46 @@ export interface InventoryInboundReceiptRepository {
         note?: string | null;
       }>;
     },
-  ): Promise<InboundReceiptMutationResult>;
+  ): Promise<InboundReceiptData>;
   createInboundReceiptDraft(
     tx: unknown,
     input: CreateInboundReceiptDraftInput,
-  ): Promise<InboundReceiptMutationResult>;
+  ): Promise<InboundReceiptData>;
+  lockSubmittedReceipt(
+    tx: unknown,
+    input: { storeId: string; receiptId: string },
+  ): Promise<LockedSubmittedInboundReceipt | null>;
+  approveReceiptLine(
+    tx: unknown,
+    input: {
+      storeId: string;
+      receiptId: string;
+      itemId: string;
+      reviewStatus: "APPROVED";
+      approvedById: string;
+      approvedByName: string | null;
+      approvedAt: Date;
+    },
+  ): Promise<void>;
+  updateReceiptLine(
+    tx: unknown,
+    input: {
+      storeId: string;
+      receiptId: string;
+      itemId: string;
+      matchStatus: InboundReceiptMatchStatus;
+      receivedQuantity: number;
+      note: string | null;
+      reviewStatus: "PENDING";
+      approvedById: null;
+      approvedByName: null;
+      approvedAt: null;
+    },
+  ): Promise<void>;
+  removeReceiptLine(
+    tx: unknown,
+    input: { storeId: string; receiptId: string; itemId: string },
+  ): Promise<void>;
   listInboundReceipts(
     storeId: string,
     input: { status?: InboundReceiptStatus },

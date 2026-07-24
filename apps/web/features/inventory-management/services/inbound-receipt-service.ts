@@ -1,6 +1,7 @@
 import {
   calculateInboundAvailability,
   getInboundStockQuantity,
+  hasInboundQuantityConflict,
   requiresInboundLineNote,
   requiresInboundQuantityNote,
 } from "../helpers/inbound-receipt-rules";
@@ -9,6 +10,7 @@ import type {
 } from "../helpers/inbound-receipt-rules";
 import type {
   CreateInboundReceiptDraftInput,
+  InboundReceiptData,
   InboundReceiptLineStatus,
   InboundReceiptMutationResult,
   InboundReceiptStatus,
@@ -41,6 +43,18 @@ interface InboundReceiptServiceInput {
 
 interface RejectInboundReceiptInput extends InboundReceiptServiceInput {
   rejectionReason: string;
+}
+
+interface InboundReceiptItemServiceInput extends InboundReceiptServiceInput {
+  itemId: string;
+}
+
+interface EditInboundReceiptItemInput extends InboundReceiptItemServiceInput {
+  input: {
+    matchStatus: InboundReceiptMatchStatus;
+    receivedQuantity: number;
+    note?: string | null;
+  };
 }
 
 interface NeedsRevisionInboundReceiptInput extends InboundReceiptServiceInput {
@@ -152,7 +166,7 @@ interface GoodsPurchaseReceiptRepository
       note: string | null;
       lines: SubmittedGoodsPurchaseReceiptLine[];
     },
-  ): Promise<InboundReceiptMutationResult>;
+  ): Promise<InboundReceiptData>;
 }
 
 export interface CreateGoodsPurchaseReceiptServiceInput {
@@ -254,7 +268,7 @@ export async function getReceivingQueue(
 
 export async function approveInboundReceipt(
   input: InboundReceiptServiceInput,
-): Promise<InboundReceiptMutationResult> {
+): Promise<InboundReceiptData> {
   const storeId = requireStoreId(input.user);
 
   try {
@@ -330,7 +344,7 @@ export async function approveInboundReceipt(
 
 export async function submitInboundReceipt(
   input: InboundReceiptServiceInput,
-): Promise<InboundReceiptMutationResult> {
+): Promise<InboundReceiptData> {
   const storeId = requireStoreId(input.user);
   try {
     return await input.repository.runInTransaction((tx) =>
@@ -355,7 +369,7 @@ export async function submitInboundReceipt(
 
 export async function updateAndSubmitInboundReceipt(
   input: UpdateAndSubmitInboundReceiptInput,
-): Promise<InboundReceiptMutationResult> {
+): Promise<InboundReceiptData> {
   const storeId = requireStoreId(input.user);
   if (input.input.lines.length === 0) {
     throw new InventoryManagementError(
@@ -465,32 +479,297 @@ export async function updateAndSubmitInboundReceipt(
   }
 }
 
+export async function approveInboundReceiptItem(
+  input: InboundReceiptItemServiceInput,
+): Promise<InboundReceiptMutationResult> {
+  const storeId = requireStoreId(input.user);
+
+  try {
+    return await input.repository.runInTransaction(async (tx) => {
+      const receipt = await input.repository.lockSubmittedReceipt(tx, {
+        storeId,
+        receiptId: input.receiptId,
+      });
+      if (!receipt) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Penerimaan Barang sudah tidak menunggu persetujuan",
+          409,
+        );
+      }
+
+      const line = receipt.lines.find((candidate) => candidate.id === input.itemId);
+      if (!line) {
+        throw new InventoryManagementError(
+          "NOT_FOUND",
+          "Produk Penerimaan Barang tidak ditemukan",
+          404,
+        );
+      }
+      if (!line.goodsPurchaseItem) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Produk Penerimaan Barang tidak terhubung ke Pembelian Barang",
+          409,
+        );
+      }
+      if (
+        hasInboundQuantityConflict({
+          orderedQuantity: line.goodsPurchaseItem.quantity,
+          approvedReceivedQuantity:
+            line.approvedReceivedExcludingCurrentReceipt,
+          currentReceiptQuantity: line.receivedQuantity,
+        })
+      ) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Jumlah diterima sudah melebihi sisa Pembelian Barang",
+          409,
+        );
+      }
+
+      if (line.reviewStatus !== "APPROVED") {
+        await input.repository.approveReceiptLine(tx, {
+          storeId,
+          receiptId: receipt.id,
+          itemId: line.id,
+          reviewStatus: "APPROVED",
+          approvedById: input.user.id,
+          approvedByName: input.user.name ?? null,
+          approvedAt: new Date(),
+        });
+      }
+
+      return {
+        data: { id: receipt.id, status: receipt.status },
+        finalized: false,
+      };
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
+      throw new InventoryManagementError(
+        "CONFLICT",
+        "Penerimaan Barang berubah saat produk diproses",
+        409,
+      );
+    }
+    throw error;
+  }
+}
+
+export async function editInboundReceiptItem(
+  input: EditInboundReceiptItemInput,
+): Promise<InboundReceiptMutationResult> {
+  const storeId = requireStoreId(input.user);
+
+  try {
+    return await input.repository.runInTransaction(async (tx) => {
+      const receipt = await input.repository.lockSubmittedReceipt(tx, {
+        storeId,
+        receiptId: input.receiptId,
+      });
+      if (!receipt) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Penerimaan Barang sudah tidak menunggu persetujuan",
+          409,
+        );
+      }
+      if (
+        !Number.isFinite(input.input.receivedQuantity) ||
+        input.input.receivedQuantity < 0
+      ) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Jumlah produk yang diterima tidak valid",
+          422,
+        );
+      }
+      if (
+        input.input.matchStatus !== "MATCHED" &&
+        input.input.matchStatus !== "MISMATCHED"
+      ) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Status kecocokan produk tidak valid",
+          422,
+        );
+      }
+
+      const line = receipt.lines.find((candidate) => candidate.id === input.itemId);
+      if (!line) {
+        throw new InventoryManagementError(
+          "NOT_FOUND",
+          "Produk Penerimaan Barang tidak ditemukan",
+          404,
+        );
+      }
+      if (!line.goodsPurchaseItem) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Produk Penerimaan Barang tidak terhubung ke Pembelian Barang",
+          409,
+        );
+      }
+
+      const note = input.input.note?.trim() || null;
+      if (
+        requiresInboundQuantityNote(
+          line.expectedQuantity,
+          input.input.receivedQuantity,
+        ) &&
+        !note
+      ) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Catatan produk wajib diisi saat jumlah diterima berbeda",
+          422,
+        );
+      }
+      const conflict = hasInboundQuantityConflict({
+        orderedQuantity: line.goodsPurchaseItem.quantity,
+        approvedReceivedQuantity:
+          line.approvedReceivedExcludingCurrentReceipt,
+        currentReceiptQuantity: input.input.receivedQuantity,
+      });
+
+      await input.repository.updateReceiptLine(tx, {
+        storeId,
+        receiptId: receipt.id,
+        itemId: line.id,
+        matchStatus: input.input.matchStatus,
+        receivedQuantity: input.input.receivedQuantity,
+        note,
+        reviewStatus: "PENDING",
+        approvedById: null,
+        approvedByName: null,
+        approvedAt: null,
+      });
+
+      return {
+        data: { id: receipt.id, status: receipt.status },
+        finalized: false,
+        conflict,
+      };
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
+      throw new InventoryManagementError(
+        "CONFLICT",
+        "Penerimaan Barang berubah saat produk diedit",
+        409,
+      );
+    }
+    throw error;
+  }
+}
+
+export async function removeInboundReceiptItem(
+  input: InboundReceiptItemServiceInput,
+): Promise<InboundReceiptMutationResult> {
+  const storeId = requireStoreId(input.user);
+
+  try {
+    return await input.repository.runInTransaction(async (tx) => {
+      const receipt = await input.repository.lockSubmittedReceipt(tx, {
+        storeId,
+        receiptId: input.receiptId,
+      });
+      if (!receipt) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Penerimaan Barang sudah tidak menunggu persetujuan",
+          409,
+        );
+      }
+      if (!receipt.lines.some((line) => line.id === input.itemId)) {
+        throw new InventoryManagementError(
+          "NOT_FOUND",
+          "Produk Penerimaan Barang tidak ditemukan",
+          404,
+        );
+      }
+      if (receipt.lines.length <= 1) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Penerimaan Barang harus memiliki minimal satu produk",
+          422,
+        );
+      }
+
+      await input.repository.removeReceiptLine(tx, {
+        storeId,
+        receiptId: receipt.id,
+        itemId: input.itemId,
+      });
+
+      return {
+        data: { id: receipt.id, status: receipt.status },
+        finalized: false,
+      };
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
+      throw new InventoryManagementError(
+        "CONFLICT",
+        "Penerimaan Barang berubah saat produk dihapus",
+        409,
+      );
+    }
+    throw error;
+  }
+}
+
 export async function rejectInboundReceipt(
   input: RejectInboundReceiptInput,
 ): Promise<InboundReceiptMutationResult> {
   const storeId = requireStoreId(input.user);
   const rejectionReason = input.rejectionReason.trim();
-  if (!rejectionReason) {
-    throw new InventoryManagementError(
-      "VALIDATION_ERROR",
-      "Rejection reason is required",
-      422,
-    );
-  }
 
-  return input.repository.runInTransaction((tx) =>
-    input.repository.markReceiptRejected(tx, {
-      storeId,
-      receiptId: input.receiptId,
-      rejectedBy: input.user.id,
-      rejectionReason,
-    }),
-  );
+  try {
+    return await input.repository.runInTransaction(async (tx) => {
+      const receipt = await input.repository.lockSubmittedReceipt(tx, {
+        storeId,
+        receiptId: input.receiptId,
+      });
+      if (!receipt) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Penerimaan Barang sudah tidak menunggu persetujuan",
+          409,
+        );
+      }
+      if (!rejectionReason) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Alasan penolakan wajib diisi",
+          422,
+        );
+      }
+
+      const data = await input.repository.markReceiptRejected(tx, {
+        storeId,
+        receiptId: receipt.id,
+        rejectedBy: input.user.id,
+        rejectionReason,
+      });
+      return { data, finalized: false };
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
+      throw new InventoryManagementError(
+        "CONFLICT",
+        "Penerimaan Barang berubah saat ditolak",
+        409,
+      );
+    }
+    throw error;
+  }
 }
 
 export async function needsRevisionInboundReceipt(
   input: NeedsRevisionInboundReceiptInput,
-): Promise<InboundReceiptMutationResult> {
+): Promise<InboundReceiptData> {
   const storeId = requireStoreId(input.user);
   const revisionReason = input.revisionReason.trim();
   if (!revisionReason) {
@@ -536,7 +815,7 @@ export async function needsRevisionInboundReceipt(
 
 export async function createInboundReceipt(
   input: CreateInboundReceiptServiceInput,
-): Promise<InboundReceiptMutationResult> {
+): Promise<InboundReceiptData> {
   const storeId = requireStoreId(input.user);
   if (input.input.lines.length === 0) {
     throw new InventoryManagementError(
@@ -594,7 +873,7 @@ export async function createInboundReceipt(
 
 export async function createAndSubmitInboundReceipt(
   input: CreateInboundReceiptServiceInput,
-): Promise<InboundReceiptMutationResult> {
+): Promise<InboundReceiptData> {
   const storeId = requireStoreId(input.user);
   if (input.input.lines.length === 0) {
     throw new InventoryManagementError(
@@ -670,7 +949,7 @@ export async function createAndSubmitInboundReceipt(
 
 export async function createAndSubmitGoodsPurchaseReceipt(
   input: CreateGoodsPurchaseReceiptServiceInput,
-): Promise<InboundReceiptMutationResult> {
+): Promise<InboundReceiptData> {
   const storeId = requireStoreId(input.user);
 
   return input.repository.runInTransaction(async (tx) => {

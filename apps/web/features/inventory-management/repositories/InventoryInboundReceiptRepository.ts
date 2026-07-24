@@ -11,6 +11,7 @@ import type {
   InboundReceiptForApproval,
   InboundReceiptLineStatus,
   InventoryInboundReceiptRepository as InventoryInboundReceiptRepositoryContract,
+  LockedSubmittedInboundReceipt,
   ReceivingQueueRepositoryRow,
 } from "../types/inventory-management";
 
@@ -21,6 +22,189 @@ export class InventoryInboundReceiptRepository
 {
   runInTransaction<T>(callback: (tx: Tx) => Promise<T>): Promise<T> {
     return db.$transaction((tx) => callback(tx));
+  }
+
+  async lockSubmittedReceipt(
+    tx: Tx,
+    input: { storeId: string; receiptId: string },
+  ): Promise<LockedSubmittedInboundReceipt | null> {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "pos_inventory_inbound_receipts"
+      WHERE "id" = ${input.receiptId}
+        AND "storeId" = ${input.storeId}
+        AND "status" = 'SUBMITTED'::"InventoryInboundReceiptStatus"
+      FOR UPDATE
+    `;
+    if (locked.length !== 1) return null;
+
+    const receipt = await tx.inventoryInboundReceipt.findFirst({
+      where: {
+        id: input.receiptId,
+        storeId: input.storeId,
+        status: "SUBMITTED",
+      },
+      select: {
+        id: true,
+        storeId: true,
+        status: true,
+        lines: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            expectedQuantity: true,
+            receivedQuantity: true,
+            matchStatus: true,
+            reviewStatus: true,
+            approvedById: true,
+            approvedByName: true,
+            approvedAt: true,
+            note: true,
+            goodsPurchaseItem: {
+              select: {
+                quantity: true,
+                inboundReceiptLines: {
+                  where: {
+                    receiptId: { not: input.receiptId },
+                    receipt: {
+                      storeId: input.storeId,
+                      status: "APPROVED",
+                    },
+                  },
+                  select: {
+                    status: true,
+                    receivedQuantity: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!receipt) return null;
+
+    return {
+      id: receipt.id,
+      storeId: receipt.storeId,
+      status: "SUBMITTED",
+      lines: receipt.lines.map((line) => ({
+        id: line.id,
+        expectedQuantity: line.expectedQuantity,
+        receivedQuantity: line.receivedQuantity,
+        matchStatus: line.matchStatus,
+        reviewStatus: line.reviewStatus,
+        approvedById: line.approvedById,
+        approvedByName: line.approvedByName,
+        approvedAt: line.approvedAt,
+        note: line.note,
+        goodsPurchaseItem: line.goodsPurchaseItem
+          ? { quantity: line.goodsPurchaseItem.quantity }
+          : null,
+        approvedReceivedExcludingCurrentReceipt:
+          line.goodsPurchaseItem?.inboundReceiptLines.reduce(
+            (sum, approvedLine) =>
+              sum +
+              getInboundStockQuantity({
+                status: approvedLine.status,
+                receivedQuantity: approvedLine.receivedQuantity,
+              }),
+            0,
+          ) ?? 0,
+      })),
+    };
+  }
+
+  async approveReceiptLine(
+    tx: Tx,
+    input: {
+      storeId: string;
+      receiptId: string;
+      itemId: string;
+      reviewStatus: "APPROVED";
+      approvedById: string;
+      approvedByName: string | null;
+      approvedAt: Date;
+    },
+  ): Promise<void> {
+    const updated = await tx.inventoryInboundReceiptLine.updateMany({
+      where: {
+        id: input.itemId,
+        receiptId: input.receiptId,
+        receipt: {
+          storeId: input.storeId,
+          status: "SUBMITTED",
+        },
+      },
+      data: {
+        reviewStatus: input.reviewStatus,
+        approvedById: input.approvedById,
+        approvedByName: input.approvedByName,
+        approvedAt: input.approvedAt,
+      },
+    });
+    if (updated.count !== 1) {
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
+  }
+
+  async updateReceiptLine(
+    tx: Tx,
+    input: {
+      storeId: string;
+      receiptId: string;
+      itemId: string;
+      matchStatus: "MATCHED" | "MISMATCHED";
+      receivedQuantity: number;
+      note: string | null;
+      reviewStatus: "PENDING";
+      approvedById: null;
+      approvedByName: null;
+      approvedAt: null;
+    },
+  ): Promise<void> {
+    const updated = await tx.inventoryInboundReceiptLine.updateMany({
+      where: {
+        id: input.itemId,
+        receiptId: input.receiptId,
+        receipt: {
+          storeId: input.storeId,
+          status: "SUBMITTED",
+        },
+      },
+      data: {
+        matchStatus: input.matchStatus,
+        receivedQuantity: input.receivedQuantity,
+        receivedQuantitySnapshot: input.receivedQuantity,
+        note: input.note,
+        reviewStatus: input.reviewStatus,
+        approvedById: input.approvedById,
+        approvedByName: input.approvedByName,
+        approvedAt: input.approvedAt,
+      },
+    });
+    if (updated.count !== 1) {
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
+  }
+
+  async removeReceiptLine(
+    tx: Tx,
+    input: { storeId: string; receiptId: string; itemId: string },
+  ): Promise<void> {
+    const deleted = await tx.inventoryInboundReceiptLine.deleteMany({
+      where: {
+        id: input.itemId,
+        receiptId: input.receiptId,
+        receipt: {
+          storeId: input.storeId,
+          status: "SUBMITTED",
+        },
+      },
+    });
+    if (deleted.count !== 1) {
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
   }
 
   async findReceiptForApproval(

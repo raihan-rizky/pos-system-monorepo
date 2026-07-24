@@ -44,8 +44,11 @@ describe("POST /api/inventory-management/inbound-receipts/[id]/reject", () => {
       storeId: "store-main",
     });
     rejectInboundReceiptMock.mockResolvedValue({
-      id: "receipt-1",
-      status: "REJECTED",
+      data: {
+        id: "receipt-1",
+        status: "REJECTED",
+      },
+      finalized: false,
     });
   });
 
@@ -64,7 +67,10 @@ describe("POST /api/inventory-management/inbound-receipts/[id]/reject", () => {
         rejectionReason: "Invoice tidak sesuai",
       }),
     );
-    expect(body.data.status).toBe("REJECTED");
+    expect(body).toEqual({
+      data: { id: "receipt-1", status: "REJECTED" },
+      finalized: false,
+    });
   });
 
   it("rejects invalid bodies before calling the service", async () => {

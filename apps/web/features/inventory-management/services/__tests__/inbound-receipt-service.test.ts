@@ -4,11 +4,14 @@ import { InventoryInboundReceiptRepository as ConcreteInventoryInboundReceiptRep
 import {
   InventoryManagementError,
   approveInboundReceipt,
+  approveInboundReceiptItem,
   createAndSubmitGoodsPurchaseReceipt,
   createInboundReceipt,
+  editInboundReceiptItem,
   getReceivingQueue,
   needsRevisionInboundReceipt,
   rejectInboundReceipt,
+  removeInboundReceiptItem,
   submitInboundReceipt,
   updateAndSubmitInboundReceipt,
 } from "../inbound-receipt-service";
@@ -86,6 +89,45 @@ function receivingQueueRows(): ReceivingQueueRepositoryRow[] {
   ];
 }
 
+function submittedReviewReceipt(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: "receipt-1",
+    storeId: "store-main",
+    status: "SUBMITTED" as const,
+    lines: [
+      {
+        id: "line-1",
+        expectedQuantity: 5,
+        receivedQuantity: 5,
+        matchStatus: "MATCHED" as const,
+        reviewStatus: "PENDING" as const,
+        approvedById: null,
+        approvedByName: null,
+        approvedAt: null,
+        note: null,
+        goodsPurchaseItem: { quantity: 10 },
+        approvedReceivedExcludingCurrentReceipt: 2,
+      },
+      {
+        id: "line-2",
+        expectedQuantity: 3,
+        receivedQuantity: 3,
+        matchStatus: "MATCHED" as const,
+        reviewStatus: "PENDING" as const,
+        approvedById: null,
+        approvedByName: null,
+        approvedAt: null,
+        note: null,
+        goodsPurchaseItem: { quantity: 3 },
+        approvedReceivedExcludingCurrentReceipt: 0,
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function createRepository(
   receipt: InboundReceiptForApproval | null = submittedReceipt(),
 ) {
@@ -130,6 +172,10 @@ function createRepository(
     listInboundReceipts: vi.fn(async () => []),
     listReceivingQueue: vi.fn(async () => receivingQueueRows()),
     getGoodsPurchaseReceivingComparison: vi.fn(async () => null),
+    lockSubmittedReceipt: vi.fn(async () => submittedReviewReceipt()),
+    approveReceiptLine: vi.fn(async () => undefined),
+    updateReceiptLine: vi.fn(async () => undefined),
+    removeReceiptLine: vi.fn(async () => undefined),
     lockGoodsPurchase: vi.fn(async () => true),
     findGoodsPurchaseForReceipt: vi.fn(async () => ({
       id: "gp-1",
@@ -643,6 +689,216 @@ describe("inbound receipt service", () => {
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
   });
 
+  it("approves one line without changing stock while another line is pending", async () => {
+    const repository = createRepository();
+
+    const result = await approveInboundReceiptItem({
+      repository,
+      user: {
+        id: "owner-1",
+        name: "Owner",
+        role: "OWNER",
+        storeId: "store-main",
+      },
+      receiptId: "receipt-1",
+      itemId: "line-1",
+    });
+
+    expect(result).toMatchObject({
+      data: { id: "receipt-1", status: "SUBMITTED" },
+      finalized: false,
+    });
+    expect(repository.lockSubmittedReceipt).toHaveBeenCalledWith(
+      expect.anything(),
+      { storeId: "store-main", receiptId: "receipt-1" },
+    );
+    expect(repository.approveReceiptLine).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        storeId: "store-main",
+        receiptId: "receipt-1",
+        itemId: "line-1",
+        reviewStatus: "APPROVED",
+        approvedById: "owner-1",
+        approvedByName: "Owner",
+        approvedAt: expect.any(Date),
+      }),
+    );
+    expect(repository.applyProductStockDelta).not.toHaveBeenCalled();
+    expect(repository.createInboundStockLog).not.toHaveBeenCalled();
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+  });
+
+  it("refuses to approve an item with a stale quantity conflict", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.lockSubmittedReceipt).mockResolvedValueOnce(
+      submittedReviewReceipt({
+        lines: [
+          {
+            ...submittedReviewReceipt().lines[0],
+            receivedQuantity: 4,
+            goodsPurchaseItem: { quantity: 10 },
+            approvedReceivedExcludingCurrentReceipt: 7,
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      approveInboundReceiptItem({
+        repository,
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+        itemId: "line-1",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+    expect(repository.approveReceiptLine).not.toHaveBeenCalled();
+    expect(repository.applyProductStockDelta).not.toHaveBeenCalled();
+    expect(repository.createInboundStockLog).not.toHaveBeenCalled();
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+  });
+
+  it("persists a conflicting edit and resets an approved item to pending", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.lockSubmittedReceipt).mockResolvedValueOnce(
+      submittedReviewReceipt({
+        lines: [
+          {
+            ...submittedReviewReceipt().lines[0],
+            reviewStatus: "APPROVED" as const,
+            approvedById: "owner-2",
+            approvedByName: "Owner Lama",
+            approvedAt: new Date("2026-07-20T00:00:00.000Z"),
+            goodsPurchaseItem: { quantity: 10 },
+            approvedReceivedExcludingCurrentReceipt: 7,
+          },
+        ],
+      }),
+    );
+
+    const result = await editInboundReceiptItem({
+      repository,
+      user: {
+        id: "owner-1",
+        name: "Owner",
+        role: "OWNER",
+        storeId: "store-main",
+      },
+      receiptId: "receipt-1",
+      itemId: "line-1",
+      input: {
+        matchStatus: "MATCHED",
+        receivedQuantity: 4,
+        note: "Supplier ready 4",
+      },
+    });
+
+    expect(result).toMatchObject({
+      data: { id: "receipt-1", status: "SUBMITTED" },
+      finalized: false,
+      conflict: true,
+    });
+    expect(repository.updateReceiptLine).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        storeId: "store-main",
+        receiptId: "receipt-1",
+        itemId: "line-1",
+        matchStatus: "MATCHED",
+        receivedQuantity: 4,
+        note: "Supplier ready 4",
+        reviewStatus: "PENDING",
+        approvedById: null,
+        approvedByName: null,
+        approvedAt: null,
+      }),
+    );
+    expect(repository.applyProductStockDelta).not.toHaveBeenCalled();
+    expect(repository.createInboundStockLog).not.toHaveBeenCalled();
+  });
+
+  it("locks the submitted header before validating an item edit", async () => {
+    const repository = createRepository();
+
+    await expect(
+      editInboundReceiptItem({
+        repository,
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+        itemId: "line-1",
+        input: {
+          matchStatus: "MATCHED",
+          receivedQuantity: -1,
+          note: null,
+        },
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR", status: 422 });
+    expect(repository.lockSubmittedReceipt).toHaveBeenCalledTimes(1);
+    expect(repository.updateReceiptLine).not.toHaveBeenCalled();
+  });
+
+  it("requires one item to remain after removal", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.lockSubmittedReceipt).mockResolvedValueOnce(
+      submittedReviewReceipt({
+        lines: [submittedReviewReceipt().lines[0]],
+      }),
+    );
+
+    await expect(
+      removeInboundReceiptItem({
+        repository,
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+        itemId: "line-1",
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR", status: 422 });
+    expect(repository.removeReceiptLine).not.toHaveBeenCalled();
+  });
+
+  it("removes only the targeted item without inventory side effects", async () => {
+    const repository = createRepository();
+
+    const result = await removeInboundReceiptItem({
+      repository,
+      user: {
+        id: "owner-1",
+        name: "Owner",
+        role: "OWNER",
+        storeId: "store-main",
+      },
+      receiptId: "receipt-1",
+      itemId: "line-2",
+    });
+
+    expect(result.finalized).toBe(false);
+    expect(repository.removeReceiptLine).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        storeId: "store-main",
+        receiptId: "receipt-1",
+        itemId: "line-2",
+      },
+    );
+    expect(repository.applyProductStockDelta).not.toHaveBeenCalled();
+    expect(repository.createInboundStockLog).not.toHaveBeenCalled();
+  });
+
 
   it("maps status-guarded submit races to conflict errors", async () => {
     const repository = createRepository();
@@ -907,7 +1163,44 @@ describe("inbound receipt service", () => {
         rejectionReason: " ",
       }),
     ).rejects.toBeInstanceOf(InventoryManagementError);
+    expect(repository.lockSubmittedReceipt).toHaveBeenCalledTimes(1);
     expect(repository.markReceiptRejected).not.toHaveBeenCalled();
+  });
+
+  it("locks and rejects the submitted header without inventory side effects", async () => {
+    const repository = createRepository();
+
+    const result = await rejectInboundReceipt({
+      repository,
+      user: {
+        id: "owner-1",
+        name: "Owner",
+        role: "OWNER",
+        storeId: "store-main",
+      },
+      receiptId: "receipt-1",
+      rejectionReason: " Invoice tidak sesuai ",
+    });
+
+    expect(result).toMatchObject({
+      data: { id: "receipt-1", status: "REJECTED" },
+      finalized: false,
+    });
+    expect(repository.lockSubmittedReceipt).toHaveBeenCalledWith(
+      expect.anything(),
+      { storeId: "store-main", receiptId: "receipt-1" },
+    );
+    expect(repository.markReceiptRejected).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        storeId: "store-main",
+        receiptId: "receipt-1",
+        rejectedBy: "owner-1",
+        rejectionReason: "Invoice tidak sesuai",
+      }),
+    );
+    expect(repository.applyProductStockDelta).not.toHaveBeenCalled();
+    expect(repository.createInboundStockLog).not.toHaveBeenCalled();
   });
 
   it("creates a draft inbound receipt with validated line notes", async () => {
