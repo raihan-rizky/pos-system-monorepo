@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useAppPrefetch } from "@/hooks/usePrefetch";
 import { RoleProvider } from "@/components/providers/RoleProvider";
 import type { Role } from "@/lib/rbac/permissions";
+import { installNumberInputGuards } from "@/lib/number-input-guard";
 import type { RolePermissions } from "@/features/rbac/helpers/rbac-core";
 import { NotificationProvider } from "@/features/notifications/components/NotificationProvider";
 
@@ -116,6 +117,8 @@ export function Providers({
   authorizationFingerprint: string | null;
   permissions: RolePermissions;
 }) {
+  useEffect(() => installNumberInputGuards(document), []);
+
   const isIdleReady = useIdleReady(Boolean(role));
   const [queryClient] = useState(
     () =>

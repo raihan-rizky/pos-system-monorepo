@@ -64,6 +64,7 @@ markdown-files/
 .claude.json
 .opencode
 .opencode.json
+.superpowers/
 
 # Local agent worktrees
 .worktrees/
