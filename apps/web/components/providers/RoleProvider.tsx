@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useCallback, useMemo } from "react";
 import type { Role } from "@/lib/rbac/permissions";
 import { Action } from "@/lib/rbac/permissions";
 import {
@@ -53,19 +53,34 @@ export function RoleProvider({
   authorizationFingerprint = null,
   permissions = buildDefaultRolePermissions(),
 }: RoleProviderProps) {
-  const canAccess = (path: string) => {
-    if (!role) return false;
-    return canRoleAccessPage(role, path, permissions);
-  };
-
-  const canPerform = (resource: string, action: Action) => {
-    if (!role) return false;
-    return canRolePerformAction(role, resource, action, permissions);
-  };
-
-  return (
-    <RoleContext.Provider value={{ role, userId, userName, storeId, authorizationFingerprint, canAccess, canPerform }}>
-      {children}
-    </RoleContext.Provider>
+  const canAccess = useCallback(
+    (path: string) => {
+      if (!role) return false;
+      return canRoleAccessPage(role, path, permissions);
+    },
+    [role, permissions],
   );
+
+  const canPerform = useCallback(
+    (resource: string, action: Action) => {
+      if (!role) return false;
+      return canRolePerformAction(role, resource, action, permissions);
+    },
+    [role, permissions],
+  );
+
+  const value = useMemo(
+    () => ({
+      role,
+      userId,
+      userName,
+      storeId,
+      authorizationFingerprint,
+      canAccess,
+      canPerform,
+    }),
+    [role, userId, userName, storeId, authorizationFingerprint, canAccess, canPerform],
+  );
+
+  return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 }
