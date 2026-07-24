@@ -20,6 +20,8 @@ Analogi sederhananya: Pembelian Barang adalah purchase order, sedangkan Penerima
 - Menambah stok dan inventory log tepat satu kali saat receipt final approved.
 - Menampilkan fulfillment Pembelian Barang sebagai Belum Diterima, Barang Diterima Sebagian, atau Barang Diterima.
 - Menyediakan perbandingan kumulatif dan breakdown setiap batch penerimaan.
+- Menerapkan penerimaan ke stok bersama sehingga seluruh varian menampilkan saldo baru.
+- Menampilkan perubahan produk dan seluruh varian terdampak sebagai satu bundle Stock Log per receipt.
 - Menyediakan RBAC approve, reject, dan edit dengan default OWNER.
 - Menjaga receipt lama berbasis Daftar Belanja tetap dapat dibaca.
 
@@ -60,8 +62,10 @@ Dengan pemisahan ini, purchase yang sah tetap berstatus `APPROVED`, sementara pr
 Tambahkan relasi opsional:
 
 - `goodsPurchaseId` ke `GoodsPurchase`.
+- `stockBundleId` unik ke `BatchOperation`.
 
 Receipt baru wajib memiliki `goodsPurchaseId`. Field `shoppingRequestId` dipertahankan hanya untuk receipt legacy.
+`stockBundleId` diisi hanya setelah finalisasi berhasil dan menjadi idempotency key agar satu receipt tidak dapat membuat bundle Stock Log kedua.
 
 Status dokumen tetap:
 
@@ -86,10 +90,27 @@ Field `expectedQuantitySnapshot` menyimpan kuantitas yang ditawarkan untuk batch
 
 Field `receivedQuantity` menyimpan kuantitas fisik yang diajukan. `matchStatus` dipilih manual dan tidak diturunkan dari selisih angka.
 
+### BatchOperation
+
+Tambahkan tipe bundle `INBOUND_RECEIPT`. Satu receipt final approved membuat satu `BatchOperation` berstatus `COMMITTED`.
+
+Summary bundle menyimpan:
+
+- `source = INBOUND_RECEIPT`;
+- receipt id;
+- Goods Purchase id dan nomor `PB-...`;
+- supplier id dan nama supplier;
+- jumlah canonical movement;
+- jumlah stock group dan varian terdampak;
+- actor dan waktu approval.
+
+`BatchOperationItem` menyimpan snapshot before/after produk serta varian terdampak. Canonical item receipt dihubungkan ke `InventoryLog`; variant impact item tidak membuat movement biaya kedua.
+
 ### Constraint dan Index
 
 - Index receipt berdasarkan `goodsPurchaseId`, status, dan waktu.
 - Index line berdasarkan `goodsPurchaseItemId` dan review status.
+- `stockBundleId` unik per receipt.
 - Satu receipt tidak boleh memiliki produk Pembelian Barang yang sama lebih dari sekali.
 - Relasi source divalidasi server-side agar receipt dan purchase berasal dari store yang sama.
 
@@ -208,16 +229,49 @@ Ketika seluruh line yang tersisa berstatus `APPROVED`, sistem menjalankan satu t
 2. Memuat ulang ordered, approved, dan pending quantities.
 3. Memastikan cumulative approved setelah receipt ini tidak melebihi ordered quantity.
 4. Memastikan semua line valid dan tidak konflik.
-5. Menambah stok sesuai `receivedQuantity`.
-6. Menggunakan mekanisme stock-group conversion existing.
-7. Membuat inventory log `IN/RESTOCK` memakai `GoodsPurchaseItem.latestUnitPrice` sebagai unit cost.
-8. Menghubungkan inventory log ke receipt line.
-9. Mengubah receipt menjadi `APPROVED`.
-10. Menghitung ulang `GoodsPurchase.fulfillmentStatus`.
+5. Mengelompokkan line berdasarkan standalone product atau stock group.
+6. Menambah stok sesuai `receivedQuantity`.
+7. Untuk stok bersama, mengonversi qty variant ke base unit dan mengubah `baseStock` grup tepat satu kali.
+8. Menghitung snapshot before/after seluruh varian aktif dalam grup.
+9. Membuat canonical inventory log `IN/RESTOCK` memakai `GoodsPurchaseItem.latestUnitPrice` sebagai unit cost.
+10. Membuat satu bundle Stock Log untuk receipt dan menghubungkan canonical log serta variant impact snapshots.
+11. Menghubungkan inventory log ke receipt line.
+12. Mengubah receipt menjadi `APPROVED`.
+13. Menghitung ulang `GoodsPurchase.fulfillmentStatus`.
 
 Qty 0 tidak membuat stock delta atau inventory log.
 
-Jika satu operasi gagal, seluruh transaksi rollback, termasuk approval item terakhir, stock delta, log, status receipt, dan fulfillment status. Finalisasi bersifat idempotent dan inventory log tidak boleh dibuat dua kali.
+Jika satu operasi gagal, seluruh transaksi rollback, termasuk approval item terakhir, stock delta, bundle log, status receipt, dan fulfillment status. Finalisasi bersifat idempotent; inventory log dan bundle tidak boleh dibuat dua kali.
+
+## Stok Bersama dan Bundle Stock Log
+
+Perubahan stok terjadi saat receipt final approved. Label **BARANG DITERIMA SEBAGIAN** atau **BARANG DITERIMA** adalah hasil transaksi yang sama, bukan trigger terpisah yang dapat menjalankan mutasi ulang.
+
+### Produk dalam Stock Group
+
+Jika produk yang diterima berada dalam mode stok bersama:
+
+1. `receivedQuantity` dikonversi memakai `unitMultiplierToBase`.
+2. Delta base ditambahkan ke `ProductStockGroup.baseStock`.
+3. Display stock seluruh varian dihitung ulang dari base stock terbaru.
+4. Bundle menyimpan perubahan before/after/delta display setiap varian aktif.
+
+Contoh: diterima 2 dus, satu dus berisi 12 pcs. Base stock naik 24 pcs. Bundle dapat menampilkan Dus `+2`, Pack isi 6 `+4`, dan Pcs `+24`.
+
+Base stock hanya dimutasi satu kali. Baris varian menjelaskan dampak konversi dan tidak menambah stok lagi.
+
+### Produk Standalone
+
+Produk tanpa stock group memakai perubahan `Product.stock` biasa dan tetap dimasukkan sebagai standalone item dalam bundle receipt yang sama.
+
+### Bentuk Bundle
+
+- Satu receipt menghasilkan satu bundle, walaupun berisi beberapa produk atau stock group.
+- Judul bundle di daftar Stock Log adalah **nama supplier**, bukan nomor Pembelian Barang.
+- Nomor `PB-...` hanya ditampilkan setelah bundle dibuka pada detail modal.
+- Detail dikelompokkan per stock group dan standalone product.
+- Canonical movement menyimpan quantity fisik dan unit cost untuk supplier/cost recap.
+- Variant impact menyimpan snapshot visual dan tidak dihitung sebagai movement pembelian tambahan.
 
 ## Perhitungan Fulfillment Pembelian Barang
 
@@ -276,6 +330,17 @@ Deep link dapat menerima:
 ```
 
 Halaman otomatis membuka Transaksi > Penerimaan Barang dan memfilter history berdasarkan Pembelian Barang. Bila belum ada receipt, tampil empty state khusus.
+
+### Stock Log
+
+Receipt approved tampil sebagai satu bundle:
+
+- judul row: nama supplier;
+- jenis: Stok Masuk / Restock;
+- jumlah canonical product dan varian terdampak;
+- status committed.
+
+Detail modal menampilkan nomor `PB-...`, nomor/tanggal receipt, canonical received lines, serta section setiap stock group berisi before/after/delta seluruh variannya.
 
 ## UI Supplier
 
@@ -360,6 +425,7 @@ Endpoint existing dapat diperluas untuk:
 - Create memvalidasi available quantity terbaru di dalam transaction.
 - Mutation receipt `SUBMITTED` melakukan row lock.
 - Finalisasi lock receipt dan Goods Purchase dengan urutan konsisten.
+- Finalisasi menolak receipt yang sudah memiliki `stockBundleId`.
 - Approval dua receipt bersamaan diserialisasi pada Goods Purchase yang sama.
 - Receipt yang kalah race mendapat response conflict dan data terbaru.
 - Unknown source, cross-store source, inactive product, duplicate item, invalid quantity, missing note, stale status, dan over-receipt menghasilkan error terstruktur.
@@ -394,7 +460,11 @@ Endpoint existing dapat diperluas untuk:
 - approve/edit/reset/remove item;
 - minimum one line;
 - atomic stock mutation;
-- stock-group conversion;
+- stock-group base conversion dan perubahan display seluruh varian;
+- satu bundle per receipt;
+- judul bundle memakai nama supplier dan nomor PB hanya muncul di detail;
+- canonical inventory movement tidak terduplikasi oleh variant impacts;
+- standalone dan multiple-stock-group bundle;
 - unit cost from Goods Purchase item;
 - inventory log exactly once;
 - concurrent finalization;
@@ -435,6 +505,9 @@ Endpoint existing dapat diperluas untuk:
 - Penerimaan partial dapat diajukan berulang sampai purchase fully received.
 - Total approved received tidak pernah melebihi ordered.
 - Stok hanya berubah ketika receipt final approved.
+- Penerimaan stok bersama mengubah satu base stock dan seluruh tampilan variannya secara konsisten.
+- Setiap receipt approved menghasilkan tepat satu bundle Stock Log berjudul nama supplier.
+- Detail bundle menampilkan nomor PB serta perubahan before/after produk dan variannya.
 - Receipt pending lain dapat menjadi konflik tanpa datanya diubah otomatis.
 - Owner dapat memproses item individual dan reject seluruh dokumen.
 - Supplier menampilkan fulfillment status yang benar.
