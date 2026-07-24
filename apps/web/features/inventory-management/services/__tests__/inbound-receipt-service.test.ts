@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { InventoryInboundReceiptRepository as ConcreteInventoryInboundReceiptRepository } from "../../repositories/InventoryInboundReceiptRepository";
 import {
   InventoryManagementError,
   approveInboundReceipt,
@@ -17,6 +18,23 @@ import type {
   InventoryInboundReceiptRepository,
   ReceivingQueueRepositoryRow,
 } from "../../types/inventory-management";
+
+const goodsPurchaseFindManyMock = vi.hoisted(() => vi.fn());
+const goodsPurchaseFindFirstMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@pos/db", () => ({
+  db: {
+    goodsPurchase: {
+      findMany: goodsPurchaseFindManyMock,
+      findFirst: goodsPurchaseFindFirstMock,
+    },
+  },
+  Prisma: {},
+}));
+
+vi.mock("@/features/product-stock-groups/stock-mutations", () => ({
+  applyProductStockDelta: vi.fn(),
+}));
 
 function submittedReceipt(
   overrides: Partial<InboundReceiptForApproval> = {},
@@ -263,6 +281,207 @@ describe("inbound receipt service", () => {
     expect(repositorySource).toMatch(/status:\s*"APPROVED"/);
     expect(repositorySource).toContain('fulfillmentStatus: { not: "RECEIVED" }');
     expect(repositorySource).not.toContain("db.shoppingRequest.findMany");
+  });
+
+  it("excludes non-counting line statuses from queue approved and pending quantities", async () => {
+    goodsPurchaseFindManyMock.mockResolvedValueOnce([
+      {
+        id: "gp-1",
+        number: "PB-202607-001",
+        supplierId: "supplier-1",
+        supplierNameSnapshot: "CV Kertas",
+        fulfillmentStatus: "PARTIALLY_RECEIVED",
+        items: [
+          {
+            id: "gpi-1",
+            productId: "product-1",
+            productNameSnapshot: "Kertas Dus",
+            skuSnapshot: "KD-1",
+            unitSnapshot: "dus",
+            quantity: 50,
+            inboundReceiptLines: [
+              {
+                status: "RECEIVED",
+                receivedQuantity: 5,
+                receipt: { id: "receipt-approved-1", status: "APPROVED" },
+              },
+              {
+                status: "MISSING",
+                receivedQuantity: 7,
+                receipt: { id: "receipt-approved-2", status: "APPROVED" },
+              },
+              {
+                status: "DAMAGED",
+                receivedQuantity: 11,
+                receipt: { id: "receipt-approved-3", status: "APPROVED" },
+              },
+              {
+                status: "MISMATCH",
+                receivedQuantity: 13,
+                receipt: { id: "receipt-approved-4", status: "APPROVED" },
+              },
+              {
+                status: "PARTIAL",
+                receivedQuantity: 3,
+                receipt: { id: "receipt-submitted-1", status: "SUBMITTED" },
+              },
+              {
+                status: "MISSING",
+                receivedQuantity: 17,
+                receipt: { id: "receipt-submitted-2", status: "SUBMITTED" },
+              },
+              {
+                status: "DAMAGED",
+                receivedQuantity: 19,
+                receipt: { id: "receipt-submitted-3", status: "SUBMITTED" },
+              },
+              {
+                status: "MISMATCH",
+                receivedQuantity: 23,
+                receipt: { id: "receipt-submitted-4", status: "SUBMITTED" },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+
+    const rows = await repository.listReceivingQueue("store-main", {});
+
+    expect(rows[0]).toMatchObject({
+      approvedReceivedQuantity: 5,
+      pendingReservedQuantity: 3,
+    });
+  });
+
+  it("excludes non-counting line statuses from comparison totals and batch quantities", async () => {
+    goodsPurchaseFindFirstMock.mockResolvedValueOnce({
+      id: "gp-1",
+      number: "PB-202607-001",
+      supplierNameSnapshot: "CV Kertas",
+      fulfillmentStatus: "PARTIALLY_RECEIVED",
+      items: [
+        {
+          id: "gpi-1",
+          productNameSnapshot: "Kertas Dus",
+          skuSnapshot: "KD-1",
+          unitSnapshot: "dus",
+          quantity: 50,
+          inboundReceiptLines: [
+            {
+              status: "RECEIVED",
+              receivedQuantity: 5,
+              receipt: { status: "APPROVED" },
+            },
+            {
+              status: "MISSING",
+              receivedQuantity: 7,
+              receipt: { status: "APPROVED" },
+            },
+            {
+              status: "DAMAGED",
+              receivedQuantity: 11,
+              receipt: { status: "APPROVED" },
+            },
+            {
+              status: "MISMATCH",
+              receivedQuantity: 13,
+              receipt: { status: "APPROVED" },
+            },
+            {
+              status: "PARTIAL",
+              receivedQuantity: 3,
+              receipt: { status: "SUBMITTED" },
+            },
+            {
+              status: "MISSING",
+              receivedQuantity: 17,
+              receipt: { status: "SUBMITTED" },
+            },
+            {
+              status: "DAMAGED",
+              receivedQuantity: 19,
+              receipt: { status: "SUBMITTED" },
+            },
+            {
+              status: "MISMATCH",
+              receivedQuantity: 23,
+              receipt: { status: "SUBMITTED" },
+            },
+          ],
+        },
+      ],
+      inboundReceipts: [
+        {
+          id: "receipt-1",
+          createdAt: new Date("2026-07-24T01:00:00.000Z"),
+          status: "SUBMITTED",
+          approvedAt: null,
+          approver: null,
+          lines: [
+            {
+              goodsPurchaseItemId: "gpi-1",
+              status: "RECEIVED",
+              receivedQuantity: 5,
+              matchStatus: "MATCHED",
+              note: null,
+            },
+            {
+              goodsPurchaseItemId: "gpi-2",
+              status: "MISSING",
+              receivedQuantity: 7,
+              matchStatus: "MISMATCHED",
+              note: "Tidak datang",
+            },
+            {
+              goodsPurchaseItemId: "gpi-3",
+              status: "DAMAGED",
+              receivedQuantity: 11,
+              matchStatus: "MISMATCHED",
+              note: "Rusak",
+            },
+            {
+              goodsPurchaseItemId: "gpi-4",
+              status: "MISMATCH",
+              receivedQuantity: 13,
+              matchStatus: "MISMATCHED",
+              note: "Barang berbeda",
+            },
+          ],
+        },
+      ],
+    });
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+
+    const comparison = await repository.getGoodsPurchaseReceivingComparison(
+      "store-main",
+      "gp-1",
+    );
+
+    expect(comparison?.items[0]).toMatchObject({
+      approvedReceivedQuantity: 5,
+      pendingReservedQuantity: 3,
+      remainingQuantity: 42,
+    });
+    expect(comparison?.receipts[0].lines).toEqual([
+      expect.objectContaining({
+        goodsPurchaseItemId: "gpi-1",
+        receivedQuantity: 5,
+      }),
+      expect.objectContaining({
+        goodsPurchaseItemId: "gpi-2",
+        receivedQuantity: 0,
+      }),
+      expect.objectContaining({
+        goodsPurchaseItemId: "gpi-3",
+        receivedQuantity: 0,
+      }),
+      expect.objectContaining({
+        goodsPurchaseItemId: "gpi-4",
+        receivedQuantity: 0,
+      }),
+    ]);
   });
 
   it("approves a submitted receipt by applying stock only for eligible lines in one transaction", async () => {

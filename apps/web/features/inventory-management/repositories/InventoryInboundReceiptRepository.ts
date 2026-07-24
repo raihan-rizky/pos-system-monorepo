@@ -1,6 +1,9 @@
 import { db, Prisma } from "@pos/db";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
-import { calculateInboundAvailability } from "../helpers/inbound-receipt-rules";
+import {
+  calculateInboundAvailability,
+  getInboundStockQuantity,
+} from "../helpers/inbound-receipt-rules";
 import type {
   CreateInboundReceiptDraftInput,
   GoodsPurchaseReceivingComparison,
@@ -465,6 +468,7 @@ export class InventoryInboundReceiptRepository
                 },
               },
               select: {
+                status: true,
                 receivedQuantity: true,
                 receipt: { select: { id: true, status: true } },
               },
@@ -478,12 +482,25 @@ export class InventoryInboundReceiptRepository
       purchase.items.map((item) => {
         const approvedReceivedQuantity = item.inboundReceiptLines
           .filter((line) => line.receipt.status === "APPROVED")
-          .reduce((sum, line) => sum + line.receivedQuantity, 0);
+          .reduce(
+            (sum, line) =>
+              sum +
+              getInboundStockQuantity({
+                status: line.status,
+                receivedQuantity: line.receivedQuantity,
+              }),
+            0,
+          );
         const pendingLines = item.inboundReceiptLines.filter(
           (line) => line.receipt.status === "SUBMITTED",
         );
         const pendingReservedQuantity = pendingLines.reduce(
-          (sum, line) => sum + line.receivedQuantity,
+          (sum, line) =>
+            sum +
+            getInboundStockQuantity({
+              status: line.status,
+              receivedQuantity: line.receivedQuantity,
+            }),
           0,
         );
 
@@ -536,6 +553,7 @@ export class InventoryInboundReceiptRepository
                 },
               },
               select: {
+                status: true,
                 receivedQuantity: true,
                 receipt: { select: { status: true } },
               },
@@ -562,6 +580,7 @@ export class InventoryInboundReceiptRepository
               orderBy: { createdAt: "asc" },
               select: {
                 goodsPurchaseItemId: true,
+                status: true,
                 receivedQuantity: true,
                 matchStatus: true,
                 note: true,
@@ -581,10 +600,26 @@ export class InventoryInboundReceiptRepository
       items: purchase.items.map((item) => {
         const approvedReceivedQuantity = item.inboundReceiptLines
           .filter((line) => line.receipt.status === "APPROVED")
-          .reduce((sum, line) => sum + line.receivedQuantity, 0);
+          .reduce(
+            (sum, line) =>
+              sum +
+              getInboundStockQuantity({
+                status: line.status,
+                receivedQuantity: line.receivedQuantity,
+              }),
+            0,
+          );
         const pendingReservedQuantity = item.inboundReceiptLines
           .filter((line) => line.receipt.status === "SUBMITTED")
-          .reduce((sum, line) => sum + line.receivedQuantity, 0);
+          .reduce(
+            (sum, line) =>
+              sum +
+              getInboundStockQuantity({
+                status: line.status,
+                receivedQuantity: line.receivedQuantity,
+              }),
+            0,
+          );
         const availability = calculateInboundAvailability({
           orderedQuantity: item.quantity,
           approvedReceivedQuantity,
@@ -613,7 +648,10 @@ export class InventoryInboundReceiptRepository
             ? [
                 {
                   goodsPurchaseItemId: line.goodsPurchaseItemId,
-                  receivedQuantity: line.receivedQuantity,
+                  receivedQuantity: getInboundStockQuantity({
+                    status: line.status,
+                    receivedQuantity: line.receivedQuantity,
+                  }),
                   matchStatus: line.matchStatus,
                   note: line.note,
                 },
