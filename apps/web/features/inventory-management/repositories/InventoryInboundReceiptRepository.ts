@@ -372,6 +372,142 @@ export class InventoryInboundReceiptRepository
     return { id: receipt.id, status: receipt.status };
   }
 
+  async lockGoodsPurchase(
+    tx: Tx,
+    input: { storeId: string; goodsPurchaseId: string },
+  ): Promise<boolean> {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "pos_goods_purchases"
+      WHERE "id" = ${input.goodsPurchaseId}
+        AND "storeId" = ${input.storeId}
+      FOR UPDATE
+    `;
+    return locked.length === 1;
+  }
+
+  async findGoodsPurchaseForReceipt(
+    tx: Tx,
+    input: { storeId: string; goodsPurchaseId: string },
+  ) {
+    const purchase = await tx.goodsPurchase.findFirst({
+      where: {
+        id: input.goodsPurchaseId,
+        storeId: input.storeId,
+        status: "APPROVED",
+      },
+      select: {
+        id: true,
+        number: true,
+        shoppingRequestId: true,
+        supplierId: true,
+        supplierNameSnapshot: true,
+        items: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            shoppingRequestItemId: true,
+            productId: true,
+            productNameSnapshot: true,
+            skuSnapshot: true,
+            unitSnapshot: true,
+            latestUnitPrice: true,
+            quantity: true,
+            inboundReceiptLines: {
+              where: {
+                receipt: {
+                  storeId: input.storeId,
+                  status: { in: ["APPROVED", "SUBMITTED"] },
+                },
+              },
+              select: {
+                status: true,
+                receivedQuantity: true,
+                receipt: { select: { status: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!purchase) return null;
+
+    return {
+      ...purchase,
+      items: purchase.items.map((item) => ({
+        ...item,
+        latestUnitPrice: Number(item.latestUnitPrice.toString()),
+      })),
+    };
+  }
+
+  async createSubmittedGoodsPurchaseReceipt(
+    tx: Tx,
+    input: {
+      storeId: string;
+      goodsPurchaseId: string;
+      shoppingRequestId: string;
+      supplierId: string | null;
+      submittedBy: string;
+      submittedAt: Date;
+      note: string | null;
+      lines: Array<{
+        goodsPurchaseItemId: string;
+        shoppingRequestItemId: string | null;
+        productId: string;
+        productNameSnapshot: string;
+        skuSnapshot: string;
+        unitSnapshot: string | null;
+        costPriceSnapshot: number;
+        supplierNameSnapshot: string;
+        invoiceNumberSnapshot: string;
+        expectedQuantity: number;
+        receivedQuantity: number;
+        status: "RECEIVED";
+        matchStatus: "MATCHED" | "MISMATCHED";
+        reviewStatus: "PENDING";
+        note: string | null;
+      }>;
+    },
+  ) {
+    const receipt = await tx.inventoryInboundReceipt.create({
+      data: {
+        storeId: input.storeId,
+        goodsPurchaseId: input.goodsPurchaseId,
+        shoppingRequestId: input.shoppingRequestId,
+        supplierId: input.supplierId,
+        status: "SUBMITTED",
+        submittedBy: input.submittedBy,
+        submittedAt: input.submittedAt,
+        note: input.note,
+        lines: {
+          create: input.lines.map((line) => ({
+            goodsPurchaseItemId: line.goodsPurchaseItemId,
+            shoppingRequestItemId: line.shoppingRequestItemId,
+            productId: line.productId,
+            productNameSnapshot: line.productNameSnapshot,
+            skuSnapshot: line.skuSnapshot,
+            unitSnapshot: line.unitSnapshot,
+            costPriceSnapshot: line.costPriceSnapshot,
+            supplierNameSnapshot: line.supplierNameSnapshot,
+            invoiceNumberSnapshot: line.invoiceNumberSnapshot,
+            status: line.status,
+            matchStatus: line.matchStatus,
+            reviewStatus: line.reviewStatus,
+            expectedQuantity: line.expectedQuantity,
+            receivedQuantity: line.receivedQuantity,
+            expectedQuantitySnapshot: line.expectedQuantity,
+            receivedQuantitySnapshot: line.receivedQuantity,
+            note: line.note,
+          })),
+        },
+      },
+      select: { id: true, status: true },
+    });
+
+    return { id: receipt.id, status: receipt.status };
+  }
+
   async listInboundReceipts(
     storeId: string,
     input: { status?: InboundReceiptStatus },

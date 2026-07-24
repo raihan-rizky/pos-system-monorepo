@@ -3,8 +3,7 @@ import { z } from "zod";
 import { InventoryInboundReceiptRepository } from "@/features/inventory-management/repositories/InventoryInboundReceiptRepository";
 import {
   InventoryManagementError,
-  createAndSubmitInboundReceipt,
-  createInboundReceipt,
+  createAndSubmitGoodsPurchaseReceipt,
 } from "@/features/inventory-management/services/inbound-receipt-service";
 import type {
   InboundReceiptStatus,
@@ -22,29 +21,18 @@ const statusSchema = z.enum([
   "CANCELLED",
 ]);
 
-const lineSchema = z.object({
-  productId: z.string().min(1),
-  shoppingRequestItemId: z.string().min(1).optional().nullable(),
-  expectedQuantity: z.number().positive(),
-  receivedQuantity: z.number().min(0),
-  status: z.enum([
-    "RECEIVED",
-    "PARTIAL",
-    "MISSING",
-    "DAMAGED",
-    "MISMATCH",
-    "OVER_RECEIVED",
-  ]),
-  note: z.string().trim().max(500).optional().nullable(),
-});
-
 const createSchema = z.object({
-  supplierId: z.string().min(1).optional().nullable(),
-  shoppingRequestId: z.string().min(1).optional().nullable(),
-  submitImmediately: z.boolean().optional(),
+  goodsPurchaseId: z.string().min(1),
   note: z.string().trim().max(500).optional().nullable(),
-  lines: z.array(lineSchema).min(1),
-});
+  lines: z.array(
+    z.object({
+      goodsPurchaseItemId: z.string().min(1),
+      matchStatus: z.enum(["MATCHED", "MISMATCHED"]),
+      receivedQuantity: z.number().min(0),
+      note: z.string().trim().max(500).optional().nullable(),
+    }).strict(),
+  ).min(1),
+}).strict();
 
 export async function GET(request: Request) {
   try {
@@ -87,9 +75,7 @@ export async function POST(request: Request) {
       user: user as InventoryManagementUser & { name?: string | null },
       input,
     };
-    const data = input.submitImmediately
-      ? await createAndSubmitInboundReceipt(serviceInput)
-      : await createInboundReceipt(serviceInput);
+    const data = await createAndSubmitGoodsPurchaseReceipt(serviceInput);
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {

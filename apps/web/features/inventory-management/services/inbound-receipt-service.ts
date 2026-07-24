@@ -2,6 +2,10 @@ import {
   calculateInboundAvailability,
   getInboundStockQuantity,
   requiresInboundLineNote,
+  requiresInboundQuantityNote,
+} from "../helpers/inbound-receipt-rules";
+import type {
+  InboundReceiptMatchStatus,
 } from "../helpers/inbound-receipt-rules";
 import type {
   CreateInboundReceiptDraftInput,
@@ -80,6 +84,87 @@ export interface CreateInboundReceiptServiceInput {
       expectedQuantity: number;
       receivedQuantity: number;
       status: InboundReceiptLineStatus;
+      note?: string | null;
+    }>;
+  };
+}
+
+interface GoodsPurchaseForReceipt {
+  id: string;
+  number: string;
+  shoppingRequestId: string;
+  supplierId: string | null;
+  supplierNameSnapshot: string;
+  items: Array<{
+    id: string;
+    shoppingRequestItemId: string | null;
+    productId: string;
+    productNameSnapshot: string;
+    skuSnapshot: string;
+    unitSnapshot: string | null;
+    latestUnitPrice: number;
+    quantity: number;
+    inboundReceiptLines: Array<{
+      status: InboundReceiptLineStatus;
+      receivedQuantity: number;
+      receipt: { status: InboundReceiptStatus };
+    }>;
+  }>;
+}
+
+interface SubmittedGoodsPurchaseReceiptLine {
+  goodsPurchaseItemId: string;
+  shoppingRequestItemId: string | null;
+  productId: string;
+  productNameSnapshot: string;
+  skuSnapshot: string;
+  unitSnapshot: string | null;
+  costPriceSnapshot: number;
+  supplierNameSnapshot: string;
+  invoiceNumberSnapshot: string;
+  expectedQuantity: number;
+  receivedQuantity: number;
+  status: "RECEIVED";
+  matchStatus: InboundReceiptMatchStatus;
+  reviewStatus: "PENDING";
+  note: string | null;
+}
+
+interface GoodsPurchaseReceiptRepository
+  extends InventoryInboundReceiptRepository {
+  lockGoodsPurchase(
+    tx: unknown,
+    input: { storeId: string; goodsPurchaseId: string },
+  ): Promise<boolean>;
+  findGoodsPurchaseForReceipt(
+    tx: unknown,
+    input: { storeId: string; goodsPurchaseId: string },
+  ): Promise<GoodsPurchaseForReceipt | null>;
+  createSubmittedGoodsPurchaseReceipt(
+    tx: unknown,
+    input: {
+      storeId: string;
+      goodsPurchaseId: string;
+      shoppingRequestId: string;
+      supplierId: string | null;
+      submittedBy: string;
+      submittedAt: Date;
+      note: string | null;
+      lines: SubmittedGoodsPurchaseReceiptLine[];
+    },
+  ): Promise<InboundReceiptMutationResult>;
+}
+
+export interface CreateGoodsPurchaseReceiptServiceInput {
+  repository: GoodsPurchaseReceiptRepository;
+  user: InventoryManagementUser & { name?: string | null };
+  input: {
+    goodsPurchaseId: string;
+    note?: string | null;
+    lines: Array<{
+      goodsPurchaseItemId: string;
+      matchStatus: InboundReceiptMatchStatus;
+      receivedQuantity: number;
       note?: string | null;
     }>;
   };
@@ -562,4 +647,164 @@ export async function createAndSubmitInboundReceipt(
     }
     throw error;
   }
+}
+
+export async function createAndSubmitGoodsPurchaseReceipt(
+  input: CreateGoodsPurchaseReceiptServiceInput,
+): Promise<InboundReceiptMutationResult> {
+  const storeId = requireStoreId(input.user);
+
+  return input.repository.runInTransaction(async (tx) => {
+    const locked = await input.repository.lockGoodsPurchase(tx, {
+      storeId,
+      goodsPurchaseId: input.input.goodsPurchaseId,
+    });
+    if (!locked) {
+      throw new InventoryManagementError(
+        "NOT_FOUND",
+        "Pembelian Barang tidak ditemukan",
+        404,
+      );
+    }
+
+    const purchase = await input.repository.findGoodsPurchaseForReceipt(tx, {
+      storeId,
+      goodsPurchaseId: input.input.goodsPurchaseId,
+    });
+    if (!purchase) {
+      throw new InventoryManagementError(
+        "NOT_FOUND",
+        "Pembelian Barang yang disetujui tidak ditemukan",
+        404,
+      );
+    }
+
+    const availableItems = purchase.items.flatMap((item) => {
+      const approvedReceivedQuantity = item.inboundReceiptLines
+        .filter((line) => line.receipt.status === "APPROVED")
+        .reduce(
+          (sum, line) =>
+            sum +
+            getInboundStockQuantity({
+              status: line.status,
+              receivedQuantity: line.receivedQuantity,
+            }),
+          0,
+        );
+      const pendingReservedQuantity = item.inboundReceiptLines
+        .filter((line) => line.receipt.status === "SUBMITTED")
+        .reduce(
+          (sum, line) =>
+            sum +
+            getInboundStockQuantity({
+              status: line.status,
+              receivedQuantity: line.receivedQuantity,
+            }),
+          0,
+        );
+      const availability = calculateInboundAvailability({
+        orderedQuantity: item.quantity,
+        approvedReceivedQuantity,
+        pendingReservedQuantity,
+      });
+
+      return availability.availableQuantity > 0
+        ? [{ item, availableQuantity: availability.availableQuantity }]
+        : [];
+    });
+
+    const submittedIds = input.input.lines.map(
+      (line) => line.goodsPurchaseItemId,
+    );
+    const submittedIdSet = new Set(submittedIds);
+    const availableIdSet = new Set(
+      availableItems.map(({ item }) => item.id),
+    );
+    if (
+      submittedIds.length !== availableItems.length ||
+      submittedIdSet.size !== submittedIds.length ||
+      submittedIds.some((itemId) => !availableIdSet.has(itemId))
+    ) {
+      throw new InventoryManagementError(
+        "VALIDATION_ERROR",
+        "Semua produk yang masih tersedia wajib diisi",
+        422,
+      );
+    }
+
+    const inputByItemId = new Map(
+      input.input.lines.map((line) => [line.goodsPurchaseItemId, line]),
+    );
+    const lines = availableItems.map(({ item, availableQuantity }) => {
+      const line = inputByItemId.get(item.id);
+      if (!line) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Semua produk yang masih tersedia wajib diisi",
+          422,
+        );
+      }
+      if (
+        !Number.isFinite(line.receivedQuantity) ||
+        line.receivedQuantity < 0
+      ) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Jumlah produk yang diterima tidak valid",
+          422,
+        );
+      }
+      if (line.receivedQuantity > availableQuantity + 1e-9) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Jumlah diterima melebihi jumlah yang masih tersedia",
+          409,
+        );
+      }
+
+      const note = line.note?.trim() || null;
+      if (
+        requiresInboundQuantityNote(
+          availableQuantity,
+          line.receivedQuantity,
+        ) &&
+        !note
+      ) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Catatan produk wajib diisi saat jumlah diterima berbeda",
+          422,
+        );
+      }
+
+      return {
+        goodsPurchaseItemId: item.id,
+        shoppingRequestItemId: item.shoppingRequestItemId,
+        productId: item.productId,
+        productNameSnapshot: item.productNameSnapshot,
+        skuSnapshot: item.skuSnapshot,
+        unitSnapshot: item.unitSnapshot,
+        costPriceSnapshot: item.latestUnitPrice,
+        supplierNameSnapshot: purchase.supplierNameSnapshot,
+        invoiceNumberSnapshot: purchase.number,
+        expectedQuantity: availableQuantity,
+        receivedQuantity: line.receivedQuantity,
+        status: "RECEIVED" as const,
+        matchStatus: line.matchStatus,
+        reviewStatus: "PENDING" as const,
+        note,
+      };
+    });
+
+    return input.repository.createSubmittedGoodsPurchaseReceipt(tx, {
+      storeId,
+      goodsPurchaseId: purchase.id,
+      shoppingRequestId: purchase.shoppingRequestId,
+      supplierId: purchase.supplierId,
+      submittedBy: input.user.id,
+      submittedAt: new Date(),
+      note: input.input.note?.trim() || null,
+      lines,
+    });
+  });
 }

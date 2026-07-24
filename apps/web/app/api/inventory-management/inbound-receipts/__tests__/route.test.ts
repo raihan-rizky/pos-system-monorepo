@@ -5,6 +5,7 @@ const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const createInboundReceiptMock = vi.hoisted(() => vi.fn());
 const createAndSubmitInboundReceiptMock = vi.hoisted(() => vi.fn());
+const createAndSubmitGoodsPurchaseReceiptMock = vi.hoisted(() => vi.fn());
 const listInboundReceiptsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -20,6 +21,7 @@ vi.mock("@/features/inventory-management/services/inbound-receipt-service", asyn
     ...actual,
     createInboundReceipt: createInboundReceiptMock,
     createAndSubmitInboundReceipt: createAndSubmitInboundReceiptMock,
+    createAndSubmitGoodsPurchaseReceipt: createAndSubmitGoodsPurchaseReceiptMock,
   };
 });
 
@@ -50,6 +52,10 @@ describe("/api/inventory-management/inbound-receipts", () => {
       id: "receipt-1",
       status: "SUBMITTED",
     });
+    createAndSubmitGoodsPurchaseReceiptMock.mockResolvedValue({
+      id: "receipt-1",
+      status: "SUBMITTED",
+    });
   });
 
   it("lists inbound receipts for the current store", async () => {
@@ -66,18 +72,18 @@ describe("/api/inventory-management/inbound-receipts", () => {
     expect(body.data).toEqual([{ id: "receipt-1" }]);
   });
 
-  it("creates a draft inbound receipt through the service", async () => {
+  it("creates and submits a goods purchase receipt through the service", async () => {
     const response = await POST(
       new Request("http://localhost/api/inventory-management/inbound-receipts", {
         method: "POST",
         body: JSON.stringify({
-          supplierId: "supplier-1",
+          goodsPurchaseId: "gp-1",
+          note: "Surat jalan SJ-1",
           lines: [
             {
-              productId: "product-1",
-              expectedQuantity: 10,
-              receivedQuantity: 10,
-              status: "RECEIVED",
+              goodsPurchaseItemId: "gpi-1",
+              matchStatus: "MATCHED",
+              receivedQuantity: 8,
             },
           ],
         }),
@@ -87,25 +93,38 @@ describe("/api/inventory-management/inbound-receipts", () => {
 
     expect(response.status).toBe(201);
     expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "update");
-    expect(createInboundReceiptMock).toHaveBeenCalledWith(
+    expect(createAndSubmitGoodsPurchaseReceiptMock).toHaveBeenCalledWith(
       expect.objectContaining({
         user: expect.objectContaining({ id: "inventory-1" }),
-        input: expect.objectContaining({ supplierId: "supplier-1" }),
+        input: {
+          goodsPurchaseId: "gp-1",
+          note: "Surat jalan SJ-1",
+          lines: [
+            {
+              goodsPurchaseItemId: "gpi-1",
+              matchStatus: "MATCHED",
+              receivedQuantity: 8,
+            },
+          ],
+        },
       }),
     );
-    expect(body.data.status).toBe("DRAFT");
+    expect(createInboundReceiptMock).not.toHaveBeenCalled();
+    expect(createAndSubmitInboundReceiptMock).not.toHaveBeenCalled();
+    expect(body.data.status).toBe("SUBMITTED");
   });
 
-  it("creates and submits an inbound receipt when requested by the form", async () => {
+  it("rejects legacy client-authoritative receipt fields", async () => {
     const response = await POST(
       new Request("http://localhost/api/inventory-management/inbound-receipts", {
         method: "POST",
         body: JSON.stringify({
-          submitImmediately: true,
+          goodsPurchaseId: "gp-1",
           shoppingRequestId: "shopping-1",
           lines: [
             {
-              productId: "product-1",
+              goodsPurchaseItemId: "gpi-1",
+              matchStatus: "MATCHED",
               expectedQuantity: 10,
               receivedQuantity: 10,
               status: "RECEIVED",
@@ -114,17 +133,11 @@ describe("/api/inventory-management/inbound-receipts", () => {
         }),
       }),
     );
-    const body = await response.json();
 
-    expect(response.status).toBe(201);
-    expect(createAndSubmitInboundReceiptMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user: expect.objectContaining({ id: "inventory-1" }),
-        input: expect.objectContaining({ shoppingRequestId: "shopping-1" }),
-      }),
-    );
+    expect(response.status).toBe(422);
+    expect(createAndSubmitGoodsPurchaseReceiptMock).not.toHaveBeenCalled();
+    expect(createAndSubmitInboundReceiptMock).not.toHaveBeenCalled();
     expect(createInboundReceiptMock).not.toHaveBeenCalled();
-    expect(body.data.status).toBe("SUBMITTED");
   });
 
   it("rejects malformed create payloads before calling the service", async () => {
