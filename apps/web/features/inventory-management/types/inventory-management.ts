@@ -1,4 +1,8 @@
 import type { Role } from "@/features/rbac/helpers/rbac-core";
+import type {
+  GoodsPurchaseFulfillmentStatus,
+  InboundReceiptMatchStatus,
+} from "../helpers/inbound-receipt-rules";
 
 export interface InventoryManagementUser {
   id: string;
@@ -152,8 +156,61 @@ export interface ReceivingQueueItem {
   isFullyReceived: boolean;
 }
 
+export interface ReceivingQueuePurchase {
+  id: string;
+  number: string;
+  supplierId: string | null;
+  supplierName: string;
+  fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
+  pendingReceiptCount: number;
+  items: ReceivingQueuePurchaseItem[];
+}
+
+export interface ReceivingQueuePurchaseItem {
+  goodsPurchaseItemId: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  unit: string | null;
+  orderedQuantity: number;
+  approvedReceivedQuantity: number;
+  pendingReservedQuantity: number;
+  availableQuantity: number;
+}
+
 export interface ReceivingQueueResult {
   items: ReceivingQueueItem[];
+  purchases?: ReceivingQueuePurchase[];
+}
+
+export interface GoodsPurchaseReceivingComparison {
+  goodsPurchaseId: string;
+  goodsPurchaseNumber: string;
+  supplierName: string;
+  fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
+  items: Array<{
+    goodsPurchaseItemId: string;
+    productName: string;
+    sku: string;
+    unit: string | null;
+    orderedQuantity: number;
+    approvedReceivedQuantity: number;
+    pendingReservedQuantity: number;
+    remainingQuantity: number;
+  }>;
+  receipts: Array<{
+    id: string;
+    createdAt: string;
+    status: InboundReceiptStatus;
+    approvedAt: string | null;
+    approverName: string | null;
+    lines: Array<{
+      goodsPurchaseItemId: string;
+      receivedQuantity: number;
+      matchStatus: InboundReceiptMatchStatus;
+      note: string | null;
+    }>;
+  }>;
 }
 
 export interface InboundReceiptForEdit {

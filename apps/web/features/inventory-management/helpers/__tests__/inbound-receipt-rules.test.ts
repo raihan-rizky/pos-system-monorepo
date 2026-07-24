@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateInboundAvailability,
   canCancelInboundReceipt,
   canEditInboundReceipt,
   getInboundStockQuantity,
   getRemainingReceivableQuantity,
+  hasInboundQuantityConflict,
+  requiresInboundQuantityNote,
   requiresInboundLineNote,
+  resolveGoodsPurchaseFulfillment,
 } from "../inbound-receipt-rules";
 
 describe("inbound receipt rules", () => {
@@ -50,5 +54,53 @@ describe("inbound receipt rules", () => {
     expect(canCancelInboundReceipt({ status: "SUBMITTED", isCreator: false })).toBe(false);
     expect(canCancelInboundReceipt({ status: "APPROVED", isCreator: true })).toBe(false);
     expect(canCancelInboundReceipt({ status: "REJECTED", isCreator: true })).toBe(false);
+  });
+
+  it("subtracts approved and pending reservations from ordered quantity", () => {
+    expect(
+      calculateInboundAvailability({
+        orderedQuantity: 50,
+        approvedReceivedQuantity: 20,
+        pendingReservedQuantity: 10,
+      }),
+    ).toEqual({
+      orderedQuantity: 50,
+      approvedReceivedQuantity: 20,
+      pendingReservedQuantity: 10,
+      availableQuantity: 20,
+    });
+  });
+
+  it("requires a note from quantity difference, independent of match badge", () => {
+    expect(requiresInboundQuantityNote(50, 40)).toBe(true);
+    expect(requiresInboundQuantityNote(50, 50)).toBe(false);
+  });
+
+  it("marks a stale pending receipt as conflicting after another receipt is approved", () => {
+    expect(
+      hasInboundQuantityConflict({
+        orderedQuantity: 10,
+        approvedReceivedQuantity: 8,
+        currentReceiptQuantity: 4,
+      }),
+    ).toBe(true);
+  });
+
+  it("resolves not received, partial, and received fulfillment", () => {
+    expect(
+      resolveGoodsPurchaseFulfillment([
+        { orderedQuantity: 10, approvedReceivedQuantity: 0 },
+      ]),
+    ).toBe("NOT_RECEIVED");
+    expect(
+      resolveGoodsPurchaseFulfillment([
+        { orderedQuantity: 10, approvedReceivedQuantity: 6 },
+      ]),
+    ).toBe("PARTIALLY_RECEIVED");
+    expect(
+      resolveGoodsPurchaseFulfillment([
+        { orderedQuantity: 10, approvedReceivedQuantity: 10 },
+      ]),
+    ).toBe("RECEIVED");
   });
 });
