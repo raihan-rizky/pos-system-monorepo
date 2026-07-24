@@ -7,6 +7,7 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const productFindFirstMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
+const queryRawMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const sendRolePushEventMock = vi.hoisted(() => vi.fn());
 
@@ -54,7 +55,16 @@ describe("POST /api/inventory", () => {
       deactivated: 0,
     });
     handleAuthErrorMock.mockReturnValue(null);
-    productFindFirstMock.mockResolvedValue({ stock: 20, costPrice: null });
+    productFindFirstMock.mockResolvedValue({
+      id: "product-1",
+      stock: 20,
+      costPrice: null,
+      stockGroupId: null,
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      stockGroup: null,
+    });
+    queryRawMock.mockResolvedValue([{ id: "product-1" }]);
     inventoryLogCreateMock.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
       id: "log-1",
       ...data,
@@ -67,6 +77,7 @@ describe("POST /api/inventory", () => {
       callback({
         product: { findFirst: productFindFirstMock, update: productUpdateMock },
         inventoryLog: { create: inventoryLogCreateMock },
+        $queryRaw: queryRawMock,
       }),
     );
   });

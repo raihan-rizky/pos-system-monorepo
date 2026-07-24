@@ -7,6 +7,7 @@ const suratJalanFindFirstMock = vi.hoisted(() => vi.fn());
 const suratJalanUpdateMock = vi.hoisted(() => vi.fn());
 const productFindFirstMock = vi.hoisted(() => vi.fn());
 const productUpdateManyMock = vi.hoisted(() => vi.fn());
+const queryRawMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -44,6 +45,9 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
       stockGroup: null,
     }));
     productUpdateManyMock.mockResolvedValue({ count: 1 });
+    queryRawMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
     inventoryLogCreateManyMock.mockResolvedValue({ count: 1 });
     suratJalanUpdateMock.mockImplementation(async ({ data }) => ({
       id: "sj-2",
@@ -63,6 +67,7 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
         inventoryLog: {
           createMany: inventoryLogCreateManyMock,
         },
+        $queryRaw: queryRawMock,
       }),
     );
   });

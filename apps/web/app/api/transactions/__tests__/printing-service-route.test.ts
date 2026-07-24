@@ -9,6 +9,7 @@ const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
+const productUpdateManyMock = vi.hoisted(() => vi.fn());
 const printingServiceFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
@@ -115,6 +116,10 @@ describe("POST /api/transactions printing service items", () => {
         material: null,
         categoryId: "cat-material",
         category: { name: "Bahan" },
+        stockGroupId: null,
+        unitMultiplierToBase: 1,
+        conversionNeedsReview: false,
+        stockGroup: null,
       },
     ]);
     pricingRuleFindManyMock.mockResolvedValue([]);
@@ -134,7 +139,10 @@ describe("POST /api/transactions printing service items", () => {
       invoiceNumber: "INV-20260523-0001",
       items: [],
     });
-    queryRawMock.mockResolvedValue([{ id: "material-1" }]);
+    productUpdateManyMock.mockResolvedValue({ count: 1 });
+    queryRawMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
     inventoryLogCreateManyMock.mockResolvedValue({ count: 1 });
     customerUpdateMock.mockResolvedValue({});
     sendRolePushEventMock.mockResolvedValue({
@@ -148,6 +156,10 @@ describe("POST /api/transactions printing service items", () => {
     dbTransactionMock.mockImplementation(async (callback: any) =>
       callback({
         transaction: { create: transactionCreateMock },
+        product: {
+          findMany: productFindManyMock,
+          updateMany: productUpdateManyMock,
+        },
         $queryRaw: queryRawMock,
       }),
     );

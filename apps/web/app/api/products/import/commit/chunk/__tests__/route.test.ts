@@ -70,8 +70,18 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/products/import/commit/chunk", () => {
+  let stockGroups: Array<{
+    id: string;
+    storeId: string;
+    groupKey: string;
+    displayName: string;
+    baseUnit: string;
+    baseStock: number;
+  }> = [];
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stockGroups = [];
     handleAuthErrorMock.mockReturnValue(null);
     requirePermissionMock.mockResolvedValue({
       id: "user-1",
@@ -79,6 +89,10 @@ describe("POST /api/products/import/commit/chunk", () => {
       storeId: "store-main",
     });
     dbTransactionMock.mockImplementation((callback) => callback(txMock));
+    txMock.$queryRaw.mockImplementation(
+      async (strings: TemplateStringsArray, rowId?: string) =>
+        strings.join(" ").includes("FOR UPDATE") ? [{ id: rowId }] : [],
+    );
     txMock.product.findMany.mockResolvedValue([]);
     txMock.supplier.findMany.mockResolvedValue([]);
     txMock.productSupplier.createMany.mockResolvedValue({ count: 0 });
@@ -137,8 +151,23 @@ describe("POST /api/products/import/commit/chunk", () => {
     txMock.batchOperationItem.findMany.mockResolvedValue([{ sourceRowNumber: 2 }]);
     txMock.batchOperationItem.createMany.mockResolvedValue({ count: 0 });
     txMock.batchOperationItem.count.mockResolvedValue(1);
-    txMock.productStockGroup.findMany.mockResolvedValue([]);
-    txMock.productStockGroup.createMany.mockResolvedValue({ count: 0 });
+    txMock.productStockGroup.findMany.mockImplementation(async ({ where }) => {
+      const ids = where?.id?.in as string[] | undefined;
+      if (ids) return stockGroups.filter((group) => ids.includes(group.id));
+      const candidates = (where?.OR ?? []) as Array<{ storeId: string; groupKey: string }>;
+      if (candidates.length === 0) return stockGroups;
+      return stockGroups.filter((group) =>
+        candidates.some(
+          (candidate) =>
+            candidate.storeId === group.storeId &&
+            candidate.groupKey === group.groupKey,
+        ),
+      );
+    });
+    txMock.productStockGroup.createMany.mockImplementation(async ({ data }) => {
+      stockGroups.push(...data);
+      return { count: data.length };
+    });
   });
 
   it("does not mutate products again when a retried chunk row is already committed", async () => {

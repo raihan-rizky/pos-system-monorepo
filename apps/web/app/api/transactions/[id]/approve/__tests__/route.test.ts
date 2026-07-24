@@ -8,6 +8,7 @@ const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionUpdateManyMock = vi.hoisted(() => vi.fn());
 const transactionFindUniqueOrThrowMock = vi.hoisted(() => vi.fn());
+const productFindManyMock = vi.hoisted(() => vi.fn());
 const productUpdateManyMock = vi.hoisted(() => vi.fn());
 const queryRawMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateMock = vi.hoisted(() => vi.fn());
@@ -81,8 +82,20 @@ describe("POST /api/transactions/[id]/approve", () => {
       status: "COMPLETED",
       items: [],
     });
+    productFindManyMock.mockImplementation(async ({ where }) =>
+      where.id.in.map((id: string) => ({
+        id,
+        stock: 100,
+        stockGroupId: null,
+        unitMultiplierToBase: 1,
+        conversionNeedsReview: false,
+        stockGroup: null,
+      })),
+    );
     productUpdateManyMock.mockResolvedValue({ count: 1 });
-    queryRawMock.mockResolvedValue([{ id: "product-1" }, { id: "product-2" }]);
+    queryRawMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
     inventoryLogCreateMock.mockResolvedValue({});
     inventoryLogCreateManyMock.mockResolvedValue({ count: 2 });
     customerUpdateMock.mockResolvedValue({});
@@ -91,6 +104,10 @@ describe("POST /api/transactions/[id]/approve", () => {
         transaction: {
           updateMany: transactionUpdateManyMock,
           findUniqueOrThrow: transactionFindUniqueOrThrowMock,
+        },
+        product: {
+          findMany: productFindManyMock,
+          updateMany: productUpdateManyMock,
         },
         inventoryLog: {
           create: inventoryLogCreateMock,
@@ -120,9 +137,9 @@ describe("POST /api/transactions/[id]/approve", () => {
       maxWait: 5000,
       timeout: 15000,
     });
-    expect(queryRawMock).toHaveBeenCalledTimes(1);
+    expect(queryRawMock).toHaveBeenCalledTimes(2);
     expect(transactionFindUniqueOrThrowMock).not.toHaveBeenCalled();
-    expect(productUpdateManyMock).not.toHaveBeenCalled();
+    expect(productUpdateManyMock).toHaveBeenCalledTimes(2);
     expect(inventoryLogCreateMock).not.toHaveBeenCalled();
   });
 

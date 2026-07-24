@@ -92,7 +92,10 @@ async function readFirstStreamChunk(response: Response) {
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Missing response body");
   const { value } = await reader.read();
-  return new TextDecoder().decode(value);
+  return {
+    chunk: new TextDecoder().decode(value),
+    cancel: () => reader.cancel(),
+  };
 }
 
 describe("POST /api/ai/chat", () => {
@@ -280,15 +283,16 @@ describe("POST /api/ai/chat", () => {
     const { POST } = await import("../route");
 
     const response = await POST(makeRequest({ messages: [{ role: "user", content: "jelaskan sistem POS" }] }));
-    const firstChunk = await readFirstStreamChunk(response);
+    const firstFrame = await readFirstStreamChunk(response);
 
-    expect(firstChunk).toContain('"type":"progress","status":"planning"');
+    expect(firstFrame.chunk).toContain('"type":"progress","status":"planning"');
     expect(openAIChatCreateMock).toHaveBeenCalledTimes(1);
 
     resolveProviderResponse({ choices: [{ message: { content: "no tool" } }] });
+    await firstFrame.cancel();
   });
 
-  it("rejects unauthorized model-requested tools backend-side", async () => {
+  it("rejects unauthorized deterministic tools backend-side without a provider call", async () => {
     getCurrentUserMock.mockResolvedValue({
       id: "user-2",
       username: "cashier",
@@ -297,24 +301,13 @@ describe("POST /api/ai/chat", () => {
       storeId: "store-1",
       isActive: true,
     });
-    openAIChatCreateMock.mockResolvedValueOnce({
-      choices: [{
-        message: {
-          tool_calls: [{
-            id: "call-1",
-            type: "function",
-            function: { name: "get_daily_sales_summary", arguments: "{\"date\":\"2026-06-26\"}" },
-          }],
-        },
-      }],
-    });
     const { POST } = await import("../route");
 
     const response = await POST(makeRequest({ messages: [{ role: "user", content: "omzet hari ini berapa?" }] }));
     const body = await readStream(response);
 
     expect(getDailySalesSummaryMock).not.toHaveBeenCalled();
-    expect(openAIChatCreateMock).toHaveBeenCalledTimes(1);
+    expect(openAIChatCreateMock).not.toHaveBeenCalled();
     expect(body).toContain("tidak punya akses");
     expect(body).toContain('"sourceLabel":"RBAC"');
   });

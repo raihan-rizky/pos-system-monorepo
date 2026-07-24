@@ -1,13 +1,19 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+const configuredSkillPath = process.env.AGENT_ORCHESTRATION_SKILL_PATH;
 const skillPath =
-  "C:\\Users\\Unknown\\.agents\\skills\\agent-orchestration-multi-agent-optimize\\SKILL.md";
+  configuredSkillPath && existsSync(configuredSkillPath)
+    ? configuredSkillPath
+    : undefined;
 
-const readSkill = () => readFileSync(skillPath, "utf8");
+const readSkill = () => {
+  if (!skillPath) throw new Error("Agent orchestration skill is not installed");
+  return readFileSync(skillPath, "utf8");
+};
 
-describe("agent-orchestration-multi-agent-optimize skill", () => {
+describe.skipIf(!skillPath)("agent-orchestration-multi-agent-optimize skill", () => {
   it("uses one explicit invocation contract without unresolved parameter placeholders", () => {
     const skill = readSkill();
 

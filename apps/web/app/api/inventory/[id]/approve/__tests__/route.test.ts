@@ -7,6 +7,7 @@ const inventoryLogFindUniqueMock = vi.hoisted(() => vi.fn());
 const inventoryLogUpdateMock = vi.hoisted(() => vi.fn());
 const productFindUniqueMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
+const queryRawMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -49,6 +50,7 @@ describe("POST /api/inventory/[id]/approve", () => {
       id: "product-1",
       ...data,
     }));
+    queryRawMock.mockResolvedValue([{ id: "product-1" }]);
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
         inventoryLog: {
@@ -59,6 +61,7 @@ describe("POST /api/inventory/[id]/approve", () => {
           findUnique: productFindUniqueMock,
           update: productUpdateMock,
         },
+        $queryRaw: queryRawMock,
       }),
     );
   });
@@ -71,7 +74,7 @@ describe("POST /api/inventory/[id]/approve", () => {
       quantity: 5,
       status: "PENDING",
     });
-    productFindUniqueMock.mockResolvedValue({ id: "product-1", stock: 10 });
+    productFindUniqueMock.mockResolvedValue(standaloneProduct("product-1", 10));
 
     const response = await call("log-1");
 
@@ -114,7 +117,7 @@ describe("POST /api/inventory/[id]/approve", () => {
       quantity: 50,
       status: "PENDING",
     });
-    productFindUniqueMock.mockResolvedValue({ id: "product-1", stock: 10 });
+    productFindUniqueMock.mockResolvedValue(standaloneProduct("product-1", 10));
 
     const response = await call("log-1");
     const body = await response.json();
@@ -156,3 +159,14 @@ describe("POST /api/inventory/[id]/approve", () => {
     );
   });
 });
+
+function standaloneProduct(id: string, stock: number) {
+  return {
+    id,
+    stock,
+    stockGroupId: null,
+    unitMultiplierToBase: 1,
+    conversionNeedsReview: false,
+    stockGroup: null,
+  };
+}

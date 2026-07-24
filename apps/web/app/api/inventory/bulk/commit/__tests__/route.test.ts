@@ -6,12 +6,14 @@ const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const sendRolePushEventMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
+const productFindFirstMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateMock = vi.hoisted(() => vi.fn());
 const batchOperationCreateMock = vi.hoisted(() => vi.fn());
 const batchOperationUpdateMock = vi.hoisted(() => vi.fn());
 const batchOperationItemCreateMock = vi.hoisted(() => vi.fn());
 const supplierFindUniqueMock = vi.hoisted(() => vi.fn());
+const queryRawMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -65,6 +67,9 @@ describe("POST /api/inventory/bulk/commit", () => {
       product("product-1", "SKU-1", 10),
       product("product-2", "SKU-2", 4),
     ]);
+    productFindFirstMock.mockImplementation(async ({ where }) =>
+      product(where.id, "SKU-1", 10),
+    );
     inventoryLogCreateMock.mockImplementation(async ({ data }) => ({
       id: `log-${data.productId}`,
       ...data,
@@ -86,6 +91,9 @@ describe("POST /api/inventory/bulk/commit", () => {
       name: "CV Sinar Jaya",
       isActive: true,
     });
+    queryRawMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
         supplier: {
@@ -93,6 +101,7 @@ describe("POST /api/inventory/bulk/commit", () => {
         },
         product: {
           findMany: productFindManyMock,
+          findFirst: productFindFirstMock,
           update: productUpdateMock,
         },
         inventoryLog: {
@@ -105,6 +114,7 @@ describe("POST /api/inventory/bulk/commit", () => {
         batchOperationItem: {
           create: batchOperationItemCreateMock,
         },
+        $queryRaw: queryRawMock,
       }),
     );
   });
@@ -119,7 +129,6 @@ describe("POST /api/inventory/bulk/commit", () => {
       note: "bulk admin request",
     });
     const body = await response.json();
-
     expect(response.status).toBe(201);
     expect(body.status).toBe("PENDING");
     expect(body.pendingApproval).toBe(true);
@@ -181,7 +190,6 @@ describe("POST /api/inventory/bulk/commit", () => {
       note: "owner restock",
     });
     const body = await response.json();
-
     expect(response.status).toBe(201);
     expect(body.status).toBe("COMMITTED");
     expect(body.pendingApproval).toBe(false);
@@ -317,5 +325,9 @@ function product(id: string, sku: string, stock: number) {
     storeId: "store-1",
     isActive: true,
     imageUrl: null,
+    stockGroupId: null,
+    unitMultiplierToBase: 1,
+    conversionNeedsReview: false,
+    stockGroup: null,
   };
 }

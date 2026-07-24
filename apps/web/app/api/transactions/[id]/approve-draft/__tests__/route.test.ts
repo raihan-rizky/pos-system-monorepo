@@ -6,6 +6,8 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionUpdateManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
+const productFindManyMock = vi.hoisted(() => vi.fn());
+const productUpdateManyMock = vi.hoisted(() => vi.fn());
 const queryRawMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
@@ -75,7 +77,20 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
     transactionFindFirstMock.mockResolvedValue({ ...draftRow });
     transactionCountMock.mockResolvedValue(0);
     transactionUpdateManyMock.mockResolvedValue({ count: 1 });
-    queryRawMock.mockResolvedValue([{ id: "p1" }, { id: "p2" }]);
+    productFindManyMock.mockImplementation(async ({ where }) =>
+      where.id.in.map((id: string) => ({
+        id,
+        stock: 100,
+        stockGroupId: null,
+        unitMultiplierToBase: 1,
+        conversionNeedsReview: false,
+        stockGroup: null,
+      })),
+    );
+    productUpdateManyMock.mockResolvedValue({ count: 1 });
+    queryRawMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
     inventoryLogCreateManyMock.mockResolvedValue({ count: 2 });
     customerUpdateMock.mockResolvedValue({});
     dbTransactionMock.mockImplementation(async (callback: any) =>
@@ -83,6 +98,10 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
         transaction: {
           updateMany: transactionUpdateManyMock,
           count: transactionCountMock,
+        },
+        product: {
+          findMany: productFindManyMock,
+          updateMany: productUpdateManyMock,
         },
         $queryRaw: queryRawMock,
       }),
@@ -113,7 +132,7 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
         }),
       }),
     );
-    expect(queryRawMock).toHaveBeenCalledTimes(1);
+    expect(queryRawMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns 409 when the row is no longer DRAFT", async () => {
@@ -133,7 +152,9 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
   });
 
   it("returns 409 with stock-kurang message when atomic stock decrement is short", async () => {
-    queryRawMock.mockResolvedValue([{ id: "p1" }]); // only 1 of 2 rows decremented
+    productUpdateManyMock
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
     const { POST } = await import("../route");
     const res = await POST(
       new Request("http://localhost/api/transactions/draft-1/approve-draft", {

@@ -12,6 +12,7 @@ const inventoryLogUpdateMock = vi.hoisted(() => vi.fn());
 const productFindUniqueMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
 const batchOperationItemUpdateMock = vi.hoisted(() => vi.fn());
+const queryRawMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -70,6 +71,7 @@ describe("POST /api/inventory/bulk/[batchId]/approve-item", () => {
     inventoryLogUpdateMock.mockResolvedValue({ id: "log-1", status: "APPROVED" });
     batchOperationItemUpdateMock.mockResolvedValue({ id: "item-1" });
     batchOperationUpdateMock.mockResolvedValue({ id: "batch-1", status: "COMMITTED" });
+    queryRawMock.mockResolvedValue([{ id: "product-1" }]);
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
         batchOperation: {
@@ -88,6 +90,7 @@ describe("POST /api/inventory/bulk/[batchId]/approve-item", () => {
         batchOperationItem: {
           update: batchOperationItemUpdateMock,
         },
+        $queryRaw: queryRawMock,
       }),
     );
   });
@@ -131,5 +134,9 @@ function product(id: string, stock: number) {
     storeId: "store-1",
     isActive: true,
     imageUrl: null,
+    stockGroupId: null,
+    unitMultiplierToBase: 1,
+    conversionNeedsReview: false,
+    stockGroup: null,
   };
 }

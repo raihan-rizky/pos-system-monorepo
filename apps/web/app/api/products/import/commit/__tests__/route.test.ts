@@ -72,6 +72,14 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/products/import/commit", () => {
+  let stockGroups: Array<{
+    id: string;
+    storeId: string;
+    groupKey: string;
+    displayName: string;
+    baseUnit: string;
+    baseStock: number;
+  }> = [];
   let batchSummary: Record<string, unknown> = {};
   let batchStatus = "PENDING";
   let committedRowNumbers: number[] = [];
@@ -92,6 +100,7 @@ describe("POST /api/products/import/commit", () => {
     batchStatus = "PENDING";
     committedRowNumbers = [];
     plannedRows = [];
+    stockGroups = [];
     handleAuthErrorMock.mockReturnValue(null);
     requirePermissionMock.mockResolvedValue({
       id: "user-1",
@@ -99,6 +108,10 @@ describe("POST /api/products/import/commit", () => {
       storeId: "store-main",
     });
     dbTransactionMock.mockImplementation((callback) => callback(txMock));
+    txMock.$queryRaw.mockImplementation(
+      async (strings: TemplateStringsArray, rowId?: string) =>
+        strings.join(" ").includes("FOR UPDATE") ? [{ id: rowId }] : [],
+    );
     txMock.product.findMany.mockResolvedValue([]);
     txMock.supplier.findMany.mockResolvedValue([]);
     txMock.productSupplier.createMany.mockResolvedValue({ count: 0 });
@@ -166,8 +179,23 @@ describe("POST /api/products/import/commit", () => {
       return { count };
     });
     txMock.productStockGroup.findUnique.mockResolvedValue(null);
-    txMock.productStockGroup.findMany.mockResolvedValue([]);
-    txMock.productStockGroup.createMany.mockResolvedValue({ count: 0 });
+    txMock.productStockGroup.findMany.mockImplementation(async ({ where }) => {
+      const ids = where?.id?.in as string[] | undefined;
+      if (ids) return stockGroups.filter((group) => ids.includes(group.id));
+      const candidates = (where?.OR ?? []) as Array<{ storeId: string; groupKey: string }>;
+      if (candidates.length === 0) return stockGroups;
+      return stockGroups.filter((group) =>
+        candidates.some(
+          (candidate) =>
+            candidate.storeId === group.storeId &&
+            candidate.groupKey === group.groupKey,
+        ),
+      );
+    });
+    txMock.productStockGroup.createMany.mockImplementation(async ({ data }) => {
+      stockGroups.push(...data);
+      return { count: data.length };
+    });
     txMock.productStockGroup.create.mockResolvedValue({
       id: "group-2",
       storeId: "store-main",
@@ -408,8 +436,6 @@ describe("POST /api/products/import/commit", () => {
 
   it("bulk ensures missing stock groups before inserting many new products", async () => {
     txMock.product.findMany.mockResolvedValue([]);
-    txMock.productStockGroup.findMany.mockResolvedValue([]);
-    txMock.productStockGroup.createMany.mockResolvedValue({ count: 2 });
 
     const payload = {
       rows: [
@@ -444,7 +470,7 @@ describe("POST /api/products/import/commit", () => {
     );
 
     expect(response.status).toBe(201);
-    expect(txMock.productStockGroup.findMany).toHaveBeenCalledTimes(1);
+    expect(txMock.productStockGroup.findMany).toHaveBeenCalledTimes(2);
     expect(txMock.productStockGroup.createMany).toHaveBeenCalledWith({
       data: expect.arrayContaining([
         expect.objectContaining({

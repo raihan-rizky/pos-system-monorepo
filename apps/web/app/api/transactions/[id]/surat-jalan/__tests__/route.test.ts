@@ -9,6 +9,7 @@ const suratJalanCountMock = vi.hoisted(() => vi.fn());
 const suratJalanCreateMock = vi.hoisted(() => vi.fn());
 const productFindFirstMock = vi.hoisted(() => vi.fn());
 const productUpdateManyMock = vi.hoisted(() => vi.fn());
+const queryRawMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -74,6 +75,9 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
       stockGroup: null,
     }));
     productUpdateManyMock.mockResolvedValue({ count: 1 });
+    queryRawMock.mockImplementation(
+      async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
+    );
     inventoryLogCreateManyMock.mockResolvedValue({ count: 4 });
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
@@ -92,6 +96,7 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
         inventoryLog: {
           createMany: inventoryLogCreateManyMock,
         },
+        $queryRaw: queryRawMock,
       }),
     );
   });
