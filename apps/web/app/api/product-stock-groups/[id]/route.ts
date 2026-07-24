@@ -6,6 +6,7 @@ import { apiError, apiValidationError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { calculateDisplayStock } from "@/features/product-stock-groups/stock-display";
+import { lockProductStockGroupRow } from "@/features/product-stock-groups/stock-group-lock";
 import {
   buildConversionPairSummaries,
   buildSharedStockInventoryLogRows,
@@ -120,6 +121,12 @@ export async function PATCH(
     const input = updateGroupSchema.parse(await request.json());
 
     const result = await db.$transaction(async (tx) => {
+      const locked = await lockProductStockGroupRow(tx, {
+        storeId,
+        stockGroupId: id,
+      });
+      if (!locked) throw new Error("GROUP_NOT_FOUND");
+
       const group = await tx.productStockGroup.findFirst({
         where: { id, storeId },
         include: {

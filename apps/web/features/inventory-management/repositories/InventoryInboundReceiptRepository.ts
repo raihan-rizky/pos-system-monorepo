@@ -1,4 +1,5 @@
 import { db, Prisma } from "@pos/db";
+import { lockProductStockGroupRow } from "@/features/product-stock-groups/stock-group-lock";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
 import {
   calculateInboundAvailability,
@@ -86,6 +87,8 @@ export class InventoryInboundReceiptRepository
             goodsPurchaseItem: {
               select: {
                 id: true,
+                goodsPurchaseId: true,
+                productId: true,
                 quantity: true,
                 latestUnitPrice: true,
                 inboundReceiptLines: {
@@ -140,6 +143,8 @@ export class InventoryInboundReceiptRepository
         goodsPurchaseItem: line.goodsPurchaseItem
           ? {
               id: line.goodsPurchaseItem.id,
+              goodsPurchaseId: line.goodsPurchaseItem.goodsPurchaseId,
+              productId: line.goodsPurchaseItem.productId,
               quantity: line.goodsPurchaseItem.quantity,
               latestUnitPrice: Number(
                 line.goodsPurchaseItem.latestUnitPrice.toString(),
@@ -262,6 +267,7 @@ export class InventoryInboundReceiptRepository
         id: true,
         storeId: true,
         supplierId: true,
+        goodsPurchaseId: true,
         status: true,
         lines: {
           select: {
@@ -285,6 +291,7 @@ export class InventoryInboundReceiptRepository
       id: receipt.id,
       storeId: receipt.storeId,
       supplierId: receipt.supplierId,
+      goodsPurchaseId: receipt.goodsPurchaseId,
       status: receipt.status,
       lines: receipt.lines.map((line) => ({
         id: line.id,
@@ -343,14 +350,8 @@ export class InventoryInboundReceiptRepository
     tx: Tx,
     input: { storeId: string; stockGroupId: string },
   ): Promise<LockedInboundStockGroup | null> {
-    const locked = await tx.$queryRaw<Array<{ id: string }>>`
-      SELECT "id"
-      FROM "pos_product_stock_groups"
-      WHERE "id" = ${input.stockGroupId}
-        AND "storeId" = ${input.storeId}
-      FOR UPDATE
-    `;
-    if (locked.length !== 1) return null;
+    const locked = await lockProductStockGroupRow(tx, input);
+    if (!locked) return null;
 
     const group = await tx.productStockGroup.findFirst({
       where: {
@@ -622,6 +623,7 @@ export class InventoryInboundReceiptRepository
       approvedBy: string;
       approvedAt: Date;
       stockBundleId?: string;
+      legacyOnly?: boolean;
       lineLogIds: Array<{
         lineId: string;
         inventoryLogId: string;
@@ -634,6 +636,9 @@ export class InventoryInboundReceiptRepository
         id: input.receiptId,
         storeId: input.storeId,
         status: "SUBMITTED",
+        ...(input.legacyOnly || !input.stockBundleId
+          ? { goodsPurchaseId: null }
+          : {}),
       },
       data: {
         status: "APPROVED",

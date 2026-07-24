@@ -46,6 +46,7 @@ function submittedReceipt(
     id: "receipt-1",
     storeId: "store-main",
     supplierId: null,
+    goodsPurchaseId: null,
     status: "SUBMITTED",
     lines: [
       {
@@ -117,6 +118,8 @@ function submittedReviewReceipt(
         note: null,
         goodsPurchaseItem: {
           id: "gpi-1",
+          goodsPurchaseId: "gp-1",
+          productId: "product-1",
           quantity: 10,
           latestUnitPrice: 120_000,
         },
@@ -136,6 +139,8 @@ function submittedReviewReceipt(
         note: null,
         goodsPurchaseItem: {
           id: "gpi-2",
+          goodsPurchaseId: "gp-1",
+          productId: "product-2",
           quantity: 3,
           latestUnitPrice: 15_000,
         },
@@ -244,21 +249,38 @@ function createRepository(
     findReceiptForFinalization: vi.fn(async () => null),
     lockStockGroup: vi.fn(async () => null),
     incrementStockGroupBase: vi.fn(async () => undefined),
-    incrementStandaloneProductStock: vi.fn(async () => ({
-      product: {
-        id: "product-standalone",
-        storeId: "store-main",
-        stockGroupId: null,
-      } as never,
-      beforeStock: 0,
-      afterStock: 0,
-    })),
+    incrementStandaloneProductStock: vi.fn(
+      async (
+        _tx: unknown,
+        _input: { storeId: string; productId: string; quantity: number },
+      ) => ({
+        product: {
+          id: "product-standalone",
+          storeId: "store-main",
+          stockGroupId: null,
+        } as never,
+        beforeStock: 0,
+        afterStock: 0,
+      }),
+    ),
     createCanonicalInventoryLog: vi.fn(async () => ({ id: "log-canonical" })),
     createReceiptStockBundle: vi.fn(async () => ({ id: "bundle-1" })),
     listGoodsPurchaseFulfillmentItems: vi.fn(async () => [
       { orderedQuantity: 5, approvedReceivedQuantity: 0 },
     ]),
-    updateGoodsPurchaseFulfillment: vi.fn(async () => undefined),
+    updateGoodsPurchaseFulfillment: vi.fn(
+      async (
+        _tx: unknown,
+        _input: {
+          storeId: string;
+          goodsPurchaseId: string;
+          fulfillmentStatus:
+            | "NOT_RECEIVED"
+            | "PARTIALLY_RECEIVED"
+            | "RECEIVED";
+        },
+      ) => undefined,
+    ),
   };
 }
 
@@ -644,9 +666,37 @@ describe("inbound receipt service", () => {
       expect.objectContaining({
         receiptId: "receipt-1",
         approvedBy: "owner-1",
+        legacyOnly: true,
         lineLogIds: [{ lineId: "line-1", inventoryLogId: "log-product-1" }],
       }),
     );
+  });
+
+  it("blocks the legacy whole-receipt approval path for Goods Purchase receipts", async () => {
+    const repository = createRepository(
+      submittedReceipt({ goodsPurchaseId: "gp-1" }),
+    );
+
+    await expect(
+      approveInboundReceipt({
+        repository,
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      status: 409,
+      message:
+        "Penerimaan Barang dari Pembelian Barang harus disetujui per produk",
+    });
+    expect(repository.applyProductStockDelta).not.toHaveBeenCalled();
+    expect(repository.createInboundStockLog).not.toHaveBeenCalled();
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
   });
 
   it("does not apply stock again when the receipt is already approved", async () => {
@@ -803,6 +853,8 @@ describe("inbound receipt service", () => {
               reviewStatus: "APPROVED" as const,
               goodsPurchaseItem: {
                 id: "gpi-1",
+                goodsPurchaseId: "gp-1",
+                productId: "product-1",
                 quantity: 5,
                 latestUnitPrice: 120_000,
               },
@@ -828,6 +880,8 @@ describe("inbound receipt service", () => {
           reviewStatus: "APPROVED" as const,
           goodsPurchaseItem: {
             id: "gpi-1",
+            goodsPurchaseId: "gp-1",
+            productId: "product-1",
             quantity: 5,
             latestUnitPrice: 120_000,
           },
@@ -923,6 +977,202 @@ describe("inbound receipt service", () => {
     expect(lineReviewStatus).toBe("PENDING");
     expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
     expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+  });
+
+  it("restores all transaction-boundary state when fulfillment fails after stock, log, bundle, and receipt writes", async () => {
+    const repository = createRepository();
+    const standaloneProduct = {
+      id: "product-standalone",
+      name: "Produk Standalone",
+      sku: "SKU-STANDALONE",
+      barcode: null,
+      description: null,
+      price: 10_000,
+      costPrice: 7_500,
+      hargaDinas: null,
+      hargaAgen: null,
+      stock: 5,
+      minStock: 0,
+      unit: "pcs",
+      size: null,
+      material: null,
+      categoryId: "category-1",
+      brandId: null,
+      storeId: "store-main",
+      isActive: true,
+      imageUrl: null,
+      stockGroupId: null,
+      unitMultiplierToBase: 1,
+      conversionNeedsReview: false,
+      createdAt: new Date("2026-07-24T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-24T00:00:00.000Z"),
+    } as never;
+    const state: {
+      lineReviewStatus: "PENDING" | "APPROVED";
+      stock: number;
+      inventoryLogIds: string[];
+      bundleIds: string[];
+      receiptStatus: "SUBMITTED" | "APPROVED";
+      fulfillmentStatus:
+        | "NOT_RECEIVED"
+        | "PARTIALLY_RECEIVED"
+        | "RECEIVED";
+    } = {
+      lineReviewStatus: "PENDING",
+      stock: 5,
+      inventoryLogIds: [],
+      bundleIds: [],
+      receiptStatus: "SUBMITTED",
+      fulfillmentStatus: "NOT_RECEIVED",
+    };
+    const currentReceipt = () =>
+      submittedReviewReceipt({
+        lines: [
+          {
+            ...submittedReviewReceipt().lines[0],
+            productId: "product-standalone",
+            product: standaloneProduct,
+            stockGroupId: null,
+            unitMultiplierToBase: 1,
+            conversionNeedsReview: false,
+            receivedQuantity: 2,
+            reviewStatus: state.lineReviewStatus,
+            goodsPurchaseItem: {
+              id: "gpi-standalone",
+              goodsPurchaseId: "gp-1",
+              productId: "product-standalone",
+              quantity: 2,
+              latestUnitPrice: 7_500,
+            },
+            approvedReceivedExcludingCurrentReceipt: 0,
+          },
+        ],
+      });
+
+    vi.mocked(repository.runInTransaction).mockImplementationOnce(
+      async (callback) => {
+        const before = {
+          lineReviewStatus: state.lineReviewStatus,
+          stock: state.stock,
+          inventoryLogIds: [...state.inventoryLogIds],
+          bundleIds: [...state.bundleIds],
+          receiptStatus: state.receiptStatus,
+          fulfillmentStatus: state.fulfillmentStatus,
+        };
+        try {
+          return await callback({ tx: "late-rollback-transaction" });
+        } catch (error) {
+          Object.assign(state, before);
+          throw error;
+        }
+      },
+    );
+    vi.mocked(repository.lockSubmittedReceipt).mockImplementation(async () =>
+      currentReceipt(),
+    );
+    vi.mocked(repository.approveReceiptLine).mockImplementationOnce(
+      async () => {
+        state.lineReviewStatus = "APPROVED";
+      },
+    );
+    vi.mocked(repository.findReceiptForFinalization).mockImplementation(
+      async () => currentReceipt(),
+    );
+    vi.mocked(repository.incrementStandaloneProductStock).mockImplementationOnce(
+      async (_tx, input) => {
+        const beforeStock = state.stock;
+        state.stock += input.quantity;
+        return {
+          product: standaloneProduct,
+          beforeStock,
+          afterStock: state.stock,
+        };
+      },
+    );
+    vi.mocked(repository.createCanonicalInventoryLog).mockImplementationOnce(
+      async () => {
+        state.inventoryLogIds.push("log-1");
+        return { id: "log-1" };
+      },
+    );
+    vi.mocked(repository.createReceiptStockBundle).mockImplementationOnce(
+      async () => {
+        state.bundleIds.push("bundle-1");
+        return { id: "bundle-1" };
+      },
+    );
+    vi.mocked(repository.markReceiptApproved).mockImplementationOnce(
+      async () => {
+        state.receiptStatus = "APPROVED";
+        return { id: "receipt-1", status: "APPROVED" as const };
+      },
+    );
+    vi.mocked(
+      repository.listGoodsPurchaseFulfillmentItems,
+    ).mockResolvedValueOnce([
+      { orderedQuantity: 2, approvedReceivedQuantity: 2 },
+    ]);
+    vi.mocked(
+      repository.updateGoodsPurchaseFulfillment,
+    ).mockImplementationOnce(async (_tx, input) => {
+      state.fulfillmentStatus = input.fulfillmentStatus;
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    });
+
+    await expect(
+      approveInboundReceiptItem({
+        repository,
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+        itemId: "line-1",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+
+    expect(repository.incrementStandaloneProductStock).toHaveBeenCalledTimes(1);
+    expect(repository.createCanonicalInventoryLog).toHaveBeenCalledTimes(1);
+    expect(repository.createReceiptStockBundle).toHaveBeenCalledTimes(1);
+    expect(repository.markReceiptApproved).toHaveBeenCalledTimes(1);
+    expect(repository.updateGoodsPurchaseFulfillment).toHaveBeenCalledTimes(1);
+    expect(state).toEqual({
+      lineReviewStatus: "PENDING",
+      stock: 5,
+      inventoryLogIds: [],
+      bundleIds: [],
+      receiptStatus: "SUBMITTED",
+      fulfillmentStatus: "NOT_RECEIVED",
+    });
+  });
+
+  it("maps a Prisma transaction retry conflict to the inbound domain conflict", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.runInTransaction).mockRejectedValueOnce(
+      Object.assign(new Error("Transaction failed due to a write conflict"), {
+        code: "P2034",
+      }),
+    );
+
+    await expect(
+      approveInboundReceiptItem({
+        repository,
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+        itemId: "line-1",
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      status: 409,
+      message: "Penerimaan Barang berubah saat finalisasi",
+    });
   });
 
   it("refuses to approve an item with a stale quantity conflict", async () => {
@@ -1812,6 +2062,217 @@ describe("inbound receipt service", () => {
         where: expect.objectContaining({ goodsPurchaseId: null }),
       }),
     );
+  });
+
+  it("loads the Goods Purchase owner when preparing legacy whole-receipt approval", async () => {
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+    const findFirst = vi.fn(async () => ({
+      id: "receipt-gp",
+      storeId: "store-main",
+      goodsPurchaseId: "gp-1",
+      supplierId: "supplier-1",
+      status: "SUBMITTED",
+      lines: [],
+    }));
+
+    const result = await repository.findReceiptForApproval(
+      {
+        inventoryInboundReceipt: { findFirst },
+      } as never,
+      {
+        storeId: "store-main",
+        receiptId: "receipt-gp",
+      },
+    );
+
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ goodsPurchaseId: true }),
+      }),
+    );
+    expect(result).toMatchObject({ goodsPurchaseId: "gp-1" });
+  });
+
+  it("requires a null Goods Purchase owner for repository legacy approval", async () => {
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+
+    await repository.markReceiptApproved(
+      {
+        inventoryInboundReceipt: { updateMany },
+        inventoryInboundReceiptLine: {
+          updateMany: vi.fn(async () => ({ count: 1 })),
+        },
+      } as never,
+      {
+        storeId: "store-main",
+        receiptId: "receipt-legacy",
+        approvedBy: "owner-1",
+        approvedAt: new Date("2026-07-24T00:00:00.000Z"),
+        legacyOnly: true,
+        lineLogIds: [],
+      } as never,
+    );
+
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "receipt-legacy",
+          storeId: "store-main",
+          status: "SUBMITTED",
+          goodsPurchaseId: null,
+        }),
+      }),
+    );
+  });
+
+  it("treats every no-bundle repository approval as legacy even if the caller omits its marker", async () => {
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+
+    await repository.markReceiptApproved(
+      {
+        inventoryInboundReceipt: { updateMany },
+        inventoryInboundReceiptLine: {
+          updateMany: vi.fn(async () => ({ count: 1 })),
+        },
+      } as never,
+      {
+        storeId: "store-main",
+        receiptId: "receipt-legacy",
+        approvedBy: "owner-1",
+        approvedAt: new Date("2026-07-24T00:00:00.000Z"),
+        lineLogIds: [],
+      },
+    );
+
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ goodsPurchaseId: null }),
+      }),
+    );
+  });
+
+  it("persists the full canonical and variant payload for one inbound receipt bundle", async () => {
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+    const batchCreate = vi.fn(async () => ({ id: "bundle-1" }));
+    const itemCreateMany = vi.fn(async () => ({ count: 2 }));
+    const canonicalBefore = {
+      id: "dus",
+      stock: 10,
+      inboundReceiptImpact: { kind: "CANONICAL" },
+    };
+    const canonicalAfter = {
+      id: "dus",
+      stock: 12,
+      inboundReceiptImpact: { kind: "CANONICAL" },
+    };
+    const variantBefore = {
+      id: "pcs",
+      stock: 120,
+      inboundReceiptImpact: { kind: "VARIANT" },
+    };
+    const variantAfter = {
+      id: "pcs",
+      stock: 144,
+      inboundReceiptImpact: { kind: "VARIANT" },
+    };
+
+    await repository.createReceiptStockBundle(
+      {
+        batchOperation: { create: batchCreate },
+        batchOperationItem: { createMany: itemCreateMany },
+      } as never,
+      {
+        type: "INBOUND_RECEIPT",
+        status: "COMMITTED",
+        storeId: "store-main",
+        createdBy: "owner-1",
+        approvedByName: "Owner",
+        approvedAt: new Date("2026-07-24T08:00:00.000Z"),
+        title: "CV Kertas",
+        receiptId: "receipt-1",
+        goodsPurchaseId: "gp-1",
+        goodsPurchaseNumber: "PB-202607-001",
+        supplierId: "supplier-1",
+        supplierName: "CV Kertas",
+        canonicalImpacts: [
+          {
+            productId: "dus",
+            sku: "SKU-DUS",
+            stockGroupId: "group-1",
+            receiptLineId: "line-dus",
+            beforeStock: 10,
+            afterStock: 12,
+            delta: 2,
+            baseDelta: 24,
+            inventoryLogId: "log-dus",
+            beforeSnapshot: canonicalBefore,
+            afterSnapshot: canonicalAfter,
+          },
+        ],
+        variantImpacts: [
+          {
+            productId: "pcs",
+            sku: "SKU-PCS",
+            stockGroupId: "group-1",
+            receiptLineId: null,
+            beforeStock: 120,
+            afterStock: 144,
+            delta: 24,
+            baseDelta: 24,
+            inventoryLogId: null,
+            beforeSnapshot: variantBefore,
+            afterSnapshot: variantAfter,
+          },
+        ],
+      },
+    );
+
+    expect(batchCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: "INBOUND_RECEIPT",
+        status: "COMMITTED",
+        storeId: "store-main",
+        createdBy: "owner-1",
+        summary: expect.objectContaining({
+          source: "INBOUND_RECEIPT",
+          title: "CV Kertas",
+          receiptId: "receipt-1",
+          goodsPurchaseId: "gp-1",
+          goodsPurchaseNumber: "PB-202607-001",
+          supplierId: "supplier-1",
+          supplierName: "CV Kertas",
+          totalCount: 1,
+          approvedCount: 1,
+          stockGroupCount: 1,
+          variantImpactCount: 1,
+          approvedByName: "Owner",
+          approvedAt: "2026-07-24T08:00:00.000Z",
+        }),
+      }),
+      select: { id: true },
+    });
+    expect(itemCreateMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          batchOperationId: "bundle-1",
+          productId: "dus",
+          action: "STOCK_IN",
+          inventoryLogId: "log-dus",
+          beforeSnapshot: canonicalBefore,
+          afterSnapshot: canonicalAfter,
+        }),
+        expect.objectContaining({
+          batchOperationId: "bundle-1",
+          productId: "pcs",
+          action: "STOCK_IN",
+          inventoryLogId: null,
+          beforeSnapshot: variantBefore,
+          afterSnapshot: variantAfter,
+        }),
+      ],
+    });
   });
 
   it("requires notes for non-normal inbound lines before creating drafts", async () => {

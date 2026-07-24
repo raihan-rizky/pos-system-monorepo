@@ -4,6 +4,7 @@ const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindFirstMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const groupRowLockMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const productStockGroupUpdateMock = vi.hoisted(() => vi.fn());
 const productUpdateMock = vi.hoisted(() => vi.fn());
@@ -206,6 +207,7 @@ describe("PATCH /api/product-stock-groups/[id]", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    groupRowLockMock.mockResolvedValue([{ id: "group-1" }]);
     productStockGroupFindFirstMock.mockResolvedValue({
       id: "group-1",
       storeId: "store-main",
@@ -221,6 +223,7 @@ describe("PATCH /api/product-stock-groups/[id]", () => {
     inventoryLogCreateManyMock.mockResolvedValue({ count: 2 });
     dbTransactionMock.mockImplementation((callback) =>
       callback({
+        $queryRaw: groupRowLockMock,
         productStockGroup: {
           findFirst: productStockGroupFindFirstMock,
           update: productStockGroupUpdateMock,
@@ -255,5 +258,49 @@ describe("PATCH /api/product-stock-groups/[id]", () => {
         expect.objectContaining({ productId: "pack", quantity: 5 }),
       ],
     });
+  });
+
+  it("locks before reading the base stock used for the absolute update and audit delta", async () => {
+    let currentBaseStock = 1000;
+    const order: string[] = [];
+    groupRowLockMock.mockImplementationOnce(async () => {
+      order.push("lock");
+      currentBaseStock = 1200;
+      return [{ id: "group-1" }];
+    });
+    productStockGroupFindFirstMock.mockImplementationOnce(async () => {
+      order.push("read");
+      return {
+        id: "group-1",
+        storeId: "store-main",
+        displayName: "Kertas A4",
+        baseUnit: "lembar",
+        baseStock: currentBaseStock,
+        products: [
+          { id: "rim", unitMultiplierToBase: 500 },
+          { id: "pack", unitMultiplierToBase: 100 },
+        ],
+      };
+    });
+
+    const { PATCH } = await import("../route");
+    const response = await PATCH(
+      new Request("http://localhost/api/product-stock-groups/group-1", {
+        method: "PATCH",
+        body: JSON.stringify({
+          sharedStock: 3,
+          stockInput: { mode: "VARIANT", variantProductId: "rim" },
+          note: "Manual shared update",
+        }),
+      }),
+      { params: Promise.resolve({ id: "group-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(order).toEqual(["lock", "read"]);
+    const rows = inventoryLogCreateManyMock.mock.calls[0]?.[0].data;
+    expect(rows[0]).toMatchObject({ productId: "rim" });
+    expect(rows[0].quantity).toBeCloseTo(0.6);
+    expect(rows[1]).toMatchObject({ productId: "pack", quantity: 3 });
   });
 });

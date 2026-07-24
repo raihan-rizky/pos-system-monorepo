@@ -85,4 +85,24 @@ describe("POST /api/inventory-management/inbound-receipts/[id]/approve", () => {
     expect(response.status).toBe(422);
     expect(body.message).toBe("Inbound receipt line is not eligible for approval");
   });
+
+  it("returns a friendly conflict when a Goods Purchase receipt uses the legacy approval route", async () => {
+    approveInboundReceiptMock.mockRejectedValueOnce(
+      new InventoryManagementError(
+        "CONFLICT",
+        "Penerimaan Barang dari Pembelian Barang harus disetujui per produk",
+        409,
+      ),
+    );
+
+    const response = await post("receipt-gp");
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      code: "Conflict",
+      message:
+        "Penerimaan Barang dari Pembelian Barang harus disetujui per produk",
+    });
+  });
 });

@@ -76,6 +76,8 @@ function line(
     conversionNeedsReview: false,
     goodsPurchaseItem: {
       id: "gpi-dus",
+      goodsPurchaseId: "purchase-1",
+      productId: receiptProduct.id,
       quantity: 10,
       latestUnitPrice: 120_000,
     },
@@ -291,6 +293,8 @@ describe("inbound receipt finalizer", () => {
           receivedQuantity: 2,
           goodsPurchaseItem: {
             id: "gpi-dus",
+            goodsPurchaseId: "purchase-1",
+            productId: "dus",
             quantity: 10,
             latestUnitPrice: 120_000,
           },
@@ -324,6 +328,8 @@ describe("inbound receipt finalizer", () => {
           unitMultiplierToBase: 1,
           goodsPurchaseItem: {
             id: "gpi-standalone",
+            goodsPurchaseId: "purchase-1",
+            productId: "standalone",
             quantity: 10,
             latestUnitPrice: 7_500,
           },
@@ -372,6 +378,8 @@ describe("inbound receipt finalizer", () => {
           unitMultiplierToBase: 10,
           goodsPurchaseItem: {
             id: "gpi-roll",
+            goodsPurchaseId: "purchase-1",
+            productId: "roll",
             quantity: 5,
             latestUnitPrice: 40_000,
           },
@@ -409,6 +417,314 @@ describe("inbound receipt finalizer", () => {
     expect(repository.createReceiptStockBundle).toHaveBeenCalledTimes(1);
     expect(repository.createCanonicalInventoryLog).toHaveBeenCalledTimes(2);
     expect(result.bundle?.stockGroupCount).toBe(2);
+  });
+
+  it("aggregates same-group lines with multipliers reloaded from the locked variants", async () => {
+    const stalePack = product("pack", {
+      stockGroupId: "group-1",
+      unitMultiplierToBase: 99,
+    });
+    const multiLineReceipt = receipt({
+      lines: [
+        line({ unitMultiplierToBase: 100 }),
+        line({
+          id: "line-pack",
+          productId: "pack",
+          product: stalePack,
+          stockGroupId: "group-1",
+          unitMultiplierToBase: 99,
+          receivedQuantity: 3,
+          goodsPurchaseItem: {
+            id: "gpi-pack",
+            goodsPurchaseId: "purchase-1",
+            productId: "pack",
+            quantity: 5,
+            latestUnitPrice: 30_000,
+          },
+        }),
+      ],
+    });
+    const repository = createRepository(multiLineReceipt);
+
+    await finalizeInboundReceiptIfReady(finalizerInput(repository));
+
+    expect(repository.incrementStockGroupBase).toHaveBeenCalledTimes(1);
+    expect(repository.incrementStockGroupBase).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        stockGroupId: "group-1",
+        baseDelta: 42,
+      }),
+    );
+    expect(repository.createCanonicalInventoryLog).toHaveBeenCalledTimes(2);
+  });
+
+  it("locks stock groups in the same sorted order regardless of receipt line order", async () => {
+    function groupedLine(
+      id: string,
+      stockGroupId: string,
+      goodsPurchaseItemId: string,
+    ) {
+      const groupedProduct = product(id, {
+        stockGroupId,
+        unitMultiplierToBase: 1,
+      });
+      return line({
+        id: `line-${id}`,
+        productId: id,
+        product: groupedProduct,
+        stockGroupId,
+        unitMultiplierToBase: 1,
+        receivedQuantity: 1,
+        goodsPurchaseItem: {
+          id: goodsPurchaseItemId,
+          goodsPurchaseId: "purchase-1",
+          productId: id,
+          quantity: 10,
+          latestUnitPrice: 1_000,
+        },
+      });
+    }
+
+    const lineZ = groupedLine("product-z", "group-z", "gpi-z");
+    const lineA = groupedLine("product-a", "group-a", "gpi-a");
+    const firstRepository = createRepository(
+      receipt({ lines: [lineZ, lineA] }),
+    );
+    firstRepository.groups.set("group-z", {
+      id: "group-z",
+      storeId: "store-main",
+      baseStock: 10,
+      variants: [lineZ.product],
+    });
+    firstRepository.groups.set("group-a", {
+      id: "group-a",
+      storeId: "store-main",
+      baseStock: 20,
+      variants: [lineA.product],
+    });
+
+    const secondRepository = createRepository(
+      receipt({ lines: [lineA, lineZ] }),
+    );
+    secondRepository.groups.set("group-z", {
+      id: "group-z",
+      storeId: "store-main",
+      baseStock: 10,
+      variants: [lineZ.product],
+    });
+    secondRepository.groups.set("group-a", {
+      id: "group-a",
+      storeId: "store-main",
+      baseStock: 20,
+      variants: [lineA.product],
+    });
+
+    await finalizeInboundReceiptIfReady(finalizerInput(firstRepository));
+    await finalizeInboundReceiptIfReady(finalizerInput(secondRepository));
+
+    expect(
+      firstRepository.lockStockGroup.mock.calls.map(
+        ([, input]) => input.stockGroupId,
+      ),
+    ).toEqual(["group-a", "group-z"]);
+    expect(
+      secondRepository.lockStockGroup.mock.calls.map(
+        ([, input]) => input.stockGroupId,
+      ),
+    ).toEqual(["group-a", "group-z"]);
+  });
+
+  it("aggregates duplicate standalone product mutations but keeps one canonical log per line", async () => {
+    const standalone = product("standalone", { stock: 5 });
+    const duplicateReceipt = receipt({
+      lines: [
+        line({
+          id: "line-standalone-1",
+          productId: standalone.id,
+          product: standalone,
+          stockGroupId: null,
+          unitMultiplierToBase: 1,
+          receivedQuantity: 2,
+          goodsPurchaseItem: {
+            id: "gpi-standalone-1",
+            goodsPurchaseId: "purchase-1",
+            productId: standalone.id,
+            quantity: 5,
+            latestUnitPrice: 7_500,
+          },
+        }),
+        line({
+          id: "line-standalone-2",
+          productId: standalone.id,
+          product: standalone,
+          stockGroupId: null,
+          unitMultiplierToBase: 1,
+          receivedQuantity: 3,
+          goodsPurchaseItem: {
+            id: "gpi-standalone-2",
+            goodsPurchaseId: "purchase-1",
+            productId: standalone.id,
+            quantity: 5,
+            latestUnitPrice: 8_000,
+          },
+        }),
+      ],
+    });
+    const repository = createRepository(duplicateReceipt);
+
+    const result = await finalizeInboundReceiptIfReady(
+      finalizerInput(repository),
+    );
+
+    expect(repository.incrementStandaloneProductStock).toHaveBeenCalledTimes(1);
+    expect(repository.incrementStandaloneProductStock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        productId: "standalone",
+        quantity: 5,
+      }),
+    );
+    expect(repository.createCanonicalInventoryLog).toHaveBeenCalledTimes(2);
+    expect(result.bundle?.canonicalImpacts).toHaveLength(2);
+  });
+
+  it("locks standalone products in the same sorted order regardless of receipt line order", async () => {
+    function standaloneLine(
+      id: string,
+      goodsPurchaseItemId: string,
+    ) {
+      const standaloneProduct = product(id, {
+        stock: 5,
+        stockGroupId: null,
+      });
+      return line({
+        id: `line-${id}`,
+        productId: id,
+        product: standaloneProduct,
+        stockGroupId: null,
+        unitMultiplierToBase: 1,
+        receivedQuantity: 1,
+        goodsPurchaseItem: {
+          id: goodsPurchaseItemId,
+          goodsPurchaseId: "purchase-1",
+          productId: id,
+          quantity: 10,
+          latestUnitPrice: 1_000,
+        },
+      });
+    }
+
+    const lineZ = standaloneLine("standalone-z", "gpi-z");
+    const lineA = standaloneLine("standalone-a", "gpi-a");
+    const firstRepository = createRepository(
+      receipt({ lines: [lineZ, lineA] }),
+    );
+    const secondRepository = createRepository(
+      receipt({ lines: [lineA, lineZ] }),
+    );
+
+    await finalizeInboundReceiptIfReady(finalizerInput(firstRepository));
+    await finalizeInboundReceiptIfReady(finalizerInput(secondRepository));
+
+    expect(
+      firstRepository.incrementStandaloneProductStock.mock.calls.map(
+        ([, input]) => input.productId,
+      ),
+    ).toEqual(["standalone-a", "standalone-z"]);
+    expect(
+      secondRepository.incrementStandaloneProductStock.mock.calls.map(
+        ([, input]) => input.productId,
+      ),
+    ).toEqual(["standalone-a", "standalone-z"]);
+  });
+
+  it.each([
+    [
+      "Goods Purchase",
+      {
+        goodsPurchaseId: "purchase-other",
+        productId: "dus",
+      },
+    ],
+    [
+      "produk",
+      {
+        goodsPurchaseId: "purchase-1",
+        productId: "product-other",
+      },
+    ],
+  ])(
+    "refuses a receipt line owned by a different %s before stock movement",
+    async (_ownership, ownership) => {
+      const mismatchedReceipt = receipt({
+        lines: [
+          line({
+            goodsPurchaseItem: {
+              id: "gpi-dus",
+              ...ownership,
+              quantity: 10,
+              latestUnitPrice: 120_000,
+            },
+          }),
+        ],
+      });
+      const repository = createRepository(mismatchedReceipt);
+
+      await expect(
+        finalizeInboundReceiptIfReady(finalizerInput(repository)),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(repository.incrementStockGroupBase).not.toHaveBeenCalled();
+      expect(repository.incrementStandaloneProductStock).not.toHaveBeenCalled();
+      expect(repository.createCanonicalInventoryLog).not.toHaveBeenCalled();
+      expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses negative received quantity before any stock or bundle write", async () => {
+    const repository = createRepository(
+      receipt({ lines: [line({ receivedQuantity: -1 })] }),
+    );
+
+    await expect(
+      finalizeInboundReceiptIfReady(finalizerInput(repository)),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(repository.incrementStockGroupBase).not.toHaveBeenCalled();
+    expect(repository.incrementStandaloneProductStock).not.toHaveBeenCalled();
+    expect(repository.createCanonicalInventoryLog).not.toHaveBeenCalled();
+    expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
+  });
+
+  it("includes approved quantities from prior receipts when recomputing fulfillment", async () => {
+    const repository = createRepository();
+    repository.listGoodsPurchaseFulfillmentItems.mockResolvedValueOnce([
+      { orderedQuantity: 10, approvedReceivedQuantity: 10 },
+      { orderedQuantity: 5, approvedReceivedQuantity: 2 },
+    ]);
+
+    await finalizeInboundReceiptIfReady(finalizerInput(repository));
+
+    expect(repository.updateGoodsPurchaseFulfillment).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        goodsPurchaseId: "purchase-1",
+        fulfillmentStatus: "PARTIALLY_RECEIVED",
+      }),
+    );
+  });
+
+  it("normalizes a unique bundle race into a domain conflict", async () => {
+    const repository = createRepository();
+    repository.createReceiptStockBundle.mockRejectedValueOnce(
+      Object.assign(new Error("Unique constraint failed"), { code: "P2002" }),
+    );
+
+    await expect(
+      finalizeInboundReceiptIfReady(finalizerInput(repository)),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(repository.incrementStockGroupBase).toHaveBeenCalledTimes(1);
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+    expect(repository.updateGoodsPurchaseFulfillment).not.toHaveBeenCalled();
   });
 
   it("approves an all-zero receipt without stock or cost movement and keeps fulfillment not received", async () => {

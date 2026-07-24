@@ -209,6 +209,16 @@ function ensureSubmitted(status: string): void {
   }
 }
 
+function isPrismaFinalizationConflict(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    ((error as { code?: unknown }).code === "P2002" ||
+      (error as { code?: unknown }).code === "P2034")
+  );
+}
+
 export async function getReceivingQueue(
   input: GetReceivingQueueInput,
 ): Promise<ReceivingQueueResult> {
@@ -288,6 +298,13 @@ export async function approveInboundReceipt(
           404,
         );
       }
+      if (receipt.goodsPurchaseId) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Penerimaan Barang dari Pembelian Barang harus disetujui per produk",
+          409,
+        );
+      }
       if (receipt.status === "APPROVED") {
         return { id: receipt.id, status: "APPROVED" };
       }
@@ -331,6 +348,7 @@ export async function approveInboundReceipt(
         receiptId: receipt.id,
         approvedBy: input.user.id,
         approvedAt: new Date(),
+        legacyOnly: true,
         lineLogIds,
       });
     });
@@ -559,6 +577,13 @@ export async function approveInboundReceiptItem(
         error.code,
         error.message,
         error.status,
+      );
+    }
+    if (isPrismaFinalizationConflict(error)) {
+      throw new InventoryManagementError(
+        "CONFLICT",
+        "Penerimaan Barang berubah saat finalisasi",
+        409,
       );
     }
     if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {

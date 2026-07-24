@@ -35,7 +35,6 @@ interface FinalizeInboundReceiptInput {
 }
 
 interface GroupedReceiptLines {
-  baseDelta: number;
   canonicalLines: LockedSubmittedInboundReceiptLine[];
 }
 
@@ -119,6 +118,12 @@ function validateFinalizableReceipt(
       conflict("Produk Penerimaan Barang tidak terhubung ke Pembelian Barang");
     }
     if (
+      line.goodsPurchaseItem.goodsPurchaseId !== receipt.goodsPurchaseId ||
+      line.goodsPurchaseItem.productId !== line.productId
+    ) {
+      conflict("Produk Penerimaan Barang tidak cocok dengan Pembelian Barang");
+    }
+    if (
       !Number.isFinite(line.receivedQuantity) ||
       line.receivedQuantity < 0
     ) {
@@ -142,14 +147,6 @@ function validateFinalizableReceipt(
       line.product.storeId !== receipt.storeId
     ) {
       conflict("Produk Penerimaan Barang sudah tidak aktif atau tidak valid");
-    }
-    if (
-      line.stockGroupId &&
-      (line.conversionNeedsReview ||
-        !Number.isFinite(line.unitMultiplierToBase) ||
-        line.unitMultiplierToBase <= 0)
-    ) {
-      conflict("Konversi stok bersama perlu ditinjau");
     }
   }
 }
@@ -211,13 +208,8 @@ async function executeFinalization(
   for (const line of positiveLines) {
     if (!line.stockGroupId) continue;
     const current = grouped.get(line.stockGroupId) ?? {
-      baseDelta: 0,
       canonicalLines: [],
     };
-    current.baseDelta += calculateBaseQuantity(
-      line.receivedQuantity,
-      line.unitMultiplierToBase,
-    );
     current.canonicalLines.push(line);
     grouped.set(line.stockGroupId, current);
   }
@@ -225,7 +217,10 @@ async function executeFinalization(
   const canonicalStateByLineId = new Map<string, StockState>();
   const variantImpacts: InboundReceiptStockImpact[] = [];
 
-  for (const [stockGroupId, update] of grouped) {
+  const sortedStockGroupIds = Array.from(grouped.keys()).sort();
+  for (const stockGroupId of sortedStockGroupIds) {
+    const update = grouped.get(stockGroupId);
+    if (!update) continue;
     const stockGroup = await input.repository.lockStockGroup(input.tx, {
       storeId,
       stockGroupId,
@@ -244,12 +239,39 @@ async function executeFinalization(
       conflict("Konversi stok bersama perlu ditinjau");
     }
 
+    const lockedVariantByProductId = new Map(
+      stockGroup.variants.map((variant) => [variant.id, variant]),
+    );
+    let baseDelta = 0;
+    for (const line of update.canonicalLines) {
+      const lockedVariant = lockedVariantByProductId.get(line.productId);
+      if (
+        !lockedVariant ||
+        lockedVariant.storeId !== storeId ||
+        lockedVariant.stockGroupId !== stockGroupId ||
+        !lockedVariant.isActive
+      ) {
+        conflict("Produk penerimaan tidak aktif di grup stok");
+      }
+      const lineBaseDelta = calculateBaseQuantity(
+        line.receivedQuantity,
+        lockedVariant.unitMultiplierToBase,
+      );
+      if (!Number.isFinite(lineBaseDelta) || lineBaseDelta <= 0) {
+        conflict("Konversi stok bersama perlu ditinjau");
+      }
+      baseDelta += lineBaseDelta;
+    }
+    if (!Number.isFinite(baseDelta) || baseDelta <= 0) {
+      conflict("Konversi stok bersama perlu ditinjau");
+    }
+
     const beforeBaseStock = stockGroup.baseStock;
-    const afterBaseStock = beforeBaseStock + update.baseDelta;
+    const afterBaseStock = beforeBaseStock + baseDelta;
     await input.repository.incrementStockGroupBase(input.tx, {
       storeId,
       stockGroupId,
-      baseDelta: update.baseDelta,
+      baseDelta,
     });
 
     const stateByProductId = new Map<string, StockState>();
@@ -268,7 +290,7 @@ async function executeFinalization(
         beforeStock,
         afterStock,
         delta: afterStock - beforeStock,
-        baseDelta: update.baseDelta,
+        baseDelta,
       };
       stateByProductId.set(variant.id, state);
       variantImpacts.push(
@@ -290,30 +312,60 @@ async function executeFinalization(
     }
   }
 
+  const standaloneLinesByProductId = new Map<
+    string,
+    LockedSubmittedInboundReceiptLine[]
+  >();
   for (const line of positiveLines) {
     if (line.stockGroupId) continue;
+    const lines = standaloneLinesByProductId.get(line.productId) ?? [];
+    lines.push(line);
+    standaloneLinesByProductId.set(line.productId, lines);
+  }
+
+  const sortedStandaloneProductIds = Array.from(
+    standaloneLinesByProductId.keys(),
+  ).sort();
+  for (const productId of sortedStandaloneProductIds) {
+    const lines = standaloneLinesByProductId.get(productId);
+    if (!lines) continue;
+    const quantity = lines.reduce(
+      (sum, line) => sum + line.receivedQuantity,
+      0,
+    );
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      conflict("Jumlah produk Penerimaan Barang tidak valid");
+    }
     const mutation =
       await input.repository.incrementStandaloneProductStock(input.tx, {
         storeId,
-        productId: line.productId,
-        quantity: line.receivedQuantity,
+        productId,
+        quantity,
       });
     if (
       !mutation ||
-      mutation.product.id !== line.productId ||
+      mutation.product.id !== productId ||
       mutation.product.storeId !== storeId ||
       mutation.product.stockGroupId
     ) {
       conflict("Produk standalone berubah saat finalisasi");
     }
-    canonicalStateByLineId.set(line.id, {
-      product: mutation.product,
-      stockGroupId: null,
-      beforeStock: mutation.beforeStock,
-      afterStock: mutation.afterStock,
-      delta: mutation.afterStock - mutation.beforeStock,
-      baseDelta: mutation.afterStock - mutation.beforeStock,
-    });
+    let beforeStock = mutation.beforeStock;
+    for (const line of lines) {
+      const afterStock = beforeStock + line.receivedQuantity;
+      canonicalStateByLineId.set(line.id, {
+        product: mutation.product,
+        stockGroupId: null,
+        beforeStock,
+        afterStock,
+        delta: line.receivedQuantity,
+        baseDelta: line.receivedQuantity,
+      });
+      beforeStock = afterStock;
+    }
+    if (Math.abs(beforeStock - mutation.afterStock) > 1e-9) {
+      conflict("Perubahan stok produk tidak konsisten");
+    }
   }
 
   const canonicalImpacts: InboundReceiptStockImpact[] = [];
@@ -425,6 +477,17 @@ export async function finalizeInboundReceiptIfReady(
       (error.message === "INBOUND_RECEIPT_CONFLICT" ||
         error.message === "PRODUCT_NOT_FOUND" ||
         error.message === "CONVERSION_NEEDS_REVIEW")
+    ) {
+      throw new InboundReceiptFinalizationError(
+        "Penerimaan Barang berubah saat finalisasi",
+      );
+    }
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      ((error as { code?: unknown }).code === "P2002" ||
+        (error as { code?: unknown }).code === "P2034")
     ) {
       throw new InboundReceiptFinalizationError(
         "Penerimaan Barang berubah saat finalisasi",

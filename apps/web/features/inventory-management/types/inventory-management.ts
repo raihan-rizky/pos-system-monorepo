@@ -96,6 +96,7 @@ export interface InboundReceiptForApproval {
   id: string;
   storeId: string;
   supplierId: string | null;
+  goodsPurchaseId: string | null;
   status: InboundReceiptStatus;
   lines: InboundReceiptApprovalLine[];
 }
@@ -153,6 +154,8 @@ export interface LockedSubmittedInboundReceiptLine {
   conversionNeedsReview: boolean;
   goodsPurchaseItem: {
     id: string;
+    goodsPurchaseId: string;
+    productId: string;
     quantity: number;
     latestUnitPrice: number;
   } | null;
@@ -355,6 +358,7 @@ export interface InventoryInboundReceiptRepository {
       approvedBy: string;
       approvedAt: Date;
       stockBundleId?: string;
+      legacyOnly?: boolean;
       lineLogIds: Array<{
         lineId: string;
         inventoryLogId: string;
