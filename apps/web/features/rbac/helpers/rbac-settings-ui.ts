@@ -215,7 +215,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
       "inventory.out_log.verify",
       "inventory.inbound_receipt.approve",
       "inventory.inbound_receipt.reject",
-      "inventory.inbound_receipt.revise",
+      "inventory.inbound_receipt.edit",
     ],
     sensitivity: "critical",
   },

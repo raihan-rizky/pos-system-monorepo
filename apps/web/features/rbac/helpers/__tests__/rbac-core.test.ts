@@ -3,6 +3,7 @@ import {
   ACTIONS,
   EDITABLE_ROLES,
   OWNER_ROLE,
+  RESOURCE_TARGETS,
   buildDefaultRolePermissions,
   canRoleAccessPage,
   canRolePerformAction,
@@ -150,8 +151,11 @@ describe("RBAC permission matrix", () => {
     const decisionResources = [
       "inventory.inbound_receipt.approve",
       "inventory.inbound_receipt.reject",
-      "inventory.inbound_receipt.revise",
+      "inventory.inbound_receipt.edit",
     ];
+
+    expect(RESOURCE_TARGETS).toContain("inventory.inbound_receipt.edit");
+    expect(RESOURCE_TARGETS).not.toContain("inventory.inbound_receipt.revise");
 
     for (const resource of decisionResources) {
       expect(canRolePerformAction("OWNER", resource, "update", defaults)).toBe(true);
@@ -170,7 +174,7 @@ describe("RBAC permission matrix", () => {
       {
         role: "INVENTORY",
         scope: "resource",
-        target: "inventory.inbound_receipt.revise",
+        target: "inventory.inbound_receipt.edit",
         action: "update",
         allowed: true,
       },
@@ -180,8 +184,16 @@ describe("RBAC permission matrix", () => {
       canRolePerformAction("ADMIN", "inventory.inbound_receipt.approve", "update", normalized),
     ).toBe(true);
     expect(
-      canRolePerformAction("INVENTORY", "inventory.inbound_receipt.revise", "update", normalized),
+      canRolePerformAction("INVENTORY", "inventory.inbound_receipt.edit", "update", normalized),
     ).toBe(true);
+    expect(
+      canRolePerformAction(
+        "ADMIN",
+        "inventory.inbound_receipt.edit",
+        "update",
+        normalizeRolePermissions(null),
+      ),
+    ).toBe(false);
   });
 
   it("adds INVENTORY as an editable role with inventory workspace access but no stock approval", () => {

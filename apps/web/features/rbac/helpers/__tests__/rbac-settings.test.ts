@@ -61,7 +61,7 @@ describe("RBAC settings persistence helpers", () => {
       {
         role: "INVENTORY",
         scope: "resource",
-        target: "inventory.inbound_receipt.revise",
+        target: "inventory.inbound_receipt.edit",
         action: "update",
         allowed: true,
       },
@@ -78,7 +78,7 @@ describe("RBAC settings persistence helpers", () => {
       {
         role: "INVENTORY",
         scope: "resource",
-        target: "inventory.inbound_receipt.revise",
+        target: "inventory.inbound_receipt.edit",
         action: "update",
         allowed: true,
       },

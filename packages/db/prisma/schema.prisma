@@ -820,16 +820,17 @@ model ShoppingRequestItem {
 }
 
 model GoodsPurchase {
-  id                       String              @id @default(cuid())
+  id                       String                         @id @default(cuid())
   storeId                  String
   number                   String
   sequence                 Int
   shoppingRequestId        String
-  activeShoppingRequestKey String?             @unique
+  activeShoppingRequestKey String?                        @unique
   supplierId               String?
   supplierNameSnapshot     String
-  status                   GoodsPurchaseStatus @default(PENDING)
-  totalAmount              Decimal             @db.Decimal(12, 2)
+  status                   GoodsPurchaseStatus            @default(PENDING)
+  fulfillmentStatus        GoodsPurchaseFulfillmentStatus @default(NOT_RECEIVED)
+  totalAmount              Decimal                        @db.Decimal(12, 2)
   createdById              String
   createdByName            String?
   approvedById             String?
@@ -839,16 +840,17 @@ model GoodsPurchase {
   rejectionReason          String?
   approvedAt               DateTime?
   rejectedAt               DateTime?
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
-  store                    Store               @relation(fields: [storeId], references: [id])
-  shoppingRequest          ShoppingRequest     @relation(fields: [shoppingRequestId], references: [id], onDelete: Restrict)
-  supplier                 Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  createdBy                User                @relation("goods_purchase_creator", fields: [createdById], references: [id])
-  approvedBy               User?               @relation("goods_purchase_approver", fields: [approvedById], references: [id])
-  rejectedBy               User?               @relation("goods_purchase_rejector", fields: [rejectedById], references: [id])
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+  store                    Store                          @relation(fields: [storeId], references: [id])
+  shoppingRequest          ShoppingRequest                @relation(fields: [shoppingRequestId], references: [id], onDelete: Restrict)
+  supplier                 Supplier?                      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy                User                           @relation("goods_purchase_creator", fields: [createdById], references: [id])
+  approvedBy               User?                          @relation("goods_purchase_approver", fields: [approvedById], references: [id])
+  rejectedBy               User?                          @relation("goods_purchase_rejector", fields: [rejectedById], references: [id])
   items                    GoodsPurchaseItem[]
   expense                  Expense?
+  inboundReceipts          InventoryInboundReceipt[]
 
   @@index([storeId, status, createdAt])
   @@unique([storeId, number])
@@ -881,6 +883,7 @@ model GoodsPurchaseItem {
   shoppingRequestItem     ShoppingRequestItem?          @relation(fields: [shoppingRequestItemId], references: [id], onDelete: SetNull)
   product                 Product                       @relation(fields: [productId], references: [id], onDelete: Restrict)
   approvedBy              User?                         @relation("goods_purchase_item_approver", fields: [approvedById], references: [id])
+  inboundReceiptLines     InventoryInboundReceiptLine[]
 
   @@unique([goodsPurchaseId, productId])
   @@index([goodsPurchaseId, reviewStatus])
@@ -893,6 +896,8 @@ model InventoryInboundReceipt {
   id                String                        @id @default(cuid())
   storeId           String
   shoppingRequestId String?
+  goodsPurchaseId   String?
+  stockBundleId     String?                       @unique
   supplierId        String?
   status            InventoryInboundReceiptStatus @default(DRAFT)
   note              String?
@@ -906,13 +911,16 @@ model InventoryInboundReceipt {
   createdAt         DateTime                      @default(now())
   updatedAt         DateTime                      @updatedAt
   approver          User?                         @relation("inventory_inbound_approver", fields: [approvedBy], references: [id])
+  goodsPurchase     GoodsPurchase?                @relation(fields: [goodsPurchaseId], references: [id], onDelete: SetNull)
   lines             InventoryInboundReceiptLine[]
   shoppingRequest   ShoppingRequest?              @relation(fields: [shoppingRequestId], references: [id], onDelete: SetNull)
+  stockBundle       BatchOperation?                @relation("inbound_receipt_stock_bundle", fields: [stockBundleId], references: [id], onDelete: SetNull)
   store             Store                         @relation(fields: [storeId], references: [id])
   submitter         User?                         @relation("inventory_inbound_submitter", fields: [submittedBy], references: [id])
   supplier          Supplier?                     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status, createdAt])
+  @@index([goodsPurchaseId, status, createdAt])
   @@index([shoppingRequestId, status])
   @@index([supplierId, createdAt])
   @@index([submittedBy, status])
@@ -924,7 +932,13 @@ model InventoryInboundReceiptLine {
   receiptId                String
   productId                String
   shoppingRequestItemId    String?
+  goodsPurchaseItemId      String?
   status                   InventoryInboundReceiptLineStatus
+  matchStatus              InventoryInboundReceiptMatchStatus?
+  reviewStatus             InventoryInboundReceiptLineReviewStatus?
+  approvedById             String?
+  approvedByName           String?
+  approvedAt               DateTime?
   expectedQuantity         Float
   receivedQuantity         Float
   productNameSnapshot      String
@@ -942,9 +956,12 @@ model InventoryInboundReceiptLine {
   updatedAt                DateTime                          @updatedAt
   product                  Product                           @relation(fields: [productId], references: [id], onDelete: Cascade)
   receipt                  InventoryInboundReceipt           @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  goodsPurchaseItem        GoodsPurchaseItem?                @relation(fields: [goodsPurchaseItemId], references: [id], onDelete: SetNull)
   shoppingRequestItem      ShoppingRequestItem?              @relation(fields: [shoppingRequestItemId], references: [id], onDelete: SetNull)
 
+  @@unique([receiptId, goodsPurchaseItemId])
   @@index([receiptId])
+  @@index([goodsPurchaseItemId, reviewStatus])
   @@index([productId])
   @@index([shoppingRequestItemId])
   @@index([inventoryLogId])
@@ -1051,6 +1068,7 @@ model BatchOperation {
   undoneByUser             User?                     @relation("undone_batch_operations", fields: [undoneBy], references: [id])
   productImportPlannedRows ProductImportPlannedRow[]
   productImportJob         ProductImportJob?
+  inboundReceipt           InventoryInboundReceipt?   @relation("inbound_receipt_stock_bundle")
 
   @@index([storeId])
   @@index([createdAt])
@@ -1600,6 +1618,16 @@ enum InventoryInboundReceiptLineStatus {
   OVER_RECEIVED
 }
 
+enum InventoryInboundReceiptMatchStatus {
+  MATCHED
+  MISMATCHED
+}
+
+enum InventoryInboundReceiptLineReviewStatus {
+  PENDING
+  APPROVED
+}
+
 enum InventoryReason {
   SALE
   SALE_RETURN
@@ -1624,6 +1652,7 @@ enum BatchOperationType {
   BULK_STOCK_ADJUSTMENT
   BULK_STOCK_GROUP_ADJUSTMENT
   DAILY_STOCK_MATCHING
+  INBOUND_RECEIPT
   UNDO
 }
 
@@ -1753,6 +1782,12 @@ enum GoodsPurchaseStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum GoodsPurchaseFulfillmentStatus {
+  NOT_RECEIVED
+  PARTIALLY_RECEIVED
+  RECEIVED
 }
 
 enum GoodsPurchaseItemReviewStatus {

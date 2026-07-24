@@ -77,7 +77,7 @@ export const RESOURCE_TARGETS = [
   "inventory.out_log.verify",
   "inventory.inbound_receipt.approve",
   "inventory.inbound_receipt.reject",
-  "inventory.inbound_receipt.revise",
+  "inventory.inbound_receipt.edit",
   "shift",
   "salesperson",
   "settings",
@@ -300,10 +300,10 @@ export function buildDefaultRolePermissions(): RolePermissions {
   return permissions;
 }
 
-export function normalizeRolePermissions(entries: PermissionEntry[]): RolePermissions {
+export function normalizeRolePermissions(entries: PermissionEntry[] | null): RolePermissions {
   const permissions = buildDefaultRolePermissions();
 
-  for (const entry of entries) {
+  for (const entry of entries ?? []) {
     if (!isEditableRole(entry.role)) continue;
 
     const pageTarget = normalizePageTarget(entry.target);

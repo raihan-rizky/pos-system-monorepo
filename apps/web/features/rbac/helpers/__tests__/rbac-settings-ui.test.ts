@@ -118,7 +118,7 @@ describe("RBAC settings UI helpers", () => {
       expect.arrayContaining([
         "inventory.inbound_receipt.approve",
         "inventory.inbound_receipt.reject",
-        "inventory.inbound_receipt.revise",
+        "inventory.inbound_receipt.edit",
       ]),
     );
     expect(buildPermissionChanges(permissions)).toEqual(
