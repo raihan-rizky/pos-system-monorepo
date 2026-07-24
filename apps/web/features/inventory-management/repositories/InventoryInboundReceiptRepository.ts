@@ -1,7 +1,9 @@
 import { db, Prisma } from "@pos/db";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
+import { calculateInboundAvailability } from "../helpers/inbound-receipt-rules";
 import type {
   CreateInboundReceiptDraftInput,
+  GoodsPurchaseReceivingComparison,
   InboundReceiptStatus,
   InboundReceiptForApproval,
   InboundReceiptLineStatus,
@@ -390,21 +392,50 @@ export class InventoryInboundReceiptRepository
 
   async listReceivingQueue(
     storeId: string,
-    input: { search?: string | null; take?: number },
+    input: {
+      search?: string | null;
+      take?: number;
+      goodsPurchaseId?: string | null;
+    },
   ): Promise<ReceivingQueueRepositoryRow[]> {
     const take = Math.min(Math.max(input.take ?? 50, 1), 100);
     const search = input.search?.trim();
-    const requests = await db.shoppingRequest.findMany({
+    const purchases = await db.goodsPurchase.findMany({
       where: {
         storeId,
         status: "APPROVED",
-        stockAppliedAt: null,
+        fulfillmentStatus: { not: "RECEIVED" },
+        ...(input.goodsPurchaseId ? { id: input.goodsPurchaseId } : {}),
         ...(search
           ? {
               OR: [
                 { number: { contains: search, mode: "insensitive" } },
-                { supplier: { name: { contains: search, mode: "insensitive" } } },
-                { items: { some: { productName: { contains: search, mode: "insensitive" } } } },
+                {
+                  supplierNameSnapshot: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+                {
+                  items: {
+                    some: {
+                      OR: [
+                        {
+                          productNameSnapshot: {
+                            contains: search,
+                            mode: "insensitive",
+                          },
+                        },
+                        {
+                          skuSnapshot: {
+                            contains: search,
+                            mode: "insensitive",
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
               ],
             }
           : {}),
@@ -414,16 +445,19 @@ export class InventoryInboundReceiptRepository
       select: {
         id: true,
         number: true,
-        supplier: { select: { name: true } },
+        supplierId: true,
+        supplierNameSnapshot: true,
+        fulfillmentStatus: true,
         items: {
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
             productId: true,
-            productName: true,
-            unit: true,
-            approvedQty: true,
-            inboundLines: {
+            productNameSnapshot: true,
+            skuSnapshot: true,
+            unitSnapshot: true,
+            quantity: true,
+            inboundReceiptLines: {
               where: {
                 receipt: {
                   storeId,
@@ -431,9 +465,8 @@ export class InventoryInboundReceiptRepository
                 },
               },
               select: {
-                status: true,
                 receivedQuantity: true,
-                receipt: { select: { status: true } },
+                receipt: { select: { id: true, status: true } },
               },
             },
           },
@@ -441,22 +474,153 @@ export class InventoryInboundReceiptRepository
       },
     });
 
-    return requests.flatMap((request) =>
-      request.items.map((item) => ({
-        shoppingRequestId: request.id,
-        shoppingRequestNumber: request.number,
-        supplierName: request.supplier?.name ?? null,
-        itemId: item.id,
-        productId: item.productId,
-        productName: item.productName,
-        unit: item.unit,
-        expectedQuantity: item.approvedQty ?? 0,
-        receiptLines: item.inboundLines.map((line) => ({
-          receiptStatus: line.receipt.status,
-          lineStatus: line.status as InboundReceiptLineStatus,
-          receivedQuantity: line.receivedQuantity,
-        })),
-      })),
+    return purchases.flatMap((purchase) =>
+      purchase.items.map((item) => {
+        const approvedReceivedQuantity = item.inboundReceiptLines
+          .filter((line) => line.receipt.status === "APPROVED")
+          .reduce((sum, line) => sum + line.receivedQuantity, 0);
+        const pendingLines = item.inboundReceiptLines.filter(
+          (line) => line.receipt.status === "SUBMITTED",
+        );
+        const pendingReservedQuantity = pendingLines.reduce(
+          (sum, line) => sum + line.receivedQuantity,
+          0,
+        );
+
+        return {
+          goodsPurchaseId: purchase.id,
+          goodsPurchaseNumber: purchase.number,
+          supplierId: purchase.supplierId,
+          supplierName: purchase.supplierNameSnapshot,
+          fulfillmentStatus: purchase.fulfillmentStatus,
+          itemId: item.id,
+          productId: item.productId,
+          productName: item.productNameSnapshot,
+          sku: item.skuSnapshot,
+          unit: item.unitSnapshot,
+          orderedQuantity: item.quantity,
+          approvedReceivedQuantity,
+          pendingReservedQuantity,
+          pendingReceiptIds: Array.from(
+            new Set(pendingLines.map((line) => line.receipt.id)),
+          ),
+        };
+      }),
     );
+  }
+
+  async getGoodsPurchaseReceivingComparison(
+    storeId: string,
+    goodsPurchaseId: string,
+  ): Promise<GoodsPurchaseReceivingComparison | null> {
+    const purchase = await db.goodsPurchase.findFirst({
+      where: { id: goodsPurchaseId, storeId },
+      select: {
+        id: true,
+        number: true,
+        supplierNameSnapshot: true,
+        fulfillmentStatus: true,
+        items: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            productNameSnapshot: true,
+            skuSnapshot: true,
+            unitSnapshot: true,
+            quantity: true,
+            inboundReceiptLines: {
+              where: {
+                receipt: {
+                  storeId,
+                  status: { in: ["APPROVED", "SUBMITTED"] },
+                },
+              },
+              select: {
+                receivedQuantity: true,
+                receipt: { select: { status: true } },
+              },
+            },
+          },
+        },
+        inboundReceipts: {
+          where: { storeId },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            createdAt: true,
+            status: true,
+            approvedAt: true,
+            approver: { select: { name: true } },
+            lines: {
+              where: {
+                goodsPurchaseItemId: { not: null },
+                matchStatus: { not: null },
+                goodsPurchaseItem: {
+                  goodsPurchase: { storeId },
+                },
+              },
+              orderBy: { createdAt: "asc" },
+              select: {
+                goodsPurchaseItemId: true,
+                receivedQuantity: true,
+                matchStatus: true,
+                note: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!purchase) return null;
+
+    return {
+      goodsPurchaseId: purchase.id,
+      goodsPurchaseNumber: purchase.number,
+      supplierName: purchase.supplierNameSnapshot,
+      fulfillmentStatus: purchase.fulfillmentStatus,
+      items: purchase.items.map((item) => {
+        const approvedReceivedQuantity = item.inboundReceiptLines
+          .filter((line) => line.receipt.status === "APPROVED")
+          .reduce((sum, line) => sum + line.receivedQuantity, 0);
+        const pendingReservedQuantity = item.inboundReceiptLines
+          .filter((line) => line.receipt.status === "SUBMITTED")
+          .reduce((sum, line) => sum + line.receivedQuantity, 0);
+        const availability = calculateInboundAvailability({
+          orderedQuantity: item.quantity,
+          approvedReceivedQuantity,
+          pendingReservedQuantity,
+        });
+
+        return {
+          goodsPurchaseItemId: item.id,
+          productName: item.productNameSnapshot,
+          sku: item.skuSnapshot,
+          unit: item.unitSnapshot,
+          orderedQuantity: availability.orderedQuantity,
+          approvedReceivedQuantity: availability.approvedReceivedQuantity,
+          pendingReservedQuantity: availability.pendingReservedQuantity,
+          remainingQuantity: availability.availableQuantity,
+        };
+      }),
+      receipts: purchase.inboundReceipts.map((receipt) => ({
+        id: receipt.id,
+        createdAt: receipt.createdAt.toISOString(),
+        status: receipt.status,
+        approvedAt: receipt.approvedAt?.toISOString() ?? null,
+        approverName: receipt.approver?.name ?? null,
+        lines: receipt.lines.flatMap((line) =>
+          line.goodsPurchaseItemId && line.matchStatus
+            ? [
+                {
+                  goodsPurchaseItemId: line.goodsPurchaseItemId,
+                  receivedQuantity: line.receivedQuantity,
+                  matchStatus: line.matchStatus,
+                  note: line.note,
+                },
+              ]
+            : [],
+        ),
+      })),
+    };
   }
 }

@@ -1,4 +1,5 @@
 import {
+  calculateInboundAvailability,
   getInboundStockQuantity,
   requiresInboundLineNote,
 } from "../helpers/inbound-receipt-rules";
@@ -59,7 +60,11 @@ interface UpdateAndSubmitInboundReceiptInput extends InboundReceiptServiceInput 
 export interface GetReceivingQueueInput {
   repository: InventoryInboundReceiptRepository;
   user: InventoryManagementUser & { name?: string | null };
-  input?: { search?: string | null; take?: number };
+  input?: {
+    search?: string | null;
+    take?: number;
+    goodsPurchaseId?: string | null;
+  };
 }
 
 export interface CreateInboundReceiptServiceInput {
@@ -79,13 +84,6 @@ export interface CreateInboundReceiptServiceInput {
     }>;
   };
 }
-
-const ACTIVE_RECEIPT_STATUSES: ReadonlySet<InboundReceiptStatus> = new Set([
-  "DRAFT",
-  "SUBMITTED",
-  "NEEDS_REVISION",
-  "APPROVED",
-]);
 
 function requireStoreId(user: InventoryManagementUser): string {
   if (!user.storeId) {
@@ -113,70 +111,60 @@ export async function getReceivingQueue(
 ): Promise<ReceivingQueueResult> {
   const storeId = requireStoreId(input.user);
   const rows = await input.repository.listReceivingQueue(storeId, input.input ?? {});
+  const grouped = new Map<
+    string,
+    {
+      purchase: ReceivingQueueResult["purchases"][number];
+      pendingReceiptIds: Set<string>;
+    }
+  >();
 
-  return {
-    purchases: [],
-    items: rows.map((row) => {
-      const approvedReceivedQuantity = row.receiptLines
-        .filter((line) => line.receiptStatus === "APPROVED")
-        .reduce(
-          (total, line) =>
-            total +
-            getInboundStockQuantity({
-              status: line.lineStatus,
-              receivedQuantity: line.receivedQuantity,
-            }),
-          0,
-        );
-      const submittedReservedQuantity = row.receiptLines
-        .filter((line) => line.receiptStatus === "SUBMITTED")
-        .reduce(
-          (total, line) =>
-            total +
-            getInboundStockQuantity({
-              status: line.lineStatus,
-              receivedQuantity: line.receivedQuantity,
-            }),
-          0,
-        );
-      const activeReceiptStatuses = row.receiptLines.reduce<InboundReceiptStatus[]>(
-        (statuses, line) => {
-          if (
-            ACTIVE_RECEIPT_STATUSES.has(line.receiptStatus) &&
-            !statuses.includes(line.receiptStatus)
-          ) {
-            statuses.push(line.receiptStatus);
-          }
-          return statuses;
+  for (const row of rows) {
+    const availability = calculateInboundAvailability({
+      orderedQuantity: row.orderedQuantity,
+      approvedReceivedQuantity: row.approvedReceivedQuantity,
+      pendingReservedQuantity: row.pendingReservedQuantity,
+    });
+    let group = grouped.get(row.goodsPurchaseId);
+    if (!group) {
+      group = {
+        purchase: {
+          id: row.goodsPurchaseId,
+          number: row.goodsPurchaseNumber,
+          supplierId: row.supplierId,
+          supplierName: row.supplierName,
+          fulfillmentStatus: row.fulfillmentStatus,
+          pendingReceiptCount: 0,
+          items: [],
         },
-        [],
-      );
-      const remainingQuantity = Math.max(
-        0,
-        row.expectedQuantity - approvedReceivedQuantity - submittedReservedQuantity,
-      );
-
-      return {
-        shoppingRequestId: row.shoppingRequestId,
-        shoppingRequestNumber: row.shoppingRequestNumber,
-        supplierName: row.supplierName,
-        itemId: row.itemId,
-        productId: row.productId,
-        productName: row.productName,
-        unit: row.unit,
-        expectedQuantity: row.expectedQuantity,
-        approvedReceivedQuantity,
-        submittedReservedQuantity,
-        remainingQuantity,
-        hasActiveReceipt: activeReceiptStatuses.length > 0,
-        activeReceiptCount: row.receiptLines.filter((line) =>
-          ACTIVE_RECEIPT_STATUSES.has(line.receiptStatus),
-        ).length,
-        activeReceiptStatuses,
-        isFullyReceived: remainingQuantity <= 0,
+        pendingReceiptIds: new Set<string>(),
       };
-    }),
-  };
+      grouped.set(row.goodsPurchaseId, group);
+    }
+
+    row.pendingReceiptIds.forEach((receiptId) =>
+      group.pendingReceiptIds.add(receiptId),
+    );
+    group.purchase.items.push({
+      goodsPurchaseItemId: row.itemId,
+      productId: row.productId,
+      productName: row.productName,
+      sku: row.sku,
+      unit: row.unit,
+      ...availability,
+    });
+  }
+
+  const purchases = Array.from(grouped.values())
+    .filter(({ purchase }) =>
+      purchase.items.some((item) => item.availableQuantity > 0),
+    )
+    .map(({ purchase, pendingReceiptIds }) => ({
+      ...purchase,
+      pendingReceiptCount: pendingReceiptIds.size,
+    }));
+
+  return { purchases, items: [] };
 }
 
 export async function approveInboundReceipt(

@@ -12,6 +12,7 @@ import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 const querySchema = z.object({
   search: z.string().trim().optional(),
   take: z.coerce.number().int().min(1).max(100).optional(),
+  goodsPurchaseId: z.string().trim().min(1).optional(),
 });
 
 export async function GET(request: Request) {
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
     const query = querySchema.parse({
       search: url.searchParams.get("search") ?? undefined,
       take: url.searchParams.get("take") ?? undefined,
+      goodsPurchaseId: url.searchParams.get("goodsPurchaseId") ?? undefined,
     });
 
     const data = await getReceivingQueue({

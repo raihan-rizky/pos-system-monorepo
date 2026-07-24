@@ -127,15 +127,20 @@ export interface ReceivingQueueReceiptLine {
 }
 
 export interface ReceivingQueueRepositoryRow {
-  shoppingRequestId: string;
-  shoppingRequestNumber: string;
-  supplierName: string | null;
+  goodsPurchaseId: string;
+  goodsPurchaseNumber: string;
+  supplierId: string | null;
+  supplierName: string;
+  fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
   itemId: string;
   productId: string;
   productName: string;
+  sku: string;
   unit: string | null;
-  expectedQuantity: number;
-  receiptLines: ReceivingQueueReceiptLine[];
+  orderedQuantity: number;
+  approvedReceivedQuantity: number;
+  pendingReservedQuantity: number;
+  pendingReceiptIds: string[];
 }
 
 export interface ReceivingQueueItem {
@@ -309,8 +314,16 @@ export interface InventoryInboundReceiptRepository {
   ): Promise<unknown[]>;
   listReceivingQueue(
     storeId: string,
-    input: { search?: string | null; take?: number },
+    input: {
+      search?: string | null;
+      take?: number;
+      goodsPurchaseId?: string | null;
+    },
   ): Promise<ReceivingQueueRepositoryRow[]>;
+  getGoodsPurchaseReceivingComparison(
+    storeId: string,
+    goodsPurchaseId: string,
+  ): Promise<GoodsPurchaseReceivingComparison | null>;
 }
 
 export type InternalStockOutRequestStatus = "PENDING" | "APPROVED" | "REJECTED";

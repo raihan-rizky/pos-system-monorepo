@@ -37,13 +37,16 @@ describe("GET /api/inventory-management/receiving-queue", () => {
       storeId: "store-main",
     });
     getReceivingQueueMock.mockResolvedValue({
-      items: [{ shoppingRequestId: "shopping-1", remainingQuantity: 5 }],
+      purchases: [{ id: "gp-1", number: "PB-202607-001" }],
+      items: [],
     });
   });
 
   it("requires inventory read permission and returns receiving queue", async () => {
     const response = await GET(
-      new Request("http://localhost/api/inventory-management/receiving-queue?search=DPB&take=10"),
+      new Request(
+        "http://localhost/api/inventory-management/receiving-queue?search=PB&take=10&goodsPurchaseId=gp-1",
+      ),
     );
     const body = await response.json();
 
@@ -52,10 +55,12 @@ describe("GET /api/inventory-management/receiving-queue", () => {
     expect(getReceivingQueueMock).toHaveBeenCalledWith(
       expect.objectContaining({
         user: expect.objectContaining({ id: "inventory-1" }),
-        input: { search: "DPB", take: 10 },
+        input: { search: "PB", take: 10, goodsPurchaseId: "gp-1" },
       }),
     );
-    expect(body.data.items).toEqual([{ shoppingRequestId: "shopping-1", remainingQuantity: 5 }]);
+    expect(body.data.purchases).toEqual([
+      { id: "gp-1", number: "PB-202607-001" },
+    ]);
   });
 
   it("rejects invalid query params", async () => {

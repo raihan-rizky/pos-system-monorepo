@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   InventoryManagementError,
@@ -50,20 +51,20 @@ function submittedReceipt(
 function receivingQueueRows(): ReceivingQueueRepositoryRow[] {
   return [
     {
-      shoppingRequestId: "shopping-1",
-      shoppingRequestNumber: "DPB-202606-001",
-      supplierName: "Supplier A",
-      itemId: "item-1",
+      goodsPurchaseId: "gp-1",
+      goodsPurchaseNumber: "PB-202607-001",
+      supplierId: "supplier-1",
+      supplierName: "CV Kertas",
+      fulfillmentStatus: "NOT_RECEIVED",
+      itemId: "gpi-1",
       productId: "product-1",
-      productName: "Produk A",
-      unit: "pcs",
-      expectedQuantity: 10,
-      receiptLines: [
-        { receiptStatus: "APPROVED", lineStatus: "RECEIVED", receivedQuantity: 3 },
-        { receiptStatus: "SUBMITTED", lineStatus: "PARTIAL", receivedQuantity: 2 },
-        { receiptStatus: "SUBMITTED", lineStatus: "MISSING", receivedQuantity: 5 },
-        { receiptStatus: "NEEDS_REVISION", lineStatus: "OVER_RECEIVED", receivedQuantity: 4 },
-      ],
+      productName: "Kertas Dus",
+      sku: "KD-1",
+      unit: "dus",
+      orderedQuantity: 50,
+      approvedReceivedQuantity: 20,
+      pendingReservedQuantity: 10,
+      pendingReceiptIds: ["receipt-2"],
     },
   ];
 }
@@ -110,6 +111,7 @@ function createRepository(
     })),
     listInboundReceipts: vi.fn(async () => []),
     listReceivingQueue: vi.fn(async () => receivingQueueRows()),
+    getGoodsPurchaseReceivingComparison: vi.fn(async () => null),
   };
 }
 
@@ -118,7 +120,7 @@ describe("inbound receipt service", () => {
     vi.clearAllMocks();
   });
 
-  it("returns receiving queue with approved, reserved, and remaining quantities", async () => {
+  it("lists approved goods purchases and reserves submitted receipt quantities", async () => {
     const repository = createRepository();
 
     const result = await getReceivingQueue({
@@ -132,36 +134,45 @@ describe("inbound receipt service", () => {
     });
 
     expect(repository.listReceivingQueue).toHaveBeenCalledWith("store-main", {});
-    expect(result.purchases).toEqual([]);
-    expect(result.items).toEqual([
-      expect.objectContaining({
-        shoppingRequestId: "shopping-1",
-        itemId: "item-1",
-        expectedQuantity: 10,
-        approvedReceivedQuantity: 3,
-        submittedReservedQuantity: 2,
-        remainingQuantity: 5,
-      }),
-    ]);
+    expect(result).toEqual({
+      purchases: [
+        expect.objectContaining({
+          id: "gp-1",
+          number: "PB-202607-001",
+          supplierId: "supplier-1",
+          supplierName: "CV Kertas",
+          fulfillmentStatus: "NOT_RECEIVED",
+          pendingReceiptCount: 1,
+          items: [
+            expect.objectContaining({
+              goodsPurchaseItemId: "gpi-1",
+              orderedQuantity: 50,
+              approvedReceivedQuantity: 20,
+              pendingReservedQuantity: 10,
+              availableQuantity: 20,
+            }),
+          ],
+        }),
+      ],
+      items: [],
+    });
   });
 
-  it("marks invoices with active inbound receipts for the picker badge", async () => {
+  it("groups purchase items and counts each submitted receipt once", async () => {
     const repository = createRepository();
     vi.mocked(repository.listReceivingQueue).mockResolvedValueOnce([
+      ...receivingQueueRows(),
       {
-        shoppingRequestId: "shopping-1",
-        shoppingRequestNumber: "DPB-202606-001",
-        supplierName: "Supplier A",
-        itemId: "item-1",
-        productId: "product-1",
-        productName: "Produk A",
-        unit: "pcs",
-        expectedQuantity: 10,
-        receiptLines: [
-          { receiptStatus: "DRAFT", lineStatus: "RECEIVED", receivedQuantity: 2 },
-          { receiptStatus: "NEEDS_REVISION", lineStatus: "PARTIAL", receivedQuantity: 3 },
-          { receiptStatus: "REJECTED", lineStatus: "OVER_RECEIVED", receivedQuantity: 8 },
-        ],
+        ...receivingQueueRows()[0],
+        itemId: "gpi-2",
+        productId: "product-2",
+        productName: "Kertas Pack",
+        sku: "KP-1",
+        unit: "pack",
+        orderedQuantity: 30,
+        approvedReceivedQuantity: 10,
+        pendingReservedQuantity: 5,
+        pendingReceiptIds: ["receipt-2", "receipt-3"],
       },
     ]);
 
@@ -175,11 +186,55 @@ describe("inbound receipt service", () => {
       },
     });
 
-    expect(result.items[0]).toMatchObject({
-      hasActiveReceipt: true,
-      activeReceiptCount: 2,
-      activeReceiptStatuses: ["DRAFT", "NEEDS_REVISION"],
-      isFullyReceived: false,
+    expect(result.purchases).toHaveLength(1);
+    expect(result.purchases[0]).toMatchObject({
+      pendingReceiptCount: 2,
+      items: [
+        expect.objectContaining({ goodsPurchaseItemId: "gpi-1", availableQuantity: 20 }),
+        expect.objectContaining({ goodsPurchaseItemId: "gpi-2", availableQuantity: 15 }),
+      ],
+    });
+  });
+
+  it("discards purchases whose items have no available quantity", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.listReceivingQueue).mockResolvedValueOnce([
+      {
+        ...receivingQueueRows()[0],
+        approvedReceivedQuantity: 40,
+        pendingReservedQuantity: 10,
+      },
+    ]);
+
+    const result = await getReceivingQueue({
+      repository,
+      user: {
+        id: "inventory-1",
+        name: "Ira",
+        role: "INVENTORY",
+        storeId: "store-main",
+      },
+    });
+
+    expect(result).toEqual({ purchases: [], items: [] });
+  });
+
+  it("forwards the optional goods purchase filter to the repository", async () => {
+    const repository = createRepository();
+
+    await getReceivingQueue({
+      repository,
+      user: {
+        id: "inventory-1",
+        name: "Ira",
+        role: "INVENTORY",
+        storeId: "store-main",
+      },
+      input: { goodsPurchaseId: "gp-1" },
+    });
+
+    expect(repository.listReceivingQueue).toHaveBeenCalledWith("store-main", {
+      goodsPurchaseId: "gp-1",
     });
   });
 
@@ -193,6 +248,21 @@ describe("inbound receipt service", () => {
       }),
     ).rejects.toMatchObject({ code: "STORE_REQUIRED", status: 403 });
     expect(repository.listReceivingQueue).not.toHaveBeenCalled();
+  });
+
+  it("queries approved goods purchases instead of shopping requests for the queue", () => {
+    const repositorySource = readFileSync(
+      new URL(
+        "../../repositories/InventoryInboundReceiptRepository.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(repositorySource).toContain("db.goodsPurchase.findMany");
+    expect(repositorySource).toMatch(/status:\s*"APPROVED"/);
+    expect(repositorySource).toContain('fulfillmentStatus: { not: "RECEIVED" }');
+    expect(repositorySource).not.toContain("db.shoppingRequest.findMany");
   });
 
   it("approves a submitted receipt by applying stock only for eligible lines in one transaction", async () => {
