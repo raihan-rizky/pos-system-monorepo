@@ -12,10 +12,11 @@ export async function GET(
   context: { params: Promise<{ batchId: string }> },
 ) {
   try {
-    await requirePermission("inventory", "read");
+    const user = await requirePermission("inventory", "read");
+    const storeId = user.storeId || "store-main";
     const { batchId } = await context.params;
-    const batch = await db.batchOperation.findUnique({
-      where: { id: batchId },
+    const batch = await db.batchOperation.findFirst({
+      where: { id: batchId, storeId },
       include: {
         creator: { select: { id: true, name: true, role: true } },
         items: {
@@ -28,9 +29,12 @@ export async function GET(
     });
     if (
       !batch ||
-      !["BULK_STOCK_ADJUSTMENT", "BULK_STOCK_GROUP_ADJUSTMENT", "DAILY_STOCK_MATCHING"].includes(
-        batch.type,
-      )
+      ![
+        "BULK_STOCK_ADJUSTMENT",
+        "BULK_STOCK_GROUP_ADJUSTMENT",
+        "DAILY_STOCK_MATCHING",
+        "INBOUND_RECEIPT",
+      ].includes(batch.type)
     ) {
       return apiError("Batch not found", 404, { code: "NotFound" });
     }

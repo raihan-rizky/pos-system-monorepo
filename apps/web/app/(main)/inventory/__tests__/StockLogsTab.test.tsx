@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import StockLogsTab from "../StockLogsTab";
+import StockLogsTab, { groupBulkLogs } from "../StockLogsTab";
 
 const useInventoryLogsMock = vi.hoisted(() => vi.fn());
 
@@ -110,5 +110,77 @@ describe("StockLogsTab", () => {
     expect(html).toContain("Perlu Koreksi");
     expect(html).toContain("border-rose-200");
     expect(html).not.toContain(">Koreksi</button>");
+  });
+
+  it("groups an inbound receipt as an openable supplier bundle without PB number in the list", () => {
+    const log = {
+      id: "log-inbound-1",
+      productId: "product-1",
+      type: "IN" as const,
+      reason: "RESTOCK",
+      quantity: 4,
+      note: "CV Kertas",
+      createdBy: "owner-1",
+      person: "Owner",
+      createdAt: "2026-07-24T08:00:00.000Z",
+      status: "APPROVED" as const,
+      approvedBy: "owner-1",
+      approverName: "Owner",
+      decidedAt: "2026-07-24T08:00:00.000Z",
+      rejectionReason: null,
+      supplierId: "supplier-1",
+      supplier: { id: "supplier-1", name: "CV Kertas" },
+      product: {
+        id: "product-1",
+        name: "Kertas A4",
+        sku: "A4-001",
+        unit: "dus",
+        stock: 14,
+        imageUrl: null,
+        category: { name: "Kertas", icon: null },
+      },
+      batchItem: {
+        id: "batch-item-1",
+        batchOperationId: "batch-inbound-1",
+        action: "STOCK_IN",
+        beforeSnapshot: { stock: 10 },
+        afterSnapshot: { stock: 14 },
+        batchOperation: {
+          id: "batch-inbound-1",
+          status: "COMMITTED" as const,
+          type: "INBOUND_RECEIPT",
+          createdBy: "owner-1",
+          createdAt: "2026-07-24T08:00:00.000Z",
+          summary: {
+            supplierName: "CV Kertas",
+            title: "CV Kertas",
+            goodsPurchaseNumber: "PB-202607-001",
+            totalCount: 1,
+            approvedCount: 1,
+          },
+        },
+      },
+    };
+
+    const grouped = groupBulkLogs([log]);
+    expect(grouped).toEqual([
+      expect.objectContaining({
+        kind: "bundle",
+        openable: true,
+        batch: expect.objectContaining({ type: "INBOUND_RECEIPT" }),
+      }),
+    ]);
+
+    useInventoryLogsMock.mockReturnValue({
+      data: {
+        data: [log],
+        pagination: { total: 1, pendingTotal: 0, page: 1, totalPages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    const html = renderToStaticMarkup(<StockLogsTab />);
+    expect(html).toContain("CV Kertas");
+    expect(html).not.toContain("PB-202607-001");
   });
 });

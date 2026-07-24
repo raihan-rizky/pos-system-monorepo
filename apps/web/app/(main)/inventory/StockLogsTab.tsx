@@ -35,6 +35,11 @@ const BulkStockApprovalModal = lazy(() =>
     (mod) => ({ default: mod.BulkStockApprovalModal }),
   ),
 );
+const InboundReceiptStockBundleModal = lazy(() =>
+  import(
+    "@/features/inventory-management/components/InboundReceiptStockBundleModal"
+  ).then((mod) => ({ default: mod.InboundReceiptStockBundleModal })),
+);
 
 type TypeStyle = {
   label: string;
@@ -144,6 +149,9 @@ export default function StockLogsTab() {
   const [rejectReason, setRejectReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [selectedBatchType, setSelectedBatchType] = useState<string | null>(
+    null,
+  );
 
   const logs = useMemo(() => data?.data ?? [], [data?.data]);
   const pagination = data?.pagination;
@@ -333,7 +341,10 @@ export default function StockLogsTab() {
                         key={entry.batch.id}
                         entry={entry}
                         userId={userId}
-                        onOpen={() => setSelectedBatchId(entry.batch.id)}
+                        onOpen={() => {
+                          setSelectedBatchId(entry.batch.id);
+                          setSelectedBatchType(entry.batch.type);
+                        }}
                         onCancel={() => handleCancelBulk(entry.batch.id)}
                       />
                     );
@@ -447,7 +458,10 @@ export default function StockLogsTab() {
                     key={entry.batch.id}
                     entry={entry}
                     userId={userId}
-                    onOpen={() => setSelectedBatchId(entry.batch.id)}
+                    onOpen={() => {
+                      setSelectedBatchId(entry.batch.id);
+                      setSelectedBatchType(entry.batch.type);
+                    }}
                     onCancel={() => handleCancelBulk(entry.batch.id)}
                   />
                 );
@@ -571,11 +585,24 @@ export default function StockLogsTab() {
         </>
       )}
       <Suspense fallback={null}>
-        {selectedBatchId && (
+        {selectedBatchId && selectedBatchType === "INBOUND_RECEIPT" && (
+          <InboundReceiptStockBundleModal
+            open
+            batchId={selectedBatchId}
+            onClose={() => {
+              setSelectedBatchId(null);
+              setSelectedBatchType(null);
+            }}
+          />
+        )}
+        {selectedBatchId && selectedBatchType !== "INBOUND_RECEIPT" && (
           <BulkStockApprovalModal
             open={Boolean(selectedBatchId)}
             batchId={selectedBatchId}
-            onClose={() => setSelectedBatchId(null)}
+            onClose={() => {
+              setSelectedBatchId(null);
+              setSelectedBatchType(null);
+            }}
           />
         )}
       </Suspense>
@@ -589,7 +616,7 @@ type StockLogEntry =
   | { kind: "log"; log: InventoryLog }
   | { kind: "bundle"; batch: BatchOperationForLog; logs: InventoryLog[]; openable?: boolean };
 
-function groupBulkLogs(logs: InventoryLog[]): StockLogEntry[] {
+export function groupBulkLogs(logs: InventoryLog[]): StockLogEntry[] {
   const entries: StockLogEntry[] = [];
   const bundled = new Set<string>();
 
@@ -598,7 +625,8 @@ function groupBulkLogs(logs: InventoryLog[]): StockLogEntry[] {
     const shouldBundle =
       batch?.type === "BULK_STOCK_ADJUSTMENT" ||
       batch?.type === "BULK_STOCK_GROUP_ADJUSTMENT" ||
-      batch?.type === "DAILY_STOCK_MATCHING";
+      batch?.type === "DAILY_STOCK_MATCHING" ||
+      batch?.type === "INBOUND_RECEIPT";
 
     if (!shouldBundle || !batch) {
       if (
@@ -682,7 +710,13 @@ function summarizeBundle(entry: Extract<StockLogEntry, { kind: "bundle" }>) {
   const total = Number(summary.totalCount ?? summary.productCount ?? summary.inventoryLogCount ?? entry.logs.length);
 
   return {
-    productName: String(summary.productName || summary.supplierName || first?.note || "Bundle stok"),
+    productName: String(
+      summary.supplierName ||
+        summary.title ||
+        summary.productName ||
+        first?.note ||
+        "Bundle stok",
+    ),
     note: typeof summary.note === "string" ? summary.note : first?.note || "",
     requester: first?.person || "-",
     createdBy: entry.batch.createdBy,

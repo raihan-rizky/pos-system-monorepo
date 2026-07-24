@@ -347,4 +347,73 @@ describe("GET /api/inventory/logs", () => {
       "UNVERIFIED",
     );
   });
+
+  it("attaches the committed inbound receipt bundle to its canonical stock log", async () => {
+    inventoryLogFindManyMock.mockResolvedValue([
+      {
+        id: "log-inbound-1",
+        productId: "product-1",
+        type: "IN",
+        reason: "RESTOCK",
+        quantity: 4,
+        note: "CV Kertas",
+        createdBy: "owner-1",
+        person: "Owner",
+        createdAt: new Date("2026-07-24T08:00:00.000Z"),
+        status: "APPROVED",
+        approvedBy: "owner-1",
+        approverName: "Owner",
+        decidedAt: new Date("2026-07-24T08:00:00.000Z"),
+        rejectionReason: null,
+        verification: null,
+        correctionRequests: [],
+        supplier: { id: "supplier-1", name: "CV Kertas" },
+        product: {
+          id: "product-1",
+          name: "Kertas A4",
+          sku: "A4-001",
+          unit: "dus",
+          stock: 14,
+          imageUrl: null,
+          category: { name: "Kertas", icon: null },
+        },
+      },
+    ]);
+    inventoryLogCountMock
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(0);
+    batchOperationItemFindManyMock.mockResolvedValue([
+      {
+        id: "batch-item-1",
+        inventoryLogId: "log-inbound-1",
+        batchOperationId: "batch-inbound-1",
+        beforeSnapshot: { stock: 10 },
+        afterSnapshot: { stock: 14 },
+        batchOperation: {
+          id: "batch-inbound-1",
+          type: "INBOUND_RECEIPT",
+          status: "COMMITTED",
+          createdBy: "owner-1",
+          createdAt: new Date("2026-07-24T08:00:00.000Z"),
+          summary: {
+            supplierName: "CV Kertas",
+            goodsPurchaseNumber: "PB-202607-001",
+          },
+        },
+      },
+    ]);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/inventory/logs"),
+    );
+    const body = await response.json();
+
+    expect(body.data[0].batchItem.batchOperation).toEqual(
+      expect.objectContaining({
+        id: "batch-inbound-1",
+        type: "INBOUND_RECEIPT",
+        summary: expect.objectContaining({ supplierName: "CV Kertas" }),
+      }),
+    );
+  });
 });
