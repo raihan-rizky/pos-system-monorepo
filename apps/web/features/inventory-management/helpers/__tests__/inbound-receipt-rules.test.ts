@@ -86,6 +86,17 @@ describe("inbound receipt rules", () => {
     ).toBe(true);
   });
 
+  it("does not treat pending reservations as a quantity conflict", () => {
+    const input = {
+      orderedQuantity: 10,
+      approvedReceivedQuantity: 8,
+      currentReceiptQuantity: 2,
+      pendingReservedQuantity: 999,
+    };
+
+    expect(hasInboundQuantityConflict(input)).toBe(false);
+  });
+
   it("resolves not received, partial, and received fulfillment", () => {
     expect(
       resolveGoodsPurchaseFulfillment([

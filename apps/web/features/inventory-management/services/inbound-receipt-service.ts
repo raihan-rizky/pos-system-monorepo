@@ -115,6 +115,7 @@ export async function getReceivingQueue(
   const rows = await input.repository.listReceivingQueue(storeId, input.input ?? {});
 
   return {
+    purchases: [],
     items: rows.map((row) => {
       const approvedReceivedQuantity = row.receiptLines
         .filter((line) => line.receiptStatus === "APPROVED")

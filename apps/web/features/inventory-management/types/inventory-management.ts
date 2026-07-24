@@ -179,8 +179,8 @@ export interface ReceivingQueuePurchaseItem {
 }
 
 export interface ReceivingQueueResult {
+  purchases: ReceivingQueuePurchase[];
   items: ReceivingQueueItem[];
-  purchases?: ReceivingQueuePurchase[];
 }
 
 export interface GoodsPurchaseReceivingComparison {

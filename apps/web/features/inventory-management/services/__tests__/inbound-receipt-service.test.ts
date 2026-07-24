@@ -132,6 +132,7 @@ describe("inbound receipt service", () => {
     });
 
     expect(repository.listReceivingQueue).toHaveBeenCalledWith("store-main", {});
+    expect(result.purchases).toEqual([]);
     expect(result.items).toEqual([
       expect.objectContaining({
         shoppingRequestId: "shopping-1",

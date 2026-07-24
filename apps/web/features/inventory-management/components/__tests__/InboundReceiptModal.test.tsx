@@ -70,6 +70,7 @@ describe("InboundReceiptModal", () => {
         initialSummary={initialSummary}
         onSuccess={vi.fn()}
         receivingQueue={{
+          purchases: [],
           items: [
             {
               shoppingRequestId: "shopping-1",
@@ -111,6 +112,7 @@ describe("InboundReceiptModal", () => {
         initialSummary={initialSummary}
         onSuccess={vi.fn()}
         receivingQueue={{
+          purchases: [],
           items: [
             {
               shoppingRequestId: "shopping-1",
