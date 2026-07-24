@@ -18,6 +18,10 @@ import type {
   InventoryManagementUser,
   ReceivingQueueResult,
 } from "../types/inventory-management";
+import {
+  finalizeInboundReceiptIfReady,
+  InboundReceiptFinalizationError,
+} from "./inbound-receipt-finalizer";
 
 export class InventoryManagementError extends Error {
   constructor(
@@ -528,6 +532,7 @@ export async function approveInboundReceiptItem(
         );
       }
 
+      const now = new Date();
       if (line.reviewStatus !== "APPROVED") {
         await input.repository.approveReceiptLine(tx, {
           storeId,
@@ -536,16 +541,26 @@ export async function approveInboundReceiptItem(
           reviewStatus: "APPROVED",
           approvedById: input.user.id,
           approvedByName: input.user.name ?? null,
-          approvedAt: new Date(),
+          approvedAt: now,
         });
       }
 
-      return {
-        data: { id: receipt.id, status: receipt.status },
-        finalized: false,
-      };
+      return finalizeInboundReceiptIfReady({
+        repository: input.repository,
+        tx,
+        receiptId: receipt.id,
+        user: input.user,
+        now,
+      });
     });
   } catch (error) {
+    if (error instanceof InboundReceiptFinalizationError) {
+      throw new InventoryManagementError(
+        error.code,
+        error.message,
+        error.status,
+      );
+    }
     if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
       throw new InventoryManagementError(
         "CONFLICT",

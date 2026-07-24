@@ -5,12 +5,15 @@ import {
   getInboundStockQuantity,
 } from "../helpers/inbound-receipt-rules";
 import type {
+  CreateInboundReceiptStockBundleInput,
   CreateInboundReceiptDraftInput,
+  FinalizableInboundReceipt,
   GoodsPurchaseReceivingComparison,
   InboundReceiptStatus,
   InboundReceiptForApproval,
   InboundReceiptLineStatus,
   InventoryInboundReceiptRepository as InventoryInboundReceiptRepositoryContract,
+  LockedInboundStockGroup,
   LockedSubmittedInboundReceipt,
   ReceivingQueueRepositoryRow,
 } from "../types/inventory-management";
@@ -38,6 +41,13 @@ export class InventoryInboundReceiptRepository
     `;
     if (locked.length !== 1) return null;
 
+    return this.findReceiptForFinalization(tx, input);
+  }
+
+  async findReceiptForFinalization(
+    tx: Tx,
+    input: { storeId: string; receiptId: string },
+  ): Promise<FinalizableInboundReceipt | null> {
     const receipt = await tx.inventoryInboundReceipt.findFirst({
       where: {
         id: input.receiptId,
@@ -48,10 +58,22 @@ export class InventoryInboundReceiptRepository
         id: true,
         storeId: true,
         status: true,
+        goodsPurchaseId: true,
+        stockBundleId: true,
+        supplierId: true,
+        supplier: { select: { name: true } },
+        goodsPurchase: {
+          select: {
+            number: true,
+            supplierNameSnapshot: true,
+          },
+        },
         lines: {
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
+            productId: true,
+            status: true,
             expectedQuantity: true,
             receivedQuantity: true,
             matchStatus: true,
@@ -60,9 +82,12 @@ export class InventoryInboundReceiptRepository
             approvedByName: true,
             approvedAt: true,
             note: true,
+            product: true,
             goodsPurchaseItem: {
               select: {
+                id: true,
                 quantity: true,
+                latestUnitPrice: true,
                 inboundReceiptLines: {
                   where: {
                     receiptId: { not: input.receiptId },
@@ -88,8 +113,18 @@ export class InventoryInboundReceiptRepository
       id: receipt.id,
       storeId: receipt.storeId,
       status: "SUBMITTED",
+      goodsPurchaseId: receipt.goodsPurchaseId,
+      goodsPurchaseNumber: receipt.goodsPurchase?.number ?? null,
+      stockBundleId: receipt.stockBundleId,
+      supplierId: receipt.supplierId,
+      supplierName:
+        receipt.goodsPurchase?.supplierNameSnapshot ??
+        receipt.supplier?.name ??
+        "Supplier",
       lines: receipt.lines.map((line) => ({
         id: line.id,
+        productId: line.productId,
+        status: line.status,
         expectedQuantity: line.expectedQuantity,
         receivedQuantity: line.receivedQuantity,
         matchStatus: line.matchStatus,
@@ -98,8 +133,18 @@ export class InventoryInboundReceiptRepository
         approvedByName: line.approvedByName,
         approvedAt: line.approvedAt,
         note: line.note,
+        product: line.product,
+        stockGroupId: line.product.stockGroupId,
+        unitMultiplierToBase: line.product.unitMultiplierToBase,
+        conversionNeedsReview: line.product.conversionNeedsReview,
         goodsPurchaseItem: line.goodsPurchaseItem
-          ? { quantity: line.goodsPurchaseItem.quantity }
+          ? {
+              id: line.goodsPurchaseItem.id,
+              quantity: line.goodsPurchaseItem.quantity,
+              latestUnitPrice: Number(
+                line.goodsPurchaseItem.latestUnitPrice.toString(),
+              ),
+            }
           : null,
         approvedReceivedExcludingCurrentReceipt:
           line.goodsPurchaseItem?.inboundReceiptLines.reduce(
@@ -294,6 +339,281 @@ export class InventoryInboundReceiptRepository
     return applyProductStockDelta(tx, input);
   }
 
+  async lockStockGroup(
+    tx: Tx,
+    input: { storeId: string; stockGroupId: string },
+  ): Promise<LockedInboundStockGroup | null> {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "pos_product_stock_groups"
+      WHERE "id" = ${input.stockGroupId}
+        AND "storeId" = ${input.storeId}
+      FOR UPDATE
+    `;
+    if (locked.length !== 1) return null;
+
+    const group = await tx.productStockGroup.findFirst({
+      where: {
+        id: input.stockGroupId,
+        storeId: input.storeId,
+      },
+      include: {
+        products: {
+          where: {
+            storeId: input.storeId,
+            isActive: true,
+          },
+          orderBy: { id: "asc" },
+        },
+      },
+    });
+    if (!group) return null;
+
+    return {
+      id: group.id,
+      storeId: group.storeId,
+      baseStock: group.baseStock,
+      variants: group.products,
+    };
+  }
+
+  async incrementStockGroupBase(
+    tx: Tx,
+    input: {
+      storeId: string;
+      stockGroupId: string;
+      baseDelta: number;
+    },
+  ): Promise<void> {
+    const updated = await tx.productStockGroup.updateMany({
+      where: {
+        id: input.stockGroupId,
+        storeId: input.storeId,
+      },
+      data: {
+        baseStock: { increment: input.baseDelta },
+      },
+    });
+    if (updated.count !== 1) {
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
+  }
+
+  async incrementStandaloneProductStock(
+    tx: Tx,
+    input: {
+      storeId: string;
+      productId: string;
+      quantity: number;
+    },
+  ) {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "pos_products"
+      WHERE "id" = ${input.productId}
+        AND "storeId" = ${input.storeId}
+        AND "stockGroupId" IS NULL
+        AND "isActive" = true
+      FOR UPDATE
+    `;
+    if (locked.length !== 1) {
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
+
+    const product = await tx.product.findFirst({
+      where: {
+        id: input.productId,
+        storeId: input.storeId,
+        stockGroupId: null,
+        isActive: true,
+      },
+    });
+    if (!product) {
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
+
+    const mutation = await applyProductStockDelta(tx, {
+      storeId: input.storeId,
+      productId: input.productId,
+      delta: input.quantity,
+      productInfo: {
+        id: product.id,
+        stock: product.stock,
+        stockGroupId: null,
+        unitMultiplierToBase: product.unitMultiplierToBase,
+        conversionNeedsReview: product.conversionNeedsReview,
+        stockGroup: null,
+      },
+    });
+
+    return {
+      product,
+      beforeStock: mutation.beforeStock,
+      afterStock: mutation.afterStock,
+    };
+  }
+
+  async createCanonicalInventoryLog(
+    tx: Tx,
+    input: {
+      productId: string;
+      supplierId: string | null;
+      type: "IN";
+      reason: "RESTOCK";
+      quantity: number;
+      unitCost: number;
+      note: string;
+      createdBy: string;
+      person: string | null;
+      status: "APPROVED";
+      approvedBy: string;
+      approverName: string | null;
+      decidedAt: Date;
+    },
+  ): Promise<{ id: string }> {
+    return tx.inventoryLog.create({
+      data: input,
+      select: { id: true },
+    });
+  }
+
+  async createReceiptStockBundle(
+    tx: Tx,
+    input: CreateInboundReceiptStockBundleInput,
+  ): Promise<{ id: string }> {
+    const stockGroupIds = Array.from(
+      new Set(
+        input.variantImpacts.flatMap((impact) =>
+          impact.stockGroupId ? [impact.stockGroupId] : [],
+        ),
+      ),
+    );
+    const batch = await tx.batchOperation.create({
+      data: {
+        type: input.type,
+        status: input.status,
+        storeId: input.storeId,
+        createdBy: input.createdBy,
+        summary: {
+          source: "INBOUND_RECEIPT",
+          title: input.title,
+          receiptId: input.receiptId,
+          goodsPurchaseId: input.goodsPurchaseId,
+          goodsPurchaseNumber: input.goodsPurchaseNumber,
+          supplierId: input.supplierId,
+          supplierName: input.supplierName,
+          type: "IN",
+          totalCount: input.canonicalImpacts.length,
+          approvedCount: input.canonicalImpacts.length,
+          pendingCount: 0,
+          rejectedCount: 0,
+          stockGroupCount: stockGroupIds.length,
+          variantImpactCount: input.variantImpacts.length,
+          approvedByName: input.approvedByName,
+          approvedAt: input.approvedAt.toISOString(),
+        },
+      },
+      select: { id: true },
+    });
+
+    const items: Prisma.BatchOperationItemCreateManyInput[] = [
+      ...input.canonicalImpacts.map((impact) => ({
+        batchOperationId: batch.id,
+        productId: impact.productId,
+        sku: impact.sku,
+        action: "STOCK_IN" as const,
+        beforeSnapshot:
+          impact.beforeSnapshot as unknown as Prisma.InputJsonValue,
+        afterSnapshot:
+          impact.afterSnapshot as unknown as Prisma.InputJsonValue,
+        inventoryLogId: impact.inventoryLogId,
+      })),
+      ...input.variantImpacts.map((impact) => ({
+        batchOperationId: batch.id,
+        productId: impact.productId,
+        sku: impact.sku,
+        action: "STOCK_IN" as const,
+        beforeSnapshot:
+          impact.beforeSnapshot as unknown as Prisma.InputJsonValue,
+        afterSnapshot:
+          impact.afterSnapshot as unknown as Prisma.InputJsonValue,
+        inventoryLogId: null,
+      })),
+    ];
+    if (items.length > 0) {
+      await tx.batchOperationItem.createMany({ data: items });
+    }
+
+    return batch;
+  }
+
+  async listGoodsPurchaseFulfillmentItems(
+    tx: Tx,
+    input: { storeId: string; goodsPurchaseId: string },
+  ) {
+    const items = await tx.goodsPurchaseItem.findMany({
+      where: {
+        goodsPurchaseId: input.goodsPurchaseId,
+        goodsPurchase: {
+          storeId: input.storeId,
+          status: "APPROVED",
+        },
+      },
+      select: {
+        quantity: true,
+        inboundReceiptLines: {
+          where: {
+            receipt: {
+              storeId: input.storeId,
+              goodsPurchaseId: input.goodsPurchaseId,
+              status: "APPROVED",
+            },
+          },
+          select: {
+            status: true,
+            receivedQuantity: true,
+          },
+        },
+      },
+    });
+
+    return items.map((item) => ({
+      orderedQuantity: item.quantity,
+      approvedReceivedQuantity: item.inboundReceiptLines.reduce(
+        (sum, line) =>
+          sum +
+          getInboundStockQuantity({
+            status: line.status,
+            receivedQuantity: line.receivedQuantity,
+          }),
+        0,
+      ),
+    }));
+  }
+
+  async updateGoodsPurchaseFulfillment(
+    tx: Tx,
+    input: {
+      storeId: string;
+      goodsPurchaseId: string;
+      fulfillmentStatus: "NOT_RECEIVED" | "PARTIALLY_RECEIVED" | "RECEIVED";
+    },
+  ): Promise<void> {
+    const updated = await tx.goodsPurchase.updateMany({
+      where: {
+        id: input.goodsPurchaseId,
+        storeId: input.storeId,
+        status: "APPROVED",
+      },
+      data: {
+        fulfillmentStatus: input.fulfillmentStatus,
+      },
+    });
+    if (updated.count !== 1) {
+      throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
+  }
+
   async markReceiptApproved(
     tx: Tx,
     input: {
@@ -301,7 +621,12 @@ export class InventoryInboundReceiptRepository
       receiptId: string;
       approvedBy: string;
       approvedAt: Date;
-      lineLogIds: Array<{ lineId: string; inventoryLogId: string }>;
+      stockBundleId?: string;
+      lineLogIds: Array<{
+        lineId: string;
+        inventoryLogId: string;
+        unitCost?: number;
+      }>;
     },
   ) {
     const updated = await tx.inventoryInboundReceipt.updateMany({
@@ -314,6 +639,9 @@ export class InventoryInboundReceiptRepository
         status: "APPROVED",
         approvedBy: input.approvedBy,
         approvedAt: input.approvedAt,
+        ...(input.stockBundleId
+          ? { stockBundleId: input.stockBundleId }
+          : {}),
       },
     });
     if (updated.count !== 1) {
@@ -321,10 +649,21 @@ export class InventoryInboundReceiptRepository
     }
 
     for (const line of input.lineLogIds) {
-      await tx.inventoryInboundReceiptLine.update({
-        where: { id: line.lineId },
-        data: { inventoryLogId: line.inventoryLogId },
+      const updatedLine = await tx.inventoryInboundReceiptLine.updateMany({
+        where: {
+          id: line.lineId,
+          receiptId: input.receiptId,
+        },
+        data: {
+          inventoryLogId: line.inventoryLogId,
+          ...(line.unitCost === undefined
+            ? {}
+            : { costPriceApplied: line.unitCost }),
+        },
       });
+      if (updatedLine.count !== 1) {
+        throw new Error("INBOUND_RECEIPT_CONFLICT");
+      }
     }
 
     return { id: input.receiptId, status: "APPROVED" as const };

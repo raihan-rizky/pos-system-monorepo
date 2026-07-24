@@ -1,3 +1,4 @@
+import type { Product } from "@pos/db";
 import type { Role } from "@/features/rbac/helpers/rbac-core";
 import type {
   GoodsPurchaseFulfillmentStatus,
@@ -108,10 +109,36 @@ export interface InboundReceiptMutationResult {
   data: InboundReceiptData;
   finalized: boolean;
   conflict?: boolean;
+  bundle?: InboundReceiptStockBundleResult;
+}
+
+export interface InboundReceiptStockImpact {
+  productId: string;
+  sku: string;
+  stockGroupId: string | null;
+  receiptLineId: string | null;
+  beforeStock: number;
+  afterStock: number;
+  delta: number;
+  baseDelta: number;
+  inventoryLogId: string | null;
+  beforeSnapshot: Record<string, unknown>;
+  afterSnapshot: Record<string, unknown>;
+}
+
+export interface InboundReceiptStockBundleResult {
+  id: string;
+  type: "INBOUND_RECEIPT";
+  title: string;
+  stockGroupCount: number;
+  canonicalImpacts: InboundReceiptStockImpact[];
+  variantImpacts: InboundReceiptStockImpact[];
 }
 
 export interface LockedSubmittedInboundReceiptLine {
   id: string;
+  productId: string;
+  status: InboundReceiptLineStatus;
   expectedQuantity: number;
   receivedQuantity: number;
   matchStatus: InboundReceiptMatchStatus | null;
@@ -120,7 +147,15 @@ export interface LockedSubmittedInboundReceiptLine {
   approvedByName: string | null;
   approvedAt: Date | null;
   note: string | null;
-  goodsPurchaseItem: { quantity: number } | null;
+  product: Product;
+  stockGroupId: string | null;
+  unitMultiplierToBase: number;
+  conversionNeedsReview: boolean;
+  goodsPurchaseItem: {
+    id: string;
+    quantity: number;
+    latestUnitPrice: number;
+  } | null;
   approvedReceivedExcludingCurrentReceipt: number;
 }
 
@@ -128,7 +163,44 @@ export interface LockedSubmittedInboundReceipt {
   id: string;
   storeId: string;
   status: "SUBMITTED";
+  goodsPurchaseId: string | null;
+  goodsPurchaseNumber: string | null;
+  stockBundleId: string | null;
+  supplierId: string | null;
+  supplierName: string;
   lines: LockedSubmittedInboundReceiptLine[];
+}
+
+export type FinalizableInboundReceipt = LockedSubmittedInboundReceipt;
+
+export interface LockedInboundStockGroup {
+  id: string;
+  storeId: string;
+  baseStock: number;
+  variants: Product[];
+}
+
+export interface StandaloneInboundStockMutation {
+  product: Product;
+  beforeStock: number;
+  afterStock: number;
+}
+
+export interface CreateInboundReceiptStockBundleInput {
+  type: "INBOUND_RECEIPT";
+  status: "COMMITTED";
+  storeId: string;
+  createdBy: string;
+  approvedByName: string | null;
+  approvedAt: Date;
+  title: string;
+  receiptId: string;
+  goodsPurchaseId: string;
+  goodsPurchaseNumber: string;
+  supplierId: string | null;
+  supplierName: string;
+  canonicalImpacts: InboundReceiptStockImpact[];
+  variantImpacts: InboundReceiptStockImpact[];
 }
 
 export interface CreateInboundReceiptDraftInput {
@@ -282,7 +354,12 @@ export interface InventoryInboundReceiptRepository {
       receiptId: string;
       approvedBy: string;
       approvedAt: Date;
-      lineLogIds: Array<{ lineId: string; inventoryLogId: string }>;
+      stockBundleId?: string;
+      lineLogIds: Array<{
+        lineId: string;
+        inventoryLogId: string;
+        unitCost?: number;
+      }>;
     },
   ): Promise<InboundReceiptData>;
   markReceiptRejected(
@@ -340,6 +417,73 @@ export interface InventoryInboundReceiptRepository {
     tx: unknown,
     input: { storeId: string; receiptId: string },
   ): Promise<LockedSubmittedInboundReceipt | null>;
+  lockGoodsPurchase(
+    tx: unknown,
+    input: { storeId: string; goodsPurchaseId: string },
+  ): Promise<boolean>;
+  findReceiptForFinalization(
+    tx: unknown,
+    input: { storeId: string; receiptId: string },
+  ): Promise<FinalizableInboundReceipt | null>;
+  lockStockGroup(
+    tx: unknown,
+    input: { storeId: string; stockGroupId: string },
+  ): Promise<LockedInboundStockGroup | null>;
+  incrementStockGroupBase(
+    tx: unknown,
+    input: {
+      storeId: string;
+      stockGroupId: string;
+      baseDelta: number;
+    },
+  ): Promise<void>;
+  incrementStandaloneProductStock(
+    tx: unknown,
+    input: {
+      storeId: string;
+      productId: string;
+      quantity: number;
+    },
+  ): Promise<StandaloneInboundStockMutation>;
+  createCanonicalInventoryLog(
+    tx: unknown,
+    input: {
+      productId: string;
+      supplierId: string | null;
+      type: "IN";
+      reason: "RESTOCK";
+      quantity: number;
+      unitCost: number;
+      note: string;
+      createdBy: string;
+      person: string | null;
+      status: "APPROVED";
+      approvedBy: string;
+      approverName: string | null;
+      decidedAt: Date;
+    },
+  ): Promise<{ id: string }>;
+  createReceiptStockBundle(
+    tx: unknown,
+    input: CreateInboundReceiptStockBundleInput,
+  ): Promise<{ id: string }>;
+  listGoodsPurchaseFulfillmentItems(
+    tx: unknown,
+    input: { storeId: string; goodsPurchaseId: string },
+  ): Promise<
+    Array<{
+      orderedQuantity: number;
+      approvedReceivedQuantity: number;
+    }>
+  >;
+  updateGoodsPurchaseFulfillment(
+    tx: unknown,
+    input: {
+      storeId: string;
+      goodsPurchaseId: string;
+      fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
+    },
+  ): Promise<void>;
   approveReceiptLine(
     tx: unknown,
     input: {
