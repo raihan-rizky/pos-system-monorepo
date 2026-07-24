@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useDeferredValue } from "react";
 import dynamic from "next/dynamic";
 import { AlertTriangle, Check, CircleMinus, Clock, Search, ShoppingCart, X } from "lucide-react";
 import { ProductGrid } from "@/components/ProductGrid";
@@ -98,6 +98,7 @@ export default function POSClientPage({
   initialData: POSInitialData;
 }) {
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [page, setPage] = useState(1);
   const [hideOutOfStock, setHideOutOfStock] = useState<boolean>(
@@ -165,7 +166,7 @@ export default function POSClientPage({
   const isSales = role === "SALES";
   const canQuickEdit = canPerform("product", "update");
 
-  const productsQuery = useProductsPage(search, selectedCategory, {
+  const productsQuery = useProductsPage(deferredSearch, selectedCategory, {
     page,
     limit: POS_PAGE_SIZE,
     inStockOnly: hideOutOfStock,
@@ -186,7 +187,7 @@ export default function POSClientPage({
     Math.max(1, pagination?.page ?? page),
     totalPages,
   );
-  const searchTokens = parseSearchQuery(search);
+  const searchTokens = parseSearchQuery(deferredSearch);
 
   const { data: categories = [] } = useCategories(initialData.categories);
   const { data: brands = [] } = useBrands();
