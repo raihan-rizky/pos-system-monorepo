@@ -521,7 +521,10 @@ export interface InventoryInboundReceiptRepository {
   ): Promise<void>;
   listInboundReceipts(
     storeId: string,
-    input: { status?: InboundReceiptStatus },
+    input: {
+      status?: InboundReceiptStatus;
+      goodsPurchaseId?: string | null;
+    },
   ): Promise<unknown[]>;
   listReceivingQueue(
     storeId: string,

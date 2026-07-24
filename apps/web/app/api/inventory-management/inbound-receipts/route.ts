@@ -44,10 +44,13 @@ export async function GET(request: Request) {
     }
     const url = new URL(request.url);
     const rawStatus = url.searchParams.get("status");
+    const goodsPurchaseId =
+      url.searchParams.get("goodsPurchaseId")?.trim() || undefined;
     const status = rawStatus ? statusSchema.parse(rawStatus) : undefined;
     const repository = new InventoryInboundReceiptRepository();
     const data = await repository.listInboundReceipts(user.storeId, {
       status: status as InboundReceiptStatus | undefined,
+      goodsPurchaseId,
     });
 
     return NextResponse.json({ data });

@@ -60,7 +60,9 @@ describe("/api/inventory-management/inbound-receipts", () => {
 
   it("lists inbound receipts for the current store", async () => {
     const response = await GET(
-      new Request("http://localhost/api/inventory-management/inbound-receipts?status=SUBMITTED"),
+      new Request(
+        "http://localhost/api/inventory-management/inbound-receipts?status=SUBMITTED&goodsPurchaseId=gp-1",
+      ),
     );
     const body = await response.json();
 
@@ -68,6 +70,7 @@ describe("/api/inventory-management/inbound-receipts", () => {
     expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "read");
     expect(listInboundReceiptsMock).toHaveBeenCalledWith("store-main", {
       status: "SUBMITTED",
+      goodsPurchaseId: "gp-1",
     });
     expect(body.data).toEqual([{ id: "receipt-1" }]);
   });

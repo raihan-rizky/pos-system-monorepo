@@ -429,17 +429,22 @@ export interface CreateInboundReceiptInput {
 export interface InboundReceiptListLine {
   id: string;
   productId: string;
+  goodsPurchaseItemId: string | null;
   productNameSnapshot: string | null;
   skuSnapshot: string | null;
   unitSnapshot: string | null;
   expectedQuantity: number;
   receivedQuantity: number;
   status: string;
+  matchStatus: InboundReceiptMatchStatus | null;
+  reviewStatus: "PENDING" | "APPROVED" | null;
   note: string | null;
 }
 
 export interface InboundReceiptListItem {
   id: string;
+  goodsPurchaseId: string | null;
+  goodsPurchaseNumber: string | null;
   status: InboundReceiptStatus;
   createdAt: string;
   submittedBy: string | null;
@@ -454,9 +459,13 @@ export interface InboundReceiptListItem {
 
 export async function fetchInboundReceipts(input: {
   status?: InboundReceiptStatus;
+  goodsPurchaseId?: string;
 } = {}): Promise<InboundReceiptListItem[]> {
   const params = new URLSearchParams();
   if (input.status) params.set("status", input.status);
+  if (input.goodsPurchaseId) {
+    params.set("goodsPurchaseId", input.goodsPurchaseId);
+  }
   const url = `/api/inventory-management/inbound-receipts${params.size ? `?${params}` : ""}`;
   const response = await fetch(url);
   if (!response.ok) {

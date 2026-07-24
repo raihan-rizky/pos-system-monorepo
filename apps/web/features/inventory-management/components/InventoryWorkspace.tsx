@@ -123,6 +123,23 @@ export interface InventoryWorkspaceProps {
   initialDaySessionPreview?: InventoryDaySessionPreview | null;
 }
 
+export function resolveInventoryDeepLink(
+  searchParams: Pick<URLSearchParams, "get">,
+) {
+  const tab = searchParams.get("tab");
+  const subtab = searchParams.get("subtab");
+  const goodsPurchaseId = searchParams.get("goodsPurchaseId");
+  return {
+    mainTab:
+      tab === "transactions" && subtab === "inbound" ? "Transaksi" : null,
+    transactionTab:
+      tab === "transactions" && subtab === "inbound"
+        ? "Penerimaan Barang"
+        : null,
+    goodsPurchaseId: goodsPurchaseId?.trim() || null,
+  };
+}
+
 export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   initialSummary: incomingInitialSummary,
   defaultTab,
@@ -138,6 +155,8 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   );
   const [activeTugasTab, setActiveTugasTab] = React.useState<typeof TUGAS_TABS[number]>("Tugas Harian");
   const [activeTransaksiTab, setActiveTransaksiTab] = React.useState<typeof TRANSAKSI_TABS[number]>("Penerimaan Barang");
+  const [inboundGoodsPurchaseId, setInboundGoodsPurchaseId] =
+    React.useState<string | null>(null);
   const [activeRiwayatTab, setActiveRiwayatTab] = React.useState<typeof RIWAYAT_TABS[number]>("Log Stok");
   const [activeTaskPanel, setActiveTaskPanel] = React.useState<
     "out-log-verification" | null
@@ -168,6 +187,17 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   const [editingChecklistId, setEditingChecklistId] = React.useState<string | null>(null);
   const [daySessionPreview, setDaySessionPreview] =
     React.useState<InventoryDaySessionPreview | null>(initialDaySessionPreview ?? null);
+
+  React.useEffect(() => {
+    const deepLink = resolveInventoryDeepLink(
+      new URLSearchParams(window.location.search),
+    );
+    if (deepLink.mainTab === "Transaksi") {
+      setActiveTab("Transaksi");
+      setActiveTransaksiTab("Penerimaan Barang");
+      setInboundGoodsPurchaseId(deepLink.goodsPurchaseId);
+    }
+  }, []);
 
   const activeChecklistPeriodType = activeTugasTab === "Tugas Harian" ? "DAILY" : "WEEKLY";
   const activeChecklistPeriodKey =
@@ -1700,7 +1730,11 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                   ))}
                 </div>
                 
-                {activeTransaksiTab === "Penerimaan Barang" && <InboundReceiptTab />}
+                {activeTransaksiTab === "Penerimaan Barang" && (
+                  <InboundReceiptTab
+                    goodsPurchaseId={inboundGoodsPurchaseId}
+                  />
+                )}
 
                 {activeTransaksiTab === "Pemakaian Internal" && (
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

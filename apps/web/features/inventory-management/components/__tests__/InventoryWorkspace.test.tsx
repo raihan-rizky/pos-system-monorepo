@@ -109,6 +109,34 @@ describe("InventoryWorkspace", () => {
       canPerform: () => true,
     });
   });
+
+  it("resolves the Supplier receiving-history deep link", () => {
+    const resolveInventoryDeepLink = (
+      inventoryWorkspaceModule as typeof inventoryWorkspaceModule & {
+        resolveInventoryDeepLink?: (
+          searchParams: Pick<URLSearchParams, "get">,
+        ) => {
+          mainTab: string | null;
+          transactionTab: string | null;
+          goodsPurchaseId: string | null;
+        };
+      }
+    ).resolveInventoryDeepLink;
+
+    expect(resolveInventoryDeepLink).toBeTypeOf("function");
+    expect(
+      resolveInventoryDeepLink?.(
+        new URLSearchParams(
+          "tab=transactions&subtab=inbound&goodsPurchaseId=gp-1",
+        ),
+      ),
+    ).toEqual({
+      mainTab: "Transaksi",
+      transactionTab: "Penerimaan Barang",
+      goodsPurchaseId: "gp-1",
+    });
+  });
+
   it("shows a correction badge and action for a mismatched OUT log", () => {
     const OutLogVerificationRow = (
       inventoryWorkspaceModule as typeof inventoryWorkspaceModule & {

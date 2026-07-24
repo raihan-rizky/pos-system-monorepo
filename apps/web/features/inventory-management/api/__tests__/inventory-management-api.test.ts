@@ -256,10 +256,11 @@ describe("inventory management api", () => {
 
     const result = await inboundApi.fetchInboundReceipts({
       status: "SUBMITTED",
+      goodsPurchaseId: "gp-1",
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "/api/inventory-management/inbound-receipts?status=SUBMITTED",
+      "/api/inventory-management/inbound-receipts?status=SUBMITTED&goodsPurchaseId=gp-1",
     );
     expect(result).toEqual([{ id: "receipt-1" }]);
   });

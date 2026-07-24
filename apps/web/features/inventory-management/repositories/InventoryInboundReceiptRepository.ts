@@ -1082,23 +1082,34 @@ export class InventoryInboundReceiptRepository
 
   async listInboundReceipts(
     storeId: string,
-    input: { status?: InboundReceiptStatus },
+    input: {
+      status?: InboundReceiptStatus;
+      goodsPurchaseId?: string | null;
+    },
   ) {
-    return db.inventoryInboundReceipt.findMany({
+    const receipts = await db.inventoryInboundReceipt.findMany({
       where: {
         storeId,
         ...(input.status ? { status: input.status } : {}),
+        ...(input.goodsPurchaseId
+          ? { goodsPurchaseId: input.goodsPurchaseId }
+          : {}),
       },
       orderBy: { createdAt: "desc" },
       take: 50,
       include: {
         supplier: { select: { id: true, name: true } },
+        goodsPurchase: { select: { number: true } },
         lines: {
           orderBy: { createdAt: "asc" },
           take: 100,
         },
       },
     });
+    return receipts.map(({ goodsPurchase, ...receipt }) => ({
+      ...receipt,
+      goodsPurchaseNumber: goodsPurchase?.number ?? null,
+    }));
   }
 
   async listReceivingQueue(
