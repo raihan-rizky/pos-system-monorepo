@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PATCH } from "../route";
+import { InventoryManagementError } from "@/features/inventory-management/services/inbound-receipt-service";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
@@ -90,5 +91,25 @@ describe("PATCH /api/inventory-management/inbound-receipts/[id]", () => {
 
     expect(response.status).toBe(422);
     expect(updateAndSubmitInboundReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("maps Goods Purchase legacy-resubmit conflicts to HTTP conflict", async () => {
+    updateAndSubmitInboundReceiptMock.mockRejectedValueOnce(
+      new InventoryManagementError(
+        "CONFLICT",
+        "Penerimaan Barang dari Pembelian Barang tidak dapat direvisi melalui alur lama",
+        409,
+      ),
+    );
+
+    const response = await patch();
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      message:
+        "Penerimaan Barang dari Pembelian Barang tidak dapat direvisi melalui alur lama",
+      code: "Conflict",
+    });
   });
 });

@@ -223,6 +223,7 @@ export interface InboundReceiptForEdit {
   storeId: string;
   status: InboundReceiptStatus;
   submittedBy: string | null;
+  goodsPurchaseId: string | null;
 }
 
 export interface InventoryInboundReceiptRepository {

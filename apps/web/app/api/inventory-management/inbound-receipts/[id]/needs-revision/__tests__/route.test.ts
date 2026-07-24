@@ -85,11 +85,11 @@ describe("POST /api/inventory-management/inbound-receipts/[id]/needs-revision", 
     expect(needsRevisionInboundReceiptMock).not.toHaveBeenCalled();
   });
 
-  it("maps service conflicts to HTTP conflict", async () => {
+  it("maps Goods Purchase source conflicts to HTTP conflict", async () => {
     needsRevisionInboundReceiptMock.mockRejectedValueOnce(
       new InventoryManagementError(
         "CONFLICT",
-        "Inbound receipt status changed before revision",
+        "Penerimaan Barang dari Pembelian Barang tidak mendukung status perlu revisi",
         409,
       ),
     );
@@ -98,6 +98,10 @@ describe("POST /api/inventory-management/inbound-receipts/[id]/needs-revision", 
     const body = await response.json();
 
     expect(response.status).toBe(409);
-    expect(body.message).toBe("Inbound receipt status changed before revision");
+    expect(body).toMatchObject({
+      message:
+        "Penerimaan Barang dari Pembelian Barang tidak mendukung status perlu revisi",
+      code: "Conflict",
+    });
   });
 });

@@ -417,6 +417,13 @@ export async function updateAndSubmitInboundReceipt(
           404,
         );
       }
+      if (receipt.goodsPurchaseId) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Penerimaan Barang dari Pembelian Barang tidak dapat direvisi melalui alur lama",
+          409,
+        );
+      }
       if (receipt.status !== "DRAFT" && receipt.status !== "NEEDS_REVISION") {
         throw new InventoryManagementError(
           "CONFLICT",
@@ -495,14 +502,26 @@ export async function needsRevisionInboundReceipt(
   }
 
   try {
-    return await input.repository.runInTransaction((tx) =>
-      input.repository.markReceiptNeedsRevision(tx, {
+    return await input.repository.runInTransaction(async (tx) => {
+      const receipt = await input.repository.findReceiptForEdit(tx, {
+        storeId,
+        receiptId: input.receiptId,
+      });
+      if (receipt?.goodsPurchaseId) {
+        throw new InventoryManagementError(
+          "CONFLICT",
+          "Penerimaan Barang dari Pembelian Barang tidak mendukung status perlu revisi",
+          409,
+        );
+      }
+
+      return input.repository.markReceiptNeedsRevision(tx, {
         storeId,
         receiptId: input.receiptId,
         revisedBy: input.user.id,
         revisionReason,
-      }),
-    );
+      });
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "INBOUND_RECEIPT_CONFLICT") {
       throw new InventoryManagementError(
@@ -708,7 +727,7 @@ export async function createAndSubmitGoodsPurchaseReceipt(
         pendingReservedQuantity,
       });
 
-      return availability.availableQuantity > 0
+      return availability.availableQuantity > 1e-9
         ? [{ item, availableQuantity: availability.availableQuantity }]
         : [];
     });

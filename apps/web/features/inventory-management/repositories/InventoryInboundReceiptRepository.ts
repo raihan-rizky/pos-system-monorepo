@@ -188,6 +188,7 @@ export class InventoryInboundReceiptRepository
         id: input.receiptId,
         storeId: input.storeId,
         status: "SUBMITTED",
+        goodsPurchaseId: null,
       },
       data: {
         status: "NEEDS_REVISION",
@@ -216,6 +217,7 @@ export class InventoryInboundReceiptRepository
         id: input.receiptId,
         storeId: input.storeId,
         status: { in: ["DRAFT", "NEEDS_REVISION"] },
+        goodsPurchaseId: null,
       },
       data: {
         status: "SUBMITTED",
@@ -240,6 +242,7 @@ export class InventoryInboundReceiptRepository
         storeId: true,
         status: true,
         submittedBy: true,
+        goodsPurchaseId: true,
       },
     });
     if (!receipt) return null;
@@ -267,6 +270,7 @@ export class InventoryInboundReceiptRepository
         id: input.receiptId,
         storeId: input.storeId,
         status: { in: ["DRAFT", "NEEDS_REVISION"] },
+        goodsPurchaseId: null,
       },
       data: {
         note: input.note ?? null,

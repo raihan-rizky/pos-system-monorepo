@@ -117,6 +117,7 @@ function createRepository(
       storeId: "store-main",
       status: "NEEDS_REVISION" as InboundReceiptStatus,
       submittedBy: "inventory-1",
+      goodsPurchaseId: null as string | null,
     })),
     updateReceiptDraft: vi.fn(async () => ({
       id: "receipt-1",
@@ -721,6 +722,7 @@ describe("inbound receipt service", () => {
       storeId: "store-main",
       status: "NEEDS_REVISION",
       submittedBy: "inventory-2",
+      goodsPurchaseId: null,
     });
 
     await expect(
@@ -747,6 +749,49 @@ describe("inbound receipt service", () => {
         },
       }),
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+    expect(repository.updateReceiptDraft).not.toHaveBeenCalled();
+    expect(repository.markReceiptSubmitted).not.toHaveBeenCalled();
+  });
+
+  it("blocks Goods Purchase receipts from the legacy revision resubmit path", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.findReceiptForEdit).mockResolvedValueOnce({
+      id: "receipt-1",
+      storeId: "store-main",
+      status: "NEEDS_REVISION",
+      submittedBy: "inventory-1",
+      goodsPurchaseId: "gp-1",
+    });
+
+    await expect(
+      updateAndSubmitInboundReceipt({
+        repository,
+        user: {
+          id: "inventory-1",
+          name: "Ira",
+          role: "INVENTORY",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+        input: {
+          lines: [
+            {
+              id: "line-1",
+              productId: "product-client-value",
+              expectedQuantity: 999,
+              receivedQuantity: 999,
+              status: "OVER_RECEIVED",
+              note: "Client mencoba mengganti snapshot",
+            },
+          ],
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      status: 409,
+      message:
+        "Penerimaan Barang dari Pembelian Barang tidak dapat direvisi melalui alur lama",
+    });
     expect(repository.updateReceiptDraft).not.toHaveBeenCalled();
     expect(repository.markReceiptSubmitted).not.toHaveBeenCalled();
   });
@@ -1016,6 +1061,37 @@ describe("inbound receipt service", () => {
     );
   });
 
+  it("does not put Goods Purchase receipts into needs revision", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.findReceiptForEdit).mockResolvedValueOnce({
+      id: "receipt-1",
+      storeId: "store-main",
+      status: "SUBMITTED",
+      submittedBy: "inventory-1",
+      goodsPurchaseId: "gp-1",
+    });
+
+    await expect(
+      needsRevisionInboundReceipt({
+        repository,
+        user: {
+          id: "owner-1",
+          name: "Owner",
+          role: "OWNER",
+          storeId: "store-main",
+        },
+        receiptId: "receipt-1",
+        revisionReason: "Coba revisi",
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      status: 409,
+      message:
+        "Penerimaan Barang dari Pembelian Barang tidak mendukung status perlu revisi",
+    });
+    expect(repository.markReceiptNeedsRevision).not.toHaveBeenCalled();
+  });
+
   it("requires every currently available purchase item", async () => {
     const repository = createRepository();
 
@@ -1112,6 +1188,141 @@ describe("inbound receipt service", () => {
       }),
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
     expect(repository.createSubmittedGoodsPurchaseReceipt).not.toHaveBeenCalled();
+  });
+
+  it("ignores floating-point availability within the quantity tolerance", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.findGoodsPurchaseForReceipt).mockResolvedValueOnce({
+      id: "gp-1",
+      number: "PB-202607-001",
+      shoppingRequestId: "shopping-1",
+      supplierId: "supplier-1",
+      supplierNameSnapshot: "CV Kertas",
+      items: [
+        {
+          id: "gpi-residual",
+          shoppingRequestItemId: "shopping-item-residual",
+          productId: "product-residual",
+          productNameSnapshot: "Produk Residual",
+          skuSnapshot: "FLOAT-1",
+          unitSnapshot: "pcs",
+          latestUnitPrice: 1_000,
+          quantity: 0.8,
+          inboundReceiptLines: [
+            {
+              status: "RECEIVED",
+              receivedQuantity: 0.1,
+              receipt: { status: "APPROVED" },
+            },
+            {
+              status: "PARTIAL",
+              receivedQuantity: 0.7,
+              receipt: { status: "SUBMITTED" },
+            },
+          ],
+        },
+        {
+          id: "gpi-available",
+          shoppingRequestItemId: "shopping-item-available",
+          productId: "product-available",
+          productNameSnapshot: "Produk Tersedia",
+          skuSnapshot: "AVAILABLE-1",
+          unitSnapshot: "pcs",
+          latestUnitPrice: 2_000,
+          quantity: 2,
+          inboundReceiptLines: [],
+        },
+      ],
+    });
+
+    await expect(
+      createAndSubmitGoodsPurchaseReceipt({
+        repository,
+        user: {
+          id: "inventory-1",
+          name: "Ira",
+          role: "INVENTORY",
+          storeId: "store-main",
+        },
+        input: {
+          goodsPurchaseId: "gp-1",
+          lines: [
+            {
+              goodsPurchaseItemId: "gpi-available",
+              matchStatus: "MATCHED",
+              receivedQuantity: 2,
+            },
+          ],
+        },
+      }),
+    ).resolves.toMatchObject({ status: "SUBMITTED" });
+    expect(repository.createSubmittedGoodsPurchaseReceipt).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        lines: [
+          expect.objectContaining({
+            goodsPurchaseItemId: "gpi-available",
+            expectedQuantity: 2,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("guards legacy source writes at the repository boundary", async () => {
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+    const tx = {
+      inventoryInboundReceipt: { updateMany },
+      inventoryInboundReceiptLine: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+    };
+
+    await repository.updateReceiptDraft(tx as never, {
+      storeId: "store-main",
+      receiptId: "receipt-legacy",
+      lines: [
+        {
+          id: "line-1",
+          productId: "product-1",
+          expectedQuantity: 10,
+          receivedQuantity: 10,
+          status: "RECEIVED",
+        },
+      ],
+    });
+    await repository.markReceiptNeedsRevision(tx as never, {
+      storeId: "store-main",
+      receiptId: "receipt-legacy",
+      revisedBy: "owner-1",
+      revisionReason: "Cek ulang",
+    });
+    await repository.markReceiptSubmitted(tx as never, {
+      storeId: "store-main",
+      receiptId: "receipt-legacy",
+      submittedBy: "inventory-1",
+      submittedAt: new Date("2026-07-24T00:00:00.000Z"),
+    });
+
+    expect(updateMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({ goodsPurchaseId: null }),
+      }),
+    );
+    expect(updateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({ goodsPurchaseId: null }),
+      }),
+    );
+    expect(updateMany).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        where: expect.objectContaining({ goodsPurchaseId: null }),
+      }),
+    );
   });
 
   it("requires notes for non-normal inbound lines before creating drafts", async () => {
