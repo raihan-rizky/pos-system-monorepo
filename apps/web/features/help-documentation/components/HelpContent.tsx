@@ -80,7 +80,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Tab RBAC", description: "Pada halaman pengaturan yang terbuka, klik tab 'RBAC' (hanya terlihat oleh Owner). Owner selalu punya akses penuh dan tidak ikut diedit.", icon: <Users className="w-8 h-8" /> },
         { title: "Baca Ringkasan Role", description: "Lihat kartu ringkasan Admin, Kasir, Sales, dan Inventaris untuk mengetahui jumlah halaman, aksi, custom permission, dan perubahan sensitif pada tiap role.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Bandingkan Matrix Modul", description: "Gunakan matrix modul untuk membandingkan akses antar role. Matrix ini adalah ringkasan konfigurasi permission, bukan bukti enforcement route atau API.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Atur Izin per Modul", description: "Pilih role dan modul yang ingin diubah, lalu centang akses halaman atau aksi resource yang dibutuhkan. Untuk Penerimaan Barang, izin Setujui, Tolak, dan Minta Revisi diatur sebagai aksi terpisah di modul Inventaris. Status 'Belum disimpan' muncul saat ada perubahan lokal.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Atur Izin per Modul", description: "Pilih role dan modul yang ingin diubah, lalu centang akses halaman atau aksi resource yang dibutuhkan. Untuk Penerimaan Barang, izin Setujui, Tolak, dan Edit memakai aksi inventory.inbound_receipt.approve, inventory.inbound_receipt.reject, dan inventory.inbound_receipt.edit. Ketiganya default hanya aktif untuk OWNER, tetapi dapat didelegasikan lewat RBAC. Status 'Belum disimpan' muncul saat ada perubahan lokal.", icon: <Settings className="w-8 h-8" /> },
         { title: "Review & Konfirmasi", description: "Klik 'Review & Simpan' untuk melihat daftar perubahan. Perubahan sensitif seperti RBAC, finance, WhatsApp, HPP, dan approval harus dikonfirmasi sebelum tersimpan.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
@@ -135,7 +135,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-goods-purchase",
       title: "Mengajukan & Menyetujui Pembelian Barang",
-      description: "Catat pembelian aktual dari Daftar Belanja, review harga supplier per produk, lalu buat pengeluaran tanpa mengubah stok.",
+      description: "Catat pembelian aktual dari Daftar Belanja, review harga supplier per produk, lalu buat pengeluaran. Approval Pembelian Barang sendiri tidak mengubah stok; stok baru bertambah dari Penerimaan Barang yang disetujui.",
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Pembelian Barang", description: "Masuk ke menu Supplier, pilih tab 'Pembelian Barang', lalu klik 'Buat Pembelian Barang'.", icon: <ShoppingCart className="w-8 h-8" /> },
@@ -145,7 +145,8 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Review per produk", description: "Dengan izin supplier.goods_purchase.approve:update, pilih Setujui, Edit, Hapus, atau tambah produk unit besar di bawah daftar. Saat Edit, unit dapat diganti ke varian satuan besar dalam grup stok yang sama. Produk yang belum diputuskan ditandai Belum Ada Aksi.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Edit keputusan", description: "Jika produk sudah disetujui, konfirmasi edit akan mengembalikannya menjadi Belum Ada Aksi. Perubahan tersimpan langsung dan minimal satu produk harus tersisa.", icon: <Settings className="w-8 h-8" /> },
         { title: "Selesaikan atau tolak", description: "Saat seluruh produk disetujui, status otomatis APPROVED, update HPP terpilih diterapkan, dan satu Pengeluaran kategori Bahan dibuat. Penolakan wajib memakai alasan dan izin supplier.goods_purchase.reject:update.", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Catat barang fisik terpisah", description: "Pembelian Barang tidak mengubah stok pada tahap apa pun. Saat barang benar-benar datang, gunakan workflow inventaris atau penerimaan barang yang sesuai.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Terima barang", description: "Pada Pembelian Barang APPROVED, klik 'Barang Sudah Diterima?' untuk membuka modal Penerimaan Barang dengan PB tersebut langsung terpilih. Isi qty fisik dan catatan selisih, lalu ajukan ke Owner. Approval Pembelian Barang tetap tidak mengubah stok.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Pantau penerimaan", description: "Gunakan 'Lihat Riwayat Penerimaan Barang' untuk membuka Inventaris > Transaksi > Penerimaan Barang dengan filter PB terkait. Status Pembelian Barang berubah menjadi BARANG DITERIMA SEBAGIAN atau BARANG DITERIMA. Klik barisnya untuk membandingkan jumlah dipesan, diterima, pending, dan sisa.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {
@@ -670,11 +671,13 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "inventory-alur-kerja",
       title: "Alur Kerja Inventory",
-      description: "Alur kerja harian orang gudang dari mulai cek log mutasi, terima kiriman barang masuk, hingga lapor barang rusak. Untuk Penerimaan Barang, pilih Pembelian Barang yang sudah disetujui, periksa peringatan penerimaan menunggu persetujuan, pilih Sesuai atau Tidak Sesuai per produk, isi jumlah diterima, lalu klik 'Ajukan ke Owner'. Catatan produk wajib diisi saat jumlah diterima berbeda dari jumlah tersedia.",
+      description: "Alur kerja harian orang gudang dari mulai cek log mutasi, terima kiriman barang masuk, hingga lapor barang rusak. Untuk Penerimaan Barang, pilih Pembelian Barang yang sudah disetujui, periksa peringatan penerimaan lain yang masih PENDING, pilih Sesuai atau Tidak Sesuai per produk, isi jumlah diterima, lalu klik 'Ajukan ke Owner'. Catatan produk wajib diisi saat jumlah diterima berbeda dari jumlah dipesan yang tersedia.",
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Verifikasi Mutasi Log", description: "Buka menu 'Inventaris' di sidebar. Klik tab 'Riwayat' -> sub-tab 'Log Stok' di pagi hari untuk memastikan mutasi stok harian berjalan sesuai catatan. Di layar HP, geser bar sub-tab Riwayat secara horizontal dan baca log sebagai kartu ringkas.", icon: <History className="w-8 h-8" /> },
-        { title: "Input Penerimaan Barang", description: "Saat kiriman supplier datang, buka tab 'Transaksi' lalu 'Penerimaan Barang' dan klik 'Terima barang'. Di bagian Pilih Pembelian Barang, pilih nomor PB dan supplier yang sesuai. Baca peringatan jika ada penerimaan menunggu persetujuan, lalu tandai setiap produk sebagai Sesuai atau Tidak Sesuai. Isi Jumlah Diterima dalam batas jumlah tersedia. Jika jumlah diterima berbeda, Catatan Produk wajib menjelaskan selisihnya. Setelah semua produk valid, klik 'Ajukan ke Owner'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Input Penerimaan Barang", description: "Saat kiriman supplier datang, buka tab 'Transaksi' lalu 'Penerimaan Barang' dan klik 'Terima barang'. Di bagian Pilih Pembelian Barang, pilih nomor PB dan supplier yang sesuai. Baca peringatan jika ada penerimaan lain yang masih PENDING, lalu tandai setiap produk sebagai Sesuai atau Tidak Sesuai. Isi Jumlah Diterima tanpa melebihi sisa pesanan. Jika jumlah diterima berbeda dari jumlah dipesan yang tersedia, Catatan Produk wajib menjelaskan selisihnya. Setelah semua produk valid, klik 'Ajukan ke Owner'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Review per produk", description: "OWNER atau role yang mendapat izin inventory.inbound_receipt.approve:update dapat membuka Proses, mengubah status Sesuai atau Tidak Sesuai, mengedit qty/catatan, menyetujui, atau menghapus tiap produk. Dokumen tetap PENDING selama masih ada produk Belum Ada Aksi. Penolakan berlaku untuk seluruh dokumen, membutuhkan inventory.inbound_receipt.reject:update, dan alasan wajib diisi. Izin inventory.inbound_receipt.edit:update mengatur edit penerimaan.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Finalisasi stok bersama", description: "Setelah semua produk disetujui, penerimaan otomatis APPROVED. Stok bertambah secara atomik sesuai qty diterima. Pada mode stok bersama, produk canonical dan seluruh variannya ikut tersinkron; perubahan dicatat sebagai satu bundle di Log Stok memakai nama supplier. Nomor PB hanya ditampilkan di detail bundle.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Catat Barang Pecah/Rusak", description: "Jika ditemukan produk rusak, klik tombol 'Input / Transaksi' -> 'Laporkan Barang Rusak'. Masukkan kode barang, kuantitas yang rusak, isi alasan penyesuaian, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
       ]
     },

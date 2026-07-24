@@ -34,17 +34,22 @@ describe("FAQ workflow catalog", () => {
     }
   });
 
-  it("keeps inbound receipt guidance aligned with submit, revision, and granular decision RBAC", () => {
+  it("keeps inbound receipt guidance aligned with goods purchases, per-item approval, and granular RBAC", () => {
     const inbound = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 18);
 
     expect(inbound).toBeDefined();
     const serializedInbound = JSON.stringify(inbound);
     expect(serializedInbound).toContain("Ajukan ke Owner");
-    expect(serializedInbound).toContain("Sudah dibuat");
-    expect(serializedInbound).toContain("Perlu Revisi");
+    expect(serializedInbound).toContain("Pilih Pembelian Barang");
+    expect(serializedInbound).toContain("BARANG DITERIMA SEBAGIAN");
+    expect(serializedInbound).toContain("Sesuai atau Tidak Sesuai");
+    expect(serializedInbound).toContain("Barang Sudah Diterima?");
+    expect(serializedInbound).toContain("Lihat Riwayat Penerimaan Barang");
     expect(serializedInbound).toContain("inventory.inbound_receipt.approve");
     expect(serializedInbound).toContain("inventory.inbound_receipt.reject");
-    expect(serializedInbound).toContain("inventory.inbound_receipt.revise");
+    expect(serializedInbound).toContain("inventory.inbound_receipt.edit");
+    expect(serializedInbound).not.toContain("inventory.inbound_receipt.revise");
+    expect(serializedInbound).not.toContain("Perlu Revisi");
     expect(JSON.stringify(inbound)).not.toContain("admin dengan izin `inventory.approve`");
   });
 

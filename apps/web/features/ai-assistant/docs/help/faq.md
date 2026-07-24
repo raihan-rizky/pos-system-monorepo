@@ -177,12 +177,15 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 5. Klik **Submit** agar tugas tersebut tercatat sebagai selesai.
 
 ### Q18: Bagaimana cara mengajukan Penerimaan Barang (Inbound Receipt) dari supplier?
-**A:** Buka menu Inventaris untuk mencatat barang masuk:
-1. Buka menu **Input / Transaksi** di halaman Inventaris, kemudian pilih **Penerimaan Barang**.
-2. Isi detail dokumen seperti sumber barang (Supplier) dan nomor dokumen atau surat jalan terkait.
-3. Tambahkan produk-produk yang masuk beserta kuantitasnya ke dalam daftar penerimaan.
-4. Setelah draf lengkap, klik **Submit** (Ajukan). 
-5. Pengajuan ini tidak akan langsung menambah stok. Statusnya akan menjadi *Pending* hingga disetujui (Approve) oleh pihak berwenang (seperti OWNER atau admin dengan izin `inventory.approve`). Stok baru bertambah setelah disetujui.
+**A:** Buka menu Inventaris untuk mencatat barang fisik yang datang:
+1. Buka **Transaksi > Penerimaan Barang**, klik **Terima barang**, lalu **Pilih Pembelian Barang** yang berstatus APPROVED atau BARANG DITERIMA SEBAGIAN.
+2. Periksa supplier, jumlah dipesan, jumlah yang sudah diterima, penerimaan lain yang masih PENDING, dan sisa pesanan. Pembelian parsial boleh dipilih lagi hanya untuk sisanya.
+3. Pada setiap produk, pilih **Sesuai** atau **Tidak Sesuai** dan isi **Jumlah Diterima** tanpa melebihi sisa pesanan. Catatan wajib bila jumlah berbeda dari jumlah dipesan yang tersedia; bila sama, catatan opsional.
+4. Klik **Ajukan ke Owner**. Dokumen masuk riwayat dengan status PENDING dan belum mengubah stok.
+5. OWNER atau role dengan `inventory.inbound_receipt.approve:update` membuka **Proses**, lalu dapat mengubah status kesesuaian, mengedit qty/catatan, menyetujui, atau menghapus tiap produk. Izin edit dokumen memakai `inventory.inbound_receipt.edit:update`.
+6. Dokumen tetap PENDING selama ada produk **Belum Ada Aksi**. Role dengan `inventory.inbound_receipt.reject:update` dapat menolak seluruh dokumen dan wajib memberi alasan.
+7. Setelah semua produk disetujui, penerimaan otomatis APPROVED dan stok bertambah atomik sesuai qty final. Dalam mode **stok bersama**, canonical dan semua varian ikut berubah sebagai satu **bundle** Log Stok.
+8. Di Supplier > Pembelian Barang, gunakan **Barang Sudah Diterima?** untuk membuka modal dengan PB langsung terpilih, atau **Lihat Riwayat Penerimaan Barang** untuk membuka riwayat terfilter. Status PB menjadi **BARANG DITERIMA SEBAGIAN** atau **BARANG DITERIMA**; klik baris untuk membandingkan jumlah dipesan, diterima, pending, dan sisa.
 
 ### Q19: Bagaimana cara membuat Daftar Belanja kebutuhan toko ke supplier?
 **A:** Gunakan Daftar Belanja untuk mencatat kebutuhan dan estimasi biayanya tanpa mengubah stok:
@@ -318,4 +321,6 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 6. Produk yang belum diputuskan ditandai **Belum Ada Aksi**. Mengedit produk yang sudah disetujui memerlukan konfirmasi dan mengembalikannya ke status tersebut. Perubahan tersimpan langsung, dan minimal satu produk harus tetap ada.
 7. Ketika seluruh produk disetujui, Pembelian Barang otomatis menjadi **APPROVED**, modal tertutup, pilihan update HPP diterapkan, dan satu **Pengeluaran kategori Bahan** dibuat dari total final.
 8. Role dengan `supplier.goods_purchase.reject:update` dapat menolak seluruh pembelian dengan alasan wajib. Default izin approve dan reject hanya OWNER serta dapat didelegasikan melalui RBAC.
-9. Pengajuan, review, approval final, penolakan, dan retry Pembelian Barang **tidak mengubah stok sama sekali**. Barang fisik tetap diproses melalui workflow inventaris yang terpisah.
+9. Pengajuan, review, approval final, penolakan, dan retry Pembelian Barang **tidak mengubah stok**. Stok baru bertambah ketika Penerimaan Barang terkait selesai disetujui per item.
+10. Pada pembelian APPROVED atau BARANG DITERIMA SEBAGIAN, klik **Barang Sudah Diterima?** untuk membuka modal penerimaan dengan PB langsung terpilih. Klik **Lihat Riwayat Penerimaan Barang** untuk membuka riwayat terfilter.
+11. Setelah penerimaan disetujui, status PB menjadi **BARANG DITERIMA SEBAGIAN** atau **BARANG DITERIMA**. Klik baris PB untuk melihat perbandingan dipesan, diterima, pending, dan sisa. Finalisasi penerimaan menambah stok; pada mode stok bersama, canonical dan semua varian dicatat sebagai satu bundle Log Stok.

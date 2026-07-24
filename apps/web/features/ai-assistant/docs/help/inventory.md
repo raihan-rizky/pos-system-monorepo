@@ -48,8 +48,28 @@ Staf gudang mengelola operasional harian melalui sesi:
 2. **Check Out:** Dilakukan di akhir hari kerja untuk menutup sesi operasional gudang. Check Out merekam ringkasan hari tersebut ke dalam snapshot database dan hanya bisa diselesaikan jika seluruh tugas harian telah rampung.
 3. **Weekly Proof:** Bukti mingguan (seperti foto kebersihan) bersifat opsional di hari biasa, namun wajib diselesaikan untuk Check Out pada hari Sabtu (zona waktu Asia/Jakarta).
 
-### Workflow Approval & Pembatalan
-Perubahan stok yang diajukan melalui workflow approval tidak boleh dianggap final saat masih pending. Contohnya, draft penerimaan harus disubmit dan baru menambah stok setelah disetujui. Persetujuan inventory memakai permission `inventory.approve`; permission ini dikunci untuk OWNER. Pengaju dapat membatalkan permintaan yang masih memenuhi syarat, sedangkan alasan wajib diisi saat menolak.
+### Penerimaan Barang dari Pembelian Barang
+
+Penerimaan Barang selalu dimulai dari **Pembelian Barang yang sudah APPROVED**, bukan dari Daftar Belanja:
+
+1. Buka **Transaksi > Penerimaan Barang**, klik **Terima barang**, lalu **Pilih Pembelian Barang**.
+2. Periksa jumlah dipesan, jumlah yang sudah diterima, qty pada penerimaan lain yang masih PENDING, dan sisa pesanan. Pembelian berstatus **BARANG DITERIMA SEBAGIAN** dapat dipilih lagi hanya untuk sisa tersebut.
+3. Pada setiap produk, pilih **Sesuai** atau **Tidak Sesuai** dan isi jumlah diterima. Qty tidak boleh melebihi sisa pesanan. Catatan wajib jika jumlah berbeda dari jumlah dipesan yang tersedia; bila sama, catatan opsional.
+4. Klik **Ajukan ke Owner**. Pengajuan masuk riwayat dengan status PENDING dan belum mengubah stok.
+5. Approver memproses tiap produk: status kesesuaian masih dapat diedit, begitu juga qty dan catatan; produk juga dapat dihapus. Dokumen tetap PENDING selama ada produk **Belum Ada Aksi**. Penolakan berlaku untuk seluruh dokumen dan membutuhkan alasan.
+6. Setelah semua produk disetujui, penerimaan otomatis APPROVED. Stok bertambah secara atomik sesuai qty final. Pada mode **stok bersama**, stok canonical dan seluruh variannya ikut berubah dan dicatat sebagai satu **bundle** di Log Stok.
+
+Daftar Log Stok memakai nama supplier sebagai judul penerimaan. Nomor **PB-...** hanya muncul di detail bundle. Di halaman Supplier, tombol **Barang Sudah Diterima?** membuka modal yang sama dengan PB sudah terpilih, sedangkan **Lihat Riwayat Penerimaan Barang** membuka riwayat terfilter. Klik Pembelian Barang berstatus **BARANG DITERIMA SEBAGIAN** atau **BARANG DITERIMA** untuk melihat perbandingan jumlah dipesan, diterima, pending, dan sisa.
+
+### Workflow Approval & RBAC
+
+Perubahan stok tidak final selama penerimaan masih PENDING. Hak approval bersifat granular dan default hanya aktif untuk OWNER:
+
+- `inventory.inbound_receipt.approve:update`: review dan menyetujui per produk.
+- `inventory.inbound_receipt.reject:update`: menolak seluruh dokumen dengan alasan wajib.
+- `inventory.inbound_receipt.edit:update`: mengedit penerimaan yang masih dapat diubah.
+
+Permission tersebut dapat didelegasikan lewat RBAC. Approval Daftar Belanja dan approval Pembelian Barang tidak mengubah stok; hanya finalisasi Penerimaan Barang yang sudah disetujui seluruh item yang menambah stok.
 
 ### Marking Surat Jalan (Delivery Order)
 Surat Jalan tidak lagi memakai istilah verifikasi, melainkan alur **Marking**:

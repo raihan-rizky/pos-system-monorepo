@@ -86,7 +86,52 @@ function Tasks({ ctx }: { ctx: PreviewContext }) {
 }
 
 function Transactions({ ctx, subtab }: { ctx: PreviewContext; subtab: string }) {
-  return <div className="mt-5" data-help-active-subtab={subtab}><div className="flex gap-2 rounded-2xl bg-slate-100 p-1.5">{['Penerimaan Barang','Pemakaian Internal','Surat Jalan'].map((tab) => <span key={tab} className={cx("rounded-xl px-5 py-2.5 text-sm font-bold", subtab === tab ? 'bg-white shadow-sm' : 'text-slate-500')}>{tab}</span>)}</div>{subtab === 'Surat Jalan' ? <GuideTarget ctx={ctx} target="inventory-surat-jalan" className="mt-4 rounded-2xl border bg-white p-5"><h2 className="font-black">Surat Jalan</h2><p className="mt-1 text-sm text-slate-500">Tandai status kirim, tanda tangan, dan catatan pengecualian.</p><div className="mt-4 grid grid-cols-4 bg-slate-50 p-3 text-xs font-bold"><span>No. Surat Jalan</span><span>Pelanggan</span><span>Status</span><span>Marking</span></div></GuideTarget> : <GuideTarget ctx={ctx} target="inventory-inbound" className="mt-4 rounded-2xl border bg-white p-5"><h2 className="font-black">Penerimaan Barang</h2><p className="mt-1 text-sm text-slate-500">Catat barang masuk dari supplier dan ajukan verifikasi.</p><div className="mt-4 grid grid-cols-3 gap-3"><PreviewField label="Supplier" value="CV Sumber Rezeki" /><PreviewField label="Nomor Dokumen" value="INB-20260710-004" /><PreviewField label="Tanggal" value="10 Juli 2026" /></div></GuideTarget>}</div>;
+  return (
+    <div className="mt-5" data-help-active-subtab={subtab}>
+      <div className="flex gap-2 rounded-2xl bg-slate-100 p-1.5">
+        {["Penerimaan Barang", "Pemakaian Internal", "Surat Jalan"].map((tab) => (
+          <span
+            key={tab}
+            className={cx(
+              "rounded-xl px-5 py-2.5 text-sm font-bold",
+              subtab === tab ? "bg-white shadow-sm" : "text-slate-500",
+            )}
+          >
+            {tab}
+          </span>
+        ))}
+      </div>
+      {subtab === "Surat Jalan" ? (
+        <GuideTarget ctx={ctx} target="inventory-surat-jalan" className="mt-4 rounded-2xl border bg-white p-5">
+          <h2 className="font-black">Surat Jalan</h2>
+          <p className="mt-1 text-sm text-slate-500">Tandai status kirim, tanda tangan, dan catatan pengecualian.</p>
+          <div className="mt-4 grid grid-cols-4 bg-slate-50 p-3 text-xs font-bold">
+            <span>No. Surat Jalan</span><span>Pelanggan</span><span>Status</span><span>Marking</span>
+          </div>
+        </GuideTarget>
+      ) : (
+        <GuideTarget ctx={ctx} target="inventory-inbound" className="mt-4 rounded-2xl border bg-white p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-black">Penerimaan Barang</h2>
+              <p className="mt-1 text-sm text-slate-500">Pilih Pembelian Barang APPROVED, lalu catat qty fisik per produk.</p>
+            </div>
+            <span className="rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white">Terima barang</span>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <PreviewField label="Pilih Pembelian Barang" value="PB-20260710-004 · CV Sumber Rezeki" />
+            <PreviewField label="Jumlah Dipesan" value="50 dus" />
+            <PreviewField label="Jumlah Diterima" value="40 dus" />
+          </div>
+          <div className="mt-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
+            <span><strong>Tidak Sesuai</strong> · catatan wajib karena qty berbeda.</span>
+            <span className="font-bold text-amber-800">10 dus tersisa</span>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">Peringatan akan muncul jika ada penerimaan lain yang masih PENDING.</p>
+        </GuideTarget>
+      )}
+    </div>
+  );
 }
 
 function HistoryPanel({ ctx, subtab }: { ctx: PreviewContext; subtab: string }) {

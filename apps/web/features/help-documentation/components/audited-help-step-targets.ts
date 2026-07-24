@@ -24,6 +24,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
     ["suppliers", "suppliers-goods-purchase-approve"],
     ["suppliers", "suppliers-goods-purchase-approve"],
     ["inventory", "inventory-inbound"],
+    ["suppliers", "suppliers-goods-purchase-tab"],
   ],
   "owner-piutang": [["customers", "customers-primary"], ["customers", "customers-filter-debt"], ["customers", "customers-profile"]],
   "owner-performa-sales": [["salespersons", "salespersons-primary"], ["salespersons", "salespersons-summary"], ["salespersons", "salespersons-detail"]],
@@ -71,7 +72,13 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "sales-alur-kerja": [["customers", "customers-table"], ["pos", "pos-products"], ["pos", "pos-pay-button"], ["history", "history-print-button"], ["history", "history-print-button"], ["history", "history-debt-payment"]],
 
   "inventory-stock": [["inventory", "inventory-primary"], ["inventory", "inventory-stock-log-tab"]],
-  "inventory-alur-kerja": [["inventory", "inventory-stock-log-tab"], ["inventory", "inventory-inbound"], ["inventory", "inventory-damaged"]],
+  "inventory-alur-kerja": [
+    ["inventory", "inventory-stock-log-tab"],
+    ["inventory", "inventory-inbound"],
+    ["inventory", "inventory-inbound"],
+    ["inventory", "inventory-stock-log-tab"],
+    ["inventory", "inventory-damaged"],
+  ],
   "inventory-tugas-harian": [["inventory", "inventory-tasks"], ["inventory", "inventory-matching"], ["inventory", "inventory-damaged"], ["inventory", "inventory-out-log"], ["inventory", "inventory-day-session"]],
   "inventory-tugas-mingguan": [["inventory", "inventory-tasks"], ["inventory", "inventory-weekly-proof"], ["inventory", "inventory-update-stock"]],
   "inventory-production": [["production", "production-primary"], ["production", "production-status-column"], ["production", "production-whatsapp"], ["production", "production-kanban"]],
