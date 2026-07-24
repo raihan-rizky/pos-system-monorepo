@@ -190,6 +190,7 @@ export function invalidateGoodsPurchaseMutationQueries(
 ): void {
   if (!finalized) return;
   for (const queryKey of [
+    ["goods-purchases"],
     ["finance"],
     ["financial-report"],
     ["products"],

@@ -822,7 +822,7 @@ model ShoppingRequestItem {
 model GoodsPurchase {
   id                       String              @id @default(cuid())
   storeId                  String
-  number                   String              @unique
+  number                   String
   sequence                 Int
   shoppingRequestId        String
   activeShoppingRequestKey String?             @unique
@@ -851,6 +851,7 @@ model GoodsPurchase {
   expense                  Expense?
 
   @@index([storeId, status, createdAt])
+  @@unique([storeId, number])
   @@index([shoppingRequestId, createdAt])
   @@index([supplierId, createdAt])
   @@map("pos_goods_purchases")

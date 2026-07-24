@@ -54,8 +54,8 @@ CREATE TABLE "pos_goods_purchase_items" (
 ALTER TABLE "pos_expenses"
   ADD COLUMN "goodsPurchaseId" TEXT;
 
-CREATE UNIQUE INDEX "pos_goods_purchases_number_key"
-  ON "pos_goods_purchases"("number");
+CREATE UNIQUE INDEX "pos_goods_purchases_storeId_number_key"
+  ON "pos_goods_purchases"("storeId", "number");
 
 CREATE UNIQUE INDEX "pos_goods_purchases_activeShoppingRequestKey_key"
   ON "pos_goods_purchases"("activeShoppingRequestKey");

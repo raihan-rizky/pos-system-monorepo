@@ -91,5 +91,15 @@ describe("goods purchase supplier UI", () => {
     const list = source("GoodsPurchaseList.tsx");
     expect(list).toContain("supplier.goods_purchase.approve");
     expect(list).toContain("supplier.goods_purchase.reject");
+    expect(list).toContain('canPerform("supplier", "create")');
+    expect(list).toContain("canCreate &&");
+  });
+
+  it("lets an approver search and switch to a large unit in the same stock group", () => {
+    const editor = source("GoodsPurchaseItemEditor.tsx");
+    expect(editor).toContain("Cari produk atau SKU");
+    expect(editor).toContain("item.stockGroupId");
+    expect(editor).toContain("stockGroupId === item.stockGroupId");
+    expect(editor).toContain("<optgroup");
   });
 });

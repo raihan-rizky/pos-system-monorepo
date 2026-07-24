@@ -19,6 +19,7 @@ describe("goods purchase persistence", () => {
     expect(schema).toContain("enum GoodsPurchaseItemReviewStatus");
     expect(schema).toContain("activeShoppingRequestKey String?");
     expect(schema).toMatch(/goodsPurchaseId\s+String\?/);
+    expect(schema).toContain("@@unique([storeId, number])");
     expect(schema).toContain("@@unique([goodsPurchaseId, productId])");
   });
 
@@ -26,6 +27,12 @@ describe("goods purchase persistence", () => {
     const migration = readFileSync(migrationPath, "utf8");
     expect(migration).toContain(
       'CREATE UNIQUE INDEX "pos_goods_purchases_activeShoppingRequestKey_key"',
+    );
+    expect(migration).toContain(
+      'CREATE UNIQUE INDEX "pos_goods_purchases_storeId_number_key"',
+    );
+    expect(migration).not.toContain(
+      'CREATE UNIQUE INDEX "pos_goods_purchases_number_key"',
     );
     expect(migration).toContain(
       'CREATE UNIQUE INDEX "pos_goods_purchase_items_goodsPurchaseId_productId_key"',

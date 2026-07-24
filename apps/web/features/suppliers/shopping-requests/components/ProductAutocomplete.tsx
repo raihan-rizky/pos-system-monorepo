@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { useProducts, type Product } from "@/hooks/useProducts";
 import { ProductStockThumbnail } from "@/features/inventory-management/components/ProductStockThumbnail";
-import { getLargeUnitShoppingProducts } from "../helpers/shopping-requests-core";
 
 interface ProductAutocompleteProps {
   onSelect: (product: Product) => void;
@@ -13,7 +12,7 @@ interface ProductAutocompleteProps {
 
 export function ProductAutocomplete({
   onSelect,
-  placeholder = "Cari produk unit besar (nama / SKU)...",
+  placeholder = "Cari produk (nama / SKU)...",
 }: ProductAutocompleteProps) {
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -21,7 +20,7 @@ export function ProductAutocomplete({
 
   // useProducts uses its own internal debounce for the API call
   const products = useProducts(search, undefined, { limit: 20 });
-  const results = getLargeUnitShoppingProducts(products.data ?? []);
+  const results = products.data ?? [];
 
   // Handle click outside to close the dropdown
   useEffect(() => {
@@ -76,7 +75,7 @@ export function ProductAutocomplete({
             </div>
           ) : results.length === 0 ? (
             <div className="p-4 text-center text-sm text-slate-500">
-              Produk unit besar tidak ditemukan
+              Produk tidak ditemukan
             </div>
           ) : (
             <ul className="flex flex-col gap-1">

@@ -81,4 +81,40 @@ describe("goods purchase create repository", () => {
       }),
     );
   });
+
+  it("keeps scanning product pages until it finds large-unit options", async () => {
+    productFindMany
+      .mockResolvedValueOnce(
+        Array.from({ length: 200 }, (_, index) => ({
+          id: `small-${index}`,
+          name: `Produk kecil ${index}`,
+          sku: `SMALL-${index}`,
+          unit: "pcs",
+          unitMultiplierToBase: 1,
+          costPrice: null,
+          stockGroupId: null,
+          stockGroup: null,
+        })),
+      )
+      .mockResolvedValueOnce([
+        {
+          id: "large-201",
+          name: "Produk Dus",
+          sku: "LARGE-201",
+          unit: "dus",
+          unitMultiplierToBase: 1,
+          costPrice: { toString: () => "250000" },
+          stockGroupId: "group-1",
+          stockGroup: { displayName: "Produk" },
+        },
+      ]);
+
+    await expect(listLargeUnitProducts("store-1")).resolves.toEqual([
+      expect.objectContaining({ id: "large-201" }),
+    ]);
+    expect(productFindMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ skip: 200, take: 200 }),
+    );
+  });
 });

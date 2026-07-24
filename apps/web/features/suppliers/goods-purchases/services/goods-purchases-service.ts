@@ -230,6 +230,11 @@ function translateRepositoryError(error: unknown): Error {
         "Daftar Belanja ini sedang atau sudah memiliki Pembelian Barang aktif",
         true,
       );
+    case "PURCHASE_NUMBER_CONFLICT":
+      return new GoodsPurchaseValidationError(
+        "Nomor Pembelian Barang bentrok. Silakan coba lagi",
+        true,
+      );
     case "REQUEST_NOT_ELIGIBLE":
       return new GoodsPurchaseValidationError(
         "Daftar Belanja tidak tersedia untuk Pembelian Barang",
@@ -259,6 +264,10 @@ function translateRepositoryError(error: unknown): Error {
     case "SMALL_UNIT":
       return new GoodsPurchaseValidationError(
         "Produk tambahan wajib menggunakan satuan unit besar",
+      );
+    case "INVALID_UNIT_VARIANT":
+      return new GoodsPurchaseValidationError(
+        "Unit pengganti wajib berupa satuan besar dari grup stok yang sama",
       );
     case "MIN_ITEMS":
       return new GoodsPurchaseValidationError(

@@ -33,10 +33,12 @@ export class GoodsPurchaseRepositoryError extends Error {
       | "ITEM_SET_MISMATCH"
       | "PRODUCT_NOT_FOUND"
       | "ACTIVE_REQUEST_CONFLICT"
+      | "PURCHASE_NUMBER_CONFLICT"
       | "NOT_PENDING"
       | "ITEM_NOT_FOUND"
       | "DUPLICATE_PRODUCT"
       | "SMALL_UNIT"
+      | "INVALID_UNIT_VARIANT"
       | "MIN_ITEMS",
   ) {
     super(code);
@@ -46,7 +48,12 @@ export class GoodsPurchaseRepositoryError extends Error {
 
 const goodsPurchaseInclude = {
   shoppingRequest: { select: { number: true } },
-  items: { orderBy: { createdAt: "asc" as const } },
+  items: {
+    orderBy: { createdAt: "asc" as const },
+    include: {
+      product: { select: { stockGroupId: true } },
+    },
+  },
 } satisfies Prisma.GoodsPurchaseInclude;
 
 type GoodsPurchaseRow = Prisma.GoodsPurchaseGetPayload<{
@@ -96,6 +103,7 @@ export function mapGoodsPurchaseDetail(
       sku: item.skuSnapshot,
       unit: item.unitSnapshot,
       unitMultiplierToBase: item.unitMultiplierSnapshot,
+      stockGroupId: item.product.stockGroupId,
       quantity: item.quantity,
       masterCostPriceSnapshot: decimalToNumber(
         item.masterCostPriceSnapshot,
@@ -270,34 +278,53 @@ export async function listLargeUnitProducts(
   storeId: string,
   q?: string,
 ): Promise<LargeUnitProductOption[]> {
-  const rows = await db.product.findMany({
-    where: {
-      storeId,
-      isActive: true,
-      ...(q
-        ? {
-            OR: [
-              { name: { contains: q, mode: "insensitive" as const } },
-              { sku: { contains: q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
-    },
-    select: {
-      id: true,
-      name: true,
-      sku: true,
-      unit: true,
-      unitMultiplierToBase: true,
-      costPrice: true,
-      stockGroupId: true,
-      stockGroup: { select: { displayName: true } },
-    },
-    orderBy: { name: "asc" },
-    take: 100,
-  });
+  const largeProducts: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    unit: string | null;
+    unitMultiplierToBase: number;
+    costPrice: Prisma.Decimal | null;
+    stockGroupId: string | null;
+    stockGroup: { displayName: string } | null;
+  }> = [];
+  const pageSize = 200;
+  let skip = 0;
 
-  return rows.filter(isLargePurchaseUnit).map((product) => ({
+  while (largeProducts.length < 100) {
+    const rows = await db.product.findMany({
+      where: {
+        storeId,
+        isActive: true,
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" as const } },
+                { sku: { contains: q, mode: "insensitive" as const } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        unit: true,
+        unitMultiplierToBase: true,
+        costPrice: true,
+        stockGroupId: true,
+        stockGroup: { select: { displayName: true } },
+      },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      skip,
+      take: pageSize,
+    });
+    largeProducts.push(...rows.filter(isLargePurchaseUnit));
+    if (rows.length < pageSize) break;
+    skip += pageSize;
+  }
+
+  return largeProducts.slice(0, 100).map((product) => ({
     id: product.id,
     name: product.name,
     sku: product.sku,
@@ -390,6 +417,13 @@ export async function createGoodsPurchaseRecord(
         throw new GoodsPurchaseRepositoryError("PRODUCT_NOT_FOUND");
       }
 
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "pos_stores"
+        WHERE "id" = ${actor.storeId}
+        FOR UPDATE
+      `;
+
       const monthStart = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
       );
@@ -469,7 +503,22 @@ export async function createGoodsPurchaseRecord(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      throw new GoodsPurchaseRepositoryError("ACTIVE_REQUEST_CONFLICT");
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.map(String).join(",")
+        : String(error.meta?.target ?? "");
+      if (target.includes("activeShoppingRequestKey")) {
+        throw new GoodsPurchaseRepositoryError(
+          "ACTIVE_REQUEST_CONFLICT",
+        );
+      }
+      if (
+        target.includes("storeId") &&
+        target.includes("number")
+      ) {
+        throw new GoodsPurchaseRepositoryError(
+          "PURCHASE_NUMBER_CONFLICT",
+        );
+      }
     }
     throw error;
   }
@@ -482,6 +531,17 @@ async function loadPendingGoodsPurchase(
   purchaseId: string,
   storeId: string,
 ): Promise<GoodsPurchaseRow> {
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "pos_goods_purchases"
+    WHERE "id" = ${purchaseId}
+      AND "storeId" = ${storeId}
+      AND "status" = 'PENDING'::"GoodsPurchaseStatus"
+    FOR UPDATE
+  `;
+  if (locked.length === 0) {
+    throw new GoodsPurchaseRepositoryError("NOT_PENDING");
+  }
   const purchase = await tx.goodsPurchase.findFirst({
     where: { id: purchaseId, storeId, status: "PENDING" },
     include: goodsPurchaseInclude,
@@ -712,10 +772,21 @@ export async function editGoodsPurchaseItemRecord(
         unit: true,
         unitMultiplierToBase: true,
         costPrice: true,
+        stockGroupId: true,
       },
     });
     if (!product) {
       throw new GoodsPurchaseRepositoryError("PRODUCT_NOT_FOUND");
+    }
+    if (
+      product.id !== item.productId &&
+      (!isLargePurchaseUnit(product) ||
+        item.product.stockGroupId === null ||
+        product.stockGroupId !== item.product.stockGroupId)
+    ) {
+      throw new GoodsPurchaseRepositoryError(
+        "INVALID_UNIT_VARIANT",
+      );
     }
 
     const latestUnitPrice = new Prisma.Decimal(
@@ -898,6 +969,7 @@ export async function rejectGoodsPurchaseRecord(
   now = new Date(),
 ): Promise<GoodsPurchaseDetail> {
   return db.$transaction(async (tx) => {
+    await loadPendingGoodsPurchase(tx, purchaseId, actor.storeId);
     const result = await tx.goodsPurchase.updateMany({
       where: {
         id: purchaseId,

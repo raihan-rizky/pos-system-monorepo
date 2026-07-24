@@ -46,6 +46,7 @@ export function GoodsPurchaseList({
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [approvedDialogOpen, setApprovedDialogOpen] = useState(false);
   const { canPerform } = useRole();
+  const canCreate = canPerform("supplier", "create");
   const canApprove = canPerform(
     "supplier.goods_purchase.approve",
     "update",
@@ -91,14 +92,16 @@ export function GoodsPurchaseList({
           <option value="APPROVED">Disetujui</option>
           <option value="REJECTED">Ditolak</option>
         </select>
-        <Button
-          type="button"
-          onClick={onCreateClick}
-          icon={<Plus className="h-4 w-4" />}
-          className="w-full md:w-auto"
-        >
-          Buat Pembelian Barang
-        </Button>
+        {canCreate && (
+          <Button
+            type="button"
+            onClick={onCreateClick}
+            icon={<Plus className="h-4 w-4" />}
+            className="w-full md:w-auto"
+          >
+            Buat Pembelian Barang
+          </Button>
+        )}
       </div>
 
       {list.isPending ? (

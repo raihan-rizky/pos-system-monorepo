@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const tx = vi.hoisted(() => ({
+  $queryRaw: vi.fn(),
   goodsPurchase: {
     findFirst: vi.fn(),
     update: vi.fn(),
@@ -106,6 +107,7 @@ function item(
     approvedAt: reviewStatus === "APPROVED" ? now : null,
     createdAt: now,
     updatedAt: now,
+    product: { stockGroupId: "stock-group-1" },
   };
 }
 
@@ -151,6 +153,34 @@ describe("goods purchase item review transaction", () => {
     tx.expense.create.mockResolvedValue({});
     tx.product.update.mockResolvedValue({});
     tx.productPriceLog.createMany.mockResolvedValue({ count: 1 });
+    tx.$queryRaw.mockResolvedValue([{ id: "purchase-1" }]);
+  });
+
+  it("locks the pending purchase before mutating an item", async () => {
+    const pending = item("item-1", "product-1", "PENDING");
+    const anotherPending = item("item-2", "product-2", "PENDING");
+    tx.goodsPurchase.findFirst
+      .mockResolvedValueOnce(purchase([pending, anotherPending]))
+      .mockResolvedValueOnce(
+        purchase([
+          { ...pending, reviewStatus: "APPROVED" },
+          anotherPending,
+        ]),
+      );
+
+    await approveGoodsPurchaseItemRecord(
+      "purchase-1",
+      "item-1",
+      actor,
+      now,
+    );
+
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(
+      tx.$queryRaw.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      tx.goodsPurchaseItem.update.mock.invocationCallOrder[0],
+    );
   });
 
   it("keeps the header pending while another item needs action", async () => {
@@ -323,6 +353,7 @@ describe("goods purchase item review transaction", () => {
       unit: "box",
       unitMultiplierToBase: 12,
       costPrice: new DecimalMock(10_000),
+      stockGroupId: "stock-group-1",
     });
 
     const result = await editGoodsPurchaseItemRecord(
@@ -347,6 +378,84 @@ describe("goods purchase item review transaction", () => {
         approvedAt: null,
       }),
     });
+  });
+
+  it("only allows changing an item to a large unit in the same stock group", async () => {
+    const pending = item("item-1", "product-current", "PENDING");
+    tx.goodsPurchase.findFirst.mockResolvedValueOnce(purchase([pending]));
+    tx.product.findFirst.mockResolvedValueOnce({
+      id: "product-wrong-group",
+      name: "Kertas Box Lain",
+      sku: "BOX-2",
+      unit: "box",
+      unitMultiplierToBase: 12,
+      costPrice: new DecimalMock(10_000),
+      stockGroupId: "stock-group-2",
+    });
+
+    await expect(
+      editGoodsPurchaseItemRecord(
+        "purchase-1",
+        "item-1",
+        {
+          productId: "product-wrong-group",
+          quantity: 3,
+          latestUnitPrice: 12_000,
+          updateMasterHpp: false,
+        },
+        actor,
+      ),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<GoodsPurchaseRepositoryError>>({
+        code: "INVALID_UNIT_VARIANT",
+      }),
+    );
+
+    tx.goodsPurchase.findFirst
+      .mockResolvedValueOnce(purchase([pending]))
+      .mockResolvedValueOnce(
+        purchase([
+          {
+            ...pending,
+            productId: "product-same-group",
+            productNameSnapshot: "Kertas Dus",
+            skuSnapshot: "DUS-1",
+            unitSnapshot: "dus",
+            unitMultiplierSnapshot: 24,
+            product: { stockGroupId: "stock-group-1" },
+          },
+        ]),
+      );
+    tx.product.findFirst.mockResolvedValueOnce({
+      id: "product-same-group",
+      name: "Kertas Dus",
+      sku: "DUS-1",
+      unit: "dus",
+      unitMultiplierToBase: 24,
+      costPrice: new DecimalMock(20_000),
+      stockGroupId: "stock-group-1",
+    });
+
+    await editGoodsPurchaseItemRecord(
+      "purchase-1",
+      "item-1",
+      {
+        productId: "product-same-group",
+        quantity: 2,
+        latestUnitPrice: 20_000,
+        updateMasterHpp: false,
+      },
+      actor,
+    );
+
+    expect(tx.goodsPurchaseItem.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          productId: "product-same-group",
+          unitSnapshot: "dus",
+        }),
+      }),
+    );
   });
 
   it("requires at least one item to remain", async () => {
@@ -442,15 +551,19 @@ describe("goods purchase item review transaction", () => {
 
   it("rejects without creating expense or HPP updates and frees the request", async () => {
     tx.goodsPurchase.updateMany.mockResolvedValueOnce({ count: 1 });
-    tx.goodsPurchase.findFirst.mockResolvedValueOnce({
-      ...purchase([item("item-1", "product-1", "PENDING")]),
-      status: "REJECTED",
-      activeShoppingRequestKey: null,
-      rejectedById: "owner-1",
-      rejectedByName: "Owner",
-      rejectionReason: "Harga terlalu tinggi",
-      rejectedAt: now,
-    });
+    tx.goodsPurchase.findFirst
+      .mockResolvedValueOnce(
+        purchase([item("item-1", "product-1", "PENDING")]),
+      )
+      .mockResolvedValueOnce({
+        ...purchase([item("item-1", "product-1", "PENDING")]),
+        status: "REJECTED",
+        activeShoppingRequestKey: null,
+        rejectedById: "owner-1",
+        rejectedByName: "Owner",
+        rejectionReason: "Harga terlalu tinggi",
+        rejectedAt: now,
+      });
 
     await rejectGoodsPurchaseRecord(
       "purchase-1",
@@ -473,5 +586,6 @@ describe("goods purchase item review transaction", () => {
     });
     expect(tx.expense.create).not.toHaveBeenCalled();
     expect(tx.product.update).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalled();
   });
 });

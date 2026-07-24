@@ -1,5 +1,4 @@
 import type { ShoppingRequestItemInput } from "../types/shopping-request";
-import type { Product } from "@/hooks/useProducts";
 
 /**
  * Builds a shopping request number: DPB-YYYYMM-XXX
@@ -32,51 +31,4 @@ export function sanitizeShoppingRequestItems(
  */
 export function defaultApprovedQty(_requestedQty: number): null {
   return null;
-}
-
-export function isLargeUnitShoppingProduct(product: {
-  unitMultiplierToBase?: number | null;
-}): boolean {
-  const multiplier = product.unitMultiplierToBase;
-  return (
-    typeof multiplier === "number" &&
-    Number.isFinite(multiplier) &&
-    multiplier > 1
-  );
-}
-
-export function getLargeUnitShoppingProducts(products: Product[]): Product[] {
-  return products.flatMap((product) => {
-    if (!product.variants?.length) {
-      return isLargeUnitShoppingProduct(product) ? [product] : [];
-    }
-
-    return product.variants
-      .filter(isLargeUnitShoppingProduct)
-      .map((variant) => ({
-        ...product,
-        id: variant.id,
-        unit: variant.unit,
-        price: variant.price,
-        costPrice: variant.costPrice,
-        stock: variant.stock,
-        sku: variant.sku,
-        unitMultiplierToBase: variant.unitMultiplierToBase,
-        stockGroup: variant.stockGroup,
-        hargaDinas: variant.hargaDinas,
-        hargaAgen: variant.hargaAgen,
-        barcode: variant.barcode ?? product.barcode,
-        size: variant.size ?? product.size,
-        material: variant.material ?? product.material,
-        brandId: variant.brandId ?? product.brandId,
-        brand: variant.brand ?? product.brand,
-        defaultVariant: {
-          id: variant.id,
-          unit: variant.unit,
-          price: variant.price,
-          stock: variant.stock,
-          sku: variant.sku,
-        },
-      }));
-  });
 }

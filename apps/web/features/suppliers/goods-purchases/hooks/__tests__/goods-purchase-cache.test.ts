@@ -82,6 +82,9 @@ describe("goods purchase cache helpers", () => {
 
     invalidateGoodsPurchaseMutationQueries(queryClient, true);
     expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["goods-purchases"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["finance"],
     });
     expect(invalidateSpy).toHaveBeenCalledWith({

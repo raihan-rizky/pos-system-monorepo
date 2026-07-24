@@ -30,6 +30,7 @@ export type GoodsPurchaseItemRecord = {
   sku: string;
   unit: string | null;
   unitMultiplierToBase: number;
+  stockGroupId: string | null;
   quantity: number;
   masterCostPriceSnapshot: number | null;
   latestUnitPrice: number;

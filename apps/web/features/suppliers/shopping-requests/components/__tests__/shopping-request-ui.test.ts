@@ -30,12 +30,12 @@ describe("Daftar Belanja UI", () => {
     expect(source("ShoppingRequestCreateModal.tsx")).toContain("ProductStockThumbnail");
   });
 
-  it("only offers large-unit products in the shared shopping-request picker", () => {
+  it("keeps all matching store products available in the Daftar Belanja picker", () => {
     const content = source("ProductAutocomplete.tsx");
 
-    expect(content).toContain("getLargeUnitShoppingProducts");
-    expect(content).toContain("getLargeUnitShoppingProducts(products.data ?? [])");
-    expect(content).toContain("Produk unit besar tidak ditemukan");
+    expect(content).not.toContain("getLargeUnitShoppingProducts");
+    expect(content).toContain("const results = products.data ?? []");
+    expect(content).toContain("Produk tidak ditemukan");
   });
 
   it("shows expense impact without stock mode or live stock preview", () => {

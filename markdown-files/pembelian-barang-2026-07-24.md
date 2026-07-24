@@ -37,6 +37,7 @@ Approver membuka modal review dan dapat:
 - menambah produk master dengan satuan unit besar.
 
 Produk tambahan dianggap unit besar jika multiplier lebih dari 1 atau nama unit termasuk dus, box, pak, pack, krat, karton, bal, atau sak.
+Saat mengedit produk, approver dapat mencari dan mengganti unit hanya ke varian satuan besar dari grup stok yang sama. Picker Daftar Belanja tetap menampilkan semua produk toko; batasan unit besar hanya berlaku di Pembelian Barang.
 
 Perubahan produk langsung tersimpan. Produk yang belum diputuskan ditandai **Belum Ada Aksi**. Jika produk yang sudah disetujui diedit, sistem meminta konfirmasi dan mengembalikan status item menjadi Belum Ada Aksi.
 
@@ -49,6 +50,8 @@ Ketika semua produk tersisa disetujui, sistem menjalankan transaksi atomik:
 5. menutup modal dan menampilkan **Pembelian Barang Telah Disetujui**.
 
 Tidak ada mutasi stok atau log inventaris pada pengajuan, review, approval, penolakan, maupun retry.
+
+Perubahan pada satu Pembelian Barang dikunci dan diproses bergantian di database. Jadi, dua aksi approval/reject yang datang bersamaan tidak dapat membuat status header, item, HPP, atau Expense saling menimpa. Nomor pembelian juga dialokasikan berurutan per toko dan unik dalam toko tersebut.
 
 ### Penolakan
 
@@ -114,6 +117,8 @@ Coverage utama mencakup:
 - aturan eligibility dan tenant;
 - ketepatan item Daftar Belanja;
 - larangan unit kecil dan produk duplikat;
+- pergantian unit hanya dalam grup stok yang sama;
+- serialisasi aksi paralel serta nomor unik per toko;
 - keputusan per item serta finalisasi atomik;
 - tidak adanya mutasi stok;
 - HPP opsional per produk;
