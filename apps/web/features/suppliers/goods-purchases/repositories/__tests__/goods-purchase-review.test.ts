@@ -19,7 +19,7 @@ const tx = vi.hoisted(() => ({
     updateMany: vi.fn(),
   },
   productPriceLog: { createMany: vi.fn() },
-  expense: { create: vi.fn() },
+  expense: { create: vi.fn(), deleteMany: vi.fn() },
   inventoryLog: { create: vi.fn() },
   productStockGroup: { update: vi.fn() },
 }));
@@ -151,6 +151,7 @@ describe("goods purchase item review transaction", () => {
     tx.goodsPurchase.updateMany.mockResolvedValue({ count: 1 });
     tx.goodsPurchase.update.mockResolvedValue({});
     tx.expense.create.mockResolvedValue({});
+    tx.expense.deleteMany.mockResolvedValue({ count: 0 });
     tx.product.update.mockResolvedValue({});
     tx.productPriceLog.createMany.mockResolvedValue({ count: 1 });
     tx.$queryRaw.mockResolvedValue([{ id: "purchase-1" }]);
@@ -287,6 +288,30 @@ describe("goods purchase item review transaction", () => {
     });
     expect(tx.product.update).not.toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "product-keep" } }),
+    );
+  });
+
+  it("deletes any legacy expense before creating the goods-purchase expense", async () => {
+    const last = item("item-last", "product-keep", "PENDING");
+    const approvedItems = [{ ...last, reviewStatus: "APPROVED" as const }];
+    tx.goodsPurchase.findFirst
+      .mockResolvedValueOnce(purchase([last]))
+      .mockResolvedValueOnce(purchase(approvedItems))
+      .mockResolvedValueOnce(purchase(approvedItems, "APPROVED"));
+    tx.product.findMany.mockResolvedValue([]);
+
+    await approveGoodsPurchaseItemRecord(
+      "purchase-1",
+      "item-last",
+      actor,
+      now,
+    );
+
+    expect(tx.expense.deleteMany).toHaveBeenCalledWith({
+      where: { shoppingRequestId: "shopping-1", goodsPurchaseId: null },
+    });
+    expect(tx.expense.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.expense.create.mock.invocationCallOrder[0],
     );
   });
 

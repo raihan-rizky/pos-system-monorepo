@@ -704,6 +704,13 @@ async function finalizeGoodsPurchaseIfReady(
     }
   }
 
+  await tx.expense.deleteMany({
+    where: {
+      shoppingRequestId: purchase.shoppingRequestId,
+      goodsPurchaseId: null,
+    },
+  });
+
   await tx.expense.create({
     data: {
       storeId: actor.storeId,
