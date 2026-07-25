@@ -129,6 +129,31 @@ describe("inventory management rules", () => {
     });
   });
 
+  it("refreshes matching status only at the next window boundary", () => {
+    const getDailyMatchingWindowRefreshDelay = (
+      inventoryRules as typeof inventoryRules & {
+        getDailyMatchingWindowRefreshDelay?: (date: Date) => number;
+      }
+    ).getDailyMatchingWindowRefreshDelay;
+
+    expect(getDailyMatchingWindowRefreshDelay).toBeTypeOf("function");
+    expect(
+      getDailyMatchingWindowRefreshDelay?.(
+        new Date("2026-06-25T07:00:00.000Z"),
+      ),
+    ).toBe(60 * 60 * 1000);
+    expect(
+      getDailyMatchingWindowRefreshDelay?.(
+        new Date("2026-06-25T08:00:00.000Z"),
+      ),
+    ).toBe(5 * 60 * 60 * 1000 + 1000);
+    expect(
+      getDailyMatchingWindowRefreshDelay?.(
+        new Date("2026-06-25T13:00:01.000Z"),
+      ),
+    ).toBe(19 * 60 * 60 * 1000 - 1000);
+  });
+
   it("uses owner approval work for owner urgent badges", () => {
     expect(
       buildInventoryUrgentCount("OWNER", {

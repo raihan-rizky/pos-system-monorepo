@@ -223,6 +223,25 @@ export function getDailyMatchingWindowStatus(date: Date = new Date()) {
   };
 }
 
+export function getDailyMatchingWindowRefreshDelay(
+  date: Date = new Date(),
+): number {
+  const elapsedMilliseconds =
+    jakartaSecondsSinceMidnight(date) * 1000 + date.getUTCMilliseconds();
+  const startMilliseconds = DAILY_MATCHING_START_SECONDS * 1000;
+  const closedMilliseconds = (DAILY_MATCHING_END_SECONDS + 1) * 1000;
+
+  if (elapsedMilliseconds < startMilliseconds) {
+    return startMilliseconds - elapsedMilliseconds;
+  }
+
+  if (elapsedMilliseconds < closedMilliseconds) {
+    return closedMilliseconds - elapsedMilliseconds;
+  }
+
+  return 24 * 60 * 60 * 1000 - elapsedMilliseconds + startMilliseconds;
+}
+
 export function buildInventoryUrgentCount(
   role: Role,
   counts: InventoryUrgentCounts,

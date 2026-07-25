@@ -110,31 +110,19 @@ type PageTab =
   | "special-prices"
   | "group-activity";
 
-function useFitText(value: string | number) {
-  const ref = useRef<HTMLParagraphElement>(null);
+const PRODUCT_TABS: PageTab[] = [
+  "products",
+  "prices",
+  "special-prices",
+  "group-activity",
+];
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const raf = requestAnimationFrame(() => {
-      const maxSize = 36; // px, setara 2.25rem
-      const minSize = 12; // px
-
-      el.style.fontSize = `${maxSize}px`;
-
-      // Baca ulang setelah set, lalu kecilkan sampai muat
-      let size = maxSize;
-      while (el.scrollWidth > el.clientWidth && size > minSize) {
-        size -= 1;
-        el.style.fontSize = `${size}px`;
-      }
-    });
-
-    return () => cancelAnimationFrame(raf);
-  }, [value]);
-
-  return ref;
+function getStatValueTextSize(value: string | number): string {
+  const length = String(value).length;
+  if (length > 18) return "text-base sm:text-lg";
+  if (length > 14) return "text-lg sm:text-xl";
+  if (length > 10) return "text-xl sm:text-2xl";
+  return "text-3xl sm:text-4xl";
 }
 
 const fmt = (n: number) =>
@@ -144,7 +132,7 @@ const fmt = (n: number) =>
     minimumFractionDigits: 0,
   }).format(n);
 
-const PRODUCTS_PER_PAGE = 100;
+const PRODUCTS_PER_PAGE = 40;
 
 const intFmt = new Intl.NumberFormat("id-ID");
 
@@ -163,8 +151,6 @@ function StatCard({
   accent: string;
   delay?: number;
 }) {
-  const valueRef = useFitText(value);
-
   return (
     <div
       className={`group relative overflow-hidden rounded-[24px] p-6 bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-500`}
@@ -181,8 +167,7 @@ function StatCard({
             {label}
           </p>
           <p
-            ref={valueRef}
-            className="font-black text-slate-900 mt-2 tracking-tight whitespace-nowrap overflow-hidden w-full"
+            className={`w-full overflow-hidden whitespace-nowrap font-black tracking-tight text-slate-900 mt-2 ${getStatValueTextSize(value)}`}
           >
             {value}
           </p>
@@ -226,15 +211,14 @@ function ProductsContent() {
 
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const productTabs: PageTab[] = ["products", "prices", "special-prices", "group-activity"];
-  const initialTab = (tabParam && productTabs.includes(tabParam as PageTab)
+  const initialTab = (tabParam && PRODUCT_TABS.includes(tabParam as PageTab)
     ? tabParam 
     : "products") as PageTab;
   const [activeTab, setActiveTab] = useState<PageTab>(initialTab);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab && productTabs.includes(tab as PageTab)) {
+    if (tab && PRODUCT_TABS.includes(tab as PageTab)) {
       setActiveTab(tab as PageTab);
     }
   }, [searchParams]);
@@ -1317,6 +1301,10 @@ function ProductGrid({
               if (canUpdateProduct) onEdit(p.id);
             }}
             className={`group h-full bg-white rounded-[24px] p-5 border border-slate-200/60 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_12px_30px_rgb(0,0,0,0.08)] hover:border-blue-200 transition-all duration-300 flex flex-col gap-4 relative overflow-hidden ${canUpdateProduct ? "cursor-pointer" : ""}`}
+            style={{
+              contentVisibility: "auto",
+              containIntrinsicSize: "auto 280px",
+            }}
           >
             {onToggleProduct && (
               <input
@@ -1337,6 +1325,8 @@ function ProductGrid({
                   <img
                     src={p.imageUrl}
                     alt={p.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (

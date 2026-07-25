@@ -49,4 +49,26 @@ describe("shopping request stock approval migration", () => {
     expect(sql).toContain("Expense store ownership cannot be determined");
     expect(sql).toContain("ON DELETE RESTRICT");
   });
+
+  it("scopes request number uniqueness per store", () => {
+    const migrationsRoot = join(
+      process.cwd(),
+      "../../packages/db/prisma/migrations",
+    );
+    const migrations = readdirSync(migrationsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) =>
+        readFileSync(join(migrationsRoot, entry.name, "migration.sql"), "utf8"),
+      )
+      .join("\n");
+    const schema = readFileSync(
+      join(process.cwd(), "../../packages/db/prisma/schema.prisma"),
+      "utf8",
+    );
+
+    expect(migrations).toContain(
+      'CREATE UNIQUE INDEX "pos_shopping_requests_storeId_number_key"',
+    );
+    expect(schema).toContain("@@unique([storeId, number])");
+  });
 });

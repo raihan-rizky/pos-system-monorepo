@@ -326,6 +326,36 @@ input[type="number"] {
   }
 }
 
+/* Automatic low-spec profile: preserve functionality, drop cosmetic GPU/CPU work. */
+html[data-performance-mode="lite"] {
+  scroll-behavior: auto;
+}
+
+html[data-performance-mode="lite"] [class*="animate-ping"],
+html[data-performance-mode="lite"] [class*="animate-pulse"],
+html[data-performance-mode="lite"] [class*="animate-bounce"],
+html[data-performance-mode="lite"] .animate-ai-glow,
+html[data-performance-mode="lite"] .animate-pending-row,
+html[data-performance-mode="lite"] .animate-pending-badge,
+html[data-performance-mode="lite"] .history-surat-jalan-glow,
+html[data-performance-mode="lite"] .assistant-quick-prompt-glow,
+html[data-performance-mode="lite"] .app-page-loop-dot {
+  animation: none !important;
+}
+
+html[data-performance-mode="lite"] .app-page-loop {
+  display: none;
+}
+
+html[data-performance-mode="lite"] [class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html[data-performance-mode="lite"] .floating-ai-button {
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18) !important;
+}
+
 /* ─── Slide To Takeover Button ────────────────────────────────────────────── */
 @keyframes slideUp {
   from {

@@ -242,6 +242,11 @@ async function executeFinalization(
     const lockedVariantByProductId = new Map(
       stockGroup.variants.map((variant) => [variant.id, variant]),
     );
+    const canonicalLineDeltas: Array<{
+      line: LockedSubmittedInboundReceiptLine;
+      product: StockState["product"];
+      baseDelta: number;
+    }> = [];
     let baseDelta = 0;
     for (const line of update.canonicalLines) {
       const lockedVariant = lockedVariantByProductId.get(line.productId);
@@ -260,6 +265,11 @@ async function executeFinalization(
       if (!Number.isFinite(lineBaseDelta) || lineBaseDelta <= 0) {
         conflict("Konversi stok bersama perlu ditinjau");
       }
+      canonicalLineDeltas.push({
+        line,
+        product: lockedVariant,
+        baseDelta: lineBaseDelta,
+      });
       baseDelta += lineBaseDelta;
     }
     if (!Number.isFinite(baseDelta) || baseDelta <= 0) {
@@ -274,7 +284,30 @@ async function executeFinalization(
       baseDelta,
     });
 
-    const stateByProductId = new Map<string, StockState>();
+    let runningBaseStock = beforeBaseStock;
+    for (const canonicalLine of canonicalLineDeltas) {
+      const lineBeforeBaseStock = runningBaseStock;
+      const lineAfterBaseStock =
+        lineBeforeBaseStock + canonicalLine.baseDelta;
+      const beforeStock = calculateDisplayStock(
+        lineBeforeBaseStock,
+        canonicalLine.product.unitMultiplierToBase,
+      );
+      const afterStock = calculateDisplayStock(
+        lineAfterBaseStock,
+        canonicalLine.product.unitMultiplierToBase,
+      );
+      canonicalStateByLineId.set(canonicalLine.line.id, {
+        product: canonicalLine.product,
+        stockGroupId,
+        beforeStock,
+        afterStock,
+        delta: afterStock - beforeStock,
+        baseDelta: canonicalLine.baseDelta,
+      });
+      runningBaseStock = lineAfterBaseStock;
+    }
+
     for (const variant of stockGroup.variants) {
       const beforeStock = calculateDisplayStock(
         beforeBaseStock,
@@ -292,7 +325,6 @@ async function executeFinalization(
         delta: afterStock - beforeStock,
         baseDelta,
       };
-      stateByProductId.set(variant.id, state);
       variantImpacts.push(
         stockImpact(state, {
           kind: "VARIANT",
@@ -301,14 +333,6 @@ async function executeFinalization(
           inventoryLogId: null,
         }),
       );
-    }
-
-    for (const line of update.canonicalLines) {
-      const state = stateByProductId.get(line.productId);
-      if (!state) {
-        conflict("Produk penerimaan tidak aktif di grup stok");
-      }
-      canonicalStateByLineId.set(line.id, state);
     }
   }
 

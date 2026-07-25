@@ -273,8 +273,18 @@ export default function KeuanganDashboardPage() {
                   labelFormatter={(d) => fullDay(d as string)}
                 />
                 <ReferenceLine y={0} stroke="#0F172A" strokeWidth={1.5} />
-                <Bar dataKey="income" fill={FLOW_COLOR_INCOME} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" fill={FLOW_COLOR_EXPENSE} radius={[0, 0, 4, 4]} />
+                <Bar
+                  dataKey="income"
+                  fill={FLOW_COLOR_INCOME}
+                  radius={[4, 4, 0, 0]}
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey="expense"
+                  fill={FLOW_COLOR_EXPENSE}
+                  radius={[0, 0, 4, 4]}
+                  isAnimationActive={false}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           ) : (

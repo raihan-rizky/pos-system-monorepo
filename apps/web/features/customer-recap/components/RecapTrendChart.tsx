@@ -188,6 +188,7 @@ export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode })
                 radius={[6, 6, 0, 0]}
                 maxBarSize={42}
                 name={barName}
+                isAnimationActive={false}
               >
                 {data.map((point) => (
                   <Cell key={point.bucketKey} fill={point.barColor} />
@@ -203,6 +204,7 @@ export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode })
                   radius={[0, 0, 0, 0]}
                   maxBarSize={42}
                   name="Sisa Piutang Belum Lunas"
+                  isAnimationActive={false}
                 />
                 <Bar
                   yAxisId="bar"
@@ -212,6 +214,7 @@ export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode })
                   radius={[6, 6, 0, 0]}
                   maxBarSize={42}
                   name="Sisa utang yang dilunasi"
+                  isAnimationActive={false}
                 />
               </>
             )}
@@ -223,6 +226,7 @@ export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode })
               strokeWidth={2}
               dot={false}
               name={lineName}
+              isAnimationActive={false}
             />
           </ComposedChart>
         </ResponsiveContainer>

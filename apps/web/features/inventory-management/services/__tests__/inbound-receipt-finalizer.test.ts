@@ -446,7 +446,9 @@ describe("inbound receipt finalizer", () => {
     });
     const repository = createRepository(multiLineReceipt);
 
-    await finalizeInboundReceiptIfReady(finalizerInput(repository));
+    const result = await finalizeInboundReceiptIfReady(
+      finalizerInput(repository),
+    );
 
     expect(repository.incrementStockGroupBase).toHaveBeenCalledTimes(1);
     expect(repository.incrementStockGroupBase).toHaveBeenCalledWith(
@@ -457,6 +459,26 @@ describe("inbound receipt finalizer", () => {
       }),
     );
     expect(repository.createCanonicalInventoryLog).toHaveBeenCalledTimes(2);
+    expect(result.bundle?.canonicalImpacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          productId: "dus",
+          receiptLineId: "line-dus",
+          beforeStock: 10,
+          afterStock: 12,
+          delta: 2,
+          baseDelta: 24,
+        }),
+        expect.objectContaining({
+          productId: "pack",
+          receiptLineId: "line-pack",
+          beforeStock: 24,
+          afterStock: 27,
+          delta: 3,
+          baseDelta: 18,
+        }),
+      ]),
+    );
   });
 
   it("locks stock groups in the same sorted order regardless of receipt line order", async () => {

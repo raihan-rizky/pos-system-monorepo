@@ -38,6 +38,12 @@ interface BeamPerformanceProfile {
     blurRadius: number;
 }
 
+const OPACITY_BY_INTENSITY = {
+    subtle: 0.7,
+    medium: 0.85,
+    strong: 1,
+} as const;
+
 export function getBeamPerformanceProfile({
     viewportWidth,
     devicePixelRatio,
@@ -60,11 +66,11 @@ export function getBeamPerformanceProfile({
 
     if (isLowEndDevice) {
         return {
-            animate: true,
-            beamCount: 8,
+            animate: false,
+            beamCount: 6,
             pixelRatio: 1,
-            targetFps: 30,
-            blurRadius: 18,
+            targetFps: 0,
+            blurRadius: 14,
         };
     }
 
@@ -101,12 +107,6 @@ export function BeamsBackground({
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const beamsRef = useRef<Beam[]>([]);
     const animationFrameRef = useRef<number | null>(null);
-
-    const opacityMap = {
-        subtle: 0.7,
-        medium: 0.85,
-        strong: 1,
-    };
 
     useEffect(() => {
         const canvasElement = canvasRef.current;
@@ -171,7 +171,7 @@ export function BeamsBackground({
             const pulsingOpacity =
                 beam.opacity *
                 (0.8 + Math.sin(beam.pulse) * 0.2) *
-                opacityMap[intensity];
+                OPACITY_BY_INTENSITY[intensity];
 
             const gradient = ctx.createLinearGradient(0, 0, 0, beam.length);
 

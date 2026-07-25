@@ -1,6 +1,33 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+export type ClientPerformanceMode = "standard" | "lite";
+
+export interface ClientPerformanceSignals {
+  hardwareConcurrency?: number;
+  deviceMemory?: number;
+  saveData?: boolean;
+  prefersReducedMotion?: boolean;
+}
+
+export function resolveClientPerformanceMode({
+  hardwareConcurrency,
+  deviceMemory,
+  saveData = false,
+  prefersReducedMotion = false,
+}: ClientPerformanceSignals): ClientPerformanceMode {
+  if (
+    prefersReducedMotion ||
+    saveData ||
+    (hardwareConcurrency !== undefined && hardwareConcurrency <= 4) ||
+    (deviceMemory !== undefined && deviceMemory <= 4)
+  ) {
+    return "lite";
+  }
+
+  return "standard";
+}
+
 // Format Rupiah currency
 export function formatRupiah(amount: number | string): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;

@@ -4,12 +4,19 @@ const supplierFindFirstMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ id: "supplier-1" }),
 );
 const productFindManyMock = vi.hoisted(() => vi.fn());
+const storeLockMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue([{ id: "store-main" }]),
+);
+const shoppingRequestCountMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(0),
+);
 
 vi.mock("@pos/db", () => ({
   db: {
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       const tx = {
-        shoppingRequest: { count: vi.fn().mockResolvedValue(0) },
+        $queryRaw: storeLockMock,
+        shoppingRequest: { count: shoppingRequestCountMock },
         supplier: { findFirst: supplierFindFirstMock },
       };
       return fn(tx);
@@ -64,6 +71,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   supplierFindFirstMock.mockResolvedValue({ id: "supplier-1" });
   productFindManyMock.mockResolvedValue([]);
+  storeLockMock.mockResolvedValue([{ id: "store-main" }]);
+  shoppingRequestCountMock.mockResolvedValue(0);
 });
 
 describe("createShoppingRequest", () => {
@@ -190,6 +199,43 @@ describe("createShoppingRequest", () => {
         stockMode: "PRODUCT_ONLY",
       },
     ]);
+  });
+
+  it("locks the store before allocating the monthly request sequence", async () => {
+    vi.mocked(repo.createShoppingRequestWithItems).mockResolvedValue({
+      id: "sr-locked",
+      number: "DPB-202607-001",
+      status: "REQUESTED",
+      supplierId: "supplier-1",
+      supplierName: "Supplier A",
+      requestedByName: "Admin",
+      approvedByName: null,
+      itemCount: 0,
+      decidedItemCount: 0,
+      pendingItemCount: 0,
+      totalRequestedQty: 0,
+      totalApprovedQty: null,
+      createdAt: "2026-07-25T00:00:00.000Z",
+      approvedAt: null,
+      note: null,
+      stockAppliedAt: null,
+      items: [],
+    });
+
+    await createShoppingRequest(
+      {
+        supplierId: "supplier-1",
+        items: [{ productId: "prod-1", requestedQty: 1 }],
+      },
+      actor,
+      () => [productSnapshot],
+    );
+
+    expect(storeLockMock).toHaveBeenCalledTimes(1);
+    expect(shoppingRequestCountMock).toHaveBeenCalledTimes(1);
+    expect(storeLockMock.mock.invocationCallOrder[0]).toBeLessThan(
+      shoppingRequestCountMock.mock.invocationCallOrder[0],
+    );
   });
 });
 

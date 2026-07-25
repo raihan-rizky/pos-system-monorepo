@@ -54,8 +54,20 @@ export function RecapByTypeChart({ rows }: RecapByTypeChartProps) {
             <XAxis type="number" tickFormatter={(value) => `${Number(value) / 1000}k`} />
             <YAxis dataKey="label" type="category" width={88} />
             <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-            <Bar dataKey="revenue" name="Omzet" fill="#2563eb" radius={[0, 6, 6, 0]} />
-            <Bar dataKey="debtAmount" name="Piutang" fill="#f59e0b" radius={[0, 6, 6, 0]} />
+            <Bar
+              dataKey="revenue"
+              name="Omzet"
+              fill="#2563eb"
+              radius={[0, 6, 6, 0]}
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="debtAmount"
+              name="Piutang"
+              fill="#f59e0b"
+              radius={[0, 6, 6, 0]}
+              isAnimationActive={false}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

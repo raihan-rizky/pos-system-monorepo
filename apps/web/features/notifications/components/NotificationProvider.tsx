@@ -47,9 +47,11 @@ const NotificationContext = createContext<NotificationContextValue>({
 export function NotificationProvider({
   children,
   enabled = true,
+  refetchInterval = 30_000,
 }: {
   children: ReactNode;
   enabled?: boolean;
+  refetchInterval?: number;
 }) {
   const { userId } = useRole();
   const queryClient = useQueryClient();
@@ -64,7 +66,7 @@ export function NotificationProvider({
     queryFn: fetchNotificationInbox,
     enabled: enabled && Boolean(userId),
     staleTime: 10_000,
-    refetchInterval: 30_000,
+    refetchInterval,
     refetchOnWindowFocus: true,
     retry: 1,
   });

@@ -129,6 +129,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
               strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#dash-revenue)"
+              isAnimationActive={false}
             />
             <Area
               type="monotone"
@@ -137,6 +138,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
               strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#dash-profit)"
+              isAnimationActive={false}
             />
           </AreaChart>
         </ResponsiveContainer>

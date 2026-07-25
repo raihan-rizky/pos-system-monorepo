@@ -75,7 +75,14 @@ export default function ProductTable({
               const isLow = product.stock <= product.minStock;
               const stockLabel = formatCompoundStock(product);
               return (
-                <tr key={product.id} className="group border-b border-surface-50 hover:bg-brand-50/30 transition-colors duration-150">
+                <tr
+                  key={product.id}
+                  className="group border-b border-surface-50 hover:bg-brand-50/30 transition-colors duration-150"
+                  style={{
+                    contentVisibility: "auto",
+                    containIntrinsicSize: "auto 72px",
+                  }}
+                >
                   {onToggleProduct && (
                     <td className="py-3.5 pl-5 pr-0 align-middle">
                       <input
@@ -91,7 +98,13 @@ export default function ProductTable({
                   <td className="py-3.5 px-5 align-middle">
                     <div className="flex items-center gap-3.5">
                       <div className="w-11 h-11 rounded-xl bg-surface-50 border border-surface-100 flex items-center justify-center overflow-hidden shrink-0">
-                        <img src={product.imageUrl || getDefaultProductImage(product.category?.name)} alt={product.name} className="w-full h-full object-cover" />
+                        <img
+                          src={product.imageUrl || getDefaultProductImage(product.category?.name)}
+                          alt={product.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <div>
                         <p
@@ -223,6 +236,10 @@ export default function ProductTable({
             <div 
               key={product.id} 
               className="relative group bg-white rounded-3xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 hover:border-brand-200 transition-all duration-300"
+              style={{
+                contentVisibility: "auto",
+                containIntrinsicSize: "auto 180px",
+              }}
             >
               {onToggleProduct && (
                 <input
@@ -237,7 +254,13 @@ export default function ProductTable({
                 {/* Product Image */}
                 <div className="relative shrink-0">
                   <div className="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm">
-                    <img src={product.imageUrl || getDefaultProductImage(product.category?.name)} alt={product.name} className="w-full h-full object-cover" />
+                    <img
+                      src={product.imageUrl || getDefaultProductImage(product.category?.name)}
+                      alt={product.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   {isLow && (
                     <div className={`absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-sm ${isOut ? 'bg-red-500' : 'bg-amber-500'}`}>

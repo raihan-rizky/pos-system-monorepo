@@ -82,6 +82,12 @@ export async function createShoppingRequest(
         "Supplier tidak aktif atau tidak ditemukan",
       );
     }
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "pos_stores"
+      WHERE "id" = ${actor.storeId}
+      FOR UPDATE
+    `;
     const monthlyCount = await tx.shoppingRequest.count({
       where: {
         storeId: actor.storeId,

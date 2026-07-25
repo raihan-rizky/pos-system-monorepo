@@ -9,6 +9,7 @@ import type { Role } from "@/lib/rbac/permissions";
 import { installNumberInputGuards } from "@/lib/number-input-guard";
 import type { RolePermissions } from "@/features/rbac/helpers/rbac-core";
 import { NotificationProvider } from "@/features/notifications/components/NotificationProvider";
+import { useClientPerformanceMode } from "@/hooks/useClientPerformanceMode";
 
 const PwaStatusBanner = dynamic(
   () => import("@/components/PwaStatusBanner").then((mod) => mod.PwaStatusBanner),
@@ -119,7 +120,10 @@ export function Providers({
 }) {
   useEffect(() => installNumberInputGuards(document), []);
 
+  const performanceMode = useClientPerformanceMode();
   const isIdleReady = useIdleReady(Boolean(role));
+  const notificationRefetchInterval =
+    performanceMode === "lite" ? 120_000 : 30_000;
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -145,8 +149,15 @@ export function Providers({
         authorizationFingerprint={authorizationFingerprint}
         permissions={permissions}
       >
-        <NotificationProvider enabled={Boolean(role)}>
-          <AppBootstrap enabled={isIdleReady}>{children}</AppBootstrap>
+        <NotificationProvider
+          enabled={Boolean(role)}
+          refetchInterval={notificationRefetchInterval}
+        >
+          <AppBootstrap
+            enabled={isIdleReady && performanceMode !== "lite"}
+          >
+            {children}
+          </AppBootstrap>
           <DeferredAppServices enabled={isIdleReady} />
         </NotificationProvider>
       </RoleProvider>

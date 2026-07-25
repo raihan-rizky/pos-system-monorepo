@@ -763,7 +763,7 @@ model SuratJalanItem {
 model ShoppingRequest {
   id              String                    @id @default(cuid())
   storeId         String
-  number          String                    @unique
+  number          String
   sequence        Int
   supplierId      String?
   status          ShoppingRequestStatus     @default(REQUESTED)
@@ -784,6 +784,7 @@ model ShoppingRequest {
   goodsPurchases  GoodsPurchase[]
 
   @@index([storeId, createdAt])
+  @@unique([storeId, number])
   @@index([status, createdAt])
   @@index([status, stockAppliedAt])
   @@index([supplierId, createdAt])

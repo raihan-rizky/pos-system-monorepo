@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as beamsBackground from "@/components/ui/beams-background";
 
 describe("beams background performance profile", () => {
-  it("uses a lightweight animation profile on low-end devices", () => {
+  it("uses a static profile on low-end devices", () => {
     const getProfile = (
       beamsBackground as typeof beamsBackground & {
         getBeamPerformanceProfile?: (input: {
@@ -30,10 +30,10 @@ describe("beams background performance profile", () => {
         prefersReducedMotion: false,
       }),
     ).toMatchObject({
-      animate: true,
-      beamCount: 8,
+      animate: false,
+      beamCount: 6,
       pixelRatio: 1,
-      targetFps: 30,
+      targetFps: 0,
     });
   });
 
