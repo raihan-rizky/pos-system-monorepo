@@ -40,6 +40,11 @@ describe("goods purchase supplier UI", () => {
     expect(modal).toContain(
       "Update HPP master ke harga ini saat pembelian disetujui",
     );
+    expect(modal).toContain("LAMA");
+    expect(modal).toContain("legacyConfirmed");
+    expect(modal).toContain(
+      "Saya paham ini Daftar Belanja lama, stok sudah berubah, dan expense lama akan diganti.",
+    );
   });
 
   it("shows history status and detail fields", () => {

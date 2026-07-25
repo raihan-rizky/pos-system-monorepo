@@ -25,6 +25,8 @@ type DraftItem = CreateGoodsPurchaseInput["items"][number] & {
 
 const HPP_UPDATE_COPY =
   "Update HPP master ke harga ini saat pembelian disetujui";
+const LEGACY_CONFIRMATION_COPY =
+  "Saya paham ini Daftar Belanja lama, stok sudah berubah, dan expense lama akan diganti.";
 
 export function GoodsPurchaseCreateModal({
   open,
@@ -38,10 +40,12 @@ export function GoodsPurchaseCreateModal({
   const [selectedRequest, setSelectedRequest] =
     useState<EligibleShoppingRequest | null>(null);
   const [items, setItems] = useState<DraftItem[]>([]);
+  const [legacyConfirmed, setLegacyConfirmed] = useState(false);
 
   const reset = () => {
     setSelectedRequest(null);
     setItems([]);
+    setLegacyConfirmed(false);
   };
   const close = () => {
     reset();
@@ -51,6 +55,7 @@ export function GoodsPurchaseCreateModal({
     const request =
       eligible.data?.data.find((row) => row.id === requestId) ?? null;
     setSelectedRequest(request);
+    setLegacyConfirmed(false);
     setItems(
       request?.items.map((item) => ({
         shoppingRequestItemId: item.shoppingRequestItemId,
@@ -93,6 +98,7 @@ export function GoodsPurchaseCreateModal({
   const total = calculateGoodsPurchaseTotal(items);
   const canSubmit =
     Boolean(selectedRequest) &&
+    (!selectedRequest?.isLegacy || legacyConfirmed) &&
     items.length > 0 &&
     items.every(
       (item) =>
@@ -145,6 +151,7 @@ export function GoodsPurchaseCreateModal({
             <option value="">Pilih Daftar Belanja</option>
             {(eligible.data?.data ?? []).map((request) => (
               <option key={request.id} value={request.id}>
+                {request.isLegacy ? "⚠ LAMA - " : ""}
                 {request.number} - {request.supplierName}
               </option>
             ))}
@@ -157,14 +164,48 @@ export function GoodsPurchaseCreateModal({
           </div>
         ) : (
           <>
-            <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm">
-              <p className="font-black text-cyan-900">
-                Supplier: {selectedRequest.supplierName}
-              </p>
-              <p className="text-cyan-700">
-                Daftar Belanja {selectedRequest.number}
-              </p>
-            </div>
+            {selectedRequest.isLegacy ? (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
+                <p className="font-black text-amber-900">
+                  Supplier: {selectedRequest.supplierName}
+                </p>
+                <p className="text-amber-800">
+                  Daftar Belanja {selectedRequest.number} (data lama)
+                </p>
+                <p className="mt-1 text-amber-800">
+                  Daftar Belanja ini dibuat lewat alur lama. Stok sudah pernah
+                  diubah saat disetujui
+                  {selectedRequest.legacyExpenseAmount !== null
+                    ? `, dan expense lama ${formatCurrency(
+                        selectedRequest.legacyExpenseAmount,
+                      )} akan diganti dengan pengeluaran baru`
+                    : ""}
+                  {" "}
+                  saat Pembelian Barang ini disetujui.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm">
+                <p className="font-black text-cyan-900">
+                  Supplier: {selectedRequest.supplierName}
+                </p>
+                <p className="text-cyan-700">
+                  Daftar Belanja {selectedRequest.number}
+                </p>
+              </div>
+            )}
+            {selectedRequest.isLegacy && (
+              <label className="flex items-start gap-2 rounded-xl border border-amber-300 bg-white p-3 text-sm font-semibold text-amber-900">
+                <input
+                  type="checkbox"
+                  checked={legacyConfirmed}
+                  onChange={(event) =>
+                    setLegacyConfirmed(event.target.checked)
+                  }
+                />
+                {LEGACY_CONFIRMATION_COPY}
+              </label>
+            )}
             <section className="space-y-3">
               {items.map((item) => {
                 const hppDiffers = hasMasterHppDifference(

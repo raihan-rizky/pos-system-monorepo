@@ -15,6 +15,8 @@ describe("Bantuan Pembelian Barang", () => {
     expect(source).toContain('id: "owner-goods-purchase"');
     expect(source).toContain("Buat Pembelian Barang");
     expect(source).toContain("Daftar Belanja yang sudah disetujui");
+    expect(source).toContain("⚠ LAMA");
+    expect(source).toContain("expense lama");
     expect(source).toContain("harga produk terbaru");
     expect(source).toContain("update HPP");
     expect(source).toContain("Belum Ada Aksi");
