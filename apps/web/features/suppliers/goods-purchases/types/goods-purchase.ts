@@ -92,6 +92,9 @@ export type EligibleShoppingRequest = {
   supplierId: string;
   supplierName: string;
   approvedAt: string | null;
+  isLegacy: boolean;
+  legacyExpenseAmount: number | null;
+  stockApplied: boolean;
   items: EligibleShoppingRequestItem[];
 };
 
