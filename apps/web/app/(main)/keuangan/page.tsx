@@ -2,19 +2,10 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import {
-  ResponsiveContainer,
-  ComposedChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ReferenceLine,
-} from "recharts";
 import { Button, Modal } from "@pos/ui";
 import { ChevronRight, MoreVertical, Plus } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
@@ -33,11 +24,17 @@ import {
   CATEGORY_COLORS,
   CATEGORY_LABELS_ID,
 } from "@/features/keuangan/helpers/category-meta";
-import {
-  ExpenseFormModal,
-  type ExpenseFormInitial,
-} from "@/features/keuangan/components/ExpenseFormModal";
+import type { ExpenseFormInitial } from "@/features/keuangan/components/ExpenseFormModal";
+import { DeferredCashFlowChart } from "@/features/keuangan/components/DeferredCashFlowChart";
 import { formatRupiah } from "@/lib/utils";
+
+const ExpenseFormModal = dynamic(
+  () =>
+    import("@/features/keuangan/components/ExpenseFormModal").then(
+      (module) => module.ExpenseFormModal,
+    ),
+  { ssr: false },
+);
 
 const MONTH_NAMES_ID = [
   "Januari",
@@ -67,12 +64,6 @@ function currentJakartaMonth(): string {
 function monthLabel(month: string): string {
   const [y, m] = month.split("-").map(Number);
   return `${MONTH_NAMES_ID[m - 1]} ${y}`;
-}
-
-function shortDay(date: string) {
-  return new Intl.DateTimeFormat("id-ID", { day: "2-digit" }).format(
-    new Date(`${date}T00:00:00+07:00`),
-  );
 }
 
 function fullDay(date: string) {
@@ -113,7 +104,10 @@ export default function KeuanganDashboardPage() {
   const pengeluaran = useExpenseSummary(month);
   const list = useExpenseList(month, page, filterCategory);
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["finance"] });
+  const refresh = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["finance"] }),
+    [queryClient],
+  );
 
   const openCreateExpense = useCallback(() => {
     if (!canCreate) return;
@@ -123,7 +117,7 @@ export default function KeuanganDashboardPage() {
   }, [canCreate]);
   useAssistantModalAction("expense-create", openCreateExpense);
 
-  const handleEdit = (item: ExpenseListItem) => {
+  const handleEdit = useCallback((item: ExpenseListItem) => {
     setEditing({
       id: item.id,
       applicantName: item.applicantName,
@@ -137,28 +131,14 @@ export default function KeuanganDashboardPage() {
     });
     setModalMode("edit");
     setModalOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (item: ExpenseListItem) => {
+  const handleDelete = useCallback(async (item: ExpenseListItem) => {
     if (!confirm(`Hapus pengeluaran ${item.applicantName}?`)) return;
     const res = await fetch(`/api/finance/expenses/${item.id}`, { method: "DELETE" });
     if (res.ok) refresh();
     else alert("Gagal menghapus");
-  };
-
-  // Bidirectional flow data: income positive, expense negative (drawn below zero line)
-  const flowData = useMemo(() => {
-    const map = new Map<string, { date: string; income: number; expense: number }>();
-    pemasukan.data?.daily.forEach((d) => {
-      map.set(d.date, { date: d.date, income: d.total, expense: 0 });
-    });
-    pengeluaran.data?.daily.forEach((d) => {
-      const existing = map.get(d.date) ?? { date: d.date, income: 0, expense: 0 };
-      existing.expense = -d.total; // negative for below-axis rendering
-      map.set(d.date, existing);
-    });
-    return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
-  }, [pemasukan.data, pengeluaran.data]);
+  }, [refresh]);
 
   const stripeData = useMemo(() => {
     if (!pengeluaran.data || pengeluaran.data.byCategory.length === 0) return [];
@@ -240,59 +220,11 @@ export default function KeuanganDashboardPage() {
             </span>
           </div>
         </div>
-        <div className="h-48 sm:h-56 md:h-64">
-          {summaryLoading ? (
-            <div className="h-full w-full rounded-xl bg-surface-100 animate-pulse" />
-          ) : flowData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={flowData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }} stackOffset="sign">
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11, fill: "#64748B" }}
-                  tickFormatter={shortDay}
-                  axisLine={{ stroke: "#CBD5E1" }}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={12}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "#64748B" }}
-                  tickFormatter={(v) => {
-                    const abs = Math.abs(v);
-                    return abs >= 1_000_000 ? `${(v / 1_000_000).toFixed(0)}jt` : abs >= 1000 ? `${(v / 1000).toFixed(0)}rb` : String(v);
-                  }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={44}
-                />
-                <Tooltip
-                  cursor={{ fill: "#F1F5F9" }}
-                  contentStyle={{ borderRadius: 12, border: "1px solid #E2E8F0", fontSize: 12 }}
-                  formatter={(v, name) => [formatRupiah(Math.abs(Number(v ?? 0))), name === "income" ? "Pemasukan" : "Pengeluaran"]}
-                  labelFormatter={(d) => fullDay(d as string)}
-                />
-                <ReferenceLine y={0} stroke="#0F172A" strokeWidth={1.5} />
-                <Bar
-                  dataKey="income"
-                  fill={FLOW_COLOR_INCOME}
-                  radius={[4, 4, 0, 0]}
-                  isAnimationActive={false}
-                />
-                <Bar
-                  dataKey="expense"
-                  fill={FLOW_COLOR_EXPENSE}
-                  radius={[0, 0, 4, 4]}
-                  isAnimationActive={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-surface-500">
-              Belum ada aktivitas bulan ini
-            </div>
-          )}
-        </div>
+        <DeferredCashFlowChart
+          incomeDaily={pemasukan.data?.daily}
+          expenseDaily={pengeluaran.data?.daily}
+          loading={summaryLoading}
+        />
       </section>
 
       {/* ───────── Two Columns: Pemasukan + Pengeluaran ───────── */}
@@ -332,7 +264,13 @@ export default function KeuanganDashboardPage() {
           ) : (
               <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
               {pemasukan.data.daily.map((row) => (
-                <li key={row.date}>
+                <li
+                  key={row.date}
+                  style={{
+                    contentVisibility: "auto",
+                    containIntrinsicSize: "44px",
+                  }}
+                >
                   <Link
                     href={`/history?date=${row.date}`}
                     className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 min-h-11 hover:bg-surface-50 transition-colors cursor-pointer group focus:outline-none focus-visible:bg-surface-50"
@@ -449,6 +387,10 @@ export default function KeuanganDashboardPage() {
                   return (
                   <li
                     key={item.id}
+                    style={{
+                      contentVisibility: "auto",
+                      containIntrinsicSize: "72px",
+                    }}
                     className={`px-3 sm:px-4 py-2.5 flex items-start sm:items-center gap-3 ${
                       isAutomaticExpense ? "bg-violet-50/50" : "bg-white"
                     }`}
@@ -591,13 +533,15 @@ export default function KeuanganDashboardPage() {
         </section>
       </div>
 
-      <ExpenseFormModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSaved={refresh}
-        initial={editing}
-        mode={modalMode}
-      />
+      {modalOpen && (
+        <ExpenseFormModal
+          open
+          onClose={() => setModalOpen(false)}
+          onSaved={refresh}
+          initial={editing}
+          mode={modalMode}
+        />
+      )}
 
       {selectedImageUrl && (
         <Modal

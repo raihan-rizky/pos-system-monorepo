@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   AlertTriangle,
   Banknote,
@@ -27,13 +28,10 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { ReceiptModal } from "@/components/ReceiptModal";
 import { SuratJalanBundleButton } from "@/features/surat-jalan/components/SuratJalanBundleButton";
 import { Modal } from "@pos/ui";
 import { TransactionActionMenu } from "./TransactionActionMenu";
-import { TransactionCartEditor, type CartEditorItem } from "./components/TransactionCartEditor";
-import { ApproveModal } from "./components/ApproveModal";
-import { SuratJalanCreateModal } from "@/features/surat-jalan/components/SuratJalanCreateModal";
+import type { CartEditorItem } from "./components/TransactionCartEditor";
 import {
   formatSuratJalanBundleProgress,
   isSuratJalanBundle,
@@ -56,7 +54,6 @@ import {
   getTransactionInvoiceDate,
   hasInvoiceDateChange,
 } from "@/features/invoice-date/helpers/history-invoice-date-display";
-import { ApproveDraftDialog } from "@/features/transactions-draft";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { useCategories } from "@/hooks/useProducts";
 import { formatRupiah, formatDate } from "@/lib/utils";
@@ -67,6 +64,39 @@ import { shouldShowDeleteAction, shouldShowUpdateAction } from "@/features/rbac/
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("page:main:history");
+
+const ReceiptModal = dynamic(
+  () => import("@/components/ReceiptModal").then((module) => module.ReceiptModal),
+  { ssr: false },
+);
+const SuratJalanCreateModal = dynamic(
+  () =>
+    import(
+      "@/features/surat-jalan/components/SuratJalanCreateModal"
+    ).then((module) => module.SuratJalanCreateModal),
+  { ssr: false },
+);
+const TransactionCartEditor = dynamic(
+  () =>
+    import("./components/TransactionCartEditor").then(
+      (module) => module.TransactionCartEditor,
+    ),
+  { ssr: false },
+);
+const ApproveModal = dynamic(
+  () =>
+    import("./components/ApproveModal").then(
+      (module) => module.ApproveModal,
+    ),
+  { ssr: false },
+);
+const ApproveDraftDialog = dynamic(
+  () =>
+    import(
+      "@/features/transactions-draft/components/ApproveDraftDialog"
+    ).then((module) => module.ApproveDraftDialog),
+  { ssr: false },
+);
 
 function formatJakartaDateInput(value: string | null | undefined): string {
   if (!value) return "";

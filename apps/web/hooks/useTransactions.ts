@@ -141,8 +141,8 @@ interface CreateTransactionInput {
   }[];
 }
 
-async function fetchTransactions(): Promise<Transaction[]> {
-  const res = await fetch("/api/transactions?limit=50");
+async function fetchTransactions(limit: number): Promise<Transaction[]> {
+  const res = await fetch(`/api/transactions?limit=${limit}`);
   if (!res.ok) throw new Error("Failed to fetch transactions");
   const json = (await res.json()) as PaginatedTransactions;
   return json.data;
@@ -179,10 +179,11 @@ async function createTransaction(
   return res.json();
 }
 
-export function useTransactions() {
+export function useTransactions(options: { limit?: number } = {}) {
+  const limit = options.limit ?? 50;
   return useQuery({
-    queryKey: ["transactions"],
-    queryFn: fetchTransactions,
+    queryKey: ["transactions", { limit }],
+    queryFn: () => fetchTransactions(limit),
   });
 }
 

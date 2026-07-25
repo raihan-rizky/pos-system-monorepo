@@ -60,14 +60,8 @@ import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
 import { useRole } from "@/components/providers/RoleProvider";
-import {
-  PosPriceQuickEditModal,
-  type PosCartPriceUpdate,
-} from "@/components/inventory/PriceUpdateModal";
-import {
-  PosProductQuickEditModal,
-  type PosProductGroupUpdate,
-} from "@/components/EditProductModal";
+import type { PosCartPriceUpdate } from "@/components/inventory/PriceUpdateModal";
+import type { PosProductGroupUpdate } from "@/components/EditProductModal";
 import { useBrands } from "@/hooks/useBrands";
 import { parseSearchQuery } from "@/features/pos-search/pos-search";
 import { mapProductToCartItem } from "@/features/pos-search/services/cart-mapping";
@@ -85,6 +79,21 @@ import {
 import type { DraftCreateInput } from "@/features/transactions-draft";
 
 const POS_PAGE_SIZE = 24;
+
+const PosPriceQuickEditModal = dynamic(
+  () =>
+    import("@/components/inventory/PriceUpdateModal").then(
+      (module) => module.PosPriceQuickEditModal,
+    ),
+  { ssr: false },
+);
+const PosProductQuickEditModal = dynamic(
+  () =>
+    import("@/components/EditProductModal").then(
+      (module) => module.PosProductQuickEditModal,
+    ),
+  { ssr: false },
+);
 
 export type POSInitialData = {
   products: ProductsResponse | null;
@@ -190,7 +199,9 @@ export default function POSClientPage({
   const searchTokens = parseSearchQuery(deferredSearch);
 
   const { data: categories = [] } = useCategories(initialData.categories);
-  const { data: brands = [] } = useBrands();
+  const { data: brands = [] } = useBrands({
+    enabled: Boolean(productEditItem),
+  });
   const cart = useCart();
   const updateProduct = useUpdateProduct();
   const updateProductGroup = useUpdateProductGroupMetadata();
@@ -870,21 +881,25 @@ export default function POSClientPage({
         />
       )}
 
-      <PosPriceQuickEditModal
-        open={Boolean(priceEditItem)}
-        item={priceEditItem}
-        onClose={() => setPriceEditItem(null)}
-        onSave={handleSaveQuickPrice}
-      />
+      {priceEditItem && (
+        <PosPriceQuickEditModal
+          open
+          item={priceEditItem}
+          onClose={() => setPriceEditItem(null)}
+          onSave={handleSaveQuickPrice}
+        />
+      )}
 
-      <PosProductQuickEditModal
-        open={Boolean(productEditItem)}
-        item={productEditItem}
-        categories={categories}
-        brands={brands}
-        onClose={() => setProductEditItem(null)}
-        onSave={handleSaveQuickProduct}
-      />
+      {productEditItem && (
+        <PosProductQuickEditModal
+          open
+          item={productEditItem}
+          categories={categories}
+          brands={brands}
+          onClose={() => setProductEditItem(null)}
+          onSave={handleSaveQuickProduct}
+        />
+      )}
 
       {showNotaPenawaran && (
         <NotaPenawaranModal

@@ -20,38 +20,50 @@ import {
 } from "@/features/suppliers/api/suppliers-api";
 import type { SupplierInput } from "@/features/suppliers/types/supplier";
 
-export function useSuppliers(filters: SupplierListFilters) {
+export function useSuppliers(
+  filters: SupplierListFilters,
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["suppliers", filters],
     queryFn: () => listSuppliers(filters),
+    enabled: options.enabled ?? true,
     staleTime: 30_000,
   });
 }
 
-export function useSupplierSummary(filters: {
-  from?: string;
-  to?: string;
-  supplierId?: string;
-}) {
+export function useSupplierSummary(
+  filters: {
+    from?: string;
+    to?: string;
+    supplierId?: string;
+  },
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["suppliers", "summary", filters],
     queryFn: () => getSupplierSummary(filters),
+    enabled: options.enabled ?? true,
     staleTime: 30_000,
   });
 }
 
-export function useSupplierStockInRecap(filters: {
-  from?: string;
-  to?: string;
-  supplierId?: string;
-  productId?: string;
-  categoryId?: string;
-  page?: number;
-  limit?: number;
-}) {
+export function useSupplierStockInRecap(
+  filters: {
+    from?: string;
+    to?: string;
+    supplierId?: string;
+    productId?: string;
+    categoryId?: string;
+    page?: number;
+    limit?: number;
+  },
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["suppliers", "stock-in-recap", filters],
     queryFn: () => getSupplierStockInRecap(filters),
+    enabled: options.enabled ?? true,
     staleTime: 15_000,
   });
 }

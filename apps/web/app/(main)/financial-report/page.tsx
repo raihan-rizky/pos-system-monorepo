@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import {
   RefreshCw,
   Wallet,
@@ -19,13 +20,39 @@ import {
   type FinancialReportPreset,
 } from "@/features/financial-report/helpers/report-core";
 import { useFinancialReport } from "@/features/financial-report/hooks/useFinancialReport";
-import { ReportExportMenu } from "@/features/financial-report/components/ReportExportMenu";
 import { KpiCard } from "@/features/financial-report/components/KpiCard";
 import { PaymentBreakdownCard } from "@/features/financial-report/components/PaymentBreakdownCard";
 import { RankedListCard } from "@/features/financial-report/components/RankedListCard";
 import { ShiftReconciliationCard } from "@/features/financial-report/components/ShiftReconciliationCard";
 import { LossStokBreakdownCard } from "@/features/financial-report/components/LossStokBreakdownCard";
-import { TrendChart } from "@/features/financial-report/components/TrendChart";
+
+const ReportExportMenu = dynamic(
+  () =>
+    import("@/features/financial-report/components/ReportExportMenu").then(
+      (module) => module.ReportExportMenu,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-10 w-24 rounded-xl bg-surface-100 animate-pulse" />
+    ),
+  },
+);
+
+const TrendChart = dynamic(
+  () =>
+    import("@/features/financial-report/components/TrendChart").then(
+      (module) => module.TrendChart,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm">
+        <div className="h-[280px] rounded-xl bg-surface-100 animate-pulse" />
+      </section>
+    ),
+  },
+);
 
 const PRESETS: Array<{ value: FinancialReportPreset; label: string }> = [
   { value: "today", label: "Hari ini" },

@@ -38,8 +38,6 @@ import {
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import ProductTable from "@/components/inventory/ProductTable";
 import { CategoryIcon } from "@/lib/category-icons";
-import ProductFormModal from "@/components/inventory/ProductFormModal";
-import PriceUpdateModal from "@/components/inventory/PriceUpdateModal";
 import { useRole } from "@/components/providers/RoleProvider";
 import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import {
@@ -47,7 +45,6 @@ import {
   shouldShowUpdateAction,
   shouldShowDeleteAction,
 } from "@/features/rbac/helpers/rbac-ui";
-import { StockGroupWorkspaceModal } from "@/features/product-stock-groups/components/StockGroupWorkspace";
 import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 import {
   type ProductImportJobResponse,
@@ -58,6 +55,17 @@ import { useProductSelection } from "./hooks/useProductSelection";
 
 const ProductPriceLogsTab = lazy(
   () => import("@/app/(main)/products/ProductPriceLogsTab"),
+);
+const ProductFormModal = lazy(
+  () => import("@/components/inventory/ProductFormModal"),
+);
+const PriceUpdateModal = lazy(
+  () => import("@/components/inventory/PriceUpdateModal"),
+);
+const StockGroupWorkspaceModal = lazy(() =>
+  import(
+    "@/features/product-stock-groups/components/StockGroupWorkspace"
+  ).then((module) => ({ default: module.StockGroupWorkspaceModal })),
 );
 const StockGroupActivityTab = lazy(
   () =>
@@ -1038,35 +1046,37 @@ function ProductsContent() {
         )}
       </div>
 
-      {isProductModalOpen &&
-        (editingProductId ? canUpdateProducts : canCreateProducts) && (
-          <ProductFormModal
-            isOpen={isProductModalOpen}
-            onClose={closeProduct}
-            productId={editingProductId}
-            categories={categories}
-            initialData={products.find((p) => p.id === editingProductId)}
+      <Suspense fallback={null}>
+        {isProductModalOpen &&
+          (editingProductId ? canUpdateProducts : canCreateProducts) && (
+            <ProductFormModal
+              isOpen={isProductModalOpen}
+              onClose={closeProduct}
+              productId={editingProductId}
+              categories={categories}
+              initialData={products.find((p) => p.id === editingProductId)}
+            />
+          )}
+        {priceUpdateProductId && canChangePrice && (
+          <PriceUpdateModal
+            isOpen={Boolean(priceUpdateProductId)}
+            onClose={closePriceChange}
+            product={products.find((p) => p.id === priceUpdateProductId) ?? null}
+            onViewHistory={openPriceHistory}
           />
         )}
-      {priceUpdateProductId && canChangePrice && (
-        <PriceUpdateModal
-          isOpen={Boolean(priceUpdateProductId)}
-          onClose={closePriceChange}
-          product={products.find((p) => p.id === priceUpdateProductId) ?? null}
-          onViewHistory={openPriceHistory}
-        />
-      )}
-      {stockGroupId && (
-        <StockGroupWorkspaceModal
-          stockGroupId={stockGroupId}
-          onClose={() => setStockGroupId(null)}
-          canUpdateStock={canUpdateInventory}
-          onSaved={() => {
-            productsQuery.refetch();
-            statsQuery.refetch();
-          }}
-        />
-      )}
+        {stockGroupId && (
+          <StockGroupWorkspaceModal
+            stockGroupId={stockGroupId}
+            onClose={() => setStockGroupId(null)}
+            canUpdateStock={canUpdateInventory}
+            onSaved={() => {
+              productsQuery.refetch();
+              statsQuery.refetch();
+            }}
+          />
+        )}
+      </Suspense>
       {deleteTargetId && (
         <DeleteConfirmModal
           title={

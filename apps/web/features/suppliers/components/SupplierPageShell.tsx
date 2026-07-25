@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Modal } from "@pos/ui";
@@ -43,21 +44,72 @@ import {
   isSupplierCardInteractiveTarget,
   KPI_ACCENTS,
 } from "@/features/suppliers/helpers/supplier-card-helpers";
-import { SupplierImportDrawer } from "@/features/supplier-import";
-import { SupplierDetailPopup } from "./SupplierDetailPopup";
 import { SupplierStatusConfirmDialog } from "./SupplierStatusConfirmDialog";
-import { SupplierStockInRecapBundles } from "./SupplierStockInRecapBundles";
-import {
-  ShoppingRequestCreateModal,
-  ShoppingRequestList,
-} from "@/features/suppliers/shopping-requests";
-import {
-  GoodsPurchaseCreateModal,
-  GoodsPurchaseList,
-  GoodsPurchaseReceivingComparisonModal,
-  invalidateGoodsReceiptQueries,
-} from "@/features/suppliers/goods-purchases";
-import { InboundReceiptModal } from "@/features/inventory-management";
+import { invalidateGoodsReceiptQueries } from "@/features/suppliers/goods-purchases/hooks/useGoodsPurchases";
+
+const SupplierImportDrawer = dynamic(
+  () =>
+    import("@/features/supplier-import/components/SupplierImportDrawer").then(
+      (module) => module.SupplierImportDrawer,
+    ),
+  { ssr: false },
+);
+const SupplierDetailPopup = dynamic(
+  () =>
+    import("./SupplierDetailPopup").then(
+      (module) => module.SupplierDetailPopup,
+    ),
+  { ssr: false },
+);
+const SupplierStockInRecapBundles = dynamic(
+  () =>
+    import("./SupplierStockInRecapBundles").then(
+      (module) => module.SupplierStockInRecapBundles,
+    ),
+  { loading: () => <DeferredPanelSkeleton /> },
+);
+const ShoppingRequestList = dynamic(
+  () =>
+    import(
+      "@/features/suppliers/shopping-requests/components/ShoppingRequestList"
+    ).then((module) => module.ShoppingRequestList),
+  { ssr: false, loading: () => <DeferredPanelSkeleton /> },
+);
+const ShoppingRequestCreateModal = dynamic(
+  () =>
+    import(
+      "@/features/suppliers/shopping-requests/components/ShoppingRequestCreateModal"
+    ).then((module) => module.ShoppingRequestCreateModal),
+  { ssr: false },
+);
+const GoodsPurchaseList = dynamic(
+  () =>
+    import(
+      "@/features/suppliers/goods-purchases/components/GoodsPurchaseList"
+    ).then((module) => module.GoodsPurchaseList),
+  { ssr: false, loading: () => <DeferredPanelSkeleton /> },
+);
+const GoodsPurchaseCreateModal = dynamic(
+  () =>
+    import(
+      "@/features/suppliers/goods-purchases/components/GoodsPurchaseCreateModal"
+    ).then((module) => module.GoodsPurchaseCreateModal),
+  { ssr: false },
+);
+const GoodsPurchaseReceivingComparisonModal = dynamic(
+  () =>
+    import(
+      "@/features/suppliers/goods-purchases/components/GoodsPurchaseReceivingComparisonModal"
+    ).then((module) => module.GoodsPurchaseReceivingComparisonModal),
+  { ssr: false },
+);
+const InboundReceiptModal = dynamic(
+  () =>
+    import(
+      "@/features/inventory-management/components/InboundReceiptModal"
+    ).then((module) => module.InboundReceiptModal),
+  { ssr: false },
+);
 
 const emptyForm: SupplierInput = {
   code: "",
@@ -119,9 +171,17 @@ export function SupplierPageShell() {
     }),
     [debouncedSearch, showInactive, type],
   );
-  const suppliers = useSuppliers(supplierFilters);
-  const summary = useSupplierSummary({});
-  const recap = useSupplierStockInRecap({ limit: 20 });
+  const suppliers = useSuppliers(supplierFilters, {
+    enabled: tab === "suppliers",
+  });
+  const summary = useSupplierSummary(
+    {},
+    { enabled: tab === "suppliers" },
+  );
+  const recap = useSupplierStockInRecap(
+    { limit: 20 },
+    { enabled: tab === "recap" },
+  );
   const createSupplier = useCreateSupplier();
   const updateSupplier = useUpdateSupplier();
   const setActive = useSetSupplierActive();
@@ -437,44 +497,56 @@ export function SupplierPageShell() {
         onSave={saveSupplier}
       />
 
-      <SupplierImportDrawer
-        open={importDrawerOpen}
-        onClose={() => setImportDrawerOpen(false)}
-      />
+      {importDrawerOpen && (
+        <SupplierImportDrawer
+          open={importDrawerOpen}
+          onClose={() => setImportDrawerOpen(false)}
+        />
+      )}
 
-      <ShoppingRequestCreateModal
-        open={shoppingCreateOpen}
-        onClose={() => setShoppingCreateOpen(false)}
-      />
+      {shoppingCreateOpen && (
+        <ShoppingRequestCreateModal
+          open={shoppingCreateOpen}
+          onClose={() => setShoppingCreateOpen(false)}
+        />
+      )}
 
-      <GoodsPurchaseCreateModal
-        open={goodsPurchaseCreateOpen}
-        onClose={() => setGoodsPurchaseCreateOpen(false)}
-      />
+      {goodsPurchaseCreateOpen && (
+        <GoodsPurchaseCreateModal
+          open={goodsPurchaseCreateOpen}
+          onClose={() => setGoodsPurchaseCreateOpen(false)}
+        />
+      )}
 
-      <InboundReceiptModal
-        open={receivingGoodsPurchaseId !== null}
-        initialGoodsPurchaseId={receivingGoodsPurchaseId}
-        onClose={() => setReceivingGoodsPurchaseId(null)}
-        onSuccess={() => {
-          setReceivingGoodsPurchaseId(null);
-          invalidateGoodsReceiptQueries(queryClient);
-        }}
-      />
+      {receivingGoodsPurchaseId && (
+        <InboundReceiptModal
+          open
+          initialGoodsPurchaseId={receivingGoodsPurchaseId}
+          onClose={() => setReceivingGoodsPurchaseId(null)}
+          onSuccess={() => {
+            setReceivingGoodsPurchaseId(null);
+            invalidateGoodsReceiptQueries(queryClient);
+          }}
+        />
+      )}
 
-      <GoodsPurchaseReceivingComparisonModal
-        purchaseId={comparisonGoodsPurchaseId}
-        onClose={() => setComparisonGoodsPurchaseId(null)}
-      />
+      {comparisonGoodsPurchaseId && (
+        <GoodsPurchaseReceivingComparisonModal
+          purchaseId={comparisonGoodsPurchaseId}
+          onClose={() => setComparisonGoodsPurchaseId(null)}
+        />
+      )}
 
-      <SupplierDetailPopup
-        open={selected !== null}
-        supplier={selected}
-        statusActionPending={setActive.isPending}
-        onClose={() => setSelected(null)}
-        onEdit={openEditFromDetail}
-        onRequestStatusChange={setStatusTarget}
-      />
+      {selected && (
+        <SupplierDetailPopup
+          open
+          supplier={selected}
+          statusActionPending={setActive.isPending}
+          onClose={() => setSelected(null)}
+          onEdit={openEditFromDetail}
+          onRequestStatusChange={setStatusTarget}
+        />
+      )}
 
       <SupplierStatusConfirmDialog
         supplier={statusTarget}
@@ -483,6 +555,20 @@ export function SupplierPageShell() {
         onConfirm={confirmStatusChange}
       />
     </main>
+  );
+}
+
+function DeferredPanelSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Memuat panel"
+      className="space-y-3 p-4"
+    >
+      <div className="h-11 rounded-xl bg-slate-100 animate-pulse" />
+      <div className="h-28 rounded-xl bg-slate-100 animate-pulse" />
+      <div className="h-28 rounded-xl bg-slate-100 animate-pulse" />
+    </div>
   );
 }
 

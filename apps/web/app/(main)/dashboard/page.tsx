@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Wallet,
   TrendingUp,
@@ -14,7 +15,6 @@ import {
   Receipt,
   Sparkles,
 } from "lucide-react";
-import { ReceiptModal } from "@/components/ReceiptModal";
 import { formatRupiah } from "@/lib/utils";
 import { useTransactions } from "@/hooks/useTransactions";
 import type { Transaction } from "@/hooks/useTransactions";
@@ -32,6 +32,11 @@ import {
 import { RecentTransactionsList } from "@/features/dashboard/components/RecentTransactionsList";
 import { LowStockList } from "@/features/dashboard/components/LowStockList";
 
+const ReceiptModal = dynamic(
+  () => import("@/components/ReceiptModal").then((module) => module.ReceiptModal),
+  { ssr: false },
+);
+
 function formatTodayLabel(): string {
   return new Intl.DateTimeFormat("id-ID", {
     weekday: "long",
@@ -47,7 +52,9 @@ export default function DashboardPage() {
     useState<Transaction | null>(null);
 
   const { data: dashboardData, isLoading: dashLoading } = useDashboard();
-  const { data: transactions = [], isLoading: txLoading } = useTransactions();
+  const { data: transactions = [], isLoading: txLoading } = useTransactions({
+    limit: 10,
+  });
 
   const handleSelectTransaction = useCallback((tx: Transaction) => {
     setSelectedTransaction(tx);

@@ -35,11 +35,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Modal } from "@pos/ui";
 import { useInventorySummary } from "../hooks/useInventorySummary";
 
-import { DailyMatchingModal } from "./DailyMatchingModal";
-import { WeeklyProofModal } from "./WeeklyProofModal";
-import { DamagedReportModal } from "./DamagedReportModal";
-import { InboundReceiptModal } from "./InboundReceiptModal";
-import { InternalStockOutModal } from "./InternalStockOutModal";
 import { InternalUseRecapPanel } from "@/features/internal-use-recap";
 import { InventorySuratJalanTab } from "./InventorySuratJalanTab";
 import { InboundReceiptTab } from "./InboundReceiptTab";
@@ -64,6 +59,31 @@ export { OutLogVerificationPanel };
 
 const StockLogsTab = lazy(() => import("@/app/(main)/inventory/StockLogsTab"));
 const StockHistoryTab = lazy(() => import("@/app/(main)/inventory/StockHistoryTab"));
+const DailyMatchingModal = lazy(() =>
+  import("./DailyMatchingModal").then((module) => ({
+    default: module.DailyMatchingModal,
+  })),
+);
+const WeeklyProofModal = lazy(() =>
+  import("./WeeklyProofModal").then((module) => ({
+    default: module.WeeklyProofModal,
+  })),
+);
+const DamagedReportModal = lazy(() =>
+  import("./DamagedReportModal").then((module) => ({
+    default: module.DamagedReportModal,
+  })),
+);
+const InboundReceiptModal = lazy(() =>
+  import("./InboundReceiptModal").then((module) => ({
+    default: module.InboundReceiptModal,
+  })),
+);
+const InternalStockOutModal = lazy(() =>
+  import("./InternalStockOutModal").then((module) => ({
+    default: module.InternalStockOutModal,
+  })),
+);
 const DamagedReportsHistoryTab = lazy(() =>
   import("./DamagedReportsHistoryTab").then((mod) => ({
     default: mod.DamagedReportsHistoryTab,
@@ -1693,56 +1713,72 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       )}
 
       {/* Modal Dialogs */}
-      <DailyMatchingModal
-        open={activeModal === "matching"}
-        onClose={() => setActiveModal(null)}
-        initialSummary={initialSummary}
-        onSuccess={handleSuccess}
-      />
-      <WeeklyProofModal
-        open={activeModal === "weeklyProof"}
-        onClose={() => setActiveModal(null)}
-        initialSummary={initialSummary}
-        onSuccess={handleSuccess}
-      />
-      <DamagedReportModal
-        open={activeModal === "damaged"}
-        onClose={() => setActiveModal(null)}
-        initialSummary={initialSummary}
-        onSuccess={handleSuccess}
-      />
-      <InboundReceiptModal
-        open={activeModal === "inbound"}
-        onClose={() => setActiveModal(null)}
-        onSuccess={handleSuccess}
-      />
-      <InternalStockOutModal
-        open={activeModal === "internalStockOut"}
-        onClose={() => setActiveModal(null)}
-        onSuccess={handleSuccess}
-      />
-      <Modal
-        open={activeModal === "stockSingle"}
-        onClose={() => setActiveModal(null)}
-        title="Update Stok"
-        size="2xl"
-      >
-        <SingleStockUpdatePanel
-          onSuccess={handleStockUpdateSuccess}
-          onError={handleStockUpdateError}
-        />
-      </Modal>
-      <Modal
-        open={activeModal === "stockGroupBulk"}
-        onClose={() => setActiveModal(null)}
-        title="Update Stok Massal"
-        size="7xl"
-      >
-        <StockGroupBulkPanel
-          onSuccess={handleStockUpdateSuccess}
-          onError={handleStockUpdateError}
-        />
-      </Modal>
+      <Suspense fallback={null}>
+        {activeModal === "matching" && (
+          <DailyMatchingModal
+            open
+            onClose={() => setActiveModal(null)}
+            initialSummary={initialSummary}
+            onSuccess={handleSuccess}
+          />
+        )}
+        {activeModal === "weeklyProof" && (
+          <WeeklyProofModal
+            open
+            onClose={() => setActiveModal(null)}
+            initialSummary={initialSummary}
+            onSuccess={handleSuccess}
+          />
+        )}
+        {activeModal === "damaged" && (
+          <DamagedReportModal
+            open
+            onClose={() => setActiveModal(null)}
+            initialSummary={initialSummary}
+            onSuccess={handleSuccess}
+          />
+        )}
+        {activeModal === "inbound" && (
+          <InboundReceiptModal
+            open
+            onClose={() => setActiveModal(null)}
+            onSuccess={handleSuccess}
+          />
+        )}
+        {activeModal === "internalStockOut" && (
+          <InternalStockOutModal
+            open
+            onClose={() => setActiveModal(null)}
+            onSuccess={handleSuccess}
+          />
+        )}
+      </Suspense>
+      {activeModal === "stockSingle" && (
+        <Modal
+          open
+          onClose={() => setActiveModal(null)}
+          title="Update Stok"
+          size="2xl"
+        >
+          <SingleStockUpdatePanel
+            onSuccess={handleStockUpdateSuccess}
+            onError={handleStockUpdateError}
+          />
+        </Modal>
+      )}
+      {activeModal === "stockGroupBulk" && (
+        <Modal
+          open
+          onClose={() => setActiveModal(null)}
+          title="Update Stok Massal"
+          size="7xl"
+        >
+          <StockGroupBulkPanel
+            onSuccess={handleStockUpdateSuccess}
+            onError={handleStockUpdateError}
+          />
+        </Modal>
+      )}
     </main>
   );
 };

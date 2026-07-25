@@ -34,10 +34,11 @@ async function createBrand(input: { name: string }): Promise<Brand> {
   return res.json();
 }
 
-export function useBrands() {
+export function useBrands(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["brands"],
     queryFn: fetchBrands,
+    enabled: options.enabled ?? true,
     staleTime: 60_000,
   });
 }

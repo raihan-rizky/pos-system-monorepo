@@ -1,4 +1,5 @@
-import { InventoryWorkspace, getInventorySummary } from "@/features/inventory-management";
+import { InventoryWorkspace } from "@/features/inventory-management/components/InventoryWorkspace";
+import { getInventorySummary } from "@/features/inventory-management/services/inventory-management-service";
 import { InventoryManagementRepository } from "@/features/inventory-management/repositories/InventoryManagementRepository";
 import type { InventoryManagementUser } from "@/features/inventory-management/types/inventory-management";
 import { requirePermission } from "@/lib/rbac/guard";

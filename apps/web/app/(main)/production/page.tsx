@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Card } from "@pos/ui";
 import {
   useJobOrders,
@@ -12,8 +13,6 @@ import {
   type ProductionActivityLog,
 } from "@/hooks/useJobOrders";
 import KanbanBoard, { KanbanFilter } from "@/components/kanban/KanbanBoard";
-import { ConfirmPickupBroadcastModal } from "@/components/kanban/ConfirmPickupBroadcastModal";
-import { ConfirmDeliveryModal } from "@/components/kanban/ConfirmDeliveryModal";
 import {
   Activity,
   AlertCircle,
@@ -33,6 +32,21 @@ import {
 } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
+
+const ConfirmPickupBroadcastModal = dynamic(
+  () =>
+    import("@/components/kanban/ConfirmPickupBroadcastModal").then(
+      (module) => module.ConfirmPickupBroadcastModal,
+    ),
+  { ssr: false },
+);
+const ConfirmDeliveryModal = dynamic(
+  () =>
+    import("@/components/kanban/ConfirmDeliveryModal").then(
+      (module) => module.ConfirmDeliveryModal,
+    ),
+  { ssr: false },
+);
 
 interface StatCardProps {
   label: string;
@@ -667,6 +681,7 @@ function ProductionActivityFeed({
 export default function ProductionPage() {
   const { canPerform } = useRole();
   const canUpdateProduction = shouldShowUpdateAction("production", canPerform);
+  const [activeTab, setActiveTab] = useState<ProductionPageTab>("board");
   const {
     data: jobOrders = [],
     isLoading,
@@ -682,14 +697,13 @@ export default function ProductionPage() {
     isFetching: isActivityFetching,
     refetch: refetchActivity,
     dataUpdatedAt: activityUpdatedAt,
-  } = useProductionActivity(20);
+  } = useProductionActivity(20, { enabled: activeTab === "activity" });
   const moveJobOrder = useMoveJobOrder();
   const sendPickupNotification = useSendPickupNotification();
 
   const [now, setNow] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<KanbanFilter>("ALL");
-  const [activeTab, setActiveTab] = useState<ProductionPageTab>("board");
   const [activitySearch, setActivitySearch] = useState("");
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("ALL");
   const [pendingDelivery, setPendingDelivery] = useState<JobOrder | null>(null);

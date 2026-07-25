@@ -105,10 +105,14 @@ export function useJobOrders() {
   });
 }
 
-export function useProductionActivity(limit = 20) {
+export function useProductionActivity(
+  limit = 20,
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["production-activity", limit],
     queryFn: () => fetchProductionActivity(limit),
+    enabled: options.enabled ?? true,
     refetchInterval: 30_000,
   });
 }

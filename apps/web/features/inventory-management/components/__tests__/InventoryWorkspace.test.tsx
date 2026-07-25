@@ -5,6 +5,8 @@ import * as inventoryWorkspaceModule from "../InventoryWorkspace";
 
 const { InventoryWorkspace } = inventoryWorkspaceModule;
 import { DailyMatchingModal } from "../DailyMatchingModal";
+import { DamagedReportModal } from "../DamagedReportModal";
+import { WeeklyProofModal } from "../WeeklyProofModal";
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<any>();
@@ -420,7 +422,7 @@ describe("InventoryWorkspace", () => {
   });
 
   it("renders weekly cleaning proof and damaged product quick action forms", () => {
-    const html = renderToStaticMarkup(
+    const workspaceHtml = renderToStaticMarkup(
       <InventoryWorkspace
         initialSummary={{
           urgentCount: 2,
@@ -442,17 +444,40 @@ describe("InventoryWorkspace", () => {
         }}
       />,
     );
+    const modalHtml = renderToStaticMarkup(
+      <>
+        <WeeklyProofModal
+          open
+          onClose={() => undefined}
+          initialSummary={baseSummary}
+          onSuccess={() => undefined}
+        />
+        <DamagedReportModal
+          open
+          onClose={() => undefined}
+          initialSummary={baseSummary}
+          onSuccess={() => undefined}
+        />
+        <DailyMatchingModal
+          open
+          onClose={() => undefined}
+          initialSummary={baseSummary}
+          onSuccess={() => undefined}
+        />
+      </>,
+    );
 
-    expect(html).toContain("Proof Kebersihan Gudang");
-    expect(html).toContain("Bukti kebersihan gudang");
-    expect(html).toContain('type="file"');
-    expect(html).toContain("name=\"weeklyProofNote\"");
-    expect(html).toContain("Laporkan Barang Rusak");
-    expect(html).toContain("Cari Produk");
-    expect(html).toContain("Keranjang Barang Rusak");
-    expect(html).toContain("Bukti foto barang rusak");
-    expect(html).toContain("Matching Stok Harian");
-    expect(html).toContain("Submit Matching");
+    expect(workspaceHtml).toContain("Proof Kebersihan Gudang");
+    expect(workspaceHtml).not.toContain("Bukti kebersihan gudang");
+    expect(modalHtml).toContain("Bukti kebersihan gudang");
+    expect(modalHtml).toContain('type="file"');
+    expect(modalHtml).toContain("name=\"weeklyProofNote\"");
+    expect(modalHtml).toContain("Laporkan Barang Rusak");
+    expect(modalHtml).toContain("Cari Produk");
+    expect(modalHtml).toContain("Keranjang Barang Rusak");
+    expect(modalHtml).toContain("Bukti foto barang rusak");
+    expect(modalHtml).toContain("Matching Stok Harian");
+    expect(modalHtml).toContain("Submit Matching");
   });
 
 
@@ -625,7 +650,7 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("Satu Produk (Single)");
     expect(html).toContain("Banyak Produk (Massal)");
     expect(html).toContain("Update satu produk");
-    expect(html).toContain("Preview perubahan");
+    expect(html).not.toContain("Preview perubahan");
     expect(html).toContain("shadow-cyan-500/30");
     expect(html).toContain("ring-cyan-200");
     expect(html).not.toContain("aria-selected=\"false\">Update Stok Massal</button>");
@@ -857,7 +882,12 @@ describe("InventoryWorkspace", () => {
 
   it("uses product search wording for damaged product reporting", () => {
     const html = renderToStaticMarkup(
-      <InventoryWorkspace initialSummary={baseSummary} />,
+      <DamagedReportModal
+        open
+        onClose={() => undefined}
+        initialSummary={baseSummary}
+        onSuccess={() => undefined}
+      />,
     );
 
     expect(html).toContain("Cari Produk");
@@ -884,7 +914,7 @@ describe("InventoryWorkspace", () => {
       />,
     );
 
-    expect(html).toContain("Matching Stok Harian");
+    expect(html).toContain("Pencocokan Stok Harian");
     expect(html).toContain("Belum match");
     expect(html).not.toContain("Terkunci");
 

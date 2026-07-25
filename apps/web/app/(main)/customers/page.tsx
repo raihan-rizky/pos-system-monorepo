@@ -1,7 +1,6 @@
 "use client";
 
 import React, {
-  lazy,
   Suspense,
   startTransition,
   useCallback,
@@ -9,6 +8,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import dynamic from "next/dynamic";
 import {
   AlertCircle,
   ArrowRight,
@@ -56,26 +56,49 @@ import {
   getTransactionDebtRemaining,
   isValidDebtPayment,
 } from "@/features/customer-debt/helpers/debt-payment";
-import { DebtTransactionsList } from "@/features/customer-debt/components/DebtTransactionsList";
 import { buildCustomerRecapRange } from "@/features/customer-recap/helpers/recap-core";
 import type { CustomerRecapQuery } from "@/features/customer-recap/types/customer-recap";
 
-const CustomerImportDrawer = lazy(() =>
-  import("@/features/customer-import/components/CustomerImportDrawer").then(
-    (mod) => ({ default: mod.CustomerImportDrawer }),
-  ),
+const CustomerImportDrawer = dynamic(
+  () =>
+    import("@/features/customer-import/components/CustomerImportDrawer").then(
+      (module) => module.CustomerImportDrawer,
+    ),
+  { ssr: false },
 );
 
-const CustomerRecapSection = lazy(() =>
-  import("@/features/customer-recap/components/CustomerRecapSection").then(
-    (mod) => ({ default: mod.CustomerRecapSection }),
-  ),
+const CustomerRecapSection = dynamic(
+  () =>
+    import("@/features/customer-recap/components/CustomerRecapSection").then(
+      (module) => module.CustomerRecapSection,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="h-[520px] rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)] animate-pulse sm:rounded-[32px]" />
+    ),
+  },
 );
 
-const CustomerRecapPanel = lazy(() =>
-  import("@/features/customer-recap/components/CustomerRecapPanel").then(
-    (mod) => ({ default: mod.CustomerRecapPanel }),
-  ),
+const CustomerRecapPanel = dynamic(
+  () =>
+    import("@/features/customer-recap/components/CustomerRecapPanel").then(
+      (module) => module.CustomerRecapPanel,
+    ),
+  { ssr: false },
+);
+
+const DebtTransactionsList = dynamic(
+  () =>
+    import("@/features/customer-debt/components/DebtTransactionsList").then(
+      (module) => module.DebtTransactionsList,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-96 rounded-[24px] bg-slate-100 animate-pulse" />
+    ),
+  },
 );
 
 const TYPE_CONFIG: Record<
