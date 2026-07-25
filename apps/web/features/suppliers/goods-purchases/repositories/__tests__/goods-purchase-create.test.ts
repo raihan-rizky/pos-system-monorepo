@@ -22,7 +22,7 @@ describe("goods purchase create repository", () => {
     productFindMany.mockResolvedValue([]);
   });
 
-  it("only lists approved requests without legacy expense or active purchase", async () => {
+  it("lists approved requests without an expense or with only a legacy expense", async () => {
     await listEligibleShoppingRequests("store-1");
 
     expect(shoppingRequestFindMany).toHaveBeenCalledWith(
@@ -30,7 +30,14 @@ describe("goods purchase create repository", () => {
         where: expect.objectContaining({
           storeId: "store-1",
           status: "APPROVED",
-          expense: null,
+          AND: expect.arrayContaining([
+            {
+              OR: [
+                { expense: null },
+                { expense: { is: { goodsPurchaseId: null } } },
+              ],
+            },
+          ]),
           goodsPurchases: {
             none: { activeShoppingRequestKey: { not: null } },
           },
@@ -43,6 +50,50 @@ describe("goods purchase create repository", () => {
         }),
       }),
     );
+  });
+
+  it("marks a request with a legacy expense and reads its amount and stock flag", async () => {
+    shoppingRequestFindMany.mockResolvedValue([
+      {
+        id: "req-legacy",
+        number: "DPB-202607-001",
+        supplierId: "supplier-1",
+        approvedAt: new Date("2026-07-01T00:00:00.000Z"),
+        stockAppliedAt: new Date("2026-07-01T00:00:00.000Z"),
+        supplier: { name: "CV Kertas" },
+        expense: {
+          id: "exp-1",
+          amount: { toString: () => "150000" },
+          goodsPurchaseId: null,
+        },
+        items: [
+          {
+            id: "item-1",
+            productId: "product-1",
+            productName: "Kertas",
+            approvedQty: 3,
+            product: {
+              sku: "SKU-1",
+              unit: "rim",
+              unitMultiplierToBase: 1,
+              costPrice: { toString: () => "50000" },
+              isActive: true,
+            },
+          },
+        ],
+      },
+    ]);
+
+    const result = await listEligibleShoppingRequests("store-1");
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "req-legacy",
+        isLegacy: true,
+        legacyExpenseAmount: 150000,
+        stockApplied: true,
+      }),
+    ]);
   });
 
   it("returns only active large-unit products from the actor store", async () => {

@@ -191,7 +191,28 @@ export async function listEligibleShoppingRequests(
       status: "APPROVED",
       supplierId: { not: null },
       supplier: { isActive: true },
-      expense: null,
+      AND: [
+        {
+          OR: [
+            { expense: null },
+            { expense: { is: { goodsPurchaseId: null } } },
+          ],
+        },
+        ...(q
+          ? [
+              {
+                OR: [
+                  { number: { contains: q, mode: "insensitive" as const } },
+                  {
+                    supplier: {
+                      name: { contains: q, mode: "insensitive" as const },
+                    },
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
       goodsPurchases: {
         none: { activeShoppingRequestKey: { not: null } },
       },
@@ -201,25 +222,17 @@ export async function listEligibleShoppingRequests(
           approvedQty: { gt: 0 },
         },
       },
-      ...(q
-        ? {
-            OR: [
-              { number: { contains: q, mode: "insensitive" as const } },
-              {
-                supplier: {
-                  name: { contains: q, mode: "insensitive" as const },
-                },
-              },
-            ],
-          }
-        : {}),
     },
     select: {
       id: true,
       number: true,
       supplierId: true,
       approvedAt: true,
+      stockAppliedAt: true,
       supplier: { select: { name: true } },
+      expense: {
+        select: { id: true, amount: true, goodsPurchaseId: true },
+      },
       items: {
         where: {
           decisionStatus: "APPROVED",
@@ -262,6 +275,12 @@ export async function listEligibleShoppingRequests(
       supplierId: row.supplierId,
       supplierName: row.supplier.name,
       approvedAt: row.approvedAt?.toISOString() ?? null,
+      isLegacy: row.expense?.goodsPurchaseId === null && row.expense !== null,
+      legacyExpenseAmount:
+        row.expense && row.expense.goodsPurchaseId === null
+          ? Number(row.expense.amount.toString())
+          : null,
+      stockApplied: row.stockAppliedAt !== null,
       items: row.items.map((item) => ({
         shoppingRequestItemId: item.id,
         productId: item.productId,
