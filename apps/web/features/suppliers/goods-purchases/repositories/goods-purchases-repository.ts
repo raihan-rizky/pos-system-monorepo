@@ -370,7 +370,10 @@ export async function createGoodsPurchaseRecord(
           status: "APPROVED",
           supplierId: { not: null },
           supplier: { isActive: true },
-          expense: null,
+          OR: [
+            { expense: null },
+            { expense: { is: { goodsPurchaseId: null } } },
+          ],
           goodsPurchases: {
             none: { activeShoppingRequestKey: { not: null } },
           },
