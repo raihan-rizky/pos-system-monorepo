@@ -45,6 +45,19 @@ test("successful first login lands on POS with sidebar menus visible", async ({ 
     });
   });
 
+  await page.route("**/api/notifications**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          notifications: [],
+          unreadCount: 0,
+        },
+      }),
+    });
+  });
+
   await page.route("**/auth/v1/**", async (route) => {
     const url = route.request().url();
     if (url.includes("/auth/v1/logout")) {

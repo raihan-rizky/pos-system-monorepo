@@ -102,10 +102,12 @@ test("shows assistant progress while the response is still streaming", async ({ 
     await page.locator("textarea").fill("Cek stok rendah");
     await page.locator("textarea").press("Enter");
 
-    await expect(page.getByText("Processing request", { exact: true })).toBeVisible();
-    await expect(page.getByText("Checking data", { exact: true })).toBeVisible();
-    await expect(page.getByText("Preparing response", { exact: true })).toBeVisible();
     await expect(page.getByText("Progress selesai dengan benar.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Tampilkan proses AI" }).click();
+    const actionLog = page.getByRole("list", { name: "Proses AI" });
+    await expect(actionLog.getByText("Memproses permintaan", { exact: true })).toBeVisible();
+    await expect(actionLog.getByText("Mengecek data", { exact: true })).toBeVisible();
+    await expect(actionLog.getByText("Menyiapkan jawaban", { exact: true })).toBeVisible();
   } finally {
     await progressServer.stop();
   }

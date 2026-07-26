@@ -83,23 +83,24 @@ const REJECTED_HISTORICAL = makeStockLog({
 
 test.describe("Stock approval flow — role-aware behavior", () => {
   test.describe("OWNER", () => {
-    test("submits a stock change directly without entering the approval queue (core path)", async ({
+    test("submits a stock change into the approval queue (core path)", async ({
       page,
     }) => {
       const store = await setupRole(page, "OWNER");
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockUpdateForFirstProduct();
       await expect(sa.modalTitleForOwner()).toBeVisible();
-      await expect(sa.pendingNoticeStrip()).toBeHidden();
+      await expect(sa.pendingNoticeStrip()).toBeVisible();
 
       await sa.submitStockChange({ type: "IN", quantity: "5", note: "Restock owner" });
       await expect(page.getByRole("dialog")).toBeHidden();
+      await expect(sa.pendingSuccessBanner()).toBeVisible();
 
       const owned = store.logs.find((l) => l.note === "Restock owner");
-      expect(owned?.status).toBe("APPROVED");
-      expect(owned?.approvedBy).toBe("e2e-owner");
+      expect(owned?.status).toBe("PENDING");
+      expect(owned?.approvedBy).toBeNull();
     });
 
     test("approves a pending request from the Stock Logs tab", async ({ page }) => {
@@ -108,7 +109,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       });
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockLogsTab();
 
       await expect(sa.statusChip("Pending")).toContainText("1");
@@ -127,7 +128,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       });
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockLogsTab();
       await sa.startRejectRow("Kertas HVS A4");
 
@@ -156,7 +157,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       });
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockLogsTab();
 
       await page.route("**/api/inventory/log-pending-1/approve", async (route) => {
@@ -187,7 +188,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       // OWNER controls (Setuju/Tolak) for PENDING rows. The OWNER-as-cancel
       // override is a server-only capability (per spec §6.4); the UI surface
       // for OWNER is reject. Ensure the UI does NOT show Cancel here.
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockLogsTab();
       const row = sa.rowByProductName("Kertas HVS A4");
       await expect(row.getByRole("button", { name: "Batalkan" })).toBeHidden();
@@ -210,7 +211,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       });
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockUpdateForFirstProduct();
 
       await expect(sa.modalTitleForRequester()).toBeVisible();
@@ -253,7 +254,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       });
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockLogsTab();
 
       const ownRow = sa.rowByProductName("Kertas HVS A4");
@@ -280,7 +281,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       ).toBe("PENDING");
     });
 
-    test("does NOT see a sidebar pending badge (badge is OWNER-only)", async ({
+    test("does not expose the retired pending badge in inventory navigation", async ({
       page,
     }) => {
       await setupRole(page, "ADMIN", {
@@ -288,13 +289,8 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       });
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
-      // Allow the badge query to settle.
-      await page.waitForResponse((r) =>
-        r.url().includes("/api/inventory/logs?status=PENDING"),
-      );
-
-      await expect(sa.sidebarProductsBadge()).toBeHidden();
+      await sa.gotoInventory();
+      await expect(sa.sidebarInventoryBadge()).toBeHidden();
     });
   });
 
@@ -311,7 +307,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       });
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockLogsTab();
 
       // Pending row appears first regardless of createdAt order.
@@ -342,7 +338,7 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       });
       const sa = new StockApprovalPage(page);
 
-      await sa.gotoProducts();
+      await sa.gotoInventory();
       await sa.openStockLogsTab();
 
       const filterRequest = page.waitForRequest(
@@ -363,41 +359,4 @@ test.describe("Stock approval flow — role-aware behavior", () => {
     });
   });
 
-  test.describe("Sidebar pending badge — OWNER", () => {
-    test("shows count when there are pending requests, hidden when none (core + edge)", async ({
-      page,
-    }) => {
-      await setupRole(page, "OWNER", {
-        initialLogs: [PENDING_FROM_ADMIN],
-      });
-      const sa = new StockApprovalPage(page);
-
-      await sa.gotoProducts();
-      await page.waitForResponse((r) =>
-        r.url().includes("/api/inventory/logs?status=PENDING"),
-      );
-
-      await expect(sa.sidebarProductsBadge()).toBeVisible();
-      await expect(sa.sidebarProductsBadge()).toHaveAttribute(
-        "aria-label",
-        /1 permintaan menunggu persetujuan/,
-      );
-    });
-
-    test("badge hidden for OWNER when no pending requests exist", async ({
-      page,
-    }) => {
-      await setupRole(page, "OWNER", {
-        initialLogs: [APPROVED_HISTORICAL, REJECTED_HISTORICAL],
-      });
-      const sa = new StockApprovalPage(page);
-
-      await sa.gotoProducts();
-      await page.waitForResponse((r) =>
-        r.url().includes("/api/inventory/logs?status=PENDING"),
-      );
-
-      await expect(sa.sidebarProductsBadge()).toBeHidden();
-    });
-  });
 });
