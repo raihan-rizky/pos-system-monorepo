@@ -12,6 +12,7 @@
     "assistant:concurrency": "pnpm --filter @pos/web assistant:concurrency",
     "assistant:cost": "pnpm --filter @pos/web assistant:cost",
     "audit:icons": "node scripts/audit-icons.mjs",
+    "storage:migrate:r2": "dotenv -e apps/web/.env.local -- node apps/web/scripts/migrate-supabase-storage-to-r2.mjs",
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "postinstall": "pnpm --filter @pos/db generate",
