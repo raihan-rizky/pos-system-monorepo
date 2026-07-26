@@ -3,11 +3,15 @@
 // ============================================================
 
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@pos/db";
 import type { Role } from "./permissions";
 import type { Action } from "./permissions";
-import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
+import {
+  buildDefaultRolePermissions,
+  canRolePerformAction,
+} from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { apiError } from "@/lib/api/responses";
 
@@ -22,6 +26,42 @@ export class AuthError extends Error {
     this.statusCode = statusCode;
     this.name = "AuthError";
   }
+}
+
+function isE2EAuthBypassEnabled() {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    process.env.E2E_AUTH_BYPASS === "1"
+  );
+}
+
+async function getE2EUser() {
+  if (!isE2EAuthBypassEnabled()) return null;
+
+  const cookieStore = await cookies();
+  const role = (cookieStore.get("x-pos-role")?.value || "OWNER") as Role;
+  const validRoles: Role[] = ["OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY"];
+  if (!validRoles.includes(role)) {
+    throw new AuthError(401, "Invalid E2E role");
+  }
+
+  const id = cookieStore.get("x-pos-user-id")?.value || "e2e-user";
+  const rawName = cookieStore.get("x-pos-user-name")?.value || "E2E User";
+  let name = rawName;
+  try {
+    name = decodeURIComponent(rawName);
+  } catch {
+    name = rawName;
+  }
+
+  return {
+    id,
+    username: `e2e-${role.toLowerCase()}`,
+    name,
+    role,
+    storeId: cookieStore.get("x-pos-store-id")?.value || "store-main",
+    isActive: true,
+  };
 }
 
 /**
@@ -46,6 +86,14 @@ export class AuthError extends Error {
  * @throws AuthError with 401 if not authenticated, 403 if wrong role
  */
 export async function requireRole(...allowedRoles: Role[]) {
+  const e2eUser = await getE2EUser();
+  if (e2eUser) {
+    if (!allowedRoles.includes(e2eUser.role)) {
+      throw new AuthError(403, "Insufficient permissions");
+    }
+    return e2eUser;
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -95,7 +143,9 @@ export async function requireRole(...allowedRoles: Role[]) {
  */
 export async function requirePermission(resource: string, action: Action) {
   const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
-  const permissions = await getGlobalRolePermissions();
+  const permissions = isE2EAuthBypassEnabled()
+    ? buildDefaultRolePermissions()
+    : await getGlobalRolePermissions();
 
   if (!canRolePerformAction(user.role as Role, resource, action, permissions)) {
     throw new AuthError(403, "Insufficient permissions");
@@ -111,6 +161,9 @@ export async function requirePermission(resource: string, action: Action) {
  * @returns The pos_users record or null if not authenticated
  */
 export async function getCurrentUser() {
+  const e2eUser = await getE2EUser();
+  if (e2eUser) return e2eUser;
+
   const supabase = await createClient();
   const {
     data: { user },

@@ -7,15 +7,21 @@ export class StockApprovalPage {
     this.page = page;
   }
 
-  async gotoProducts() {
-    await this.page.goto("/products");
-    await expect(this.page.getByRole("heading", { name: "Pusat Produk" })).toBeVisible();
+  async gotoInventory() {
+    await this.page.goto("/inventory");
+    await expect(
+      this.page.getByRole("heading", { name: "Inventaris", exact: true }),
+    ).toBeVisible();
   }
 
   async openStockUpdateForFirstProduct() {
-    const firstButton = this.page.getByTitle("Ubah Stok").first();
-    await firstButton.scrollIntoViewIfNeeded();
-    await firstButton.click();
+    await this.page
+      .getByRole("button", { name: "Update Stok", exact: true })
+      .click();
+    await this.page.getByRole("menuitem", { name: /Satu Produk/ }).click();
+    const modal = this.page.getByRole("dialog", { name: "Update Stok" });
+    await modal.getByPlaceholder(/Cari nama produk/).fill("Kertas HVS A4");
+    await modal.getByRole("button", { name: /Kertas HVS A4/ }).click();
   }
 
   async submitStockChange(opts: {
@@ -23,41 +29,46 @@ export class StockApprovalPage {
     quantity: string;
     note?: string;
   }) {
-    const modal = this.page.getByRole("dialog");
-    if (opts.type === "IN") await modal.getByRole("button", { name: "Stock In" }).click();
-    if (opts.type === "OUT") await modal.getByRole("button", { name: "Stock Out" }).click();
-    if (opts.type === "ADJUSTMENT") await modal.getByRole("button", { name: "Set Tepat" }).click();
+    const modal = this.page.getByRole("dialog", { name: "Update Stok" });
+    const action = {
+      IN: "Tambah stok",
+      OUT: "Kurangi stok",
+      ADJUSTMENT: "Set stok akhir",
+    }[opts.type];
+    await modal.getByLabel("Aksi").selectOption({ label: action });
 
-    const quantityField = modal.getByLabel(/Jumlah untuk|Stok Baru/);
+    const quantityField = modal.getByLabel(/Jumlah|Stok akhir baru/);
     await quantityField.fill(opts.quantity);
     if (opts.note) {
-      await modal.getByLabel("Catatan (Opsional)").fill(opts.note);
+      await modal.getByPlaceholder("Catatan approval").fill(opts.note);
     }
-    await modal
-      .getByRole("button", { name: /Konfirmasi|Kirim Permintaan/ })
-      .click();
+    await expect(modal.getByRole("button", { name: "Ajukan Update Stok" })).toBeEnabled();
+    await modal.getByRole("button", { name: "Ajukan Update Stok" }).click();
   }
 
   modalTitleForRequester(): Locator {
-    return this.page.getByRole("heading", { name: "Ajukan Perubahan Stok" });
+    return this.page.getByRole("heading", { name: "Update Stok", exact: true });
   }
 
   modalTitleForOwner(): Locator {
-    return this.page.getByRole("heading", { name: "Perbarui Inventaris" });
+    return this.page.getByRole("heading", { name: "Update Stok", exact: true });
   }
 
   pendingNoticeStrip(): Locator {
-    return this.page.getByText(/Perubahan stok akan dieksekusi setelah owner menyetujui/);
+    return this.page.getByText(/ajukan approval owner/i);
   }
 
   pendingSuccessBanner(): Locator {
-    return this.page.getByText("Permintaan dikirim");
+    return this.page.getByRole("alert").filter({
+      hasText: "Permintaan update stok berhasil dibuat dan menunggu approval owner.",
+    });
   }
 
   async openStockLogsTab() {
     const logsPanel = this.page.getByRole("tablist", { name: "Filter status" });
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      await this.page.getByRole("button", { name: /^Stock Logs/ }).click();
+      await this.page.getByRole("tab", { name: "Riwayat" }).click();
+      await this.page.getByRole("button", { name: "Log Stok" }).click();
       const opened = await logsPanel
         .waitFor({ state: "visible", timeout: 1500 })
         .then(() => true)
@@ -106,9 +117,9 @@ export class StockApprovalPage {
     return this.page.getByText(/Permintaan sudah diputuskan oleh user lain/);
   }
 
-  sidebarProductsBadge(): Locator {
+  sidebarInventoryBadge(): Locator {
     return this.page
-      .locator('a[href="/products"] [aria-label*="permintaan menunggu persetujuan"]')
+      .locator('a[href="/inventory"] [aria-label*="permintaan menunggu persetujuan"]')
       .first();
   }
 }

@@ -5,12 +5,15 @@ test("history page lists transactions and opens a receipt", async ({ appPage: pa
   await page.goto("/history");
 
   await expect(page.getByRole("heading", { name: "Riwayat Transaksi" })).toBeVisible();
-  await expect(page.getByText("INV-20260509-0001")).toBeVisible();
+  const transactionEntry = page.getByRole("button", {
+    name: /INV-20260509-0001/,
+  });
+  await expect(transactionEntry).toBeVisible();
 
-  await page.getByRole("button", { name: "Lihat Struk" }).first().click();
+  await transactionEntry.getByRole("button", { name: "Lihat Struk" }).click();
   const receiptDialog = page.getByRole("dialog", { name: "Transaksi Berhasil" });
   await expect(receiptDialog).toBeVisible();
-  await expect(receiptDialog.getByRole("heading", { name: "Toko E2E" })).toBeVisible();
+  await expect(receiptDialog.getByText("Toko E2E", { exact: true })).toBeVisible();
 });
 
 test("history page opens a receipt for draft transactions", async ({ appPage: page }) => {
@@ -42,20 +45,32 @@ test("history page opens a receipt for draft transactions", async ({ appPage: pa
       }),
     });
   });
+  await page.route("**/api/transactions/draft-history-1", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(draftTransaction),
+    });
+  });
 
   await page.goto("/history");
 
-  const draftRow = page.getByRole("row").filter({
-    hasText: "DRAFT-20260520-0001",
+  const draftEntry = page.getByRole("button", {
+    name: /DRAFT-20260520-0001/,
   });
 
-  await expect(draftRow.getByRole("button", { name: "Lihat Struk" })).toBeVisible();
+  await expect(draftEntry.getByRole("button", { name: "Lihat Struk" })).toBeVisible();
 
-  await draftRow.getByRole("button", { name: "Lihat Struk" }).click();
+  await draftEntry.getByRole("button", { name: "Lihat Struk" }).click();
 
-  const draftDialog = page.getByRole("dialog", { name: "Faktur Sementara" });
+  const draftDialog = page.getByRole("dialog", {
+    name: "Cetak Nota Penawaran",
+  });
   await expect(draftDialog).toBeVisible();
-  await expect(draftDialog.getByRole("heading", { name: "Faktur Sementara" })).toBeVisible();
-  await expect(draftDialog.getByText("BELUM LUNAS")).toBeVisible();
-  await expect(draftDialog.getByText(/^Faktur sementara$/)).toBeVisible();
+  await expect(
+    draftDialog.getByText("No. DRAFT-20260520-0001"),
+  ).toBeVisible();
+  await expect(
+    draftDialog.getByRole("button", { name: "Cetak Nota Penawaran" }),
+  ).toBeVisible();
 });

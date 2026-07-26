@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import {
   BadgePercent,
   Boxes,
@@ -166,11 +165,9 @@ export function WorkflowStepper({ steps, compact = false, tone = "light" }: Work
               {active.description}
             </p>
             {active.route && active.actionLabel ? (
-              <Link
+              <a
                 href={active.route}
                 draggable={false}
-                onPointerDownCapture={(event) => event.stopPropagation()}
-                onClick={(event) => event.stopPropagation()}
                 className={`mt-4 inline-flex items-center rounded-md px-3 py-2 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400/60 ${
                   isDark
                     ? "bg-brand-500/20 text-brand-100 hover:bg-brand-500/30"
@@ -178,7 +175,7 @@ export function WorkflowStepper({ steps, compact = false, tone = "light" }: Work
                 }`}
               >
                 {active.actionLabel}
-              </Link>
+              </a>
             ) : null}
           </motion.div>
         </AnimatePresence>

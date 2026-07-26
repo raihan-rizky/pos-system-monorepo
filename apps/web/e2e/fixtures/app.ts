@@ -196,6 +196,57 @@ export async function mockApis(page: Page) {
       return json(route, { data: customers, pagination: { total: customers.length, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     }
     if (path === "/api/customers" && method === "POST") return json(route, { ...customers[0], id: "cust-new" }, 201);
+    if (path === "/api/customers/recap") {
+      return json(route, {
+        data: {
+          dateFrom: url.searchParams.get("dateFrom") || "2026-05-01",
+          dateTo: url.searchParams.get("dateTo") || "2026-05-20",
+          summary: {
+            newCustomers: 1,
+            returningCustomers: 1,
+            churnedCustomers: 0,
+            totalDebtOutstanding: 70_000,
+            debtCollectedInPeriod: 50_000,
+            avgOrderValue: 55_000,
+            orderFrequency: 1,
+            repeatPurchaseRate: 100,
+          },
+          byType: [
+            {
+              type: "AGEN",
+              customerCount: 1,
+              revenue: 55_000,
+              debtAmount: 70_000,
+            },
+          ],
+          topSpenders: [
+            {
+              id: customers[0].id,
+              name: customers[0].name,
+              type: customers[0].type,
+              spentInPeriod: 55_000,
+              orderCount: 1,
+              lastVisitAt: customers[0].lastVisitAt,
+            },
+          ],
+          trend: {
+            granularity: "daily",
+            points: [
+              {
+                bucketKey: "2026-05-09",
+                label: "09 Mei",
+                revenue: 55_000,
+                orderCount: 1,
+                transactionCount: 1,
+                averageOrderValue: 55_000,
+                newCustomers: 1,
+                returningCustomers: 0,
+              },
+            ],
+          },
+        },
+      });
+    }
     if (path.startsWith("/api/customers/") && path.endsWith("/dp-transactions")) return json(route, [jobOrder]);
     if (path.startsWith("/api/customers/") && path.endsWith("/pay-debt")) return json(route, { success: true, customer: { ...customers[0], totalDebt: 0 } });
     if (path.startsWith("/api/customers/")) return json(route, customers[0]);
@@ -295,6 +346,8 @@ export async function mockApis(page: Page) {
             createdAt: "2026-05-20T01:00:00.000Z",
             transactionId: null,
             attachmentUrl: null,
+            hasMissingCostSnapshot: false,
+            source: { type: "MANUAL" },
             recordedBy: { id: "e2e-user", name: "E2E Owner" },
           },
           {
@@ -309,6 +362,8 @@ export async function mockApis(page: Page) {
             createdAt: "2026-05-20T02:00:00.000Z",
             transactionId: null,
             attachmentUrl: null,
+            hasMissingCostSnapshot: false,
+            source: { type: "MANUAL" },
             recordedBy: { id: "e2e-user", name: "E2E Owner" },
           },
         ],

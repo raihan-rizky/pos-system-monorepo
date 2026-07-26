@@ -196,6 +196,92 @@ export async function setupStockApprovalRoutes(
     return jsonReply(route, { log });
   });
 
+  await page.route("**/api/inventory-management/stock-group-bulk", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const body = JSON.parse(route.request().postData() ?? "{}") as {
+      action?: "preview" | "submit";
+      rows?: Array<{
+        productId: string;
+        mode: "GROUP_STOCK" | "PRODUCT_ONLY";
+        type: "IN" | "OUT" | "ADJUSTMENT";
+        inputValue: number;
+        note?: string | null;
+      }>;
+    };
+    const input = body.rows?.[0];
+    if (!input) {
+      return jsonReply(route, { message: "Baris stok wajib diisi" }, 422);
+    }
+
+    const beforeStock = 24;
+    const afterStock =
+      input.type === "IN"
+        ? beforeStock + input.inputValue
+        : input.type === "OUT"
+          ? beforeStock - input.inputValue
+          : input.inputValue;
+    const previewRow = {
+      id: "preview-prod-a4",
+      productId: input.productId,
+      name: "Kertas HVS A4",
+      sku: "HVS-A4",
+      unit: "rim",
+      mode: "PRODUCT_ONLY" as const,
+      type: input.type,
+      inputValue: input.inputValue,
+      beforeStock,
+      afterStock,
+      delta: afterStock - beforeStock,
+      note: input.note ?? "",
+    };
+    const preview = {
+      rows: [previewRow],
+      bundledRows: [],
+      standaloneRows: [previewRow],
+    };
+
+    if (body.action === "preview") {
+      return jsonReply(route, { data: preview });
+    }
+
+    const now = new Date().toISOString();
+    const newLog: MockStockLog = {
+      id: `log-new-${store.logs.length + 1}`,
+      productId: input.productId,
+      type: input.type,
+      reason: input.type === "IN" ? "RESTOCK" : "ADJUSTMENT",
+      quantity: Math.abs(input.inputValue),
+      unitCost: null,
+      note: input.note ?? null,
+      createdBy: userId,
+      person: userName,
+      createdAt: now,
+      status: "PENDING",
+      approvedBy: null,
+      approverName: null,
+      decidedAt: null,
+      rejectionReason: null,
+      product: {
+        id: input.productId,
+        name: "Kertas HVS A4",
+        sku: "HVS-A4",
+        unit: "rim",
+        stock: beforeStock,
+        imageUrl: null,
+        category: { name: "ATK", icon: "A" },
+      },
+    };
+    store.logs.unshift(newLog);
+    return jsonReply(route, {
+      data: {
+        bundleBatchOperationId: null,
+        standaloneLogIds: [newLog.id],
+        status: "PENDING",
+        preview,
+      },
+    });
+  });
+
   await page.route("**/api/inventory", async (route) => {
     if (route.request().method() !== "POST") return route.fallback();
     const body = JSON.parse(route.request().postData() ?? "{}") as {

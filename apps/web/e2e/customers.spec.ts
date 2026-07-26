@@ -10,12 +10,14 @@ test("customers page supports search, create modal, and debt payment", async ({ 
   await expect(page.getByText("CV Budi")).toBeVisible();
 
   await page.getByRole("button", { name: /Tambah Pelanggan/ }).click();
-  await expect(page.getByRole("heading", { name: "Tambah Pelanggan" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Bangun profil pelanggan baru" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Batal" }).click();
 
-  await page.getByRole("button", { name: "Bayar" }).click();
-  await expect(page.getByRole("heading", { name: "Bayar Piutang" })).toBeVisible();
+  await page.getByRole("button", { name: "Bayar Piutang", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Budi" })).toBeVisible();
   await expect(page.getByText("JOB-20260509-0001")).toBeVisible();
-  await page.getByRole("button", { name: "Bayar penuh" }).click();
-  await expect(page.getByRole("button", { name: "Bayar & Lunaskan" })).toBeVisible();
+  await page.getByRole("button", { name: "LUNAS" }).click();
+  await expect(page.getByRole("button", { name: "Lunaskan" })).toBeVisible();
 });
