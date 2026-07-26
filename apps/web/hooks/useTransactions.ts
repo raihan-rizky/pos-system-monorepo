@@ -299,7 +299,6 @@ export interface UpdateTransactionInput {
   salesName?: string;
   salespersonId?: string;
   customerName?: string;
-  note?: string | null;
   paymentMethod?: string;
   status?: string;
 }

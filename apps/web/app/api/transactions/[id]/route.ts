@@ -28,7 +28,6 @@ const updateTransactionSchema = z.object({
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
-  note: z.string().optional().nullable(),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional(),
   status: z.enum(["COMPLETED", "DP", "VOIDED", "REFUNDED", "PENDING_APPROVAL"]).optional(),
 });
@@ -152,7 +151,7 @@ export async function PATCH(
       );
     }
 
-    const { salesName, salespersonId, customerName, note, paymentMethod, status } = parsed.data;
+    const { salesName, salespersonId, customerName, paymentMethod, status } = parsed.data;
 
     const existingTransaction = await db.transaction.findFirst({
       where: { id, storeId },
@@ -211,7 +210,6 @@ export async function PATCH(
     if (salesName !== undefined) updateData.salesName = salesName || null;
     if (salespersonId !== undefined) updateData.salespersonId = salespersonId || null;
     if (customerName !== undefined) updateData.customerName = customerName || null;
-    if (note !== undefined) updateData.note = note || null;
     if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
     if (paymentMethod !== undefined && existingTransaction.payments.length === 1) {
       updateData.payments = {

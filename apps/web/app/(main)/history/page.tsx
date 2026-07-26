@@ -141,7 +141,6 @@ type EditForm = {
   salesName: string;
   salespersonId: string;
   customerName: string;
-  note: string;
   paymentMethod: string;
   status: string;
 };
@@ -196,7 +195,6 @@ function EditModal({
     salesName: tx.salesName ?? "",
     salespersonId: tx.salespersonId ?? "",
     customerName: tx.customerName ?? "",
-    note: tx.note ?? "",
     paymentMethod: tx.paymentMethod ?? "CASH",
     status: tx.status ?? "COMPLETED",
   });
@@ -251,7 +249,6 @@ function EditModal({
         salesName: form.salesName,
         salespersonId: form.salespersonId,
         customerName: form.customerName,
-        note: form.note,
         paymentMethod: form.paymentMethod,
       };
       // Only include status when it actually changed
@@ -329,21 +326,6 @@ function EditModal({
               onChange={(e) => handleChange("customerName", e.target.value)}
               placeholder="Nama pelanggan"
               className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
-                focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
-            />
-          </div>
-
-          {/* Note */}
-          <div>
-            <label className="block text-xs font-semibold text-surface-600 mb-1.5">
-              Catatan
-            </label>
-            <textarea
-              value={form.note}
-              onChange={(e) => handleChange("note", e.target.value)}
-              rows={3}
-              placeholder="Catatan transaksi (opsional)"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm resize-none
                 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
             />
           </div>
