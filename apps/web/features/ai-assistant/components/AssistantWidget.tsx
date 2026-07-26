@@ -10,6 +10,7 @@ import {
   appendAssistantRequestStatus,
   appendUserMessage,
   completeAssistantActionLog,
+  patchAssistantGeneratedFile,
   setAssistantFinalContent,
   setAssistantFollowUps,
   setAssistantGeneratedFile,
@@ -17,7 +18,7 @@ import {
 } from "../helpers/chat-state";
 import { buildAssistantHistoryKey, sanitizeAssistantHistoryRecord } from "../helpers/chat-history";
 import { AssistantRequestError, sendChatMessage } from "../api/assistantApi";
-import type { AssistantClientAction, AssistantStreamFrame, Message } from "../types/assistant";
+import type { AssistantClientAction, AssistantGeneratedFile, AssistantStreamFrame, Message } from "../types/assistant";
 import { Send, Info, Bot, X, Trash2, Sparkles, ChevronLeft, ChevronRight, Download, FileText, Bell } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { flushSync } from "react-dom";
@@ -315,28 +316,56 @@ export function AssistantWidget({
     window.requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
-  const downloadGeneratedFile = async (action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>) => {
+  const downloadGeneratedFile = async (
+    action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>,
+    cachedAdvice?: string[],
+  ) => {
     if (action.kind === "export_financial_report") {
       const { exportFinancialReportFile } = await import("@/features/financial-report/helpers/journal-export");
       return exportFinancialReportFile(action.period, action.format);
     }
     const { exportCustomerRecapPeriod } = await import("@/features/customer-recap/helpers/customer-recap-export-client");
-    return exportCustomerRecapPeriod(action.period, action.format);
+    return exportCustomerRecapPeriod(action.period, action.format, { advice: cachedAdvice });
   };
 
-  const handleGeneratedFileDownload = async (action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>) => {
+  const handleGeneratedFileDownload = async (file: AssistantGeneratedFile) => {
+    const action = file.action;
     try {
       setError(null);
-      const result = await downloadGeneratedFile(action);
-      setMessages((current) => current.map((message) => {
-        const file = message.generatedFile;
-        if (!file || file.action.kind !== action.kind || file.action.period !== action.period || file.action.format !== action.format) {
-          return message;
-        }
-        return { ...message, generatedFile: { ...file, advice: result.advice, downloaded: true } };
+      // The card already shows analysis for this export, so the file reuses it instead of asking the AI again.
+      const cachedAdvice = file.adviceStatus === "ready" ? file.advice : undefined;
+      const result = await downloadGeneratedFile(action, cachedAdvice);
+      setMessages((current) => patchAssistantGeneratedFile(current, action, {
+        advice: result.advice,
+        adviceStatus: "ready",
+        downloaded: true,
       }));
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : "File belum berhasil diunduh ulang.");
+    }
+  };
+
+  const loadGeneratedFileAdvice = async (action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>) => {
+    if (action.kind === "export_financial_report") {
+      const { loadFinancialReportAdvice } = await import("@/features/financial-report/helpers/journal-export");
+      return loadFinancialReportAdvice(action.period);
+    }
+    const { loadCustomerRecapAdvice } = await import("@/features/customer-recap/helpers/customer-recap-export-client");
+    return loadCustomerRecapAdvice(action.period);
+  };
+
+  const requestGeneratedFileAdvice = async (action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>) => {
+    setMessages((current) => patchAssistantGeneratedFile(current, action, { adviceStatus: "loading" }));
+    try {
+      const result = await loadGeneratedFileAdvice(action);
+      if (!mountedRef.current) return;
+      setMessages((current) => patchAssistantGeneratedFile(current, action, {
+        advice: result.advice,
+        adviceStatus: "ready",
+      }));
+    } catch {
+      if (!mountedRef.current) return;
+      setMessages((current) => patchAssistantGeneratedFile(current, action, { adviceStatus: "failed" }));
     }
   };
 
@@ -386,6 +415,7 @@ export function AssistantWidget({
               label: fileLabel,
               action,
               advice: [],
+              adviceStatus: "loading",
               downloaded: false,
             }));
             setMessages((current) => appendAssistantActionLogEntry(current, {
@@ -393,6 +423,7 @@ export function AssistantWidget({
               occurredAt: parsed.occurredAt,
               status: "done",
             }));
+            void requestGeneratedFileAdvice(action);
             continue;
           }
           flushSync(() => {
@@ -734,7 +765,7 @@ export function AssistantWidget({
                             <p className="font-semibold text-surface-100">{message.generatedFile.label}</p>
                             <p className="truncate text-[10px] text-surface-400">{message.generatedFile.name}</p>
                           </div>
-                          <button type="button" onClick={() => void handleGeneratedFileDownload(message.generatedFile!.action)} className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-brand-500">
+                          <button type="button" onClick={() => void handleGeneratedFileDownload(message.generatedFile!)} className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-brand-500">
                             <Download className="h-3 w-3" aria-hidden="true" /> {message.generatedFile.downloaded === false ? `Download ${message.generatedFile.format.toUpperCase()}` : "Download ulang"}
                           </button>
                         </div>
@@ -744,6 +775,23 @@ export function AssistantWidget({
                             <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] text-surface-200">
                               {message.generatedFile.advice.map((advice) => <li key={advice}>{advice}</li>)}
                             </ul>
+                          </div>
+                        ) : message.generatedFile.adviceStatus === "loading" ? (
+                          <div className="mt-3 border-t border-brand-400/20 pt-2">
+                            <p className="text-[11px] font-semibold text-brand-200">Saran Pak Teladan</p>
+                            <p className="mt-1 text-[11px] text-surface-300">Menyiapkan analisis dari data yang sama...</p>
+                          </div>
+                        ) : message.generatedFile.adviceStatus === "failed" ? (
+                          <div className="mt-3 border-t border-brand-400/20 pt-2">
+                            <p className="text-[11px] font-semibold text-brand-200">Saran Pak Teladan</p>
+                            <p className="mt-1 text-[11px] text-surface-300">Analisis belum berhasil disiapkan.</p>
+                            <button
+                              type="button"
+                              onClick={() => void requestGeneratedFileAdvice(message.generatedFile!.action)}
+                              className="mt-1 text-[11px] font-semibold text-brand-200 underline hover:text-brand-100"
+                            >
+                              Coba lagi
+                            </button>
                           </div>
                         ) : null}
                       </div>

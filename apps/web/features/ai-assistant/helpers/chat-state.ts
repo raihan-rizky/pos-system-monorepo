@@ -139,6 +139,25 @@ export function setAssistantGeneratedFile(
   return [...messages.slice(0, -1), { ...last, generatedFile }];
 }
 
+export function patchAssistantGeneratedFile(
+  messages: Message[],
+  action: AssistantGeneratedFile["action"],
+  patch: Partial<Omit<AssistantGeneratedFile, "action">>,
+): Message[] {
+  return messages.map((message) => {
+    const file = message.generatedFile;
+    if (
+      !file
+      || file.action.kind !== action.kind
+      || file.action.period !== action.period
+      || file.action.format !== action.format
+    ) {
+      return message;
+    }
+    return { ...message, generatedFile: { ...file, ...patch } };
+  });
+}
+
 export function keepRecentMessages(messages: Message[]): Message[] {
   return messages.length > 20 ? messages.slice(-20) : messages;
 }

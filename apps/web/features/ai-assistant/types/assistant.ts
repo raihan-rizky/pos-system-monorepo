@@ -79,12 +79,15 @@ export type AssistantClientAction =
       format: AssistantExportFormat;
     };
 
+export type AssistantGeneratedFileAdviceStatus = "loading" | "ready" | "failed";
+
 export interface AssistantGeneratedFile {
   name: string;
   format: AssistantExportFormat;
   label: string;
   action: Extract<AssistantClientAction, { kind: "export_financial_report" | "export_customer_recap" }>;
   advice: string[];
+  adviceStatus?: AssistantGeneratedFileAdviceStatus;
   downloaded?: boolean;
 }
 

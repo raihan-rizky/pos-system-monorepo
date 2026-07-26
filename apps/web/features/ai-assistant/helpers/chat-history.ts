@@ -68,6 +68,7 @@ function isGeneratedFile(value: unknown): value is AssistantGeneratedFile {
     && (file.format === "pdf" || file.format === "xlsx")
     && Array.isArray(file.advice)
     && file.advice.every((item) => typeof item === "string")
+    && (file.adviceStatus === undefined || ["loading", "ready", "failed"].includes(file.adviceStatus))
     && (file.downloaded === undefined || typeof file.downloaded === "boolean")
     && !!action
     && (action.kind === "export_financial_report" || action.kind === "export_customer_recap")
@@ -88,6 +89,14 @@ export function sanitizeAssistantHistoryRecord(
 
   return {
     timestamp: record.timestamp,
-    messages: record.messages,
+    messages: record.messages.map(settleRestoredAdviceStatus),
   };
+}
+
+// A restored session has no in-flight advice request, so a persisted "loading"
+// status would spin forever. Mark it failed so the retry hint stays reachable.
+function settleRestoredAdviceStatus(message: Message): Message {
+  const file = message.generatedFile;
+  if (!file || file.adviceStatus !== "loading") return message;
+  return { ...message, generatedFile: { ...file, adviceStatus: "failed" } };
 }

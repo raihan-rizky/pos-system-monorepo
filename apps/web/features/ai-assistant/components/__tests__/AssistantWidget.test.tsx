@@ -304,6 +304,54 @@ describe("AssistantWidget", () => {
     expect(html).not.toContain("Download ulang");
   });
 
+  it("shows the advice placeholder while analysis loads without a download", () => {
+    const html = renderToStaticMarkup(
+      <AssistantWidget
+        defaultOpen
+        initialMessages={[{
+          role: "assistant",
+          content: "Rekapnya siap diunduh.",
+          generatedFile: {
+            name: "rekap-pelanggan-30d.pdf",
+            format: "pdf",
+            label: "Rekap Pelanggan",
+            action: { kind: "export_customer_recap", period: "30d", format: "pdf" },
+            advice: [],
+            adviceStatus: "loading",
+            downloaded: false,
+          },
+        }]}
+      />,
+    );
+
+    expect(html).toContain("Saran Pak Teladan");
+    expect(html).toContain("Menyiapkan analisis dari data yang sama");
+  });
+
+  it("offers a retry when the advice request failed", () => {
+    const html = renderToStaticMarkup(
+      <AssistantWidget
+        defaultOpen
+        initialMessages={[{
+          role: "assistant",
+          content: "Rekapnya siap diunduh.",
+          generatedFile: {
+            name: "rekap-pelanggan-30d.pdf",
+            format: "pdf",
+            label: "Rekap Pelanggan",
+            action: { kind: "export_customer_recap", period: "30d", format: "pdf" },
+            advice: [],
+            adviceStatus: "failed",
+            downloaded: false,
+          },
+        }]}
+      />,
+    );
+
+    expect(html).toContain("Analisis belum berhasil disiapkan.");
+    expect(html).toContain("Coba lagi");
+  });
+
   it("lets Pak Teladan proactively surface unread notifications", () => {
     const html = renderToStaticMarkup(
       <AssistantWidget

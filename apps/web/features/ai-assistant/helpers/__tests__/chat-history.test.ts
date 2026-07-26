@@ -79,4 +79,27 @@ describe("AI assistant chat history", () => {
       messages: [{ ...valid.messages[0], generatedFile: { ...valid.messages[0].generatedFile, action: { kind: "open_modal" } } }],
     }, now)).toBeNull();
   });
+
+  it("settles a restored advice request that is still marked as loading", () => {
+    const now = Date.now();
+    const record = {
+      timestamp: now,
+      messages: [{
+        role: "assistant",
+        content: "File siap",
+        generatedFile: {
+          name: "rekap-pelanggan-30d.pdf",
+          format: "pdf",
+          label: "Rekap Pelanggan",
+          action: { kind: "export_customer_recap", period: "30d", format: "pdf" },
+          advice: [],
+          adviceStatus: "loading",
+          downloaded: false,
+        },
+      }],
+    };
+
+    expect(sanitizeAssistantHistoryRecord(record, now)?.messages[0].generatedFile?.adviceStatus)
+      .toBe("failed");
+  });
 });

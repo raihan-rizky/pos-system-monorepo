@@ -85,10 +85,7 @@ export function buildFinancialExportAdvice(input: ExportInput): string[] {
   return advice;
 }
 
-export async function exportFinancialReportFile(
-  period: ReportPeriod,
-  format: ReportExportFormat,
-): Promise<ReportExportResult> {
+async function fetchFinancialExportInput(period: ReportPeriod): Promise<ExportInput> {
   const response = await fetch(`/api/finance/report/journal?period=${period}`, {
     cache: "no-store",
   });
@@ -97,7 +94,18 @@ export async function exportFinancialReportFile(
     throw new Error(body.message || `Gagal memuat data (${response.status})`);
   }
 
-  const input = await response.json() as ExportInput;
+  return await response.json() as ExportInput;
+}
+
+export async function loadFinancialReportAdvice(period: ReportPeriod): Promise<ReportExportResult> {
+  return { advice: buildFinancialExportAdvice(await fetchFinancialExportInput(period)) };
+}
+
+export async function exportFinancialReportFile(
+  period: ReportPeriod,
+  format: ReportExportFormat,
+): Promise<ReportExportResult> {
+  const input = await fetchFinancialExportInput(period);
   if (format === "xlsx") {
     await exportReportXlsx(input);
   } else {

@@ -42,4 +42,4 @@ Pak Teladan dapat mencari pelanggan serta mengecek piutang atau rekap 30 hari un
 
 Pak Teladan juga dapat membuka modal **Tambah Pelanggan** dan mengekspor rekap pelanggan memakai fitur ekspor halaman ini. Jika periode atau format tidak disebutkan, ekspor memakai **30 hari terakhir** dan **PDF**. Pak Teladan tidak mengisi, menyimpan, mengubah, menghapus, atau membayar piutang secara otomatis; pengguna tetap memeriksa dan mengonfirmasi form.
 
-Saat ekspor rekap semua pelanggan diminta melalui chat, file tidak diunduh otomatis. Klik **Download PDF/Excel** pada kartu; setelah berhasil tombol berubah menjadi **Download ulang** dan saran memakai dataset yang sama. Role OWNER juga memiliki quick prompt **Rekap pelanggan bulanan**.
+Saat ekspor rekap semua pelanggan diminta melalui chat, file tidak diunduh otomatis. Saran dari dataset yang sama langsung muncul di kartu tanpa perlu mengunduh. Klik **Download PDF/Excel** pada kartu saat siap; setelah berhasil tombol berubah menjadi **Download ulang**. Role OWNER juga memiliki quick prompt **Rekap pelanggan bulanan**.

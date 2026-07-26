@@ -9,10 +9,12 @@ import {
   appendUserMessage,
   completeAssistantActionLog,
   keepRecentMessages,
+  patchAssistantGeneratedFile,
   setAssistantFinalContent,
   setAssistantGeneratedFile,
   setAssistantWorkflowPayload,
 } from "../chat-state";
+import type { Message } from "../../types/assistant";
 
 describe("AI assistant chat state", () => {
   it("appends user message", () => {
@@ -184,5 +186,47 @@ describe("AI assistant chat state", () => {
     expect(next[0].generatedFile?.name).toBe("laporan-keuangan-30d.pdf");
     expect(next[0].generatedFile?.advice).toEqual(["Review pengeluaran terbesar minggu ini."]);
     expect(next[0].generatedFile?.downloaded).toBe(false);
+  });
+
+  it("patches only the generated file that matches the export action", () => {
+    const messages: Message[] = [
+      {
+        role: "assistant",
+        content: "Laporan siap.",
+        generatedFile: {
+          name: "laporan-keuangan-30d.pdf",
+          format: "pdf",
+          label: "Laporan Keuangan",
+          action: { kind: "export_financial_report", period: "30d", format: "pdf" },
+          advice: [],
+          adviceStatus: "loading",
+          downloaded: false,
+        },
+      },
+      {
+        role: "assistant",
+        content: "Rekap siap.",
+        generatedFile: {
+          name: "rekap-pelanggan-30d.pdf",
+          format: "pdf",
+          label: "Rekap Pelanggan",
+          action: { kind: "export_customer_recap", period: "30d", format: "pdf" },
+          advice: [],
+          adviceStatus: "loading",
+          downloaded: false,
+        },
+      },
+    ];
+
+    const next = patchAssistantGeneratedFile(
+      messages,
+      { kind: "export_financial_report", period: "30d", format: "pdf" },
+      { advice: ["Kontrol biaya masih aman."], adviceStatus: "ready" },
+    );
+
+    expect(next[0].generatedFile?.advice).toEqual(["Kontrol biaya masih aman."]);
+    expect(next[0].generatedFile?.adviceStatus).toBe("ready");
+    expect(next[0].generatedFile?.downloaded).toBe(false);
+    expect(next[1].generatedFile?.adviceStatus).toBe("loading");
   });
 });
