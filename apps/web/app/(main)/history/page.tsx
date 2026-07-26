@@ -55,6 +55,7 @@ import {
   hasInvoiceDateChange,
 } from "@/features/invoice-date/helpers/history-invoice-date-display";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
+import { displayTransactionNote } from "./helpers/transaction-note";
 import { useCategories } from "@/hooks/useProducts";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { Button } from "@pos/ui";
@@ -1062,6 +1063,14 @@ export default function HistoryPage() {
   );
   const receiptTransaction = selectedTransactionDetail ?? selectedTransaction;
 
+  const noteModalNote = displayTransactionNote(noteTransaction?.note);
+  const noteModalDocumentNumber = noteTransaction
+    ? (noteTransaction.invoiceNumber ??
+        (noteTransaction.draftNumber
+          ? formatDraftNumberForDisplay(noteTransaction.draftNumber)
+          : "—"))
+    : null;
+
   const hasActiveFilters =
     debouncedSearch || dateFrom || dateTo || categoryId || statusFilter || suratJalanOnly;
 
@@ -1336,6 +1345,7 @@ export default function HistoryPage() {
                         const invoiceDateForDisplay = getTransactionInvoiceDate(tx);
                         const previousInvoiceDate = getLatestPreviousInvoiceDate(tx);
                         const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
+                        const displayNote = displayTransactionNote(tx.note);
                         const rowBg = isPending
                           ? "bg-blue-50/70 hover:bg-blue-50 animate-pending-row relative"
                           : isDraft
@@ -1431,12 +1441,12 @@ export default function HistoryPage() {
                                 <div className="whitespace-nowrap">
                                   {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
                                 </div>
-                                {tx.note && (
+                                {displayNote && (
                                   <div
-                                    title={tx.note}
-                                    className={`mt-0.5 whitespace-normal text-[11px] leading-snug line-clamp-2 ${isVoided ? "text-surface-400" : "text-surface-500"}`}
+                                    title={displayNote}
+                                    className={`mt-0.5 whitespace-normal break-words text-[11px] leading-snug line-clamp-2 ${isVoided ? "text-surface-400" : "text-surface-500"}`}
                                   >
-                                    {tx.note}
+                                    {displayNote}
                                   </div>
                                 )}
                               </div>
@@ -1564,6 +1574,7 @@ export default function HistoryPage() {
                     const invoiceDateForDisplay = getTransactionInvoiceDate(tx);
                     const previousInvoiceDate = getLatestPreviousInvoiceDate(tx);
                     const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
+                    const displayNote = displayTransactionNote(tx.note);
                     const cardBg = isPending ? "bg-blue-50/30 border-blue-100"
                       : isDraft ? "bg-amber-50/20 border-amber-100"
                         : isBundled ? "bg-emerald-50/60 border-emerald-200 history-surat-jalan-glow"
@@ -1665,7 +1676,7 @@ export default function HistoryPage() {
                               {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
                             </span>
                           </div>
-                          {tx.note && (
+                          {displayNote && (
                             <div className="flex justify-between text-sm gap-3">
                               <span className="shrink-0 text-surface-500">Catatan</span>
                               <button
@@ -1676,7 +1687,7 @@ export default function HistoryPage() {
                                 }}
                                 className={`max-w-[60%] truncate text-right font-medium underline decoration-dotted decoration-surface-300 underline-offset-2 ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}
                               >
-                                {tx.note}
+                                {displayNote}
                               </button>
                             </div>
                           )}
@@ -1860,10 +1871,10 @@ export default function HistoryPage() {
       )}
 
       {/* Note Modal */}
-      {noteTransaction?.note && (
+      {noteTransaction && noteModalNote && (
         <TransactionNoteModal
-          note={noteTransaction.note}
-          documentNumber={noteTransaction.invoiceNumber ?? noteTransaction.draftNumber}
+          note={noteModalNote}
+          documentNumber={noteModalDocumentNumber}
           onClose={() => setNoteTransaction(null)}
         />
       )}
