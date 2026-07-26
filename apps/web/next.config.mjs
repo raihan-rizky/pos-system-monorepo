@@ -1,6 +1,9 @@
 import prismaWorkaround from "@prisma/nextjs-monorepo-workaround-plugin";
 
 const { PrismaPlugin } = prismaWorkaround;
+const r2PublicUrl = process.env.R2_PUBLIC_BASE_URL
+  ? new URL(process.env.R2_PUBLIC_BASE_URL)
+  : null;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -48,6 +51,16 @@ const nextConfig = {
         hostname: "pjgkfajkuntpedyovtnc.supabase.co",
         pathname: "/storage/v1/object/public/**",
       },
+      ...(r2PublicUrl
+        ? [
+            {
+              protocol: r2PublicUrl.protocol.replace(":", ""),
+              hostname: r2PublicUrl.hostname,
+              port: r2PublicUrl.port,
+              pathname: `${r2PublicUrl.pathname.replace(/\/$/, "")}/**`,
+            },
+          ]
+        : []),
     ],
   },
 

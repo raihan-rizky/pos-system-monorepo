@@ -216,4 +216,14 @@ describe('HelpContent', () => {
     expect(ownerHtml).toContain('Hapus foto');
     expect(ownerHtml).toContain('proof_upload');
   });
+
+  it('documents that uploaded product images are stored in R2', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="ADMIN" searchQuery="Kelola Produk" />
+    );
+
+    expect(html).toContain('foto produk');
+    expect(html).toContain('Cloudflare R2');
+    expect(html).toContain('bukan lagi Supabase Storage');
+  });
 });

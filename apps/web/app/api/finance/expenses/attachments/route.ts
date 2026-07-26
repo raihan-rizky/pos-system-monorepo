@@ -1,10 +1,10 @@
 import crypto from "crypto";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
-import { createClient } from "@/utils/supabase/server";
 import {
-  isMissingStorageBucketError,
-  POS_MEDIA_BUCKET,
-} from "@/features/upload/helpers/upload-core";
+  deleteMediaFromR2,
+  isMediaStorageUnavailableError,
+  uploadMediaToR2,
+} from "@/features/upload/server/r2-media-storage";
 import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
@@ -51,35 +51,25 @@ export async function POST(request: Request) {
     const filename = `${crypto.randomBytes(8).toString("hex")}${ext}`;
     const path = `expenses/${filename}`;
 
-    const supabase = await createClient();
-    const { error } = await supabase.storage
-      .from(POS_MEDIA_BUCKET)
-      .upload(path, buffer, { contentType: file.type, upsert: false });
-
-    if (error) {
-      log.error("Supabase Storage error", error);
-      if (isMissingStorageBucketError(error)) {
-        return apiError("Storage bucket unavailable", 503, {
-          code: "ServiceUnavailable",
-        });
-      }
-      return apiError("Failed to upload attachment", 500, {
-        code: "InternalError",
-      });
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from(POS_MEDIA_BUCKET)
-      .getPublicUrl(path);
+    const uploaded = await uploadMediaToR2({
+      body: buffer,
+      mimeType: file.type,
+      objectKey: path,
+    });
 
     return NextResponse.json(
-      { data: { url: publicUrlData.publicUrl, path } },
+      { data: { url: uploaded.url, path: uploaded.objectKey } },
       { status: 201 },
     );
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     log.error("Failed to upload expense attachment", error);
+    if (isMediaStorageUnavailableError(error)) {
+      return apiError("Penyimpanan R2 sedang tidak tersedia", 503, {
+        code: "ServiceUnavailable",
+      });
+    }
     return apiError("Failed to upload attachment", 500, {
       code: "InternalError",
     });
@@ -98,28 +88,18 @@ export async function DELETE(request: Request) {
       });
     }
 
-    const supabase = await createClient();
-    const { error } = await supabase.storage
-      .from(POS_MEDIA_BUCKET)
-      .remove([path]);
-
-    if (error) {
-      log.error("Supabase Storage delete error", error);
-      if (isMissingStorageBucketError(error)) {
-        return apiError("Storage bucket unavailable", 503, {
-          code: "ServiceUnavailable",
-        });
-      }
-      return apiError("Failed to delete attachment", 500, {
-        code: "InternalError",
-      });
-    }
+    await deleteMediaFromR2(path);
 
     return NextResponse.json({ data: { path } });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     log.error("Failed to delete expense attachment", error);
+    if (isMediaStorageUnavailableError(error)) {
+      return apiError("Penyimpanan R2 sedang tidak tersedia", 503, {
+        code: "ServiceUnavailable",
+      });
+    }
     return apiError("Failed to delete attachment", 500, {
       code: "InternalError",
     });

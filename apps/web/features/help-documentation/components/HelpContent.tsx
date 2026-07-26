@@ -332,7 +332,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Package className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Produk", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Katalog', kemudian klik menu 'Produk' (ikon paket).", icon: <Package className="w-8 h-8" /> },
-        { title: "Tambah Produk Baru", description: "Klik tombol hitam '+ Tambah Produk' di pojok kanan atas. Pada modal formulir yang muncul, isi Nama Produk, Kategori, Merek bila ada, Harga Jual, Harga Agen atau Harga Dinas bila perlu, Stok Awal, dan kode SKU/Barcode, lalu klik 'Simpan'. Jika merek belum ada, ketik nama merek baru lalu klik Tambah.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Tambah Produk Baru", description: "Klik tombol hitam '+ Tambah Produk' di pojok kanan atas. Pada modal formulir yang muncul, isi Nama Produk, Kategori, Merek bila ada, Harga Jual, Harga Agen atau Harga Dinas bila perlu, Stok Awal, kode SKU/Barcode, dan foto produk. Foto yang diunggah disimpan di Cloudflare R2, bukan lagi Supabase Storage. Setelah lengkap, klik 'Simpan'. Jika merek belum ada, ketik nama merek baru lalu klik Tambah.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Ubah Data Produk", description: "Cari produk yang ingin diubah di tabel, lalu klik tombol ikon 'Edit' (pensil) di kolom aksi paling kanan. Lakukan penyesuaian data termasuk Merek, Harga Agen, atau Harga Dinas pada form pop-up, kemudian klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
       ]
     },

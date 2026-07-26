@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
-import { createClient } from "@/utils/supabase/server";
 import {
-  isMissingStorageBucketError,
-  POS_MEDIA_BUCKET,
-} from "@/features/upload/helpers/upload-core";
+  isMediaStorageUnavailableError,
+  uploadMediaToR2,
+} from "@/features/upload/server/r2-media-storage";
 
 import { getLogger } from "@/lib/logger";
 
@@ -58,44 +57,26 @@ export async function POST(request: Request) {
     const ext = EXTENSION_BY_MIME_TYPE[file.type];
     const filename = `${crypto.randomBytes(8).toString("hex")}${ext}`;
 
-    const supabase = await createClient();
-    const { error } = await supabase.storage
-      .from(POS_MEDIA_BUCKET)
-      .upload(`products/${filename}`, buffer, {
-        contentType: file.type,
-        upsert: false,
-      });
+    const uploaded = await uploadMediaToR2({
+      body: buffer,
+      mimeType: file.type,
+      objectKey: `products/${filename}`,
+    });
 
-    if (error) {
-      log.error("Supabase Storage Error:", error);
-      if (isMissingStorageBucketError(error)) {
-        return NextResponse.json(
-          {
-            message:
-              "Supabase Storage bucket is missing. Apply the pos-media storage migration before uploading images.",
-          },
-          { status: 503 },
-        );
-      }
-
-      return NextResponse.json(
-        { message: "Failed to upload image to storage." },
-        { status: 500 }
-      );
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from(POS_MEDIA_BUCKET)
-      .getPublicUrl(`products/${filename}`);
-
-    return NextResponse.json({ url: publicUrlData.publicUrl }, { status: 201 });
+    return NextResponse.json({ url: uploaded.url }, { status: 201 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
     log.error("Failed to upload image:", error);
+    if (isMediaStorageUnavailableError(error)) {
+      return NextResponse.json(
+        { message: "Penyimpanan R2 sedang tidak tersedia. Silakan coba lagi." },
+        { status: 503 },
+      );
+    }
     return NextResponse.json(
-      { message: "Failed to upload image" },
+      { message: "Gagal mengunggah gambar." },
       { status: 500 }
     );
   }
