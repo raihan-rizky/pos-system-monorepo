@@ -1426,8 +1426,20 @@ export default function HistoryPage() {
                                 )}
                               </div>
                             </td>
-                            <td className={`py-3.5 px-4 text-sm font-medium whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
-                              {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
+                            <td className={`py-3.5 px-4 text-sm font-medium ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
+                              <div className="max-w-[220px]">
+                                <div className="whitespace-nowrap">
+                                  {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
+                                </div>
+                                {tx.note && (
+                                  <div
+                                    title={tx.note}
+                                    className={`mt-0.5 whitespace-normal text-[11px] leading-snug line-clamp-2 ${isVoided ? "text-surface-400" : "text-surface-500"}`}
+                                  >
+                                    {tx.note}
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className={`py-3.5 px-4 text-sm font-medium whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
                               {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
