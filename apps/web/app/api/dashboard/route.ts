@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import {
+  buildDashboardRevenueBuckets,
+  type DashboardRevenueRow,
+} from "@/features/dashboard/helpers/dashboard-revenue-buckets";
 
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("api:dashboard");
 export const dynamic = 'force-dynamic';
-
-type DashboardItem = {
-  quantity: number;
-  unitCost: unknown;
-  subtotal: unknown;
-};
 
 type LowStockProduct = {
   id: string;
@@ -22,17 +20,6 @@ type LowStockProduct = {
   imageUrl: string | null;
   categoryId: string;
 };
-
-const jakartaDateFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Jakarta",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function jakartaDateKey(date: Date) {
-  return jakartaDateFormatter.format(date);
-}
 
 // GET /api/dashboard - Dashboard statistics optimized for serverless performance
 export async function GET() {
@@ -62,23 +49,29 @@ export async function GET() {
       totalOutstandingDPRaw,
     ] = await Promise.all([
       // 1. Revenue, profit, chart, and payment mix share one transaction range.
-      db.transaction.findMany({
-        where: {
-          storeId,
-          invoiceDate: { gte: statsRangeStart },
-          status: { in: ["COMPLETED", "DP"] },
-        },
-        select: {
-          invoiceDate: true,
-          total: true,
-          status: true,
-          amountPaid: true,
-          paymentMethod: true,
-          items: {
-            select: { quantity: true, unitCost: true, subtotal: true },
-          },
-        },
-      }),
+      // Profit is summed per transaction in SQL: fetching every line item just
+      // to add it up in JS moved ~30k rows per request over the wire.
+      db.$queryRaw<DashboardRevenueRow[]>`
+        SELECT
+          t."invoiceDate",
+          t."status"::text AS status,
+          t."total",
+          t."amountPaid",
+          t."paymentMethod"::text AS "paymentMethod",
+          COALESCE(
+            SUM(i."subtotal" - i."unitCost" * i."quantity")
+              FILTER (WHERE i."unitCost" IS NOT NULL),
+            0
+          ) AS profit
+        FROM pos_transactions t
+        LEFT JOIN pos_transaction_items i ON i."transactionId" = t."id"
+        WHERE t."storeId" = ${storeId}
+          AND t."invoiceDate" >= ${statsRangeStart}
+          AND t."status" IN ('COMPLETED', 'DP')
+        GROUP BY
+          t."id", t."invoiceDate", t."status",
+          t."total", t."amountPaid", t."paymentMethod"
+      `,
       // 2. Total Products
       db.product.count({
         where: { storeId, isActive: true },
@@ -157,83 +150,18 @@ export async function GET() {
       }),
     ]);
 
-    // Calculate exact profit helper
-    const calculateProfit = (items: DashboardItem[]) => {
-      let profit = 0;
-      items.forEach(i => {
-         if (i.unitCost === null || i.unitCost === undefined) return;
-         const cost = Number(i.unitCost);
-         const sub = Number(i.subtotal || 0);
-         profit += sub - (cost * i.quantity);
-      });
-      return profit;
-    };
-
-    // Process all overlapping transaction buckets in one pass.
-    let todayRevenue = 0;
-    let todayProfit = 0;
-    let monthlyRevenue = 0;
-    let monthlyProfit = 0;
-    const dailyData: Record<string, { revenue: number; profit: number }> = {};
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = jakartaDateKey(d);
-      dailyData[dateStr] = { revenue: 0, profit: 0 };
-    }
-    const paymentMixMap = new Map<string, { revenue: number; txCount: number }>();
-
-    transactionStats.forEach((transaction) => {
-      const revenue = Number(
-        transaction.status === "DP"
-          ? transaction.amountPaid
-          : transaction.total || 0,
-      );
-      const profit = calculateProfit(transaction.items);
-      const invoiceTime = transaction.invoiceDate.getTime();
-
-      if (invoiceTime >= firstDayOfMonth.getTime()) {
-        monthlyRevenue += revenue;
-        monthlyProfit += profit;
-      }
-
-      if (invoiceTime >= today.getTime()) {
-        todayRevenue += revenue;
-        todayProfit += profit;
-
-        const payment = paymentMixMap.get(transaction.paymentMethod) || {
-          revenue: 0,
-          txCount: 0,
-        };
-        payment.revenue += revenue;
-        payment.txCount += 1;
-        paymentMixMap.set(transaction.paymentMethod, payment);
-      }
-
-      const dateStr = jakartaDateKey(transaction.invoiceDate);
-      if (dailyData[dateStr]) {
-        dailyData[dateStr].revenue += revenue;
-        dailyData[dateStr].profit += profit;
-      }
+    const {
+      todayRevenue,
+      todayProfit,
+      monthlyRevenue,
+      monthlyProfit,
+      revenueChart,
+      paymentMixToday,
+    } = buildDashboardRevenueBuckets(transactionStats, {
+      now,
+      todayStart: today,
+      monthStart: firstDayOfMonth,
     });
-
-    const revenueChart = Object.entries(dailyData)
-      .map(([date, data]) => ({
-        name: new Intl.DateTimeFormat("id-ID", {
-          weekday: "short",
-          timeZone: "Asia/Jakarta",
-        }).format(new Date(`${date}T00:00:00+07:00`)),
-        date,
-        ...data,
-      }))
-      .reverse();
-    const paymentMixToday = Array.from(paymentMixMap.entries()).map(
-      ([method, data]) => ({
-        method,
-        revenue: data.revenue,
-        transactionCount: data.txCount,
-      }),
-    );
 
     return NextResponse.json({
       todayRevenue,

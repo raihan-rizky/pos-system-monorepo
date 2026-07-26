@@ -16,6 +16,23 @@ const USER_ID_COOKIE = "x-pos-user-id";
 const USER_NAME_COOKIE = "x-pos-user-name";
 const STORE_ID_COOKIE = "x-pos-store-id";
 
+/**
+ * Configured page permissions change rarely but were being re-read from
+ * pos_role_permissions on every page navigation, adding a Supabase round trip
+ * to each one. Cache the resolved decision per (role, page) for the same 60 s
+ * window the server-side permission cache already accepts
+ * (features/rbac/helpers/rbac-server.ts), so a permission edit takes effect
+ * within a minute at worst.
+ */
+const PAGE_PERMISSION_CACHE_TTL_MS = 60_000;
+
+const pagePermissionCache = new Map<string, { allowed: boolean; cachedAt: number }>();
+
+/** Test seam — module state would otherwise leak between cases. */
+export function clearMiddlewarePermissionCache() {
+  pagePermissionCache.clear();
+}
+
 function getPosIdentityCookieOptions() {
   return {
     path: "/",
@@ -152,24 +169,27 @@ export async function updateSession(request: NextRequest) {
   );
 
   // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+  // supabase.auth.getClaims(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT signature locally against the project's cached
+  // JWKS (ES256), where getUser() called the Auth server on every request. It
+  // still refreshes a near-expiry session first, so the cookie rotation this
+  // middleware is responsible for is unchanged, and it falls back to a server
+  // call by itself if the project ever reverts to a symmetric signing secret.
+  const { data: claimsData, error: authError } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims ?? null;
 
   // Supabase keeps the refresh token when a request fails transiently. Do not
-  // turn that recoverable state into a logout/redirect by treating user=null
+  // turn that recoverable state into a logout/redirect by treating claims=null
   // as a missing session. A later request can verify the same session again.
-  if (!user && isRetryableAuthFailure(authError)) {
+  if (!claims && isRetryableAuthFailure(authError)) {
     return authVerificationUnavailable(request, authError, supabaseResponse);
   }
 
   // Not authenticated
   if (
-    !user &&
+    !claims &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth")
   ) {
@@ -187,11 +207,13 @@ export async function updateSession(request: NextRequest) {
   // Authenticated: resolve POS identity for the current Supabase user. Do not
   // trust existing x-pos-* cookies: they can belong to a previous account in
   // the same browser session.
-  if (user) {
+  if (claims) {
     let role: Role | undefined;
 
     try {
-      const username = user.email?.split("@")[0];
+      const email = claims.email;
+      const username =
+        typeof email === "string" ? email.split("@")[0] : undefined;
       const { data: posUser } = username
         ? await supabase
             .from("pos_users")
@@ -295,6 +317,12 @@ async function canAccessPageWithConfiguredPermissions(
     // If it's an unknown target, reject immediately or fallback to default?
     // Actually, fallback to default handles unknown targets (returns false).
 
+    const cacheKey = `${role}:${pageTarget}`;
+    const cached = pagePermissionCache.get(cacheKey);
+    if (cached && Date.now() - cached.cachedAt < PAGE_PERMISSION_CACHE_TTL_MS) {
+      return cached.allowed;
+    }
+
     const { data, error } = await (supabase
       .from("pos_role_permissions")
       .select("allowed")
@@ -308,15 +336,22 @@ async function canAccessPageWithConfiguredPermissions(
     }>);
 
     if (error) {
+      // Never cache a failed lookup: a transient outage must not pin a denial
+      // for the whole TTL.
       log.warn("rbac.permissions.query.error", { error, role, path });
       return canRoleAccessPage(role, path, buildDefaultRolePermissions());
     }
 
-    if (data !== null) {
-      return data.allowed;
-    }
+    // `data === null` means no override is configured, which is a real answer
+    // worth caching — not a failure.
+    const allowed =
+      data !== null
+        ? data.allowed
+        : canRoleAccessPage(role, path, buildDefaultRolePermissions());
 
-    return canRoleAccessPage(role, path, buildDefaultRolePermissions());
+    pagePermissionCache.set(cacheKey, { allowed, cachedAt: Date.now() });
+
+    return allowed;
   } catch (error) {
     log.error("rbac.permissions.load.failed", { error, role, path });
     return canRoleAccessPage(role, path, buildDefaultRolePermissions());

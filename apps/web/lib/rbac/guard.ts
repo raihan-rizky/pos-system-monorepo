@@ -3,11 +3,15 @@
 // ============================================================
 
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@pos/db";
 import type { Role } from "./permissions";
 import type { Action } from "./permissions";
-import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
+import {
+  buildDefaultRolePermissions,
+  canRolePerformAction,
+} from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { apiError } from "@/lib/api/responses";
 
@@ -22,6 +26,68 @@ export class AuthError extends Error {
     this.statusCode = statusCode;
     this.name = "AuthError";
   }
+}
+
+function isE2EAuthBypassEnabled() {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    process.env.E2E_AUTH_BYPASS === "1"
+  );
+}
+
+async function getE2EUser() {
+  if (!isE2EAuthBypassEnabled()) return null;
+
+  const cookieStore = await cookies();
+  const role = (cookieStore.get("x-pos-role")?.value || "OWNER") as Role;
+  const validRoles: Role[] = ["OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY"];
+  if (!validRoles.includes(role)) {
+    throw new AuthError(401, "Invalid E2E role");
+  }
+
+  const id = cookieStore.get("x-pos-user-id")?.value || "e2e-user";
+  const rawName = cookieStore.get("x-pos-user-name")?.value || "E2E User";
+  let name = rawName;
+  try {
+    name = decodeURIComponent(rawName);
+  } catch {
+    name = rawName;
+  }
+
+  return {
+    id,
+    username: `e2e-${role.toLowerCase()}`,
+    name,
+    role,
+    storeId: cookieStore.get("x-pos-store-id")?.value || "store-main",
+    isActive: true,
+  };
+}
+
+/**
+ * Verify the caller's JWT and return its claims, or null when there is no
+ * session or the token fails verification.
+ *
+ * Uses `getClaims()` rather than `getUser()`: the project signs tokens with an
+ * asymmetric ES256 key, so the signature is checked locally against the cached
+ * JWKS instead of costing a round trip to the Auth server on every request.
+ * `getClaims()` falls back to a server call by itself if the project ever
+ * reverts to a symmetric signing secret, so this stays correct either way.
+ */
+async function getVerifiedClaims() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+
+  if (error || !data?.claims) return null;
+
+  return data.claims;
+}
+
+/** The POS username is the email prefix (e.g. "kasir" from "kasir@pos.local"). */
+function usernameFromClaims(claims: { email?: unknown }): string | undefined {
+  const email = claims.email;
+  if (typeof email !== "string") return undefined;
+  return email.split("@")[0] || undefined;
 }
 
 /**
@@ -46,18 +112,22 @@ export class AuthError extends Error {
  * @throws AuthError with 401 if not authenticated, 403 if wrong role
  */
 export async function requireRole(...allowedRoles: Role[]) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const e2eUser = await getE2EUser();
+  if (e2eUser) {
+    if (!allowedRoles.includes(e2eUser.role)) {
+      throw new AuthError(403, "Insufficient permissions");
+    }
+    return e2eUser;
+  }
 
-  if (!user) {
+  const claims = await getVerifiedClaims();
+
+  if (!claims) {
     throw new AuthError(401, "Unauthorized");
   }
 
   // Resolve Supabase auth user → pos_users record
-  // The username is the email prefix (e.g., "kasir" from "kasir@pos.local")
-  const username = user.email?.split("@")[0];
+  const username = usernameFromClaims(claims);
 
   if (!username) {
     throw new AuthError(401, "Invalid user identity");
@@ -95,7 +165,9 @@ export async function requireRole(...allowedRoles: Role[]) {
  */
 export async function requirePermission(resource: string, action: Action) {
   const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
-  const permissions = await getGlobalRolePermissions();
+  const permissions = isE2EAuthBypassEnabled()
+    ? buildDefaultRolePermissions()
+    : await getGlobalRolePermissions();
 
   if (!canRolePerformAction(user.role as Role, resource, action, permissions)) {
     throw new AuthError(403, "Insufficient permissions");
@@ -111,14 +183,13 @@ export async function requirePermission(resource: string, action: Action) {
  * @returns The pos_users record or null if not authenticated
  */
 export async function getCurrentUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const e2eUser = await getE2EUser();
+  if (e2eUser) return e2eUser;
 
-  if (!user) return null;
+  const claims = await getVerifiedClaims();
+  if (!claims) return null;
 
-  const username = user.email?.split("@")[0];
+  const username = usernameFromClaims(claims);
   if (!username) return null;
 
   return db.user.findFirst({

@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { updateSession } from "@/utils/supabase/middleware";
+import {
+  clearMiddlewarePermissionCache,
+  updateSession,
+} from "@/utils/supabase/middleware";
 
 const getUserMock = vi.hoisted(() => vi.fn());
+const getClaimsMock = vi.hoisted(() => vi.fn());
 const cookieAdapterMock = vi.hoisted(() => ({
   setAll: undefined as
     | undefined
@@ -30,6 +34,7 @@ vi.mock("@supabase/ssr", () => ({
       return {
         auth: {
           getUser: getUserMock,
+          getClaims: getClaimsMock,
           signOut: vi.fn(),
         },
         from: fromMock,
@@ -41,8 +46,10 @@ vi.mock("@supabase/ssr", () => ({
 describe("updateSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getUserMock.mockResolvedValue({
-      data: { user: { email: "admin@pos.local" } },
+    clearMiddlewarePermissionCache();
+    getClaimsMock.mockResolvedValue({
+      data: { claims: { email: "admin@pos.local" } },
+      error: null,
     });
     let callCount = 0;
     maybeSingleMock.mockImplementation(() => {
@@ -113,18 +120,19 @@ describe("updateSession", () => {
   it("does not allow E2E auth bypass in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("E2E_AUTH_BYPASS", "1");
-    getUserMock.mockResolvedValueOnce({ data: { user: null } });
+    getClaimsMock.mockResolvedValueOnce({ data: null, error: null });
     const request = new NextRequest("https://pos.example.com/api/products");
 
     const response = await updateSession(request);
 
-    expect(getUserMock).toHaveBeenCalled();
+    expect(getClaimsMock).toHaveBeenCalled();
+    expect(getUserMock).not.toHaveBeenCalled();
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({ error: "Unauthorized" });
   });
 
   it("keeps a retryable Supabase auth failure from being treated as logout", async () => {
-    getUserMock.mockImplementationOnce(async () => {
+    getClaimsMock.mockImplementationOnce(async () => {
       cookieAdapterMock.setAll?.([
         {
           name: "sb-project-ref-auth-token",
@@ -133,7 +141,7 @@ describe("updateSession", () => {
         },
       ]);
       return {
-        data: { user: null },
+        data: null,
         error: {
           name: "AuthRetryableFetchError",
           message: "Auth service temporarily unavailable",
@@ -158,8 +166,8 @@ describe("updateSession", () => {
   });
 
   it("still rejects a non-retryable malformed session even when its status is 500", async () => {
-    getUserMock.mockResolvedValueOnce({
-      data: { user: null },
+    getClaimsMock.mockResolvedValueOnce({
+      data: null,
       error: {
         name: "AuthInvalidTokenResponseError",
         message: "Auth session or user missing",
@@ -180,8 +188,9 @@ describe("updateSession", () => {
 
   it("respects allowed DB permissions when overriding default page targets", async () => {
     // INVENTORY defaults to /inventory only. We override to allow /dashboard too.
-    getUserMock.mockResolvedValue({
-      data: { user: { email: "inventory@pos.local" } },
+    getClaimsMock.mockResolvedValue({
+      data: { claims: { email: "inventory@pos.local" } },
+      error: null,
     });
     
     // maybeSingle for both pos_users and pos_role_permissions
@@ -213,8 +222,9 @@ describe("updateSession", () => {
 
   it("allows INVENTORY role to access pages explicitly granted via RBAC settings", async () => {
     // Default: INVENTORY only has /inventory. Dashboard should be DENIED.
-    getUserMock.mockResolvedValue({
-      data: { user: { email: "inventory2@pos.local" } },
+    getClaimsMock.mockResolvedValue({
+      data: { claims: { email: "inventory2@pos.local" } },
+      error: null,
     });
     
     let callCount = 0;
@@ -241,8 +251,9 @@ describe("updateSession", () => {
   });
 
   it("applies granular resource permissions (not just page access) from DB", async () => {
-    getUserMock.mockResolvedValue({
-      data: { user: { email: "inventory3@pos.local" } },
+    getClaimsMock.mockResolvedValue({
+      data: { claims: { email: "inventory3@pos.local" } },
+      error: null,
     });
     
     let callCount = 0;
@@ -268,5 +279,86 @@ describe("updateSession", () => {
 
     expect(response.headers.get("location")).toBeNull();
     expect(response.status).toBe(200);
+  });
+
+  describe("configured page permission caching", () => {
+    /**
+     * Resolve pos_users from the table the chain was opened on, then hand out
+     * the queued pos_role_permissions replies in order. Call-count ordering is
+     * too brittle once a lookup can be served from cache.
+     */
+    function respondPerTable(
+      permissionReplies: Array<{ data: { allowed: boolean } | null; error: unknown }>,
+    ) {
+      let permissionIndex = 0;
+      maybeSingleMock.mockImplementation(() => {
+        const lastTable = fromMock.mock.calls.at(-1)?.[0];
+        if (lastTable === "pos_users") {
+          return Promise.resolve({
+            data: {
+              id: "inv-1",
+              name: "Inv User",
+              role: "INVENTORY",
+              storeId: "store-1",
+              isActive: true,
+            },
+            error: null,
+          });
+        }
+        const reply =
+          permissionReplies[Math.min(permissionIndex, permissionReplies.length - 1)];
+        permissionIndex += 1;
+        return Promise.resolve(reply);
+      });
+    }
+
+    function permissionQueryCount() {
+      return fromMock.mock.calls.filter((call) => call[0] === "pos_role_permissions")
+        .length;
+    }
+
+    function inventoryDashboardRequest() {
+      return new NextRequest("http://localhost/dashboard", {
+        headers: {
+          cookie:
+            "x-pos-role=INVENTORY; x-pos-user-id=inv-1; x-pos-store-id=store-1; x-pos-user-name=Inv",
+        },
+      });
+    }
+
+    it("queries pos_role_permissions once for repeat navigations within the TTL", async () => {
+      getClaimsMock.mockResolvedValue({
+        data: { claims: { email: "inventory@pos.local" } },
+        error: null,
+      });
+      respondPerTable([{ data: { allowed: true }, error: null }]);
+
+      const first = await updateSession(inventoryDashboardRequest());
+      const second = await updateSession(inventoryDashboardRequest());
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(permissionQueryCount()).toBe(1);
+    });
+
+    it("does not cache a failed permission lookup", async () => {
+      getClaimsMock.mockResolvedValue({
+        data: { claims: { email: "inventory@pos.local" } },
+        error: null,
+      });
+      respondPerTable([
+        { data: null, error: new Error("permissions unavailable") },
+        { data: { allowed: true }, error: null },
+      ]);
+
+      // Falls back to defaults, which deny INVENTORY the dashboard.
+      const denied = await updateSession(inventoryDashboardRequest());
+      expect(denied.headers.get("location")).toBe("http://localhost/inventory");
+
+      // The retry must hit the database again rather than reuse the failure.
+      const allowed = await updateSession(inventoryDashboardRequest());
+      expect(allowed.status).toBe(200);
+      expect(permissionQueryCount()).toBe(2);
+    });
   });
 });

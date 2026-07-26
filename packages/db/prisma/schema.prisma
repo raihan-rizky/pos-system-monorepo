@@ -298,6 +298,9 @@ model Transaction {
   @@index([storeId, isJobOrder, productionStatus, createdAt(sort: Desc)], map: "pos_transactions_store_job_production_createdAt_desc_idx")
   @@index([storeId, paymentMethod, createdAt(sort: Desc)], map: "pos_transactions_store_payment_createdAt_desc_idx")
   @@index([storeId, status, createdAt(sort: Desc)], map: "pos_transactions_store_status_createdAt_desc_idx")
+  @@index([invoiceNumber(ops: raw("gin_trgm_ops"))], map: "pos_transactions_invoiceNumber_trgm_idx", type: Gin)
+  @@index([customerName(ops: raw("gin_trgm_ops"))], map: "pos_transactions_customerName_trgm_idx", type: Gin)
+  @@index([salesName(ops: raw("gin_trgm_ops"))], map: "pos_transactions_salesName_trgm_idx", type: Gin)
   @@map("pos_transactions")
 }
 
@@ -506,6 +509,7 @@ model TransactionItem {
   @@index([printingServiceId])
   @@index([rawMaterialProductId])
   @@index([pricingRuleId])
+  @@index([productName(ops: raw("gin_trgm_ops"))], map: "pos_transaction_items_productName_trgm_idx", type: Gin)
   @@map("pos_transaction_items")
 }
 
