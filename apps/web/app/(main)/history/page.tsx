@@ -97,6 +97,13 @@ const ApproveDraftDialog = dynamic(
     ).then((module) => module.ApproveDraftDialog),
   { ssr: false },
 );
+const TransactionNoteModal = dynamic(
+  () =>
+    import("./components/TransactionNoteModal").then(
+      (module) => module.TransactionNoteModal,
+    ),
+  { ssr: false },
+);
 
 function formatJakartaDateInput(value: string | null | undefined): string {
   if (!value) return "";
@@ -987,6 +994,7 @@ export default function HistoryPage() {
   const [approvingDraft, setApprovingDraft] = useState<Transaction | null>(null);
   const [voidingTransaction, setVoidingTransaction] = useState<Transaction | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [noteTransaction, setNoteTransaction] = useState<Transaction | null>(null);
 
   const canApproveDrafts = canPerform("transaction.draft", "update");
 
@@ -1645,6 +1653,21 @@ export default function HistoryPage() {
                               {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
                             </span>
                           </div>
+                          {tx.note && (
+                            <div className="flex justify-between text-sm gap-3">
+                              <span className="shrink-0 text-surface-500">Catatan</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setNoteTransaction(tx);
+                                }}
+                                className={`max-w-[60%] truncate text-right font-medium underline decoration-dotted decoration-surface-300 underline-offset-2 ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}
+                              >
+                                {tx.note}
+                              </button>
+                            </div>
+                          )}
                           <div className="flex justify-between items-center mt-2 pt-2 border-t border-surface-100">
                             <div className="flex flex-wrap items-center gap-2">
                               {tx.payments && tx.payments.length > 0 ? (
@@ -1821,6 +1844,15 @@ export default function HistoryPage() {
           tx={approvingTransaction}
           onClose={() => setApprovingTransaction(null)}
           onSuccess={() => setApprovingTransaction(null)}
+        />
+      )}
+
+      {/* Note Modal */}
+      {noteTransaction?.note && (
+        <TransactionNoteModal
+          note={noteTransaction.note}
+          documentNumber={noteTransaction.invoiceNumber ?? noteTransaction.draftNumber}
+          onClose={() => setNoteTransaction(null)}
         />
       )}
 
