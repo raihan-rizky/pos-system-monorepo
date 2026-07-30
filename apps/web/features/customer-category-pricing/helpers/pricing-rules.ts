@@ -5,6 +5,8 @@ export type PricingCustomerType = (typeof PRICING_CUSTOMER_TYPES)[number];
 
 export const PRICING_MODES = ["FLAT_DISCOUNT", "PERCENT_DISCOUNT"] as const;
 export type CategoryCustomerPricingMode = (typeof PRICING_MODES)[number];
+export const PRICING_PREFERENCES = ["SPECIAL", "MEMBER"] as const;
+export type PricingPreference = (typeof PRICING_PREFERENCES)[number];
 
 export interface CategoryPricingRule {
   id: string;
@@ -204,11 +206,10 @@ export function applyCategoryPricingRule(
   };
 }
 
-export function priceProductForCustomerType(
+function priceProductForMemberType(
   product: PriceableProduct,
   customerType: CustomerType,
-  rules: CategoryPricingRule[],
-): PricedProductLine {
+): PricedProductLine | null {
   if (
     customerType === "AGEN" &&
     product.hargaAgen != null &&
@@ -259,7 +260,16 @@ export function priceProductForCustomerType(
     };
   }
 
-  return applyCategoryPricingRule(
+  return null;
+}
+
+export function priceProductForCustomerType(
+  product: PriceableProduct,
+  customerType: CustomerType,
+  rules: CategoryPricingRule[],
+  pricingPreference: PricingPreference = "SPECIAL",
+): PricedProductLine {
+  const specialPrice = applyCategoryPricingRule(
     product,
     customerType,
     findMatchingCategoryPricingRule(rules, {
@@ -269,6 +279,17 @@ export function priceProductForCustomerType(
       brandId: product.brandId,
     }),
   );
+  const memberPrice = priceProductForMemberType(product, customerType);
+
+  if (pricingPreference === "MEMBER") {
+    return memberPrice ?? specialPrice;
+  }
+
+  if (specialPrice.appliedPricing) {
+    return specialPrice;
+  }
+
+  return memberPrice ?? specialPrice;
 }
 
 export function countProductsAtOrBelowFlatDiscount(
