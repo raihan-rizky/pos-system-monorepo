@@ -275,14 +275,14 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-special-pricing",
       title: "Mengatur Harga Grup Pelanggan (Harga Khusus)",
-      description: "Atur harga khusus untuk semua pelanggan atau grup tertentu berdasarkan kategori, unit, dan merek. Harga Agen atau Harga Dinas di produk tetap dipakai lebih dulu, lalu Harga Khusus menjadi fallback.",
+      description: "Atur harga khusus untuk semua pelanggan atau grup tertentu berdasarkan kategori, unit, dan merek. Harga Khusus yang cocok dipakai lebih dulu secara default, lalu kasir bisa memilih Harga Agen/Dinas saat pembayaran.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Tab Harga Khusus", description: "Buka menu 'Produk' di sidebar, lalu klik tab 'Harga Khusus' di bagian atas (hanya diakses oleh Owner).", icon: <Settings className="w-8 h-8" /> },
         { title: "Isi Aturan Harga", description: "Di kolom aturan sebelah kanan, pilih Tipe Pelanggan termasuk Semua pelanggan, kategori produk, unit opsional, merek opsional, dan mode diskon persen atau rupiah.", icon: <FileText className="w-8 h-8" /> },
         { title: "Atur Unit & Merek", description: "Kosongkan Unit untuk semua unit, pilih Semua merek untuk semua merek, atau pilih merek tertentu. Jika merek belum ada, ketik nama merek baru lalu klik Tambah.", icon: <Tag className="w-8 h-8" /> },
         { title: "Masukkan Nilai Diskon", description: "Masukkan nominal atau persentase diskon yang ingin diberikan untuk grup tersebut, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Hasil Transaksi POS", description: "Diskon otomatis dipakai di kasir jika kategori, unit, merek, dan tipe pelanggan cocok. Untuk Agen atau Pemerintah, Harga Agen/Harga Dinas produk tetap mengalahkan aturan Harga Khusus.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Pilih Prioritas saat Pembayaran", description: "Untuk pelanggan Agen atau Pemerintah, Harga Khusus yang cocok dipakai lebih dulu secara default. Kasir dapat memilih Harga Agen/Dinas untuk seluruh transaksi. Jika harga tersebut belum tersedia, sistem kembali memakai Harga Khusus yang cocok.", icon: <ShoppingCart className="w-8 h-8" /> },
       ]
     },
     {

@@ -108,10 +108,11 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "product", action: "update" }],
     steps: [
       { title: "Buka Harga Khusus", description: "Masuk ke halaman Produk, lalu buka bagian Harga Khusus. Fitur ini biasanya dibatasi untuk OWNER." },
-      { title: "Pilih tipe pelanggan", description: "Tentukan Semua pelanggan atau grup tertentu seperti UMUM, AGEN, INDUSTRI, atau PEMERINTAH. Harga Agen dan Harga Dinas di produk tetap dipakai lebih dulu jika tersedia." },
+      { title: "Pilih tipe pelanggan", description: "Tentukan Semua pelanggan atau grup tertentu seperti UMUM, AGEN, INDUSTRI, atau PEMERINTAH. Harga Khusus yang cocok menjadi prioritas default." },
       { title: "Pilih kategori, unit, dan merek", description: "Pilih kategori produk. Isi Unit jika aturan hanya untuk unit tertentu, atau kosongkan untuk semua unit. Pilih merek tertentu, Semua merek, atau tambah merek baru dari form." },
       { title: "Pilih mode dan nilai", description: "Tentukan Diskon Persen atau Diskon Rupiah, lalu isi nilai diskon." },
       { title: "Simpan aturan", description: "Klik Simpan. Aturan akan dipakai di kasir saat kategori, unit, merek, dan tipe pelanggan cocok." },
+      { title: "Pilih prioritas saat pembayaran", description: "Untuk pelanggan AGEN atau PEMERINTAH, kasir dapat memilih Harga Agen/Dinas untuk seluruh transaksi. Jika harga member belum tersedia, sistem kembali memakai Harga Khusus yang cocok." },
     ],
   }),
   workflow({

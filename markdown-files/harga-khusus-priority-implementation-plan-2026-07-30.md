@@ -441,7 +441,7 @@ git commit -m "feat: preserve price priority in payment drafts"
 **Files:**
 - Modify: `apps/web/app/api/offline-sync/transactions/route.ts`
 - Test: `apps/web/app/api/offline-sync/transactions/__tests__/route.test.ts`
-- Test: `apps/web/lib/offline/offline-core.test.ts`
+- Test: `apps/web/lib/offline/__tests__/offline-core.test.ts`
 
 **Interfaces:**
 - Consumes: queued `pricingPreference` and optional `transactionPrice`.
@@ -487,7 +487,7 @@ Add an offline-core regression proving stock adjustment preserves optional
 Run:
 
 ```bash
-pnpm --filter @pos/web exec vitest run app/api/offline-sync/transactions/__tests__/route.test.ts lib/offline/offline-core.test.ts
+pnpm --filter @pos/web exec vitest run app/api/offline-sync/transactions/__tests__/route.test.ts lib/offline/__tests__/offline-core.test.ts
 ```
 
 Expected: FAIL because sync currently replaces all queued prices with catalog
@@ -520,7 +520,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit offline parity**
 
 ```bash
-git add apps/web/app/api/offline-sync/transactions/route.ts apps/web/app/api/offline-sync/transactions/__tests__/route.test.ts apps/web/lib/offline/offline-core.test.ts
+git add apps/web/app/api/offline-sync/transactions/route.ts apps/web/app/api/offline-sync/transactions/__tests__/route.test.ts apps/web/lib/offline/__tests__/offline-core.test.ts
 git commit -m "feat: keep checkout price priority during offline sync"
 ```
 
@@ -568,7 +568,7 @@ with:
 Run:
 
 ```bash
-pnpm --filter @pos/web exec vitest run features/customer-category-pricing/helpers/__tests__/pricing-rules.test.ts features/pos-checkout/helpers/__tests__/checkout-pricing.test.ts features/pos-checkout/__tests__/PricingPreferenceSelector.test.tsx features/pos-checkout/__tests__/PaymentModal.test.tsx app/api/transactions/__tests__/create-route.test.ts app/api/transactions/draft/__tests__/route.test.ts app/api/offline-sync/transactions/__tests__/route.test.ts lib/offline/offline-core.test.ts
+pnpm --filter @pos/web exec vitest run features/customer-category-pricing/helpers/__tests__/pricing-rules.test.ts features/pos-checkout/helpers/__tests__/checkout-pricing.test.ts features/pos-checkout/__tests__/PricingPreferenceSelector.test.tsx features/pos-checkout/__tests__/PaymentModal.test.tsx app/api/transactions/__tests__/create-route.test.ts app/api/transactions/draft/__tests__/route.test.ts app/api/offline-sync/transactions/__tests__/route.test.ts lib/offline/__tests__/offline-core.test.ts
 ```
 
 Expected: PASS with no unhandled errors.
@@ -578,11 +578,13 @@ Expected: PASS with no unhandled errors.
 Run:
 
 ```bash
-pnpm lint
-pnpm type-check
+pnpm --filter @pos/web type-check
+pnpm --filter @pos/web exec eslint "features/customer-category-pricing/helpers/**/*.ts" "features/pos-checkout/**/*.{ts,tsx}" "components/PaymentModal.tsx" "app/(main)/pos/POSClientPage.tsx" "hooks/useTransactions.ts" "features/transactions-draft/types/draft.ts" "lib/offline/**/*.{ts,tsx}" "app/api/transactions/**/*.{ts,tsx}" "app/api/offline-sync/transactions/**/*.{ts,tsx}" "features/help-documentation/components/HelpContent.tsx" "features/ai-assistant/workflows/workflow-catalog.ts"
 ```
 
-Expected: both commands exit 0. Do not run `pnpm build`.
+Expected: both commands exit 0. Do not use root `pnpm lint` or
+`pnpm type-check` because this repository's Turbo graph makes both depend on
+`@pos/web#build`. Do not run `pnpm build`.
 
 - [ ] **Step 5: Review the final diff**
 

@@ -491,8 +491,8 @@ export function PaymentModal({
                     <span className="font-semibold">Harga Reguler</span>
                     <span>
                       {" "}
-                      — tidak ada Harga Dinas atau Harga Khusus untuk produk
-                      ini.
+                      — tidak ada Harga Khusus atau Harga Agen/Dinas yang cocok
+                      untuk produk ini.
                     </span>
                   </div>
                 )}

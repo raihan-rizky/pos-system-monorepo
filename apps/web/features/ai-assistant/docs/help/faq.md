@@ -35,7 +35,8 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
      - **Diskon Rp:** Potongan nominal tetap dalam rupiah (misal: potongan Rp 5.000).
    - **Nilai:** Isi persentase atau nominal Rupiah diskon.
 3. Klik **Simpan**. Sistem akan otomatis menerapkan diskon ini ketika kategori, unit, merek, dan tipe pelanggan cocok saat transaksi di POS.
-4. Untuk pelanggan **Agen** atau **Pemerintah**, nilai **Harga Agen** atau **Harga Dinas** di produk tetap mengalahkan aturan Harga Khusus. Harga Khusus dipakai sebagai fallback.
+4. Untuk pelanggan **Agen** atau **Pemerintah**, rule Harga Khusus yang cocok dipakai lebih dulu secara default.
+5. Di modal **Pembayaran**, kasir dapat memilih **Harga Agen/Dinas** untuk seluruh transaksi. Jika harga member belum tersedia, sistem kembali memakai Harga Khusus yang cocok.
 
 ### Q4: Bagaimana cara mengimpor data produk atau kuantitas stok secara massal lewat Excel?
 **A:** Untuk memproses data dalam jumlah banyak secara instan:
