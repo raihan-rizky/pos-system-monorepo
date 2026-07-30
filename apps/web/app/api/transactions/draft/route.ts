@@ -21,6 +21,12 @@ import {
   formatDraftNumberForDisplay,
 } from "@/features/transactions-draft/helpers/draft-number";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
+import {
+  PRICING_PREFERENCES,
+  priceProductForCustomerType,
+  type CategoryPricingRule,
+  type CustomerType,
+} from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 const log = getLogger("api:transactions:draft");
 
@@ -32,6 +38,7 @@ const draftItemSchema = z.object({
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   price: z.number().min(0),
+  transactionPrice: z.number().positive().optional().nullable(),
   quantity: z.number().min(1),
 });
 
@@ -41,6 +48,7 @@ const createDraftSchema = z.object({
   note: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
   customerId: z.string().optional().nullable(),
+  pricingPreference: z.enum(PRICING_PREFERENCES).optional(),
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   isJobOrder: z.boolean().optional().default(false),
@@ -87,6 +95,7 @@ export async function POST(request: Request) {
       note,
       customerName,
       customerId,
+      pricingPreference,
       salesName,
       salespersonId,
       isJobOrder,
@@ -134,12 +143,12 @@ export async function POST(request: Request) {
 
     const dateStr = compactJakartaDateKey(resolvedInvoiceDate);
 
-    const [customerCheck, salespersonCheck, products, draftCount] =
+    const [customerCheck, salespersonCheck, products, draftCount, rawPricingRules] =
       await Promise.all([
         customerId
           ? db.customer.findFirst({
               where: { id: customerId, storeId },
-              select: { id: true },
+              select: { id: true, type: true },
             })
           : Promise.resolve(true),
         salespersonId
@@ -155,8 +164,15 @@ export async function POST(request: Request) {
             name: true,
             price: true,
             costPrice: true,
+            hargaDinas: true,
+            hargaAgen: true,
             size: true,
             material: true,
+            unit: true,
+            categoryId: true,
+            category: { select: { name: true } },
+            brandId: true,
+            brand: { select: { name: true } },
           },
         }),
         db.transaction.count({
@@ -165,6 +181,15 @@ export async function POST(request: Request) {
             draftNumber: { startsWith: `PNW-TLD-${dateStr}-` },
           },
         }),
+        pricingPreference
+          ? db.categoryCustomerPricingRule.findMany({
+              where: { storeId, isActive: true },
+              include: {
+                category: { select: { name: true } },
+                brand: { select: { name: true } },
+              },
+            })
+          : Promise.resolve([]),
       ]);
 
     if (customerId && !customerCheck) {
@@ -191,18 +216,67 @@ export async function POST(request: Request) {
       );
     }
 
+    const checkoutCustomerType: CustomerType =
+      customerId && customerCheck && customerCheck !== true
+        ? (customerCheck.type as CustomerType)
+        : "UMUM";
+    const pricingRules = rawPricingRules.map((rule) => ({
+      id: rule.id,
+      categoryId: rule.categoryId,
+      categoryName: rule.category.name,
+      customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
+      unit: rule.unit,
+      brandId: rule.brandId,
+      brandName: rule.brand?.name ?? null,
+      mode: rule.mode,
+      value: Number(rule.value),
+      isActive: rule.isActive,
+      updatedAt: rule.updatedAt,
+    })) satisfies CategoryPricingRule[];
+
     const serverItems = items.map((item) => {
       const product = productById.get(item.productId);
       if (!product) throw new Error("PRODUCT_NOT_FOUND");
+      const automaticPrice = pricingPreference
+        ? priceProductForCustomerType(
+            {
+              categoryId: product.categoryId,
+              categoryName: product.category.name,
+              price: Number(product.price),
+              hargaDinas:
+                product.hargaDinas == null ? null : Number(product.hargaDinas),
+              hargaAgen:
+                product.hargaAgen == null ? null : Number(product.hargaAgen),
+              unit: product.unit,
+              brandId: product.brandId,
+              brandName: product.brand?.name ?? null,
+            },
+            checkoutCustomerType,
+            pricingRules,
+            pricingPreference,
+          )
+        : null;
+      const price =
+        pricingPreference == null
+          ? item.price
+          : (item.transactionPrice ?? automaticPrice?.unitPrice ?? item.price);
+      const appliedPricing = automaticPrice?.appliedPricing
+        ? {
+            ...automaticPrice.appliedPricing,
+            appliedUnitPrice: price,
+          }
+        : null;
+
       return {
         productId: product.id,
         name: product.name,
         size: product.size ?? item.size ?? null,
         material: product.material ?? item.material ?? null,
-        price: item.price,
+        price,
         currentPrice: Number(product.price),
         costPrice: product.costPrice ? Number(product.costPrice) : null,
         quantity: item.quantity,
+        appliedPricing,
       };
     });
 
@@ -269,6 +343,19 @@ export async function POST(request: Request) {
                   unitCost: item.costPrice,
                   discount: 0,
                   subtotal: item.price * item.quantity,
+                  pricingRuleId: item.appliedPricing?.ruleId ?? null,
+                  pricingCustomerType: item.appliedPricing?.customerType ?? null,
+                  pricingCategoryId: item.appliedPricing?.categoryId ?? null,
+                  pricingCategoryName: item.appliedPricing?.categoryName ?? null,
+                  pricingMode: item.appliedPricing?.mode ?? null,
+                  pricingValue: item.appliedPricing?.value ?? null,
+                  pricingUnit: item.appliedPricing?.unit ?? null,
+                  pricingBrandId: item.appliedPricing?.brandId ?? null,
+                  pricingBrandName: item.appliedPricing?.brandName ?? null,
+                  originalUnitPrice:
+                    item.appliedPricing?.originalUnitPrice ?? item.currentPrice,
+                  appliedUnitPrice:
+                    item.appliedPricing?.appliedUnitPrice ?? item.price,
                 })),
               },
               ...(payments && payments.length > 0
@@ -306,23 +393,25 @@ export async function POST(request: Request) {
             },
           });
 
-          const priceLogEntries = serverItems.flatMap((item) =>
-            buildProductPriceLogEntries({
-              productId: item.productId,
-              storeId,
-              before: {
-                price: item.currentPrice,
-                costPrice: item.costPrice,
-              },
-              after: {
-                price: item.price,
-                costPrice: item.costPrice,
-              },
-              actor: user,
-              source: "SYSTEM",
-              note: `Harga khusus untuk nota penawaran dengan nomor ${displayDraftNumber}`,
-            }),
-          );
+          const priceLogEntries = pricingPreference
+            ? []
+            : serverItems.flatMap((item) =>
+                buildProductPriceLogEntries({
+                  productId: item.productId,
+                  storeId,
+                  before: {
+                    price: item.currentPrice,
+                    costPrice: item.costPrice,
+                  },
+                  after: {
+                    price: item.price,
+                    costPrice: item.costPrice,
+                  },
+                  actor: user,
+                  source: "SYSTEM",
+                  note: `Harga khusus untuk nota penawaran dengan nomor ${displayDraftNumber}`,
+                }),
+              );
 
           if (priceLogEntries.length > 0) {
             await tx.productPriceLog.createMany({ data: priceLogEntries });

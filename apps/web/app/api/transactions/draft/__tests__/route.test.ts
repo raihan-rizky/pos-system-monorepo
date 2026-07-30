@@ -6,6 +6,7 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
+const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
 const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
@@ -39,6 +40,7 @@ vi.mock("@pos/db", () => ({
     customer: { findFirst: customerFindFirstMock },
     salesperson: { findFirst: salespersonFindFirstMock },
     product: { findMany: productFindManyMock },
+    categoryCustomerPricingRule: { findMany: pricingRuleFindManyMock },
     transaction: {
       count: transactionCountMock,
       create: transactionCreateMock,
@@ -75,6 +77,7 @@ describe("POST /api/transactions/draft", () => {
         material: null,
       },
     ]);
+    pricingRuleFindManyMock.mockResolvedValue([]);
     transactionCountMock.mockResolvedValue(0);
     dbTransactionMock.mockImplementation(async (callback: any) =>
       callback({
@@ -278,6 +281,144 @@ describe("POST /api/transactions/draft", () => {
         draftNumber: { startsWith: "PNW-TLD-20260701-" },
       },
     });
+  });
+
+  it("reprices Payment-modal drafts using matching Harga Khusus", async () => {
+    customerFindFirstMock.mockResolvedValue({
+      id: "agen-1",
+      type: "AGEN",
+    });
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "p1",
+        name: "Pulpen",
+        price: 100000,
+        costPrice: 50000,
+        hargaAgen: 95000,
+        hargaDinas: null,
+        size: null,
+        material: null,
+        unit: "pcs",
+        categoryId: "cat-atk",
+        category: { name: "ATK" },
+        brandId: null,
+        brand: null,
+      },
+    ]);
+    pricingRuleFindManyMock.mockResolvedValue([
+      {
+        id: "rule-atk",
+        categoryId: "cat-atk",
+        customerType: null,
+        unit: null,
+        brandId: null,
+        brand: null,
+        mode: "PERCENT_DISCOUNT",
+        value: 10,
+        isActive: true,
+        updatedAt: new Date("2026-07-03T00:00:00.000Z"),
+        category: { name: "ATK" },
+      },
+    ]);
+
+    const { POST } = await import("../route");
+    const res = await POST(
+      new Request("http://localhost/api/transactions/draft", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            { productId: "p1", name: "Pulpen", price: 95000, quantity: 1 },
+          ],
+          discount: 0,
+          customerId: "agen-1",
+          pricingPreference: "SPECIAL",
+          isJobOrder: false,
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    const createArgs = transactionCreateMock.mock.calls[0][0];
+    expect(createArgs.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 90000,
+        pricingRuleId: "rule-atk",
+        originalUnitPrice: 100000,
+        appliedUnitPrice: 90000,
+      }),
+    );
+    expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps an explicit transaction price above automatic draft pricing", async () => {
+    customerFindFirstMock.mockResolvedValue({
+      id: "agen-1",
+      type: "AGEN",
+    });
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "p1",
+        name: "Pulpen",
+        price: 100000,
+        costPrice: 50000,
+        hargaAgen: 95000,
+        hargaDinas: null,
+        size: null,
+        material: null,
+        unit: "pcs",
+        categoryId: "cat-atk",
+        category: { name: "ATK" },
+        brandId: null,
+        brand: null,
+      },
+    ]);
+    pricingRuleFindManyMock.mockResolvedValue([
+      {
+        id: "rule-atk",
+        categoryId: "cat-atk",
+        customerType: null,
+        unit: null,
+        brandId: null,
+        brand: null,
+        mode: "PERCENT_DISCOUNT",
+        value: 10,
+        isActive: true,
+        updatedAt: new Date("2026-07-03T00:00:00.000Z"),
+        category: { name: "ATK" },
+      },
+    ]);
+
+    const { POST } = await import("../route");
+    const res = await POST(
+      new Request("http://localhost/api/transactions/draft", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              productId: "p1",
+              name: "Pulpen",
+              price: 80000,
+              transactionPrice: 80000,
+              quantity: 1,
+            },
+          ],
+          discount: 0,
+          customerId: "agen-1",
+          pricingPreference: "SPECIAL",
+          isJobOrder: false,
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    const createArgs = transactionCreateMock.mock.calls[0][0];
+    expect(createArgs.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 80000,
+        pricingRuleId: "rule-atk",
+        appliedUnitPrice: 80000,
+      }),
+    );
   });
 
   it("rejects a custom invoice date from CASHIER when creating a draft", async () => {
