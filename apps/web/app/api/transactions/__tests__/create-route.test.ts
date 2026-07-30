@@ -228,6 +228,104 @@ describe("POST /api/transactions negative stock", () => {
     );
   });
 
+  async function createAgenPricingTransaction(
+    pricingPreference?: "SPECIAL" | "MEMBER",
+  ) {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    customerFindFirstMock.mockResolvedValue({
+      id: "customer-agen",
+      type: "AGEN",
+    });
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "p1",
+        name: "Pulpen",
+        price: "100000",
+        costPrice: "50000",
+        hargaDinas: null,
+        hargaAgen: "95000",
+        stock: 10,
+        unit: "pcs",
+        categoryId: "cat-atk",
+        brandId: null,
+        brand: null,
+        category: { name: "ATK" },
+      },
+    ]);
+    pricingRuleFindManyMock.mockResolvedValue([
+      {
+        id: "rule-atk",
+        categoryId: "cat-atk",
+        customerType: null,
+        unit: null,
+        brandId: null,
+        brand: null,
+        mode: "PERCENT_DISCOUNT",
+        value: "10",
+        isActive: true,
+        updatedAt: new Date("2026-07-03T00:00:00.000Z"),
+        category: { name: "ATK" },
+      },
+    ]);
+
+    return POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "CASH",
+          amountPaid: 100000,
+          discount: 0,
+          customerName: "Agen ATK",
+          customerId: "customer-agen",
+          paymentStatus: "COMPLETED",
+          ...(pricingPreference ? { pricingPreference } : {}),
+          items: [
+            {
+              lineType: "PRODUCT",
+              productId: "p1",
+              quantity: 1,
+              price: 1,
+            },
+          ],
+        }),
+      }),
+    );
+  }
+
+  it("recalculates with Harga Khusus as the default priority", async () => {
+    const response = await createAgenPricingTransaction("SPECIAL");
+
+    expect(response.status).toBe(201);
+    const createArg = transactionCreateMock.mock.calls[0][0];
+    expect(createArg.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 90000,
+        pricingRuleId: "rule-atk",
+      }),
+    );
+  });
+
+  it("recalculates with Harga Agen when MEMBER is selected", async () => {
+    const response = await createAgenPricingTransaction("MEMBER");
+
+    expect(response.status).toBe(201);
+    const createArg = transactionCreateMock.mock.calls[0][0];
+    expect(createArg.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 95000,
+        pricingRuleId: "harga-agen",
+      }),
+    );
+  });
+
+  it("defaults legacy transaction requests to Harga Khusus", async () => {
+    const response = await createAgenPricingTransaction();
+
+    expect(response.status).toBe(201);
+    const createArg = transactionCreateMock.mock.calls[0][0];
+    expect(createArg.data.items.create[0].pricingRuleId).toBe("rule-atk");
+  });
+
   it("lets OWNER create an invoice with a custom invoice date and matching invoice number date", async () => {
     requireRoleMock.mockResolvedValue({
       id: "owner-1",

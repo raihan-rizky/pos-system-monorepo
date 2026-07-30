@@ -32,6 +32,7 @@ import {
   type AppliedCategoryPricing,
   type CategoryPricingRule,
   CUSTOMER_TYPES,
+  PRICING_PREFERENCES,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
@@ -92,6 +93,7 @@ const createTransactionSchema = z.object({
   note: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
   customerId: z.string().optional().nullable(),
+  pricingPreference: z.enum(PRICING_PREFERENCES).optional().default("SPECIAL"),
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   cashierId: z.string().optional().nullable(),
@@ -445,6 +447,7 @@ export async function POST(request: Request) {
       note,
       customerName,
       customerId,
+      pricingPreference,
       salesName,
       salespersonId,
       paymentStatus,
@@ -695,6 +698,7 @@ export async function POST(request: Request) {
             },
             checkoutCustomerType,
             pricingRules,
+            pricingPreference,
           );
           const resolved = resolveCustomPricedLine({
             pricedLine: priced,
