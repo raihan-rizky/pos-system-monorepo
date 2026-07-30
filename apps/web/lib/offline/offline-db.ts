@@ -7,6 +7,7 @@ import {
   type OfflineSyncState,
   buildClientMutationId,
 } from "./offline-core";
+import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 export type OfflinePaymentMethod = "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER";
 
@@ -23,6 +24,7 @@ export type OfflineTransactionPayload = {
   paymentStatus?: string;
   isJobOrder?: boolean;
   estimatedDoneAt?: string | null;
+  pricingPreference: PricingPreference;
   originalSubtotal: number;
   originalTotal: number;
 };

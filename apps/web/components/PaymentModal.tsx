@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useReducer } from "react";
 import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins, FileClock, PackageCheck, PanelsTopLeft, RotateCcw } from "lucide-react";
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
@@ -20,8 +20,13 @@ import {
   canEditCustomPriceForCustomer,
   isRegularPriceFallback,
   type CustomerType,
+  type PricingPreference,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { priceCartItemsForCheckout } from "@/features/pos-checkout/helpers/checkout-pricing";
+import {
+  PricingPreferenceSelector,
+  pricingPreferenceReducer,
+} from "@/features/pos-checkout/components/PricingPreferenceSelector";
 
 
 
@@ -43,6 +48,7 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
     items: CartItem[];
+    pricingPreference: PricingPreference;
     invoiceDate?: string;
     invoiceTime?: string | null;
     invoiceDateReason?: string | null;
@@ -58,6 +64,7 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
     items: CartItem[];
+    pricingPreference: PricingPreference;
     invoiceDate?: string;
     invoiceTime?: string | null;
     invoiceDateReason?: string | null;
@@ -114,6 +121,10 @@ export function PaymentModal({
   const [customerSelection, setCustomerSelection] =
     useState<CheckoutCustomerSelection>({ kind: "general" });
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
+  const [pricingPreference, dispatchPricingPreference] = useReducer(
+    pricingPreferenceReducer,
+    "SPECIAL",
+  );
   const [customerError, setCustomerError] = useState<string | null>(null);
   const createCustomer = useCreateCustomer();
   const pricingRulesQuery = useCustomerCategoryPricingRules({ activeOnly: true });
@@ -142,6 +153,7 @@ export function PaymentModal({
     items,
     customerType: selectedCustomerType,
     pricingRules: pricingRulesQuery.data ?? [],
+    pricingPreference,
     manualPrices,
     role,
   });
@@ -160,6 +172,7 @@ export function PaymentModal({
       // reset on close
       setCustomerSelection({ kind: "general" });
       setManualPrices({});
+      dispatchPricingPreference({ type: "RESET" });
       setCustomerError(null);
       setInvoiceDate("");
       setInvoiceTime("");
@@ -169,6 +182,10 @@ export function PaymentModal({
       setIsJobOrder(items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size));
     }
   }, [open, items]);
+
+  useEffect(() => {
+    dispatchPricingPreference({ type: "RESET" });
+  }, [selectedCustomerType]);
 
   useEffect(() => {
     if (canEditCustomPrices) return;
@@ -237,6 +254,7 @@ export function PaymentModal({
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
       items: pricedItems,
+      pricingPreference,
       ...invoiceDatePayload,
       payments: selectedPaymentMethods.map(m => ({ method: m, amount: amountsPaid[m] || 0 })).filter(p => p.amount > 0),
     });
@@ -265,6 +283,7 @@ export function PaymentModal({
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
       items: pricedItems,
+      pricingPreference,
       ...invoiceDatePayload,
       payments: selectedPaymentMethods.map(m => ({ method: m as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER", amount: amountsPaid[m] || 0 })).filter(p => p.amount > 0),
     });
@@ -308,7 +327,8 @@ export function PaymentModal({
         <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[200px] overflow-y-auto">
           {pricingRulesQuery.isError && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-              Aturan harga khusus gagal dimuat. Checkout memakai harga katalog.
+              Aturan Harga Khusus gagal dimuat. Harga Agen/Dinas dipakai jika
+              tersedia, lalu Harga Normal.
             </div>
           )}
           {affectedItems.length > 0 && (
@@ -486,6 +506,14 @@ export function PaymentModal({
           error={customerError}
           disabled={createCustomer.isPending}
           onClearError={() => setCustomerError(null)}
+        />
+
+        <PricingPreferenceSelector
+          customerType={selectedCustomerType}
+          value={pricingPreference}
+          onChange={(value) =>
+            dispatchPricingPreference({ type: "SELECT", value })
+          }
         />
 
         {/* Salesperson Dropdown */}

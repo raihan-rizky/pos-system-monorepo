@@ -77,6 +77,7 @@ import {
   getCartCheckoutMode,
 } from "@/features/nota-penawaran/helpers/quotation-rules";
 import type { DraftCreateInput } from "@/features/transactions-draft";
+import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 const POS_PAGE_SIZE = 24;
 
@@ -379,6 +380,7 @@ export default function POSClientPage({
     paymentStatus: string;
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
+    pricingPreference: PricingPreference;
     invoiceDate?: string;
     invoiceTime?: string | null;
     invoiceDateReason?: string | null;
@@ -439,6 +441,7 @@ export default function POSClientPage({
             paymentStatus: data.paymentStatus,
             isJobOrder: data.isJobOrder,
             estimatedDoneAt: data.estimatedDoneAt,
+            pricingPreference: data.pricingPreference,
             originalSubtotal: offlinePricedItems.reduce(
               (sum, item) => sum + item.price * item.quantity,
               0,
@@ -488,6 +491,7 @@ export default function POSClientPage({
     salespersonId: string;
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
+    pricingPreference: PricingPreference;
     invoiceDate?: string;
     invoiceTime?: string | null;
     invoiceDateReason?: string | null;
@@ -504,6 +508,7 @@ export default function POSClientPage({
             size: item.size ?? null,
             material: item.material ?? null,
             price: item.price,
+            transactionPrice: item.transactionPrice,
             quantity: item.quantity,
           })),
         discount: data.discount,
@@ -514,6 +519,7 @@ export default function POSClientPage({
         salespersonId: data.salespersonId,
         isJobOrder: data.isJobOrder,
         estimatedDoneAt: data.estimatedDoneAt,
+        pricingPreference: data.pricingPreference,
         invoiceDate: data.invoiceDate,
         invoiceTime: data.invoiceTime,
         invoiceDateReason: data.invoiceDateReason,

@@ -5,6 +5,7 @@ import {
   resolveCustomPricedLine,
   type CategoryPricingRule,
   type CustomerType,
+  type PricingPreference,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 export function mapCheckoutPricingRule(
@@ -29,6 +30,7 @@ export function priceCartItemsForCheckout(input: {
   items: CartItem[];
   customerType: CustomerType;
   pricingRules: CustomerCategoryPricingRule[];
+  pricingPreference: PricingPreference;
   manualPrices: Record<string, number>;
   role: string | null | undefined;
 }): CartItem[] {
@@ -50,6 +52,7 @@ export function priceCartItemsForCheckout(input: {
       },
       input.customerType,
       activePricingRules,
+      input.pricingPreference,
     );
     const submittedManualPrice = input.manualPrices[item.cartLineId];
     const resolved =

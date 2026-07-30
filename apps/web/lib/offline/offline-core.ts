@@ -13,6 +13,7 @@ export type OfflineCartItem = {
   productId: string;
   name: string;
   price: number;
+  transactionPrice?: number | null;
   quantity: number;
   size?: string | null;
   material?: string | null;

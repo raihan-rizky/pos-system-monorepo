@@ -62,6 +62,7 @@ describe("priceCartItemsForCheckout", () => {
       ],
       customerType: "AGEN",
       pricingRules: [allPaperRimBrandRule],
+      pricingPreference: "SPECIAL",
       manualPrices: {},
       role: "SALES",
     });
@@ -74,6 +75,7 @@ describe("priceCartItemsForCheckout", () => {
       items: [paperRim],
       customerType: "UMUM",
       pricingRules: [allPaperRimBrandRule],
+      pricingPreference: "SPECIAL",
       manualPrices: {},
       role: "CASHIER",
     });
@@ -94,7 +96,7 @@ describe("priceCartItemsForCheckout", () => {
     );
   });
 
-  it("keeps Harga Agen ahead of scoped Harga Khusus rules", () => {
+  it("uses scoped Harga Khusus ahead of Harga Agen by default", () => {
     const [priced] = priceCartItemsForCheckout({
       items: [
         {
@@ -110,6 +112,41 @@ describe("priceCartItemsForCheckout", () => {
           value: 50,
         },
       ],
+      pricingPreference: "SPECIAL",
+      manualPrices: {},
+      role: "CASHIER",
+    });
+
+    expect(priced.price).toBe(5000);
+    if (priced.lineType !== "PRODUCT") {
+      throw new Error("Expected priced cart item to be a product line");
+    }
+    expect(priced.appliedPricing).toEqual(
+      expect.objectContaining({
+        ruleId: "rule-all-paper-rim-brand",
+        originalUnitPrice: 10000,
+        appliedUnitPrice: 5000,
+      }),
+    );
+  });
+
+  it("uses Harga Agen when the cashier selects member priority", () => {
+    const [priced] = priceCartItemsForCheckout({
+      items: [
+        {
+          ...paperRim,
+          hargaAgen: 9500,
+        },
+      ],
+      customerType: "AGEN",
+      pricingRules: [
+        {
+          ...allPaperRimBrandRule,
+          customerType: "ALL",
+          value: 50,
+        },
+      ],
+      pricingPreference: "MEMBER",
       manualPrices: {},
       role: "CASHIER",
     });

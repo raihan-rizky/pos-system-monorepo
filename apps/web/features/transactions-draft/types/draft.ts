@@ -1,4 +1,5 @@
 import type { Transaction } from "@/hooks/useTransactions";
+import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 export type DraftItemInput = {
   productId: string;
@@ -6,6 +7,7 @@ export type DraftItemInput = {
   size?: string | null;
   material?: string | null;
   price: number;
+  transactionPrice?: number | null;
   quantity: number;
 };
 
@@ -19,6 +21,7 @@ export type DraftCreateInput = {
   salespersonId?: string | null;
   isJobOrder: boolean;
   estimatedDoneAt?: string | null;
+  pricingPreference?: PricingPreference;
   invoiceDate?: string;
   invoiceTime?: string | null;
   invoiceDateReason?: string | null;

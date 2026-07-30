@@ -10,6 +10,7 @@ import {
   updateTransactionInHistoryCaches,
 } from "@/features/transaction-history/helpers/invalidate";
 import { buildTransactionHistorySearchParams } from "@/features/transaction-history/helpers/history-params";
+import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 export interface Transaction {
   id: string;
@@ -132,6 +133,7 @@ interface CreateTransactionInput {
   paymentStatus?: string; // 'COMPLETED' | 'DP'
   isJobOrder?: boolean;
   estimatedDoneAt?: string | null;
+  pricingPreference: PricingPreference;
   invoiceDate?: string;
   invoiceTime?: string | null;
   invoiceDateReason?: string | null;
