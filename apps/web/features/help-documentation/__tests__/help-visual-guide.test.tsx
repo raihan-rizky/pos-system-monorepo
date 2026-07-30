@@ -214,7 +214,12 @@ describe("visual help guides", () => {
       {
         page: "history" as const,
         target: "history-primary",
-        sources: [new URL("../../../app/(main)/history/page.tsx", import.meta.url)],
+        sources: [
+          new URL(
+            "../../../app/(main)/history/HistoryClientPage.tsx",
+            import.meta.url,
+          ),
+        ],
         markers: ["Riwayat Transaksi", "Daftar seluruh transaksi dan invoice toko", "No. Invoice"],
       },
       {
@@ -229,7 +234,12 @@ describe("visual help guides", () => {
       {
         page: "products" as const,
         target: "products-primary",
-        sources: [new URL("../../../app/(main)/products/page.tsx", import.meta.url)],
+        sources: [
+          new URL(
+            "../../../app/(main)/products/ProductsClientPage.tsx",
+            import.meta.url,
+          ),
+        ],
         markers: ["INVENTARIS LIVE", "Pusat Produk", "Total Produk", "Aktivitas Grup"],
       },
       {
@@ -253,7 +263,12 @@ describe("visual help guides", () => {
       {
         page: "customers" as const,
         target: "customers-primary",
-        sources: [new URL("../../../app/(main)/customers/page.tsx", import.meta.url)],
+        sources: [
+          new URL(
+            "../../../app/(main)/customers/CustomersClientPage.tsx",
+            import.meta.url,
+          ),
+        ],
         markers: [
           "Customer Workspace",
           "Semua Pelanggan",

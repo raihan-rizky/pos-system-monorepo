@@ -60,7 +60,9 @@ describe("low-spec client performance profile", () => {
   });
 
   it("keeps product pages bounded and avoids synchronous text measurement", () => {
-    const productsPage = readWebFile("app/(main)/products/page.tsx");
+    const productsPage = readWebFile(
+      "app/(main)/products/ProductsClientPage.tsx",
+    );
     const productTable = readWebFile("components/inventory/ProductTable.tsx");
     const beamsBackground = readWebFile(
       "components/ui/beams-background.tsx",
@@ -181,13 +183,19 @@ describe("low-spec client performance profile", () => {
   });
 
   it("medium-isolates optional work across remaining operational routes", () => {
-    const products = readWebFile("app/(main)/products/page.tsx");
-    const history = readWebFile("app/(main)/history/page.tsx");
+    const products = readWebFile(
+      "app/(main)/products/ProductsClientPage.tsx",
+    );
+    const history = readWebFile(
+      "app/(main)/history/HistoryClientPage.tsx",
+    );
     const production = readWebFile("app/(main)/production/page.tsx");
     const jobOrderHooks = readWebFile("hooks/useJobOrders.ts");
     const pos = readWebFile("app/(main)/pos/POSClientPage.tsx");
     const brandHooks = readWebFile("hooks/useBrands.ts");
-    const customers = readWebFile("app/(main)/customers/page.tsx");
+    const customers = readWebFile(
+      "app/(main)/customers/CustomersClientPage.tsx",
+    );
     const inventoryPage = readWebFile("app/(main)/inventory/page.tsx");
     const inventoryWorkspace = readWebFile(
       "features/inventory-management/components/InventoryWorkspace.tsx",

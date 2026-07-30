@@ -22,6 +22,7 @@
     "generate": "prisma generate",
     "postinstall": "prisma generate",
     "migrate:base-units": "tsx scripts/migrate-base-units.ts",
+    "storage:rewrite-r2-urls": "tsx scripts/rewrite-r2-public-base-url.ts",
     "seed": "tsx src/seed.ts",
     "seed:dev": "dotenv -e .env.development -- tsx src/seed.ts",
     "seed:prod": "dotenv -e .env.production -- tsx src/seed.ts",

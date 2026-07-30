@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("products page inventory workflow surfaces", () => {
   it("does not wire stock logs or stock history tabs into products", () => {
     const source = readFileSync(
-      join(process.cwd(), "app/(main)/products/page.tsx"),
+      join(process.cwd(), "app/(main)/products/ProductsClientPage.tsx"),
       "utf8",
     );
 
