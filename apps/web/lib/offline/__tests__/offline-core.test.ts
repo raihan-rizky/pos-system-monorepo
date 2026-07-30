@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import {
   OFFLINE_QUEUE_LIMIT,
   applySyncResult,
   buildClientMutationId,
   calculateStockAdjustment,
   isExpiredOfflineTransaction,
-} from "./offline-core";
+} from "../offline-core";
 
 test("marks offline transactions older than 7 days as expired", () => {
   const createdAt = "2026-05-01T00:00:00.000Z";
@@ -56,6 +56,24 @@ test("creates one adjusted transaction when stock is partially available", () =>
       removedQuantity: 2,
     },
   ]);
+});
+
+test("stock adjustment preserves a transaction price override", () => {
+  const result = calculateStockAdjustment(
+    [
+      {
+        productId: "paper",
+        name: "Paper",
+        price: 10000,
+        transactionPrice: 8000,
+        quantity: 3,
+      },
+    ],
+    new Map([["paper", 1]]),
+  );
+
+  assert.equal(result.status, "ADJUSTED");
+  assert.equal(result.items[0]?.transactionPrice, 8000);
 });
 
 test("rejects adjusted transaction when no line items remain", () => {

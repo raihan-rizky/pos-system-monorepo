@@ -7,7 +7,12 @@ const transactionFindUniqueMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
+const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const transactionCountMock = vi.hoisted(() => vi.fn());
+const transactionCreateMock = vi.hoisted(() => vi.fn());
+const productCostFindManyMock = vi.hoisted(() => vi.fn());
+const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const applyProductStockDeltasMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -25,6 +30,7 @@ vi.mock("@pos/db", () => ({
     product: { findMany: productFindManyMock },
     customer: { findFirst: customerFindFirstMock },
     salesperson: { findFirst: salespersonFindFirstMock },
+    categoryCustomerPricingRule: { findMany: pricingRuleFindManyMock },
     $transaction: dbTransactionMock,
   },
   Prisma: {},
@@ -81,7 +87,23 @@ describe("POST /api/offline-sync/transactions", () => {
     ]);
     customerFindFirstMock.mockResolvedValue(null);
     salespersonFindFirstMock.mockResolvedValue(null);
-    dbTransactionMock.mockResolvedValue({ id: "tx-1" });
+    pricingRuleFindManyMock.mockResolvedValue([]);
+    transactionCountMock.mockResolvedValue(0);
+    transactionCreateMock.mockResolvedValue({ id: "tx-1" });
+    productCostFindManyMock.mockResolvedValue([
+      { id: "product-1", costPrice: 500 },
+    ]);
+    inventoryLogCreateManyMock.mockResolvedValue({ count: 1 });
+    dbTransactionMock.mockImplementation(async (callback: any) =>
+      callback({
+        transaction: {
+          count: transactionCountMock,
+          create: transactionCreateMock,
+        },
+        product: { findMany: productCostFindManyMock },
+        inventoryLog: { createMany: inventoryLogCreateManyMock },
+      }),
+    );
     applyProductStockDeltasMock.mockResolvedValue([]);
   });
 
@@ -142,5 +164,118 @@ describe("POST /api/offline-sync/transactions", () => {
         message: "Synced as pending approval",
       },
     ]);
+  });
+
+  function setupAgenPricing() {
+    customerFindFirstMock.mockResolvedValue({
+      id: "agen-1",
+      type: "AGEN",
+    });
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "product-1",
+        name: "Pulpen",
+        price: 100000,
+        costPrice: 50000,
+        hargaAgen: 95000,
+        hargaDinas: null,
+        size: null,
+        material: null,
+        stock: 10,
+        unit: "pcs",
+        categoryId: "cat-atk",
+        category: { name: "ATK" },
+        brandId: null,
+        brand: null,
+      },
+    ]);
+    productCostFindManyMock.mockResolvedValue([
+      { id: "product-1", costPrice: 50000 },
+    ]);
+    pricingRuleFindManyMock.mockResolvedValue([
+      {
+        id: "rule-atk",
+        categoryId: "cat-atk",
+        customerType: null,
+        unit: null,
+        brandId: null,
+        brand: null,
+        mode: "PERCENT_DISCOUNT",
+        value: 10,
+        isActive: true,
+        updatedAt: new Date("2026-07-03T00:00:00.000Z"),
+        category: { name: "ATK" },
+      },
+    ]);
+  }
+
+  it("syncs queued SPECIAL preference with matching Harga Khusus", async () => {
+    setupAgenPricing();
+
+    const response = await POST(
+      request([
+        offlineTx({
+          createdAt: new Date().toISOString(),
+          customerId: "agen-1",
+          pricingPreference: "SPECIAL",
+          items: [
+            {
+              productId: "product-1",
+              name: "Pulpen",
+              price: 90000,
+              quantity: 1,
+            },
+          ],
+          amountPaid: 90000,
+          originalSubtotal: 90000,
+          originalTotal: 90000,
+        }),
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    const createArgs = transactionCreateMock.mock.calls[0][0];
+    expect(createArgs.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 90000,
+        pricingRuleId: "rule-atk",
+        originalUnitPrice: 100000,
+        appliedUnitPrice: 90000,
+      }),
+    );
+  });
+
+  it("syncs queued MEMBER preference with Harga Agen", async () => {
+    setupAgenPricing();
+
+    const response = await POST(
+      request([
+        offlineTx({
+          createdAt: new Date().toISOString(),
+          customerId: "agen-1",
+          pricingPreference: "MEMBER",
+          items: [
+            {
+              productId: "product-1",
+              name: "Pulpen",
+              price: 95000,
+              quantity: 1,
+            },
+          ],
+          amountPaid: 95000,
+          originalSubtotal: 95000,
+          originalTotal: 95000,
+        }),
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    const createArgs = transactionCreateMock.mock.calls[0][0];
+    expect(createArgs.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 95000,
+        pricingRuleId: "harga-agen",
+      }),
+    );
   });
 });
