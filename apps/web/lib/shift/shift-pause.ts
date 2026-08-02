@@ -54,3 +54,11 @@ export function formatEffectiveDuration(seconds: number): string {
   const minutes = totalMinutes % 60;
   return `${hours}j ${minutes}m`;
 }
+
+export function formatShiftDurationDisplay(
+  input: ShiftDurationInput,
+  now: Date = new Date(),
+): string {
+  const duration = formatEffectiveDuration(getEffectiveDurationSeconds(input, now));
+  return input.pausedAt ? `Dijeda · ${duration}` : duration;
+}

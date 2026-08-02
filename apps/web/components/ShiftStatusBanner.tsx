@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { CashierShift } from "@/hooks/useShift";
 import { formatRupiah } from "@/lib/utils";
+import { formatShiftDurationDisplay } from "@/lib/shift/shift-pause";
 
 interface ShiftStatusBannerProps {
   shift: CashierShift;
@@ -16,34 +17,20 @@ export function ShiftStatusBanner({ shift, onCloseShift, canCloseShift = true }:
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      const start = new Date(shift.openedAt);
-      if (Number.isNaN(start.getTime())) {
-        setUptime("-");
-        return;
-      }
-      const diffStr = calculateDiff(start, now);
-      setUptime(diffStr);
+      setUptime(formatShiftDurationDisplay(shift, now));
     };
 
     updateTime();
     const interval = setInterval(updateTime, 60000);
     return () => clearInterval(interval);
-  }, [shift.openedAt]);
-
-  function calculateDiff(start: Date, end: Date) {
-    const diffMin = Math.floor((end.getTime() - start.getTime()) / 60000);
-    if (diffMin < 60) return `${diffMin} mnt`;
-    const hrs = Math.floor(diffMin / 60);
-    const mins = diffMin % 60;
-    return `${hrs}j ${mins}m`;
-  }
+  }, [shift]);
 
   return (
     <div className="bg-brand-50 border-b border-brand-100 px-4 md:px-6 py-2.5 flex items-center justify-between text-sm">
       <div className="flex items-center gap-3">
-        <div className="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse" />
+        <div className={`w-2.5 h-2.5 rounded-full ${shift.pausedAt ? "bg-amber-500" : "bg-brand-500 animate-pulse"}`} />
         <span className="font-semibold text-brand-900">
-          {shift.isLocalOnly ? "Shift Offline Aktif" : "Shift Aktif"}
+          {shift.pausedAt ? "Shift Dijeda" : shift.isLocalOnly ? "Shift Offline Aktif" : "Shift Aktif"}
         </span>
         <span className="hidden sm:inline text-brand-600/60 font-medium px-2 border-l border-brand-200">
           Uptime: <span className="text-brand-700">{uptime}</span>
