@@ -15,6 +15,8 @@ export interface CashierShift {
   note: string | null;
   openedAt: string;
   closedAt: string | null;
+  pausedAt: string | null;
+  pausedDurationSeconds: number;
   cashier?: { name: string };
   isLocalOnly?: boolean;
 }
