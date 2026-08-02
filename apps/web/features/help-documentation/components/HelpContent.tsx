@@ -87,6 +87,18 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "owner-shift-settings",
+      title: "Mengatur Shift Kasir",
+      description: "Owner dapat mematikan kewajiban shift jika kasir perlu bertransaksi tanpa membuka shift. Shift yang sedang terbuka akan dipause, bukan ditutup, sehingga history tetap aman.",
+      icon: <Settings className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Pengaturan", description: "Masuk ke menu Pengaturan dari sidebar, lalu pilih tab 'Shift Kasir'. Tab ini hanya terlihat oleh Owner.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Matikan Shift Kasir", description: "Gunakan toggle 'Gunakan Shift Kasir', baca peringatan bahwa shift terbuka akan dipause, lalu klik 'Lanjutkan' untuk mengonfirmasi.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Kasir Bertransaksi", description: "Saat setting OFF, popup shift tidak muncul dan kasir dapat langsung membuka pembayaran tanpa active shift.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Nyalakan Kembali", description: "Saat toggle dinyalakan kembali, shift yang paused otomatis resume. Durasi pause tidak dihitung sebagai waktu kerja shift.", icon: <History className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "owner-reports",
       title: "Laporan Keuangan & Penjualan",
       description: "Di sini kamu bisa pantau performa tokomu secara keseluruhan. Kamu bisa lihat rangkuman pemasukan, pengeluaran, laba rugi, sampai grafik penjualan harian.",
@@ -514,6 +526,17 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Shift Kasir", description: "Saat baru login ke aplikasi, Anda akan diarahkan ke halaman awal shift. Jika tidak, buka sidebar kiri, masuk ke kategori 'Lainnya', dan klik menu 'Shift Kasir' (ikon koper).", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Mulai Shift", description: "Ketikkan nominal modal uang tunai awal yang ada di dalam laci kasir fisik pada kolom kas awal, kemudian klik tombol hitam 'Mulai Shift'.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Akhiri Shift", description: "Saat jam kerja selesai, kembali ke menu 'Shift Kasir' atau klik foto profil Anda di kanan atas dan pilih 'Tutup Shift'. Masukkan total nominal fisik uang tunai di laci, lalu klik tombol merah 'Konfirmasi Akhiri Shift'.", icon: <FileText className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "cashier-shift-settings",
+      title: "Shift Dimatikan oleh Owner",
+      description: "Jika Owner mematikan fitur shift, popup shift tidak akan muncul dan kamu bisa langsung memproses pembayaran. Setting ini dikontrol Owner dari Pengaturan.",
+      icon: <Settings className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Cek Status POS", description: "Buka menu Kasir seperti biasa. Saat shift dimatikan, popup 'Belum Ada Shift Aktif' tidak akan muncul.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Proses Pembayaran", description: "Tambahkan produk ke keranjang dan klik 'Bayar' tanpa perlu membuka shift terlebih dahulu.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Hubungi Owner", description: "Jika popup shift masih muncul atau setting perlu diubah, hubungi Owner karena hanya Owner yang dapat mengatur mode shift.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {

@@ -144,3 +144,14 @@ History tetap menampilkan shift paused dengan status `OPEN`. Tampilan durasi men
 - Mengubah role permission matrix global.
 - Membuat audit log khusus untuk toggle.
 - Mengubah format laporan finansial selain memakai durasi efektif untuk shift.
+
+## Implementation status
+
+Feature sudah diimplementasikan di branch `feature/shift-kasir-toggle`.
+
+- `StoreSettings.shiftEnabled` default `true` untuk menjaga behavior existing.
+- Shift yang sedang `OPEN` memakai `pausedAt` dan `pausedDurationSeconds`; saat setting ON kembali, shift otomatis resume dan waktu pause tidak dihitung.
+- Owner-only API tersedia di `/api/settings/shift`.
+- POS memakai safe default ON ketika setting belum tersedia atau request gagal.
+- Help page sudah menjelaskan flow owner dan cashier.
+- Focused unit/API/component tests sudah mencakup setting, pause duration, serialization, checkout gate, dan HelpContent.

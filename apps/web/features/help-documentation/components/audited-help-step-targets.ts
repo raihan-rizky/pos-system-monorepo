@@ -40,6 +40,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "owner-import-products": same("products", "products-import", 5),
   "owner-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["products", "products-stock-group-tab"]],
   "owner-database-reset": [["settings", "settings-sidebar"], ["settings", "settings-primary"], ["settings", "settings-review-save"], ["settings", "settings-review-save"], ["settings", "settings-review-save"]],
+  "owner-shift-settings": [["settings", "settings-sidebar"], ["settings", "settings-primary"], ["settings", "settings-primary"], ["settings", "settings-sidebar"]],
 
   "admin-settings": [["settings", "settings-sidebar"], ["settings", "settings-info-store"], ["settings", "settings-save"]],
   "admin-products": [["products", "products-primary"], ["products", "products-add-button"], ["products", "products-edit-action"]],
@@ -57,6 +58,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "admin-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["products", "products-stock-group-tab"]],
 
   "cashier-shift": [["shift", "shift-primary"], ["shift", "shift-open"], ["shift", "shift-close"]],
+  "cashier-shift-settings": [["pos", "pos-primary"], ["pos", "pos-payment-modal"], ["pos", "pos-primary"]],
   "cashier-pos": [["pos", "pos-primary"], ["pos", "pos-products"], ["pos", "pos-payment-modal"]],
   "cashier-pos-quick-edit": [["pos", "pos-cart"], ["pos", "pos-cart"], ["products", "products-price-action"], ["products", "products-special-price-tab"]],
   "cashier-credit": [["customers", "customers-debt-tab"], ["customers", "customers-pay-debt"], ["history", "history-print-button"]],

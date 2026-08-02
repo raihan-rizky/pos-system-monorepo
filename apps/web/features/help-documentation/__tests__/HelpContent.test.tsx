@@ -238,4 +238,19 @@ describe('HelpContent', () => {
     expect(html).toContain('cascade');
     expect(html).toContain('tidak ada seed otomatis');
   });
+
+  it('documents the owner shift toggle and cashier behavior', () => {
+    const ownerHtml = renderToStaticMarkup(
+      <HelpContent targetRole="OWNER" searchQuery="Shift Kasir" />
+    );
+    const cashierHtml = renderToStaticMarkup(
+      <HelpContent targetRole="CASHIER" searchQuery="popup shift" />
+    );
+
+    expect(ownerHtml).toContain('Gunakan Shift Kasir');
+    expect(ownerHtml).toContain('dipause, bukan ditutup');
+    expect(ownerHtml).toContain('resume');
+    expect(cashierHtml).toContain('popup shift');
+    expect(cashierHtml).toContain('Owner');
+  });
 });
