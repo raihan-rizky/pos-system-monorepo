@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ChevronDown,
   Settings,
   ShoppingCart,
@@ -20,7 +21,8 @@ import {
   Bot,
   Sparkles,
   Tag,
-  ZoomIn
+  ZoomIn,
+  Database
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import HelpDiagramStepper, { Step } from "./HelpDiagramStepper";
@@ -310,6 +312,19 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Cari produk via Update Stok > Banyak Produk (Massal)", description: "Masuk ke menu 'Inventaris', klik tombol 'Update Stok', lalu pilih 'Banyak Produk (Massal)' untuk membuka Update Stok Massal. Gunakan kolom 'Cari produk' untuk menambahkan produk atau varian yang mau disesuaikan.", icon: <Search className="w-8 h-8" /> },
         { title: "Pilih Stok Bersama / Stok Produk Ini", description: "Pilih 'Stok Bersama' jika stok grup dan semua varian terkait ikut dihitung. Pilih 'Stok Produk Ini' jika hanya produk itu yang dibuatkan log stok dan stok grup tidak diubah.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih satu produk saja per grup stok", description: "Sistem memblokir produk duplikat dan menampilkan pesan 'Pilih satu produk saja per grup stok untuk mode Stok Bersama' jika dua varian dari grup yang sama sama-sama memakai Stok Bersama. Setelah diajukan, perubahan mengikuti approval stock log.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "owner-database-reset",
+      title: "Reset Database",
+      description: "Fitur Reset Database hanya untuk Owner dan hanya bekerja pada store yang sedang login. Pilih domain operasional yang ingin dibersihkan, lalu review data cascade dan dependency sebelum eksekusi.",
+      icon: <Database className="w-5 h-5 text-danger-600" />,
+      steps: [
+        { title: "Buka Tab Reset Database", description: "Masuk ke Pengaturan lalu pilih tab Reset Database. Tab ini hanya terlihat oleh Owner.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Domain Data", description: "Pilih Katalog Produk, Pelanggan, Penjualan & Keuangan, Supplier & Pengadaan, Inventaris & Operasional, Import & Batch Jobs, atau Notifikasi Store sesuai kebutuhan.", icon: <Database className="w-8 h-8" /> },
+        { title: "Review Dampak", description: "Klik Lihat Dampak Reset. Data cascade akan ikut terhapus dan dependency yang wajib dipilih akan ditandai. Data shared seperti kategori global dan chat assistant tetap dipertahankan.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pastikan Operasional Aman", description: "Tutup shift kasir dan tunggu proses import atau batch selesai. Reset tidak berjalan jika masih ada proses aktif.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Konfirmasi dengan Phrase", description: "Baca preview sekali lagi, lalu ketik RESET DATABASE persis. Reset bersifat irreversible, tidak ada seed otomatis, dan jika gagal semua perubahan di-rollback.", icon: <AlertTriangle className="w-8 h-8" /> },
       ]
     }
   ],

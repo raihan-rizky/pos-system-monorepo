@@ -39,6 +39,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "owner-special-pricing": [["products", "products-special-price-tab"], ...same("products", "products-special-price-tab", 3), ["pos", "pos-products"]],
   "owner-import-products": same("products", "products-import", 5),
   "owner-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["products", "products-stock-group-tab"]],
+  "owner-database-reset": [["settings", "settings-sidebar"], ["settings", "settings-primary"], ["settings", "settings-review-save"], ["settings", "settings-review-save"], ["settings", "settings-review-save"]],
 
   "admin-settings": [["settings", "settings-sidebar"], ["settings", "settings-info-store"], ["settings", "settings-save"]],
   "admin-products": [["products", "products-primary"], ["products", "products-add-button"], ["products", "products-edit-action"]],

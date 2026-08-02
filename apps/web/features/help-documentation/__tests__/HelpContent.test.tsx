@@ -226,4 +226,16 @@ describe('HelpContent', () => {
     expect(html).toContain('Cloudflare R2');
     expect(html).toContain('bukan lagi Supabase Storage');
   });
+
+  it('documents the owner-only selective database reset safety flow', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="OWNER" searchQuery="Reset Database" />
+    );
+
+    expect(html).toContain('Reset Database');
+    expect(html).toContain('RESET DATABASE');
+    expect(html).toContain('store yang sedang login');
+    expect(html).toContain('cascade');
+    expect(html).toContain('tidak ada seed otomatis');
+  });
 });
