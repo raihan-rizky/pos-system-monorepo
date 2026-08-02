@@ -1216,6 +1216,8 @@ model CashierShift {
   note            String?
   openedAt        DateTime    @default(now())
   closedAt        DateTime?
+  pausedAt        DateTime?
+  pausedDurationSeconds Int   @default(0)
   cashier         User        @relation(fields: [cashierId], references: [id])
   store           Store       @relation(fields: [storeId], references: [id])
 
@@ -1392,6 +1394,7 @@ model StoreSettings {
   address   String   @default("")
   phone     String   @default("")
   logoUrl   String?
+  shiftEnabled Boolean @default(true)
   updatedAt DateTime @updatedAt
 }
 

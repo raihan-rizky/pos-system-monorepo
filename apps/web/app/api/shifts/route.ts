@@ -3,6 +3,7 @@ import { db, Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
+import { getShiftSettings } from "@/lib/shift/shift-settings-server";
 
 import { getLogger } from "@/lib/logger";
 
@@ -30,6 +31,8 @@ function serializeShift(
     discrepancy: shift.discrepancy === null ? null : Number(shift.discrepancy),
     openedAt: shift.openedAt.toISOString(),
     closedAt: shift.closedAt?.toISOString() ?? null,
+    pausedAt: shift.pausedAt?.toISOString() ?? null,
+    pausedDurationSeconds: shift.pausedDurationSeconds ?? 0,
   };
 }
 
@@ -124,6 +127,13 @@ const openShiftSchema = z.object({
   note: z.string().optional().nullable(),
 });
 
+class ShiftConflictError extends Error {
+  constructor() {
+    super("Masih ada shift yang terbuka di toko ini.");
+    this.name = "ShiftConflictError";
+  }
+}
+
 // POST /api/shifts
 // Open a new shift
 export async function POST(request: Request) {
@@ -143,32 +153,40 @@ export async function POST(request: Request) {
     const cashierId = user.id;
     const storeId = user.storeId || "store-main";
 
-    // Check if there is already an active shift in this store (store-wide)
-    const existing = await db.cashierShift.findFirst({
-      where: {
-        storeId,
-        status: "OPEN",
-      },
-    });
+    const newShift = await db.$transaction(async (transaction) => {
+      const [{ enabled: shiftEnabled }, existing] = await Promise.all([
+        getShiftSettings(),
+        transaction.cashierShift.findFirst({
+          where: {
+            storeId,
+            status: "OPEN",
+          },
+        }),
+      ]);
 
-    if (existing) {
-      return NextResponse.json({ message: "Masih ada shift yang terbuka di toko ini." }, { status: 409 });
-    }
+      if (existing) throw new ShiftConflictError();
 
-    const newShift = await db.cashierShift.create({
-      data: {
-        cashierId,
-        storeId,
-        openingBalance: Number(openingBalance),
-        note: note || null,
-        status: "OPEN",
-      },
+      return transaction.cashierShift.create({
+        data: {
+          cashierId,
+          storeId,
+          openingBalance: Number(openingBalance),
+          note: note || null,
+          status: "OPEN",
+          pausedAt: shiftEnabled ? null : new Date(),
+          pausedDurationSeconds: 0,
+        },
+      });
     });
 
     return NextResponse.json(newShift, { status: 201 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof ShiftConflictError) {
+      return NextResponse.json({ message: error.message }, { status: 409 });
+    }
 
     log.error("Failed to open shift:", error);
     return NextResponse.json({ message: "Failed to open shift" }, { status: 500 });

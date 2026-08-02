@@ -1,16 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import { Bell, RefreshCw, Settings, Store, MessageCircle, ShieldCheck, Database } from "lucide-react";
+import { Bell, RefreshCw, Settings, Store, MessageCircle, ShieldCheck, Database, WalletCards } from "lucide-react";
 import StoreInfoTab from "@/components/settings/StoreInfoTab";
 import WhatsAppTab from "@/components/settings/WhatsAppTab";
 import OfflineSyncTab from "@/components/settings/OfflineSyncTab";
 import NotificationsTab from "@/components/settings/NotificationsTab";
 import RbacTab from "@/components/settings/RbacTab";
 import DatabaseResetTab from "@/components/settings/DatabaseResetTab";
+import ShiftSettingsTab from "@/components/settings/ShiftSettingsTab";
 import { useRole } from "@/components/providers/RoleProvider";
 
-type Tab = "store" | "whatsapp" | "rbac" | "notifications" | "offline" | "reset";
+type Tab = "store" | "whatsapp" | "rbac" | "notifications" | "offline" | "shift" | "reset";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
   { id: "store", label: "Info Toko", icon: <Store className="w-4 h-4" /> },
@@ -18,6 +19,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean
   { id: "rbac", label: "RBAC", icon: <ShieldCheck className="w-4 h-4" />, ownerOnly: true },
   { id: "notifications", label: "Notifikasi", icon: <Bell className="w-4 h-4" /> },
   { id: "offline", label: "Offline Sync", icon: <RefreshCw className="w-4 h-4" /> },
+  { id: "shift", label: "Shift Kasir", icon: <WalletCards className="w-4 h-4" />, ownerOnly: true },
   { id: "reset", label: "Reset Database", icon: <Database className="w-4 h-4" />, ownerOnly: true },
 ];
 
@@ -69,6 +71,7 @@ export default function SettingsPage() {
             {activeTab === "rbac" && role === "OWNER" && <RbacTab />}
             {activeTab === "notifications" && <NotificationsTab />}
             {activeTab === "offline" && <OfflineSyncTab />}
+            {activeTab === "shift" && role === "OWNER" && <ShiftSettingsTab />}
             {activeTab === "reset" && role === "OWNER" && <DatabaseResetTab />}
           </div>
         </div>

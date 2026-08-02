@@ -62,6 +62,8 @@ export type OfflineShiftRecord = {
   note: string | null;
   openedAt: string;
   closedAt: string | null;
+  pausedAt: string | null;
+  pausedDurationSeconds: number;
   cashier?: { name: string };
   isLocalOnly: true;
 };
@@ -257,6 +259,8 @@ export async function createOfflineShift({
     note: note || null,
     openedAt,
     closedAt: null,
+    pausedAt: null,
+    pausedDurationSeconds: 0,
     cashier: { name: cashierName },
     isLocalOnly: true,
   };

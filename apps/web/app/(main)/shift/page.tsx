@@ -17,6 +17,7 @@ import { CloseShiftModal } from "@/components/CloseShiftModal";
 import { StatTile } from "@/features/dashboard/components/StatTile";
 import { SectionCard } from "@/features/dashboard/components/SectionCard";
 import { shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
+import { formatShiftDurationDisplay } from "@/lib/shift/shift-pause";
 import {
   Wallet,
   Clock,
@@ -52,7 +53,7 @@ function ActiveShiftPanel({
   const { data: summary } = useCloseShiftSummary(shift.id, !shift.isLocalOnly);
   const totalCash = summary?.totalCashTransactions ?? null;
   const expectedBalance = summary?.expectedBalance ?? null;
-  const uptime = useUptime(shift.openedAt);
+  const uptime = useUptime(shift);
 
   return (
     <SectionCard
@@ -99,29 +100,17 @@ function ActiveShiftPanel({
   );
 }
 
-function useUptime(openedAt: string): string {
+function useUptime(shift: CashierShift): string {
   const [uptime, setUptime] = useState<string>("");
 
   React.useEffect(() => {
     const update = () => {
-      const start = new Date(openedAt);
-      if (Number.isNaN(start.getTime())) {
-        setUptime("—");
-        return;
-      }
-      const diffMin = Math.floor((Date.now() - start.getTime()) / 60000);
-      if (diffMin < 60) {
-        setUptime(`${diffMin} mnt`);
-      } else {
-        const hrs = Math.floor(diffMin / 60);
-        const mins = diffMin % 60;
-        setUptime(`${hrs}j ${mins}m`);
-      }
+      setUptime(formatShiftDurationDisplay(shift));
     };
     update();
     const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
-  }, [openedAt]);
+  }, [shift]);
 
   return uptime;
 }

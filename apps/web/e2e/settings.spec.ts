@@ -49,6 +49,40 @@ test("settings can request a WhatsApp pairing code", async ({ appPage: page }) =
   expect(pairCodeBody).toEqual({ phoneNumber: "628123456789" });
 });
 
+test("owner can pause and resume Shift Kasir from settings", async ({ appPage: page }) => {
+  let patchBody: Record<string, unknown> | null = null;
+
+  await page.route("**/api/settings/shift", async (route) => {
+    if (route.request().method() === "PATCH") {
+      patchBody = JSON.parse(route.request().postData() || "{}");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ enabled: false }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ enabled: true }),
+    });
+  });
+
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Shift Kasir" }).click();
+  await expect(page.getByRole("heading", { name: "Gunakan Shift Kasir" })).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Gunakan Shift Kasir" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.getByRole("switch", { name: "Gunakan Shift Kasir" }).click();
+  await expect(page.getByText("Konfirmasi Matikan Shift")).toBeVisible();
+  await page.getByRole("button", { name: "Lanjutkan" }).click();
+
+  await expect(page.getByRole("switch", { name: "Gunakan Shift Kasir" })).toHaveAttribute("aria-pressed", "false");
+  expect(patchBody).toEqual({ enabled: false });
+});
+
 test("owner can preview and confirm a selective database reset without a real wipe", async ({ appPage: page }) => {
   let executeBody: Record<string, unknown> | null = null;
 

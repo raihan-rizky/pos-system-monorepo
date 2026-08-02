@@ -1,0 +1,6 @@
+ALTER TABLE "StoreSettings"
+  ADD COLUMN IF NOT EXISTS "shiftEnabled" BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE "pos_cashier_shifts"
+  ADD COLUMN IF NOT EXISTS "pausedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "pausedDurationSeconds" INTEGER NOT NULL DEFAULT 0;

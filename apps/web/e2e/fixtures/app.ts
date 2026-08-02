@@ -263,6 +263,7 @@ export async function mockApis(page: Page) {
       };
       return json(route, currentStoreSettings);
     }
+    if (path === "/api/settings/shift") return json(route, { enabled: true });
     if (path === "/api/settings/whatsapp/status") return json(route, { status: "CONNECTED", raw: { me: { id: "628123456789@c.us", pushName: "E2E WA" } } });
     if (path === "/api/settings/whatsapp/qr") return json(route, { value: "" });
     if (path === "/api/settings/whatsapp/pair-code") {
