@@ -12,6 +12,7 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
       return {
         products: null,
         categories: [],
+        shiftEnabled: true,
       };
     }
 
@@ -23,7 +24,7 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
       isActive: true,
     };
 
-    const [products, total, categories] = await Promise.all([
+    const [products, total, categories, storeSettings] = await Promise.all([
       db.product.findMany({
         where,
         select: {
@@ -70,6 +71,10 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
           _count: { select: { products: true } },
         },
       }),
+      db.storeSettings.findUnique({
+        where: { id: "store-main" },
+        select: { shiftEnabled: true },
+      }),
     ]);
 
     return {
@@ -93,11 +98,13 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
         pagination: buildPaginationMeta(total, 1, POS_PAGE_SIZE),
       },
       categories,
+      shiftEnabled: storeSettings?.shiftEnabled ?? true,
     };
   } catch {
     return {
       products: null,
       categories: [],
+      shiftEnabled: true,
     };
   }
 }

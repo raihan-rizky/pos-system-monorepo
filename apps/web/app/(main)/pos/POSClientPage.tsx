@@ -59,6 +59,7 @@ import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions"
 import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
+import { useShiftSettings } from "@/hooks/useShiftSettings";
 import { useRole } from "@/components/providers/RoleProvider";
 import type { PosCartPriceUpdate } from "@/components/inventory/PriceUpdateModal";
 import type { PosProductGroupUpdate } from "@/components/EditProductModal";
@@ -100,6 +101,7 @@ export type POSInitialData = {
   products: ProductsResponse | null;
   categories: Category[];
   activeShift?: CashierShift | null;
+  shiftEnabled?: boolean;
 };
 
 export default function POSClientPage({
@@ -172,8 +174,10 @@ export default function POSClientPage({
   const { data: activeShift, isLoading: shiftLoading } = useActiveShift(
     initialData.activeShift ?? undefined,
   );
+  const { data: shiftSettings } = useShiftSettings(initialData.shiftEnabled);
   const { role, canPerform } = useRole();
   const isSales = role === "SALES";
+  const shiftRequired = shiftSettings?.enabled !== false;
   const canQuickEdit = canPerform("product", "update");
 
   const productsQuery = useProductsPage(deferredSearch, selectedCategory, {
@@ -336,7 +340,7 @@ export default function POSClientPage({
   }, [checkoutMode, hasItems]);
 
   const handleOpenPayment = () => {
-    if (!activeShift) {
+    if (shiftRequired && !activeShift) {
       setCheckoutNotice({
         tone: "warning",
         message:
@@ -581,7 +585,7 @@ export default function POSClientPage({
 
   return (
     <>
-      {!shiftLoading && activeShift && (
+      {shiftRequired && !shiftLoading && activeShift && (
         <ShiftStatusBanner
           shift={activeShift}
           onCloseShift={() => setShowCloseShift(true)}
@@ -1016,13 +1020,13 @@ export default function POSClientPage({
       )}
 
       {/* Shift Modals */}
-      {!shiftLoading && !activeShift && !shiftModalDismissed && !isSales && (
+      {shiftRequired && !shiftLoading && !activeShift && !shiftModalDismissed && !isSales && (
         <OpenShiftModal
           open={true}
           onClose={() => setShiftModalDismissed(true)}
         />
       )}
-      {!shiftLoading && !activeShift && isSales && !shiftModalDismissed && (
+      {shiftRequired && !shiftLoading && !activeShift && isSales && !shiftModalDismissed && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm mx-4 text-center shadow-xl">
             <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
