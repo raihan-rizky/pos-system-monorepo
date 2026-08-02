@@ -151,6 +151,8 @@ export const REQUIRED_DEPENDENCIES: RequiredDependencyDefinition[] = [
   { source: "productCatalog", target: "inventoryOperations", model: "InventoryLog", reason: "Riwayat stok masih mereferensikan produk yang dipilih.", where: productWhere },
   { source: "productCatalog", target: "importBatchJobs", model: "BatchOperationItem", reason: "Operasi batch masih mereferensikan produk yang dipilih.", where: batchOperationWhere },
   { source: "customers", target: "salesFinance", model: "Transaction", reason: "Transaksi masih mereferensikan pelanggan yang dipilih.", where: (storeId) => ({ storeId, customerId: { not: null } }) },
+  { source: "salesFinance", target: "inventoryOperations", model: "InventoryLog", reason: "Riwayat stok masih terhubung ke transaksi yang dipilih.", where: transactionWhere },
+  { source: "salesFinance", target: "inventoryOperations", model: "SuratJalanItem", reason: "Item surat jalan masih terhubung ke item transaksi yang dipilih.", where: suratJalanWhere },
   { source: "supplierProcurement", target: "salesFinance", model: "Expense", reason: "Pengeluaran masih terhubung ke pengadaan yang dipilih.", where: storeWhere },
   { source: "supplierProcurement", target: "inventoryOperations", model: "InventoryLog", reason: "Riwayat stok masih terhubung ke supplier yang dipilih.", where: productWhere },
 ];

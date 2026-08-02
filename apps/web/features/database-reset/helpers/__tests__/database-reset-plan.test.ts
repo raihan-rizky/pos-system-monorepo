@@ -111,4 +111,39 @@ describe("database reset planner", () => {
       ]),
     );
   });
+
+  it("blocks sales reset when stock records reference its transactions", async () => {
+    const plan = await createDatabaseResetPlan({
+      db: createFakeDb({
+        counts: {
+          transaction: 1,
+          transactionItem: 1,
+          inventoryLog: 1,
+          suratJalanItem: 1,
+        },
+      }),
+      storeId: "store-a",
+      domains: ["salesFinance"],
+    });
+
+    expect(plan.requiredDependencies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ domain: "inventoryOperations", blocking: true }),
+      ]),
+    );
+  });
+
+  it("orders surat jalan items before transaction items", async () => {
+    const plan = await createDatabaseResetPlan({
+      db: createFakeDb({
+        counts: { transaction: 1, transactionItem: 1, suratJalanItem: 1 },
+      }),
+      storeId: "store-a",
+      domains: ["salesFinance", "inventoryOperations"],
+    });
+
+    expect(plan.operations.findIndex((item) => item.model === "SuratJalanItem")).toBeLessThan(
+      plan.operations.findIndex((item) => item.model === "TransactionItem"),
+    );
+  });
 });
