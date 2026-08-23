@@ -54,11 +54,12 @@
 Run:
 
 ```powershell
-node .gitnexus/run.cjs impact -r pos-system-monorepo NotificationCenter
-node .gitnexus/run.cjs impact -r pos-system-monorepo MainLayout
-node .gitnexus/run.cjs impact -r pos-system-monorepo clampNotificationY
-node .gitnexus/run.cjs impact -r pos-system-monorepo snapNotificationEdge
-node .gitnexus/run.cjs impact -r pos-system-monorepo parseNotificationFloatingPreference
+gitnexus.cmd analyze --branch codex/ai-assistant-notification-cleanup --index-only --name pos-system-monorepo-notification-cleanup
+gitnexus.cmd impact -r pos-system-monorepo-notification-cleanup NotificationCenter
+gitnexus.cmd impact -r pos-system-monorepo-notification-cleanup MainLayout
+gitnexus.cmd impact -r pos-system-monorepo-notification-cleanup clampNotificationY
+gitnexus.cmd impact -r pos-system-monorepo-notification-cleanup snapNotificationEdge
+gitnexus.cmd impact -r pos-system-monorepo-notification-cleanup parseNotificationFloatingPreference
 ```
 
 Expected: `NotificationCenter` has one direct caller, `MainLayout`. The shell may report broad `CRITICAL` risk because the framework layout fans out across authenticated pages; this warning is already documented and approved in the design spec. The floating helper functions are limited to the standalone component and their tests.
@@ -89,7 +90,7 @@ it("keeps Pak Teladan as the only floating global action", () => {
 Run:
 
 ```powershell
-pnpm --filter @pos/web exec vitest run 'app/(main)/__tests__/layout.test.ts'
+pnpm.cmd --filter @pos/web exec vitest run 'app/(main)/__tests__/layout.test.ts'
 ```
 
 Expected: FAIL because `layout.tsx` still imports or renders `NotificationCenter` and still renders `app-page-loop`.
@@ -146,8 +147,8 @@ apps/web/features/notifications/helpers/__tests__/notification-floating-control.
 Run:
 
 ```powershell
-pnpm --filter @pos/web exec vitest run 'app/(main)/__tests__/layout.test.ts'
-pnpm --filter @pos/web exec vitest run 'features/ai-assistant/components/__tests__/AssistantWidget.test.tsx'
+pnpm.cmd --filter @pos/web exec vitest run 'app/(main)/__tests__/layout.test.ts'
+pnpm.cmd --filter @pos/web exec vitest run 'features/ai-assistant/components/__tests__/AssistantWidget.test.tsx'
 ```
 
 Expected: both files PASS. The assistant regression includes `Pak Teladan ngabarin`, unread count, preview title, and launcher badge coverage.
@@ -157,8 +158,8 @@ Expected: both files PASS. The assistant regression includes `Pak Teladan ngabar
 Run:
 
 ```powershell
-pnpm lint
-pnpm type-check
+pnpm.cmd lint
+pnpm.cmd type-check
 ```
 
 Expected: both commands exit zero without errors or warnings introduced by the cleanup.
@@ -170,7 +171,7 @@ Run:
 ```powershell
 git add -- 'apps/web/app/(main)/__tests__/layout.test.ts' 'apps/web/app/(main)/layout.tsx' 'apps/web/app/globals.css' 'apps/web/features/notifications/components/NotificationCenter.tsx' 'apps/web/features/notifications/components/__tests__/NotificationCenter.test.tsx' 'apps/web/features/notifications/helpers/notification-floating-control.ts' 'apps/web/features/notifications/helpers/__tests__/notification-floating-control.test.ts'
 git diff --cached --check
-node .gitnexus/run.cjs detect-changes -r pos-system-monorepo -s staged
+gitnexus.cmd detect-changes -r pos-system-monorepo-notification-cleanup -s staged
 git diff --cached --name-only
 ```
 
@@ -210,9 +211,9 @@ Expected: the first command finds no matches. The second command finds the exist
 Run:
 
 ```powershell
-pnpm test
-pnpm lint
-pnpm type-check
+pnpm.cmd test
+pnpm.cmd lint
+pnpm.cmd type-check
 ```
 
 Expected: every command exits zero. Do not substitute `pnpm build` for any validation command.
@@ -342,7 +343,7 @@ Run:
 git diff --check
 git add -- 'markdown-files/ai-assistant-notification-shell-cleanup-2026-08-23.md' 'anti-slop/audit-001-2026-08-23.md'
 git diff --cached --check
-node .gitnexus/run.cjs detect-changes -r pos-system-monorepo -s staged
+gitnexus.cmd detect-changes -r pos-system-monorepo-notification-cleanup -s staged
 git diff --cached --name-only
 ```
 
@@ -360,6 +361,7 @@ Run:
 
 ```powershell
 git status --short
+git -C 'C:\Projects\pos-system-monorepo' status --short
 ```
 
-Expected: only the user's pre-existing `AGENTS.md` modification and untracked `CLAUDE.md` remain. No task file is unstaged.
+Expected: the isolated worktree is clean. The primary checkout still shows only the user's pre-existing `AGENTS.md` modification and untracked `CLAUDE.md`.
