@@ -371,7 +371,12 @@ const MODULE_GROUPS = [
   {
     id: "inventory",
     label: "Manajemen Inventaris",
-    moduleIds: ["inventory", "inventory-approval", "surat-jalan"],
+    moduleIds: [
+      "inventory",
+      "inventory-approval",
+      "surat-jalan",
+      "surat-jalan-auto-approve",
+    ],
   },
   {
     id: "finance",
@@ -1053,17 +1058,27 @@ function ModulePermissionEditor({
                   <tr key={resource} className={idx % 2 === 1 ? "bg-surface-50/30" : ""}>
                     <td className="px-4 py-3">
                       <span className="font-semibold text-surface-800">
-                        {resource === "transaction.auto_approve" ? "Auto Approve Transaksi" : resource}
+                        {resource === "transaction.auto_approve"
+                          ? "Auto Approve Transaksi"
+                          : resource === "surat_jalan.auto_approve"
+                            ? "Auto Approve Surat Jalan"
+                            : resource}
                       </span>
                       {resource === "transaction.auto_approve" ? (
                         <p className="mt-1 max-w-xs text-[11px] font-normal text-surface-500">
                           Aktifkan aksi Buat agar transaksi role ini langsung final tanpa menunggu approval.
                         </p>
+                      ) : resource === "surat_jalan.auto_approve" ? (
+                        <p className="mt-1 max-w-xs text-[11px] font-normal text-surface-500">
+                          Aktifkan aksi Buat agar Surat Jalan role ini langsung dikonfirmasi tanpa menunggu approval.
+                        </p>
                       ) : null}
                     </td>
                     {ACTIONS.map((action) => {
                       const isChecked = permissions[role].resources[resource]?.[action] ?? false;
-                      const isAutoApproveAction = resource === "transaction.auto_approve";
+                      const isAutoApproveAction =
+                        resource === "transaction.auto_approve" ||
+                        resource === "surat_jalan.auto_approve";
 
                       if (isAutoApproveAction && action !== "create") {
                         return <td key={action} className="px-4 py-3 text-center text-surface-300">—</td>;

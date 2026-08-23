@@ -29,6 +29,40 @@ vi.mock("lucide-react", () => ({
 }));
 
 describe("RbacSettingsView", () => {
+  it("renders Surat Jalan auto approval as a create-only permission", async () => {
+    const { RbacSettingsView } = await import("@/components/settings/RbacTab");
+    const permissions = buildDefaultRolePermissions();
+
+    const html = renderToStaticMarkup(
+      <RbacSettingsView
+        activeRole="SALES"
+        selectedModuleId="surat-jalan-auto-approve"
+        permissions={permissions}
+        savedPermissions={permissions}
+        isSaving={false}
+        saved={false}
+        error={null}
+        isReviewOpen={false}
+        isSensitiveConfirmOpen={false}
+        onActiveRoleChange={vi.fn()}
+        onSelectedModuleChange={vi.fn()}
+        onPagePermissionChange={vi.fn()}
+        onResourcePermissionChange={vi.fn()}
+        onRequestSaveReview={vi.fn()}
+        onCloseReview={vi.fn()}
+        onConfirmReview={vi.fn()}
+        onCancelSensitiveConfirm={vi.fn()}
+        onConfirmSensitiveSave={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Auto Approve Surat Jalan");
+    expect(html).toContain(
+      "Aktifkan aksi Buat agar Surat Jalan role ini langsung dikonfirmasi tanpa menunggu approval.",
+    );
+    expect(html.match(/role="switch"/g)).toHaveLength(1);
+  });
+
   it("renders role summaries, advisory copy, pending state, and review confirmation", async () => {
     const { RbacSettingsView } = await import("@/components/settings/RbacTab");
     const permissions = buildDefaultRolePermissions();

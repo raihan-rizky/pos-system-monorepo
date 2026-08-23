@@ -227,6 +227,14 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     resourceTargets: ["surat_jalan"],
     sensitivity: "normal",
   },
+  {
+    id: "surat-jalan-auto-approve",
+    label: "Auto Approve Surat Jalan",
+    description: "Konfirmasi Surat Jalan role ini tanpa antrean approval.",
+    pageTargets: [],
+    resourceTargets: ["surat_jalan.auto_approve"],
+    sensitivity: "critical",
+  },
 ];
 
 export function buildRoleSummaries(

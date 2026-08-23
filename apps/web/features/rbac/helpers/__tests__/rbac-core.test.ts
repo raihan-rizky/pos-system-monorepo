@@ -84,6 +84,70 @@ describe("RBAC permission matrix", () => {
     expect(canRolePerformAction("CASHIER", "transaction.auto_approve", "create", permissions)).toBe(false);
   });
 
+  it("defaults Surat Jalan auto approval on for document creators and keeps it configurable", () => {
+    const defaults = buildDefaultRolePermissions();
+
+    expect(RESOURCE_TARGETS).toContain("surat_jalan.auto_approve");
+    expect(
+      canRolePerformAction(
+        "OWNER",
+        "surat_jalan.auto_approve",
+        "create",
+        defaults,
+      ),
+    ).toBe(true);
+    expect(
+      canRolePerformAction(
+        "ADMIN",
+        "surat_jalan.auto_approve",
+        "create",
+        defaults,
+      ),
+    ).toBe(true);
+    expect(
+      canRolePerformAction(
+        "CASHIER",
+        "surat_jalan.auto_approve",
+        "create",
+        defaults,
+      ),
+    ).toBe(true);
+    expect(
+      canRolePerformAction(
+        "SALES",
+        "surat_jalan.auto_approve",
+        "create",
+        defaults,
+      ),
+    ).toBe(true);
+    expect(
+      canRolePerformAction(
+        "INVENTORY",
+        "surat_jalan.auto_approve",
+        "create",
+        defaults,
+      ),
+    ).toBe(false);
+
+    const customized = normalizeRolePermissions([
+      {
+        role: "SALES",
+        scope: "resource",
+        target: "surat_jalan.auto_approve",
+        action: "create",
+        allowed: false,
+      },
+    ]);
+    expect(
+      canRolePerformAction(
+        "SALES",
+        "surat_jalan.auto_approve",
+        "create",
+        customized,
+      ),
+    ).toBe(false);
+  });
+
   it("allows all four roles to create a draft transaction", () => {
     const defaults = buildDefaultRolePermissions();
     expect(canRolePerformAction("OWNER", "transaction.draft", "create", defaults)).toBe(true);

@@ -7,6 +7,20 @@ import {
 } from "../rbac-core";
 
 describe("RBAC settings UI helpers", () => {
+  it("exposes Surat Jalan auto approval as a dedicated critical permission", async () => {
+    const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
+
+    expect(
+      RBAC_PERMISSION_MODULES.find(
+        (module) => module.id === "surat-jalan-auto-approve",
+      ),
+    ).toMatchObject({
+      label: "Auto Approve Surat Jalan",
+      resourceTargets: ["surat_jalan.auto_approve"],
+      sensitivity: "critical",
+    });
+  });
+
   it("exposes transaction auto approval as a dedicated critical permission", async () => {
     const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
     expect(RBAC_PERMISSION_MODULES.find((module) => module.id === "transaction-auto-approve"))
