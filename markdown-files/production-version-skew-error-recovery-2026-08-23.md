@@ -174,7 +174,7 @@ Implementation selesai pada branch `fix/production-version-skew-recovery` dengan
 - Error runtime mismatch seperti `.call`, `ChunkLoadError`, loading chunk failure, dan dynamic import failure menampilkan pesan versi aplikasi berubah serta tombol `Muat Ulang Versi Terbaru`.
 - Action reload menghapus cache dengan prefix `pos-`, meminta service-worker update secara best effort, lalu selalu menjalankan hard reload.
 - Error biasa tidak menampilkan raw internal error. UI menyediakan `Coba Lagi` yang memanggil `reset()` dan `Muat Ulang Halaman` sebagai fallback.
-- Error digest tetap ditampilkan untuk kebutuhan support.
+- Error digest tetap ditampilkan untuk kebutuhan support dengan token `surface-600` agar text kecil memenuhi contrast requirement.
 - Button memakai native `button`, `type="button"`, tap target minimum 44px, disabled state, dan visible focus ring.
 
 ### Service Worker Final
@@ -189,7 +189,7 @@ Implementation selesai pada branch `fix/production-version-skew-recovery` dengan
 ### Hasil Validation
 
 - Focused regression suite: 3 test files lulus, 12 tests lulus.
-- Full web unit suite: 385 test files lulus, 1 file dilewati, 2.057 tests lulus, dan 4 tests dilewati.
+- Full web unit suite pada final stable `main`: 383 test files lulus, 1 file dilewati, 2.047 tests lulus, dan 4 tests dilewati. Suite dijalankan dalam dua shard agar setiap process tetap stabil pada Windows.
 - Package-direct lint dan type-check: web, admin, UI, DB, dan product-import-worker lulus dengan `tsc --noEmit`.
 - Targeted ESLint untuk semua file yang diubah lulus.
 - Icon audit tidak lagi menemukan pelanggaran pada file perubahan ini. Command repository tetap exit 1 karena 12 finding pre-existing pada AI help, stock-group, goods-purchase, dan surat-jalan files.
