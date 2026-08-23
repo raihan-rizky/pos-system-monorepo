@@ -42,7 +42,7 @@ describe("MainLayout", () => {
     expect(html).toContain("overflow-y-hidden");
   });
 
-  it("renders a subtle shared loop animation without blocking page interaction", () => {
+  it("keeps Pak Teladan as the only floating global action", () => {
     const html = renderToStaticMarkup(
       React.createElement(
         MainLayout,
@@ -50,9 +50,10 @@ describe("MainLayout", () => {
         React.createElement("main", null, "Dashboard"),
       ),
     );
+    const source = readFileSync(new URL("../layout.tsx", import.meta.url), "utf8");
 
-    expect(html).toContain("app-page-loop");
-    expect(html).toContain('aria-hidden="true"');
-    expect(html).toContain("pointer-events-none");
+    expect(source).not.toContain("NotificationCenter");
+    expect(html).not.toContain("app-page-loop");
+    expect(html).toContain("floating-ai-button");
   });
 });
