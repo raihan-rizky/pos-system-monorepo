@@ -342,13 +342,14 @@ Run:
 
 ```powershell
 git diff --check
-git add -- 'markdown-files/ai-assistant-notification-shell-cleanup-2026-08-23.md' 'anti-slop/audit-001-2026-08-23.md'
+git add -- 'anti-slop/audit-001-2026-08-23.md'
+git add -f -- 'markdown-files/ai-assistant-notification-shell-cleanup-2026-08-23.md'
 git diff --cached --check
 gitnexus.cmd detect-changes -r pos-system-monorepo-notification-cleanup -s staged
 git diff --cached --name-only
 ```
 
-Expected: only the implementation note and audit are staged. GitNexus may report no symbol changes because both files are Markdown.
+Expected: only the implementation note and audit are staged. The implementation note requires a path-specific force-add because `markdown-files/` is ignored while existing required notes are tracked. GitNexus may report no symbol changes because both files are Markdown.
 
 Commit:
 
