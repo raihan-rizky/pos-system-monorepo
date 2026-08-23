@@ -149,4 +149,62 @@ Perubahan ini adalah big bug fix sehingga dokumen implementasi di folder `markdo
 - Error biasa tetap dapat dicoba ulang tanpa selalu membuang state halaman.
 - Tidak ada raw internal error message yang ditampilkan kepada user production.
 - Unit test terkait lulus.
-- `pnpm lint` dan `pnpm type-check` lulus tanpa menjalankan `pnpm build`.
+- Package-direct lint dan type-check lulus tanpa mengandalkan Turbo build dependency.
+
+## Implementation Result
+
+Implementation selesai pada branch `fix/production-version-skew-recovery` dengan checkpoint commit berikut:
+
+- `2f335c6` menambahkan runtime mismatch classifier dan best-effort reload orchestration.
+- `f47b9c4` memperbarui main route error UI dengan recovery yang sesuai jenis error.
+- `9de4d4e` membuat service worker melewatkan aset internal Next.js.
+- `3dd254b` menyelaraskan icon mocks test dengan aturan icon audit repository.
+
+### File yang Diubah
+
+- `apps/web/app/(main)/error-recovery.ts`
+- `apps/web/app/(main)/error.tsx`
+- `apps/web/public/sw.js`
+- `apps/web/app/(main)/__tests__/error-recovery.test.ts`
+- `apps/web/app/(main)/__tests__/error.test.tsx`
+- `apps/web/app/(main)/__tests__/service-worker-cache.test.ts`
+
+### Behavior Final
+
+- Error runtime mismatch seperti `.call`, `ChunkLoadError`, loading chunk failure, dan dynamic import failure menampilkan pesan versi aplikasi berubah serta tombol `Muat Ulang Versi Terbaru`.
+- Action reload menghapus cache dengan prefix `pos-`, meminta service-worker update secara best effort, lalu selalu menjalankan hard reload.
+- Error biasa tidak menampilkan raw internal error. UI menyediakan `Coba Lagi` yang memanggil `reset()` dan `Muat Ulang Halaman` sebagai fallback.
+- Error digest tetap ditampilkan untuk kebutuhan support.
+- Button memakai native `button`, `type="button"`, tap target minimum 44px, disabled state, dan visible focus ring.
+
+### Service Worker Final
+
+- Cache aktif berubah dari `pos-v5` menjadi `pos-v6`.
+- Seluruh request `/_next/*` langsung dilewatkan tanpa `respondWith`.
+- Icon dan image aplikasi tetap memakai `cache-first` pada cache POS aktif.
+- `cacheFirst` tidak lagi mencari ke semua Cache Storage pada origin.
+- Activation hanya menghapus cache lama dengan prefix `pos-v` dan tidak menghapus cache milik aplikasi lain.
+- Push notification, API network-only behavior, dan offline transaction queue tidak diubah.
+
+### Hasil Validation
+
+- Focused regression suite: 3 test files lulus, 12 tests lulus.
+- Full web unit suite: 385 test files lulus, 1 file dilewati, 2.057 tests lulus, dan 4 tests dilewati.
+- Package-direct lint dan type-check: web, admin, UI, DB, dan product-import-worker lulus dengan `tsc --noEmit`.
+- Targeted ESLint untuk semua file yang diubah lulus.
+- Icon audit tidak lagi menemukan pelanggaran pada file perubahan ini. Command repository tetap exit 1 karena 12 finding pre-existing pada AI help, stock-group, goods-purchase, dan surat-jalan files.
+- Dependency audit menemukan 32 vulnerability pre-existing, terdiri dari 3 low, 10 moderate, dan 19 high. Implementation ini tidak mengubah dependency atau lockfile.
+- GitNexus compare mendeteksi enam file yang sesuai, tetapi memberi CRITICAL dan 300 affected flows karena node `PRECACHE_ASSETS` pada index memiliki `id` kosong. Manual diff dan targeted tests mengonfirmasi scope aktual hanya main error recovery serta service-worker cache lifecycle.
+
+### Validation Constraint Note
+
+Root `pnpm lint` ternyata memiliki Turbo dependency `^build` dan secara transitive menjalankan `@pos/web:build`. Hal ini baru terlihat setelah command berjalan. Build tersebut selesai di isolated worktree dan tidak mengubah `.next` pada main checkout. Validation berikutnya dijalankan langsung per package untuk menghindari Turbo build dependency. Root `pnpm type-check` tidak dijalankan karena memiliki dependency graph yang sama.
+
+### Vercel Operational Follow-Up
+
+Setelah branch terintegrasi dan deployment baru selesai:
+
+- Pastikan Skew Protection aktif jika tersedia pada plan Vercel project.
+- Pastikan Automatically expose System Environment Variables aktif.
+- Pantau request Vercel untuk memastikan deployment identifier digunakan pada framework-managed navigation.
+- Konfirmasi user dengan tab lama dapat berpindah menu tanpa melihat error runtime mismatch.

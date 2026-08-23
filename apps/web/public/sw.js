@@ -5,7 +5,8 @@
  * hashed assets can be cached safely because they are content-addressed.
  */
 
-const CACHE_NAME = "pos-v5";
+const CACHE_PREFIX = "pos-v";
+const CACHE_NAME = "pos-v6";
 
 const PRECACHE_ASSETS = [
   "/manifest.json",
@@ -31,7 +32,9 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== CACHE_NAME)
+          .filter(
+            (key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME,
+          )
           .map((key) => caches.delete(key)),
       ),
     ),
@@ -118,6 +121,7 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== location.origin) return;
   if (request.method !== "GET") return;
+  if (url.pathname.startsWith("/_next/")) return;
 
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(networkOnlyApi(request));
@@ -125,7 +129,6 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (
-    url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/images/") ||
     url.pathname.startsWith("/icons/")
   ) {
@@ -139,13 +142,13 @@ self.addEventListener("fetch", (event) => {
 });
 
 async function cacheFirst(request) {
-  const cached = await caches.match(request);
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
   if (cached) return cached;
 
   try {
     const network = await fetch(request);
     if (network.ok) {
-      const cache = await caches.open(CACHE_NAME);
       cache.put(request, network.clone());
     }
     return network;
