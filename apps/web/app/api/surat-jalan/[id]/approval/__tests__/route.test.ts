@@ -72,8 +72,10 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
     );
   });
 
-  it("approves pending surat jalan, reduces stock, and writes audit logs", async () => {
-    suratJalanFindFirstMock.mockResolvedValue(makePendingSuratJalan());
+  it("approves pending legacy surat jalan, reduces stock, and writes audit logs", async () => {
+    suratJalanFindFirstMock.mockResolvedValue(
+      makePendingSuratJalan("SURAT_JALAN"),
+    );
 
     const { POST } = await import("../route");
     const response = await POST(
@@ -113,9 +115,42 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
       ],
     });
   });
+
+  it("confirms transaction-owned Surat Jalan without changing stock", async () => {
+    suratJalanFindFirstMock.mockResolvedValue(
+      makePendingSuratJalan("TRANSACTION"),
+    );
+
+    const { POST } = await import("../route");
+    const response = await POST(
+      new Request("http://localhost/api/surat-jalan/sj-2/approval", {
+        method: "POST",
+      }),
+      { params: Promise.resolve({ id: "sj-2" }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe("CONFIRMED");
+    expect(productFindFirstMock).not.toHaveBeenCalled();
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+    expect(suratJalanUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "sj-2" },
+        data: expect.objectContaining({
+          status: "CONFIRMED",
+          approvedById: "owner-1",
+          approvedByName: "Owner",
+        }),
+      }),
+    );
+  });
 });
 
-function makePendingSuratJalan() {
+function makePendingSuratJalan(
+  stockDeductionSource: "TRANSACTION" | "SURAT_JALAN",
+) {
   return {
     id: "sj-2",
     number: "TLD-14062026-002",
@@ -135,6 +170,7 @@ function makePendingSuratJalan() {
     ],
     transaction: {
       id: "txn-1",
+      stockDeductionSource,
       items: [
         {
           id: "item-paper",

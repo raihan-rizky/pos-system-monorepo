@@ -59,6 +59,9 @@ export async function POST(
         throw new Error("INVALID_STATUS");
       }
 
+      const usesLegacyStock =
+        suratJalan.transaction.stockDeductionSource === "SURAT_JALAN";
+
       for (const item of suratJalan.items) {
         const invoiceItem = suratJalan.transaction.items.find(
           (txItem) => txItem.id === item.transactionItemId,
@@ -77,17 +80,22 @@ export async function POST(
         if (alreadyDelivered + item.quantity > invoiceItem.quantity) {
           throw new Error("QUANTITY_EXCEEDS_REMAINING");
         }
-        if (resolveProductDisplayStock(item.product) < item.quantity) {
+        if (
+          usesLegacyStock &&
+          resolveProductDisplayStock(item.product) < item.quantity
+        ) {
           throw new Error("INSUFFICIENT_STOCK");
         }
       }
 
-      for (const item of suratJalan.items) {
-        await applyProductStockDelta(tx, {
-          storeId,
-          productId: item.productId,
-          delta: -item.quantity,
-        });
+      if (usesLegacyStock) {
+        for (const item of suratJalan.items) {
+          await applyProductStockDelta(tx, {
+            storeId,
+            productId: item.productId,
+            delta: -item.quantity,
+          });
+        }
       }
 
       const now = new Date();
@@ -102,19 +110,21 @@ export async function POST(
         include: { items: true },
       });
 
-      await tx.inventoryLog.createMany({
-        data: suratJalan.items.map((item) => ({
-          productId: item.productId,
-          transactionId: suratJalan.transactionId,
-          suratJalanId: suratJalan.id,
-          type: "OUT",
-          reason: "SALE",
-          quantity: item.quantity,
-          note: `Surat Jalan ${suratJalan.number} untuk invoice ${suratJalan.transactionId}`,
-          createdBy: user.id,
-          person: user.name ?? null,
-        })),
-      });
+      if (usesLegacyStock) {
+        await tx.inventoryLog.createMany({
+          data: suratJalan.items.map((item) => ({
+            productId: item.productId,
+            transactionId: suratJalan.transactionId,
+            suratJalanId: suratJalan.id,
+            type: "OUT",
+            reason: "SALE",
+            quantity: item.quantity,
+            note: `Surat Jalan ${suratJalan.number} untuk invoice ${suratJalan.transactionId}`,
+            createdBy: user.id,
+            person: user.name ?? null,
+          })),
+        });
+      }
 
       return updated;
     }, {
