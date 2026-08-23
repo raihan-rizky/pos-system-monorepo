@@ -45,6 +45,8 @@ export const SuratJalanForm: React.FC<SuratJalanFormProps> = ({
   const [keterangan, setKeterangan] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
   const [createError, setCreateError] = useState("");
+  const usesTransactionStock =
+    bundle.transaction.stockDeductionSource === "TRANSACTION";
 
   const recipientName = useMemo(() => {
     if (recipientSelection.kind === "existing") return recipientSelection.customer.name;
@@ -65,12 +67,13 @@ export const SuratJalanForm: React.FC<SuratJalanFormProps> = ({
       bundle.remainingItems.some((item) => {
         const quantity = quantities[item.transactionItemId] ?? 0;
         if (quantity > item.remainingQuantity) return true;
+        if (usesTransactionStock) return false;
         const baseStock = item.currentStock ?? 0;
         const effectiveStock = addsInvoiceQty ? baseStock + item.invoiceQuantity : baseStock;
         return effectiveStock - quantity < 0;
       }),
     );
-  }, [bundle, quantities]);
+  }, [bundle, quantities, usesTransactionStock]);
 
   const handleCreate = async () => {
     if (selectedQuantity <= 0 || hasInvalidQuantity) return;
@@ -119,6 +122,7 @@ export const SuratJalanForm: React.FC<SuratJalanFormProps> = ({
           quantities={quantities}
           keterangan={keterangan}
           isFirstSuratJalan={bundle.suratJalan.length === 0}
+          stockDeductionSource={bundle.transaction.stockDeductionSource}
           stockManagedBySuratJalan={bundle.transaction.stockManagedBySuratJalan}
           onQuantityChange={(transactionItemId, quantity) =>
             setQuantities((current) => ({ ...current, [transactionItemId]: quantity }))
@@ -137,14 +141,34 @@ export const SuratJalanForm: React.FC<SuratJalanFormProps> = ({
               <div>{createError || createMutation.error?.message}</div>
             </div>
           )}
-          <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-amber-100/50 p-5 text-sm text-amber-900 shadow-sm">
+          <div
+            className={`rounded-xl border p-5 text-sm shadow-sm ${
+              usesTransactionStock
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-amber-200 bg-gradient-to-r from-amber-50 to-amber-100/50 text-amber-900"
+            }`}
+          >
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <AlertTriangle
+                className={`mt-0.5 h-5 w-5 shrink-0 ${
+                  usesTransactionStock ? "text-emerald-600" : "text-amber-600"
+                }`}
+              />
               <div>
-                <p className="font-bold text-base">Konfirmasi Pengurangan Stok</p>
-                <p className="mt-1 text-amber-800">
-                  Melanjutkan aksi ini akan mengurangi stok gudang Anda sesuai dengan jumlah barang yang ada di surat jalan ini. Pastikan data sudah benar.
+                <p className="text-base font-bold">
+                  {usesTransactionStock
+                    ? "Konfirmasi Dokumen Pengiriman"
+                    : "Konfirmasi Pengurangan Stok"}
                 </p>
+                {usesTransactionStock ? (
+                  <p className="mt-1 text-emerald-800">
+                    Surat Jalan ini hanya mencatat pengiriman. Stok tidak akan berubah lagi.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-amber-800">
+                    Melanjutkan aksi ini akan mengurangi stok gudang Anda sesuai dengan jumlah barang yang ada di surat jalan ini. Pastikan data sudah benar.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -165,7 +189,7 @@ export const SuratJalanForm: React.FC<SuratJalanFormProps> = ({
             onClick={handleCreate}
             className="flex-1 shadow-sm"
           >
-            Ya, Kurangi Stok
+            {usesTransactionStock ? "Simpan Surat Jalan" : "Ya, Kurangi Stok"}
           </Button>
         ) : (
           <Button

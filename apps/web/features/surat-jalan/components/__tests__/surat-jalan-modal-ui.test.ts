@@ -24,6 +24,21 @@ const customerSelectSource = readFileSync(
   join(process.cwd(), "features/pos-checkout/components/CustomerCheckoutSelect.tsx"),
   "utf8",
 );
+const inventorySource =
+  readFileSync(
+    join(
+      process.cwd(),
+      "features/inventory-management/components/InventorySuratJalanTab.tsx",
+    ),
+    "utf8",
+  ) +
+  readFileSync(
+    join(
+      process.cwd(),
+      "features/inventory-management/components/InventoryWorkspace.tsx",
+    ),
+    "utf8",
+  );
 
 describe("SuratJalanCreateModal UI contract", () => {
   it("uses the localized clickable invoice utama label", () => {
@@ -51,7 +66,15 @@ describe("SuratJalanCreateModal UI contract", () => {
   it("keeps modal actions sticky", () => {
     expect(componentSource).toContain("sticky bottom-0");
     expect(componentSource).toContain("Konfirmasi Surat Jalan");
+    expect(componentSource).toContain("Simpan Surat Jalan");
     expect(componentSource).toContain("Ya, Kurangi Stok");
+    expect(componentSource).toContain("stockDeductionSource");
+  });
+
+  it("describes pending approval as document-only for new transactions", () => {
+    expect(inventorySource).toContain(
+      "Approval dokumen tidak mengubah stok transaksi baru.",
+    );
   });
 
   it("shows remaining quantity over invoice quantity in the sisa column", () => {

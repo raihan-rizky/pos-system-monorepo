@@ -92,6 +92,7 @@ export interface SuratJalanReceiptTransaction {
   note: string | null;
   status: string;
   createdAt: string;
+  stockDeductionSource: TransactionStockDeductionSource;
   stockManagedBySuratJalan?: boolean;
   payments?: {
     amount: number;

@@ -16,6 +16,8 @@ export const SuratJalanHeader: React.FC<SuratJalanHeaderProps> = ({
 }) => {
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState(false);
+  const usesTransactionStock =
+    bundle.transaction.stockDeductionSource === "TRANSACTION";
 
   return (
     <>
@@ -54,8 +56,16 @@ export const SuratJalanHeader: React.FC<SuratJalanHeaderProps> = ({
             <p className="mt-1.5 truncate text-sm font-medium text-surface-500">
               {bundle.transaction.customerName || "Umum"} <span className="mx-1 text-surface-300">•</span> {formatDate(new Date(bundle.transaction.createdAt))}
             </p>
-            <div className="mt-2 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5 inline-flex items-center gap-1">
-              Invoice utama ini tidak lagi mengubah stok
+            <div
+              className={`mt-2 inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-semibold ${
+                usesTransactionStock
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              {usesTransactionStock
+                ? "Stok sudah dicatat saat transaksi disimpan atau disetujui."
+                : "Transaksi lama ini masih memakai Surat Jalan sebagai acuan stok."}
             </div>
           </div>
           <div className="text-left sm:text-right sm:pl-6 sm:border-l sm:border-surface-100">

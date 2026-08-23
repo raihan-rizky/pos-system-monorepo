@@ -1452,7 +1452,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
                 >
                   <span>
                     <span className="block text-xs font-bold text-slate-800">Surat Jalan pending approval</span>
-                    <span className="mt-0.5 block text-[11px] text-slate-500">Approve pengiriman stok keluar</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Approval dokumen tidak mengubah stok transaksi baru.</span>
                   </span>
                   <span className="text-lg font-black tabular-nums text-slate-950">
                     {stockRiskCounts.pendingSuratJalan}

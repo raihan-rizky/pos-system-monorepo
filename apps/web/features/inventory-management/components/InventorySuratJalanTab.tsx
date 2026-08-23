@@ -183,7 +183,7 @@ export const InventorySuratJalanTab: React.FC = () => {
                 : "Semua Surat Jalan sudah dimarking"}
             </h2>
             <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Tandai status operasional Surat Jalan. Approval stok tetap berjalan terpisah.
+              Tandai status operasional Surat Jalan. Approval dokumen tidak mengubah stok transaksi baru.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:min-w-[24rem]">

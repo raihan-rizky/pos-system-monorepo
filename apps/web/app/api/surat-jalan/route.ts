@@ -41,6 +41,7 @@ export async function GET(request: Request) {
             note: true,
             status: true,
             createdAt: true,
+            stockDeductionSource: true,
             stockManagedBySuratJalan: true,
             payments: {
               select: { amount: true, method: true },
@@ -134,6 +135,7 @@ export async function GET(request: Request) {
         note: sj.transaction.note,
         status: sj.transaction.status,
         createdAt: sj.transaction.createdAt.toISOString(),
+        stockDeductionSource: sj.transaction.stockDeductionSource,
         stockManagedBySuratJalan: sj.transaction.stockManagedBySuratJalan,
         payments: sj.transaction.payments.map((payment) => ({
           amount: Number(payment.amount),

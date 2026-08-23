@@ -18,9 +18,14 @@ describe("Stock action helper texts", () => {
     expect(source).toContain("Aksi ini tidak akan mengubah stok");
   });
 
-  it("verifies SuratJalanHeader.tsx has 'Invoice utama ini tidak lagi mengubah stok'", () => {
+  it("explains both new and legacy Surat Jalan stock ownership", () => {
     const source = readFileSync(join(process.cwd(), "features/surat-jalan/components/SuratJalanHeader.tsx"), "utf8");
-    expect(source).toContain("Invoice utama ini tidak lagi mengubah stok");
+    expect(source).toContain(
+      "Stok sudah dicatat saat transaksi disimpan atau disetujui.",
+    );
+    expect(source).toContain(
+      "Transaksi lama ini masih memakai Surat Jalan sebagai acuan stok.",
+    );
   });
 
   it("explains that creating a shopping request does not change stock", () => {

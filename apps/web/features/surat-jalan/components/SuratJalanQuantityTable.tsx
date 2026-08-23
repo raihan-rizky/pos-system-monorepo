@@ -2,13 +2,17 @@
 
 import React, { useMemo } from "react";
 import { previewSuratJalanStockImpact } from "../helpers/surat-jalan-core";
-import type { SuratJalanRemainingItem } from "../types/surat-jalan";
+import type {
+  SuratJalanRemainingItem,
+  TransactionStockDeductionSource,
+} from "../types/surat-jalan";
 
 interface SuratJalanQuantityTableProps {
   items: SuratJalanRemainingItem[];
   quantities: Record<string, number>;
   keterangan: Record<string, string>;
   isFirstSuratJalan: boolean;
+  stockDeductionSource: TransactionStockDeductionSource;
   stockManagedBySuratJalan: boolean;
   onQuantityChange: (transactionItemId: string, quantity: number) => void;
   onKeteranganChange: (transactionItemId: string, value: string) => void;
@@ -19,11 +23,15 @@ export const SuratJalanQuantityTable: React.FC<SuratJalanQuantityTableProps> = (
   quantities,
   keterangan,
   isFirstSuratJalan,
+  stockDeductionSource,
   stockManagedBySuratJalan,
   onQuantityChange,
   onKeteranganChange,
 }) => {
+  const usesTransactionStock = stockDeductionSource === "TRANSACTION";
   const impactByItemId = useMemo(() => {
+    if (usesTransactionStock) return new Map();
+
     const impacts = previewSuratJalanStockImpact({
       items: items.map((item) => ({
         id: item.transactionItemId,
@@ -41,18 +49,28 @@ export const SuratJalanQuantityTable: React.FC<SuratJalanQuantityTableProps> = (
         isFirstSuratJalan && !stockManagedBySuratJalan ? true : undefined,
     });
     return new Map(impacts.map((impact) => [impact.transactionItemId, impact]));
-  }, [items, quantities, isFirstSuratJalan, stockManagedBySuratJalan]);
+  }, [
+    isFirstSuratJalan,
+    items,
+    quantities,
+    stockManagedBySuratJalan,
+    usesTransactionStock,
+  ]);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-surface-200">
-      <table className="min-w-[760px] w-full text-sm">
+      <table className={`${usesTransactionStock ? "min-w-[560px]" : "min-w-[760px]"} w-full text-sm`}>
         <thead className="bg-surface-50 text-xs font-bold uppercase tracking-wide text-surface-500">
           <tr>
             <th className="px-3 py-3 text-left">Nama Barang</th>
             <th className="px-3 py-3 text-right">Sisa</th>
-            <th className="px-3 py-3 text-right">Stok Saat Ini</th>
+            {!usesTransactionStock && (
+              <th className="px-3 py-3 text-right">Stok Saat Ini</th>
+            )}
             <th className="px-3 py-3 text-right">Dikirim</th>
-            <th className="px-3 py-3 text-right">Stok Setelah</th>
+            {!usesTransactionStock && (
+              <th className="px-3 py-3 text-right">Stok Setelah</th>
+            )}
             <th className="px-3 py-3 text-left">Keterangan</th>
           </tr>
         </thead>
@@ -60,7 +78,10 @@ export const SuratJalanQuantityTable: React.FC<SuratJalanQuantityTableProps> = (
           {items.map((item) => {
             const isCompleted = item.remainingQuantity <= 0;
             const impact = impactByItemId.get(item.transactionItemId);
-            const invalid = !isCompleted && (impact?.isInsufficientStock || quantities[item.transactionItemId] > item.remainingQuantity);
+            const invalid =
+              !isCompleted &&
+              (quantities[item.transactionItemId] > item.remainingQuantity ||
+                (!usesTransactionStock && impact?.isInsufficientStock));
             return (
               <tr key={item.transactionItemId} className={isCompleted ? "bg-surface-50/70" : "hover:bg-surface-50/50 transition-colors"}>
                 <td className="px-3 py-3 font-semibold text-surface-900">
@@ -79,7 +100,9 @@ export const SuratJalanQuantityTable: React.FC<SuratJalanQuantityTableProps> = (
                     </>
                   )}
                 </td>
-                <td className="px-3 py-3 text-right">{item.currentStock ?? "-"}</td>
+                {!usesTransactionStock && (
+                  <td className="px-3 py-3 text-right">{item.currentStock ?? "-"}</td>
+                )}
                 <td className="px-3 py-3 text-right">
                   {isCompleted ? (
                     <div className="flex h-11 items-center justify-end text-sm font-bold text-surface-400">
@@ -107,9 +130,11 @@ export const SuratJalanQuantityTable: React.FC<SuratJalanQuantityTableProps> = (
                     </>
                   )}
                 </td>
-                <td className={`px-3 py-3 text-right font-bold ${impact?.isInsufficientStock && !isCompleted ? "text-red-600" : "text-surface-900"}`}>
-                  {isCompleted ? "-" : (impact?.afterStock ?? "-")}
-                </td>
+                {!usesTransactionStock && (
+                  <td className={`px-3 py-3 text-right font-bold ${impact?.isInsufficientStock && !isCompleted ? "text-red-600" : "text-surface-900"}`}>
+                    {isCompleted ? "-" : (impact?.afterStock ?? "-")}
+                  </td>
+                )}
                 <td className="px-3 py-3">
                   <input
                     type="text"
