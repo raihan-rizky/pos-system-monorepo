@@ -1,12 +1,13 @@
+import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import MainError from "../error";
 
 vi.mock("lucide-react", () => ({
-  AlertTriangle: () => <svg data-icon="alert" />,
-  RefreshCw: () => <svg data-icon="refresh" />,
-  RotateCcw: () => <svg data-icon="retry" />,
+  AlertTriangle: () => React.createElement("span", { "data-icon": "alert" }),
+  RefreshCw: () => React.createElement("span", { "data-icon": "refresh" }),
+  RotateCcw: () => React.createElement("span", { "data-icon": "retry" }),
 }));
 
 describe("MainError", () => {
