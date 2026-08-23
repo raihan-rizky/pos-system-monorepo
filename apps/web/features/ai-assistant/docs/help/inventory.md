@@ -73,6 +73,9 @@ Permission tersebut dapat didelegasikan lewat RBAC. Approval Daftar Belanja dan 
 
 ### Marking Surat Jalan (Delivery Order)
 Surat Jalan tidak lagi memakai istilah verifikasi, melainkan alur **Marking**:
+- Pada transaksi baru, approval Surat Jalan hanya mengonfirmasi dokumen. Stok sudah diproses oleh transaksi saat disimpan sebagai Lunas/DP atau saat transaksi pending disetujui.
+- Surat Jalan langsung dikonfirmasi secara default. Owner dapat mengatur `surat_jalan.auto_approve:create` per role melalui RBAC jika dokumen perlu masuk antrean approval.
+- Transaksi lama tetap memakai alur stok Surat Jalan sebelumnya tanpa rekonsiliasi saldo historis.
 - Setiap Surat Jalan di antrean harus ditandai statusnya menjadi salah satu dari: **Selesai (COMPLETED)**, **Belum Dikirim (NOT_DELIVERED)**, **Perlu Tanda Tangan (NEEDS_SIGNATURE)**, **Perlu Follow Up (NEEDS_FOLLOW_UP)**, **Ditunda (POSTPONED)**, atau **Tidak Relevan (NOT_RELEVANT)**.
 - Status pengecualian selain *Selesai* mewajibkan staf gudang menginput catatan/alasan pengecualian di modal marking.
 - **Bloker Check-Out:** Sesi Check Out harian akan terblokir jika masih ada Surat Jalan berstatus **UNMARKED** (belum ditandai). Semua Surat Jalan harus diselesaikan atau memiliki catatan pengecualian.

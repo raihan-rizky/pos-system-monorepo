@@ -4,6 +4,18 @@ import { readFileSync } from "node:fs";
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
+  it("keeps Surat Jalan creation aligned with transaction-owned stock", () => {
+    const deliveryOrder = FAQ_WORKFLOWS.find(
+      (workflow) => workflow.faqNumber === 8,
+    );
+    const serialized = JSON.stringify(deliveryOrder);
+
+    expect(serialized).toContain(
+      "Approval Surat Jalan hanya mengonfirmasi dokumen dan tidak mengurangi stok transaksi baru",
+    );
+    expect(serialized).toContain("surat_jalan.auto_approve");
+  });
+
   it("defines one serializable guided workflow for each numbered FAQ", () => {
     expect(FAQ_WORKFLOWS).toHaveLength(38);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))

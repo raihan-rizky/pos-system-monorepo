@@ -89,6 +89,10 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
    - **Jumlah Barang:** Masukkan jumlah barang yang dikirim saat ini untuk masing-masing produk (bisa dikirim sebagian jika stok belum lengkap).
    - **Form Pengiriman:** Isi nama kurir/ekspedisi, nama pengemudi, pelat kendaraan, nama penerima, dan catatan tambahan jika ada.
 5. Klik proses untuk membuat Surat Jalan. Dokumen Surat Jalan baru akan tersimpan dan siap dicetak sebagai bukti pengiriman barang.
+6. Untuk transaksi baru, stok sudah dikurangi ketika transaksi disimpan sebagai Lunas/DP atau ketika transaksi pending disetujui. Membuat, menyetujui, mencetak, dan melakukan marking Surat Jalan tidak mengurangi stok lagi.
+7. Status Surat Jalan langsung **CONFIRMED** secara default. Jika Owner menonaktifkan `surat_jalan.auto_approve:create` untuk role pembuat melalui RBAC, dokumen tersimpan sebagai **PENDING** dan menunggu approval. Approval tersebut hanya mengonfirmasi dokumen.
+
+Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumnya agar saldo historis tidak berubah mendadak.
 
 ### Q9: Bagaimana cara mencetak invoice atau struk transaksi?
 **A:** Anda dapat mencetak invoice dengan dua cara:

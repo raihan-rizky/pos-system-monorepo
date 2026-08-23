@@ -3,6 +3,19 @@ import { describe, expect, it } from 'vitest';
 import HelpContent from '../components/HelpContent';
 
 describe('HelpContent', () => {
+  it('documents transaction-owned stock for new Surat Jalan records', () => {
+    const html = renderToStaticMarkup(
+      <HelpContent targetRole="SALES" searchQuery="Membuat Surat Jalan" />
+    );
+
+    expect(html).toContain(
+      'Stok barang dikurangi saat transaksi disimpan atau disetujui',
+    );
+    expect(html).toContain(
+      'Surat Jalan transaksi baru tidak mengurangi stok lagi',
+    );
+  });
+
   it('explains responsive preview and device-appropriate modal zoom', () => {
     const html = renderToStaticMarkup(
       <HelpContent targetRole="OWNER" />

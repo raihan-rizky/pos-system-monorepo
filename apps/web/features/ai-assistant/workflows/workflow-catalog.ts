@@ -196,7 +196,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka aksi Surat Jalan", description: "Klik menu tiga titik pada baris transaksi, lalu pilih Cetak Surat Jalan." },
       { title: "Buat dokumen", description: "Klik Buat Surat Jalan atau Buat Surat Jalan Baru jika sudah ada pengiriman sebelumnya." },
       { title: "Isi detail pengiriman", description: "Masukkan jumlah barang, kurir, pengemudi, pelat kendaraan, penerima, dan catatan bila perlu." },
-      { title: "Simpan dokumen", description: "Proses Surat Jalan agar tersimpan dan siap dicetak sebagai bukti pengiriman." },
+      { title: "Simpan dokumen", description: "Proses Surat Jalan agar tersimpan dan siap dicetak. Approval Surat Jalan hanya mengonfirmasi dokumen dan tidak mengurangi stok transaksi baru; status langsung atau pending mengikuti RBAC surat_jalan.auto_approve." },
     ],
   }),
   workflow({

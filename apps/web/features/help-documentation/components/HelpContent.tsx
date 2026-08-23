@@ -671,13 +671,13 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "sales-sj",
       title: "Membuat Surat Jalan (Delivery Order)",
-      description: "Buat surat jalan pengiriman barang untuk pesanan yang sudah lunas atau sudah bayar DP.",
+      description: "Buat surat jalan pengiriman barang untuk pesanan yang sudah lunas atau sudah bayar DP. Stok barang dikurangi saat transaksi disimpan atau disetujui. Surat Jalan transaksi baru tidak mengurangi stok lagi.",
       icon: <Truck className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Cetak Surat Jalan", description: "Di halaman Riwayat Transaksi, cari transaksi lunas/DP. Klik tombol aksi titik tiga '...' di ujung kanan, pilih 'Cetak Surat Jalan'.", icon: <History className="w-8 h-8" /> },
         { title: "Mulai Buat Baru", description: "Pada modal Surat Jalan yang terbuka, cek invoice utama lewat tombol 'Lihat Struk' jika perlu, lalu klik tombol 'Buat Surat Jalan' (atau 'Buat Surat Jalan Baru').", icon: <Truck className="w-8 h-8" /> },
         { title: "Isi Jumlah & Detail Kurir", description: "Masukkan jumlah barang yang dikirim saat ini untuk tiap item. Isi detail pengiriman seperti kurir, pengemudi, pelat kendaraan, dan nama penerima.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Simpan & Cetak", description: "Klik tombol simpan/proses. Surat jalan baru akan tersimpan di sistem dan siap dicetak sebagai lampiran fisik pengiriman.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Simpan & Cetak", description: "Klik tombol simpan/proses. Status Surat Jalan langsung dikonfirmasi atau menunggu approval sesuai pengaturan RBAC, tanpa mengurangi stok transaksi baru.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
     {
