@@ -39,6 +39,7 @@ describe("MainError", () => {
     expect(html).toContain("Coba Lagi");
     expect(html).toContain("Muat Ulang Halaman");
     expect(html).toContain("support-123");
+    expect(html).toContain("text-surface-600");
     expect(html).not.toContain(rawMessage);
   });
 });

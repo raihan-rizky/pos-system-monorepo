@@ -47,7 +47,7 @@ export default function MainError({ error, reset }: ErrorProps) {
             : "Halaman tidak dapat dimuat. Silakan coba lagi."}
         </p>
         {error.digest && (
-          <p className="mt-1 font-mono text-xs text-surface-400">
+          <p className="mt-1 font-mono text-xs text-surface-600">
             ID: {error.digest}
           </p>
         )}
