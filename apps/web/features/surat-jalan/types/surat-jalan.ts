@@ -4,6 +4,8 @@ export type SuratJalanStatus =
   | "CANCELLED"
   | "REJECTED";
 
+export type TransactionStockDeductionSource = "TRANSACTION" | "SURAT_JALAN";
+
 export type SuratJalanMarkingStatus =
   | "UNMARKED"
   | "COMPLETED"

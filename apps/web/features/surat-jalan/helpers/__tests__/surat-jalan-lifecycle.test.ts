@@ -29,6 +29,7 @@ describe("planSuratJalanCreation", () => {
       transaction: {
         id: "txn-1",
         status: "COMPLETED",
+        stockDeductionSource: "SURAT_JALAN",
         stockManagedBySuratJalan: false,
         customerName: "PT Teladan",
         items: invoiceItems,
@@ -43,6 +44,7 @@ describe("planSuratJalanCreation", () => {
       },
       recipientName: "Gudang PT Teladan",
       actor: { id: "cashier-1", name: "Cashier", role: "CASHIER" },
+      autoApprove: true,
       number: "TLD-14062026-001",
       now: new Date("2026-06-14T04:00:00.000Z"),
     });
@@ -100,11 +102,74 @@ describe("planSuratJalanCreation", () => {
     ]);
   });
 
+  it("confirms transaction-owned Surat Jalan without stock movements when auto approval is allowed", () => {
+    const plan = planSuratJalanCreation({
+      transaction: {
+        id: "txn-new",
+        status: "COMPLETED",
+        stockDeductionSource: "TRANSACTION",
+        stockManagedBySuratJalan: false,
+        customerName: "PT Teladan",
+        items: invoiceItems,
+      },
+      existingSuratJalan: [],
+      quantities: { "item-paper": 4 },
+      keterangan: {},
+      recipientName: "Gudang PT Teladan",
+      actor: { id: "cashier-1", name: "Cashier", role: "CASHIER" },
+      autoApprove: true,
+      number: "TLD-23082026-001",
+      now: new Date("2026-08-23T04:00:00.000Z"),
+    });
+
+    expect(plan.status).toBe("CONFIRMED");
+    expect(plan.approvedById).toBe("cashier-1");
+    expect(plan.confirmedAt).toEqual(new Date("2026-08-23T04:00:00.000Z"));
+    expect(plan.shouldMarkTransactionManaged).toBe(false);
+    expect(plan.invoiceReversalMovements).toEqual([]);
+    expect(plan.deliveryStockMovements).toEqual([]);
+    expect(plan.items[0]).toEqual(
+      expect.objectContaining({ stockBefore: null, stockAfter: null }),
+    );
+  });
+
+  it("keeps transaction-owned Surat Jalan pending without stock movements when auto approval is disabled", () => {
+    const plan = planSuratJalanCreation({
+      transaction: {
+        id: "txn-new",
+        status: "COMPLETED",
+        stockDeductionSource: "TRANSACTION",
+        stockManagedBySuratJalan: false,
+        customerName: "PT Teladan",
+        items: invoiceItems,
+      },
+      existingSuratJalan: [],
+      quantities: { "item-paper": 4 },
+      keterangan: {},
+      recipientName: "Gudang PT Teladan",
+      actor: { id: "sales-1", name: "Sales", role: "SALES" },
+      autoApprove: false,
+      number: "TLD-23082026-002",
+      now: new Date("2026-08-23T04:00:00.000Z"),
+    });
+
+    expect(plan.status).toBe("PENDING");
+    expect(plan.approvedById).toBeNull();
+    expect(plan.confirmedAt).toBeNull();
+    expect(plan.shouldMarkTransactionManaged).toBe(false);
+    expect(plan.invoiceReversalMovements).toEqual([]);
+    expect(plan.deliveryStockMovements).toEqual([]);
+    expect(plan.items[0]).toEqual(
+      expect.objectContaining({ stockBefore: null, stockAfter: null }),
+    );
+  });
+
   it("creates later surat jalan as pending without stock movements", () => {
     const plan = planSuratJalanCreation({
       transaction: {
         id: "txn-1",
         status: "COMPLETED",
+        stockDeductionSource: "SURAT_JALAN",
         stockManagedBySuratJalan: true,
         customerName: "PT Teladan",
         items: invoiceItems,
@@ -145,6 +210,7 @@ describe("planSuratJalanCreation", () => {
       keterangan: {},
       recipientName: "Gudang PT Teladan",
       actor: { id: "sales-1", name: "Sales", role: "SALES" },
+      autoApprove: true,
       number: "TLD-14062026-002",
       now: new Date("2026-06-14T05:00:00.000Z"),
     });
@@ -170,6 +236,7 @@ describe("planSuratJalanCreation", () => {
         transaction: {
           id: "txn-1",
           status: "COMPLETED",
+          stockDeductionSource: "SURAT_JALAN",
           stockManagedBySuratJalan: true,
           customerName: "PT Teladan",
           items: invoiceItems,
@@ -181,6 +248,7 @@ describe("planSuratJalanCreation", () => {
         keterangan: {},
         recipientName: "Gudang PT Teladan",
         actor: { id: "cashier-1", name: "Cashier", role: "CASHIER" },
+        autoApprove: true,
         number: "TLD-14062026-001",
         now: new Date("2026-06-14T04:00:00.000Z"),
       }),

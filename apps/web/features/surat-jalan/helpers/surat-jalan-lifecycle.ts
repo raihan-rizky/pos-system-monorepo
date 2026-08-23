@@ -4,6 +4,7 @@ import type {
   SuratJalanRecord,
   SuratJalanStatus,
   SuratJalanTransactionItem,
+  TransactionStockDeductionSource,
 } from "../types/surat-jalan";
 
 export interface SuratJalanActor {
@@ -15,6 +16,7 @@ export interface SuratJalanActor {
 export interface SuratJalanCreationTransaction {
   id: string;
   status: string;
+  stockDeductionSource?: TransactionStockDeductionSource;
   stockManagedBySuratJalan: boolean;
   customerName: string | null;
   items: SuratJalanTransactionItem[];
@@ -51,6 +53,7 @@ export function planSuratJalanCreation(input: {
   keterangan: Record<string, string>;
   recipientName: string;
   actor: SuratJalanActor;
+  autoApprove?: boolean;
   number: string;
   now: Date;
 }): SuratJalanCreationPlan {
@@ -69,9 +72,19 @@ export function planSuratJalanCreation(input: {
 
   const sequence = input.existingSuratJalan.length + 1;
   const isFirstSuratJalan = sequence === 1;
-  const status: SuratJalanStatus = isFirstSuratJalan ? "CONFIRMED" : "PENDING";
+  const usesTransactionStock =
+    input.transaction.stockDeductionSource === "TRANSACTION";
+  const status: SuratJalanStatus = usesTransactionStock
+    ? input.autoApprove
+      ? "CONFIRMED"
+      : "PENDING"
+    : isFirstSuratJalan
+      ? "CONFIRMED"
+      : "PENDING";
   const shouldReverseInvoice =
-    isFirstSuratJalan && !input.transaction.stockManagedBySuratJalan;
+    !usesTransactionStock &&
+    isFirstSuratJalan &&
+    !input.transaction.stockManagedBySuratJalan;
   const remainingByTransactionItemId = new Map(
     remainingItems.map((item) => [item.transactionItemId, item]),
   );
@@ -87,7 +100,7 @@ export function planSuratJalanCreation(input: {
       }
 
       const stockBefore =
-        status === "CONFIRMED"
+        !usesTransactionStock && status === "CONFIRMED"
           ? (item.currentStock ?? 0) +
             (shouldReverseInvoice ? item.quantity : 0)
           : null;
@@ -131,7 +144,7 @@ export function planSuratJalanCreation(input: {
       ? buildInvoiceReversalMovements(input)
       : [],
     deliveryStockMovements:
-      status === "CONFIRMED"
+      !usesTransactionStock && status === "CONFIRMED"
         ? selectedItems.map((item) => ({
             productId: item.productId,
             quantity: item.quantity,
