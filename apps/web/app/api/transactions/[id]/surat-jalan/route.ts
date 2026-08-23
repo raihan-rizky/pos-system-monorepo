@@ -20,6 +20,9 @@ import type {
 } from "@/features/surat-jalan";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
+import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
+import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import type { Role } from "@/lib/rbac/permissions";
 
 const log = getLogger("api:transactions:surat-jalan");
 
@@ -110,6 +113,7 @@ export async function GET(
           salesName: transaction.salesName ?? null,
           salespersonId: transaction.salespersonId ?? null,
           salesperson: transaction.salesperson ? { name: transaction.salesperson.name } : null,
+          stockDeductionSource: transaction.stockDeductionSource,
           stockManagedBySuratJalan: transaction.stockManagedBySuratJalan,
           payments: (transaction.payments ?? []).map((payment) => ({
             amount: Number(payment.amount),
@@ -192,6 +196,13 @@ export async function POST(
     }
 
     const now = new Date();
+    const permissions = await getGlobalRolePermissions();
+    const autoApprove = canRolePerformAction(
+      user.role as Role,
+      "surat_jalan.auto_approve",
+      "create",
+      permissions,
+    );
     let created: unknown = null;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -236,6 +247,7 @@ export async function POST(
             transaction: {
               id: transaction.id,
               status: transaction.status,
+              stockDeductionSource: transaction.stockDeductionSource,
               stockManagedBySuratJalan:
                 transaction.stockManagedBySuratJalan,
               customerName: transaction.customerName,
@@ -250,6 +262,7 @@ export async function POST(
               name: user.name ?? null,
               role: user.role,
             },
+            autoApprove,
             number,
             now,
           });

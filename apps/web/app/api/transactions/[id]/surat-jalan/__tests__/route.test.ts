@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
+const canRolePerformActionMock = vi.hoisted(() => vi.fn());
+const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionUpdateMock = vi.hoisted(() => vi.fn());
@@ -15,6 +17,14 @@ const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-core", () => ({
+  canRolePerformAction: canRolePerformActionMock,
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({
+  getGlobalRolePermissions: getGlobalRolePermissionsMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -57,6 +67,8 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    getGlobalRolePermissionsMock.mockResolvedValue({});
+    canRolePerformActionMock.mockReturnValue(true);
     suratJalanCountMock.mockResolvedValue(0);
     suratJalanCreateMock.mockImplementation(async ({ data }) => ({
       id: data.sequence === 1 ? "sj-1" : "sj-2",
@@ -163,6 +175,57 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
     });
   });
 
+  it("auto-confirms transaction-owned Surat Jalan without changing stock", async () => {
+    transactionFindFirstMock.mockResolvedValue(
+      makeTransaction({
+        stockDeductionSource: "TRANSACTION",
+        existingSuratJalan: [],
+      }),
+    );
+
+    const response = await request({
+      recipientName: "Gudang PT Teladan",
+      quantities: { "item-paper": 4 },
+      keterangan: {},
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.status).toBe("CONFIRMED");
+    expect(canRolePerformActionMock).toHaveBeenCalledWith(
+      "CASHIER",
+      "surat_jalan.auto_approve",
+      "create",
+      {},
+    );
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
+    expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps transaction-owned Surat Jalan pending when auto approval is disabled", async () => {
+    canRolePerformActionMock.mockReturnValue(false);
+    transactionFindFirstMock.mockResolvedValue(
+      makeTransaction({
+        stockDeductionSource: "TRANSACTION",
+        existingSuratJalan: [],
+      }),
+    );
+
+    const response = await request({
+      recipientName: "Gudang PT Teladan",
+      quantities: { "item-paper": 4 },
+      keterangan: {},
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.status).toBe("PENDING");
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
+    expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
   it("creates later surat jalan as pending without changing stock", async () => {
     transactionFindFirstMock.mockResolvedValue(
       makeTransaction({
@@ -215,6 +278,7 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
 });
 
 function makeTransaction(options: {
+  stockDeductionSource?: "TRANSACTION" | "SURAT_JALAN";
   stockManagedBySuratJalan?: boolean;
   existingSuratJalan: unknown[];
 }) {
@@ -223,6 +287,7 @@ function makeTransaction(options: {
     invoiceNumber: "INV-20260614-0001",
     storeId: "store-main",
     status: "COMPLETED",
+    stockDeductionSource: options.stockDeductionSource ?? "SURAT_JALAN",
     stockManagedBySuratJalan: options.stockManagedBySuratJalan ?? false,
     customerName: "PT Teladan",
     createdAt: new Date("2026-06-14T03:00:00.000Z"),
@@ -266,6 +331,8 @@ describe("GET /api/transactions/[id]/surat-jalan", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    getGlobalRolePermissionsMock.mockResolvedValue({});
+    canRolePerformActionMock.mockReturnValue(true);
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
         transaction: {
@@ -322,6 +389,7 @@ describe("GET /api/transactions/[id]/surat-jalan", () => {
     expect(body.data.transaction).toEqual(
       expect.objectContaining({
         invoiceNumber: "INV-20260614-0001",
+        stockDeductionSource: "SURAT_JALAN",
         customerName: "PT Teladan",
         createdAt: "2026-06-14T03:00:00.000Z",
         total: 150000,
