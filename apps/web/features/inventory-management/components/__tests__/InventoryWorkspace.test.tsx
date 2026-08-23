@@ -849,7 +849,9 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("Aktivitas tertinggi: Senin (14 unit)");
     expect(html).toContain("Antrean Persetujuan");
     expect(html).toContain("Surat Jalan pending approval");
-    expect(html).toContain("Approve pengiriman stok keluar");
+    expect(html).toContain(
+      "Approval dokumen tidak mengubah stok transaksi baru.",
+    );
     expect(html).toContain("Penerimaan perlu revisi");
     expect(html).toContain("Lihat rekap stok");
     expect(html).toContain("Terima barang");
