@@ -16,6 +16,7 @@
 - Do not change `NotificationProvider`, notification APIs, push delivery, permission prompts, sound, or settings.
 - Do not add dependencies.
 - Do not run `pnpm build`, start `pnpm dev`, or stop an existing development server.
+- Run lint and type checking directly through `pnpm.cmd --filter @pos/web`; the root Turbo tasks depend on `@pos/web:build` and must not be used in an agent session.
 - Apply antislop during the cleanup and write an after-work audit for the changed UI surface.
 - Do not stage or modify the user's existing `AGENTS.md` and `CLAUDE.md` changes.
 
@@ -158,8 +159,8 @@ Expected: both files PASS. The assistant regression includes `Pak Teladan ngabar
 Run:
 
 ```powershell
-pnpm.cmd lint
-pnpm.cmd type-check
+pnpm.cmd --filter @pos/web lint
+pnpm.cmd --filter @pos/web type-check
 ```
 
 Expected: both commands exit zero without errors or warnings introduced by the cleanup.
@@ -212,8 +213,8 @@ Run:
 
 ```powershell
 pnpm.cmd test
-pnpm.cmd lint
-pnpm.cmd type-check
+pnpm.cmd --filter @pos/web lint
+pnpm.cmd --filter @pos/web type-check
 ```
 
 Expected: every command exits zero. Do not substitute `pnpm build` for any validation command.
@@ -249,8 +250,8 @@ The authenticated app shell no longer renders a standalone floating notification
 - Authenticated layout tests passed.
 - Pak Teladan component tests passed.
 - Full `pnpm test` passed.
-- `pnpm lint` passed.
-- `pnpm type-check` passed.
+- `pnpm.cmd --filter @pos/web lint` passed.
+- `pnpm.cmd --filter @pos/web type-check` passed.
 - GitNexus change detection confirmed the expected app-shell and dead-UI scope.
 ```
 
