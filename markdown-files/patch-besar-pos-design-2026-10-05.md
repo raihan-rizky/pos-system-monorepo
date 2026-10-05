@@ -31,6 +31,9 @@ Lokasi spesifikasi, rencana, dan dokumentasi patch disetujui pengguna menjadi `C
 | Persetujuan nota | Bisa menambah barang, mengurangi jumlah, dan menghapus barang; tampilkan informasi harga. |
 | Cetak Daftar Belanja | Dua nota A4: versi ringkas tiga kolom dan versi lengkap existing. |
 | Dashboard | Produk terlaris dikelompokkan ATK, Kertas, Cartridge, Tinta. |
+| Urutan satuan POS | Satuan kecil selalu di kiri, satuan besar di kanan; dropdown juga kecil ke besar. |
+| Satuan keranjang | Pengguna dapat mengganti satuan dari baris keranjang; harga mengikuti satuan terpilih. |
+| Jumlah keranjang | Pengguna dapat mengetik jumlah langsung; tombol tambah/kurang tetap tersedia. |
 
 ## Arsitektur dan alur dokumen
 
@@ -109,6 +112,36 @@ Penyimpanan item dan persetujuan final berjalan dalam satu transaksi database. S
 
 Tidak mengubah empat tipe pelanggan existing atau menambah pengelolaan kategori pelanggan baru.
 
+## Satuan produk dan input jumlah di POS
+
+Bagian ini mengikuti tiga area yang ditandai pengguna pada screenshot POS: merah untuk urutan satuan kartu produk, hijau untuk pemilihan satuan di keranjang, dan oranye untuk input jumlah langsung.
+
+### Urutan satuan kecil ke besar
+
+Urutkan varian satuan menurut `unitMultiplierToBase` dari kecil ke besar, bukan menurut harga, alfabet nama satuan, atau urutan data API. Untuk dua pilihan, satuan kecil tampil di kiri dan satuan besar di kanan. Untuk tiga pilihan atau lebih, dropdown diurutkan dari kecil ke besar. Contoh: Dus sebelum Bal ketika faktor konversi Dus lebih kecil; nama Dus/Bal sendiri tidak menentukan ukurannya.
+
+Satuan dengan faktor sama menggunakan urutan stabil berdasarkan nama satuan dan identitas varian. Produk lama tanpa faktor yang dapat dipercaya menggunakan informasi satuan dasar/konversi existing. Bila ukuran satuan belum dapat ditentukan, jangan menebak berdasarkan harga; tandai data konversi untuk diperiksa sebelum memenuhi kriteria rilis urutan satuan. Pengurutan tidak mengganti satuan terpilih secara otomatis.
+
+### Pilihan satuan langsung di keranjang
+
+Baris produk yang memiliki beberapa satuan menyediakan pemilih satuan langsung, menggunakan urutan kecil ke besar yang sama. Produk satu satuan cukup menampilkan label satuan. Pilihan hanya mencakup varian aktif milik produk/kelompok yang sama; jangan memasukkan produk lain yang kebetulan memiliki nama serupa. Jasa cetak tidak memperoleh pemilih varian produk.
+
+Pergantian satuan mengganti identitas varian/productId, unit, multiplier, stok, modal, harga reguler, Agen, dan Dinas pada baris. Harga berlaku dihitung ulang melalui aturan harga khusus utama sesuai tipe pelanggan dan satuan terpilih. Jangan sekadar mengganti teks satuan atau mengalikan harga lama dengan faktor konversi. Harga manual satuan lama tidak dibawa ke satuan baru.
+
+Angka jumlah tetap saat satuan diganti, sesuai keputusan pengguna: **2 Dus → 2 Bal**, dengan harga dan kebutuhan stok mengikuti 2 Bal. Pengguna dapat mengubah angka jumlah setelah memilih satuan. Pergantian satuan tidak mengonversi jumlah untuk mempertahankan isi barang.
+
+Jika varian tujuan sudah ada pada keranjang dengan ukuran/material yang sama, gabungkan kuantitas sesuai kebijakan penggabungan item existing agar tidak ada baris duplikat yang tidak perlu. Perubahan unit, jumlah, harga, dan subtotal dilakukan sebagai satu pembaruan state. Jika data varian tidak tersedia atau gagal dimuat, pertahankan baris awal dan tampilkan pesan kegagalan.
+
+Pilihan satuan tetap tersedia ketika produk asal tidak berada pada halaman katalog saat ini. Simpan identitas kelompok dan metadata pilihan yang diperlukan dalam state/session cart, serta dukung pemuatan ulang dan offline dari cache yang tersedia. Validasi server tetap memuat harga dan data produk aktual saat transaksi dibuat.
+
+### Input jumlah langsung
+
+Ganti angka jumlah yang sebelumnya berupa teks menjadi input angka yang dapat diketik, dengan label aksesibel **Jumlah [nama produk]**. Tombol minus/plus tetap tersedia. Perubahan jumlah memperbarui subtotal dan total tanpa membuka popup tambahan.
+
+Pengguna boleh mengosongkan input sementara ketika mengetik tanpa menghapus barang. Nilai positif dan finite yang valid diterapkan; format pecahan mengikuti dukungan jumlah existing. Saat Enter atau kehilangan fokus, input kosong, nol, negatif, atau format tidak valid menampilkan pesan dan kembali ke jumlah valid sebelumnya. Penghapusan tetap tersedia melalui tombol hapus dan perilaku tombol minus existing.
+
+Jangan memotong nilai stok secara diam-diam. Input angka dan pergantian satuan mengikuti validasi stok serta konfirmasi stok negatif existing, termasuk akumulasi varian yang memakai stok dasar yang sama. Tombol bayar tidak memproses nilai input yang belum valid. Perubahan jumlah tidak boleh mengubah harga master produk.
+
 ## Tempo/Tagihan dan pelunasan
 
 Tambahkan `TEMPO` sebagai metode pembayaran yang berbeda dari `CREDIT` kartu dan dari status DP. Transaksi Tempo yang disetujui merupakan transaksi final dengan kewajiban pembayaran pelanggan; jumlah pembayaran awal boleh nol. Tempo membutuhkan pelanggan terdaftar agar piutang dan pelunasan dapat ditelusuri.
@@ -184,6 +217,8 @@ Mapping kategori toko aktual diperiksa pada validasi rilis karena full scan sour
 | Penerimaan | `apps/web/features/inventory-management/services/`, `apps/web/app/api/inventory-management/inbound-receipts/` |
 | RBAC | `apps/web/features/rbac/helpers/`, `apps/web/lib/rbac/` |
 | Pricing | `apps/web/features/customer-category-pricing/helpers/`, `apps/web/features/pos-checkout/` |
+| Urutan satuan kartu | `apps/web/features/pos-product-variants/components/ProductCard.tsx`, `VariantSelector.tsx` |
+| Satuan/jumlah keranjang | `apps/web/components/CartSidebar.tsx`, `apps/web/hooks/useCart.ts`, `apps/web/features/pos-search/services/cart-mapping.ts`, `apps/web/app/(main)/pos/POSClientPage.tsx` |
 | Persetujuan nota | `apps/web/features/transactions-draft/`, `apps/web/app/(main)/history/components/`, API transaksi |
 | Stok | `apps/web/features/product-stock-groups/stock-mutations.ts`, API transaksi/surat jalan |
 | Tempo/piutang | `apps/web/features/customer-debt/`, API pelunasan, laporan, receipt/PDF, offline |
@@ -195,7 +230,7 @@ Mapping kategori toko aktual diperiksa pada validasi rilis karena full scan sour
 ## Tahap pengerjaan dalam satu rilis
 
 1. Pengadaan: nama unik, integrasi navigasi, default RBAC, input modal penerimaan, popup, dua nota A4.
-2. Harga dan persetujuan: harga khusus utama, editor item, informasi harga, validasi server, kontrak offline.
+2. Harga, keranjang, dan persetujuan: harga khusus utama, urutan satuan, pemilih satuan/input jumlah keranjang, editor persetujuan, informasi harga, validasi server, kontrak offline.
 3. Tempo: pembayaran, badge, piutang/pelunasan, laporan dan nota.
 4. Siklus stok: samakan pembuatan/persetujuan/edit, perbaiki void/hapus, bahan baku, concurrency, transaksi lama surat jalan.
 5. Waktu dan dashboard: sumber waktu backend/WIB serta kelompok produk terlaris.
@@ -213,6 +248,10 @@ TDD berlaku untuk seluruh implementasi: tulis tes regresi/perilaku, pastikan gag
 - Modal default snapshot, perubahan input, konversi satuan, riwayat lama, stok masuk memakai harga penerimaan, modal master tidak otomatis berubah.
 - Default RBAC baru dan override tersimpan diuji melalui API serta UI.
 - Harga khusus mengalahkan member ketika cocok; fallback benar; manipulasi harga client ditolak; online/offline konsisten.
+- Urutan varian acak tetap menghasilkan satuan kecil di kiri dan besar di kanan; tiga satuan/dropdown terurut; pilihan aktif tetap sama setelah pengurutan.
+- Pergantian satuan keranjang mengganti productId, seluruh referensi harga, multiplier, stok, dan subtotal; harga khusus sesuai satuan mengalahkan fallback; harga manual satuan lama tidak bocor.
+- Satuan tujuan yang sudah ada digabung dengan benar; produk di luar halaman katalog, pemuatan ulang session cart, cache offline, dan kegagalan pemuatan varian tidak menghilangkan item.
+- Jumlah dapat diketik, termasuk mengosongkan sementara lalu mengetik ulang; nilai tidak valid tidak menghapus barang atau lolos checkout; tombol plus/minus dan validasi stok tetap berjalan.
 - Tambah/kurangi/hapus item persetujuan menghitung total dan stok final; perubahan harga saat review memerlukan review ulang.
 - Tempo nol pembayaran, pembayaran sebagian/penuh, badge, saldo piutang, laporan kas, dan cetak tidak dilabeli lunas sebelum lunas.
 - Void/hapus transaksi final memulihkan produk dan bahan baku; pending/draft tidak menambah stok; void lalu hapus tidak menggandakan pengembalian.
