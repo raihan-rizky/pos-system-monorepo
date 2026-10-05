@@ -1,6 +1,8 @@
 # Spesifikasi patch besar POS
 
-Tanggal: 2026-10-05. Status: desain percakapan disetujui; dokumen ini untuk review sebelum rencana implementasi rinci.
+Tanggal: 2026-10-05. Status: desain dan spesifikasi tertulis disetujui pengguna; rencana implementasi rinci telah disusun. Kode aplikasi belum diubah.
+
+Rencana utama: [Patch Besar POS Implementation Plan](C:/Projects/pos-system-monorepo/markdown-files/patch-besar-pos-implementation-plan-2026-10-05.md).
 
 ## Tujuan dan batas rilis
 
