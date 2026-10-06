@@ -7,6 +7,7 @@ import {
   Clock,
   Loader2,
   PackageOpen,
+  PackagePlus,
   XCircle,
 } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
@@ -44,6 +45,8 @@ export function getInboundReceiptRowActions(
 
 export interface InboundReceiptTabProps {
   goodsPurchaseId?: string | null;
+  supplierId?: string | null;
+  onCreateReceipt?: () => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -57,6 +60,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
   goodsPurchaseId,
+  supplierId,
+  onCreateReceipt,
 }) => {
   const { canPerform } = useRole();
   const [receipts, setReceipts] = React.useState<InboundReceiptListItem[]>([]);
@@ -79,6 +84,10 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
     "update",
   );
   const canEdit = canPerform("inventory.inbound_receipt.edit", "update");
+  const canCreateReceipt = canPerform(
+    "inventory.inbound_receipt.create",
+    "create",
+  );
 
   const loadReceipts = React.useCallback(async () => {
     setIsLoading(true);
@@ -88,6 +97,7 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
         await fetchInboundReceipts({
           ...(statusFilter === "ALL" ? {} : { status: statusFilter }),
           ...(goodsPurchaseId ? { goodsPurchaseId } : {}),
+          ...(supplierId ? { supplierId } : {}),
         }),
       );
     } catch (cause) {
@@ -99,7 +109,7 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [goodsPurchaseId, statusFilter]);
+  }, [goodsPurchaseId, statusFilter, supplierId]);
 
   React.useEffect(() => {
     void loadReceipts();
@@ -138,28 +148,40 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
               Proses persetujuan dilakukan per produk.
             </p>
           </div>
-          <div className="flex max-w-full gap-2 overflow-x-auto rounded-xl bg-slate-100 p-1">
-            {[
-              ["ALL", "Semua"],
-              ["SUBMITTED", "Diajukan"],
-              ["APPROVED", "Disetujui"],
-              ["REJECTED", "Ditolak"],
-            ].map(([value, label]) => (
+          <div className="flex flex-col items-stretch gap-2 sm:items-end">
+            <div className="flex max-w-full gap-2 overflow-x-auto rounded-xl bg-slate-100 p-1">
+              {[
+                ["ALL", "Semua"],
+                ["SUBMITTED", "Diajukan"],
+                ["APPROVED", "Disetujui"],
+                ["REJECTED", "Ditolak"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() =>
+                    setStatusFilter(value as InboundReceiptStatus | "ALL")
+                  }
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-black ${
+                    statusFilter === value
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {canCreateReceipt && onCreateReceipt && (
               <button
-                key={value}
                 type="button"
-                onClick={() =>
-                  setStatusFilter(value as InboundReceiptStatus | "ALL")
-                }
-                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-black ${
-                  statusFilter === value
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500"
-                }`}
+                onClick={onCreateReceipt}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-indigo-700"
               >
-                {label}
+                <PackagePlus className="h-4 w-4" />
+                Catat Penerimaan
               </button>
-            ))}
+            )}
           </div>
         </div>
 

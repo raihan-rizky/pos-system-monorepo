@@ -206,6 +206,14 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     sensitivity: "normal",
   },
   {
+    id: "inventory-inbound-receipts",
+    label: "Penerimaan Barang",
+    description: "Mencatat barang supplier yang sudah disetujui untuk dibeli.",
+    pageTargets: [],
+    resourceTargets: ["inventory.inbound_receipt.create"],
+    sensitivity: "critical",
+  },
+  {
     id: "inventory-approval",
     label: "Approval Inventory",
     description: "Persetujuan perubahan stok dan penerimaan.",

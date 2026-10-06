@@ -24,6 +24,7 @@ import type {
 
 const goodsPurchaseFindManyMock = vi.hoisted(() => vi.fn());
 const goodsPurchaseFindFirstMock = vi.hoisted(() => vi.fn());
+const inboundReceiptFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@pos/db", () => ({
   db: {
@@ -31,6 +32,7 @@ vi.mock("@pos/db", () => ({
       findMany: goodsPurchaseFindManyMock,
       findFirst: goodsPurchaseFindFirstMock,
     },
+    inventoryInboundReceipt: { findMany: inboundReceiptFindManyMock },
   },
   Prisma: {},
 }));
@@ -84,6 +86,7 @@ function receivingQueueRows(): ReceivingQueueRepositoryRow[] {
       sku: "KD-1",
       unit: "dus",
       orderedQuantity: 50,
+      currentCostPrice: 8_500,
       approvedReceivedQuantity: 20,
       pendingReservedQuantity: 10,
       pendingReceiptIds: ["receipt-2"],
@@ -116,6 +119,8 @@ function submittedReviewReceipt(
         approvedByName: null,
         approvedAt: null,
         note: null,
+        costPriceSnapshot: 120_000,
+        supplierCostPrice: 120_000,
         goodsPurchaseItem: {
           id: "gpi-1",
           goodsPurchaseId: "gp-1",
@@ -137,6 +142,8 @@ function submittedReviewReceipt(
         approvedByName: null,
         approvedAt: null,
         note: null,
+        costPriceSnapshot: 15_000,
+        supplierCostPrice: 15_000,
         goodsPurchaseItem: {
           id: "gpi-2",
           goodsPurchaseId: "gp-1",
@@ -215,6 +222,7 @@ function createRepository(
           skuSnapshot: "KD-1",
           unitSnapshot: "dus",
           latestUnitPrice: 120_000,
+          currentCostPrice: 115_000,
           quantity: 10,
           inboundReceiptLines: [
             {
@@ -237,6 +245,7 @@ function createRepository(
           skuSnapshot: "LB-1",
           unitSnapshot: "roll",
           latestUnitPrice: 15_000,
+          currentCostPrice: 14_000,
           quantity: 4,
           inboundReceiptLines: [],
         },
@@ -312,13 +321,14 @@ describe("inbound receipt service", () => {
           supplierName: "CV Kertas",
           fulfillmentStatus: "NOT_RECEIVED",
           pendingReceiptCount: 1,
-          items: [
-            expect.objectContaining({
-              goodsPurchaseItemId: "gpi-1",
-              orderedQuantity: 50,
-              approvedReceivedQuantity: 20,
-              pendingReservedQuantity: 10,
-              availableQuantity: 20,
+      items: [
+        expect.objectContaining({
+          goodsPurchaseItemId: "gpi-1",
+          orderedQuantity: 50,
+          approvedReceivedQuantity: 20,
+          pendingReservedQuantity: 10,
+          availableQuantity: 20,
+          currentCostPrice: 8_500,
             }),
           ],
         }),
@@ -359,7 +369,7 @@ describe("inbound receipt service", () => {
     expect(result.purchases[0]).toMatchObject({
       pendingReceiptCount: 2,
       items: [
-        expect.objectContaining({ goodsPurchaseItemId: "gpi-1", availableQuantity: 20 }),
+          expect.objectContaining({ goodsPurchaseItemId: "gpi-1", availableQuantity: 20 }),
         expect.objectContaining({ goodsPurchaseItemId: "gpi-2", availableQuantity: 15 }),
       ],
     });
@@ -399,11 +409,12 @@ describe("inbound receipt service", () => {
         role: "INVENTORY",
         storeId: "store-main",
       },
-      input: { goodsPurchaseId: "gp-1" },
+      input: { goodsPurchaseId: "gp-1", supplierId: "supplier-1" },
     });
 
     expect(repository.listReceivingQueue).toHaveBeenCalledWith("store-main", {
       goodsPurchaseId: "gp-1",
+      supplierId: "supplier-1",
     });
   });
 
@@ -504,6 +515,64 @@ describe("inbound receipt service", () => {
       approvedReceivedQuantity: 5,
       pendingReservedQuantity: 3,
     });
+  });
+
+  it("filters receiving queues by supplier and includes the current modal cost", async () => {
+    goodsPurchaseFindManyMock.mockResolvedValueOnce([
+      {
+        id: "gp-1",
+        number: "PB-202607-001",
+        supplierId: "supplier-1",
+        supplierNameSnapshot: "CV Kertas",
+        fulfillmentStatus: "NOT_RECEIVED",
+        items: [
+          {
+            id: "gpi-1",
+            productId: "product-1",
+            productNameSnapshot: "Kertas Dus",
+            skuSnapshot: "KD-1",
+            unitSnapshot: "dus",
+            quantity: 5,
+            product: { costPrice: { toString: () => "8500.00" } },
+            inboundReceiptLines: [],
+          },
+        ],
+      },
+    ]);
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+
+    const rows = await repository.listReceivingQueue("store-main", {
+      supplierId: "supplier-1",
+    });
+
+    expect(goodsPurchaseFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ supplierId: "supplier-1" }),
+        select: expect.objectContaining({
+          items: expect.objectContaining({
+            select: expect.objectContaining({
+              product: { select: { costPrice: true } },
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(rows[0]?.currentCostPrice).toBe(8_500);
+  });
+
+  it("filters inbound receipt history by supplier", async () => {
+    inboundReceiptFindManyMock.mockResolvedValueOnce([]);
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+
+    await repository.listInboundReceipts("store-main", {
+      supplierId: "supplier-1",
+    });
+
+    expect(inboundReceiptFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: "store-main", supplierId: "supplier-1" },
+      }),
+    );
   });
 
   it("excludes non-counting line statuses from comparison totals and batch quantities", async () => {
@@ -1712,6 +1781,7 @@ describe("inbound receipt service", () => {
             goodsPurchaseItemId: "gpi-1",
             matchStatus: "MATCHED",
             receivedQuantity: 5,
+            supplierCostPrice: 118_000,
           },
           {
             goodsPurchaseItemId: "gpi-2",
@@ -1750,11 +1820,14 @@ describe("inbound receipt service", () => {
             status: "RECEIVED",
             matchStatus: "MATCHED",
             reviewStatus: "PENDING",
+            costPriceSnapshot: 120_000,
+            supplierCostPrice: 118_000,
           }),
           expect.objectContaining({
             goodsPurchaseItemId: "gpi-2",
             expectedQuantity: 4,
             receivedQuantity: 3,
+            supplierCostPrice: 14_000,
             matchStatus: "MISMATCHED",
             reviewStatus: "PENDING",
             note: "Kurang 1 roll",
@@ -1946,6 +2019,7 @@ describe("inbound receipt service", () => {
           skuSnapshot: "FLOAT-1",
           unitSnapshot: "pcs",
           latestUnitPrice: 1_000,
+          currentCostPrice: 900,
           quantity: 0.8,
           inboundReceiptLines: [
             {
@@ -1968,6 +2042,7 @@ describe("inbound receipt service", () => {
           skuSnapshot: "AVAILABLE-1",
           unitSnapshot: "pcs",
           latestUnitPrice: 2_000,
+          currentCostPrice: 1_800,
           quantity: 2,
           inboundReceiptLines: [],
         },

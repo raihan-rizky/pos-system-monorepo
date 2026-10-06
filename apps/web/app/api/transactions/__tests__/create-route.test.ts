@@ -5,6 +5,7 @@ const afterMock = vi.hoisted(() => vi.fn());
 const requireRoleMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const applyProductStockDeltasMock = vi.hoisted(() => vi.fn());
+const buildInventoryLogRowsMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
@@ -13,6 +14,10 @@ const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
+const transactionInventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
+const customerUpdateMock = vi.hoisted(() => vi.fn());
+const invoiceNowMock = vi.hoisted(() => vi.fn());
+vi.mock("@/features/invoice-date/services/internet-clock", () => ({ getInvoiceNow: invoiceNowMock }));
 
 vi.mock("next/server", async () => {
   const actual = await vi.importActual<typeof import("next/server")>("next/server");
@@ -32,9 +37,9 @@ vi.mock("@/features/rbac/helpers/rbac-core", () => ({
   canRolePerformAction: vi.fn().mockReturnValue(true),
 }));
 
-vi.mock("@/features/pos-checkout/post-commit", () => ({
-  buildInventoryLogRows: vi.fn().mockReturnValue([]),
-  buildCustomerUpdateArgs: vi.fn().mockReturnValue(null),
+vi.mock("@/features/pos-checkout/post-commit", async () => ({
+  ...await vi.importActual<typeof import("@/features/pos-checkout/post-commit")>("@/features/pos-checkout/post-commit"),
+  buildInventoryLogRows: buildInventoryLogRowsMock,
   buildServiceMaterialInventoryLogRows: vi.fn().mockReturnValue([]),
 }));
 
@@ -70,8 +75,30 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
+  it("persists the synchronized Internet date instead of a drifting device clock", async () => {
+    invoiceNowMock.mockResolvedValue(new Date("2030-01-02T20:00:00Z"));
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 1000, paymentStatus: "COMPLETED", items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ invoiceDate: new Date("2030-01-02T20:00:00Z"), invoiceNumber: "INV-20300103-0001" });
+  });
+  it("commits customer totals with the sale before stock even when after is deferred", async () => {
+    afterMock.mockImplementation(() => undefined);
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "UMUM" });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      customerId: "c1", paymentMethod: "CASH", amountPaid: 1500, paymentStatus: "COMPLETED",
+      items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(customerUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ totalSpent: { increment: 1000 }, totalOrders: { increment: 1 } }) }));
+    expect(customerUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(transactionCreateMock.mock.invocationCallOrder[0]);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
+    invoiceNowMock.mockImplementation(async () => new Date());
     afterMock.mockImplementation((cb: any) => cb());
     requireRoleMock.mockResolvedValue({
       id: "u1",
@@ -102,11 +129,13 @@ describe("POST /api/transactions negative stock", () => {
     transactionCountMock.mockResolvedValue(0);
     transactionFindManyMock.mockResolvedValue([]);
     transactionCreateMock.mockResolvedValue({ id: "tx-1", status: "COMPLETED" });
+    buildInventoryLogRowsMock.mockReturnValue([]);
+    transactionInventoryLogCreateManyMock.mockResolvedValue({ count: 0 });
     dbTransactionMock.mockImplementation(async (cb: any) => cb({
       transaction: { create: transactionCreateMock },
       transactionItemSnapshot: { createMany: vi.fn() },
-      inventoryLog: { createMany: vi.fn() },
-      customer: { update: vi.fn() },
+      inventoryLog: { createMany: transactionInventoryLogCreateManyMock },
+      customer: { update: customerUpdateMock },
     }));
   });
 
@@ -153,6 +182,168 @@ describe("POST /api/transactions negative stock", () => {
     
     const args = applyProductStockDeltasMock.mock.calls[0][1];
     expect(args.allowNegative).toBe(true);
+  });
+
+  it("writes the exact stock movement snapshot in the transaction that deducts stock", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([
+      { productId: "p1", stockGroupId: "group-1", baseDelta: -8 },
+    ]);
+    buildInventoryLogRowsMock.mockReturnValue([
+      {
+        productId: "p1",
+        type: "OUT",
+        reason: "SALE",
+        quantity: 2,
+        unitCost: 500,
+        note: "Penjualan INV-20261005-0001",
+        createdBy: "u1",
+        person: "Cashier",
+      },
+    ]);
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "CASH",
+          amountPaid: 2000,
+          discount: 0,
+          paymentStatus: "COMPLETED",
+          items: [{ lineType: "PRODUCT", productId: "p1", quantity: 2, price: 1000 }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(transactionInventoryLogCreateManyMock).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          transactionId: "tx-1",
+          sourceTransactionRef: "tx-1",
+          stockGroupIdSnapshot: "group-1",
+          unitMultiplierSnapshot: 4,
+          stockBaseDelta: -8,
+        }),
+      ],
+    });
+  });
+
+  it("creates an unpaid Tempo invoice without treating it as a DP or cash payment", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    customerFindFirstMock.mockResolvedValue({
+      id: "customer-tempo",
+      type: "UMUM",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "TEMPO",
+          amountPaid: 0,
+          discount: 0,
+          customerName: "Pelanggan Tempo",
+          customerId: "customer-tempo",
+          paymentStatus: "COMPLETED",
+          items: [
+            {
+              lineType: "PRODUCT",
+              productId: "p1",
+              quantity: 1,
+              price: 1000,
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    const createArg = transactionCreateMock.mock.calls[0][0];
+    expect(createArg.data).toEqual(
+      expect.objectContaining({
+        paymentMethod: "TEMPO",
+        amountPaid: 0,
+        status: "COMPLETED",
+        change: 0,
+      }),
+    );
+    expect(createArg.data).not.toHaveProperty("payments");
+    expect(customerUpdateMock).toHaveBeenCalledWith({
+      where: { id: "customer-tempo" },
+      data: expect.objectContaining({ totalDebt: { increment: 1000 }, totalOrders: { increment: 1 }, totalSpent: { increment: 0 } }),
+    });
+  });
+
+  it("records only actual partial tenders for Tempo and atomically adds the balance to debt", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    customerFindFirstMock.mockResolvedValue({ id: "customer-tempo", type: "UMUM" });
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "TEMPO",
+          amountPaid: 250,
+          payments: [{ method: "CASH", amount: 250 }],
+          discount: 0,
+          customerName: "Pelanggan Tempo",
+          customerId: "customer-tempo",
+          paymentStatus: "COMPLETED",
+          items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    const createArg = transactionCreateMock.mock.calls[0][0];
+    expect(createArg.data).toEqual(
+      expect.objectContaining({ paymentMethod: "TEMPO", amountPaid: 250 }),
+    );
+    expect(createArg.data.payments.create).toEqual([
+      { method: "CASH", amount: 250 },
+    ]);
+    expect(customerUpdateMock).toHaveBeenCalledWith({
+      where: { id: "customer-tempo" },
+      data: expect.objectContaining({ totalDebt: { increment: 750 }, totalOrders: { increment: 1 }, totalSpent: { increment: 250 } }),
+    });
+  });
+
+  it("requires a registered customer and does not accept Tempo as a DP", async () => {
+    const noCustomerResponse = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "TEMPO",
+          amountPaid: 0,
+          discount: 0,
+          customerName: "Pelanggan Umum",
+          customerId: null,
+          paymentStatus: "COMPLETED",
+          items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+        }),
+      }),
+    );
+
+    expect(noCustomerResponse.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+
+    const tempoDpResponse = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          paymentMethod: "TEMPO",
+          amountPaid: 0,
+          discount: 0,
+          customerName: "Pelanggan Tempo",
+          customerId: "customer-tempo",
+          paymentStatus: "DP",
+          items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+        }),
+      }),
+    );
+
+    expect(tempoDpResponse.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
   });
 
   it("applies ALL pricing rules scoped by selected product unit and brand", async () => {
@@ -305,25 +496,32 @@ describe("POST /api/transactions negative stock", () => {
     );
   });
 
-  it("recalculates with Harga Agen when MEMBER is selected", async () => {
+  it("keeps Harga Khusus primary when a legacy MEMBER preference is selected", async () => {
     const response = await createAgenPricingTransaction("MEMBER");
 
     expect(response.status).toBe(201);
     const createArg = transactionCreateMock.mock.calls[0][0];
     expect(createArg.data.items.create[0]).toEqual(
       expect.objectContaining({
-        unitPrice: 95000,
-        pricingRuleId: "harga-agen",
+        unitPrice: 90000,
+        pricingRuleId: "rule-atk",
+        appliedUnitPrice: 90000,
       }),
     );
   });
 
-  it("defaults legacy transaction requests to Harga Khusus", async () => {
+  it("applies Harga Khusus when new transaction requests omit the priority field", async () => {
     const response = await createAgenPricingTransaction();
 
     expect(response.status).toBe(201);
     const createArg = transactionCreateMock.mock.calls[0][0];
-    expect(createArg.data.items.create[0].pricingRuleId).toBe("rule-atk");
+    expect(createArg.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 90000,
+        pricingRuleId: "rule-atk",
+        appliedUnitPrice: 90000,
+      }),
+    );
   });
 
   it("lets OWNER create an invoice with a custom invoice date and matching invoice number date", async () => {

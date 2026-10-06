@@ -1,4 +1,5 @@
 import type { Transaction } from "@/hooks/useTransactions";
+import type { SalesGroup } from "../helpers/sales-groups";
 
 export type TopSalesperson = {
   id?: string | null;
@@ -41,6 +42,12 @@ export type TopProduct = {
   revenue: number;
 };
 
+export type TopProductGroup = {
+  key: SalesGroup;
+  label: string;
+  products: TopProduct[];
+};
+
 export type LowStockProduct = {
   id: string;
   name: string;
@@ -63,6 +70,7 @@ export interface DashboardData {
   monthlyProfit: number;
   monthlyTransactionCount: number;
   topProducts: TopProduct[];
+  topProductGroups?: TopProductGroup[];
   lowStockProducts: LowStockProduct[];
   totalProducts: number;
   revenueChart: RevenueChartPoint[];

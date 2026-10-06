@@ -1,3 +1,5 @@
+import { netInitialPayments } from "@/features/customer-debt/helpers/net-initial-payments";
+
 type NullableNumber = number | string | null | undefined;
 
 export type FinancialReportPreset = "today" | "7d" | "30d" | "month";
@@ -10,9 +12,16 @@ export type FinancialReportTransaction = {
   paymentMethod: string;
   total: NullableNumber;
   amountPaid: NullableNumber;
+  change?: NullableNumber;
   discount: NullableNumber;
   salesName?: string | null;
   salesperson?: { name?: string | null } | null;
+  payments?: Array<{
+    method: string;
+    amount: NullableNumber;
+    createdAt: Date;
+  }>;
+  debtPaymentLogs?: Array<{ id: string }>;
   items: Array<{
     productId?: string | null;
     productName: string;
@@ -21,6 +30,20 @@ export type FinancialReportTransaction = {
     unitCost: NullableNumber;
     product?: { category?: { name?: string | null } | null } | null;
   }>;
+};
+
+export type FinancialReportCollection = Pick<FinancialReportTransaction,
+  "id" | "createdAt" | "status" | "paymentMethod" | "total" | "amountPaid" | "change" | "payments" | "debtPaymentLogs" | "salesName" | "salesperson">;
+
+export type FinancialReportDebtPayment = {
+  transactionId: string;
+  paymentMethod: string;
+  amount: NullableNumber;
+  createdAt: Date;
+  transaction?: {
+    salesName?: string | null;
+    salesperson?: { name?: string | null } | null;
+  } | null;
 };
 
 export type FinancialReportShift = {
@@ -275,6 +298,8 @@ export function buildFinancialReport({
   inventoryLogs = [],
   expenses = [],
   expenseSummary,
+  debtPayments = [],
+  collectionTransactions,
 }: {
   dateFrom: string;
   dateTo: string;
@@ -283,11 +308,36 @@ export function buildFinancialReport({
   inventoryLogs?: FinancialReportInventoryLog[];
   expenses?: FinancialReportExpense[];
   expenseSummary?: FinancialReportExpenseSummary;
+  debtPayments?: FinancialReportDebtPayment[];
+  collectionTransactions?: FinancialReportCollection[];
 }) {
   const paymentMap = new Map<
     string,
-    { method: string; transactionCount: number; revenue: number; collected: number }
+    {
+      method: string;
+      transactionIds: Set<string>;
+      revenue: number;
+      collected: number;
+    }
   >();
+  const addPayment = (
+    method: string,
+    transactionId: string,
+    amount: number,
+    saleRevenue = 0,
+  ) => {
+    if (!method || method === "TEMPO") return;
+    const payment = paymentMap.get(method) ?? {
+      method,
+      transactionIds: new Set<string>(),
+      revenue: 0,
+      collected: 0,
+    };
+    payment.transactionIds.add(transactionId);
+    payment.revenue += saleRevenue;
+    payment.collected += amount;
+    paymentMap.set(method, payment);
+  };
   const productMap = new Map<
     string,
     {
@@ -324,39 +374,32 @@ export function buildFinancialReport({
   let grossProfit = 0;
   let discount = 0;
   let outstandingDp = 0;
+  let outstandingTempo = 0;
   let missingCostLineCount = 0;
   let transactionCount = 0;
 
   const confirmedTransactions = transactions.filter((transaction) =>
     CONFIRMED_STATUSES.has(transaction.status),
   );
+  const salespersonByTransaction = new Map<string, string>();
 
   for (const transaction of confirmedTransactions) {
     const total = toNumber(transaction.total);
     const amountPaid = Math.min(toNumber(transaction.amountPaid), total);
-    const collectedForTransaction =
-      transaction.status === "DP" ? amountPaid : total;
+    const isTempo = transaction.paymentMethod === "TEMPO";
     const salespersonName =
       transaction.salesName || transaction.salesperson?.name || "Tanpa sales";
     let transactionGrossProfit = 0;
 
     revenue += total;
-    collected += collectedForTransaction;
     discount += toNumber(transaction.discount);
     outstandingDp +=
       transaction.status === "DP" ? Math.max(0, total - amountPaid) : 0;
+    outstandingTempo +=
+      transaction.status === "COMPLETED" && isTempo
+        ? Math.max(0, total - amountPaid)
+        : 0;
     transactionCount += 1;
-
-    const payment = paymentMap.get(transaction.paymentMethod) ?? {
-      method: transaction.paymentMethod,
-      transactionCount: 0,
-      revenue: 0,
-      collected: 0,
-    };
-    payment.transactionCount += 1;
-    payment.revenue += total;
-    payment.collected += collectedForTransaction;
-    paymentMap.set(payment.method, payment);
 
     for (const item of transaction.items) {
       const quantity = toNumber(item.quantity);
@@ -408,8 +451,57 @@ export function buildFinancialReport({
     };
     salesperson.transactionCount += 1;
     salesperson.revenue += total;
-    salesperson.collected += collectedForTransaction;
     salesperson.grossProfit += transactionGrossProfit;
+    salespersonMap.set(salespersonName, salesperson);
+    salespersonByTransaction.set(transaction.id, salespersonName);
+  }
+
+  const revenueIds = new Set(confirmedTransactions.map((transaction) => transaction.id));
+  for (const transaction of collectionTransactions ?? confirmedTransactions) {
+    if (!CONFIRMED_STATUSES.has(transaction.status)) continue;
+    const ledger = transaction.payments ?? [];
+    const legacy = ledger.length === 0 && !(transaction.debtPaymentLogs?.length) && transaction.paymentMethod !== "TEMPO";
+    const payments = legacy ? [{ method: transaction.paymentMethod, amount: Math.min(toNumber(transaction.total), toNumber(transaction.amountPaid)), createdAt: transaction.createdAt }]
+      : netInitialPayments(ledger, transaction);
+    let received = 0;
+    for (const payment of payments) {
+      if (payment.method === "TEMPO" || payment.amount <= 0 || dateKey(payment.createdAt) < dateFrom || dateKey(payment.createdAt) > dateTo) continue;
+      received += payment.amount;
+      addPayment(payment.method, transaction.id, payment.amount, legacy && revenueIds.has(transaction.id) ? toNumber(transaction.total) : 0);
+    }
+    collected += received;
+    const name = transaction.salesName || transaction.salesperson?.name || "Tanpa sales";
+    const salesperson = salespersonMap.get(name) ?? { name, transactionCount: 0, revenue: 0, collected: 0, grossProfit: 0 };
+    salesperson.collected += received;
+    if (received > 0 || salespersonMap.has(name)) salespersonMap.set(name, salesperson);
+  }
+
+  for (const payment of debtPayments) {
+    if (
+      payment.paymentMethod === "TEMPO" ||
+      dateKey(payment.createdAt) < dateFrom ||
+      dateKey(payment.createdAt) > dateTo
+    ) {
+      continue;
+    }
+
+    const amount = toNumber(payment.amount);
+    collected += amount;
+    addPayment(payment.paymentMethod, payment.transactionId, amount);
+
+    const salespersonName =
+      payment.transaction?.salesName ||
+      payment.transaction?.salesperson?.name ||
+      salespersonByTransaction.get(payment.transactionId);
+    if (!salespersonName) continue;
+    const salesperson = salespersonMap.get(salespersonName) ?? {
+      name: salespersonName,
+      transactionCount: 0,
+      revenue: 0,
+      collected: 0,
+      grossProfit: 0,
+    };
+    salesperson.collected += amount;
     salespersonMap.set(salespersonName, salesperson);
   }
 
@@ -521,6 +613,7 @@ export function buildFinancialReport({
       grossMargin: revenue > 0 ? grossProfitNet / revenue : 0,
       discount,
       outstandingDp,
+      outstandingTempo,
       shiftDiscrepancy: reportShifts.reduce(
         (sum, shift) => sum + shift.discrepancy,
         0,
@@ -533,9 +626,12 @@ export function buildFinancialReport({
       incompleteExpenseCount,
       estimatedNetProfit: grossProfitNet - expenseTotal,
     },
-    paymentMethods: [...paymentMap.values()].sort((a, b) =>
-      a.method.localeCompare(b.method),
-    ),
+    paymentMethods: [...paymentMap.values()]
+      .map(({ transactionIds, ...payment }) => ({
+        ...payment,
+        transactionCount: transactionIds.size,
+      }))
+      .sort((a, b) => a.method.localeCompare(b.method)),
     topProducts: [...productMap.values()].sort((a, b) => b.revenue - a.revenue),
     categories: [...categoryMap.values()]
       .map(({ transactionIds, ...category }) => ({

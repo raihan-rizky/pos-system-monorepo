@@ -404,13 +404,17 @@ async function executeFinalization(
     if (!state || !goodsPurchaseItem) {
       conflict("Perubahan stok produk tidak dapat dihitung");
     }
+    const unitCost =
+      line.supplierCostPrice ??
+      line.costPriceSnapshot ??
+      goodsPurchaseItem.latestUnitPrice;
     const log = await input.repository.createCanonicalInventoryLog(input.tx, {
       productId: line.productId,
       supplierId: receipt.supplierId,
       type: "IN",
       reason: "RESTOCK",
       quantity: line.receivedQuantity,
-      unitCost: goodsPurchaseItem.latestUnitPrice,
+      unitCost,
       note: receipt.supplierName,
       createdBy: input.user.id,
       person: input.user.name ?? null,
@@ -422,7 +426,7 @@ async function executeFinalization(
     lineLogIds.push({
       lineId: line.id,
       inventoryLogId: log.id,
-      unitCost: goodsPurchaseItem.latestUnitPrice,
+      unitCost,
     });
     canonicalImpacts.push(
       stockImpact(state, {

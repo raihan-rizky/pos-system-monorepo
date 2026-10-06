@@ -14,6 +14,7 @@ const transactionCreateMock = vi.hoisted(() => vi.fn());
 const productCostFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const applyProductStockDeltasMock = vi.hoisted(() => vi.fn());
+const customerUpdateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -65,6 +66,13 @@ function request(transactions: unknown[]) {
 }
 
 describe("POST /api/offline-sync/transactions", () => {
+  it("records customer contribution atomically for a completed offline sale", async () => {
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "UMUM" });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    await POST(request([offlineTx({ customerId: "c1", createdAt: new Date().toISOString() })]));
+    expect(customerUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ totalOrders: { increment: 1 }, totalSpent: { increment: 2000 } }) }));
+    expect(customerUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(transactionCreateMock.mock.invocationCallOrder[0]);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermissionMock.mockResolvedValue({
@@ -102,9 +110,17 @@ describe("POST /api/offline-sync/transactions", () => {
         },
         product: { findMany: productCostFindManyMock },
         inventoryLog: { createMany: inventoryLogCreateManyMock },
+        customer: { update: customerUpdateMock },
       }),
     );
-    applyProductStockDeltasMock.mockResolvedValue([]);
+    applyProductStockDeltasMock.mockImplementation(
+      async (_tx: unknown, input: { items: Array<{ productId: string; delta: number }> }) =>
+        input.items.map((item) => ({
+          productId: item.productId,
+          stockGroupId: null,
+          baseDelta: item.delta,
+        })),
+    );
   });
 
   it("returns a per-transaction SYNCED result when create hits a duplicate mutation id race", async () => {
@@ -164,6 +180,54 @@ describe("POST /api/offline-sync/transactions", () => {
         message: "Synced as pending approval",
       },
     ]);
+  });
+
+  it("preserves the offline invoice timestamp and records its time source", async () => {
+    const createdAt = "2026-10-05T02:15:00.000Z";
+
+    const response = await POST(
+      request([
+        offlineTx({
+          createdAt,
+          timeSource: "SERVER_ESTIMATE",
+        }),
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    const createArgs = transactionCreateMock.mock.calls[0][0];
+    expect(createArgs.data.createdAt).toEqual(new Date(createdAt));
+    expect(createArgs.data.invoiceDate).toEqual(new Date(createdAt));
+    expect(createArgs.data.offlineSyncMetadata).toEqual(
+      expect.objectContaining({ timeSource: "SERVER_ESTIMATE" }),
+    );
+  });
+
+  it("writes transaction-linked stock snapshots when an offline sale is finalized", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([
+      { productId: "product-1", stockGroupId: "group-1", baseDelta: -6 },
+    ]);
+
+    const response = await POST(
+      request([
+        offlineTx({
+          createdAt: new Date().toISOString(),
+          originalTotal: 2000,
+        }),
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    const logArgs = inventoryLogCreateManyMock.mock.calls[0][0];
+    expect(logArgs.data[0]).toEqual(
+      expect.objectContaining({
+        transactionId: "tx-1",
+        sourceTransactionRef: "tx-1",
+        stockGroupIdSnapshot: "group-1",
+        unitMultiplierSnapshot: 3,
+        stockBaseDelta: -6,
+      }),
+    );
   });
 
   function setupAgenPricing() {
@@ -245,7 +309,7 @@ describe("POST /api/offline-sync/transactions", () => {
     );
   });
 
-  it("syncs queued MEMBER preference with Harga Agen", async () => {
+  it("keeps Harga Khusus primary for legacy queued MEMBER preference", async () => {
     setupAgenPricing();
 
     const response = await POST(
@@ -273,8 +337,9 @@ describe("POST /api/offline-sync/transactions", () => {
     const createArgs = transactionCreateMock.mock.calls[0][0];
     expect(createArgs.data.items.create[0]).toEqual(
       expect.objectContaining({
-        unitPrice: 95000,
-        pricingRuleId: "harga-agen",
+        unitPrice: 90000,
+        pricingRuleId: "rule-atk",
+        appliedUnitPrice: 90000,
       }),
     );
   });

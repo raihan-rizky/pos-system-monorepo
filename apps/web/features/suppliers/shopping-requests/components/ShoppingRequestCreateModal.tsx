@@ -18,6 +18,8 @@ interface CartItem {
 export function ShoppingRequestCreateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [supplierId, setSupplierId] = useState("");
   const [supplierError, setSupplierError] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const createRequest = useCreateShoppingRequest();
@@ -25,7 +27,7 @@ export function ShoppingRequestCreateModal({ open, onClose }: { open: boolean; o
   const canSave = Boolean(supplierId) && cartItems.length > 0 && cartItems.every((item) => item.requestedQty > 0);
 
   const reset = () => {
-    setSupplierId(""); setSupplierError(null); setNote(""); setCartItems([]);
+    setSupplierId(""); setSupplierError(null); setName(""); setError(null); setNote(""); setCartItems([]);
   };
   const close = () => { reset(); onClose(); };
 
@@ -41,19 +43,40 @@ export function ShoppingRequestCreateModal({ open, onClose }: { open: boolean; o
 
   const save = async () => {
     if (!supplierId) { setSupplierError("Pilih supplier tujuan terlebih dahulu."); return; }
-    await createRequest.mutateAsync({
-      supplierId,
-      note: note || null,
-      items: cartItems.map((item) => ({ productId: item.product.id, requestedQty: item.requestedQty })),
-    });
-    close();
+    setError(null);
+    try {
+      await createRequest.mutateAsync({
+        supplierId,
+        name: name.trim() || undefined,
+        note: note || null,
+        items: cartItems.map((item) => ({ productId: item.product.id, requestedQty: item.requestedQty })),
+      });
+      close();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Gagal menyimpan daftar belanja");
+    }
   };
 
   return (
     <Modal open={open} onClose={close} title="Buat Daftar Belanja" size="6xl">
       <div className="flex flex-col gap-5">
         <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <SupplierSelector value={supplierId} onChange={(value) => { setSupplierId(value); setSupplierError(null); }} error={supplierError} />
+          <div className="space-y-3">
+            <SupplierSelector value={supplierId} onChange={(value) => { setSupplierId(value); setSupplierError(null); }} error={supplierError} />
+            <label className="block text-sm font-bold text-slate-700">
+              Nama Daftar Belanja (Opsional)
+              <input
+                value={name}
+                onChange={(event) => { setName(event.target.value); setError(null); }}
+                maxLength={160}
+                className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-medium outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                placeholder="Kosongkan untuk memakai nomor dokumen"
+              />
+              <span className="mt-1 block text-xs font-normal text-slate-500">
+                Nama harus unik di toko ini. Nomor dokumen dibuat otomatis saat disimpan.
+              </span>
+            </label>
+          </div>
           <div className="z-50 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <span className="mb-1.5 block text-sm font-bold text-slate-700">Cari & Tambah Produk</span>
             <ProductAutocomplete onSelect={handleProductSelect} />
@@ -94,6 +117,7 @@ export function ShoppingRequestCreateModal({ open, onClose }: { open: boolean; o
         </section>
 
         <label className="block text-sm font-bold text-slate-700">Catatan Internal (Opsional)<textarea value={note} onChange={(event) => setNote(event.target.value)} className="mt-1.5 min-h-[72px] w-full rounded-xl border border-slate-200 p-3 text-sm" placeholder="Tambahkan catatan untuk reviewer..." /></label>
+        {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</p>}
         <footer className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
           <p className="text-xs font-semibold text-slate-500">Daftar belanja dan approval tidak mengubah stok.</p>
           <div className="flex gap-2"><Button type="button" variant="secondary" onClick={close}>Tutup</Button><Button type="button" loading={createRequest.isPending} disabled={!canSave} onClick={save}>Simpan Daftar Belanja</Button></div>

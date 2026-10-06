@@ -12,6 +12,11 @@ export interface CustomerDebtTransaction {
   amountPaid: unknown;
 }
 
+interface ActiveCustomerDebtTransaction extends CustomerDebtTransaction {
+  status: string;
+  paymentMethod: string;
+}
+
 export function normalizeCustomerDebtName(name: string | null | undefined): string {
   return (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
@@ -59,6 +64,45 @@ export function summarizeDebtByCustomer(
   return debtByCustomerId;
 }
 
+export function summarizeActiveCustomerDebtByCustomer(
+  customers: ReadonlyArray<CustomerDebtIdentity>,
+  transactions: ReadonlyArray<ActiveCustomerDebtTransaction>,
+): Map<string, number> {
+  const customerIdByName = new Map<string, string>();
+  customers.forEach((customer) => {
+    const normalized = normalizeCustomerDebtName(customer.name);
+    if (normalized && !customerIdByName.has(normalized)) {
+      customerIdByName.set(normalized, customer.id);
+    }
+  });
+
+  const debtByCustomerId = new Map<string, number>();
+  transactions.forEach((transaction) => {
+    const isActiveDp = transaction.status === "DP";
+    const isActiveTempo =
+      transaction.status === "COMPLETED" && transaction.paymentMethod === "TEMPO";
+    if (!isActiveDp && !isActiveTempo) return;
+
+    const total = toNumber(transaction.total);
+    const amountPaid = toNumber(transaction.amountPaid);
+    if (!Number.isFinite(total) || !Number.isFinite(amountPaid)) return;
+    const remaining = Math.max(0, total - amountPaid);
+    if (remaining <= 0) return;
+
+    const customerId =
+      transaction.customerId ??
+      customerIdByName.get(normalizeCustomerDebtName(transaction.customerName));
+    if (!customerId) return;
+
+    debtByCustomerId.set(
+      customerId,
+      (debtByCustomerId.get(customerId) ?? 0) + remaining,
+    );
+  });
+
+  return debtByCustomerId;
+}
+
 export async function loadCustomerDebtByActiveDp(
   db: PrismaClient,
   input: {
@@ -80,10 +124,19 @@ export async function loadCustomerDebtByActiveDp(
   const transactions = await db.transaction.findMany({
     where: {
       storeId: input.storeId,
-      status: "DP",
-      OR: [
-        { customerId: { in: ids } },
-        ...nameFilters,
+      AND: [
+        {
+          OR: [
+            { status: "DP" },
+            { status: "COMPLETED", paymentMethod: "TEMPO" },
+          ],
+        },
+        {
+          OR: [
+            { customerId: { in: ids } },
+            ...nameFilters,
+          ],
+        },
       ],
     },
     select: {
@@ -91,10 +144,12 @@ export async function loadCustomerDebtByActiveDp(
       customerName: true,
       total: true,
       amountPaid: true,
+      status: true,
+      paymentMethod: true,
     },
   });
 
-  return summarizeDebtByCustomer(input.customers, transactions);
+  return summarizeActiveCustomerDebtByCustomer(input.customers, transactions);
 }
 
 export function applyComputedCustomerDebt<

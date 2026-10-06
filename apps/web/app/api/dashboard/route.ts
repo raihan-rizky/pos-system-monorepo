@@ -3,9 +3,21 @@ import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
+import {
+  SALES_GROUP_LABELS,
+  type SalesGroup,
+} from "@/features/dashboard/helpers/sales-groups";
 
 const log = getLogger("api:dashboard");
 export const dynamic = 'force-dynamic';
+
+const SALES_GROUP_ORDER: readonly SalesGroup[] = [
+  "ATK",
+  "PAPER",
+  "CARTRIDGE",
+  "INK",
+  "OTHER",
+];
 
 type DashboardItem = {
   quantity: number;
@@ -130,7 +142,6 @@ export async function GET() {
         },
         _sum: { quantity: true, subtotal: true },
         orderBy: { _sum: { quantity: "desc" } },
-        take: 5,
       }),
       // 7. Production Status
       db.transaction.groupBy({
@@ -235,17 +246,60 @@ export async function GET() {
       }),
     );
 
+    const topProductIds = Array.from(
+      new Set(
+        topProductsRaw.flatMap((product) =>
+          product.productId ? [product.productId] : [],
+        ),
+      ),
+    );
+    const productsWithSalesGroups = topProductIds.length
+      ? await db.product.findMany({
+          where: { storeId, id: { in: topProductIds } },
+          select: { id: true, category: { select: { salesGroup: true } } },
+        })
+      : [];
+    const productSalesGroups = new Map(
+      productsWithSalesGroups.map((product) => [
+        product.id,
+        product.category.salesGroup,
+      ]),
+    );
+    const groupedTopProducts = new Map<SalesGroup, Array<{
+      name: string;
+      quantity: number;
+      revenue: number;
+    }>>(SALES_GROUP_ORDER.map((group) => [group, []]));
+
+    for (const product of topProductsRaw) {
+      const group = product.productId
+        ? productSalesGroups.get(product.productId) ?? "OTHER"
+        : "OTHER";
+      groupedTopProducts.get(group)?.push({
+        name: product.productName,
+        quantity: product._sum.quantity || 0,
+        revenue: Number(product._sum.subtotal || 0),
+      });
+    }
+
+    const topProductGroups = SALES_GROUP_ORDER.map((key) => ({
+      key,
+      label: SALES_GROUP_LABELS[key],
+      products: (groupedTopProducts.get(key) ?? []).slice(0, 5),
+    }));
+
     return NextResponse.json({
       todayRevenue,
       todayProfit,
       monthlyRevenue,
       monthlyProfit,
       totalProducts,
-      topProducts: topProductsRaw.map(tp => ({
+      topProducts: topProductsRaw.slice(0, 5).map((tp) => ({
         name: tp.productName,
         quantity: tp._sum.quantity || 0,
         revenue: Number(tp._sum.subtotal || 0),
       })),
+      topProductGroups,
       lowStockProducts: lowStockProducts.map(p => ({
         ...p,
         minStock: p.minStock || 5,

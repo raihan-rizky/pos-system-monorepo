@@ -30,7 +30,7 @@ export function priceCartItemsForCheckout(input: {
   items: CartItem[];
   customerType: CustomerType;
   pricingRules: CustomerCategoryPricingRule[];
-  pricingPreference: PricingPreference;
+  pricingPreference?: PricingPreference;
   manualPrices: Record<string, number>;
   role: string | null | undefined;
 }): CartItem[] {

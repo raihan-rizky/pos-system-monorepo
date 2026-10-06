@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { isActiveDebt } from "@/features/customer-debt/helpers/payment-terms";
 
 import { getLogger } from "@/lib/logger";
 
@@ -57,6 +58,13 @@ export async function POST(
 
     const totalPaymentAmount = resolvedPayments.reduce((sum, p) => sum + p.amount, 0);
 
+    if (!Number.isFinite(totalPaymentAmount) || totalPaymentAmount <= 0) {
+      return NextResponse.json(
+        { message: "Jumlah pembayaran harus lebih dari 0" },
+        { status: 422 },
+      );
+    }
+
     // Determine primary payment method for note
     const primaryPaymentMethod = resolvedPayments.reduce((primary, p) =>
       p.amount > primary.amount ? p : primary,
@@ -66,7 +74,15 @@ export async function POST(
     // Fetch transaction
     const transaction = await db.transaction.findFirst({
       where: { id, storeId },
-      select: { id: true, status: true, total: true, amountPaid: true, customerId: true, note: true },
+      select: {
+        id: true,
+        status: true,
+        paymentMethod: true,
+        total: true,
+        amountPaid: true,
+        customerId: true,
+        note: true,
+      },
     });
 
     if (!transaction) {
@@ -76,15 +92,20 @@ export async function POST(
       );
     }
 
-    if (transaction.status !== "DP") {
+    const currentPaid = Number(transaction.amountPaid);
+    const total = Number(transaction.total);
+    if (!isActiveDebt({
+      status: transaction.status,
+      paymentMethod: transaction.paymentMethod,
+      total,
+      amountPaid: currentPaid,
+    })) {
       return NextResponse.json(
-        { message: "Hanya transaksi dengan status DP yang dapat dibayar piutangnya" },
+        { message: "Transaksi ini tidak memiliki piutang aktif" },
         { status: 422 }
       );
     }
 
-    const currentPaid = Number(transaction.amountPaid);
-    const total = Number(transaction.total);
     const maxAmount = total - currentPaid;
 
     if (totalPaymentAmount > maxAmount) {
@@ -129,12 +150,33 @@ export async function POST(
     // totalDebt). A zero match means a concurrent request beat us, so we abort
     // with 409 and record nothing.
     const updated = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Match the customer → invoice lock order used by checkout and void.
+      await tx.$queryRawUnsafe(
+        'SELECT "id" FROM "pos_customers" WHERE "id" = $1 AND "storeId" = $2 FOR UPDATE',
+        debtCustomerId, storeId,
+      );
       const fresh = await tx.transaction.findFirst({
         where: { id, storeId },
-        select: { id: true, status: true, total: true, amountPaid: true, customerId: true, note: true },
+        select: {
+          id: true,
+          status: true,
+          paymentMethod: true,
+          total: true,
+          amountPaid: true,
+          customerId: true,
+          note: true,
+        },
       });
 
-      if (!fresh || fresh.status !== "DP") {
+      if (
+        !fresh ||
+        !isActiveDebt({
+          status: fresh.status,
+          paymentMethod: fresh.paymentMethod,
+          total: Number(fresh.total),
+          amountPaid: Number(fresh.amountPaid),
+        })
+      ) {
         throw new DebtConflictError();
       }
 
@@ -145,10 +187,19 @@ export async function POST(
       }
 
       const newAmountPaid = freshPaid + totalPaymentAmount;
-      const newStatus = newAmountPaid >= freshTotal ? "COMPLETED" : "DP";
+      const newStatus =
+        fresh.status === "DP" && newAmountPaid >= freshTotal
+          ? "COMPLETED"
+          : fresh.status;
 
       const guardedTx = await tx.transaction.updateMany({
-        where: { id, storeId, status: "DP" },
+        where: {
+          id,
+          storeId,
+          status: fresh.status,
+          amountPaid: fresh.amountPaid,
+          ...(fresh.status === "COMPLETED" ? { paymentMethod: "TEMPO" } : {}),
+        },
         data: {
           amountPaid: newAmountPaid,
           status: newStatus,

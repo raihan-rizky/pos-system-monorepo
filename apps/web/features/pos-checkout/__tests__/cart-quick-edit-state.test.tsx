@@ -70,6 +70,80 @@ describe("cart quick edit state", () => {
     );
   });
 
+  it("resolves persisted cart unit options by product id from cached catalog groups", async () => {
+    const cartModule = await import("@/hooks/useCart");
+    const applyProductUnitOptionUpdates = (
+      cartModule as typeof cartModule & {
+        applyProductUnitOptionUpdates?: (
+          items: CartItem[],
+          groups: NonNullable<ProductCartItem["unitOptions"]>[],
+        ) => CartItem[];
+      }
+    ).applyProductUnitOptionUpdates;
+
+    expect(applyProductUnitOptionUpdates).toBeTypeOf("function");
+    if (!applyProductUnitOptionUpdates) return;
+
+    const options: NonNullable<ProductCartItem["unitOptions"]> = [
+      {
+        productId: "paper-rim",
+        name: "Kertas A4",
+        price: 10000,
+        catalogPrice: 10000,
+        unit: "Rim",
+        stock: 20,
+        stockGroup: { id: "paper-stock-group", baseUnit: "Rim" },
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+      },
+      {
+        productId: "paper-box",
+        name: "Kertas A4",
+        price: 50000,
+        catalogPrice: 50000,
+        unit: "Box",
+        stock: 4,
+        unitMultiplierToBase: 5,
+        stockGroup: { id: "paper-stock-group", baseUnit: "Rim" },
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+      },
+    ];
+    const [restored] = applyProductUnitOptionUpdates(
+      [{ ...productItem, stockGroup: { id: "paper-stock-group", baseUnit: "Rim" } }],
+      [options],
+    ) as ProductCartItem[];
+
+    expect(restored.unitOptions).toEqual(options);
+  });
+
+  it("keeps unit options when persisted cart items are normalized after reload", async () => {
+    const { normalizeStoredCartItems } = await import("@/hooks/useCart");
+    const unitOptions = [
+      {
+        productId: "paper-box",
+        name: "Kertas A4",
+        price: 50000,
+        catalogPrice: 50000,
+        unit: "Box",
+        stock: 4,
+        unitMultiplierToBase: 5,
+        stockGroup: { id: "paper-stock-group", baseUnit: "Rim" },
+        categoryId: "cat-paper",
+        categoryName: "Kertas",
+      },
+    ];
+
+    const [restored] = normalizeStoredCartItems([
+      {
+        ...productItem,
+        unitOptions,
+      },
+    ]);
+
+    expect(restored).toEqual(expect.objectContaining({ unitOptions }));
+  });
+
   it("sets a transaction price as the active cart price", async () => {
     const cartModule = await import("@/hooks/useCart");
     const applyTransactionPrice = (
@@ -153,6 +227,40 @@ describe("cart quick edit state", () => {
         hargaDinas: null,
         transactionPrice: 8000,
         price: 8000,
+      }),
+    );
+  });
+
+  it("refreshes matching saved unit prices after a catalog price change", async () => {
+    const { applyProductPriceUpdate } = await import("@/hooks/useCart");
+    const productWithUnits: ProductCartItem = {
+      ...productItem,
+      unitOptions: [
+        {
+          productId: productItem.productId,
+          name: productItem.name,
+          price: 10000,
+          catalogPrice: 10000,
+          unit: productItem.unit,
+          stock: productItem.stock,
+          categoryId: productItem.categoryId,
+          categoryName: productItem.categoryName,
+        },
+      ],
+    };
+
+    const [updated] = applyProductPriceUpdate(
+      [productWithUnits],
+      productItem.productId,
+      { price: 12000, hargaAgen: 10000, hargaDinas: 11000 },
+    ) as ProductCartItem[];
+
+    expect(updated.unitOptions?.[0]).toEqual(
+      expect.objectContaining({
+        price: 12000,
+        catalogPrice: 12000,
+        hargaAgen: 10000,
+        hargaDinas: 11000,
       }),
     );
   });

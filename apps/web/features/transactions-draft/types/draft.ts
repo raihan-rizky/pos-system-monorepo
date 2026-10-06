@@ -30,8 +30,19 @@ export type DraftCreateInput = {
 
 export type DraftApproveInput = {
   id: string;
-  paymentMethod: "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER";
+  paymentMethod: "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER" | "TEMPO";
   amountPaid: number;
+  payments?: { method: "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER"; amount: number }[];
+  items?: {
+    productId?: string | null;
+    printingServiceId?: string | null;
+    quantity: number;
+    rawMaterialProductId?: string | null;
+    rawMaterialQuantity?: number | null;
+    size?: string | null;
+    material?: string | null;
+  }[];
+  quoteFingerprint?: string;
   invoiceDate?: string;
   invoiceTime?: string | null;
   invoiceDateReason?: string | null;

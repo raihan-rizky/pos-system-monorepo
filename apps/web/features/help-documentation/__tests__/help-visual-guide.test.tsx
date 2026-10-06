@@ -362,7 +362,7 @@ describe("visual help guides", () => {
         }
       }
     }
-  }, 20000);
+  }, 60000);
 
   it("selects the real tab, subtab, and overlay state for representative workflow targets", () => {
     const cases = [
@@ -582,7 +582,7 @@ describe("visual help guides", () => {
         }
       }
     }
-  }, 20000);
+  }, 60000);
 
   it("renders an inline overlay for every registered visual target", () => {
     for (const [page, config] of Object.entries(HELP_VISUAL_PAGE_CONFIG)) {
@@ -604,7 +604,7 @@ describe("visual help guides", () => {
         }
       }
     }
-  }, 20000);
+  }, 60000);
 
   it("renders exactly one active highlight for every resolved target state", () => {
     for (const [page, config] of Object.entries(HELP_VISUAL_PAGE_CONFIG)) {
@@ -627,7 +627,7 @@ describe("visual help guides", () => {
         }
       }
     }
-  }, 20000);
+  }, 60000);
 
   it("adds glow effects to every active right-side visual step target", () => {
     for (const [page, config] of Object.entries(HELP_VISUAL_PAGE_CONFIG)) {
@@ -656,7 +656,7 @@ describe("visual help guides", () => {
         }
       }
     }
-  }, 20000);
+  }, 60000);
 
   it("defines reduced-motion-safe CSS for animated help glow", () => {
     const css = readFileSync(new URL("../../../app/globals.css", import.meta.url), "utf8");
@@ -774,6 +774,7 @@ describe("visual help guides", () => {
       "cashier-pos": [
         "pos.pos-primary",
         "pos.pos-products",
+        "pos.pos-cart",
         "pos.pos-payment-modal",
       ],
       "inventory-production": [

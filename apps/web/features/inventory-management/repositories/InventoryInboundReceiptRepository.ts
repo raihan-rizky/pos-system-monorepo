@@ -87,6 +87,8 @@ export class InventoryInboundReceiptRepository
             approvedByName: true,
             approvedAt: true,
             note: true,
+            costPriceSnapshot: true,
+            supplierCostPrice: true,
             product: true,
             goodsPurchaseItem: {
               select: {
@@ -140,6 +142,14 @@ export class InventoryInboundReceiptRepository
         approvedByName: line.approvedByName,
         approvedAt: line.approvedAt,
         note: line.note,
+        costPriceSnapshot:
+          line.costPriceSnapshot === null
+            ? null
+            : Number(line.costPriceSnapshot.toString()),
+        supplierCostPrice:
+          line.supplierCostPrice === null
+            ? null
+            : Number(line.supplierCostPrice.toString()),
         product: line.product,
         stockGroupId: line.product.stockGroupId,
         unitMultiplierToBase: line.product.unitMultiplierToBase,
@@ -211,6 +221,7 @@ export class InventoryInboundReceiptRepository
       matchStatus: "MATCHED" | "MISMATCHED";
       receivedQuantity: number;
       note: string | null;
+      supplierCostPrice?: number | null;
       reviewStatus: "PENDING";
       approvedById: null;
       approvedByName: null;
@@ -231,6 +242,9 @@ export class InventoryInboundReceiptRepository
         receivedQuantity: input.receivedQuantity,
         receivedQuantitySnapshot: input.receivedQuantity,
         note: input.note,
+        ...(input.supplierCostPrice !== undefined
+          ? { supplierCostPrice: input.supplierCostPrice }
+          : {}),
         reviewStatus: input.reviewStatus,
         approvedById: input.approvedById,
         approvedByName: input.approvedByName,
@@ -984,6 +998,7 @@ export class InventoryInboundReceiptRepository
             skuSnapshot: true,
             unitSnapshot: true,
             latestUnitPrice: true,
+            product: { select: { costPrice: true } },
             quantity: true,
             inboundReceiptLines: {
               where: {
@@ -1009,6 +1024,10 @@ export class InventoryInboundReceiptRepository
       items: purchase.items.map((item) => ({
         ...item,
         latestUnitPrice: Number(item.latestUnitPrice.toString()),
+        currentCostPrice:
+          item.product?.costPrice == null
+            ? null
+            : Number(item.product.costPrice.toString()),
       })),
     };
   }
@@ -1031,6 +1050,7 @@ export class InventoryInboundReceiptRepository
         skuSnapshot: string;
         unitSnapshot: string | null;
         costPriceSnapshot: number;
+        supplierCostPrice: number | null;
         supplierNameSnapshot: string;
         invoiceNumberSnapshot: string;
         expectedQuantity: number;
@@ -1061,6 +1081,7 @@ export class InventoryInboundReceiptRepository
             skuSnapshot: line.skuSnapshot,
             unitSnapshot: line.unitSnapshot,
             costPriceSnapshot: line.costPriceSnapshot,
+            supplierCostPrice: line.supplierCostPrice,
             supplierNameSnapshot: line.supplierNameSnapshot,
             invoiceNumberSnapshot: line.invoiceNumberSnapshot,
             status: line.status,
@@ -1085,6 +1106,7 @@ export class InventoryInboundReceiptRepository
     input: {
       status?: InboundReceiptStatus;
       goodsPurchaseId?: string | null;
+      supplierId?: string | null;
     },
   ) {
     const receipts = await db.inventoryInboundReceipt.findMany({
@@ -1094,6 +1116,7 @@ export class InventoryInboundReceiptRepository
         ...(input.goodsPurchaseId
           ? { goodsPurchaseId: input.goodsPurchaseId }
           : {}),
+        ...(input.supplierId ? { supplierId: input.supplierId } : {}),
       },
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -1109,6 +1132,17 @@ export class InventoryInboundReceiptRepository
     return receipts.map(({ goodsPurchase, ...receipt }) => ({
       ...receipt,
       goodsPurchaseNumber: goodsPurchase?.number ?? null,
+      lines: receipt.lines.map((line) => ({
+        ...line,
+        costPriceSnapshot:
+          line.costPriceSnapshot === null
+            ? null
+            : Number(line.costPriceSnapshot.toString()),
+        supplierCostPrice:
+          line.supplierCostPrice === null
+            ? null
+            : Number(line.supplierCostPrice.toString()),
+      })),
     }));
   }
 
@@ -1118,6 +1152,7 @@ export class InventoryInboundReceiptRepository
       search?: string | null;
       take?: number;
       goodsPurchaseId?: string | null;
+      supplierId?: string | null;
     },
   ): Promise<ReceivingQueueRepositoryRow[]> {
     const take = Math.min(Math.max(input.take ?? 50, 1), 100);
@@ -1128,6 +1163,7 @@ export class InventoryInboundReceiptRepository
         status: "APPROVED",
         fulfillmentStatus: { not: "RECEIVED" },
         ...(input.goodsPurchaseId ? { id: input.goodsPurchaseId } : {}),
+        ...(input.supplierId ? { supplierId: input.supplierId } : {}),
         ...(search
           ? {
               OR: [
@@ -1179,6 +1215,7 @@ export class InventoryInboundReceiptRepository
             skuSnapshot: true,
             unitSnapshot: true,
             quantity: true,
+            product: { select: { costPrice: true } },
             inboundReceiptLines: {
               where: {
                 receipt: {
@@ -1234,6 +1271,10 @@ export class InventoryInboundReceiptRepository
           productName: item.productNameSnapshot,
           sku: item.skuSnapshot,
           unit: item.unitSnapshot,
+          currentCostPrice:
+            item.product?.costPrice == null
+              ? null
+              : Number(item.product.costPrice.toString()),
           orderedQuantity: item.quantity,
           approvedReceivedQuantity,
           pendingReservedQuantity,

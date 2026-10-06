@@ -208,4 +208,22 @@ describe('ProductCard', () => {
     expect(html).toContain('Belum ada harga agen');
     expect(html).toContain('Belum ada harga dinas');
   });
+
+  it('shows the smaller unit before the larger unit regardless of input order', () => {
+    const product = {
+      ...mockProductWith2Variants,
+      unit: 'pcs',
+      stockGroup: { id: 'group-1', displayName: 'Coffee', baseUnit: 'pcs', baseStock: 100 },
+      variants: [
+        { id: 'bal', unit: 'Bal', price: 50000, stock: 2, sku: 'COFFEE-BAL', unitMultiplierToBase: 20 },
+        { id: 'pcs', unit: 'Pcs', price: 3000, stock: 100, sku: 'COFFEE-PCS', unitMultiplierToBase: 1 },
+      ],
+    } as unknown as Product;
+
+    const html = renderToStaticMarkup(
+      <ProductCard product={product} onAddToCart={vi.fn()} />,
+    );
+
+    expect(html.indexOf('Pcs')).toBeLessThan(html.indexOf('Bal'));
+  });
 });

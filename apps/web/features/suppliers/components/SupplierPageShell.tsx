@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRole } from "@/components/providers/RoleProvider";
 import { Button, Modal } from "@pos/ui";
 import {
   PackagePlus,
@@ -103,6 +104,13 @@ const GoodsPurchaseReceivingComparisonModal = dynamic(
     ).then((module) => module.GoodsPurchaseReceivingComparisonModal),
   { ssr: false },
 );
+const InboundReceiptTab = dynamic(
+  () =>
+    import(
+      "@/features/inventory-management/components/InboundReceiptTab"
+    ).then((module) => module.InboundReceiptTab),
+  { ssr: false, loading: () => <DeferredPanelSkeleton /> },
+);
 const InboundReceiptModal = dynamic(
   () =>
     import(
@@ -122,24 +130,42 @@ const emptyForm: SupplierInput = {
 };
 
 export function SupplierPageShell() {
+  const { canPerform } = useRole();
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const [tab, setTab] = useState<
-    "suppliers" | "recap" | "shopping" | "goods-purchases"
-  >(
-    requestedTab === "goods-purchases"
-      ? "goods-purchases"
-      : requestedTab === "shopping-requests"
-        ? "shopping"
-        : requestedTab === "recap"
-          ? "recap"
-          : "suppliers",
+  const requestedGoodsPurchaseId = searchParams.get("goodsPurchaseId");
+  const requestedSupplierId = searchParams.get("supplierId");
+  const canReadSupplierWorkspace = canPerform("supplier", "read");
+  const canReadInboundReceipts = canPerform("inventory", "read");
+  const canCreateInboundReceipt = canPerform(
+    "inventory.inbound_receipt.create",
+    "create",
   );
+  const canCreateSupplier = canPerform("supplier", "create");
+  const [tab, setTab] = useState<
+    | "suppliers"
+    | "recap"
+    | "shopping"
+    | "goods-purchases"
+    | "inbound-receipts"
+  >(() => {
+    if (requestedTab === "inbound-receipts" && canReadInboundReceipts) {
+      return "inbound-receipts";
+    }
+    if (canReadSupplierWorkspace) {
+      if (requestedTab === "goods-purchases") return "goods-purchases";
+      if (requestedTab === "shopping-requests") return "shopping";
+      if (requestedTab === "recap") return "recap";
+      return "suppliers";
+    }
+    return "inbound-receipts";
+  });
   const [shoppingCreateOpen, setShoppingCreateOpen] = useState(false);
   const [goodsPurchaseCreateOpen, setGoodsPurchaseCreateOpen] =
     useState(false);
+  const [receiptCreateOpen, setReceiptCreateOpen] = useState(false);
   const [receivingGoodsPurchaseId, setReceivingGoodsPurchaseId] =
     useState<string | null>(null);
   const [comparisonGoodsPurchaseId, setComparisonGoodsPurchaseId] =
@@ -157,10 +183,19 @@ export function SupplierPageShell() {
   const debouncedSearch = useDebounce(search.trim(), 300);
 
   useEffect(() => {
-    if (requestedTab === "goods-purchases") setTab("goods-purchases");
-    if (requestedTab === "shopping-requests") setTab("shopping");
-    if (requestedTab === "recap") setTab("recap");
-  }, [requestedTab]);
+    if (requestedTab === "inbound-receipts" && canReadInboundReceipts) {
+      setTab("inbound-receipts");
+      return;
+    }
+    if (canReadSupplierWorkspace) {
+      if (requestedTab === "goods-purchases") setTab("goods-purchases");
+      else if (requestedTab === "shopping-requests") setTab("shopping");
+      else if (requestedTab === "recap") setTab("recap");
+      else if (!requestedTab) setTab("suppliers");
+      return;
+    }
+    if (canReadInboundReceipts) setTab("inbound-receipts");
+  }, [canReadInboundReceipts, canReadSupplierWorkspace, requestedTab]);
 
   const supplierFilters = useMemo(
     () => ({
@@ -261,66 +296,91 @@ export function SupplierPageShell() {
           <div>
             <p className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-cyan-700">
               <Store className="h-3 w-3" />
-              Manajemen Supplier
+              {canReadSupplierWorkspace ? "Manajemen Supplier" : "Penerimaan Barang"}
             </p>
-            <h1 className="text-2xl font-black text-slate-950">Supplier</h1>
+            <h1 className="text-2xl font-black text-slate-950">
+              {canReadSupplierWorkspace ? "Supplier" : "Penerimaan Barang"}
+            </h1>
             <p className="text-sm text-slate-500">
-              Kelola supplier dan pantau rekap stock in dari pembelian.
+              {canReadSupplierWorkspace
+                ? "Kelola supplier dan pantau rekap stock in dari pembelian."
+                : "Catat barang yang datang dari Pembelian Barang yang telah disetujui."}
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setImportDrawerOpen(true)}
-              className="w-full sm:w-auto"
-            >
-              <Upload className="mr-1.5 h-4 w-4" />
-              Import Supplier
-            </Button>
-            <Button type="button" onClick={openCreate} className="w-full sm:w-auto">
-              <Plus className="mr-1.5 h-4 w-4" />
-              Tambah Supplier
-            </Button>
-          </div>
+          {canReadSupplierWorkspace && canCreateSupplier && (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setImportDrawerOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Upload className="mr-1.5 h-4 w-4" />
+                Import Supplier
+              </Button>
+              <Button type="button" onClick={openCreate} className="w-full sm:w-auto">
+                <Plus className="mr-1.5 h-4 w-4" />
+                Tambah Supplier
+              </Button>
+            </div>
+          )}
         </div>
 
         <div
           role="tablist"
-          aria-label="Menu supplier"
+          aria-label="Menu supplier dan penerimaan"
           className="-mx-3 flex snap-x snap-mandatory gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0"
         >
-          <TabButton
-            active={tab === "suppliers"}
-            onClick={() => setTab("suppliers")}
-            icon={<Building2 className="h-4 w-4" />}
-          >
-            Supplier
-          </TabButton>
-          <TabButton
-            active={tab === "recap"}
-            onClick={() => setTab("recap")}
-            icon={<Boxes className="h-4 w-4" />}
-          >
-            Rekap Stock In
-          </TabButton>
-          <TabButton
-            active={tab === "shopping"}
-            onClick={() => setTab("shopping")}
-            icon={<ShoppingCart className="h-4 w-4" />}
-          >
-            Daftar Belanja
-          </TabButton>
-          <TabButton
-            active={tab === "goods-purchases"}
-            onClick={() => setTab("goods-purchases")}
-            icon={<PackagePlus className="h-4 w-4" />}
-          >
-            Pembelian Barang
-          </TabButton>
+          {canReadSupplierWorkspace && (
+            <>
+              <TabButton
+                active={tab === "suppliers"}
+                onClick={() => setTab("suppliers")}
+                icon={<Building2 className="h-4 w-4" />}
+              >
+                Supplier
+              </TabButton>
+              <TabButton
+                active={tab === "recap"}
+                onClick={() => setTab("recap")}
+                icon={<Boxes className="h-4 w-4" />}
+              >
+                Rekap Stock In
+              </TabButton>
+              <TabButton
+                active={tab === "shopping"}
+                onClick={() => setTab("shopping")}
+                icon={<ShoppingCart className="h-4 w-4" />}
+              >
+                Daftar Belanja
+              </TabButton>
+              <TabButton
+                active={tab === "goods-purchases"}
+                onClick={() => setTab("goods-purchases")}
+                icon={<PackagePlus className="h-4 w-4" />}
+              >
+                Pembelian Barang
+              </TabButton>
+            </>
+          )}
+          {canReadInboundReceipts && (
+            <TabButton
+              active={tab === "inbound-receipts"}
+              onClick={() => setTab("inbound-receipts")}
+              icon={<Inbox className="h-4 w-4" />}
+            >
+              Penerimaan Barang
+            </TabButton>
+          )}
         </div>
 
-        {tab === "suppliers" ? (
+        {tab === "inbound-receipts" ? (
+          <InboundReceiptTab
+            goodsPurchaseId={requestedGoodsPurchaseId}
+            supplierId={requestedSupplierId}
+            onCreateReceipt={() => setReceiptCreateOpen(true)}
+          />
+        ) : tab === "suppliers" ? (
           <>
             <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {summary.isPending ? (
@@ -478,7 +538,7 @@ export function SupplierPageShell() {
               onCompare={setComparisonGoodsPurchaseId}
               onViewReceiptHistory={(purchaseId) =>
                 router.push(
-                  `/inventory?tab=transactions&subtab=inbound&goodsPurchaseId=${purchaseId}`,
+                  `/suppliers?tab=inbound-receipts&goodsPurchaseId=${purchaseId}`,
                 )
               }
             />
@@ -518,13 +578,18 @@ export function SupplierPageShell() {
         />
       )}
 
-      {receivingGoodsPurchaseId && (
+      {(receiptCreateOpen || receivingGoodsPurchaseId) && (
         <InboundReceiptModal
           open
           initialGoodsPurchaseId={receivingGoodsPurchaseId}
-          onClose={() => setReceivingGoodsPurchaseId(null)}
+          supplierId={requestedSupplierId}
+          onClose={() => {
+            setReceivingGoodsPurchaseId(null);
+            setReceiptCreateOpen(false);
+          }}
           onSuccess={() => {
             setReceivingGoodsPurchaseId(null);
+            setReceiptCreateOpen(false);
             invalidateGoodsReceiptQueries(queryClient);
           }}
         />

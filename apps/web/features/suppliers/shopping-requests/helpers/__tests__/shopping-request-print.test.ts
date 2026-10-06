@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildShoppingRequestPrintRows,
   formatShoppingRequestDate,
+  SHOPPING_REQUEST_PRINT_LAYOUTS,
 } from "../shopping-request-print";
 import type { ShoppingRequestDetail } from "../../types/shopping-request";
 
 const detail: ShoppingRequestDetail = {
   id: "sr-1",
   number: "DPB-202606-001",
+  name: "DPB-202606-001",
   status: "APPROVED",
   supplierId: null,
   supplierName: null,
@@ -131,4 +133,14 @@ describe("formatShoppingRequestDate", () => {
     expect(formatShoppingRequestDate(null)).toBe("-");
     expect(formatShoppingRequestDate("not-a-date")).toBe("-");
   });
+});
+
+it("defines a three-column summary followed by the existing full receipt", () => {
+  expect(SHOPPING_REQUEST_PRINT_LAYOUTS).toEqual([
+    { kind: "summary", columns: ["no", "productName", "requestedQty"] },
+    {
+      kind: "full",
+      columns: ["no", "productName", "requestedQty", "stockOnHand", "approvedQty"],
+    },
+  ]);
 });

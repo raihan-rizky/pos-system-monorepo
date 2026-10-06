@@ -132,6 +132,54 @@ describe('CartMappingService', () => {
     expect(result.material).toBe('Metal');
   });
 
+  it('maps every active stock-group unit option with its own price', () => {
+    const product: Product = {
+      ...variantProduct,
+      stockGroupId: 'acco-group',
+      stockGroup: {
+        id: 'acco-group',
+        displayName: 'Acco Binder',
+        baseUnit: 'Pak',
+        baseStock: 75,
+      },
+      variants: [
+        {
+          ...variantProduct.variants![0],
+          unitMultiplierToBase: 5,
+          stockGroup: {
+            id: 'acco-group', displayName: 'Acco Binder', baseUnit: 'Pak', baseStock: 75,
+          },
+        },
+        {
+          ...variantProduct.variants![1],
+          unitMultiplierToBase: 1,
+          stockGroup: {
+            id: 'acco-group', displayName: 'Acco Binder', baseUnit: 'Pak', baseStock: 75,
+          },
+        },
+      ],
+    };
+
+    const result = mapProductToCartItem(product, 'acco-dus') as ReturnType<
+      typeof mapProductToCartItem
+    > & {
+      unitOptions?: Array<{
+        productId: string;
+        unit: string;
+        catalogPrice: number;
+        stockGroup?: { id?: string | null } | null;
+      }>;
+    };
+
+    expect(result.unitOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ productId: 'acco-dus', unit: 'Dus', catalogPrice: 12000 }),
+        expect.objectContaining({ productId: 'acco-pak', unit: 'Pak', catalogPrice: 13500 }),
+      ]),
+    );
+    expect(result.unitOptions?.every((option) => option.stockGroup?.id === 'acco-group')).toBe(true);
+  });
+
   it('preserves brand scope when mapping a selected variant to cart', () => {
     const result = mapProductToCartItem(
       {

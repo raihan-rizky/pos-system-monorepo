@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, type Prisma } from "@pos/db";
 import {
   handleAuthError,
   requirePermission,
@@ -11,6 +11,7 @@ import {
   applyProductStockDelta,
   StockMutationError,
 } from "@/features/product-stock-groups/stock-mutations";
+import { lockTransactionForStockMutation } from "@/features/transactions-stock/services/transaction-reversal-service";
 
 const log = getLogger("api:surat-jalan:approval");
 
@@ -59,6 +60,15 @@ export async function POST(
         throw new Error("INVALID_STATUS");
       }
 
+      const transactionStatus = await lockTransactionForStockMutation(tx, {
+        storeId,
+        transactionId: suratJalan.transactionId,
+      });
+      if (transactionStatus === null) throw new Error("TRANSACTION_NOT_FOUND");
+      if (["VOIDED", "REFUNDED"].includes(transactionStatus)) {
+        throw new Error("TRANSACTION_CLOSED");
+      }
+
       const usesLegacyStock =
         suratJalan.transaction.stockDeductionSource === "SURAT_JALAN";
 
@@ -88,12 +98,40 @@ export async function POST(
         }
       }
 
+      const inventoryRows: Prisma.InventoryLogCreateManyInput[] = [];
       if (usesLegacyStock) {
         for (const item of suratJalan.items) {
-          await applyProductStockDelta(tx, {
+          const stockResult = await applyProductStockDelta(tx, {
             storeId,
             productId: item.productId,
             delta: -item.quantity,
+          });
+          const multiplier = stockResult.stockGroupId
+            ? Math.abs(stockResult.baseDelta) / item.quantity
+            : 1;
+          if (
+            stockResult.productId !== item.productId ||
+            !Number.isFinite(stockResult.baseDelta) ||
+            stockResult.baseDelta >= 0 ||
+            !Number.isFinite(multiplier) ||
+            multiplier <= 0
+          ) {
+            throw new Error("STOCK_PROOF_UNAVAILABLE");
+          }
+          inventoryRows.push({
+            productId: item.productId,
+            transactionId: suratJalan.transactionId,
+            sourceTransactionRef: suratJalan.transactionId,
+            suratJalanId: suratJalan.id,
+            type: "OUT",
+            reason: "SALE",
+            quantity: item.quantity,
+            note: `Surat Jalan ${suratJalan.number} untuk invoice ${suratJalan.transactionId}`,
+            createdBy: user.id,
+            person: user.name ?? null,
+            stockGroupIdSnapshot: stockResult.stockGroupId,
+            unitMultiplierSnapshot: multiplier,
+            stockBaseDelta: stockResult.baseDelta,
           });
         }
       }
@@ -110,20 +148,8 @@ export async function POST(
         include: { items: true },
       });
 
-      if (usesLegacyStock) {
-        await tx.inventoryLog.createMany({
-          data: suratJalan.items.map((item) => ({
-            productId: item.productId,
-            transactionId: suratJalan.transactionId,
-            suratJalanId: suratJalan.id,
-            type: "OUT",
-            reason: "SALE",
-            quantity: item.quantity,
-            note: `Surat Jalan ${suratJalan.number} untuk invoice ${suratJalan.transactionId}`,
-            createdBy: user.id,
-            person: user.name ?? null,
-          })),
-        });
+      if (inventoryRows.length > 0) {
+        await tx.inventoryLog.createMany({ data: inventoryRows });
       }
 
       return updated;
@@ -137,13 +163,19 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof Error) {
-      if (error.message === "SURAT_JALAN_NOT_FOUND") {
-        return apiError("Surat jalan not found", 404, { code: "NotFound" });
+      if (["SURAT_JALAN_NOT_FOUND", "TRANSACTION_NOT_FOUND"].includes(error.message)) {
+        return apiError("Surat jalan atau transaksi tidak ditemukan", 404, { code: "NotFound" });
       }
       if (error.message === "INVALID_STATUS") {
         return apiError("Surat jalan is not pending", 409, {
           code: "Conflict",
         });
+      }
+      if (error.message === "TRANSACTION_CLOSED") {
+        return apiError("Transaksi sudah dibatalkan atau dikembalikan.", 409, { code: "Conflict" });
+      }
+      if (error.message === "STOCK_PROOF_UNAVAILABLE") {
+        return apiError("Riwayat perubahan stok tidak dapat diverifikasi.", 409, { code: "Conflict" });
       }
       if (
         ["QUANTITY_EXCEEDS_REMAINING", "INSUFFICIENT_STOCK"].includes(

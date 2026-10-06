@@ -160,6 +160,7 @@ describe("POST /api/transactions printing service items", () => {
           findMany: productFindManyMock,
           updateMany: productUpdateManyMock,
         },
+        inventoryLog: { createMany: inventoryLogCreateManyMock },
         $queryRaw: queryRawMock,
       }),
     );

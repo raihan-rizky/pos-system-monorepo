@@ -73,8 +73,14 @@ export interface InboundReceiptReviewModalProps {
 type EditInput = {
   matchStatus: InboundReceiptMatchStatus;
   receivedQuantity: string;
+  supplierCostPrice: string;
   note: string;
 };
+
+function formatCostPrice(value: number | null): string {
+  if (value === null) return "Belum dicatat";
+  return `Rp ${value.toLocaleString("id-ID", { maximumFractionDigits: 2 })}`;
+}
 
 export function InboundReceiptReviewModal({
   open,
@@ -189,6 +195,9 @@ export function InboundReceiptReviewModal({
     setEditInput({
       matchStatus: line.matchStatus ?? "MATCHED",
       receivedQuantity: String(line.receivedQuantity),
+      supplierCostPrice: String(
+        line.supplierCostPrice ?? line.costPriceSnapshot ?? "",
+      ),
       note: line.note ?? "",
     });
   };
@@ -198,6 +207,15 @@ export function InboundReceiptReviewModal({
     const receivedQuantity = Number(editInput.receivedQuantity);
     if (!Number.isFinite(receivedQuantity) || receivedQuantity < 0) {
       setError("Jumlah diterima wajib berupa angka valid.");
+      return;
+    }
+    const supplierCostPrice = Number(editInput.supplierCostPrice);
+    if (
+      !Number.isFinite(supplierCostPrice) ||
+      supplierCostPrice < 0 ||
+      supplierCostPrice > 9_999_999_999.99
+    ) {
+      setError("Harga modal supplier wajib berupa angka valid.");
       return;
     }
     if (
@@ -214,6 +232,7 @@ export function InboundReceiptReviewModal({
         editInboundReceiptItem(receipt.id, line.id, {
           matchStatus: editInput.matchStatus,
           receivedQuantity,
+          supplierCostPrice,
           note: editInput.note.trim() || null,
         }),
       async (result) => {
@@ -224,6 +243,7 @@ export function InboundReceiptReviewModal({
                   ...candidate,
                   matchStatus: editInput.matchStatus,
                   receivedQuantity,
+                  supplierCostPrice,
                   note: editInput.note.trim() || null,
                   reviewStatus: "PENDING",
                 }
@@ -327,6 +347,9 @@ export function InboundReceiptReviewModal({
                       {line.receivedQuantity} / {line.expectedQuantity}{" "}
                       {line.unitSnapshot ?? ""}
                     </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                      Harga Modal Supplier: {formatCostPrice(line.supplierCostPrice)}
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <span
@@ -373,7 +396,7 @@ export function InboundReceiptReviewModal({
                 )}
 
                 {isEditing ? (
-                  <div className="mt-3 grid gap-3 rounded-lg bg-slate-50 p-3 md:grid-cols-3">
+                  <div className="mt-3 grid gap-3 rounded-lg bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-4">
                     <label className="text-xs font-bold text-slate-600">
                       Status
                       <select
@@ -404,6 +427,23 @@ export function InboundReceiptReviewModal({
                           })
                         }
                         className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Harga Modal Supplier
+                      <input
+                        type="number"
+                        min={0}
+                        max={9_999_999_999.99}
+                        step="0.01"
+                        value={editInput.supplierCostPrice}
+                        onChange={(event) =>
+                          setEditInput({
+                            ...editInput,
+                            supplierCostPrice: event.target.value,
+                          })
+                        }
+                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3"
                       />
                     </label>
                     <label className="text-xs font-bold text-slate-600">

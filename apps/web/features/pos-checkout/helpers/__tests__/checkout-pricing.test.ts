@@ -130,7 +130,7 @@ describe("priceCartItemsForCheckout", () => {
     );
   });
 
-  it("uses Harga Agen when the cashier selects member priority", () => {
+  it("keeps a matching Harga Khusus rule primary when legacy preference requests Harga Agen", () => {
     const [priced] = priceCartItemsForCheckout({
       items: [
         {
@@ -151,16 +151,41 @@ describe("priceCartItemsForCheckout", () => {
       role: "CASHIER",
     });
 
-    expect(priced.price).toBe(9500);
+    expect(priced.price).toBe(5000);
     if (priced.lineType !== "PRODUCT") {
       throw new Error("Expected priced cart item to be a product line");
     }
     expect(priced.appliedPricing).toEqual(
       expect.objectContaining({
-        ruleId: "harga-agen",
+        ruleId: "rule-all-paper-rim-brand",
         originalUnitPrice: 10000,
-        appliedUnitPrice: 9500,
+        appliedUnitPrice: 5000,
       }),
     );
+  });
+
+  it("accepts the current checkout contract without a legacy preference", () => {
+    const [priced] = priceCartItemsForCheckout({
+      items: [paperRim],
+      customerType: "UMUM",
+      pricingRules: [allPaperRimBrandRule],
+      manualPrices: {},
+      role: "CASHIER",
+    });
+
+    expect(priced.price).toBe(9000);
+  });
+
+  it("keeps the member price as fallback when no special rule matches", () => {
+    const [priced] = priceCartItemsForCheckout({
+      items: [{ ...paperRim, hargaAgen: 9500 }],
+      customerType: "AGEN",
+      pricingRules: [],
+      pricingPreference: "MEMBER",
+      manualPrices: {},
+      role: "CASHIER",
+    });
+
+    expect(priced.price).toBe(9500);
   });
 });

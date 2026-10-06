@@ -1,6 +1,6 @@
 # Spesifikasi patch besar POS
 
-Tanggal: 2026-10-05. Status: desain dan spesifikasi tertulis disetujui pengguna; rencana implementasi rinci telah disusun. Kode aplikasi belum diubah.
+Tanggal spesifikasi: 2026-10-05. Status: desain disetujui pengguna; implementasi kode selesai di workspace dan menunggu validasi lingkungan/data serta keputusan rilis. Hasil terbaru ada di [status implementasi 2026-10-06](C:/Projects/pos-system-monorepo/markdown-files/patch-besar-pos-implementation-status-2026-10-06.md).
 
 Rencana utama: [Patch Besar POS Implementation Plan](C:/Projects/pos-system-monorepo/markdown-files/patch-besar-pos-implementation-plan-2026-10-05.md).
 
@@ -190,7 +190,7 @@ Kebijakan izin stok negatif existing tidak diubah oleh patch ini.
 
 ## Waktu invoice Jakarta WIB
 
-Backend menjadi sumber waktu default, disimpan sebagai timestamp UTC. Host backend harus tersinkronisasi melalui layanan waktu internet/NTP; verifikasi sinkronisasi ini menjadi syarat rilis. Browser mendapatkan waktu server beserta offset dan waktu pengambilan melalui endpoint waktu ringan, lalu menggunakan selisih waktu monotonic untuk tampilan berjalan.
+Backend menjadi sumber waktu default, disimpan sebagai timestamp UTC. Endpoint waktu mengambil sampel UTC dari TimeAPI.io, memperkirakan latensi request, membatasi waktu tunggu, dan menggunakan cache monotonic singkat. Jika penyedia atau jaringan tidak tersedia, endpoint memberi status fallback yang terlihat pada UI. Browser menerima epoch, sumber, waktu sinkron terakhir, dan zona `Asia/Jakarta`, lalu memakai selisih monotonic untuk tampilan berjalan. Rilis harus memverifikasi HTTPS keluar dan jalur fallback; TimeAPI menyatakan saat ini belum memiliki SLA ([FAQ TimeAPI](https://www.timeapi.io/home/faqs)).
 
 Tampilkan tanggal dan jam dengan zona eksplisit `Asia/Jakarta` dan label **WIB** pada checkout, riwayat, detail, dan nota/PDF yang menampilkan waktu. Jangan menambahkan tujuh jam ke timestamp lalu mengonversinya lagi. Default timestamp online ditetapkan server, bukan dipercaya dari jam perangkat kasir.
 

@@ -15,6 +15,12 @@ const inventoryLogCreateMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const buildApprovalQuoteMock = vi.hoisted(() => vi.fn());
+const canRolePerformActionMock = vi.hoisted(() => vi.fn());
+const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
+const paymentDeleteManyMock = vi.hoisted(() => vi.fn());
+const paymentCreateManyMock = vi.hoisted(() => vi.fn());
+vi.mock("@/features/invoice-date/services/internet-clock", () => ({ getInvoiceNow: async () => new Date() }));
 
 vi.mock("next/server", async () => {
   const actual = await vi.importActual<typeof import("next/server")>("next/server");
@@ -49,9 +55,23 @@ vi.mock("@pos/db", () => ({
   },
 }));
 
+vi.mock("@/features/transactions-draft/services/approval-quote", () => ({
+  buildApprovalQuote: buildApprovalQuoteMock,
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-core", () => ({
+  buildDefaultRolePermissions: vi.fn(() => ({})),
+  canRolePerformAction: canRolePerformActionMock,
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({
+  getGlobalRolePermissions: getGlobalRolePermissionsMock,
+}));
+
 describe("POST /api/transactions/[id]/approve", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    buildApprovalQuoteMock.mockReset();
     afterMock.mockImplementation((callback: () => void | Promise<void>) => callback());
     requirePermissionMock.mockResolvedValue({
       id: "cashier-1",
@@ -59,6 +79,8 @@ describe("POST /api/transactions/[id]/approve", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    canRolePerformActionMock.mockReturnValue(false);
+    getGlobalRolePermissionsMock.mockResolvedValue({});
     transactionFindFirstMock.mockResolvedValue({
       id: "tx-1",
       invoiceNumber: "INV-20260520-0001",
@@ -98,6 +120,8 @@ describe("POST /api/transactions/[id]/approve", () => {
     );
     inventoryLogCreateMock.mockResolvedValue({});
     inventoryLogCreateManyMock.mockResolvedValue({ count: 2 });
+    paymentDeleteManyMock.mockResolvedValue({ count: 0 });
+    paymentCreateManyMock.mockResolvedValue({ count: 1 });
     customerUpdateMock.mockResolvedValue({});
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
@@ -111,10 +135,12 @@ describe("POST /api/transactions/[id]/approve", () => {
         },
         inventoryLog: {
           create: inventoryLogCreateMock,
+          createMany: inventoryLogCreateManyMock,
         },
         customer: {
           update: customerUpdateMock,
         },
+        transactionPayment: { deleteMany: paymentDeleteManyMock, createMany: paymentCreateManyMock },
         $queryRaw: queryRawMock,
       }),
     );
@@ -165,6 +191,74 @@ describe("POST /api/transactions/[id]/approve", () => {
     });
   });
 
+  it("commits the final initial-payment ledger when approval changes the tender", async () => {
+    afterMock.mockImplementation(() => undefined);
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", { method: "POST", body: JSON.stringify({ paymentMethod: "CASH", amountPaid: 60000 }) }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(paymentDeleteManyMock).toHaveBeenCalledWith({ where: { transactionId: "tx-1" } });
+    expect(paymentCreateManyMock).toHaveBeenCalledWith({ data: [{ transactionId: "tx-1", method: "CASH", amount: 60000 }] });
+  });
+
+  it("journals product and service-material deductions before returning even if after never runs", async () => {
+    afterMock.mockImplementation(() => undefined);
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({
+      ...current,
+      stockDeductionSource: "SURAT_JALAN",
+      items: [
+        { productId: "product-1", productName: "Kertas", quantity: 2, unitCost: 1000 },
+        { productId: null, printingServiceId: "service-1", productName: "Cetak", quantity: 1,
+          rawMaterialProductId: "paper-1", rawMaterialQuantity: 3, unitCost: 2000 },
+      ],
+    });
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({}),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(inventoryLogCreateManyMock).toHaveBeenCalledTimes(1);
+    expect(inventoryLogCreateManyMock).toHaveBeenCalledWith({ data: expect.arrayContaining([
+      expect.objectContaining({ productId: "product-1", transactionId: "tx-1", stockBaseDelta: -2 }),
+      expect.objectContaining({ productId: "paper-1", transactionId: "tx-1", stockBaseDelta: -3 }),
+    ]) });
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ stockDeductionSource: "TRANSACTION" }),
+    }));
+    expect(customerUpdateMock).toHaveBeenCalledTimes(1);
+    expect(customerUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(transactionUpdateManyMock.mock.invocationCallOrder[0]);
+  });
+
+  it("rejects a changed approval quote before changing status or stock", async () => {
+    buildApprovalQuoteMock.mockResolvedValue({
+      items: [],
+      subtotal: 50000,
+      discount: 0,
+      tax: 0,
+      total: 50000,
+      fingerprint: "fresh-quote",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [{ productId: "product-1", quantity: 2 }],
+          quoteFingerprint: "stale-quote",
+          paymentMethod: "CASH",
+          amountPaid: 50000,
+        }),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "APPROVAL_QUOTE_CHANGED",
+      quote: { fingerprint: "fresh-quote" },
+    });
+    expect(transactionUpdateManyMock).not.toHaveBeenCalled();
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
+  });
+
   it("preserves stored overpayment and change when approving", async () => {
     transactionFindFirstMock.mockResolvedValueOnce({
       id: "tx-1",
@@ -195,6 +289,71 @@ describe("POST /api/transactions/[id]/approve", () => {
         status: "COMPLETED",
         amountPaid: 60000,
         change: 10000,
+      }),
+    });
+  });
+
+  it("keeps Tempo distinct from DP and accepts zero paid for a linked customer", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST",
+        body: JSON.stringify({ paymentMethod: "TEMPO", amountPaid: 0 }),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL" },
+      data: expect.objectContaining({
+        status: "COMPLETED",
+        paymentMethod: "TEMPO",
+        amountPaid: 0,
+      }),
+    });
+  });
+
+  it("requires a customer for Tempo approval", async () => {
+    transactionFindFirstMock.mockResolvedValueOnce({
+      id: "tx-1",
+      invoiceNumber: "INV-20260520-0001",
+      storeId: "store-main",
+      status: "PENDING_APPROVAL",
+      total: 50000,
+      paymentMethod: "CASH",
+      amountPaid: 0,
+      customerId: null,
+      items: [{ productId: "product-1", quantity: 1 }],
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST",
+        body: JSON.stringify({ paymentMethod: "TEMPO", amountPaid: 0 }),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(422);
+    expect(transactionUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves a partial initial collection on Tempo approval", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST",
+        body: JSON.stringify({ paymentMethod: "TEMPO", amountPaid: 12500 }),
+      }),
+      { params: Promise.resolve({ id: "tx-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL" },
+      data: expect.objectContaining({
+        status: "COMPLETED",
+        paymentMethod: "TEMPO",
+        amountPaid: 12500,
       }),
     });
   });

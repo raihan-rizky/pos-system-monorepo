@@ -55,6 +55,7 @@ export interface InvoicePdfData {
   customerName: string;
   salesName: string;
   paymentMethod: string;
+  paymentTermsLabel: string | null;
   date: string;
   status: { label: string; color: string };
   items: InvoicePdfItem[];
@@ -64,6 +65,7 @@ export interface InvoicePdfData {
   note: string | null;
   isCancelled: boolean;
   isDP: boolean;
+  isTempo: boolean;
 }
 
 /* ── Status display ─────────────────────────────────────────────── */
@@ -91,10 +93,15 @@ export function computeTotals(transaction: Transaction): InvoicePdfTotals {
   const amountPaid = Number(transaction.amountPaid);
   const change = Number(transaction.change);
   const isDP = transaction.status === "DP";
+  const isTempo = transaction.paymentMethod === "TEMPO";
   const isVoided = transaction.status === "VOIDED";
   const isRefunded = transaction.status === "REFUNDED";
   const isCancelled = isVoided || isRefunded;
-  const remaining = isDP ? grandTotal - amountPaid : 0;
+  const hasActiveBalance =
+    (transaction.status === "COMPLETED" || isDP) && (isDP || isTempo);
+  const remaining = hasActiveBalance
+    ? Math.max(0, grandTotal - amountPaid)
+    : 0;
   const paymentsList = buildReceiptPaymentLines(transaction);
 
   return {
@@ -106,8 +113,8 @@ export function computeTotals(transaction: Transaction): InvoicePdfTotals {
     changeFormatted: change.toLocaleString("id-ID"),
     remaining,
     remainingFormatted: remaining.toLocaleString("id-ID"),
-    paymentLabel: isDP ? "UANG MUKA" : "TUNAI",
-    balanceLabel: isDP ? "SISA" : "KEMBALI",
+    paymentLabel: isTempo ? "TEMPO/TAGIHAN" : isDP ? "UANG MUKA" : "TUNAI",
+    balanceLabel: isTempo ? "SISA TAGIHAN" : isDP ? "SISA" : "KEMBALI",
     isCancelled,
     cancelLabel: isVoided
       ? "DIBATALKAN"
@@ -165,7 +172,11 @@ export function buildInvoicePdfData(
   const emptyRowCount = Math.max(0, MIN_ROWS - items.length);
 
   const totals = computeTotals(transaction);
-  const status = getStatusDisplay(transaction.status);
+  const isTempo = transaction.paymentMethod === "TEMPO";
+  const status =
+    isTempo && totals.remaining > 0
+      ? { label: "BELUM LUNAS", color: "#b45309" }
+      : getStatusDisplay(transaction.status);
 
   const pdfItems: InvoicePdfItem[] = items.map((item, index) => {
     const unit = item.product?.unit || item.printingService?.unit || item.rawMaterialUnit || "pcs";
@@ -190,9 +201,12 @@ export function buildInvoicePdfData(
       transaction.salesName ??
       transaction.salesperson?.name ??
       "-",
-    paymentMethod: totals.paymentsList.length > 0 
+    paymentMethod: totals.paymentsList.length > 0
       ? totals.paymentsList.map(p => p.label === "TUNAI" ? "Tunai" : p.label).join(", ")
-      : transaction.paymentMethod === "CASH" ? "Tunai" : transaction.paymentMethod,
+      : isTempo
+        ? "Tempo/Tagihan"
+        : transaction.paymentMethod === "CASH" ? "Tunai" : transaction.paymentMethod,
+    paymentTermsLabel: isTempo ? "TEMPO/TAGIHAN" : null,
     date: formatIndonesianDate(
       transaction.invoiceDate || transaction.createdAt || new Date().toISOString()
     ),
@@ -206,5 +220,6 @@ export function buildInvoicePdfData(
       : null,
     isCancelled: totals.isCancelled,
     isDP: transaction.status === "DP",
+    isTempo,
   };
 }

@@ -11,6 +11,80 @@ import {
 } from "../rbac-core";
 
 describe("RBAC permission matrix", () => {
+  it("defaults transaction deletion to OWNER while honoring an explicit ADMIN grant", () => {
+    const defaults = buildDefaultRolePermissions();
+
+    expect(canRolePerformAction("OWNER", "transaction", "delete", defaults)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "transaction", "delete", defaults)).toBe(false);
+
+    const configured = normalizeRolePermissions([
+      {
+        role: "ADMIN",
+        scope: "resource",
+        target: "transaction",
+        action: "delete",
+        allowed: true,
+      },
+    ]);
+
+    expect(canRolePerformAction("ADMIN", "transaction", "delete", configured)).toBe(true);
+  });
+
+  it("defaults warehouse receipt access and owner/admin purchase approval while preserving RBAC overrides", () => {
+    const defaults = buildDefaultRolePermissions();
+
+    expect(canRoleAccessPage("INVENTORY", "/suppliers", defaults)).toBe(true);
+    expect(
+      canRolePerformAction("INVENTORY", "inventory.inbound_receipt.create", "create", defaults),
+    ).toBe(true);
+    expect(canRolePerformAction("INVENTORY", "supplier", "create", defaults)).toBe(false);
+    expect(
+      canRolePerformAction("ADMIN", "supplier.goods_purchase.approve", "update", defaults),
+    ).toBe(true);
+    expect(
+      canRolePerformAction("ADMIN", "supplier.goods_purchase.reject", "update", defaults),
+    ).toBe(true);
+    expect(
+      canRolePerformAction("INVENTORY", "supplier.goods_purchase.approve", "update", defaults),
+    ).toBe(false);
+
+    const deniedWarehouse = normalizeRolePermissions([
+      {
+        role: "INVENTORY",
+        scope: "resource",
+        target: "inventory.inbound_receipt.create",
+        action: "create",
+        allowed: false,
+      },
+    ]);
+    const grantedCashier = normalizeRolePermissions([
+      {
+        role: "CASHIER",
+        scope: "resource",
+        target: "inventory.inbound_receipt.create",
+        action: "create",
+        allowed: true,
+      },
+    ]);
+
+    expect(
+      canRolePerformAction(
+        "INVENTORY",
+        "inventory.inbound_receipt.create",
+        "create",
+        deniedWarehouse,
+      ),
+    ).toBe(false);
+    expect(
+      canRolePerformAction(
+        "CASHIER",
+        "inventory.inbound_receipt.create",
+        "create",
+        grantedCashier,
+      ),
+    ).toBe(true);
+  });
+
   it("reserves proof deletion for OWNER by default and allows an explicit grant", () => {
     const defaults = buildDefaultRolePermissions();
 

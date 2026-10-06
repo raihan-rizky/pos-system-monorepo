@@ -283,6 +283,7 @@ export default function DashboardPage() {
             >
               <TopProductsList
                 data={dashboardData?.topProducts ?? []}
+                groups={dashboardData?.topProductGroups}
                 loading={dashLoading}
               />
             </SectionCard>

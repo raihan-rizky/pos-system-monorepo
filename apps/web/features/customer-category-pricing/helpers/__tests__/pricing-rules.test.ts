@@ -136,7 +136,7 @@ describe("customer category pricing rules", () => {
     );
   });
 
-  it("uses Harga Dinas first when MEMBER is selected", () => {
+  it("keeps matching Harga Khusus primary when legacy MEMBER preference asks for Harga Dinas", () => {
     const priced = priceProductForCustomerType(
       {
         categoryId: "cat-ink",
@@ -149,11 +149,11 @@ describe("customer category pricing rules", () => {
       "MEMBER",
     );
 
-    expect(priced.unitPrice).toBe(125000);
-    expect(priced.appliedPricing?.ruleId).toBe("harga-dinas");
+    expect(priced.unitPrice).toBe(87500);
+    expect(priced.appliedPricing?.ruleId).toBe("rule-percent");
   });
 
-  it("uses Harga Agen first when MEMBER is selected", () => {
+  it("keeps matching Harga Khusus primary when legacy MEMBER preference asks for Harga Agen", () => {
     const priced = priceProductForCustomerType(
       {
         categoryId: "cat-paper",
@@ -166,8 +166,8 @@ describe("customer category pricing rules", () => {
       "MEMBER",
     );
 
-    expect(priced.unitPrice).toBe(9000);
-    expect(priced.appliedPricing?.ruleId).toBe("harga-agen");
+    expect(priced.unitPrice).toBe(10000);
+    expect(priced.appliedPricing?.ruleId).toBe("rule-flat");
   });
 
   it("falls back to category pricing in MEMBER mode when Harga Dinas is empty", () => {

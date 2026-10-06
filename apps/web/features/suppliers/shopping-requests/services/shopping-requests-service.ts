@@ -3,6 +3,10 @@ import {
   buildShoppingRequestNumber,
   sanitizeShoppingRequestItems,
 } from "../helpers/shopping-requests-core";
+import {
+  isShoppingRequestNameUniqueConflict,
+  resolveShoppingRequestName,
+} from "../helpers/shopping-request-name";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import {
   countShoppingRequests,
@@ -72,7 +76,8 @@ export async function createShoppingRequest(
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
-  return db.$transaction(async (tx) => {
+  try {
+    return await db.$transaction(async (tx) => {
     const supplier = await tx.supplier.findFirst({
       where: { id: input.supplierId, isActive: true },
       select: { id: true },
@@ -96,10 +101,12 @@ export async function createShoppingRequest(
     });
     const sequence = monthlyCount + 1;
     const number = buildShoppingRequestNumber(now, sequence);
+    const resolvedName = resolveShoppingRequestName(input.name, number);
     return createShoppingRequestWithItems(
       {
         storeId: actor.storeId,
         number,
+        ...resolvedName,
         sequence,
         supplierId: input.supplierId,
         requestedByName: input.requestedByName || actor.name || null,
@@ -118,7 +125,13 @@ export async function createShoppingRequest(
       },
       tx,
     );
-  });
+    });
+  } catch (error) {
+    if (isShoppingRequestNameUniqueConflict(error)) {
+      throw new ShoppingRequestNameConflictError();
+    }
+    throw error;
+  }
 }
 
 export async function getShoppingRequestOrThrow(
@@ -293,11 +306,17 @@ export async function updateShoppingRequest(
     );
   }
 
+  const resolvedName = resolveShoppingRequestName(
+    input.name ?? request.name,
+    request.number,
+  );
+
   try {
     return await updateShoppingRequestWithItems({
       id,
       actor,
       supplierId: input.supplierId,
+      ...resolvedName,
       note: input.note ?? null,
       items: items.map((item) => {
         const product = productById.get(item.productId)!;
@@ -312,6 +331,9 @@ export async function updateShoppingRequest(
       }),
     });
   } catch (error) {
+    if (isShoppingRequestNameUniqueConflict(error)) {
+      throw new ShoppingRequestNameConflictError();
+    }
     throw translateShoppingRequestError(error);
   }
 }
@@ -399,6 +421,13 @@ export class ShoppingRequestValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ShoppingRequestValidationError";
+  }
+}
+
+export class ShoppingRequestNameConflictError extends Error {
+  constructor() {
+    super("Nama daftar belanja sudah digunakan.");
+    this.name = "ShoppingRequestNameConflictError";
   }
 }
 

@@ -9,6 +9,7 @@ import {
   useSaveShoppingRequestApprovedQuantities,
   useShoppingRequest,
 } from "../hooks/useShoppingRequests";
+import { finishShoppingRequest } from "../helpers/shopping-request-completion";
 import type { ShoppingRequestDetail } from "../types/shopping-request";
 
 export function ShoppingRequestApprovedQtyModal({
@@ -64,17 +65,20 @@ export function ShoppingRequestApprovedQtyModal({
     if (!confirmed) return;
     setError(null);
     try {
-      await saveQuantities.mutateAsync({
-        id: detail.id,
-        input: {
-          items: pendingItems.map((item) => ({
-            id: item.id,
-            approvedQty: Number(values[item.id]),
-          })),
-          confirmOverRequested: overRequested.length > 0,
-        },
-      });
-      onClose();
+      await finishShoppingRequest(
+        () =>
+          saveQuantities.mutateAsync({
+            id: detail.id,
+            input: {
+              items: pendingItems.map((item) => ({
+                id: item.id,
+                approvedQty: Number(values[item.id]),
+              })),
+              confirmOverRequested: overRequested.length > 0,
+            },
+          }),
+        onClose,
+      );
     } catch (cause) {
       setError(
         cause instanceof Error

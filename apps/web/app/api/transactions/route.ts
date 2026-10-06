@@ -1,3 +1,4 @@
+import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
 import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { db, Prisma } from "@pos/db";
@@ -21,6 +22,7 @@ import {
   buildInventoryLogRows,
   buildServiceMaterialInventoryLogRows,
 } from "@/features/pos-checkout/post-commit";
+import { buildTransactionStockJournal } from "@/features/transactions-stock/helpers/transaction-stock-journal";
 import {
   applyProductStockDeltas,
   StockMutationError,
@@ -35,6 +37,7 @@ import {
   PRICING_PREFERENCES,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { assertTempoCustomer } from "@/features/customer-debt/helpers/payment-terms";
 
 const log = getLogger("api:transactions");
 const productTransactionItemSchema = z.object({
@@ -87,7 +90,7 @@ const transactionItemSchema = z.union([
 
 const createTransactionSchema = z.object({
   items: z.array(transactionItemSchema).min(1, "Cart is empty"),
-  paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional().default("CASH"),
+  paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER", "TEMPO"]).optional().default("CASH"),
   amountPaid: z.number().min(0),
   discount: z.number().min(0).optional().default(0),
   note: z.string().optional().nullable(),
@@ -223,14 +226,31 @@ export async function GET(request: Request) {
           { status: "DP" },
           {
             status: "COMPLETED",
-            debtPaymentLogs: { some: {} },
+            OR: [
+              { paymentMethod: "TEMPO" },
+              { debtPaymentLogs: { some: {} } },
+            ],
           },
         ],
       });
     } else if (status === "DEBT_HISTORY_COMPLETED") {
       andConditions.push({
         status: "COMPLETED",
-        debtPaymentLogs: { some: {} },
+        OR: [
+          { paymentMethod: "TEMPO" },
+          { debtPaymentLogs: { some: {} } },
+        ],
+      });
+    } else if (status === "DEBT_HISTORY_ACTIVE") {
+      andConditions.push({
+        OR: [
+          { status: "DP" },
+          {
+            status: "COMPLETED",
+            paymentMethod: "TEMPO",
+            amountPaid: { lt: db.transaction.fields.total },
+          },
+        ],
       });
     } else if (status) {
       andConditions.push({ status: status as Prisma.EnumTransactionStatusFilter["equals"] });
@@ -458,6 +478,39 @@ export async function POST(request: Request) {
       invoiceDateReason,
       payments: rawPayments,
     } = parsed.data;
+    const isTempo = paymentMethod === "TEMPO";
+
+    if (isTempo) {
+      try {
+        assertTempoCustomer(paymentMethod, customerId);
+      } catch (error) {
+        return NextResponse.json(
+          { message: error instanceof Error ? error.message : "Pilih pelanggan untuk transaksi Tempo." },
+          { status: 422 },
+        );
+      }
+      if (paymentStatus === "DP") {
+        return NextResponse.json(
+          { message: "Tempo/Tagihan merupakan metode pembayaran terpisah dari DP." },
+          { status: 422 },
+        );
+      }
+      if (!rawPayments?.length && amountPaid > 0) {
+        return NextResponse.json(
+          { message: "Metode pembayaran aktual wajib dicatat untuk pembayaran awal Tempo." },
+          { status: 422 },
+        );
+      }
+      if (rawPayments?.length) {
+        const actualPaymentTotal = rawPayments.reduce((sum, payment) => sum + payment.amount, 0);
+        if (Math.abs(actualPaymentTotal - amountPaid) > 0.01) {
+          return NextResponse.json(
+            { message: "Jumlah pembayaran awal Tempo tidak sesuai dengan metode pembayaran." },
+            { status: 422 },
+          );
+        }
+      }
+    }
     const hasCustomInvoiceDate = Boolean(invoiceDate || invoiceTime);
 
     if (hasCustomInvoiceDate && user.role !== "OWNER" && user.role !== "ADMIN") {
@@ -467,7 +520,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const now = new Date();
+    const now = await getInvoiceNow();
     const resolvedInvoiceDate = hasCustomInvoiceDate
       ? resolveInvoiceDateTime({
           mode: "create",
@@ -491,10 +544,12 @@ export async function POST(request: Request) {
     // Resolve payments array: use explicit payments or fall back to single paymentMethod
     const resolvedPayments = rawPayments && rawPayments.length > 0
       ? rawPayments
-      : [{ method: paymentMethod, amount: amountPaid }];
+      : isTempo
+        ? []
+        : [{ method: paymentMethod, amount: amountPaid }];
 
     // Determine primary payment method (largest amount) for backward-compatible field
-    const primaryPaymentMethod = resolvedPayments.reduce((primary, p) =>
+    const primaryPaymentMethod = isTempo ? "TEMPO" : resolvedPayments.reduce((primary, p) =>
       p.amount > primary.amount ? p : primary,
       resolvedPayments[0],
     ).method;
@@ -734,18 +789,24 @@ export async function POST(request: Request) {
     const requiresApproval = !autoApproveTransaction;
 
     const amountPaidComputed = resolvedPayments.reduce((sum, p) => sum + p.amount, 0);
+    if (isTempo && amountPaidComputed >= total) {
+      return NextResponse.json(
+        { message: "Pembayaran Tempo harus menyisakan saldo tagihan." },
+        { status: 422 },
+      );
+    }
     // Roles without transaction.auto_approve hold the invoice as
     // PENDING_APPROVAL. Until an authorized approver finalizes it, revenue and
     // stock stay untouched and no payment change is returned.
     const changeComputed =
-      isDP || requiresApproval ? 0 : amountPaidComputed - total;
+      isDP || isTempo || requiresApproval ? 0 : amountPaidComputed - total;
     const finalStatus: "COMPLETED" | "DP" | "PENDING_APPROVAL" = requiresApproval
       ? "PENDING_APPROVAL"
       : isDP
         ? "DP"
         : "COMPLETED";
 
-    if (!isDP && amountPaidComputed < total) {
+    if (!isDP && !isTempo && amountPaidComputed < total) {
       return NextResponse.json(
         { message: `Pembayaran kurang dari total belanja (Total: Rp ${total.toLocaleString("id-ID")}, Terbayar: Rp ${amountPaidComputed.toLocaleString("id-ID")})` },
         { status: 422 }
@@ -762,6 +823,13 @@ export async function POST(request: Request) {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         transaction = await db.$transaction(async (tx: TxClient) => {
+          // Lock the customer before the invoice and stock rows. Counters must
+          // roll back with the sale, so an immediate void can reverse them.
+          const customerArgs = !requiresApproval ? buildCustomerUpdateArgs({
+            customerId: customerId || null, isDP: isDP || isTempo,
+            total, amountPaid: amountPaidComputed,
+          }) : null;
+          if (customerArgs) await tx.customer.update(customerArgs);
           const invoiceNumber = `INV-${dateStr}-${String(
             todayCount + 1 + attempt,
           ).padStart(4, "0")}`;
@@ -838,12 +906,16 @@ export async function POST(request: Request) {
                         }
                 ),
               },
-              payments: {
-                create: resolvedPayments.map((p) => ({
-                  amount: p.amount,
-                  method: p.method,
-                })),
-              },
+              ...(resolvedPayments.length > 0
+                ? {
+                    payments: {
+                      create: resolvedPayments.map((p) => ({
+                        amount: p.amount,
+                        method: p.method,
+                      })),
+                    },
+                  }
+                : {}),
             },
             include: { 
               items: {
@@ -912,7 +984,7 @@ export async function POST(request: Request) {
             ];
           });
           if (!requiresApproval) {
-            await applyProductStockDeltas(tx, {
+            const stockMovements = await applyProductStockDeltas(tx, {
               storeId,
               items: stockDecrementItems.map((item) => ({
                 productId: item.productId,
@@ -920,14 +992,37 @@ export async function POST(request: Request) {
               })),
               allowNegative: true,
             });
-          }
 
-          // Inventory logs are an audit trail — they are written *after*
-          // the response (see `after()` below) so they don't extend the
-          // cashier's wait time.
-          // Customer analytics are also written post-response (see
-          // `after()` below). They're additive counters / a debt increment
-          // that don't gate the receipt and don't need to share the txn.
+            const inventoryRows = [
+              ...buildInventoryLogRows({
+                items: serverItems.filter(
+                  (item): item is ServerProductTransactionItem =>
+                    item.lineType === "PRODUCT",
+                ),
+                invoiceNumber,
+                userId: user.id,
+                userName: user.name ?? null,
+              }),
+              ...buildServiceMaterialInventoryLogRows({
+                items: serverItems.filter(
+                  (item): item is ServerPrintingServiceTransactionItem =>
+                    item.lineType === "PRINTING_SERVICE",
+                ),
+                invoiceNumber,
+                userId: user.id,
+                userName: user.name ?? null,
+              }),
+            ];
+
+            if (inventoryRows.length > 0) {
+              const journalRows = buildTransactionStockJournal({
+                transactionId: txn.id,
+                inventoryRows,
+                stockMovements,
+              });
+              await tx.inventoryLog.createMany({ data: journalRows });
+            }
+          }
 
           return txn;
         },
@@ -948,59 +1043,6 @@ export async function POST(request: Request) {
         }
         throw err; // non-recoverable error or max retries exceeded
       }
-    }
-
-    // Schedule audit log + customer analytics writes to run AFTER the
-    // response is sent. The cashier already has the receipt; these are
-    // additive bookkeeping that doesn't need to gate UI latency.
-    if (transaction && !requiresApproval) {
-      const invoiceNumber = transaction.invoiceNumber as string;
-      const productInventoryRows = buildInventoryLogRows({
-        items: serverItems.filter(
-          (item): item is ServerProductTransactionItem =>
-            item.lineType === "PRODUCT",
-        ),
-        invoiceNumber,
-        userId: user.id,
-        userName: user.name ?? null,
-      });
-      const serviceMaterialInventoryRows = buildServiceMaterialInventoryLogRows({
-        items: serverItems.filter(
-          (item): item is ServerPrintingServiceTransactionItem =>
-            item.lineType === "PRINTING_SERVICE",
-        ),
-        invoiceNumber,
-        userId: user.id,
-        userName: user.name ?? null,
-      });
-      const inventoryRows = [
-        ...productInventoryRows,
-        ...serviceMaterialInventoryRows,
-      ];
-      const customerArgs = buildCustomerUpdateArgs({
-        customerId: customerId || null,
-        isDP,
-        total,
-        amountPaid: amountPaidComputed,
-      });
-
-      after(async () => {
-        try {
-          await Promise.all([
-            inventoryRows.length > 0
-              ? db.inventoryLog.createMany({ data: inventoryRows })
-              : Promise.resolve(),
-            customerArgs ? db.customer.update(customerArgs) : Promise.resolve(),
-          ]);
-        } catch (sideEffectError) {
-          // Log only — the transaction itself is already committed and the
-          // cashier has been told the sale succeeded.
-          log.error(
-            `Post-commit side effects failed for ${invoiceNumber}:`,
-            sideEffectError,
-          );
-        }
-      });
     }
 
     if (requiresApproval) {

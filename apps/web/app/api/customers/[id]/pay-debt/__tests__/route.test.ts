@@ -8,7 +8,9 @@ const customerUpdateMock = vi.hoisted(() => vi.fn());
 const customerUpdateManyMock = vi.hoisted(() => vi.fn());
 const txCustomerFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
+const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionUpdateMock = vi.hoisted(() => vi.fn());
+const transactionUpdateManyMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogCreateMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 
@@ -29,7 +31,7 @@ vi.mock("@pos/db", () => ({
 
 describe("POST /api/customers/[id]/pay-debt", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     requirePermissionMock.mockResolvedValue({
       id: "owner-1",
       storeId: "store-main",
@@ -60,7 +62,18 @@ describe("POST /api/customers/[id]/pay-debt", () => {
       total: 100000,
       amountPaid: 0,
     });
+    transactionFindManyMock.mockResolvedValue([
+      {
+        id: "tx-dp-1",
+        total: 100000,
+        amountPaid: 0,
+        status: "DP",
+        paymentMethod: "CASH",
+        note: null,
+      },
+    ]);
     transactionUpdateMock.mockResolvedValue({});
+    transactionUpdateManyMock.mockResolvedValue({ count: 1 });
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
         customer: {
@@ -70,7 +83,9 @@ describe("POST /api/customers/[id]/pay-debt", () => {
         },
         transaction: {
           findFirst: transactionFindFirstMock,
+          findMany: transactionFindManyMock,
           update: transactionUpdateMock,
+          updateMany: transactionUpdateManyMock,
         },
         debtPaymentLog: { create: debtPaymentLogCreateMock },
       }),
@@ -101,6 +116,93 @@ describe("POST /api/customers/[id]/pay-debt", () => {
         note: "Pelunasan sebagian",
       },
     });
+  });
+
+  it("allocates a customer payment across DP and Tempo invoices without changing Tempo status", async () => {
+    customerFindFirstMock.mockResolvedValueOnce({
+      id: "customer-1",
+      name: "Customer One",
+      totalDebt: 125000,
+    });
+    transactionFindManyMock.mockResolvedValueOnce([
+      {
+        id: "tx-dp-1",
+        total: 100000,
+        amountPaid: 50000,
+        status: "DP",
+        paymentMethod: "CASH",
+        note: null,
+      },
+      {
+        id: "tx-tempo-1",
+        total: 200000,
+        amountPaid: 25000,
+        status: "COMPLETED",
+        paymentMethod: "TEMPO",
+        note: null,
+      },
+    ]);
+    transactionUpdateManyMock.mockResolvedValue({ count: 1 });
+
+    const response = await POST(
+      new Request("http://localhost/api/customers/customer-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 125000, paymentMethod: "CASH" }),
+      }),
+      { params: Promise.resolve({ id: "customer-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionFindManyMock).toHaveBeenCalledWith({
+      where: {
+        customerId: "customer-1",
+        storeId: "store-main",
+        OR: [
+          { status: "DP" },
+          { status: "COMPLETED", paymentMethod: "TEMPO" },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        total: true,
+        amountPaid: true,
+        status: true,
+        paymentMethod: true,
+        note: true,
+      },
+    });
+    expect(transactionUpdateManyMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "tx-dp-1", amountPaid: 50000, status: "DP" }),
+        data: expect.objectContaining({ amountPaid: 100000, status: "COMPLETED" }),
+      }),
+    );
+    expect(transactionUpdateManyMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "tx-tempo-1",
+          amountPaid: 25000,
+          status: "COMPLETED",
+          paymentMethod: "TEMPO",
+        }),
+        data: expect.objectContaining({ amountPaid: 100000, status: "COMPLETED" }),
+      }),
+    );
+    expect(debtPaymentLogCreateMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({ transactionId: "tx-dp-1", amount: 50000 }),
+      }),
+    );
+    expect(debtPaymentLogCreateMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({ transactionId: "tx-tempo-1", amount: 75000 }),
+      }),
+    );
   });
 
   it("decrements debt with a balance-guarded write (gte amount), not an unconditional decrement", async () => {
@@ -140,6 +242,6 @@ describe("POST /api/customers/[id]/pay-debt", () => {
 
     expect(response.status).toBe(409);
     expect(debtPaymentLogCreateMock).not.toHaveBeenCalled();
-    expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(transactionUpdateManyMock).not.toHaveBeenCalled();
   });
 });

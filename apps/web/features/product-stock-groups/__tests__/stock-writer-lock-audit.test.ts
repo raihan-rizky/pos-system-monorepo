@@ -175,6 +175,16 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
       "const productsAfterLock = await tx.product.findMany(",
     ],
   },
+  {
+    name: "transaction void/delete stock reversal",
+    relativePath:
+      "features/transactions-stock/services/transaction-reversal-service.ts",
+    startMarker: "export async function reverseTransaction(",
+    requiredMarkers: [
+      "lockTransactionForStockMutation(tx, input)",
+      "restoreStock(tx, input, transaction, journal, returns)",
+    ],
+  },
 ];
 
 function productionTypeScriptFiles(directory: string): string[] {
@@ -243,8 +253,8 @@ describe("shared-stock writer source audit", () => {
       new Set(writerInventory.map((writer) => writer.relativePath)),
     ).sort();
 
-    expect(writerInventory).toHaveLength(16);
-    expect(new Set(writerInventory.map((writer) => writer.name)).size).toBe(16);
+    expect(writerInventory).toHaveLength(17);
+    expect(new Set(writerInventory.map((writer) => writer.name)).size).toBe(17);
     expect(discovered).toEqual(classifiedPaths);
   });
 

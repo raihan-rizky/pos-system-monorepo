@@ -37,6 +37,7 @@ export function ShoppingRequestEditModal({
   const fullDetail = useShoppingRequest(open ? detail?.id ?? null : null);
   const updateRequest = useUpdateShoppingRequest();
   const [supplierId, setSupplierId] = useState("");
+  const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [items, setItems] = useState<EditItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function ShoppingRequestEditModal({
   useEffect(() => {
     if (!fullDetail.data) return;
     setSupplierId(fullDetail.data.supplierId ?? "");
+    setName(fullDetail.data.name);
     setNote(fullDetail.data.note ?? "");
     setItems(
       fullDetail.data.items.map((item) => ({
@@ -98,6 +100,7 @@ export function ShoppingRequestEditModal({
         id: detail.id,
         input: {
           supplierId,
+          name: name.trim() || undefined,
           note: note || null,
           items: items.map((item) => ({
             productId: item.productId,
@@ -129,11 +132,25 @@ export function ShoppingRequestEditModal({
       ) : (
         <div className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <SupplierSelector
-              value={supplierId}
-              onChange={setSupplierId}
-              error={!supplierId ? "Supplier wajib dipilih" : null}
-            />
+            <div className="space-y-3">
+              <SupplierSelector
+                value={supplierId}
+                onChange={setSupplierId}
+                error={!supplierId ? "Supplier wajib dipilih" : null}
+              />
+              <label className="block text-sm font-bold text-slate-700">
+                Nama Daftar Belanja
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  maxLength={160}
+                  className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-medium outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                />
+                <span className="mt-1 block text-xs font-normal text-slate-500">
+                  Nama harus unik di toko ini.
+                </span>
+              </label>
+            </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <span className="mb-1.5 block text-sm font-bold text-slate-700">
                 Cari & Tambah Produk

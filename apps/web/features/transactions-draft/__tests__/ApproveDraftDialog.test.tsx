@@ -20,6 +20,10 @@ vi.mock("@/components/providers/RoleProvider", () => ({
   useRole: () => ({ role: roleMock }),
 }));
 
+vi.mock("@/hooks/useProducts", () => ({
+  useProducts: () => ({ data: [], isLoading: false }),
+}));
+
 const draft = {
   id: "draft-1",
   draftNumber: "DRF-20260709-0001",
@@ -42,6 +46,21 @@ const draft = {
 } as any;
 
 describe("ApproveDraftDialog custom invoice date", () => {
+  it("lets the approver add, reduce, or remove draft items and choose Tempo", () => {
+    roleMock = "OWNER";
+    const html = renderToStaticMarkup(
+      <ApproveDraftDialog
+        draft={draft}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Cari SKU atau nama produk...");
+    expect(html).toContain("Produk dalam Transaksi");
+    expect(html).toContain("Tempo/Tagihan");
+  });
+
   it("shows optional invoice date and time controls for owners", () => {
     roleMock = "OWNER";
 

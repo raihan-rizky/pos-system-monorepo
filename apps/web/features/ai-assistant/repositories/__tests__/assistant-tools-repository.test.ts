@@ -173,6 +173,8 @@ describe("assistant tools repository", () => {
   });
 
   it("loads every financial-report section for a holistic analysis", async () => {
+    transactionFindManyMock.mockResolvedValue([]);
+    debtPaymentLogFindManyMock.mockResolvedValue([]);
     transactionFindManyMock.mockResolvedValueOnce([{
       id: "tx-1",
       invoiceNumber: "INV-1",
@@ -194,6 +196,7 @@ describe("assistant tools repository", () => {
         product: { category: { name: "ATK" } },
       }],
     }]);
+    transactionFindManyMock.mockResolvedValueOnce([{ id: "tx-1", status: "COMPLETED", paymentMethod: "CASH", total: 100000, amountPaid: 100000, change: 0, createdAt: new Date("2026-06-20T02:00:00Z"), salesName: "Ari", payments: [{ method: "CASH", amount: 100000, createdAt: new Date("2026-06-20T02:00:00Z") }], debtPaymentLogs: [] }]);
     cashierShiftFindManyMock.mockResolvedValueOnce([{
       id: "shift-1",
       cashier: { name: "Rina" },
@@ -227,6 +230,7 @@ describe("assistant tools repository", () => {
     expect(transactionFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ storeId: "store-1", invoiceDate: expect.any(Object) }),
     }));
+    expect(transactionFindManyMock).toHaveBeenCalledTimes(2);
     expect(expenseAggregateMock).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         storeId: "store-1",

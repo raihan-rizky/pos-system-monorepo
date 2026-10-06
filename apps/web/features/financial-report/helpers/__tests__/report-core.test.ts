@@ -30,6 +30,78 @@ describe("buildFinancialReportRange", () => {
 });
 
 describe("buildFinancialReport", () => {
+  it("subtracts change from cash before allocating split initial collections", () => {
+    const report = buildFinancialReport({ dateFrom: "2026-10-06", dateTo: "2026-10-06", shifts: [], transactions: [{
+      id: "tx-change", invoiceNumber: "INV-1", createdAt: new Date("2026-10-06T03:00:00Z"), status: "COMPLETED",
+      paymentMethod: "CASH", total: 100000, amountPaid: 150000, change: 50000, discount: 0, items: [],
+      payments: [{ method: "CASH", amount: 75000, createdAt: new Date("2026-10-06T03:00:00Z") }, { method: "TRANSFER", amount: 75000, createdAt: new Date("2026-10-06T03:00:00Z") }],
+    }] });
+    expect(report.summary.collected).toBe(100000);
+    expect(report.paymentMethods).toEqual(expect.arrayContaining([
+      expect.objectContaining({ method: "CASH", collected: 25000 }), expect.objectContaining({ method: "TRANSFER", collected: 75000 }),
+    ]));
+  });
+  it("counts independent collections from backdated invoices without adding their revenue", () => {
+    const report = buildFinancialReport({ dateFrom: "2026-10-06", dateTo: "2026-10-06", shifts: [], transactions: [], collectionTransactions: [{
+      id: "tx-backdate", createdAt: new Date("2026-10-06T03:00:00Z"), status: "COMPLETED", paymentMethod: "CASH", total: 100000, amountPaid: 150000, change: 50000,
+      payments: [{ method: "CASH", amount: 150000, createdAt: new Date("2026-10-06T03:00:00Z") }],
+    }] });
+    expect(report.summary).toMatchObject({ revenue: 0, collected: 100000, transactionCount: 0 });
+  });
+  it("counts completed Tempo sales as revenue but only counts collected amounts as cash received", () => {
+    const report = buildFinancialReport({
+      dateFrom: "2026-10-05",
+      dateTo: "2026-10-05",
+      transactions: [
+        {
+          id: "tx-tempo-unpaid",
+          invoiceNumber: "INV-T-1",
+          createdAt: new Date("2026-10-05T03:00:00.000Z"),
+          status: "COMPLETED",
+          paymentMethod: "TEMPO",
+          total: 100000,
+          amountPaid: 0,
+          discount: 0,
+          payments: [],
+          debtPaymentLogs: [],
+          items: [],
+        },
+        {
+          id: "tx-tempo-partial",
+          invoiceNumber: "INV-T-2",
+          createdAt: new Date("2026-10-05T04:00:00.000Z"),
+          status: "COMPLETED",
+          paymentMethod: "TEMPO",
+          total: 100000,
+          amountPaid: 25000,
+          discount: 0,
+          payments: [],
+          debtPaymentLogs: [{ id: "tempo-settlement-1" }],
+          items: [],
+        },
+      ],
+      shifts: [],
+      debtPayments: [
+        {
+          transactionId: "tx-tempo-partial",
+          paymentMethod: "CASH",
+          amount: 25000,
+          createdAt: new Date("2026-10-05T05:00:00.000Z"),
+        },
+      ],
+    });
+
+    expect(report.summary).toMatchObject({
+      revenue: 200000,
+      collected: 25000,
+      outstandingDp: 0,
+      outstandingTempo: 175000,
+    });
+    expect(report.paymentMethods).toEqual([
+      { method: "CASH", transactionCount: 1, revenue: 0, collected: 25000 },
+    ]);
+  });
+
   it("subtracts manual and shopping-request expenses from estimated net profit", () => {
     const input = {
       dateFrom: "2026-07-01",

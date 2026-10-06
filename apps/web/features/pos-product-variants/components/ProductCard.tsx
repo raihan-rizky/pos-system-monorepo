@@ -9,6 +9,7 @@ import { StockWarningBadge } from "@/features/product-stock-warnings/components"
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowDeleteAction } from "@/features/rbac/helpers/rbac-ui";
 import { VariantSelector } from "./VariantSelector";
+import { orderUnits } from "../helpers/unit-order";
 
 interface ProductCardProps {
   product: Product;
@@ -35,6 +36,10 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
   const [selectedVariantId, setSelectedVariantId] = useState(
     product.defaultVariant?.id ?? ""
+  );
+  const orderedVariants = useMemo(
+    () => orderUnits(product.variants || [], product.stockGroup?.baseUnit),
+    [product.variants, product.stockGroup?.baseUnit],
   );
 
   const selectedVariant = useMemo(() => {
@@ -220,7 +225,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
       {/* 2 Variants Selection */}
       {(product.variants || []).length === 2 && (
         <div className="w-full mt-2 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-          {(product.variants || []).map((variant) => {
+          {orderedVariants.map((variant) => {
             const isSelected = selectedVariantId === variant.id;
             const isVariantOutOfStock = Math.floor(variant.stock ?? 0) <= 0;
             return (
@@ -253,7 +258,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
       {showVariantDropdown && (
         <div className="w-full mt-2" onClick={(e) => e.stopPropagation()}>
           <VariantSelector
-            variants={product.variants || []}
+            variants={orderedVariants}
             selected={selectedVariantId}
             onChange={setSelectedVariantId}
           />

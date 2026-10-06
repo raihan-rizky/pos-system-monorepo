@@ -82,6 +82,9 @@ describe("buildInventoryLogRows", () => {
 });
 
 describe("buildCustomerUpdateArgs", () => {
+  it("credits only the retained sale amount when a tender includes change", () => {
+    expect(buildCustomerUpdateArgs({ customerId: "c1", isDP: false, total: 100, amountPaid: 150 })!.data.totalSpent).toEqual({ increment: 100 });
+  });
   it("returns null when no customer is attached", () => {
     expect(
       buildCustomerUpdateArgs({

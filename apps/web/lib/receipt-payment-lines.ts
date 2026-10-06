@@ -60,6 +60,8 @@ function getInitialPayments(transaction: ReceiptPaymentSource) {
 
   if (declaredPayments.length > 0) return declaredPayments;
 
+  if (transaction.paymentMethod === "TEMPO") return [];
+
   const fallbackAmount = toNumber(transaction.amountPaid);
   if (fallbackAmount <= 0) return [];
 
@@ -127,7 +129,12 @@ export function buildReceiptPaymentLines(
       label: payment.label,
       amount: payment.amount,
       amountFormatted: formatAmount(payment.amount),
-      subLabel: printStatus === "DP" || hasDebtPayments ? "DP" : undefined,
+      subLabel:
+        transaction.paymentMethod === "TEMPO"
+          ? "pembayaran awal"
+          : printStatus === "DP" || hasDebtPayments
+            ? "DP"
+            : undefined,
     }),
   );
 

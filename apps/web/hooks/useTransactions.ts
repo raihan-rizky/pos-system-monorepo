@@ -133,7 +133,7 @@ interface CreateTransactionInput {
   paymentStatus?: string; // 'COMPLETED' | 'DP'
   isJobOrder?: boolean;
   estimatedDoneAt?: string | null;
-  pricingPreference: PricingPreference;
+  pricingPreference?: PricingPreference;
   invoiceDate?: string;
   invoiceTime?: string | null;
   invoiceDateReason?: string | null;

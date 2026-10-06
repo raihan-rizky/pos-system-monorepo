@@ -79,6 +79,7 @@ export const RESOURCE_TARGETS = [
   "inventory.inbound_receipt.approve",
   "inventory.inbound_receipt.reject",
   "inventory.inbound_receipt.edit",
+  "inventory.inbound_receipt.create",
   "shift",
   "salesperson",
   "settings",
@@ -99,7 +100,7 @@ const LEGACY_PAGE_ACCESS: Record<string, Role[]> = {
   "/production": ["OWNER", "ADMIN", "CASHIER", "SALES"],
   "/customers": ["OWNER", "ADMIN", "CASHIER", "SALES"],
   "/products": ["OWNER", "ADMIN"],
-  "/suppliers": ["OWNER", "ADMIN"],
+  "/suppliers": ["OWNER", "ADMIN", "INVENTORY"],
   "/salespersons": ["OWNER", "ADMIN"],
   "/shift": ["OWNER", "ADMIN", "CASHIER"],
   "/wa": ["OWNER", "ADMIN"],
@@ -113,7 +114,7 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
   transaction: {
     read: ["OWNER", "ADMIN", "CASHIER", "SALES"],
     write: ["OWNER", "ADMIN", "CASHIER"],
-    delete: ["OWNER", "ADMIN"],
+    delete: [],
   },
   "financial-report": {
     read: ["OWNER", "ADMIN"],
@@ -235,13 +236,13 @@ const RESOURCE_GRANULAR_ACCESS: Partial<
   "supplier.goods_purchase.approve": {
     read: [],
     create: [],
-    update: [],
+    update: ["ADMIN"],
     delete: [],
   },
   "supplier.goods_purchase.reject": {
     read: [],
     create: [],
-    update: [],
+    update: ["ADMIN"],
     delete: [],
   },
   proof_upload: {
@@ -254,6 +255,12 @@ const RESOURCE_GRANULAR_ACCESS: Partial<
     read: ["OWNER", "ADMIN", "INVENTORY"],
     create: [],
     update: ["OWNER", "ADMIN", "INVENTORY"],
+    delete: [],
+  },
+  "inventory.inbound_receipt.create": {
+    read: ["INVENTORY"],
+    create: ["INVENTORY"],
+    update: [],
     delete: [],
   },
   "transaction.draft": {

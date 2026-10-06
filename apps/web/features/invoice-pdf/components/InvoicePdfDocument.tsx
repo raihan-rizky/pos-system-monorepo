@@ -448,6 +448,25 @@ export function InvoicePdfDocument({
                   : <Text>-</Text>}
               </Text>
             </View>
+            {data.paymentTermsLabel && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabelRight}>Jenis Tagihan</Text>
+                <Text style={s.infoColon}>:</Text>
+                <Text
+                  style={{
+                    borderRadius: px(3),
+                    backgroundColor: "#fef3c7",
+                    color: "#92400e",
+                    fontFamily: "Helvetica-Bold",
+                    fontSize: px(9),
+                    paddingHorizontal: px(4),
+                    paddingVertical: px(2),
+                  }}
+                >
+                  {data.paymentTermsLabel}
+                </Text>
+              </View>
+            )}
             <View style={s.infoRow}>
               <Text style={s.infoLabelRight}>Status</Text>
               <Text style={s.infoColon}>:</Text>
@@ -589,10 +608,10 @@ export function InvoicePdfDocument({
                 </View>
                 <Text style={[
                   s.paymentBox,
-                  data.isDP ? { color: "#b45309" } : {},
+                  data.isDP || data.isTempo ? { color: "#b45309" } : {},
                 ]}>
                   Rp{" "}
-                  {data.isDP
+                  {data.isDP || data.isTempo
                     ? data.totals.remainingFormatted
                     : data.totals.changeFormatted}
                 </Text>

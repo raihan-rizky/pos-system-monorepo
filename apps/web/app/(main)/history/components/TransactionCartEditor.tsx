@@ -6,11 +6,31 @@ import { useProducts, type Product } from "@/hooks/useProducts";
 import { formatRupiah } from "@/lib/utils";
 
 export type CartEditorItem = {
-  productId: string;
+  sourceItemId?: string | null;
+  serviceNote?: string | null;
+  productId: string | null;
+  printingServiceId?: string | null;
   productName: string;
   quantity: number;
   unitPrice: number;
   originalUnitPrice: number;
+  appliedUnitPrice: number;
+  subtotal: number;
+  rawMaterialProductId?: string | null;
+  rawMaterialQuantity?: number | null;
+  size?: string | null;
+  material?: string | null;
+  unit?: string | null;
+};
+
+export type ApprovalPriceDetails = {
+  name: string;
+  unit?: string;
+  modal: number | null;
+  regular: number;
+  agent: number | null;
+  government: number | null;
+  special: number | null;
   appliedUnitPrice: number;
   subtotal: number;
 };
@@ -19,10 +39,12 @@ export function TransactionCartEditor({
   items,
   onChange,
   readOnly,
+  priceDetails,
 }: {
   items: CartEditorItem[];
   onChange: (items: CartEditorItem[]) => void;
   readOnly?: boolean;
+  priceDetails?: ApprovalPriceDetails[];
 }) {
   const [search, setSearch] = useState("");
   const { data: products = [], isLoading } = useProducts(search, undefined, {
@@ -118,52 +140,78 @@ export function TransactionCartEditor({
         ) : (
           items.map((item, index) => (
             <div
-              key={index}
-              className="flex items-center justify-between p-3 rounded-xl border border-surface-100 bg-white shadow-sm"
+              key={`${item.productId ?? item.printingServiceId ?? item.productName}-${index}`}
+              className="p-3 rounded-xl border border-surface-100 bg-white shadow-sm"
             >
-              <div className="flex-1 min-w-0 pr-3">
-                <div className="text-sm font-semibold text-surface-900 truncate">
-                  {item.productName}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0 pr-1">
+                  <div className="text-sm font-semibold text-surface-900 truncate">
+                    {item.productName}
+                  </div>
+                  <div className="text-xs text-brand-600 font-medium mt-0.5">
+                    {formatRupiah(priceDetails?.[index]?.appliedUnitPrice ?? item.appliedUnitPrice)}
+                  </div>
+                  <div className="text-[10px] text-surface-500 mt-0.5">
+                    {item.quantity} {priceDetails?.[index]?.unit ?? item.unit ?? "pcs"}
+                    {item.size ? ` • Ukuran: ${item.size.split(" = ")[0]}` : ""}
+                    {item.material ? ` • Bahan: ${item.material}` : ""}
+                  </div>
                 </div>
-                <div className="text-xs text-brand-600 font-medium mt-0.5">
-                  {formatRupiah(item.appliedUnitPrice)}
+                <div className="flex items-center gap-3">
+                  {!readOnly ? (
+                    <div className="flex items-center bg-surface-50 rounded-lg border border-surface-200">
+                      <button
+                        onClick={() => handleUpdateQuantity(index, item.quantity - 1)}
+                        disabled={item.quantity <= 1}
+                        aria-label={`Kurangi ${item.productName}`}
+                        className="p-1 text-surface-500 hover:text-surface-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="w-8 text-center text-sm font-semibold text-surface-900">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => handleUpdateQuantity(index, item.quantity + 1)}
+                        aria-label={`Tambah ${item.productName}`}
+                        className="p-1 text-surface-500 hover:text-surface-900 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-sm font-semibold text-surface-900 bg-surface-50 px-2 py-1 rounded-md">
+                      {item.quantity}x
+                    </div>
+                  )}
+
+                  {!readOnly && (
+                    <button
+                      onClick={() => handleRemoveItem(index)}
+                      aria-label={`Hapus ${item.productName}`}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
-              
-              <div className="flex items-center gap-3">
-                {!readOnly ? (
-                  <div className="flex items-center bg-surface-50 rounded-lg border border-surface-200">
-                    <button
-                      onClick={() => handleUpdateQuantity(index, item.quantity - 1)}
-                      disabled={item.quantity <= 1}
-                      className="p-1 text-surface-500 hover:text-surface-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <span className="w-8 text-center text-sm font-semibold text-surface-900">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => handleUpdateQuantity(index, item.quantity + 1)}
-                      className="p-1 text-surface-500 hover:text-surface-900 transition-colors"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-sm font-semibold text-surface-900 bg-surface-50 px-2 py-1 rounded-md">
-                    {item.quantity}x
-                  </div>
-                )}
-                
-                {!readOnly && (
-                  <button
-                    onClick={() => handleRemoveItem(index)}
-                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
+
+              {priceDetails?.[index] && (
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-surface-100 pt-2 text-[11px]">
+                  <PriceFact label="Modal" value={priceDetails[index].modal} />
+                  <PriceFact label="Normal" value={priceDetails[index].regular} />
+                  <PriceFact label="Agen" value={priceDetails[index].agent} />
+                  <PriceFact label="Dinas" value={priceDetails[index].government} />
+                  <PriceFact label="Harga khusus" value={priceDetails[index].special} />
+                  <PriceFact label="Harga berlaku" value={priceDetails[index].appliedUnitPrice} />
+                </div>
+              )}
+              <div className="mt-2 flex justify-between text-xs text-surface-500">
+                <span>{item.quantity} × {formatRupiah(priceDetails?.[index]?.appliedUnitPrice ?? item.appliedUnitPrice)}</span>
+                <span className="font-semibold text-surface-700">
+                  {formatRupiah(priceDetails?.[index]?.subtotal ?? item.subtotal)}
+                </span>
               </div>
             </div>
           ))
@@ -178,6 +226,17 @@ export function TransactionCartEditor({
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+function PriceFact({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-surface-500">{label}</span>
+      <span className="font-medium text-surface-700 tabular-nums">
+        {value == null ? "—" : formatRupiah(value)}
+      </span>
     </div>
   );
 }

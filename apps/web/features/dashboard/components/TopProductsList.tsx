@@ -2,10 +2,11 @@
 
 import React, { useMemo } from "react";
 import { formatRupiah } from "@/lib/utils";
-import type { TopProduct } from "../types";
+import type { TopProduct, TopProductGroup } from "../types";
 
 interface TopProductsListProps {
   data: TopProduct[];
+  groups?: TopProductGroup[];
   loading?: boolean;
   maxRows?: number;
 }
@@ -17,15 +18,23 @@ const rankBadge: Record<number, string> = {
 };
 
 export const TopProductsList: React.FC<TopProductsListProps> = React.memo(
-  function TopProductsList({ data, loading, maxRows = 5 }) {
-    const visible = useMemo(
-      () => (data ?? []).slice(0, maxRows),
-      [data, maxRows],
-    );
-    const max = useMemo(
-      () => visible.reduce((m, r) => Math.max(m, r.quantity), 0),
-      [visible],
-    );
+  function TopProductsList({ data, groups, loading, maxRows = 5 }) {
+    const sections = useMemo(() => {
+      if (groups?.length) {
+        return groups
+          .map((group) => ({
+            key: group.key,
+            label: group.label,
+            products: group.products.slice(0, maxRows),
+          }))
+          .filter((group) => group.products.length > 0);
+      }
+
+      const products = (data ?? []).slice(0, maxRows);
+      return products.length > 0
+        ? [{ key: "ALL", label: null, products }]
+        : [];
+    }, [data, groups, maxRows]);
 
     if (loading) {
       return (
@@ -45,7 +54,7 @@ export const TopProductsList: React.FC<TopProductsListProps> = React.memo(
       );
     }
 
-    if (visible.length === 0) {
+    if (sections.length === 0) {
       return (
         <p className="text-sm text-surface-500 text-center py-8">
           Belum ada penjualan produk.
@@ -54,53 +63,71 @@ export const TopProductsList: React.FC<TopProductsListProps> = React.memo(
     }
 
     return (
-      <ol className="divide-y divide-surface-100">
-        {visible.map((row, idx) => {
-          const rank = idx + 1;
-          const pct = max > 0 ? (row.quantity / max) * 100 : 0;
+      <div className={groups?.length ? "space-y-4" : undefined}>
+        {sections.map((section) => {
+          const max = section.products.reduce(
+            (highest, product) => Math.max(highest, product.quantity),
+            0,
+          );
+
           return (
-            <li key={row.name} className="py-3">
-              <div className="flex items-center gap-3">
-                <span
-                  aria-label={`Peringkat ${rank}`}
-                  className={`shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ${
-                    rankBadge[rank] ?? "bg-surface-50 text-surface-500"
-                  }`}
-                >
-                  {rank}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-surface-900 truncate">
-                      {row.name}
-                    </p>
-                    <p className="text-sm font-bold text-surface-900 tabular-nums shrink-0">
-                      {row.quantity}
-                      <span className="ml-0.5 text-[10px] font-medium text-surface-500">
-                        pcs
-                      </span>
-                    </p>
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-3">
-                    <div
-                      className="flex-1 h-1.5 rounded-full bg-surface-100 overflow-hidden"
-                      aria-hidden="true"
-                    >
-                      <span
-                        className="block h-full rounded-full bg-amber-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="text-[11px] tabular-nums text-emerald-700 font-semibold shrink-0">
-                      {formatRupiah(row.revenue)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </li>
+            <section key={section.key}>
+              {section.label && (
+                <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-surface-500">
+                  {section.label}
+                </h3>
+              )}
+              <ol className="divide-y divide-surface-100">
+                {section.products.map((row, idx) => {
+                  const rank = idx + 1;
+                  const pct = max > 0 ? (row.quantity / max) * 100 : 0;
+                  return (
+                    <li key={`${section.key}-${row.name}-${idx}`} className="py-3">
+                      <div className="flex items-center gap-3">
+                        <span
+                          aria-label={`Peringkat ${rank}`}
+                          className={`shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ${
+                            rankBadge[rank] ?? "bg-surface-50 text-surface-500"
+                          }`}
+                        >
+                          {rank}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-surface-900 truncate">
+                              {row.name}
+                            </p>
+                            <p className="text-sm font-bold text-surface-900 tabular-nums shrink-0">
+                              {row.quantity}
+                              <span className="ml-0.5 text-[10px] font-medium text-surface-500">
+                                pcs
+                              </span>
+                            </p>
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-3">
+                            <div
+                              className="flex-1 h-1.5 rounded-full bg-surface-100 overflow-hidden"
+                              aria-hidden="true"
+                            >
+                              <span
+                                className="block h-full rounded-full bg-amber-500"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] tabular-nums text-emerald-700 font-semibold shrink-0">
+                              {formatRupiah(row.revenue)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
           );
         })}
-      </ol>
+      </div>
     );
   },
 );

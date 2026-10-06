@@ -30,6 +30,8 @@ type PrismaCreateItem = {
 export type CreateShoppingRequestInputRepo = {
   storeId: string;
   number: string;
+  name: string;
+  normalizedName: string;
   sequence: number;
   supplierId: string | null;
   requestedByName: string | null;
@@ -53,6 +55,7 @@ export function buildShoppingRequestWhere(
   if (filters.supplierId) where.supplierId = filters.supplierId;
   if (filters.q) {
     where.OR = [
+      { name: { contains: filters.q, mode: "insensitive" } },
       { number: { contains: filters.q, mode: "insensitive" } },
       { requestedByName: { contains: filters.q, mode: "insensitive" } },
     ];
@@ -91,6 +94,7 @@ export function listShoppingRequests(
       rows.map((row) => ({
         id: row.id,
         number: row.number,
+        name: row.name,
         status: row.status,
         supplierId: row.supplierId,
         supplierName: row.supplier?.name ?? null,
@@ -222,6 +226,7 @@ export function findShoppingRequestById(
       return {
         id: row.id,
         number: row.number,
+        name: row.name,
         status: row.status,
         supplierId: row.supplierId,
         supplierName: row.supplier?.name ?? null,
@@ -253,6 +258,8 @@ export async function createShoppingRequestWithItems(
     data: {
       storeId: input.storeId,
       number: input.number,
+      name: input.name,
+      normalizedName: input.normalizedName,
       sequence: input.sequence,
       supplierId: input.supplierId,
       requestedByName: input.requestedByName,
@@ -284,6 +291,8 @@ export async function updateShoppingRequestWithItems(input: {
   id: string;
   actor: ShoppingRequestActor;
   supplierId: string;
+  name: string;
+  normalizedName: string;
   note: string | null;
   items: PrismaCreateItem[];
 }): Promise<ShoppingRequestDetail> {
@@ -294,7 +303,11 @@ export async function updateShoppingRequestWithItems(input: {
         storeId: input.actor.storeId,
         status: "REQUESTED",
       },
-      data: { updatedAt: new Date() },
+      data: {
+        name: input.name,
+        normalizedName: input.normalizedName,
+        updatedAt: new Date(),
+      },
     });
     if (lock.count !== 1) throw new Error("ALREADY_DECIDED");
 
@@ -741,6 +754,7 @@ function loadShoppingRequestDetailRow(
 function reify(row: {
   id: string;
   number: string;
+  name: string;
   status: ShoppingRequestStatus;
   supplierId: string | null;
   requestedByName: string | null;
@@ -803,6 +817,7 @@ function reify(row: {
   return {
     id: row.id,
     number: row.number,
+    name: row.name,
     status: row.status,
     supplierId: row.supplierId,
     supplierName: row.supplier?.name ?? null,

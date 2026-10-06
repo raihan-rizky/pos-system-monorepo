@@ -10,6 +10,7 @@ const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const customerUpdateManyMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogCreateManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const lockCustomerMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -31,7 +32,7 @@ vi.mock("@pos/db", () => ({
 
 describe("POST /api/transactions/[id]/pay-debt", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     requirePermissionMock.mockResolvedValue({
       id: "cashier-1",
       name: "Cashier One",
@@ -58,6 +59,7 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
 
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
+        $queryRawUnsafe: lockCustomerMock.mockResolvedValue([{ id: "customer-1" }]),
         transaction: {
           findFirst: txTransactionFindFirstMock,
           updateMany: transactionUpdateManyMock,
@@ -82,6 +84,8 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(lockCustomerMock).toHaveBeenCalledWith(expect.stringContaining("pos_customers"), "customer-1", "store-main");
+    expect(lockCustomerMock.mock.invocationCallOrder[0]).toBeLessThan(transactionUpdateManyMock.mock.invocationCallOrder[0]);
     expect(transactionUpdateManyMock).toHaveBeenCalledTimes(1);
     const txArgs = transactionUpdateManyMock.mock.calls[0][0];
     expect(txArgs.where).toMatchObject({ id: "tx-dp-1", storeId: "store-main", status: "DP" });
@@ -144,6 +148,75 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
 
     expect(response.status).toBe(422);
     expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("records a partial Tempo settlement without changing its invoice status or method", async () => {
+    const tempoRow = {
+      id: "tx-dp-1",
+      status: "COMPLETED",
+      paymentMethod: "TEMPO",
+      total: 200000,
+      amountPaid: 50000,
+      customerId: "customer-1",
+      note: null,
+    };
+    transactionFindFirstMock.mockResolvedValueOnce(tempoRow);
+    txTransactionFindFirstMock.mockResolvedValueOnce(tempoRow);
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 25000, paymentMethod: "CASH" }),
+      }),
+      { params: Promise.resolve({ id: "tx-dp-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    const txArgs = transactionUpdateManyMock.mock.calls[0][0];
+    expect(txArgs.where).toMatchObject({
+      id: "tx-dp-1",
+      storeId: "store-main",
+      status: "COMPLETED",
+      paymentMethod: "TEMPO",
+      amountPaid: 50000,
+    });
+    expect(txArgs.data).toMatchObject({ amountPaid: 75000, status: "COMPLETED" });
+    expect(txArgs.data).not.toHaveProperty("paymentMethod");
+    expect(debtPaymentLogCreateManyMock).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          transactionId: "tx-dp-1",
+          amount: 25000,
+          paymentMethod: "CASH",
+        }),
+      ],
+    });
+  });
+
+  it("keeps a fully settled Tempo invoice in COMPLETED status", async () => {
+    const tempoRow = {
+      id: "tx-dp-1",
+      status: "COMPLETED",
+      paymentMethod: "TEMPO",
+      total: 200000,
+      amountPaid: 50000,
+      customerId: "customer-1",
+      note: null,
+    };
+    transactionFindFirstMock.mockResolvedValueOnce(tempoRow);
+    txTransactionFindFirstMock.mockResolvedValueOnce(tempoRow);
+
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 150000, paymentMethod: "TRANSFER" }),
+      }),
+      { params: Promise.resolve({ id: "tx-dp-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    const txArgs = transactionUpdateManyMock.mock.calls[0][0];
+    expect(txArgs.data).toMatchObject({ amountPaid: 200000, status: "COMPLETED" });
   });
 
   it("uses the selected customer for an unlinked DP transaction so payment history is retained", async () => {

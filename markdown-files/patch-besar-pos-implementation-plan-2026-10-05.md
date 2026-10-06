@@ -36,7 +36,7 @@ Setiap tugas: analisis impact → tulis tes → jalankan dan pastikan RED → im
 
 **Spesifikasi disetujui:** [patch-besar-pos-design-2026-10-05.md](C:/Projects/pos-system-monorepo/markdown-files/patch-besar-pos-design-2026-10-05.md)
 
-**Status:** rencana implementasi, belum diterapkan pada aplikasi. Lima bagian berikut berbagi satu checklist rilis; tidak ada rilis produksi per tahap.
+**Status per 2026-10-06:** Implementasi kode dan dokumentasi selesai di workspace. TypeScript, validasi schema Prisma, dan suite web lengkap lulus; hasil serta batas verifikasi rinci ada di [status implementasi](C:/Projects/pos-system-monorepo/markdown-files/patch-besar-pos-implementation-status-2026-10-06.md). Checklist di bawah tetap menjadi gerbang rilis untuk pemeriksaan database terisolasi, browser/data toko aktual, dan langkah integrasi yang belum diverifikasi. Fitur tetap ditujukan untuk satu rilis bersama; belum diterapkan ke database atau dirilis.
 
 ## Bagian dan urutan eksekusi
 
@@ -52,7 +52,7 @@ Urutan yang menghormati dependensi: **P1–P5 → C1–C4 → S1–S2 → C5 →
 
 - [ ] Baca AGENTS dan skill executing-plans, TDD, systematic-debugging, lint-and-validate. Gunakan using-git-worktrees saat mulai implementasi, periksa/reuse attachment worktree yang sesuai.
 - [ ] Tidak ada delegasi sebelum pengguna memilih kerja dengan subagent. Skill/header menyebut opsi; rencana ini belum menjalankan agen lain.
-- [ ] Untuk pekerjaan UI, baca modern-web-guidance lebih dahulu dan ikuti antislop. Belum ada keputusan mode antislop dalam sesi ini; tanyakan mode penggunaan saat akan mulai UI sesuai instruksi skill, dengan menyebut sumber persyaratan.
+- [x] Untuk pekerjaan UI, modern-web-guidance dicari lebih dahulu; pengguna memilih antislop selama pengerjaan. Gunakan mode DURING dan audit delivery gate.
 - [ ] GitNexus: periksa status/doctor dan pulihkan index dengan runner project. Hindari menghapus index atau mematikan proses milik pengguna tanpa alasan yang terverifikasi. Sebelumnya rebuild Windows gagal dan query kosong, sehingga callers/risk belum terverifikasi.
 
 ```powershell
@@ -157,7 +157,7 @@ Baseline sebelumnya: 383 file tes web lulus, satu file dilewati; 2.047 tes lulus
 - [ ] Legacy partial Surat Jalan memulihkan actual remaining deduction; unknown proof ditolak tanpa perubahan sebagian.
 - [ ] Tempo nol/partial/full, badge, piutang, kas periode pembayaran, receipt/PDF diperiksa.
 - [ ] Dua A4 pendek dan long-list print/PDF diperiksa visual; semua item tercetak dan full version mulai halaman baru.
-- [ ] Waktu WIB diuji pada zona perangkat berbeda; bukti sinkronisasi NTP host deployment dicatat.
+- [ ] Waktu WIB diuji pada zona perangkat berbeda; akses HTTPS ke TimeAPI.io dan status fallback saat penyedia tidak tersedia diverifikasi di deployment target.
 - [ ] Mapping kategori database aktual ditinjau; Bot/Plano/Toner ditetapkan berdasarkan makna bisnis. Unknown tetap Lainnya.
 - [ ] Semua panduan Bantuan/AI workflow selaras dengan UI dan permission efektif.
 - [ ] Full suite dan type-check langsung berjalan tanpa build:
@@ -188,4 +188,4 @@ Pastikan server target memakai test fixtures/auth yang sesuai dan tidak merupaka
 
 ## Batas pekerjaan saat menyusun rencana
 
-Dokumen ini tidak menjalankan tes baru, mutasi DB, dev server, build, subagent, atau deploy. Index GitNexus, target DB terisolasi, server browser test, mapping kategori nyata, dan NTP host adalah prasyarat eksekusi/validasi yang belum dibuktikan oleh penulisan rencana.
+Dokumen ini tidak menjalankan tes baru, mutasi DB, dev server, build, subagent, atau deploy. Index GitNexus, target DB terisolasi, server browser test, mapping kategori nyata, dan akses waktu daring pada host deployment adalah prasyarat eksekusi/validasi yang belum dibuktikan oleh penulisan rencana.

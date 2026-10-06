@@ -1,4 +1,5 @@
 import { db } from "@pos/db";
+import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import {
   buildFinancialReport,
@@ -99,6 +100,8 @@ export async function GET(request: Request) {
       inventoryLogs,
       expenseAggregate,
       incompleteExpenseCount,
+      debtPayments,
+      collectionTransactions,
     ] = await Promise.all([
       db.transaction.findMany({
         where: {
@@ -116,9 +119,14 @@ export async function GET(request: Request) {
           paymentMethod: true,
           total: true,
           amountPaid: true,
+          change: true,
           discount: true,
           salesName: true,
           salesperson: { select: { name: true } },
+          payments: {
+            select: { method: true, amount: true, createdAt: true },
+          },
+          debtPaymentLogs: { select: { id: true } },
           items: {
             select: {
               productId: true,
@@ -187,18 +195,44 @@ export async function GET(request: Request) {
           hasMissingCostSnapshot: true,
         },
       }),
+      db.debtPaymentLog.findMany({
+        where: {
+          storeId,
+          createdAt: dateBounds,
+          transaction: { status: { in: ["COMPLETED", "DP"] } },
+        },
+        select: {
+          transactionId: true,
+          paymentMethod: true,
+          amount: true,
+          createdAt: true,
+          transaction: {
+            select: {
+              salesName: true,
+              salesperson: { select: { name: true } },
+            },
+          },
+        },
+      }),
+      findInitialCollections(db, storeId, dateBounds),
     ]);
 
     return NextResponse.json(
       buildFinancialReport({
         dateFrom,
         dateTo,
+        collectionTransactions,
         transactions: transactions.map((transaction) => ({
           ...transaction,
           createdAt: transaction.invoiceDate,
           total: toNumber(transaction.total),
           amountPaid: toNumber(transaction.amountPaid),
+          change: toNumber(transaction.change),
           discount: toNumber(transaction.discount),
+          payments: transaction.payments.map((payment) => ({
+            ...payment,
+            amount: toNumber(payment.amount),
+          })),
           items: transaction.items.map((item) => ({
             ...item,
             quantity: toNumber(item.quantity),
@@ -232,6 +266,10 @@ export async function GET(request: Request) {
           entryCount: expenseAggregate._count._all,
           incompleteCount: incompleteExpenseCount,
         },
+        debtPayments: debtPayments.map((payment) => ({
+          ...payment,
+          amount: toNumber(payment.amount),
+        })),
       }),
     );
   } catch (error) {

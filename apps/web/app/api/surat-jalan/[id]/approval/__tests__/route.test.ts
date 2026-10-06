@@ -5,8 +5,10 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const suratJalanFindFirstMock = vi.hoisted(() => vi.fn());
 const suratJalanUpdateMock = vi.hoisted(() => vi.fn());
+const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindFirstMock = vi.hoisted(() => vi.fn());
 const productUpdateManyMock = vi.hoisted(() => vi.fn());
+const productStockGroupUpdateManyMock = vi.hoisted(() => vi.fn());
 const queryRawMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 
@@ -45,6 +47,8 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
       stockGroup: null,
     }));
     productUpdateManyMock.mockResolvedValue({ count: 1 });
+    productStockGroupUpdateManyMock.mockResolvedValue({ count: 1 });
+    transactionFindFirstMock.mockResolvedValue({ status: "COMPLETED" });
     queryRawMock.mockImplementation(
       async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
     );
@@ -60,14 +64,17 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
           findFirst: suratJalanFindFirstMock,
           update: suratJalanUpdateMock,
         },
+        transaction: { findFirst: transactionFindFirstMock },
         product: {
           findFirst: productFindFirstMock,
           updateMany: productUpdateManyMock,
         },
+        productStockGroup: { updateMany: productStockGroupUpdateManyMock },
         inventoryLog: {
           createMany: inventoryLogCreateManyMock,
         },
         $queryRaw: queryRawMock,
+        $queryRawUnsafe: vi.fn(async (_query: string, rowId: string) => [{ id: rowId }]),
       }),
     );
   });
@@ -111,6 +118,46 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
           type: "OUT",
           reason: "SALE",
           quantity: 3,
+          sourceTransactionRef: "txn-1",
+          stockGroupIdSnapshot: null,
+          unitMultiplierSnapshot: 1,
+          stockBaseDelta: -3,
+        }),
+      ],
+    });
+  });
+
+  it("journals the exact base-stock movement for a converted unit", async () => {
+    suratJalanFindFirstMock.mockResolvedValue(makePendingSuratJalan("SURAT_JALAN"));
+    productFindFirstMock.mockResolvedValue({
+      id: "product-paper",
+      stock: 10,
+      stockGroupId: "paper-group",
+      unitMultiplierToBase: 5,
+      conversionNeedsReview: false,
+      stockGroup: { id: "paper-group", baseStock: 50 },
+    });
+
+    const { POST } = await import("../route");
+    const response = await POST(
+      new Request("http://localhost/api/surat-jalan/sj-2/approval", { method: "POST" }),
+      { params: Promise.resolve({ id: "sj-2" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(productStockGroupUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: "paper-group", storeId: "store-main", baseStock: { gte: 15 } },
+      data: { baseStock: { increment: -15 } },
+    });
+    expect(inventoryLogCreateManyMock).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          transactionId: "txn-1",
+          suratJalanId: "sj-2",
+          productId: "product-paper",
+          stockGroupIdSnapshot: "paper-group",
+          unitMultiplierSnapshot: 5,
+          stockBaseDelta: -15,
         }),
       ],
     });
@@ -145,6 +192,22 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
         }),
       }),
     );
+  });
+
+  it("does not approve a shipment after its transaction has been voided", async () => {
+    suratJalanFindFirstMock.mockResolvedValue(makePendingSuratJalan("SURAT_JALAN"));
+    transactionFindFirstMock.mockResolvedValue({ status: "VOIDED" });
+
+    const { POST } = await import("../route");
+    const response = await POST(
+      new Request("http://localhost/api/surat-jalan/sj-2/approval", { method: "POST" }),
+      { params: Promise.resolve({ id: "sj-2" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
+    expect(suratJalanUpdateMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
   });
 });
 

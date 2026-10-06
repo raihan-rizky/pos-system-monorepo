@@ -191,7 +191,7 @@ async function main() {
     () => prisma.category.upsert({
       where: { name: "ATK" },
       update: { icon: "pen-tool" },
-      create: { name: "ATK", icon: "pen-tool", color: "#3b82f6", order: 1 },
+      create: { name: "ATK", salesGroup: "ATK", icon: "pen-tool", color: "#3b82f6", order: 1 },
     }),
     () => prisma.category.upsert({
       where: { name: "Bot" },
@@ -206,13 +206,14 @@ async function main() {
     () => prisma.category.upsert({
       where: { name: "Catridge HP" },
       update: { icon: "printer" },
-      create: { name: "Catridge HP", icon: "printer", color: "#f97316", order: 4 },
+      create: { name: "Catridge HP", salesGroup: "CARTRIDGE", icon: "printer", color: "#f97316", order: 4 },
     }),
     () => prisma.category.upsert({
       where: { name: "Catridge Canon" },
       update: { icon: "printer" },
       create: {
         name: "Catridge Canon",
+        salesGroup: "CARTRIDGE",
         icon: "printer",
         color: "#ef4444",
         order: 5,
@@ -266,22 +267,22 @@ async function main() {
     () => prisma.category.upsert({
       where: { name: "Cardridge Canon" },
       update: { icon: "printer" },
-      create: { name: "Cardridge Canon", icon: "printer", color: "#ef4444", order: 15 },
+      create: { name: "Cardridge Canon", salesGroup: "CARTRIDGE", icon: "printer", color: "#ef4444", order: 15 },
     }),
     () => prisma.category.upsert({
       where: { name: "Tinta" },
       update: { icon: "droplets" },
-      create: { name: "Tinta", icon: "droplets", color: "#0ea5e9", order: 16 },
+      create: { name: "Tinta", salesGroup: "INK", icon: "droplets", color: "#0ea5e9", order: 16 },
     }),
     () => prisma.category.upsert({
       where: { name: "Tinta Printing" },
       update: { icon: "droplets" },
-      create: { name: "Tinta Printing", icon: "droplets", color: "#2563eb", order: 17 },
+      create: { name: "Tinta Printing", salesGroup: "INK", icon: "droplets", color: "#2563eb", order: 17 },
     }),
     () => prisma.category.upsert({
       where: { name: "Kertas" },
       update: { icon: "file-text" },
-      create: { name: "Kertas", icon: "file-text", color: "#f59e0b", order: 18 },
+      create: { name: "Kertas", salesGroup: "PAPER", icon: "file-text", color: "#f59e0b", order: 18 },
     }),
     () => prisma.category.upsert({
       where: { name: "PRNT" },
@@ -291,12 +292,12 @@ async function main() {
     () => prisma.category.upsert({
       where: { name: "Catridge M.TIK" },
       update: { icon: "printer" },
-      create: { name: "Catridge M.TIK", icon: "printer", color: "#8b5cf6", order: 20 },
+      create: { name: "Catridge M.TIK", salesGroup: "CARTRIDGE", icon: "printer", color: "#8b5cf6", order: 20 },
     }),
     () => prisma.category.upsert({
       where: { name: "Cartridge" },
       update: { icon: "printer" },
-      create: { name: "Cartridge", icon: "printer", color: "#64748b", order: 21 },
+      create: { name: "Cartridge", salesGroup: "CARTRIDGE", icon: "printer", color: "#64748b", order: 21 },
     }),
     () => prisma.category.upsert({
       where: { name: "PLAT" },

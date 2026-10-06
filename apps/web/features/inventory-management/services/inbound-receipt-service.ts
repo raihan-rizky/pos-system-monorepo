@@ -22,6 +22,7 @@ import {
   finalizeInboundReceiptIfReady,
   InboundReceiptFinalizationError,
 } from "./inbound-receipt-finalizer";
+import { resolveReceiptCost } from "../helpers/receipt-cost";
 
 export class InventoryManagementError extends Error {
   constructor(
@@ -57,6 +58,7 @@ interface EditInboundReceiptItemInput extends InboundReceiptItemServiceInput {
   input: {
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
+    supplierCostPrice?: number | null;
     note?: string | null;
   };
 }
@@ -86,6 +88,7 @@ export interface GetReceivingQueueInput {
     search?: string | null;
     take?: number;
     goodsPurchaseId?: string | null;
+    supplierId?: string | null;
   };
 }
 
@@ -121,6 +124,7 @@ interface GoodsPurchaseForReceipt {
     skuSnapshot: string;
     unitSnapshot: string | null;
     latestUnitPrice: number;
+    currentCostPrice: number | null;
     quantity: number;
     inboundReceiptLines: Array<{
       status: InboundReceiptLineStatus;
@@ -138,6 +142,7 @@ interface SubmittedGoodsPurchaseReceiptLine {
   skuSnapshot: string;
   unitSnapshot: string | null;
   costPriceSnapshot: number;
+  supplierCostPrice: number | null;
   supplierNameSnapshot: string;
   invoiceNumberSnapshot: string;
   expectedQuantity: number;
@@ -183,6 +188,7 @@ export interface CreateGoodsPurchaseReceiptServiceInput {
       goodsPurchaseItemId: string;
       matchStatus: InboundReceiptMatchStatus;
       receivedQuantity: number;
+      supplierCostPrice?: number | null;
       note?: string | null;
     }>;
   };
@@ -217,6 +223,21 @@ function isPrismaFinalizationConflict(error: unknown): boolean {
     ((error as { code?: unknown }).code === "P2002" ||
       (error as { code?: unknown }).code === "P2034")
   );
+}
+
+function receiptCostOrValidationError(input: {
+  supplierCostPrice?: number | null;
+  masterCostPrice: number | null;
+}): number | null {
+  try {
+    return resolveReceiptCost(input);
+  } catch {
+    throw new InventoryManagementError(
+      "VALIDATION_ERROR",
+      "Harga modal supplier tidak valid",
+      422,
+    );
+  }
 }
 
 export async function getReceivingQueue(
@@ -264,6 +285,7 @@ export async function getReceivingQueue(
       productName: row.productName,
       sku: row.sku,
       unit: row.unit,
+      currentCostPrice: row.currentCostPrice,
       ...availability,
     });
   }
@@ -672,6 +694,23 @@ export async function editInboundReceiptItem(
           line.approvedReceivedExcludingCurrentReceipt,
         currentReceiptQuantity: input.input.receivedQuantity,
       });
+      const supplierCostPrice = receiptCostOrValidationError({
+        supplierCostPrice:
+          input.input.supplierCostPrice ??
+          line.supplierCostPrice ??
+          line.costPriceSnapshot,
+        masterCostPrice:
+          line.product?.costPrice == null
+            ? null
+            : Number(line.product.costPrice.toString()),
+      });
+      if (input.input.receivedQuantity > 0 && supplierCostPrice === null) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Harga modal supplier wajib diisi untuk jumlah yang diterima",
+          422,
+        );
+      }
 
       await input.repository.updateReceiptLine(tx, {
         storeId,
@@ -680,6 +719,7 @@ export async function editInboundReceiptItem(
         matchStatus: input.input.matchStatus,
         receivedQuantity: input.input.receivedQuantity,
         note,
+        supplierCostPrice,
         reviewStatus: "PENDING",
         approvedById: null,
         approvedByName: null,
@@ -1100,6 +1140,18 @@ export async function createAndSubmitGoodsPurchaseReceipt(
         );
       }
 
+      const supplierCostPrice = receiptCostOrValidationError({
+        supplierCostPrice: line.supplierCostPrice,
+        masterCostPrice: item.currentCostPrice,
+      });
+      if (line.receivedQuantity > 0 && supplierCostPrice === null) {
+        throw new InventoryManagementError(
+          "VALIDATION_ERROR",
+          "Harga modal supplier wajib diisi untuk jumlah yang diterima",
+          422,
+        );
+      }
+
       const note = line.note?.trim() || null;
       if (
         requiresInboundQuantityNote(
@@ -1123,6 +1175,7 @@ export async function createAndSubmitGoodsPurchaseReceipt(
         skuSnapshot: item.skuSnapshot,
         unitSnapshot: item.unitSnapshot,
         costPriceSnapshot: item.latestUnitPrice,
+        supplierCostPrice,
         supplierNameSnapshot: purchase.supplierNameSnapshot,
         invoiceNumberSnapshot: purchase.number,
         expectedQuantity: availableQuantity,

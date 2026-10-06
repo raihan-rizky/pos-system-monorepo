@@ -10,6 +10,14 @@ export interface ShoppingRequestPrintRow {
 
 import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 
+export const SHOPPING_REQUEST_PRINT_LAYOUTS = [
+  { kind: "summary", columns: ["no", "productName", "requestedQty"] },
+  {
+    kind: "full",
+    columns: ["no", "productName", "requestedQty", "stockOnHand", "approvedQty"],
+  },
+] as const;
+
 /**
  * Build printable rows from a shopping request detail.
  */

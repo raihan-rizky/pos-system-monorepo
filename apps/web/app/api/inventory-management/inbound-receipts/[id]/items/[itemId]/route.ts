@@ -14,6 +14,7 @@ const editItemSchema = z
   .object({
     matchStatus: z.enum(["MATCHED", "MISMATCHED"]),
     receivedQuantity: z.number().min(0),
+    supplierCostPrice: z.number().min(0).max(9_999_999_999.99).optional(),
     note: z.string().trim().max(500).optional().nullable(),
   })
   .strict();

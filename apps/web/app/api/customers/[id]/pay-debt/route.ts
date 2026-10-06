@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { allocateCustomerDebtPayment } from "@/features/customer-debt/helpers/customer-debt-allocation";
 
 import { getLogger } from "@/lib/logger";
 
@@ -14,6 +15,13 @@ class DebtConflictError extends Error {
   constructor() {
     super("DEBT_CONFLICT");
     this.name = "DebtConflictError";
+  }
+}
+
+class DebtAllocationError extends Error {
+  constructor() {
+    super("Jumlah pembayaran melebihi total piutang aktif.");
+    this.name = "DebtAllocationError";
   }
 }
 
@@ -102,54 +110,82 @@ export async function POST(
         throw new DebtConflictError();
       }
 
-      const updatedCustomer = await tx.customer.findFirst({
-        where: { id, storeId },
-        select: { id: true, name: true, totalDebt: true, totalSpent: true },
-      });
-
-      // Find the oldest DP transaction for this customer and update amountPaid
-      // This provides traceability of debt payments
-      const dpTransaction = await tx.transaction.findFirst({
+      const activeTransactions = await tx.transaction.findMany({
         where: {
           customerId: id,
           storeId,
-          status: "DP",
+          OR: [
+            { status: "DP" },
+            { status: "COMPLETED", paymentMethod: "TEMPO" },
+          ],
         },
         orderBy: { createdAt: "asc" },
-        select: { id: true, total: true, amountPaid: true, note: true },
+        select: {
+          id: true,
+          total: true,
+          amountPaid: true,
+          status: true,
+          paymentMethod: true,
+          note: true,
+        },
       });
 
-      if (dpTransaction) {
-        // Allocate only up to this invoice's remaining balance so a payment
-        // larger than the oldest invoice can't push its amountPaid past total.
-        const totalAmount = Number(dpTransaction.total);
-        const remaining = totalAmount - Number(dpTransaction.amountPaid);
-        const allocated = Math.min(amount, Math.max(0, remaining));
-        const newAmountPaid = Number(dpTransaction.amountPaid) + allocated;
+      const candidates = activeTransactions.map((transaction) => ({
+        ...transaction,
+        total: Number(transaction.total),
+        amountPaid: Number(transaction.amountPaid),
+      }));
+      let allocations;
+      try {
+        allocations = allocateCustomerDebtPayment({ amount, transactions: candidates });
+      } catch {
+        throw new DebtAllocationError();
+      }
 
-        await tx.transaction.update({
-          where: { id: dpTransaction.id },
+      const transactionById = new Map(
+        activeTransactions.map((transaction) => [transaction.id, transaction]),
+      );
+      for (const allocation of allocations) {
+        const transaction = transactionById.get(allocation.transactionId);
+        if (!transaction) throw new DebtConflictError();
+
+        const guardedTransaction = await tx.transaction.updateMany({
+          where: {
+            id: transaction.id,
+            storeId,
+            status: transaction.status,
+            amountPaid: transaction.amountPaid,
+            ...(transaction.status === "COMPLETED" && transaction.paymentMethod === "TEMPO"
+              ? { paymentMethod: "TEMPO" }
+              : {}),
+          },
           data: {
-            amountPaid: newAmountPaid,
-            // If fully paid, mark as COMPLETED
-            status: newAmountPaid >= totalAmount ? "COMPLETED" : "DP",
-            // Append the manual note if provided, else keep existing note
+            amountPaid: allocation.amountPaid,
+            status: allocation.status,
             note: note
-              ? (dpTransaction.note ? `${dpTransaction.note} | ${note}` : note)
-              : dpTransaction.note,
+              ? (transaction.note ? `${transaction.note} | ${note}` : note)
+              : transaction.note,
           },
         });
+
+        if (guardedTransaction.count !== 1) throw new DebtConflictError();
+
         await tx.debtPaymentLog.create({
           data: {
-            transactionId: dpTransaction.id,
+            transactionId: transaction.id,
             customerId: id,
             storeId,
-            amount,
+            amount: allocation.amount,
             paymentMethod,
             note: note || null,
           },
         });
       }
+
+      const updatedCustomer = await tx.customer.findFirst({
+        where: { id, storeId },
+        select: { id: true, name: true, totalDebt: true, totalSpent: true },
+      });
 
       return updatedCustomer;
     });
@@ -175,6 +211,13 @@ export async function POST(
       return NextResponse.json(
         { message: "Pembayaran piutang sudah diproses oleh permintaan lain" },
         { status: 409 }
+      );
+    }
+
+    if (error instanceof DebtAllocationError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: 422 },
       );
     }
 

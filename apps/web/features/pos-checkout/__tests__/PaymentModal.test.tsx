@@ -1,10 +1,15 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PaymentModal } from "@/components/PaymentModal";
 import type { ProductCartItem } from "@/hooks/useCart";
 
 let roleMock = "OWNER";
+const useServerClockMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({
+  useServerClock: useServerClockMock,
+}));
 
 vi.mock("@pos/ui", () => ({
   Modal: ({ children, title }: { children: React.ReactNode; title: string }) => (
@@ -13,8 +18,13 @@ vi.mock("@pos/ui", () => ({
       {children}
     </div>
   ),
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
+  Button: ({
+    children,
+    loading,
+    disabled,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
+    <button {...props} disabled={disabled || loading}>{children}</button>
   ),
   Input: ({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) => (
     <label>
@@ -48,6 +58,59 @@ vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({
 }));
 
 describe("PaymentModal custom invoice date", () => {
+  beforeEach(() => {
+    useServerClockMock.mockReturnValue({
+      now: new Date("2026-10-05T20:24:41.000Z"),
+      source: "TIMEAPI_IO",
+      lastSyncedAt: Date.parse("2026-10-05T20:24:30.000Z"),
+      isLoading: false,
+    });
+  });
+
+  it("offers Tempo/Tagihan as a separate payment term", () => {
+    const html = renderToStaticMarkup(
+      <PaymentModal
+        open
+        onClose={vi.fn()}
+        items={[]}
+        subtotal={0}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Tempo/Tagihan");
+  });
+
+  it("labels the default invoice clock as Jakarta WIB", () => {
+    const html = renderToStaticMarkup(
+      <PaymentModal
+        open
+        onClose={vi.fn()}
+        items={[]}
+        subtotal={0}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Waktu invoice default");
+    expect(html).toContain("Jakarta (WIB)");
+  });
+
+  it("shows Internet synchronization source and last sync time", () => {
+    const html = renderToStaticMarkup(
+      <PaymentModal
+        open
+        onClose={vi.fn()}
+        items={[]}
+        subtotal={0}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Internet tersinkron");
+    expect(html).toContain("6 Oktober 2026 pukul 03.24 WIB");
+  });
+
   it("shows a cart transaction price as a transaction-only override", () => {
     const item: ProductCartItem = {
       cartLineId: "PRODUCT:paper-rim",

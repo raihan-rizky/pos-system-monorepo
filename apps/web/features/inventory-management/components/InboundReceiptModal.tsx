@@ -22,17 +22,20 @@ export interface InboundReceiptModalProps {
   onClose: () => void;
   onSuccess: (message: string) => void;
   initialGoodsPurchaseId?: string | null;
+  supplierId?: string | null;
 }
 
 type LineInput = {
   matchStatus: InboundReceiptMatchStatus;
   receivedQuantity: string;
+  supplierCostPrice: string;
   note: string;
 };
 
 const EMPTY_LINE_INPUT: LineInput = {
   matchStatus: "MATCHED",
   receivedQuantity: "",
+  supplierCostPrice: "",
   note: "",
 };
 
@@ -88,11 +91,31 @@ export function isInboundReceiptLineValid(input: {
   );
 }
 
-function getLineInput(
-  lineInputs: Record<string, LineInput>,
-  itemId: string,
-): LineInput {
-  return lineInputs[itemId] ?? EMPTY_LINE_INPUT;
+export function getInboundReceiptLineInput(input: {
+  lineInputs: Record<string, LineInput>;
+  itemId: string;
+  currentCostPrice: number | null;
+}): LineInput {
+  return (
+    input.lineInputs[input.itemId] ?? {
+      ...EMPTY_LINE_INPUT,
+      supplierCostPrice:
+        input.currentCostPrice === null
+          ? ""
+          : String(input.currentCostPrice),
+    }
+  );
+}
+
+export function isInboundReceiptCostValid(input: {
+  receivedQuantity: string;
+  supplierCostPrice: string;
+}): boolean {
+  const quantity = Number(input.receivedQuantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) return true;
+  if (!input.supplierCostPrice.trim()) return false;
+  const cost = Number(input.supplierCostPrice);
+  return Number.isFinite(cost) && cost >= 0 && cost <= 9_999_999_999.99;
 }
 
 function formatQuantity(value: number): string {
@@ -106,6 +129,7 @@ export function InboundReceiptModal({
   onClose,
   onSuccess,
   initialGoodsPurchaseId,
+  supplierId,
 }: InboundReceiptModalProps) {
   const [receivingQueue, setReceivingQueue] =
     useState<ReceivingQueueResult | null>(null);
@@ -125,14 +149,14 @@ export function InboundReceiptModal({
       return;
     }
 
-    const loadKey = initialGoodsPurchaseId?.trim() ?? "";
+    const loadKey = `${initialGoodsPurchaseId?.trim() ?? ""}:${supplierId?.trim() ?? ""}`;
     if (loadedKeyRef.current === loadKey) return;
     loadedKeyRef.current = loadKey;
     let active = true;
 
     setIsLoading(true);
     setError(null);
-    void fetchReceivingQueue({ take: 100 })
+    void fetchReceivingQueue({ take: 100, supplierId: supplierId ?? undefined })
       .then((queue) => {
         if (!active) return;
         setReceivingQueue(queue);
@@ -161,7 +185,7 @@ export function InboundReceiptModal({
         loadedKeyRef.current = null;
       }
     };
-  }, [initialGoodsPurchaseId, open]);
+  }, [initialGoodsPurchaseId, open, supplierId]);
 
   const purchases = receivingQueue?.purchases.filter(hasAvailableItem) ?? [];
   const selectedPurchase =
@@ -171,12 +195,19 @@ export function InboundReceiptModal({
     [];
   const allLinesValid =
     visibleItems.length > 0 &&
-    visibleItems.every((item) =>
-      isInboundReceiptLineValid({
-        availableQuantity: item.availableQuantity,
-        line: getLineInput(lineInputs, item.goodsPurchaseItemId),
-      }),
-    );
+    visibleItems.every((item) => {
+      const line = getInboundReceiptLineInput({
+        lineInputs,
+        itemId: item.goodsPurchaseItemId,
+        currentCostPrice: item.currentCostPrice,
+      });
+      return (
+        isInboundReceiptLineValid({
+          availableQuantity: item.availableQuantity,
+          line,
+        }) && isInboundReceiptCostValid(line)
+      );
+    });
   const canSubmit =
     Boolean(selectedPurchase) &&
     allLinesValid &&
@@ -185,12 +216,17 @@ export function InboundReceiptModal({
 
   const updateLine = (
     itemId: string,
+    currentCostPrice: number | null,
     patch: Partial<LineInput>,
   ) => {
     setLineInputs((current) => ({
       ...current,
       [itemId]: {
-        ...getLineInput(current, itemId),
+        ...getInboundReceiptLineInput({
+          lineInputs: current,
+          itemId,
+          currentCostPrice,
+        }),
         ...patch,
       },
     }));
@@ -215,7 +251,7 @@ export function InboundReceiptModal({
     }
     if (!allLinesValid) {
       setError(
-        "Lengkapi jumlah diterima. Catatan wajib diisi jika jumlahnya berbeda dari jumlah tersedia.",
+        "Lengkapi jumlah dan harga modal supplier. Catatan wajib diisi jika jumlahnya berbeda dari jumlah tersedia.",
       );
       return;
     }
@@ -227,14 +263,16 @@ export function InboundReceiptModal({
         goodsPurchaseId: selectedPurchase.id,
         note: note.trim() || null,
         lines: visibleItems.map((item) => {
-          const input = getLineInput(
+          const input = getInboundReceiptLineInput({
             lineInputs,
-            item.goodsPurchaseItemId,
-          );
+            itemId: item.goodsPurchaseItemId,
+            currentCostPrice: item.currentCostPrice,
+          });
           return {
             goodsPurchaseItemId: item.goodsPurchaseItemId,
             matchStatus: input.matchStatus,
             receivedQuantity: Number(input.receivedQuantity),
+            supplierCostPrice: Number(input.supplierCostPrice),
             note: input.note.trim() || null,
           };
         }),
@@ -348,12 +386,17 @@ export function InboundReceiptModal({
             <InboundReceiptLine
               key={item.goodsPurchaseItemId}
               item={item}
-              input={getLineInput(
+              input={getInboundReceiptLineInput({
                 lineInputs,
-                item.goodsPurchaseItemId,
-              )}
+                itemId: item.goodsPurchaseItemId,
+                currentCostPrice: item.currentCostPrice,
+              })}
               onChange={(patch) =>
-                updateLine(item.goodsPurchaseItemId, patch)
+                updateLine(
+                  item.goodsPurchaseItemId,
+                  item.currentCostPrice,
+                  patch,
+                )
               }
             />
           ))}
@@ -428,7 +471,7 @@ function InboundReceiptLine({
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="text-xs font-bold text-slate-600">
           Kesesuaian
           <select
@@ -462,6 +505,24 @@ function InboundReceiptLine({
             }
             className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
             placeholder={`Maks. ${formatQuantity(item.availableQuantity)}`}
+          />
+        </label>
+
+        <label className="text-xs font-bold text-slate-600">
+          Harga Modal Supplier
+          <input
+            name={`inboundLines.${item.goodsPurchaseItemId}.supplierCostPrice`}
+            type="number"
+            inputMode="decimal"
+            min={0}
+            max={9_999_999_999.99}
+            step="0.01"
+            value={input.supplierCostPrice}
+            onChange={(event) =>
+              onChange({ supplierCostPrice: event.target.value })
+            }
+            className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+            placeholder="Masukkan harga modal"
           />
         </label>
 

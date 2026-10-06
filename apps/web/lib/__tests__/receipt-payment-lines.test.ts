@@ -81,4 +81,51 @@ describe("buildReceiptPaymentLines", () => {
       },
     ]);
   });
+
+  it("labels Tempo's actual first payment separately from an initial down payment", () => {
+    const lines = buildReceiptPaymentLines(
+      {
+        total: 100000,
+        amountPaid: 30000,
+        paymentMethod: "TEMPO",
+        status: "COMPLETED",
+        payments: [{ method: "CASH", amount: 10000 }],
+        debtPaymentLogs: [
+          { id: "log-1", paymentMethod: "TRANSFER", amount: 20000 },
+        ],
+      },
+      "COMPLETED",
+    );
+
+    expect(lines).toEqual([
+      {
+        label: "TUNAI",
+        amount: 10000,
+        amountFormatted: "10.000",
+        subLabel: "pembayaran awal",
+      },
+      {
+        label: "TRANSFER",
+        amount: 20000,
+        amountFormatted: "20.000",
+        subLabel: "pelunasan",
+      },
+    ]);
+  });
+
+  it("never prints TEMPO itself as an actual payment method", () => {
+    const lines = buildReceiptPaymentLines(
+      {
+        total: 100000,
+        amountPaid: 25000,
+        paymentMethod: "TEMPO",
+        status: "COMPLETED",
+        payments: [],
+        debtPaymentLogs: [],
+      },
+      "COMPLETED",
+    );
+
+    expect(lines).toEqual([]);
+  });
 });

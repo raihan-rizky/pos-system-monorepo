@@ -13,6 +13,8 @@ const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const canRolePerformActionMock = vi.hoisted(() => vi.fn());
 const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
+const invoiceNowMock = vi.hoisted(() => vi.fn());
+vi.mock("@/features/invoice-date/services/internet-clock", () => ({ getInvoiceNow: invoiceNowMock }));
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -56,6 +58,7 @@ describe("POST /api/transactions/draft", () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-02T03:00:00.000Z"));
+    invoiceNowMock.mockImplementation(async () => new Date());
     requireRoleMock.mockResolvedValue({
       id: "cashier-1",
       role: "CASHIER",
@@ -73,8 +76,15 @@ describe("POST /api/transactions/draft", () => {
         name: "Kertas A4",
         price: 50000,
         costPrice: 30000,
+        hargaAgen: null,
+        hargaDinas: null,
         size: null,
         material: null,
+        unit: "Rim",
+        categoryId: "cat-paper",
+        category: { name: "Kertas" },
+        brandId: null,
+        brand: null,
       },
     ]);
     pricingRuleFindManyMock.mockResolvedValue([]);
@@ -139,14 +149,28 @@ describe("POST /api/transactions/draft", () => {
     expect(createArgs.data.requestedById).toBeNull();
   }, 30000);
 
-  it("stores custom quote prices as item snapshots and writes audit-only price logs", async () => {
+  it("uses the synchronized source for the default draft invoice date", async () => {
+    invoiceNowMock.mockResolvedValue(new Date("2030-01-02T20:00:00Z"));
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 2 }], discount: 0 }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.invoiceDate).toEqual(new Date("2030-01-02T20:00:00Z"));
+  });
+
+  it("stores explicit transaction prices without changing product master prices", async () => {
     const { POST } = await import("../route");
     const res = await POST(
       new Request("http://localhost/api/transactions/draft", {
         method: "POST",
         body: JSON.stringify({
           items: [
-            { productId: "p1", name: "Kertas A4", price: 47500, quantity: 3 },
+            {
+              productId: "p1",
+              name: "Kertas A4",
+              price: 47500,
+              transactionPrice: 47500,
+              quantity: 3,
+            },
           ],
           discount: 0,
           customerName: "PT Contoh",
@@ -172,22 +196,7 @@ describe("POST /api/transactions/draft", () => {
       }),
     ]);
     expect(createArgs.data).not.toHaveProperty("price");
-    expect(productPriceLogCreateManyMock).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          productId: "p1",
-          storeId: "store-main",
-          field: "PRICE",
-          oldValue: "50000.00",
-          newValue: "47500.00",
-          source: "SYSTEM",
-          note:
-            "Harga khusus untuk nota penawaran dengan nomor 001/PNW-TLD/02/VI/2026",
-          changedBy: "cashier-1",
-          changedByName: "Cashier One",
-        }),
-      ],
-    });
+    expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
   }, 30000);
 
   it("returns 422 when cart is empty", async () => {
@@ -283,7 +292,7 @@ describe("POST /api/transactions/draft", () => {
     });
   });
 
-  it("reprices Payment-modal drafts using matching Harga Khusus", async () => {
+  it("reprices new drafts from server rules without a legacy priority field", async () => {
     customerFindFirstMock.mockResolvedValue({
       id: "agen-1",
       type: "AGEN",
@@ -331,7 +340,6 @@ describe("POST /api/transactions/draft", () => {
           ],
           discount: 0,
           customerId: "agen-1",
-          pricingPreference: "SPECIAL",
           isJobOrder: false,
         }),
       }),
@@ -345,6 +353,84 @@ describe("POST /api/transactions/draft", () => {
         pricingRuleId: "rule-atk",
         originalUnitPrice: 100000,
         appliedUnitPrice: 90000,
+      }),
+    );
+    expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps an explicit transaction price over automatic draft pricing without changing the product price", async () => {
+    customerFindFirstMock.mockResolvedValue({
+      id: "agen-1",
+      type: "AGEN",
+    });
+    productFindManyMock.mockResolvedValue([
+      {
+        id: "p1",
+        name: "Pulpen",
+        price: 100000,
+        costPrice: 50000,
+        hargaAgen: 95000,
+        hargaDinas: null,
+        size: null,
+        material: null,
+        unit: "pcs",
+        categoryId: "cat-atk",
+        category: { name: "ATK" },
+        brandId: null,
+        brand: null,
+      },
+    ]);
+    pricingRuleFindManyMock.mockResolvedValue([
+      {
+        id: "rule-atk",
+        categoryId: "cat-atk",
+        customerType: null,
+        unit: null,
+        brandId: null,
+        brand: null,
+        mode: "PERCENT_DISCOUNT",
+        value: 10,
+        isActive: true,
+        updatedAt: new Date("2026-07-03T00:00:00.000Z"),
+        category: { name: "ATK" },
+      },
+    ]);
+
+    const { POST } = await import("../route");
+    const res = await POST(
+      new Request("http://localhost/api/transactions/draft", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            {
+              productId: "p1",
+              name: "Pulpen",
+              price: 80000,
+              transactionPrice: 80000,
+              quantity: 1,
+            },
+          ],
+          discount: 0,
+          customerId: "agen-1",
+          isJobOrder: false,
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    expect(pricingRuleFindManyMock).toHaveBeenCalledWith({
+      where: { storeId: "store-main", isActive: true },
+      include: {
+        category: { select: { name: true } },
+        brand: { select: { name: true } },
+      },
+    });
+    const createArgs = transactionCreateMock.mock.calls[0][0];
+    expect(createArgs.data.items.create[0]).toEqual(
+      expect.objectContaining({
+        unitPrice: 80000,
+        pricingRuleId: "rule-atk",
+        appliedUnitPrice: 80000,
       }),
     );
     expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();

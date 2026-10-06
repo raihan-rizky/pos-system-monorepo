@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { after } from "next/server";
-import { db, Prisma } from "@pos/db";
+import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
 import { getLogger } from "@/lib/logger";
-import { applyProductStockDeltas } from "@/features/product-stock-groups/stock-mutations";
+import {
+  reverseTransaction,
+  TransactionReversalConflictError,
+} from "@/features/transactions-stock/services/transaction-reversal-service";
 
 const log = getLogger("api:transactions:id");
 const toIsoString = (value: Date | string | null | undefined) => {
@@ -20,9 +22,6 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   VOIDED: [],
   REFUNDED: [],
 };
-
-/** Statuses that have side effects that must be reversed when voiding */
-const VOID_REVERSIBLE = new Set(["COMPLETED", "DP"]);
 
 const updateTransactionSchema = z.object({
   salesName: z.string().optional().nullable(),
@@ -228,92 +227,24 @@ export async function PATCH(
       );
     }
 
-    // ── Void reversal: restore stock, reverse inventory logs & customer analytics ──
-    if (status === "VOIDED" && VOID_REVERSIBLE.has(existingTransaction.status)) {
-      // Run entire void (update + side-effects) atomically
-      await db.$transaction(async (tx) => {
-        const voidedTx = await tx.transaction.update({
-          where: { id },
-          data: updateData,
-          select: {
-            id: true,
-            invoiceNumber: true,
-            customerId: true,
-            total: true,
-            amountPaid: true,
-            status: true,
-            items: {
-              select: {
-                productId: true,
-                productName: true,
-                quantity: true,
-                unitCost: true,
-              },
-            },
-          },
-        });
-
-        const productItems = voidedTx.items.filter(
-          (item): item is typeof item & { productId: string } =>
-            item.productId !== null,
-        );
-
-        // 1. Restore stock
-        await applyProductStockDeltas(tx as any, {
+    if (status === "VOIDED" && status !== existingTransaction.status) {
+      const transactionUpdates = { ...updateData };
+      delete transactionUpdates.status;
+      const outcome = await db.$transaction(async (tx) => {
+        const result = await reverseTransaction(tx, {
           storeId,
-          items: productItems.map((item) => ({
-            productId: item.productId,
-            delta: item.quantity,
-          })),
-          allowNegative: true,
+          transactionId: id,
+          action: "VOID",
+          actor: { id: user.id, name: user.name ?? null, role: user.role },
         });
-
-        // 2. Inventory log entries
-        if (productItems.length > 0) {
-          await tx.inventoryLog.createMany({
-            data: productItems.map((item) => ({
-              productId: item.productId,
-              type: "IN" as const,
-              reason: "SALE_RETURN" as const,
-              quantity: item.quantity,
-              unitCost: item.unitCost === null || item.unitCost === undefined
-                ? null
-                : Number(item.unitCost.toString()),
-              note: `Void transaksi ${voidedTx.invoiceNumber} - ${item.productName}`,
-              createdBy: user.id,
-              person: user.name ?? null,
-            })),
-          });
+        if (result === "APPLIED" && Object.keys(transactionUpdates).length > 0) {
+          await tx.transaction.update({ where: { id }, data: transactionUpdates });
         }
-
-        // 3. Reverse customer analytics
-        if (voidedTx.customerId) {
-          const existingCustomer = await tx.customer.findUnique({
-            where: { id: voidedTx.customerId },
-            select: { totalSpent: true, totalOrders: true, totalDebt: true },
-          });
-
-          if (existingCustomer) {
-            const total = Number(voidedTx.total);
-            const amountPaid = Math.min(Number(voidedTx.amountPaid), total);
-            const wasDp = existingTransaction.status === "DP";
-            const debtDecrement = wasDp ? Math.max(0, total - amountPaid) : 0;
-
-            await tx.customer.update({
-              where: { id: voidedTx.customerId },
-              data: {
-                totalSpent: Math.max(0, Number(existingCustomer.totalSpent) - amountPaid),
-                totalOrders: Math.max(0, existingCustomer.totalOrders - 1),
-                ...(debtDecrement > 0
-                  ? { totalDebt: Math.max(0, Number(existingCustomer.totalDebt) - debtDecrement) }
-                  : {}),
-              },
-            });
-          }
-        }
-
-        return voidedTx;
+        return result;
       });
+      if (outcome === "NOT_FOUND") {
+        return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
+      }
 
       const updated = await db.transaction.findUniqueOrThrow({
         where: { id },
@@ -379,6 +310,10 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
+    if (error instanceof TransactionReversalConflictError) {
+      return NextResponse.json({ message: error.message }, { status: 409 });
+    }
+
     log.error("Failed to update transaction:", error);
     if (error?.code === "P2025") {
       return NextResponse.json(
@@ -403,118 +338,26 @@ export async function DELETE(
     const user = await requirePermission("transaction", "delete");
     const storeId = user.storeId || "store-main";
     ({ id } = await params);
-
-    const existingTransaction = await db.transaction.findFirst({
-      where: { id, storeId },
-      select: { id: true, status: true },
-    });
-
-    if (!existingTransaction) {
-      return NextResponse.json(
-        { message: "Transaksi tidak ditemukan" },
-        { status: 404 }
-      );
+    const outcome = await db.$transaction((tx) =>
+      reverseTransaction(tx, {
+        storeId,
+        transactionId: id,
+        action: "DELETE",
+        actor: { id: user.id, name: user.name ?? null, role: user.role },
+      }),
+    );
+    if (outcome === "NOT_FOUND") {
+      return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
     }
-
-    // Fetch full transaction for side-effect reversal (only if not already voided)
-    if (existingTransaction.status !== "VOIDED") {
-      const txToRevert = await db.transaction.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          invoiceNumber: true,
-          customerId: true,
-          total: true,
-          amountPaid: true,
-          status: true,
-          items: {
-            select: {
-              productId: true,
-              productName: true,
-              quantity: true,
-              unitCost: true,
-            },
-          },
-        },
-      });
-
-      if (txToRevert) {
-        const productItems = txToRevert.items.filter(
-          (item): item is typeof item & { productId: string } =>
-            item.productId !== null,
-        );
-
-        // Delete + stock restore + log + customer update — all atomic
-        await db.$transaction(async (tx: Prisma.TransactionClient) => {
-          await tx.transactionItem.deleteMany({ where: { transactionId: id } });
-          await tx.transaction.delete({ where: { id } });
-
-          if (productItems.length > 0) {
-            await applyProductStockDeltas(tx as any, {
-              storeId,
-              items: productItems.map((item) => ({
-                productId: item.productId,
-                delta: item.quantity,
-              })),
-              allowNegative: true,
-            });
-
-            await tx.inventoryLog.createMany({
-              data: productItems.map((item) => ({
-                productId: item.productId,
-                type: "IN" as const,
-                reason: "SALE_RETURN" as const,
-                quantity: item.quantity,
-                unitCost:
-                  item.unitCost === null || item.unitCost === undefined
-                    ? null
-                    : Number(item.unitCost.toString()),
-                note: `Delete transaksi ${txToRevert.invoiceNumber} - ${item.productName}`,
-                createdBy: user.id,
-                person: user.name ?? null,
-              })),
-            });
-          }
-
-          if (txToRevert.customerId) {
-            const existingCustomer = await tx.customer.findUnique({
-              where: { id: txToRevert.customerId },
-              select: { totalSpent: true, totalOrders: true, totalDebt: true },
-            });
-
-            if (existingCustomer) {
-              const total = Number(txToRevert.total);
-              const amountPaid = Math.min(Number(txToRevert.amountPaid), total);
-              const wasDp = txToRevert.status === "DP";
-              const debtDecrement = wasDp ? Math.max(0, total - amountPaid) : 0;
-
-              await tx.customer.update({
-                where: { id: txToRevert.customerId },
-                data: {
-                  totalSpent: Math.max(0, Number(existingCustomer.totalSpent) - amountPaid),
-                  totalOrders: Math.max(0, existingCustomer.totalOrders - 1),
-                  ...(debtDecrement > 0
-                    ? { totalDebt: Math.max(0, Number(existingCustomer.totalDebt) - debtDecrement) }
-                    : {}),
-                },
-              });
-            }
-          }
-        });
-        return new NextResponse(null, { status: 204 });
-      }
-    }
-
-    // No stock to restore — just delete atomically
-    await db.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.transactionItem.deleteMany({ where: { transactionId: id } });
-      await tx.transaction.delete({ where: { id } });
-    });
 
     return new NextResponse(null, { status: 204 });
   } catch (error: any) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof TransactionReversalConflictError) {
+      return NextResponse.json({ message: error.message }, { status: 409 });
+    }
 
     log.error("Failed to delete transaction:", error);
     if (error?.code === "P2025") {

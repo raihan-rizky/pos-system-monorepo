@@ -5,6 +5,7 @@ import { GET } from "../route";
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
+const debtPaymentLogFindManyMock = vi.hoisted(() => vi.fn());
 const cashierShiftFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
 const expenseAggregateMock = vi.hoisted(() => vi.fn());
@@ -19,6 +20,9 @@ vi.mock("@pos/db", () => ({
   db: {
     transaction: {
       findMany: transactionFindManyMock,
+    },
+    debtPaymentLog: {
+      findMany: debtPaymentLogFindManyMock,
     },
     cashierShift: {
       findMany: cashierShiftFindManyMock,
@@ -42,6 +46,7 @@ describe("GET /api/finance/report", () => {
     });
     handleAuthErrorMock.mockReturnValue(null);
     transactionFindManyMock.mockResolvedValue([]);
+    debtPaymentLogFindManyMock.mockResolvedValue([]);
     cashierShiftFindManyMock.mockResolvedValue([]);
     inventoryLogFindManyMock.mockResolvedValue([]);
     expenseAggregateMock.mockResolvedValue({
@@ -63,6 +68,20 @@ describe("GET /api/finance/report", () => {
     await GET(request);
 
     expect(requirePermissionMock).toHaveBeenCalledWith("financial-report", "read");
+  });
+
+  it("queries initial collections independently of invoice date", async () => {
+    transactionFindManyMock.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+      id: "backdated", status: "COMPLETED", createdAt: new Date("2026-05-20T03:00:00Z"), total: 100, amountPaid: 150, change: 50, paymentMethod: "CASH",
+      payments: [{ method: "CASH", amount: 150, createdAt: new Date("2026-05-20T03:00:00Z") }],
+    }]);
+    const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-05-20&dateTo=2026-05-20"));
+    expect(response.status).toBe(200);
+    expect(transactionFindManyMock).toHaveBeenCalledTimes(2);
+    const query = transactionFindManyMock.mock.calls[1][0];
+    expect(query.where).not.toHaveProperty("invoiceDate");
+    expect(query.where.OR[0].payments.some.createdAt).toEqual({ gte: new Date("2026-05-19T17:00:00Z"), lt: new Date("2026-05-20T17:00:00Z") });
+    expect((await response.json()).summary).toMatchObject({ collected: 100, revenue: 0 });
   });
 
   it("queries confirmed sales by invoiceDate and shifts within the requested Jakarta date range", async () => {
@@ -93,6 +112,81 @@ describe("GET /api/finance/report", () => {
             gte: new Date("2026-04-30T17:00:00.000Z"),
             lt: new Date("2026-05-31T17:00:00.000Z"),
           },
+        }),
+      }),
+    );
+  });
+
+  it("reports Tempo revenue separately from dated cash settlements", async () => {
+    transactionFindManyMock.mockResolvedValue([
+      {
+        id: "tempo-1",
+        invoiceNumber: "INV-TEMPO-1",
+        invoiceDate: new Date("2026-05-02T03:00:00.000Z"),
+        createdAt: new Date("2026-05-02T03:00:00.000Z"),
+        status: "COMPLETED",
+        paymentMethod: "TEMPO",
+        total: "100000",
+        amountPaid: "25000",
+        discount: "0",
+        salesName: null,
+        salesperson: null,
+        items: [],
+        payments: [],
+        debtPaymentLogs: [{ id: "debt-log-1" }],
+      },
+    ]);
+    debtPaymentLogFindManyMock.mockResolvedValue([
+      {
+        transactionId: "tempo-1",
+        paymentMethod: "CASH",
+        amount: "25000",
+        createdAt: new Date("2026-05-03T04:00:00.000Z"),
+      },
+    ]);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31",
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.summary.revenue).toBe(100000);
+    expect(body.summary.collected).toBe(25000);
+    expect(body.summary.outstandingTempo).toBe(75000);
+    expect(body.paymentMethods).toEqual([
+      expect.objectContaining({ method: "CASH", collected: 25000 }),
+    ]);
+    expect(JSON.stringify(body.paymentMethods)).not.toContain("TEMPO");
+    expect(debtPaymentLogFindManyMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        createdAt: {
+          gte: new Date("2026-04-30T17:00:00.000Z"),
+          lt: new Date("2026-05-31T17:00:00.000Z"),
+        },
+        transaction: { status: { in: ["COMPLETED", "DP"] } },
+      },
+      select: {
+        transactionId: true,
+        paymentMethod: true,
+        amount: true,
+        createdAt: true,
+        transaction: {
+          select: {
+            salesName: true,
+            salesperson: { select: { name: true } },
+          },
+        },
+      },
+    });
+    expect(transactionFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          payments: expect.any(Object),
+          debtPaymentLogs: expect.any(Object),
         }),
       }),
     );

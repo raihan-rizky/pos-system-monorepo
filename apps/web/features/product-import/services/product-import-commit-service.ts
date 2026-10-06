@@ -3,6 +3,7 @@ import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 
 import { productSnapshot } from "@/features/batch-operations/helpers/snapshots";
+import { inferSalesGroup } from "@/features/dashboard/helpers/sales-groups";
 import {
   buildStockGroupCreateData,
   createProductStockGroupEnsurer,
@@ -268,6 +269,7 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
       const category = await tx.category.create({
         data: {
           name: categoryName,
+          salesGroup: inferSalesGroup(categoryName),
           icon: "Package",
           color: "#64748b",
           order: categories.length + categoryByName.size + 1,

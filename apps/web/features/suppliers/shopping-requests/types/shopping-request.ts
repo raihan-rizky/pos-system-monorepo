@@ -22,6 +22,7 @@ export interface ShoppingRequestKpiSummary {
 export interface ShoppingRequestListItem {
   id: string;
   number: string;
+  name: string;
   status: ShoppingRequestStatus;
   supplierId: string | null;
   supplierName: string | null;
@@ -79,6 +80,7 @@ export interface ShoppingRequestItemInput {
 
 export interface CreateShoppingRequestInput {
   supplierId: string;
+  name?: string | null;
   requestedByName?: string | null;
   note?: string | null;
   items: ShoppingRequestItemInput[];
@@ -104,6 +106,7 @@ export interface ApproveShoppingRequestIndividualItemInput {
 
 export interface UpdateShoppingRequestInput {
   supplierId: string;
+  name?: string | null;
   note?: string | null;
   items: ShoppingRequestItemInput[];
 }

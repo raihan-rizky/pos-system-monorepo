@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { buildOfflineSyncDecision } from "@/lib/offline/offline-sync-core";
 import { applyProductStockDeltas } from "@/features/product-stock-groups/stock-mutations";
+import { buildTransactionStockJournal } from "@/features/transactions-stock/helpers/transaction-stock-journal";
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
@@ -30,6 +31,7 @@ const offlineItemSchema = z.object({
 const offlineTransactionSchema = z.object({
   clientMutationId: z.string().min(1),
   createdAt: z.string().datetime(),
+  timeSource: z.enum(["SERVER_ESTIMATE", "DEVICE_UNVERIFIED"]).optional(),
   items: z.array(offlineItemSchema).min(1),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
   amountPaid: z.number().min(0),
@@ -364,6 +366,17 @@ async function createSyncedTransaction({
   catalogPriceByProductId: Map<string, number>;
 }) {
   return db.$transaction(async (tx: TxClient) => {
+    const isPendingApproval = decision.transactionStatus === "PENDING_APPROVAL";
+    const amountPaid = isPendingApproval ? 0 : Math.min(txData.amountPaid, decision.total);
+    if (!isPendingApproval && txData.customerId) {
+      await tx.customer.update({
+        where: { id: txData.customerId },
+        data: {
+          totalOrders: { increment: 1 }, totalSpent: { increment: amountPaid },
+          lastVisitAt: new Date(),
+        },
+      });
+    }
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -371,8 +384,6 @@ async function createSyncedTransaction({
       where: { storeId, createdAt: { gte: dayStart } },
     });
     const invoiceNumber = `INV-${dateStr}-${String(count + 1).padStart(4, "0")}`;
-    const isPendingApproval = decision.transactionStatus === "PENDING_APPROVAL";
-    const amountPaid = isPendingApproval ? 0 : Math.min(txData.amountPaid, decision.total);
 
     const transaction = await tx.transaction.create({
       data: {
@@ -403,7 +414,10 @@ async function createSyncedTransaction({
           removedItems: decision.removedItems,
           originalTotal: txData.originalTotal,
           adjustedTotal: decision.total,
+          timeSource: txData.timeSource ?? "DEVICE_UNVERIFIED",
         } as Prisma.JsonObject,
+        invoiceDate: new Date(txData.createdAt),
+        createdAt: new Date(txData.createdAt),
         items: {
           create: decision.items.map((item) => {
             const appliedPricing =
@@ -439,7 +453,7 @@ async function createSyncedTransaction({
     });
 
     if (!isPendingApproval) {
-      await applyProductStockDeltas(tx, {
+      const stockMovements = await applyProductStockDeltas(tx, {
         storeId,
         items: decision.items.map((item) => ({
           productId: item.productId,
@@ -460,16 +474,20 @@ async function createSyncedTransaction({
       );
 
       await tx.inventoryLog.createMany({
-        data: decision.items.map((item) => ({
-          productId: item.productId,
-          type: "OUT",
-          reason: "SALE",
-          quantity: item.quantity,
-          unitCost: costById.get(item.productId) ?? null,
-          note: `Offline sync ${invoiceNumber}`,
-          createdBy: user.id,
-          person: user.name,
-        })),
+        data: buildTransactionStockJournal({
+          transactionId: transaction.id,
+          inventoryRows: decision.items.map((item) => ({
+            productId: item.productId,
+            type: "OUT",
+            reason: "SALE",
+            quantity: item.quantity,
+            unitCost: costById.get(item.productId) ?? null,
+            note: `Offline sync ${invoiceNumber}`,
+            createdBy: user.id,
+            person: user.name,
+          })),
+          stockMovements,
+        }),
       });
     }
 

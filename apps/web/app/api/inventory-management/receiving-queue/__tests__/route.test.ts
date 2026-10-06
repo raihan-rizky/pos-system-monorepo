@@ -45,7 +45,7 @@ describe("GET /api/inventory-management/receiving-queue", () => {
   it("requires inventory read permission and returns receiving queue", async () => {
     const response = await GET(
       new Request(
-        "http://localhost/api/inventory-management/receiving-queue?search=PB&take=10&goodsPurchaseId=gp-1",
+        "http://localhost/api/inventory-management/receiving-queue?search=PB&take=10&goodsPurchaseId=gp-1&supplierId=supplier-1",
       ),
     );
     const body = await response.json();
@@ -55,7 +55,12 @@ describe("GET /api/inventory-management/receiving-queue", () => {
     expect(getReceivingQueueMock).toHaveBeenCalledWith(
       expect.objectContaining({
         user: expect.objectContaining({ id: "inventory-1" }),
-        input: { search: "PB", take: 10, goodsPurchaseId: "gp-1" },
+        input: {
+          search: "PB",
+          take: 10,
+          goodsPurchaseId: "gp-1",
+          supplierId: "supplier-1",
+        },
       }),
     );
     expect(body.data.purchases).toEqual([

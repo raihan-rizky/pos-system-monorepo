@@ -422,6 +422,7 @@ export interface CreateInboundReceiptInput {
     goodsPurchaseItemId: string;
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
+    supplierCostPrice?: number;
     note?: string | null;
   }>;
 }
@@ -435,6 +436,8 @@ export interface InboundReceiptListLine {
   unitSnapshot: string | null;
   expectedQuantity: number;
   receivedQuantity: number;
+  costPriceSnapshot: number | null;
+  supplierCostPrice: number | null;
   status: string;
   matchStatus: InboundReceiptMatchStatus | null;
   reviewStatus: "PENDING" | "APPROVED" | null;
@@ -460,12 +463,14 @@ export interface InboundReceiptListItem {
 export async function fetchInboundReceipts(input: {
   status?: InboundReceiptStatus;
   goodsPurchaseId?: string;
+  supplierId?: string;
 } = {}): Promise<InboundReceiptListItem[]> {
   const params = new URLSearchParams();
   if (input.status) params.set("status", input.status);
   if (input.goodsPurchaseId) {
     params.set("goodsPurchaseId", input.goodsPurchaseId);
   }
+  if (input.supplierId) params.set("supplierId", input.supplierId);
   const url = `/api/inventory-management/inbound-receipts${params.size ? `?${params}` : ""}`;
   const response = await fetch(url);
   if (!response.ok) {
@@ -479,6 +484,7 @@ export async function fetchReceivingQueue(input: {
   search?: string;
   take?: number;
   goodsPurchaseId?: string;
+  supplierId?: string;
 } = {}): Promise<ReceivingQueueResult> {
   const params = new URLSearchParams();
   if (input.search) params.set("search", input.search);
@@ -486,6 +492,7 @@ export async function fetchReceivingQueue(input: {
   if (input.goodsPurchaseId) {
     params.set("goodsPurchaseId", input.goodsPurchaseId);
   }
+  if (input.supplierId) params.set("supplierId", input.supplierId);
   const url = `/api/inventory-management/receiving-queue${params.size ? `?${params}` : ""}`;
   const response = await fetch(url);
   if (!response.ok) {
@@ -542,6 +549,7 @@ export async function editInboundReceiptItem(
   input: {
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
+    supplierCostPrice?: number;
     note?: string | null;
   },
 ): Promise<InboundReceiptMutationResult> {

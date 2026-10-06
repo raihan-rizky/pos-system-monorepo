@@ -5,6 +5,7 @@ import { getLogger } from "@/lib/logger";
 import {
   cancelShoppingRequest,
   getShoppingRequestOrThrow,
+  ShoppingRequestNameConflictError,
   ShoppingRequestNotFoundError,
   ShoppingRequestValidationError,
   updateShoppingRequest,
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 
 const updateSchema = z.object({
   supplierId: z.string().trim().min(1, "Supplier wajib dipilih"),
+  name: z.string().trim().max(160).optional().nullable(),
   note: z.string().trim().max(500).optional().nullable(),
   items: z
     .array(
@@ -81,6 +83,9 @@ export async function PATCH(
       return apiError("Permohonan belanja tidak ditemukan", 404, {
         code: "NotFound",
       });
+    }
+    if (error instanceof ShoppingRequestNameConflictError) {
+      return apiError(error.message, 409, { code: "Conflict" });
     }
     if (error instanceof ShoppingRequestValidationError) {
       return apiError(error.message, 409, { code: "Conflict" });

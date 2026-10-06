@@ -22,11 +22,13 @@ const inboundApi = inventoryApi as unknown as {
       | "REJECTED"
       | "CANCELLED";
     goodsPurchaseId?: string;
+    supplierId?: string;
   }): Promise<unknown>;
   fetchReceivingQueue(input?: {
     search?: string;
     take?: number;
     goodsPurchaseId?: string;
+    supplierId?: string;
   }): Promise<unknown>;
   fetchGoodsPurchaseReceivingComparison(
     goodsPurchaseId: string,
@@ -258,10 +260,11 @@ describe("inventory management api", () => {
     const result = await inboundApi.fetchInboundReceipts({
       status: "SUBMITTED",
       goodsPurchaseId: "gp-1",
+      supplierId: "supplier-1",
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "/api/inventory-management/inbound-receipts?status=SUBMITTED&goodsPurchaseId=gp-1",
+      "/api/inventory-management/inbound-receipts?status=SUBMITTED&goodsPurchaseId=gp-1&supplierId=supplier-1",
     );
     expect(result).toEqual([{ id: "receipt-1" }]);
   });
@@ -281,10 +284,11 @@ describe("inventory management api", () => {
       search: "PB",
       take: 10,
       goodsPurchaseId: "gp-2",
+      supplierId: "supplier-2",
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "/api/inventory-management/receiving-queue?search=PB&take=10&goodsPurchaseId=gp-2",
+      "/api/inventory-management/receiving-queue?search=PB&take=10&goodsPurchaseId=gp-2&supplierId=supplier-2",
     );
     expect(result).toEqual({
       purchases: [{ id: "gp-2", number: "PB-202607-002", items: [] }],

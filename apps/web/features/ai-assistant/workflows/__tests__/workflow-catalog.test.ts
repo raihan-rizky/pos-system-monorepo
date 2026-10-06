@@ -214,14 +214,26 @@ describe("FAQ workflow catalog", () => {
     });
     const serialized = JSON.stringify(purchase);
     expect(serialized).toContain("Daftar Belanja yang sudah disetujui");
-    expect(serialized).toContain("harga produk terbaru");
+    expect(serialized).toContain("harga pembelian memakai referensi modal produk");
+    expect(serialized).toContain("Harga modal aktual supplier dapat dicatat saat Penerimaan Barang");
     expect(serialized).toContain("update HPP");
+    expect(serialized).toContain("modal pada penerimaan dicatat terpisah");
     expect(serialized).toContain("PENDING");
     expect(serialized).toContain("Belum Ada Aksi");
     expect(serialized).toContain("unit besar");
     expect(serialized).toContain("supplier.goods_purchase.approve");
     expect(serialized).toContain("supplier.goods_purchase.reject");
     expect(serialized).toContain("tidak mengubah stok");
+  });
+
+  it("documents supplier receipt cost snapshots and purchase approval", () => {
+    const receipt = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 18);
+    const serialized = JSON.stringify(receipt);
+
+    expect(serialized).toContain("Gudang atau Owner");
+    expect(serialized).toContain("disetujui Owner/Admin");
+    expect(serialized).toContain("modal produk saat ini menjadi nilai awal");
+    expect(serialized).toContain("Harga aktual disimpan sebagai snapshot");
   });
 
   it("documents prepared quantities, edit RBAC, and individual item approval", () => {

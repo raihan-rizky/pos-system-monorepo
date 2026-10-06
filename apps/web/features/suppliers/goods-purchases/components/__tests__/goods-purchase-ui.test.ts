@@ -69,15 +69,23 @@ describe("goods purchase supplier UI", () => {
     expect(list).toContain("BARANG DITERIMA");
     expect(list).toContain("Barang Sudah Diterima?");
     expect(list).toContain("Lihat Riwayat Penerimaan Barang");
-    expect(list).toContain('canPerform("inventory", "update")');
+    expect(list).toContain(
+      'canPerform("inventory.inbound_receipt.create", "create")',
+    );
     expect(comparison).toContain("Dipesan");
     expect(comparison).toContain("Diterima");
     expect(comparison).toContain("Pending");
     expect(comparison).toContain("Sisa");
     expect(shell).toContain("initialGoodsPurchaseId");
     expect(shell).toContain(
-      "/inventory?tab=transactions&subtab=inbound&goodsPurchaseId=",
+      "/suppliers?tab=inbound-receipts&goodsPurchaseId=",
     );
+  });
+
+  it("adds a Penerimaan Barang tab for warehouse receipt work", () => {
+    expect(shell).toContain('requestedTab === "inbound-receipts"');
+    expect(shell).toContain("Penerimaan Barang");
+    expect(shell).toContain("InboundReceiptTab");
   });
 
   it("reviews products individually and shows the pending counter", () => {

@@ -126,7 +126,7 @@ export function buildCustomerUpdateArgs(
   return {
     where: { id: input.customerId },
     data: {
-      totalSpent: { increment: input.amountPaid },
+      totalSpent: { increment: Math.max(0, Math.min(input.amountPaid, input.total)) },
       totalOrders: { increment: 1 },
       ...(debtIncrement > 0
         ? { totalDebt: { increment: debtIncrement } }

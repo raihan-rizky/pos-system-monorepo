@@ -4,6 +4,7 @@ const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
+const transactionTotalFieldRef = vi.hoisted(() => ({ field: "transaction.total" }));
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -23,6 +24,7 @@ vi.mock("@pos/db", () => ({
     transaction: {
       count: transactionCountMock,
       findMany: transactionFindManyMock,
+      fields: { total: transactionTotalFieldRef },
     },
   },
   Prisma: {},
@@ -125,7 +127,10 @@ describe("GET /api/transactions surat jalan history", () => {
               { status: "DP" },
               {
                 status: "COMPLETED",
-                debtPaymentLogs: { some: {} },
+                OR: [
+                  { paymentMethod: "TEMPO" },
+                  { debtPaymentLogs: { some: {} } },
+                ],
               },
             ],
           },
@@ -143,7 +148,10 @@ describe("GET /api/transactions surat jalan history", () => {
                 { status: "DP" },
                 {
                   status: "COMPLETED",
-                  debtPaymentLogs: { some: {} },
+                  OR: [
+                    { paymentMethod: "TEMPO" },
+                    { debtPaymentLogs: { some: {} } },
+                  ],
                 },
               ],
             },
@@ -152,6 +160,33 @@ describe("GET /api/transactions surat jalan history", () => {
         },
       }),
     );
+  });
+
+  it("filters unpaid history to DP and Tempo invoices with an outstanding balance", async () => {
+    const { GET } = await import("../route");
+
+    const response = await GET(
+      new Request("http://localhost/api/transactions?status=DEBT_HISTORY_ACTIVE"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(transactionCountMock).toHaveBeenCalledWith({
+      where: {
+        storeId: "store-main",
+        AND: [
+          {
+            OR: [
+              { status: "DP" },
+              {
+                status: "COMPLETED",
+                paymentMethod: "TEMPO",
+                amountPaid: { lt: transactionTotalFieldRef },
+              },
+            ],
+          },
+        ],
+      },
+    });
   });
 
   it("filters and orders history by invoiceDate business date", async () => {
@@ -255,7 +290,10 @@ describe("GET /api/transactions surat jalan history", () => {
               { status: "DP" },
               {
                 status: "COMPLETED",
-                debtPaymentLogs: { some: {} },
+                OR: [
+                  { paymentMethod: "TEMPO" },
+                  { debtPaymentLogs: { some: {} } },
+                ],
               },
             ],
           },
@@ -275,7 +313,10 @@ describe("GET /api/transactions surat jalan history", () => {
                 { status: "DP" },
                 {
                   status: "COMPLETED",
-                  debtPaymentLogs: { some: {} },
+                  OR: [
+                    { paymentMethod: "TEMPO" },
+                    { debtPaymentLogs: { some: {} } },
+                  ],
                 },
               ],
             },

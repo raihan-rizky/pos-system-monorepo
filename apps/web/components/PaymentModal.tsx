@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useReducer } from "react";
-import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins, FileClock, PackageCheck, PanelsTopLeft, RotateCcw } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins, FileClock, PackageCheck, PanelsTopLeft, RotateCcw, Clock3 } from "lucide-react";
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
@@ -20,13 +20,15 @@ import {
   canEditCustomPriceForCustomer,
   isRegularPriceFallback,
   type CustomerType,
-  type PricingPreference,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { priceCartItemsForCheckout } from "@/features/pos-checkout/helpers/checkout-pricing";
 import {
-  PricingPreferenceSelector,
-  pricingPreferenceReducer,
-} from "@/features/pos-checkout/components/PricingPreferenceSelector";
+  buildPaymentSubmission,
+  canSubmitPayment,
+} from "@/features/pos-checkout/helpers/payment-submission";
+import { formatInvoiceWib } from "@/features/invoice-date/helpers/server-clock";
+import type { ServerClockSource } from "@/features/invoice-date/helpers/server-clock";
+import { useServerClock } from "@/features/invoice-date/hooks/useServerClock";
 
 
 
@@ -48,7 +50,6 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
     items: CartItem[];
-    pricingPreference: PricingPreference;
     invoiceDate?: string;
     invoiceTime?: string | null;
     invoiceDateReason?: string | null;
@@ -64,7 +65,6 @@ interface PaymentModalProps {
     isJobOrder: boolean;
     estimatedDoneAt: string | null;
     items: CartItem[];
-    pricingPreference: PricingPreference;
     invoiceDate?: string;
     invoiceTime?: string | null;
     invoiceDateReason?: string | null;
@@ -85,6 +85,31 @@ const paymentMethods = [
 ];
 
 const quickAmounts = [10000, 20000, 50000, 100000];
+
+function getServerClockStatusLabel(
+  source: ServerClockSource | null,
+  lastSyncedAt: number | null,
+): string {
+  const lastSync =
+    lastSyncedAt === null
+      ? null
+      : formatInvoiceWib(new Date(lastSyncedAt));
+
+  switch (source) {
+    case "TIMEAPI_IO":
+      return `Internet tersinkron (TimeAPI.io)${lastSync ? ` · terakhir ${lastSync}` : ""}`;
+    case "TIMEAPI_IO_CACHE":
+      return `Internet tersinkron (cache TimeAPI.io)${lastSync ? ` · terakhir ${lastSync}` : ""}`;
+    case "TIMEAPI_IO_STALE":
+      return `TimeAPI.io tidak tersedia · sinkron terakhir ${lastSync ?? "tidak diketahui"}`;
+    case "SERVER_FALLBACK":
+      return "Internet belum tersinkron · memakai jam server lokal";
+    case "SERVER_ESTIMATE":
+      return `Estimasi dari sinkron terakhir${lastSync ? ` · ${lastSync}` : ""}`;
+    default:
+      return "Waktu perangkat belum tersinkron";
+  }
+}
 
 export function PaymentModal({
   open,
@@ -121,16 +146,13 @@ export function PaymentModal({
   const [customerSelection, setCustomerSelection] =
     useState<CheckoutCustomerSelection>({ kind: "general" });
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
-  const [pricingPreference, dispatchPricingPreference] = useReducer(
-    pricingPreferenceReducer,
-    "SPECIAL",
-  );
   const [customerError, setCustomerError] = useState<string | null>(null);
   const createCustomer = useCreateCustomer();
   const pricingRulesQuery = useCustomerCategoryPricingRules({ activeOnly: true });
   const [salespersonId, setSalespersonId] = useState("");
   const { data: salespersons = [] } = useSalespersons();
   const [isDP, setIsDP] = useState(false);
+  const [isTempo, setIsTempo] = useState(false);
   const [isJobOrder, setIsJobOrder] = useState(() => {
     return items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size);
   });
@@ -138,6 +160,7 @@ export function PaymentModal({
   const [invoiceDate, setInvoiceDate] = useState("");
   const [invoiceTime, setInvoiceTime] = useState("");
   const [invoiceDateReason, setInvoiceDateReason] = useState("");
+  const serverClock = useServerClock(open);
   
   const { role } = useRole();
   const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
@@ -153,7 +176,6 @@ export function PaymentModal({
     items,
     customerType: selectedCustomerType,
     pricingRules: pricingRulesQuery.data ?? [],
-    pricingPreference,
     manualPrices,
     role,
   });
@@ -172,20 +194,16 @@ export function PaymentModal({
       // reset on close
       setCustomerSelection({ kind: "general" });
       setManualPrices({});
-      dispatchPricingPreference({ type: "RESET" });
       setCustomerError(null);
       setInvoiceDate("");
       setInvoiceTime("");
       setInvoiceDateReason("");
+      setIsTempo(false);
     } else {
       // auto-set isJobOrder if opening with items that have material/size
       setIsJobOrder(items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size));
     }
   }, [open, items]);
-
-  useEffect(() => {
-    dispatchPricingPreference({ type: "RESET" });
-  }, [selectedCustomerType]);
 
   useEffect(() => {
     if (canEditCustomPrices) return;
@@ -210,9 +228,16 @@ export function PaymentModal({
       manualPrices[item.cartLineId] < 0,
   );
 
-  const canPay = isDP
-    ? amountPaid >= 0 && amountPaid < total && total > 0 && !hasInvalidManualPrice
-    : amountPaid >= total && total > 0 && !hasInvalidManualPrice;
+  const hasCheckoutCustomer =
+    customerSelection.kind === "existing" ||
+    (customerSelection.kind === "new" && Boolean(customerSelection.name.trim()));
+  const canPay = canSubmitPayment({
+    mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
+    amountPaid,
+    total,
+    hasCustomer: hasCheckoutCustomer,
+    hasInvalidManualPrice,
+  });
 
   const resolveCustomerForSubmit = async () => {
     try {
@@ -242,21 +267,21 @@ export function PaymentModal({
       : {};
 
     onConfirm({
-      paymentMethod: selectedPaymentMethods[0] || "CASH",
-      amountPaid,
+      ...buildPaymentSubmission({
+        mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
+        selectedPaymentMethods,
+        amountsPaid,
+      }),
       discount,
       note,
       customerName: customer.customerName,
       customerId: customer.customerId,
       salesName: selectedSales?.name || "",
       salespersonId,
-      paymentStatus: isDP ? "DP" : "COMPLETED",
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
       items: pricedItems,
-      pricingPreference,
       ...invoiceDatePayload,
-      payments: selectedPaymentMethods.map(m => ({ method: m, amount: amountsPaid[m] || 0 })).filter(p => p.amount > 0),
     });
   };
 
@@ -283,7 +308,6 @@ export function PaymentModal({
       isJobOrder,
       estimatedDoneAt: estimatedDoneAt || null,
       items: pricedItems,
-      pricingPreference,
       ...invoiceDatePayload,
       payments: selectedPaymentMethods.map(m => ({ method: m as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER", amount: amountsPaid[m] || 0 })).filter(p => p.amount > 0),
     });
@@ -508,14 +532,6 @@ export function PaymentModal({
           onClearError={() => setCustomerError(null)}
         />
 
-        <PricingPreferenceSelector
-          customerType={selectedCustomerType}
-          value={pricingPreference}
-          onChange={(value) =>
-            dispatchPricingPreference({ type: "SELECT", value })
-          }
-        />
-
         {/* Salesperson Dropdown */}
         <div>
           <label className="text-sm font-medium text-surface-700 mb-2 block">
@@ -531,6 +547,21 @@ export function PaymentModal({
               <option key={sp.id} value={sp.id}>{sp.name}</option>
             ))}
           </select>
+        </div>
+
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-100 bg-sky-50/70 px-3 py-2.5 text-xs"
+        >
+          <span className="font-semibold text-sky-900">
+            Waktu invoice default · Jakarta (WIB)
+          </span>
+          <span className="text-sky-800">
+            {serverClock.now
+              ? `${formatInvoiceWib(serverClock.now)} · ${getServerClockStatusLabel(serverClock.source, serverClock.lastSyncedAt)}`
+              : "Memuat waktu server…"}
+          </span>
         </div>
 
         {canChangeInvoiceDate && (
@@ -615,13 +646,18 @@ export function PaymentModal({
           <label className="text-sm font-medium text-surface-700 mb-2 block">
             Tipe Pembayaran
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
-              onClick={() => setIsDP(false)}
+              type="button"
+              aria-pressed={!isDP && !isTempo}
+              onClick={() => {
+                setIsDP(false);
+                setIsTempo(false);
+              }}
               className={`
-                flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium
+                flex flex-col items-center justify-center gap-1 p-3 rounded-xl border text-sm font-medium
                 transition-all duration-200
-                ${!isDP
+                ${!isDP && !isTempo
                   ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
                   : "border-surface-200 text-surface-600 hover:border-surface-300"
                 }
@@ -631,9 +667,14 @@ export function PaymentModal({
               <span>Lunas</span>
             </button>
             <button
-              onClick={() => setIsDP(true)}
+              type="button"
+              aria-pressed={isDP}
+              onClick={() => {
+                setIsDP(true);
+                setIsTempo(false);
+              }}
               className={`
-                flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium
+                flex flex-col items-center justify-center gap-1 p-3 rounded-xl border text-sm font-medium
                 transition-all duration-200
                 ${isDP
                   ? "border-amber-500 bg-amber-50 text-amber-700 shadow-sm"
@@ -644,7 +685,41 @@ export function PaymentModal({
               <Coins className="w-4 h-4" aria-hidden="true" />
               <span>Uang Muka (DP)</span>
             </button>
+            <button
+              type="button"
+              aria-pressed={isTempo}
+              onClick={() => {
+                setIsTempo(true);
+                setIsDP(false);
+              }}
+              className={`
+                flex flex-col items-center justify-center gap-1 p-3 rounded-xl border text-sm font-medium
+                transition-all duration-200
+                ${isTempo
+                  ? "border-sky-500 bg-sky-50 text-sky-800 shadow-sm"
+                  : "border-surface-200 text-surface-600 hover:border-sky-300 hover:bg-sky-50"
+                }
+              `}
+            >
+              <Clock3 className="w-4 h-4" aria-hidden="true" />
+              <span>Tempo/Tagihan</span>
+            </button>
           </div>
+          {isTempo && (
+            <div className="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-xs text-sky-900">
+              <span className="inline-flex rounded-full bg-sky-100 px-2 py-0.5 font-bold tracking-wide">
+                TEMPO/TAGIHAN
+              </span>
+              <p className="mt-1.5">
+                Pembayaran awal boleh kosong atau sebagian. Sisa tagihan tercatat pada pelanggan yang dipilih.
+              </p>
+              {!hasCheckoutCustomer && (
+                <p className="mt-1 font-semibold">
+                  Pilih atau tambahkan pelanggan agar piutang dapat dicatat.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Job Order Toggle */}
@@ -758,7 +833,7 @@ export function PaymentModal({
         </div>
 
         {/* Totals */}
-        <div className={`rounded-xl p-4 text-white ${isDP ? 'bg-gradient-to-r from-amber-500 to-amber-600' : 'bg-gradient-to-r from-brand-600 to-brand-700'}`}>
+        <div className={`rounded-xl p-4 text-white ${isDP ? 'bg-gradient-to-r from-amber-500 to-amber-600' : isTempo ? 'bg-gradient-to-r from-sky-700 to-sky-800' : 'bg-gradient-to-r from-brand-600 to-brand-700'}`}>
           <div className="flex justify-between text-sm opacity-80">
             <span>Subtotal</span>
             <span>{formatRupiah(pricedSubtotal)}</span>
@@ -782,21 +857,47 @@ export function PaymentModal({
           </div>
         </div>
 
+        {isTempo && (
+          <div className="rounded-xl border border-sky-200 bg-white p-4 text-sm">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="font-bold text-sky-900">TEMPO/TAGIHAN</span>
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
+                Belum lunas
+              </span>
+            </div>
+            <div className="space-y-1.5 text-surface-700">
+              <div className="flex justify-between gap-3">
+                <span>Total transaksi</span>
+                <span className="font-semibold">{formatRupiah(total)}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Pembayaran awal</span>
+                <span className="font-semibold">{formatRupiah(amountPaid)}</span>
+              </div>
+              <div className="flex justify-between gap-3 border-t border-surface-100 pt-1.5 font-bold text-sky-900">
+                <span>Sisa tagihan</span>
+                <span>{formatRupiah(Math.max(0, total - amountPaid))}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Amount Paid */}
         <div>
           {selectedPaymentMethods.map((method) => (
             <div key={method} className="mb-2">
               <Input
-                label={selectedPaymentMethods.length > 1 ? `Jumlah Bayar - ${paymentMethods.find(m => m.value === method)?.label || method} (Rp)` : (isDP ? "Jumlah DP / Uang Muka (Rp)" : "Jumlah Bayar (Rp)")}
+                label={selectedPaymentMethods.length > 1 ? `Jumlah Bayar - ${paymentMethods.find(m => m.value === method)?.label || method} (Rp)` : (isTempo ? `Pembayaran awal - ${paymentMethods.find(m => m.value === method)?.label || method} (opsional)` : isDP ? "Jumlah DP / Uang Muka (Rp)" : "Jumlah Bayar (Rp)")}
                 type="number"
+                min={0}
                 value={amountsPaid[method] || ""}
-                onChange={(e) => setAmountsPaid(prev => ({ ...prev, [method]: Number(e.target.value) || 0 }))}
+                onChange={(e) => setAmountsPaid(prev => ({ ...prev, [method]: Math.max(0, Number(e.target.value) || 0) }))}
                 placeholder="0"
               />
             </div>
           ))}
           <div className="flex flex-wrap gap-2 mt-2">
-            {!isDP && (
+            {!isDP && !isTempo && (
               <button
                 onClick={() => {
                   const firstMethod = selectedPaymentMethods[0];
@@ -845,7 +946,7 @@ export function PaymentModal({
         </div>
 
         {/* Change / Remaining */}
-        {amountPaid > 0 && (
+        {!isTempo && amountPaid > 0 && (
           <div>
             {isDP ? (
               <div className={`flex justify-between items-center p-3 rounded-xl ${

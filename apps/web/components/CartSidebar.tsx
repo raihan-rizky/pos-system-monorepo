@@ -1,17 +1,21 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@pos/ui";
 import { CreditCard, DollarSign, FileText, PackageMinus, Pencil, ShoppingCart, X } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
-import type { CartItem, ProductCartItem } from "@/hooks/useCart";
+import type { CartItem, CartUnitOption, ProductCartItem } from "@/hooks/useCart";
 import type { QuotationCheckoutMode } from "@/features/nota-penawaran/helpers/quotation-rules";
+import { orderUnits } from "@/features/pos-product-variants/helpers/unit-order";
+import { CartQuantityInput } from "@/features/pos-checkout/components/CartQuantityInput";
+import styles from "./CartSidebar.module.css";
 
 interface CartSidebarProps {
   items: CartItem[];
   subtotal: number;
   totalItems: number;
   onUpdateQuantity: (cartLineId: string, quantity: number) => void;
+  onChangeUnit?: (cartLineId: string, target: CartUnitOption) => void;
   onRemoveItem: (cartLineId: string) => void;
   onClearCart: () => void;
   onCheckout: () => void;
@@ -30,6 +34,7 @@ export function CartSidebar({
   subtotal,
   totalItems,
   onUpdateQuantity,
+  onChangeUnit,
   onRemoveItem,
   onClearCart,
   onCheckout,
@@ -44,6 +49,32 @@ export function CartSidebar({
 }: CartSidebarProps) {
   const isQuotationMode = checkoutMode === "quotation";
   const hasProductItems = items.some((item) => item.lineType === "PRODUCT");
+  const [invalidQuantityLines, setInvalidQuantityLines] = useState<Set<string>>(
+    new Set(),
+  );
+  const [unitErrors, setUnitErrors] = useState<Record<string, string>>({});
+  const hasInvalidQuantity = items.some((item) =>
+    invalidQuantityLines.has(item.cartLineId),
+  );
+
+  useEffect(() => {
+    const activeLineIds = new Set(items.map((item) => item.cartLineId));
+    setInvalidQuantityLines((current) => {
+      const next = new Set(
+        [...current].filter((cartLineId) => activeLineIds.has(cartLineId)),
+      );
+      return next.size === current.size ? current : next;
+    });
+  }, [items]);
+
+  const updateQuantityValidity = (cartLineId: string, valid: boolean) => {
+    setInvalidQuantityLines((current) => {
+      const next = new Set(current);
+      if (valid) next.delete(cartLineId);
+      else next.add(cartLineId);
+      return next;
+    });
+  };
 
   return (
     <div className="flex flex-col h-full bg-white border-l border-surface-200">
@@ -122,6 +153,54 @@ export function CartSidebar({
                   <p className="text-xs text-surface-400 mt-0.5">
                     {formatRupiah(item.price)} /{item.unit}
                   </p>
+                  {item.lineType === "PRODUCT" && onChangeUnit && item.stockGroup?.id && (() => {
+                    const options = orderUnits(
+                      (item.unitOptions ?? [])
+                        .filter((option) => option.stockGroup?.id === item.stockGroup?.id)
+                        .map((option) => ({ ...option, id: option.productId })),
+                      item.stockGroup?.baseUnit,
+                    );
+                    if (options.length < 2) return null;
+                    return (
+                      <div className="mt-2">
+                        <select
+                          aria-label={`Satuan ${item.name}`}
+                          value={item.productId}
+                          className="min-h-11 max-w-full rounded-md border border-surface-200 bg-white px-2 py-2 text-xs text-surface-700 outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/30"
+                          onChange={(event) => {
+                            const target = options.find(
+                              (option) => option.productId === event.target.value,
+                            );
+                            if (!target) return;
+                            try {
+                              onChangeUnit(item.cartLineId, target);
+                              setUnitErrors((current) => {
+                                const next = { ...current };
+                                delete next[item.cartLineId];
+                                return next;
+                              });
+                            } catch {
+                              setUnitErrors((current) => ({
+                                ...current,
+                                [item.cartLineId]: "Satuan tidak dapat diganti. Silakan coba lagi.",
+                              }));
+                            }
+                          }}
+                        >
+                          {options.map((option) => (
+                            <option key={option.productId} value={option.productId}>
+                              {option.unit} • {formatRupiah(option.catalogPrice)}
+                            </option>
+                          ))}
+                        </select>
+                        {unitErrors[item.cartLineId] && (
+                          <p role="alert" className="mt-1 text-[10px] text-danger-600">
+                            {unitErrors[item.cartLineId]}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {item.lineType === "PRODUCT" && item.transactionPrice != null && (
                     <div className="mt-1 text-[10px] font-medium text-brand-700">
                       <span className="rounded-full bg-brand-100 px-2 py-0.5 font-bold">
@@ -183,26 +262,39 @@ export function CartSidebar({
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() => onRemoveItem(item.cartLineId)}
-                      className="p-0.5 text-surface-300 hover:text-danger-500 transition-colors"
+                      aria-label={`Hapus ${item.name} dari keranjang`}
+                      className={`relative flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 transition-colors hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-0.5">
                     <button
+                      type="button"
                       onClick={() => onUpdateQuantity(item.cartLineId, item.quantity - 1)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-surface-200 text-surface-600 hover:bg-surface-100 text-sm font-bold transition-colors"
+                      aria-label={`Kurangi jumlah ${item.name}`}
+                      className={`h-7 w-7 flex items-center justify-center rounded-lg bg-white border border-surface-200 text-surface-600 hover:bg-surface-100 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
                     >
                       −
                     </button>
-                    <span className="w-8 text-center text-sm font-bold text-surface-900">
-                      {item.quantity}
-                    </span>
+                    <CartQuantityInput
+                      name={item.name}
+                      quantity={item.quantity}
+                      onChange={(quantity) =>
+                        onUpdateQuantity(item.cartLineId, quantity)
+                      }
+                      onValidityChange={(valid) =>
+                        updateQuantityValidity(item.cartLineId, valid)
+                      }
+                    />
                     <button
+                      type="button"
                       onClick={() => onUpdateQuantity(item.cartLineId, item.quantity + 1)}
                       disabled={item.lineType === "PRODUCT" && item.quantity >= item.stock}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-surface-200 text-surface-600 hover:bg-surface-100 text-sm font-bold transition-colors disabled:opacity-40"
+                      aria-label={`Tambah jumlah ${item.name}`}
+                      className={`h-7 w-7 flex items-center justify-center rounded-lg bg-white border border-surface-200 text-surface-600 hover:bg-surface-100 text-sm font-bold transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
                     >
                       +
                     </button>
@@ -240,6 +332,7 @@ export function CartSidebar({
               size="lg"
               className="flex-1"
               onClick={onCheckout}
+              disabled={hasInvalidQuantity}
             >
               {isQuotationMode ? <FileText size={18} /> : <CreditCard size={18} />}
               {isQuotationMode ? "Create Nota Penawaran" : "Bayar"}

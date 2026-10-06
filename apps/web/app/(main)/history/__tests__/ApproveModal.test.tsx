@@ -17,6 +17,14 @@ vi.mock("@/components/providers/RoleProvider", () => ({
   useRole: () => ({ role: roleMock }),
 }));
 
+vi.mock("@/hooks/useProducts", () => ({
+  useProducts: () => ({ data: [], isLoading: false }),
+}));
+
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
 vi.mock("@pos/ui", async (importOriginal) => {
   const actual = await importOriginal<any>();
   return {
@@ -31,6 +39,61 @@ vi.mock("@pos/ui", async (importOriginal) => {
 });
 
 describe("ApproveModal", () => {
+  it("lets the approver edit product lines before accepting the transaction", () => {
+    const html = renderToStaticMarkup(
+      <ApproveModal
+        tx={{
+          id: "tx-editable",
+          total: 1000,
+          paymentMethod: "CASH",
+          amountPaid: 1000,
+          status: "PENDING_APPROVAL",
+          items: [{
+            id: "line-1",
+            productId: "product-1",
+            productName: "Produk Keren A",
+            quantity: 1,
+            unitPrice: 1000,
+            subtotal: 1000,
+          }],
+        } as any}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Cari SKU atau nama produk...");
+    expect(html).toContain("Produk dalam Transaksi");
+  });
+
+  it("shows Tempo/Tagihan as a separate payment method and status", () => {
+    const html = renderToStaticMarkup(
+      <ApproveModal
+        tx={{
+          id: "tx-tempo",
+          customerId: "customer-1",
+          total: 1000,
+          paymentMethod: "TEMPO",
+          amountPaid: 0,
+          status: "PENDING_APPROVAL",
+          items: [{
+            id: "line-1",
+            productId: "product-1",
+            productName: "Produk Keren A",
+            quantity: 1,
+            unitPrice: 1000,
+            subtotal: 1000,
+          }],
+        } as any}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Tempo/Tagihan");
+    expect(html).not.toContain("DP (Tempo)");
+  });
+
   it("renders the list of products from the transaction/invoice", () => {
     const mockTx = {
       id: "tx-1",

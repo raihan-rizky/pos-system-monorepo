@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { db } from "@pos/db";
 import { buildFinancialReport } from "@/features/financial-report/helpers/report-core";
+import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
 
 type DecimalLike = { toNumber?: () => number } | number | string | null | undefined;
 
@@ -124,6 +125,8 @@ export async function getFinancialReportAnalysis({
     inventoryLogs,
     expenseAggregate,
     incompleteExpenseCount,
+    collectionTransactions,
+    debtPayments,
   ] = await Promise.all([
     db.transaction.findMany({
       where: {
@@ -207,11 +210,18 @@ export async function getFinancialReportAnalysis({
         hasMissingCostSnapshot: true,
       },
     }),
+    findInitialCollections(db, storeId, dateBounds),
+    db.debtPaymentLog.findMany({
+      where: { storeId, createdAt: dateBounds, transaction: { status: { in: ["COMPLETED", "DP"] } } },
+      select: { transactionId: true, paymentMethod: true, amount: true, createdAt: true, transaction: { select: { salesName: true, salesperson: { select: { name: true } } } } },
+    }),
   ]);
 
   return buildFinancialReport({
     dateFrom,
     dateTo,
+    collectionTransactions,
+    debtPayments: debtPayments.map((payment) => ({ ...payment, amount: toNumber(payment.amount) })),
     transactions: transactions.map((transaction) => ({
       ...transaction,
       createdAt: transaction.invoiceDate,

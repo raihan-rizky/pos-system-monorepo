@@ -37,6 +37,7 @@ const productItem: ProductCartItem = {
   stock: 20,
   categoryId: "cat-paper",
   categoryName: "Kertas",
+  stockGroup: { id: "paper", baseUnit: "Rim" },
   appliedPricing: null,
 };
 
@@ -103,6 +104,74 @@ describe("CartSidebar quick product references", () => {
 
     expect(html).toContain("Harga khusus");
     expect(html).toContain("Hanya berlaku untuk transaksi ini");
+  });
+
+  it("lets the cashier choose another product unit directly from the cart", () => {
+    const itemWithUnits = {
+      ...productItem,
+      unitOptions: [
+        {
+          productId: "paper-rim",
+          name: "Kertas A4",
+          price: 10000,
+          catalogPrice: 10000,
+          costPrice: 7000,
+          hargaAgen: 9000,
+          hargaDinas: null,
+          unit: "Rim",
+          stock: 20,
+          unitMultiplierToBase: 1,
+          stockGroup: { id: "paper", baseUnit: "Rim" },
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+        },
+        {
+          productId: "paper-box",
+          name: "Kertas A4",
+          price: 50000,
+          catalogPrice: 50000,
+          costPrice: 35000,
+          hargaAgen: 45000,
+          hargaDinas: 47000,
+          unit: "Box",
+          stock: 4,
+          unitMultiplierToBase: 5,
+          stockGroup: { id: "paper", baseUnit: "Rim" },
+          categoryId: "cat-paper",
+          categoryName: "Kertas",
+        },
+      ],
+    } as ProductCartItem & { unitOptions: Array<Record<string, unknown>> };
+    const html = renderToStaticMarkup(
+      <CartSidebar
+        items={[itemWithUnits]}
+        subtotal={20000}
+        totalItems={2}
+        onUpdateQuantity={vi.fn()}
+        onChangeUnit={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onClearCart={vi.fn()}
+        onCheckout={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain('aria-label="Satuan Kertas A4"');
+    expect(html).toMatch(/aria-label="Satuan Kertas A4"[^>]*class="[^"]*min-h-11/);
+    expect(html).toContain('Box');
+  });
+
+  it("renders an editable quantity field for each cart line", () => {
+    const html = renderCart();
+
+    expect(html).toContain('aria-label="Jumlah Kertas A4"');
+    expect(html).toContain('inputMode="numeric"');
+    expect(html).toMatch(/aria-label="Jumlah Kertas A4"[^>]*class="[^"]*min-h-11/);
+    expect(html).toContain('aria-label="Kurangi jumlah Kertas A4"');
+    expect(html).toContain('aria-label="Tambah jumlah Kertas A4"');
+    expect(html).toMatch(/aria-label="Kurangi jumlah Kertas A4"[^>]*class="[^"]*touchTarget/);
+    expect(html).toMatch(/aria-label="Tambah jumlah Kertas A4"[^>]*class="[^"]*touchTarget/);
+    expect(html).toContain('aria-label="Hapus Kertas A4 dari keranjang"');
+    expect(html).toMatch(/aria-label="Hapus Kertas A4 dari keranjang"[^>]*class="[^"]*touchTarget/);
   });
 
   it("renders the focused POS price modal with a transaction-only price", async () => {

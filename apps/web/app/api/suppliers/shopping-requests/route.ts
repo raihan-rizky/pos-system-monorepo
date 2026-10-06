@@ -13,6 +13,7 @@ import { getLogger } from "@/lib/logger";
 import {
   createShoppingRequest,
   listShoppingRequestsPage,
+  ShoppingRequestNameConflictError,
   ShoppingRequestValidationError,
 } from "@/features/suppliers/shopping-requests/services/shopping-requests-service";
 import { SHOPPING_REQUEST_STATUSES } from "@/features/suppliers/shopping-requests/types/shopping-request";
@@ -22,6 +23,7 @@ const log = getLogger("api:suppliers:shopping-requests");
 
 const createSchema = z.object({
   supplierId: z.string().trim().min(1, "Supplier wajib dipilih"),
+  name: z.string().trim().max(160).optional().nullable(),
   requestedByName: z.string().trim().max(120).optional().nullable(),
   note: z.string().trim().max(500).optional().nullable(),
   items: z
@@ -90,6 +92,7 @@ export async function POST(request: Request) {
     const result = await createShoppingRequest(
       {
         supplierId: parsed.data.supplierId,
+        name: parsed.data.name,
         requestedByName: parsed.data.requestedByName || user.name || null,
         note: parsed.data.note || null,
         items: parsed.data.items,
@@ -125,6 +128,10 @@ export async function POST(request: Request) {
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof ShoppingRequestNameConflictError) {
+      return apiError(error.message, 409, { code: "Conflict" });
+    }
 
     if (error instanceof ShoppingRequestValidationError) {
       return apiError(error.message, 422, { code: "ValidationError" });

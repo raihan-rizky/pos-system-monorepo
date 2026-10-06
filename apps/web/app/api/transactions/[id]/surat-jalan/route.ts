@@ -20,6 +20,7 @@ import type {
 } from "@/features/surat-jalan";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
+import { lockTransactionForStockMutation } from "@/features/transactions-stock/services/transaction-reversal-service";
 import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import type { Role } from "@/lib/rbac/permissions";
@@ -208,6 +209,17 @@ export async function POST(
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         created = await db.$transaction(async (tx) => {
+          const lockedStatus = await lockTransactionForStockMutation(tx, {
+            storeId,
+            transactionId,
+          });
+          if (lockedStatus === null) {
+            throw new Error("TRANSACTION_NOT_FOUND");
+          }
+          if (["VOIDED", "REFUNDED"].includes(lockedStatus)) {
+            throw new Error("TRANSACTION_CLOSED");
+          }
+
           const transaction = await tx.transaction.findFirst({
             where: { id: transactionId, storeId },
             include: {
@@ -267,14 +279,16 @@ export async function POST(
             now,
           });
 
+          const invoiceReversalResults = [];
           if (plan.shouldMarkTransactionManaged) {
             for (const movement of plan.invoiceReversalMovements) {
-              await applyProductStockDelta(tx, {
+              const stockResult = await applyProductStockDelta(tx, {
                 storeId,
                 productId: movement.productId,
                 delta: movement.quantity,
                 allowNegative: true,
               });
+              invoiceReversalResults.push({ movement, stockResult });
             }
             await tx.transaction.update({
               where: { id: transaction.id },
@@ -282,12 +296,14 @@ export async function POST(
             });
           }
 
+          const deliveryStockResults = [];
           for (const movement of plan.deliveryStockMovements) {
-            await applyProductStockDelta(tx, {
+            const stockResult = await applyProductStockDelta(tx, {
               storeId,
               productId: movement.productId,
               delta: -movement.quantity,
             });
+            deliveryStockResults.push({ movement, stockResult });
           }
 
           const suratJalan = await tx.suratJalan.create({
@@ -320,29 +336,52 @@ export async function POST(
             include: { items: true },
           });
 
+          const toJournalRow = (
+            movement: (typeof plan.invoiceReversalMovements)[number],
+            stockResult: Awaited<ReturnType<typeof applyProductStockDelta>>,
+            suratJalanId: string | null,
+          ) => {
+            const expectedSign = movement.type === "IN" ? 1 : -1;
+            if (
+              stockResult.productId !== movement.productId ||
+              !Number.isFinite(stockResult.baseDelta) ||
+              stockResult.baseDelta * expectedSign <= 0 ||
+              !Number.isFinite(movement.quantity) ||
+              movement.quantity <= 0
+            ) {
+              throw new Error("STOCK_PROOF_UNAVAILABLE");
+            }
+            const multiplier = stockResult.stockGroupId
+              ? Math.abs(stockResult.baseDelta) / movement.quantity
+              : 1;
+            if (!Number.isFinite(multiplier) || multiplier <= 0) {
+              throw new Error("STOCK_PROOF_UNAVAILABLE");
+            }
+
+            return {
+              productId: movement.productId,
+              transactionId: transaction.id,
+              sourceTransactionRef: transaction.id,
+              suratJalanId,
+              type: movement.type,
+              reason: movement.reason,
+              quantity: movement.quantity,
+              note: movement.note,
+              createdBy: user.id,
+              person: user.name ?? null,
+              stockGroupIdSnapshot: stockResult.stockGroupId,
+              unitMultiplierSnapshot: multiplier,
+              stockBaseDelta: stockResult.baseDelta,
+            };
+          };
+
           const inventoryRows = [
-            ...plan.invoiceReversalMovements.map((movement) => ({
-              productId: movement.productId,
-              transactionId: transaction.id,
-              suratJalanId: null,
-              type: movement.type,
-              reason: movement.reason,
-              quantity: movement.quantity,
-              note: movement.note,
-              createdBy: user.id,
-              person: user.name ?? null,
-            })),
-            ...plan.deliveryStockMovements.map((movement) => ({
-              productId: movement.productId,
-              transactionId: transaction.id,
-              suratJalanId: suratJalan.id,
-              type: movement.type,
-              reason: movement.reason,
-              quantity: movement.quantity,
-              note: movement.note,
-              createdBy: user.id,
-              person: user.name ?? null,
-            })),
+            ...invoiceReversalResults.map(({ movement, stockResult }) =>
+              toJournalRow(movement, stockResult, null),
+            ),
+            ...deliveryStockResults.map(({ movement, stockResult }) =>
+              toJournalRow(movement, stockResult, suratJalan.id),
+            ),
           ];
 
           if (inventoryRows.length > 0) {
@@ -370,7 +409,13 @@ export async function POST(
 
     if (error instanceof Error) {
       if (error.message === "TRANSACTION_NOT_FOUND") {
-        return apiError("Transaction not found", 404, { code: "NotFound" });
+        return apiError("Transaksi tidak ditemukan", 404, { code: "NotFound" });
+      }
+      if (error.message === "TRANSACTION_CLOSED") {
+        return apiError("Transaksi sudah dibatalkan atau dikembalikan.", 409, { code: "Conflict" });
+      }
+      if (error.message === "STOCK_PROOF_UNAVAILABLE") {
+        return apiError("Riwayat perubahan stok tidak dapat diverifikasi.", 409, { code: "Conflict" });
       }
       if (
         [
@@ -378,6 +423,8 @@ export async function POST(
           "PRINTING_SERVICE_NOT_ELIGIBLE",
           "NO_PRODUCT_LINES",
           "FULLY_DELIVERED",
+          "TRANSACTION_CLOSED",
+          "STOCK_PROOF_UNAVAILABLE",
         ].includes(error.message)
       ) {
         return apiError("Transaction is not eligible for surat jalan", 409, {

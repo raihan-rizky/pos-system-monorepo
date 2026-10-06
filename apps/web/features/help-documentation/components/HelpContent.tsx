@@ -149,17 +149,17 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-goods-purchase",
       title: "Mengajukan & Menyetujui Pembelian Barang",
-      description: "Catat pembelian aktual dari Daftar Belanja, review harga supplier per produk, lalu buat pengeluaran. Approval Pembelian Barang sendiri tidak mengubah stok; stok baru bertambah dari Penerimaan Barang yang disetujui.",
+      description: "Catat pembelian aktual dari Daftar Belanja. Pembelian Barang harus disetujui Owner/Admin sebelum barang dapat diterima; penerimaan yang disetujui menambah stok.",
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Pembelian Barang", description: "Masuk ke menu Supplier, pilih tab 'Pembelian Barang', lalu klik 'Buat Pembelian Barang'.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Pilih Daftar Belanja", description: "Pilih Daftar Belanja yang sudah disetujui. Nama supplier dan semua produk yang di-ACC akan tampil otomatis. Opsi bertanda ⚠ LAMA berasal dari alur lama; baca peringatan amber lalu centang konfirmasi bahwa stok sudah berubah dan expense lama akan diganti sebelum mengajukan.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Periksa jumlah & harga", description: "Jumlah awal mengikuti nilai yang di-ACC, sedangkan harga produk terbaru mengikuti HPP master. Jika harga berbeda, tentukan per produk apakah perlu update HPP master, lalu cek Total pengeluaran.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Periksa jumlah & harga", description: "Jumlah awal mengikuti nilai yang di-ACC dan harga pembelian mengikuti biaya pada produk. Periksa Total pengeluaran sebelum mengajukan; persetujuan Pembelian Barang diperlukan sebelum membuat Penerimaan Barang.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Ajukan pembelian", description: "Klik 'Ajukan Pembelian Barang'. Dokumen masuk ke riwayat dengan status PENDING; langkah ini belum membuat Pengeluaran dan tidak mengubah stok.", icon: <FileText className="w-8 h-8" /> },
         { title: "Review per produk", description: "Dengan izin supplier.goods_purchase.approve:update, pilih Setujui, Edit, Hapus, atau tambah produk unit besar di bawah daftar. Saat Edit, unit dapat diganti ke varian satuan besar dalam grup stok yang sama. Produk yang belum diputuskan ditandai Belum Ada Aksi.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Edit keputusan", description: "Jika produk sudah disetujui, konfirmasi edit akan mengembalikannya menjadi Belum Ada Aksi. Perubahan tersimpan langsung dan minimal satu produk harus tersisa.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Selesaikan atau tolak", description: "Saat seluruh produk disetujui, status otomatis APPROVED, update HPP terpilih diterapkan, dan satu Pengeluaran kategori Bahan dibuat. Untuk Daftar Belanja bertanda LAMA, expense lama diganti dalam proses yang sama agar biaya tidak tercatat dua kali. Penolakan wajib memakai alasan dan izin supplier.goods_purchase.reject:update.", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Terima barang", description: "Pada Pembelian Barang APPROVED, klik 'Barang Sudah Diterima?' untuk membuka modal Penerimaan Barang dengan PB tersebut langsung terpilih. Isi qty fisik dan catatan selisih, lalu ajukan ke Owner. Approval Pembelian Barang tetap tidak mengubah stok.", icon: <Warehouse className="w-8 h-8" /> },
+        { title: "Selesaikan atau tolak", description: "Setelah semua produk diputuskan, Pembelian Barang menjadi APPROVED dan satu Pengeluaran kategori Bahan dibuat. Opsi pembaruan HPP yang sudah tersedia tetap mengikuti pilihan dan izin pada form pembelian; harga modal pada penerimaan dicatat sebagai snapshot terpisah. Penolakan memerlukan alasan dan izin supplier.goods_purchase.reject:update. Persetujuan pembelian belum menambah stok.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Terima barang", description: "Pada Pembelian Barang APPROVED, buka Penerimaan Barang. Masukkan jumlah fisik dan harga modal aktual supplier; harga modal produk saat ini menjadi nilai awal. Nilai penerimaan disimpan sebagai snapshot dan tidak mengubah HPP master. Ajukan penerimaan untuk disetujui Owner.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Pantau penerimaan", description: "Gunakan 'Lihat Riwayat Penerimaan Barang' untuk membuka Inventaris > Transaksi > Penerimaan Barang dengan filter PB terkait. Status Pembelian Barang berubah menjadi BARANG DITERIMA SEBAGIAN atau BARANG DITERIMA. Klik barisnya untuk membandingkan jumlah dipesan, diterima, pending, dan sisa.", icon: <History className="w-8 h-8" /> },
       ]
     },
@@ -170,8 +170,8 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Daftar Pelanggan", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Pelanggan', lalu klik menu 'Pelanggan' (ikon kontak).", icon: <History className="w-8 h-8" /> },
-        { title: "Filter Piutang", description: "Perhatikan kolom 'Piutang' pada tabel pelanggan. Di atas tabel, Anda juga bisa mengklik tombol 'Filter' dan memilih opsi 'Memiliki Piutang' untuk menyaring data.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Cek Rincian Tagihan", description: "Klik langsung pada nama pelanggan yang memiliki nominal piutang berwarna merah, lalu klik tab 'Riwayat Transaksi' di profilnya untuk melihat faktur belanja mana saja yang belum lunas.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Filter Piutang", description: "Perhatikan kolom Piutang dan badge Tempo pada daftar transaksi. Gunakan filter 'Memiliki Piutang' untuk mencari tagihan yang belum lunas.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Cek Rincian Tagihan", description: "Buka tab Piutang untuk melihat invoice DP dan Tempo beserta sisa tagihannya. Catat cicilan atau pelunasan memakai metode pembayaran yang benar-benar diterima.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
     {
@@ -193,8 +193,9 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Filter Transaksi Pending", description: "Buka menu 'Riwayat' di sidebar kiri. Gunakan filter status 'Pending' pada bagian atas tabel (baris transaksi pending akan berwarna biru).", icon: <Search className="w-8 h-8" /> },
         { title: "Klik Aksi Approval", description: "Klik tombol 'Setujui' atau 'Tolak' langsung di sebelah kanan baris transaksi (atau melalui tombol titik tiga '...').", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Tentukan Metode & Jumlah", description: "Pada modal approval, pilih metode pembayaran (Cash, Transfer, Debit, Kredit, atau QRIS) dan masukkan nominal bayar. Jika tempo, pilih opsi 'Bayar Nanti (Tempo)'. Owner/Admin juga bisa mengisi Tanggal Invoice dan Jam Invoice opsional bila invoice final harus ikut tanggal bisnis tertentu.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Konfirmasi", description: "Klik tombol hijau 'Setujui' untuk memfinalisasi transaksi dan mengurangi stok produk secara resmi. Jika tanggal invoice diubah, cetak ulang invoice final agar nomor dan tanggalnya sesuai. Jika menolak, klik 'Tolak' untuk membatalkan (VOID).", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Review dan sesuaikan barang", description: "Sebelum menyetujui nota sementara, Anda dapat menambah barang, mengubah jumlah, atau menghapus barang. Periksa harga modal, normal, Agen, Dinas, Harga Khusus, serta harga efektif; server menghitung ulang harga dan total saat disimpan.", icon: <Package className="w-8 h-8" /> },
+        { title: "Tentukan metode & jumlah", description: "Pilih metode pembayaran aktual atau Tempo/Tagihan. Tempo terpisah dari DP, memerlukan pelanggan terdaftar, dan boleh dimulai tanpa pembayaran atau dengan cicilan awal yang dicatat memakai metode yang benar-benar diterima. Tanggal default memakai waktu server dalam WIB; Owner/Admin dapat mengubah tanggal atau jam invoice bila diperlukan.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Konfirmasi", description: "Klik Setujui untuk memfinalisasi transaksi; stok berkurang saat persetujuan berhasil. Tolak nota yang belum final tidak mengubah stok. Pembatalan atau penghapusan transaksi final mengembalikan stok yang terbukti terpotong tepat satu kali; izin Hapus default untuk Owner dan dapat diatur melalui RBAC.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {
@@ -243,7 +244,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Daftar Belanja", description: "Masuk ke menu Supplier lalu klik tab 'Daftar Belanja'. Kartu ringkasan menampilkan antrean aktif, total qty menunggu, jumlah yang sudah disetujui, dan rasio qty di-ACC. Klik 'Buat Daftar Belanja' untuk membuat pengajuan baru.", icon: <Truck className="w-8 h-8" /> },
         { title: "Pilih atau Tambah Supplier", description: "Supplier tujuan wajib dipilih. Jika belum tersedia, gunakan tambah supplier cepat dengan mengisi nama dan tipe.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tambah Produk", description: "Cari produk melalui nama atau SKU. Thumbnail, stok terkini, unit, dan grup membantu memastikan produk yang dipilih sudah tepat.", icon: <Package className="w-8 h-8" /> },
-        { title: "Isi Kebutuhan & Simpan", description: "Isi jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik 'Simpan Daftar Belanja'. Statusnya menjadi Diajukan. Pembuatan maupun approval daftar belanja tidak mengubah stok dan tidak membuat Pengeluaran. Sebelum item pertama diputuskan, Owner atau role dengan izin supplier.shopping_request.edit:update dapat mengedit kembali permohonan.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Isi Kebutuhan & Simpan", description: "Nama default mengikuti nomor dokumen; Anda dapat menggantinya dengan nama unik di toko. Klik Simpan Daftar Belanja untuk mengajukan. Pengguna dengan izin edit dapat mengunci/menyelesaikan daftar; popup menutup setelah aksi berhasil. Cetak nota A4 ringkas (No, Nama Barang, Kebutuhan Belanja) atau nota lengkap di halaman berikutnya. Pembuatan dan approval tidak mengubah stok.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -445,7 +446,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Buka Daftar Belanja", description: "Masuk ke menu Supplier lalu klik tab 'Daftar Belanja'. Kartu ringkasan menampilkan antrean aktif, total qty menunggu, jumlah yang sudah disetujui, dan rasio qty di-ACC. Klik 'Buat Daftar Belanja' untuk membuat pengajuan baru.", icon: <Truck className="w-8 h-8" /> },
         { title: "Pilih atau Tambah Supplier", description: "Supplier tujuan wajib dipilih. Jika belum tersedia, gunakan tambah supplier cepat dengan mengisi nama dan tipe.", icon: <Settings className="w-8 h-8" /> },
         { title: "Tambah Produk", description: "Cari produk melalui nama atau SKU. Thumbnail, stok terkini, unit, dan grup membantu memastikan produk yang dipilih sudah tepat.", icon: <Package className="w-8 h-8" /> },
-        { title: "Isi Kebutuhan & Simpan", description: "Isi jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik 'Simpan Daftar Belanja'. Statusnya menjadi Diajukan. Pembuatan maupun approval daftar belanja tidak mengubah stok dan tidak membuat Pengeluaran. Edit dan pengisian Jumlah yang Di-ACC mengikuti izin RBAC granular yang diatur Owner.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Isi Kebutuhan & Simpan", description: "Nama default mengikuti nomor dokumen; Anda dapat menggantinya dengan nama unik di toko. Klik Simpan Daftar Belanja untuk mengajukan. Pengguna dengan izin edit dapat mengunci/menyelesaikan daftar; popup menutup setelah aksi berhasil. Cetak nota A4 ringkas (No, Nama Barang, Kebutuhan Belanja) atau nota lengkap di halaman berikutnya. Edit dan approval mengikuti izin RBAC granular dan tidak mengubah stok.", icon: <Settings className="w-8 h-8" /> },
       ]
     },
     {
@@ -546,8 +547,9 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka POS Kasir", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Operasi', lalu klik menu 'Kasir' (POS - ikon kalkulator).", icon: <ShoppingCart className="w-8 h-8" /> },
-        { title: "Pilih & Tambah Produk", description: "Cari produk melalui kolom pencarian di bagian atas atau klik langsung pada gambar produk di grid sebelah kiri. Jika ada varian (seperti warna/ukuran), pilih varian yang sesuai di pop-up, lalu produk akan masuk ke keranjang kanan.", icon: <Package className="w-8 h-8" /> },
-        { title: "Proses Pembayaran", description: "Klik tombol hijau besar 'Bayar' di bawah keranjang. Pilih metode pembayaran (misal: Tunai), masukkan nominal uang yang diterima dari pelanggan, klik 'Konfirmasi Pembayaran', lalu klik tombol 'Cetak Struk'.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Pilih produk dan satuan", description: "Cari produk atau pilih dari kartu. Pilihan satuan kecil tampil di sebelah kiri dan satuan besar di sebelah kanan. Anda juga dapat mengganti satuan langsung dari keranjang; jumlah angkanya tetap dan harga otomatis mengikuti satuan baru.", icon: <Package className="w-8 h-8" /> },
+        { title: "Atur jumlah", description: "Ketik jumlah bulat lebih dari nol pada kolom kuantitas di keranjang, atau gunakan tombol minus dan plus. Jumlah desimal belum dapat dipakai untuk produk dan layanan.", icon: <Package className="w-8 h-8" /> },
+        { title: "Proses Pembayaran", description: "Klik tombol Bayar. Harga Khusus atau diskon kategori yang cocok berlaku otomatis, lalu harga Agen/Dinas dan harga normal menjadi pilihan berikutnya. Pilih metode pembayaran atau Tempo/Tagihan; Tempo memerlukan pelanggan dan menampilkan badge tersendiri. Tanggal invoice default disinkronkan dari Internet dan ditampilkan dalam WIB. Bila sumber waktu tidak tersedia, sistem memakai sinkronisasi terakhir atau jam server.", icon: <DollarSign className="w-8 h-8" /> },
       ]
     },
     {
@@ -713,7 +715,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Verifikasi Mutasi Log", description: "Buka menu 'Inventaris' di sidebar. Klik tab 'Riwayat' -> sub-tab 'Log Stok' di pagi hari untuk memastikan mutasi stok harian berjalan sesuai catatan. Di layar HP, geser bar sub-tab Riwayat secara horizontal dan baca log sebagai kartu ringkas.", icon: <History className="w-8 h-8" /> },
-        { title: "Input Penerimaan Barang", description: "Saat kiriman supplier datang, buka tab 'Transaksi' lalu 'Penerimaan Barang' dan klik 'Terima barang'. Di bagian Pilih Pembelian Barang, pilih nomor PB dan supplier yang sesuai. Baca peringatan jika ada penerimaan lain yang masih PENDING, lalu tandai setiap produk sebagai Sesuai atau Tidak Sesuai. Isi Jumlah Diterima tanpa melebihi sisa pesanan. Jika jumlah diterima berbeda dari jumlah dipesan yang tersedia, Catatan Produk wajib menjelaskan selisihnya. Setelah semua produk valid, klik 'Ajukan ke Owner'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Input Penerimaan Barang", description: "Buka Penerimaan Barang dari Inventaris atau tab khusus di Supplier menggunakan akun Gudang atau Owner. Pilih Pembelian Barang yang sudah disetujui Owner/Admin, periksa sisa pesanan, lalu masukkan jumlah fisik dan harga modal supplier. Harga modal produk saat ini terisi sebagai default; harga aktual disimpan pada penerimaan tanpa mengubah HPP master. Ajukan penerimaan ke Owner untuk persetujuan.", icon: <Package className="w-8 h-8" /> },
         { title: "Review per produk", description: "OWNER atau role yang mendapat izin inventory.inbound_receipt.approve:update dapat membuka Proses, mengubah status Sesuai atau Tidak Sesuai, mengedit qty/catatan, menyetujui, atau menghapus tiap produk. Dokumen tetap PENDING selama masih ada produk Belum Ada Aksi. Penolakan berlaku untuk seluruh dokumen, membutuhkan inventory.inbound_receipt.reject:update, dan alasan wajib diisi. Izin inventory.inbound_receipt.edit:update mengatur edit penerimaan.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Finalisasi stok bersama", description: "Setelah semua produk disetujui, penerimaan otomatis APPROVED. Stok bertambah secara atomik sesuai qty diterima. Pada mode stok bersama, produk canonical dan seluruh variannya ikut tersinkron; perubahan dicatat sebagai satu bundle di Log Stok memakai nama supplier. Nomor PB hanya ditampilkan di detail bundle.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Catat Barang Pecah/Rusak", description: "Jika ditemukan produk rusak, klik tombol 'Input / Transaksi' -> 'Laporkan Barang Rusak'. Masukkan kode barang, kuantitas yang rusak, isi alasan penyesuaian, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
@@ -850,7 +852,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Tanyakan Penjualan", description: "Tanya aja omzet pada tanggal tertentu, misalnya: 'Hari ini dapet omzet berapa?' atau 'Rangkuman penjualan kemarin dong'.", icon: <TrendingUp className="w-8 h-8" /> },
-        { title: "Perhitungan Data", description: "Pak Teladan bakal langsung ngumpulin semua data nota penjualan yang udah beres (Lunas atau DP) di tanggal itu.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Perhitungan Data", description: "Pak Teladan bakal langsung mengumpulkan data nota penjualan yang sudah selesai (Lunas, DP, atau Tempo) pada tanggal tersebut.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Analisis Menyeluruh", description: "Untuk permintaan analisis, Pak Teladan memeriksa ringkasan, metode pembayaran, produk, kategori, sales, shift, kehilangan stok, dan tren sekaligus. Jika periode tidak disebutkan, rentangnya 30 hari terakhir.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
@@ -862,7 +864,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Tanyakan Best Seller", description: "Ketik pertanyaan kayak: 'Hari ini barang apa yang paling laris?' atau 'Cari produk best seller minggu ini dong'.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Analisis Penjualan", description: "Pak Teladan bakal langsung mengurutkan barang-barang berdasarkan jumlah yang paling banyak terjual.", icon: <Search className="w-8 h-8" /> },
-        { title: "Daftar Terlaris", description: "Daftar produk paling laku bakal ditampilkan biar kamu bisa gampang ngerencanain stok barang ke depannya.", icon: <Sparkles className="w-8 h-8" /> },
+        { title: "Daftar Terlaris", description: "Produk terlaris dikelompokkan ke Stationery/ATK, Kertas, Cartridge, dan Tinta supaya lebih mudah merencanakan stok.", icon: <Sparkles className="w-8 h-8" /> },
       ]
     },
     {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Banknote,
@@ -13,12 +14,65 @@ import {
   X,
 } from "lucide-react";
 
-import {
-  useApproveTransaction,
-  type Transaction,
-} from "@/hooks/useTransactions";
-import { formatRupiah, getDefaultProductImage } from "@/lib/utils";
+import type { Transaction } from "@/hooks/useTransactions";
+import { formatRupiah } from "@/lib/utils";
 import { useRole } from "@/components/providers/RoleProvider";
+import {
+  TransactionCartEditor,
+  type ApprovalPriceDetails,
+  type CartEditorItem,
+} from "./TransactionCartEditor";
+
+type ApprovalQuoteResponse = {
+  items: Array<ApprovalPriceDetails & {
+    input: CartEditorItem;
+    unit: string;
+  }>;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  fingerprint: string;
+};
+
+function toApprovalCartItem(item: Transaction["items"][number]): CartEditorItem {
+  return {
+    sourceItemId: item.id,
+    serviceNote: item.serviceNote ?? null,
+    productId: item.productId ?? null,
+    printingServiceId: item.printingServiceId ?? null,
+    productName: item.productName,
+    quantity: Number(item.quantity),
+    unitPrice: Number(item.unitPrice),
+    originalUnitPrice: Number(item.originalUnitPrice ?? item.unitPrice),
+    appliedUnitPrice: Number(item.appliedUnitPrice ?? item.unitPrice),
+    subtotal: Number(item.subtotal),
+    rawMaterialProductId: item.rawMaterialProductId ?? null,
+    rawMaterialQuantity:
+      item.rawMaterialQuantity == null ? null : Number(item.rawMaterialQuantity),
+    size: item.size ?? null,
+    material: item.material ?? null,
+    unit:
+      item.product?.unit ??
+      item.printingService?.unit ??
+      item.rawMaterialUnit ??
+      "pcs",
+  };
+}
+
+function quoteItemsFromCart(items: CartEditorItem[]) {
+  return items.map((item) => ({
+    sourceItemId: item.sourceItemId ?? null,
+    serviceNote: item.serviceNote ?? null,
+    productId: item.productId,
+    printingServiceId: item.printingServiceId ?? null,
+    quantity: item.quantity,
+    rawMaterialProductId: item.rawMaterialProductId ?? null,
+    rawMaterialQuantity: item.rawMaterialQuantity ?? null,
+    size: item.size ?? null,
+    material: item.material ?? null,
+  }));
+}
 
 export function ApproveModal({
   tx,
@@ -29,9 +83,17 @@ export function ApproveModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const approveTx = useApproveTransaction();
+  const queryClient = useQueryClient();
   const { role } = useRole();
   const [error, setError] = useState("");
+  const [cartItems, setCartItems] = useState<CartEditorItem[]>(() =>
+    tx.items.map(toApprovalCartItem),
+  );
+  const [quote, setQuote] = useState<ApprovalQuoteResponse | null>(null);
+  const [quoteError, setQuoteError] = useState("");
+  const [isQuoteLoading, setIsQuoteLoading] = useState(true);
+  const [isApproving, setIsApproving] = useState(false);
+  const [needsQuoteReview, setNeedsQuoteReview] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState("");
   const [invoiceTime, setInvoiceTime] = useState("");
   const [invoiceDateReason, setInvoiceDateReason] = useState("");
@@ -42,10 +104,7 @@ export function ApproveModal({
     ? tx.payments!.reduce((sum, p) => sum + Number(p.amount), 0)
     : 0;
 
-  const total = Number(tx.total);
-  const isAlreadyLunas =
-    (hasMultiPayment ? multiPaymentTotal : Number(tx.amountPaid)) >= total;
-
+  const total = quote?.total ?? Number(tx.total);
   const [amountPaidInput, setAmountPaidInput] = useState<string>(
     hasMultiPayment
       ? multiPaymentTotal.toString()
@@ -54,36 +113,124 @@ export function ApproveModal({
   const [paymentMethodInput, setPaymentMethodInput] = useState<string>(
     tx.paymentMethod || "CASH",
   );
-  const [isPayLater, setIsPayLater] = useState<boolean>(false);
-
   const parsedAmount = Number(amountPaidInput) || 0;
-  const approvalStatus = isPayLater
-    ? "DP"
+  const isTempo = paymentMethodInput === "TEMPO";
+  const approvalStatus = isTempo
+    ? "Tempo/Tagihan"
     : parsedAmount > 0 && parsedAmount < total
       ? "DP"
       : "Lunas";
 
+  const quoteItems = useMemo(() => quoteItemsFromCart(cartItems), [cartItems]);
+  const quoteRequestBody = useMemo(
+    () => JSON.stringify({ type: "pending", items: quoteItems }),
+    [quoteItems],
+  );
+
+  useEffect(() => {
+    const abortController = new AbortController();
+    setQuote(null);
+    setQuoteError("");
+    setIsQuoteLoading(true);
+    setNeedsQuoteReview(false);
+
+    if (cartItems.length === 0) {
+      setIsQuoteLoading(false);
+      setQuoteError("Tambahkan minimal satu barang sebelum menyetujui.");
+      return () => abortController.abort();
+    }
+
+    void fetch(`/api/transactions/${tx.id}/approval-quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: quoteRequestBody,
+      signal: abortController.signal,
+    })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) {
+          throw new Error(body.message || "Gagal menghitung harga persetujuan");
+        }
+        setQuote(body as ApprovalQuoteResponse);
+      })
+      .catch((fetchError: unknown) => {
+        if (abortController.signal.aborted) return;
+        setQuoteError(
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Gagal menghitung harga persetujuan",
+        );
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted) setIsQuoteLoading(false);
+      });
+
+    return () => abortController.abort();
+  }, [cartItems.length, quoteRequestBody, tx.id]);
+
   const handleApprove = async () => {
     setError("");
+    if (!quote || isQuoteLoading) {
+      setError("Tunggu sampai harga terbaru selesai dihitung.");
+      return;
+    }
+    if (needsQuoteReview) {
+      setNeedsQuoteReview(false);
+      setError("");
+      return;
+    }
+    if (cartItems.length === 0) {
+      setError("Tambahkan minimal satu barang sebelum menyetujui.");
+      return;
+    }
+    if (isTempo && !tx.customerId) {
+      setError("Pilih pelanggan sebelum menggunakan pembayaran Tempo.");
+      return;
+    }
+    if (!isTempo && parsedAmount <= 0) {
+      setError("Jumlah pembayaran harus lebih dari 0.");
+      return;
+    }
+
+    setIsApproving(true);
     try {
-      await approveTx.mutateAsync({
-        id: tx.id,
-        amountPaid: isPayLater ? 0 : parsedAmount,
-        paymentMethod: hasMultiPayment
-          ? tx.paymentMethod || "CASH"
-          : paymentMethodInput,
-        isPayLater,
-        ...(canChangeInvoiceDate
-          ? {
-              invoiceDate: invoiceDate || undefined,
-              invoiceTime: invoiceTime || null,
-              invoiceDateReason: invoiceDateReason.trim() || null,
-            }
-          : {}),
+      const response = await fetch(`/api/transactions/${tx.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: quoteItems,
+          quoteFingerprint: quote.fingerprint,
+          amountPaid: parsedAmount,
+          paymentMethod: hasMultiPayment ? tx.paymentMethod || "CASH" : paymentMethodInput,
+          ...(canChangeInvoiceDate
+            ? {
+                invoiceDate: invoiceDate || undefined,
+                invoiceTime: invoiceTime || null,
+                invoiceDateReason: invoiceDateReason.trim() || null,
+              }
+            : {}),
+        }),
       });
+
+      const body = await response.json();
+      if (response.status === 409 && body.code === "APPROVAL_QUOTE_CHANGED") {
+        setQuote(body.quote as ApprovalQuoteResponse);
+        setNeedsQuoteReview(true);
+        setError("Harga atau isi transaksi berubah. Periksa harga terbaru, lalu konfirmasi kembali.");
+        return;
+      }
+      if (!response.ok) throw new Error(body.message || "Gagal menyetujui transaksi");
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["transactions"] }),
+        queryClient.invalidateQueries({ queryKey: ["transaction-history"] }),
+        queryClient.invalidateQueries({ queryKey: ["products"] }),
+      ]);
       onSuccess();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal menyetujui transaksi");
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -167,45 +314,19 @@ export function ApproveModal({
               <span className="text-[10px] font-bold text-surface-400 uppercase tracking-wider block">
                 Daftar Produk
               </span>
-              <div className="max-h-36 overflow-y-auto pr-1 space-y-2">
-                {tx.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 text-xs border-b border-surface-50 pb-1.5 last:border-0 last:pb-0"
-                  >
-                    <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-surface-100 flex-shrink-0 bg-surface-50">
-                      <img
-                        src={
-                          item.product?.imageUrl ||
-                          getDefaultProductImage(item.product?.category?.name)
-                        }
-                        alt={item.productName}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0 flex justify-between items-start">
-                      <div className="space-y-0.5 max-w-[70%]">
-                        <p className="font-bold text-surface-800 leading-snug truncate">
-                          {item.productName}
-                        </p>
-                        <p className="text-[10px] text-surface-500">
-                          {item.quantity}{" "}
-                          {item.product?.unit ||
-                            item.printingService?.unit ||
-                            item.rawMaterialUnit ||
-                            "pcs"}
-                          {item.size &&
-                            ` \u2022 Ukuran: ${item.size.split(" = ")[0]}`}
-                          {item.material && ` \u2022 Bahan: ${item.material}`}
-                        </p>
-                      </div>
-                      <span className="font-semibold text-surface-700 tabular-nums text-right flex-shrink-0">
-                        {formatRupiah(Number(item.subtotal))}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <TransactionCartEditor
+                items={cartItems}
+                onChange={(nextItems) => {
+                  setQuote(null);
+                  setCartItems(nextItems);
+                }}
+                priceDetails={quote?.items}
+              />
+              {(isQuoteLoading || quoteError) && (
+                <p className={`mt-2 text-xs ${quoteError ? "text-red-600" : "text-surface-500"}`}>
+                  {isQuoteLoading ? "Menghitung harga terbaru..." : quoteError}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-2.5 border-t border-surface-100">
@@ -231,32 +352,7 @@ export function ApproveModal({
             </div>
           </div>
 
-          {!isAlreadyLunas && (
-            <label className="flex items-center justify-between p-3.5 rounded-xl border border-surface-200 bg-surface-50 hover:bg-surface-100/50 cursor-pointer transition-all duration-200">
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={isPayLater}
-                  onChange={(e) => setIsPayLater(e.target.checked)}
-                  className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 w-4 h-4 cursor-pointer"
-                />
-                <div>
-                  <span className="text-sm font-bold text-surface-955 block">
-                    Bayar Nanti (Tempo)
-                  </span>
-                  <span className="text-xs text-surface-500 block mt-0.5">
-                    Tandai transaksi sebagai jatuh tempo (DP)
-                  </span>
-                </div>
-              </div>
-            </label>
-          )}
-
-          <div
-            className={`transition-all duration-200 ${
-              isPayLater ? "opacity-50 pointer-events-none" : ""
-            }`}
-          >
+          <div>
             {hasMultiPayment ? (
               <div className="rounded-xl border border-surface-200 p-4 space-y-3 bg-surface-50/50">
                 <div className="text-xs font-bold text-surface-500 uppercase tracking-wider pb-2 border-b border-surface-100 flex items-center justify-between">
@@ -307,13 +403,15 @@ export function ApproveModal({
                       value={paymentMethodInput}
                       onChange={(e) => setPaymentMethodInput(e.target.value)}
                       className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-surface-200 bg-white text-sm font-semibold text-surface-900 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all appearance-none"
-                      disabled={isPayLater}
                     >
                       <option value="CASH">Tunai (Cash)</option>
                       <option value="TRANSFER">Transfer Bank</option>
                       <option value="DEBIT">Kartu Debit</option>
                       <option value="CREDIT">Kartu Kredit</option>
                       <option value="QRIS">QRIS</option>
+                      <option value="TEMPO" disabled={!tx.customerId}>
+                        Tempo/Tagihan {!tx.customerId ? "(perlu pelanggan)" : ""}
+                      </option>
                     </select>
                     <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-surface-400">
                       <ChevronDown className="h-4 w-4" />
@@ -333,13 +431,17 @@ export function ApproveModal({
                     </div>
                     <input
                       type="number"
-                      value={isPayLater ? 0 : amountPaidInput}
+                      value={amountPaidInput}
                       onChange={(e) => setAmountPaidInput(e.target.value)}
-                      disabled={isPayLater}
                       placeholder="0"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-surface-200 rounded-xl text-sm font-bold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 disabled:bg-surface-50 disabled:text-surface-400 transition-all"
                     />
                   </div>
+                  {isTempo && (
+                    <p className="mt-1.5 text-xs text-surface-500">
+                      Masukkan pembayaran awal yang benar-benar diterima. Sisanya dicatat sebagai tagihan Tempo.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -364,7 +466,7 @@ export function ApproveModal({
               ) : (
                 <>
                   <CircleDollarSign className="h-3.5 w-3.5 text-amber-600" />
-                  DP (Tempo)
+                  {approvalStatus}
                 </>
               )}
             </span>
@@ -433,10 +535,10 @@ export function ApproveModal({
           </button>
           <button
             onClick={handleApprove}
-            disabled={approveTx.isPending}
+            disabled={isApproving || isQuoteLoading || !quote || cartItems.length === 0}
             className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
           >
-            {approveTx.isPending ? (
+            {isApproving ? (
               <>
                 <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
                 Memproses...
@@ -444,7 +546,7 @@ export function ApproveModal({
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4" />
-                Setujui
+                {needsQuoteReview ? "Tinjau harga terbaru" : "Setujui"}
               </>
             )}
           </button>

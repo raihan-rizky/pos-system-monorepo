@@ -1,3 +1,4 @@
+import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
@@ -16,11 +17,7 @@ import {
   requiresInvoiceDateReason,
   resolveInvoiceDateTime,
 } from "@/features/invoice-date/helpers/invoice-date-core";
-import {
-  buildDraftNumber,
-  formatDraftNumberForDisplay,
-} from "@/features/transactions-draft/helpers/draft-number";
-import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
+import { buildDraftNumber } from "@/features/transactions-draft/helpers/draft-number";
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
@@ -48,7 +45,7 @@ const createDraftSchema = z.object({
   note: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
   customerId: z.string().optional().nullable(),
-  pricingPreference: z.enum(PRICING_PREFERENCES).optional(),
+  pricingPreference: z.enum(PRICING_PREFERENCES).optional().default("SPECIAL"),
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   isJobOrder: z.boolean().optional().default(false),
@@ -118,7 +115,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const now = new Date();
+    const now = await getInvoiceNow();
     const resolvedInvoiceDate = hasCustomInvoiceDate
       ? resolveInvoiceDateTime({
           mode: "create",
@@ -181,15 +178,13 @@ export async function POST(request: Request) {
             draftNumber: { startsWith: `PNW-TLD-${dateStr}-` },
           },
         }),
-        pricingPreference
-          ? db.categoryCustomerPricingRule.findMany({
-              where: { storeId, isActive: true },
-              include: {
-                category: { select: { name: true } },
-                brand: { select: { name: true } },
-              },
-            })
-          : Promise.resolve([]),
+        db.categoryCustomerPricingRule.findMany({
+          where: { storeId, isActive: true },
+          include: {
+            category: { select: { name: true } },
+            brand: { select: { name: true } },
+          },
+        }),
       ]);
 
     if (customerId && !customerCheck) {
@@ -237,29 +232,24 @@ export async function POST(request: Request) {
     const serverItems = items.map((item) => {
       const product = productById.get(item.productId);
       if (!product) throw new Error("PRODUCT_NOT_FOUND");
-      const automaticPrice = pricingPreference
-        ? priceProductForCustomerType(
-            {
-              categoryId: product.categoryId,
-              categoryName: product.category.name,
-              price: Number(product.price),
-              hargaDinas:
-                product.hargaDinas == null ? null : Number(product.hargaDinas),
-              hargaAgen:
-                product.hargaAgen == null ? null : Number(product.hargaAgen),
-              unit: product.unit,
-              brandId: product.brandId,
-              brandName: product.brand?.name ?? null,
-            },
-            checkoutCustomerType,
-            pricingRules,
-            pricingPreference,
-          )
-        : null;
-      const price =
-        pricingPreference == null
-          ? item.price
-          : (item.transactionPrice ?? automaticPrice?.unitPrice ?? item.price);
+      const automaticPrice = priceProductForCustomerType(
+        {
+          categoryId: product.categoryId,
+          categoryName: product.category.name,
+          price: Number(product.price),
+          hargaDinas:
+            product.hargaDinas == null ? null : Number(product.hargaDinas),
+          hargaAgen:
+            product.hargaAgen == null ? null : Number(product.hargaAgen),
+          unit: product.unit,
+          brandId: product.brandId,
+          brandName: product.brand?.name ?? null,
+        },
+        checkoutCustomerType,
+        pricingRules,
+        pricingPreference,
+      );
+      const price = item.transactionPrice ?? automaticPrice.unitPrice;
       const appliedPricing = automaticPrice?.appliedPricing
         ? {
             ...automaticPrice.appliedPricing,
@@ -304,7 +294,6 @@ export async function POST(request: Request) {
             dateStr,
             draftCount + 1 + attempt,
           );
-          const displayDraftNumber = formatDraftNumberForDisplay(draftNumber);
 
           const created = await tx.transaction.create({
             data: {
@@ -392,30 +381,6 @@ export async function POST(request: Request) {
               salesperson: { select: { name: true } },
             },
           });
-
-          const priceLogEntries = pricingPreference
-            ? []
-            : serverItems.flatMap((item) =>
-                buildProductPriceLogEntries({
-                  productId: item.productId,
-                  storeId,
-                  before: {
-                    price: item.currentPrice,
-                    costPrice: item.costPrice,
-                  },
-                  after: {
-                    price: item.price,
-                    costPrice: item.costPrice,
-                  },
-                  actor: user,
-                  source: "SYSTEM",
-                  note: `Harga khusus untuk nota penawaran dengan nomor ${displayDraftNumber}`,
-                }),
-              );
-
-          if (priceLogEntries.length > 0) {
-            await tx.productPriceLog.createMany({ data: priceLogEntries });
-          }
 
           return created;
         });

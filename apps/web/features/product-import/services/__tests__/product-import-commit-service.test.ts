@@ -82,6 +82,41 @@ describe("product import commit schemas", () => {
     expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 
+  it("assigns sales groups to known and unknown categories created during import", async () => {
+    const createdCategories: Array<{ name: string; salesGroup?: string }> = [];
+    const rows = [
+      { ...row, name: "Cartridge", sku: "CART-001", category: "Cardridge Canon" },
+      { ...row, name: "Ink", sku: "INK-001", category: "Tinta Printing" },
+      { ...row, name: "Plano", sku: "PLN-001", category: "Plano" },
+    ];
+
+    dbTransactionMock.mockImplementation(async (callback) =>
+      callback({
+        category: {
+          findMany: vi.fn().mockResolvedValue([]),
+          create: vi.fn().mockImplementation(async ({ data }) => {
+            createdCategories.push(data);
+            return { ...data, id: `category-${createdCategories.length}` };
+          }),
+        },
+        product: { findMany: vi.fn().mockResolvedValue([]) },
+        batchOperation: { create: vi.fn().mockResolvedValue({ id: "batch-1" }) },
+        productImportPlannedRow: { createMany: vi.fn().mockResolvedValue({ count: rows.length }) },
+      }),
+    );
+
+    await startProductImportCommit(
+      { rows, decisions: {}, createMissingCategories: true },
+      { id: "user-1", storeId: "store-main" },
+    );
+
+    expect(createdCategories.map(({ name, salesGroup }) => [name, salesGroup])).toEqual([
+      ["Cardridge Canon", "CARTRIDGE"],
+      ["Tinta Printing", "INK"],
+      ["Plano", "OTHER"],
+    ]);
+  });
+
   it("locks existing groups before products and reloads shared stock before creating a variant", async () => {
     const events: string[] = [];
     const productFindManyMock = vi

@@ -109,6 +109,7 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
           createMany: inventoryLogCreateManyMock,
         },
         $queryRaw: queryRawMock,
+        $queryRawUnsafe: vi.fn(async (_query: string, rowId: string) => [{ id: rowId }]),
       }),
     );
   });
@@ -163,6 +164,10 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
           type: "IN",
           reason: "SALE_RETURN",
           transactionId: "txn-1",
+          sourceTransactionRef: "txn-1",
+          stockGroupIdSnapshot: null,
+          unitMultiplierSnapshot: 1,
+          stockBaseDelta: 10,
         }),
         expect.objectContaining({
           productId: "product-paper",
@@ -170,6 +175,10 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
           reason: "SALE",
           transactionId: "txn-1",
           suratJalanId: "sj-1",
+          sourceTransactionRef: "txn-1",
+          stockGroupIdSnapshot: null,
+          unitMultiplierSnapshot: 1,
+          stockBaseDelta: -4,
         }),
       ]),
     });
@@ -223,6 +232,24 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
     expect(body.status).toBe("PENDING");
     expect(productUpdateManyMock).not.toHaveBeenCalled();
     expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("does not create a delivery for a voided transaction", async () => {
+    transactionFindFirstMock.mockResolvedValue({
+      ...makeTransaction({ existingSuratJalan: [] }),
+      status: "VOIDED",
+    });
+
+    const response = await request({
+      recipientName: "Gudang PT Teladan",
+      quantities: { "item-paper": 1 },
+      keterangan: {},
+    });
+
+    expect(response.status).toBe(409);
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
+    expect(suratJalanCreateMock).not.toHaveBeenCalled();
     expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
   });
 

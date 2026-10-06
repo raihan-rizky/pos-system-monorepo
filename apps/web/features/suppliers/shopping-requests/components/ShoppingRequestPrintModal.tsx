@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Printer, Store, MapPin, Phone, FileText, Loader2 } from "lucide-react";
+import { Printer, Loader2 } from "lucide-react";
 import { Button, Modal } from "@pos/ui";
 
 import { useStoreSettings } from "@/hooks/useSettings";
@@ -9,9 +9,128 @@ import { getShoppingRequest } from "../api/shopping-requests-api";
 import {
   buildShoppingRequestPrintRows,
   formatShoppingRequestDate,
+  SHOPPING_REQUEST_PRINT_LAYOUTS,
 } from "../helpers/shopping-request-print";
-import type { ShoppingRequestDetail } from "../types/shopping-request";
+import type {
+  ShoppingRequestDetail,
+  ShoppingRequestListItem,
+} from "../types/shopping-request";
 import "./shopping-request-print.css";
+
+type ShoppingRequestPrintColumn =
+  (typeof SHOPPING_REQUEST_PRINT_LAYOUTS)[number]["columns"][number];
+
+const PRINT_COLUMN_LABELS: Record<ShoppingRequestPrintColumn, string> = {
+  no: "NO",
+  productName: "NAMA BARANG",
+  requestedQty: "KEBUTUHAN BELANJA",
+  stockOnHand: "SISA STOCK BARANG DI GUDANG",
+  approvedQty: "JUMLAH YANG DI ACC",
+};
+
+export function ShoppingRequestPrintPages({
+  detail,
+  storeName,
+  storeAddress,
+  storePhone,
+}: {
+  detail: ShoppingRequestDetail | (ShoppingRequestListItem & { items: ShoppingRequestDetail["items"] });
+  storeName: string;
+  storeAddress: string;
+  storePhone: string;
+}) {
+  const rows = buildShoppingRequestPrintRows(detail);
+
+  return (
+    <div id="shopping-request-print" className="shopping-request-print-pages">
+      {SHOPPING_REQUEST_PRINT_LAYOUTS.map((layout) => (
+        <section
+          key={layout.kind}
+          className="shopping-request-print-page"
+          data-print-page={layout.kind}
+        >
+          <header className="shopping-request-print-header">
+            <div className="shopping-request-print-store">
+              <img src="/images/logo_teladan.png" alt="Logo Toko" />
+              <div>
+                <h2>PERMOHONAN KEBUTUHAN BARANG</h2>
+                <p className="shopping-request-print-store-name">{storeName}</p>
+                <p>{storeAddress}</p>
+                <p>Telp: {storePhone}</p>
+              </div>
+            </div>
+            <dl className="shopping-request-print-document">
+              <div>
+                <dt>Nama Daftar Belanja</dt>
+                <dd>{detail.name}</dd>
+              </div>
+              <div>
+                <dt>No. Daftar Belanja</dt>
+                <dd>{detail.number}</dd>
+              </div>
+              <div>
+                <dt>Tanggal</dt>
+                <dd>{formatShoppingRequestDate(detail.approvedAt ?? detail.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Pemohon</dt>
+                <dd>{detail.requestedByName ?? "-"}</dd>
+              </div>
+            </dl>
+          </header>
+
+          <h3 className="shopping-request-print-page-title">
+            {layout.kind === "summary" ? "Ringkasan Kebutuhan Belanja" : "Rincian Daftar Belanja"}
+          </h3>
+
+          <table className="shopping-request-print-table">
+            <thead>
+              <tr>
+                {layout.columns.map((column) => (
+                  <th key={column} scope="col">
+                    {PRINT_COLUMN_LABELS[column]}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={`${layout.kind}-${index}`}>
+                  {layout.columns.map((column) => {
+                    const value = row[column];
+                    return (
+                      <td key={column}>
+                        {value === "" ? <>&nbsp;</> : value}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {layout.kind === "full" && (
+            <div className="shopping-request-print-signatures">
+              <p>Mengetahui:</p>
+              <div>
+                <section>
+                  <p>Wakil Direktur</p>
+                  <span />
+                  <p>(_______________)</p>
+                </section>
+                <section>
+                  <p>Kepala Gudang</p>
+                  <span />
+                  <p>(_______________)</p>
+                </section>
+              </div>
+            </div>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
 
 export function ShoppingRequestPrintModal({
   detail,
@@ -31,7 +150,6 @@ export function ShoppingRequestPrintModal({
       setLoaded(null);
       return;
     }
-    // If items are missing, fetch full detail
     if (detail.items.length > 0) {
       setLoaded(detail);
       return;
@@ -50,15 +168,15 @@ export function ShoppingRequestPrintModal({
     };
   }, [open, detail]);
 
-  const storeName = storeSettings?.name || "TOKO TELADAN";
-  const storeAddress = storeSettings?.address || "Jl. Temu Putih No.30 Cilegon";
-  const storePhone = storeSettings?.phone || "0254 393022";
-
   return (
-    <Modal open={open === true && detail !== null} onClose={onClose} title="Detail Daftar Belanja" size="6xl">
+    <Modal
+      open={open === true && detail !== null}
+      onClose={onClose}
+      title="Detail Daftar Belanja"
+      size="6xl"
+    >
       <div className="space-y-6">
         <div className="shopping-request-print-hide mb-3 flex items-center gap-2">
-          <FileText className="h-3.5 w-3.5 text-surface-400" />
           <p className="text-[10px] font-bold uppercase tracking-wide text-surface-500">
             Pratinjau Cetak
           </p>
@@ -70,106 +188,24 @@ export function ShoppingRequestPrintModal({
             Memuat detail...
           </div>
         ) : (
-          <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div
-              id="shopping-request-print"
-              className="mx-auto min-h-[297mm] w-[210mm] overflow-hidden bg-white p-[4mm_6mm] font-sans text-xs text-black shadow-lg ring-1 ring-black/5"
-            >
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <img
-                    src="/images/logo_teladan.png"
-                    alt="Logo Toko"
-                    className="h-16 w-16 object-contain"
-                  />
-                  <div>
-                    <h2 className="mb-0.5 text-base font-bold text-black">
-                      PERMOHONAN KEBUTUHAN BARANG
-                    </h2>
-                    <p className="text-sm font-bold text-[#003366]">{storeName}</p>
-                    <p className="text-[11px] text-black">{storeAddress}</p>
-                    <p className="text-[11px] text-black">Telp: {storePhone}</p>
-                  </div>
-                </div>
-                <div className="min-w-[250px] space-y-2 text-[12px]">
-                  <div className="flex justify-between gap-3">
-                    <span>No. Daftar Belanja</span>
-                    <span className="font-bold text-[#cc0000]">{loaded.number}</span>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span>Tanggal</span>
-                    <span className="font-semibold">
-                      {formatShoppingRequestDate(loaded.approvedAt ?? loaded.createdAt)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span>Pemohon</span>
-                    <span className="font-bold">{loaded.requestedByName ?? "-"}</span>
-                  </div>
-                </div>
-              </div>
-
-              <table className="w-full border-collapse text-[11px]">
-                <thead>
-                  <tr>
-                    <th className="w-10 border border-black px-3 py-2 text-center font-extrabold text-black">
-                      NO
-                    </th>
-                    <th className="border border-black px-3 py-2 text-left font-extrabold text-black">
-                      NAMA BARANG
-                    </th>
-                    <th className="w-32 border border-black px-3 py-2 text-center font-extrabold text-black">
-                      KEBUTUHAN BELANJA
-                    </th>
-                    <th className="w-32 border border-black px-3 py-2 text-center font-extrabold text-black">
-                      SISA STOCK BARANG DI GUDANG
-                    </th>
-                    <th className="w-32 border border-black px-3 py-2 text-center font-extrabold text-black">
-                      JUMLAH YANG DI ACC
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {buildShoppingRequestPrintRows(loaded).map((row, idx) => (
-                    <tr key={idx}>
-                      <td className="border border-black px-3 py-2 text-center">{row.no || <>&nbsp;</>}</td>
-                      <td className="border border-black px-3 py-2">{row.productName || <>&nbsp;</>}</td>
-                      <td className="border border-black px-3 py-2 text-center">{row.requestedQty || <>&nbsp;</>}</td>
-                      <td className="border border-black px-3 py-2 text-center">{row.stockOnHand || <>&nbsp;</>}</td>
-                      <td className="border border-black px-3 py-2 text-center">{row.approvedQty || <>&nbsp;</>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className="mt-6 text-center text-[12px] font-bold text-black">
-                Mengetahui:
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-8 text-center text-[12px]">
-                <div>
-                  <p>Wakil Direktur</p>
-                  <div className="h-20" />
-                  <p>(_______________)</p>
-                </div>
-                <div>
-                  <p>Kepala Gudang</p>
-                  <div className="h-20" />
-                  <p>(_______________)</p>
-                </div>
-              </div>
-
-            </div>
+          <div className="shopping-request-print-preview overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+            <ShoppingRequestPrintPages
+              detail={loaded}
+              storeName={storeSettings?.name || "TOKO TELADAN"}
+              storeAddress={storeSettings?.address || "Jl. Temu Putih No.30 Cilegon"}
+              storePhone={storeSettings?.phone || "0254 393022"}
+            />
           </div>
         )}
 
-        <div className="sticky bottom-[-16px] z-10 bg-white mt-4 flex flex-col gap-3 border-t border-surface-100 pt-4 pb-4 -mx-6 px-6 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] sm:flex-row-reverse print:hidden">
+        <div className="shopping-request-print-hide sticky bottom-[-16px] z-10 mt-4 flex flex-col gap-3 border-t border-surface-100 bg-white px-6 pb-4 pt-4 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] sm:flex-row-reverse">
           <Button
             type="button"
             variant="accent"
             size="lg"
             icon={<Printer className="h-4 w-4" />}
             onClick={() => window.print()}
-            className="flex-1 sm:flex-none sm:min-w-[180px]"
+            className="flex-1 sm:min-w-[180px] sm:flex-none"
           >
             Cetak
           </Button>

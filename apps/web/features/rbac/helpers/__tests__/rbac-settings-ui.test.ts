@@ -30,6 +30,19 @@ describe("RBAC settings UI helpers", () => {
         sensitivity: "critical",
       });
   });
+
+  it("exposes goods receipt creation as its own critical RBAC permission", async () => {
+    const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
+    expect(
+      RBAC_PERMISSION_MODULES.find(
+        (module) => module.id === "inventory-inbound-receipts",
+      ),
+    ).toMatchObject({
+      label: "Penerimaan Barang",
+      resourceTargets: ["inventory.inbound_receipt.create"],
+      sensitivity: "critical",
+    });
+  });
   it("exposes proof deletion as a critical configurable permission", async () => {
     const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
     const proofMediaModule = RBAC_PERMISSION_MODULES.find(
@@ -65,7 +78,7 @@ describe("RBAC settings UI helpers", () => {
       customizationCount: 0,
     });
     expect(summaries.find((summary) => summary.role === "INVENTORY")).toMatchObject({
-      enabledPages: 1,
+      enabledPages: 2,
       warningCount: 0,
       customizationCount: 0,
     });
@@ -198,7 +211,7 @@ describe("RBAC settings UI helpers", () => {
     }
   });
 
-  it("exposes Owner-default goods purchase decision permissions", async () => {
+  it("exposes Owner and Admin goods purchase decision permissions", async () => {
     const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
     const { canRolePerformAction } = await import("../rbac-core");
     const defaults = buildDefaultRolePermissions();
@@ -213,19 +226,30 @@ describe("RBAC settings UI helpers", () => {
     expect(supplierModule?.resourceTargets).toEqual(
       expect.arrayContaining([...resources]),
     );
-    expect(
-      resources.every((resource) =>
-        EDITABLE_ROLES.every(
-          (role) => defaults[role].resources[resource].update === false,
-        ),
-      ),
-    ).toBe(true);
+    expect(defaults.ADMIN.resources["supplier.goods_purchase.approve"].update).toBe(
+      true,
+    );
+    expect(defaults.ADMIN.resources["supplier.goods_purchase.reject"].update).toBe(
+      true,
+    );
+    expect(defaults.INVENTORY.resources["supplier.goods_purchase.approve"].update).toBe(
+      false,
+    );
+    expect(defaults.INVENTORY.resources["supplier.goods_purchase.reject"].update).toBe(
+      false,
+    );
     expect(
       canRolePerformAction(
         "OWNER",
         "supplier.goods_purchase.approve",
         "update",
       ),
+    ).toBe(true);
+    expect(
+      canRolePerformAction("ADMIN", "supplier.goods_purchase.approve", "update"),
+    ).toBe(true);
+    expect(
+      canRolePerformAction("ADMIN", "supplier.goods_purchase.reject", "update"),
     ).toBe(true);
     expect(
       canRolePerformAction(

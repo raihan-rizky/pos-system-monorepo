@@ -29,6 +29,7 @@ model User {
   productImportJobs                   ProductImportJob[]              @relation("created_product_import_jobs")
   productionActivityLogs              ProductionActivityLog[]         @relation("production_activity_actor")
   invoiceDateChangeLogs               InvoiceDateChangeLog[]          @relation("invoice_date_change_actor")
+  transactionLifecycleAudits           TransactionLifecycleAudit[]      @relation("transaction_lifecycle_audit_actor")
   inventoryTasksSubmitted             InventoryTask[]                 @relation("inventory_task_submitter")
   inventoryDaySessionsCheckedIn       InventoryDaySession[]           @relation("inventory_day_session_checkin")
   inventoryDaySessionsCheckedOut      InventoryDaySession[]           @relation("inventory_day_session_checkout")
@@ -83,6 +84,7 @@ model Store {
   productStockGroups           ProductStockGroup[]
   productionActivityLogs       ProductionActivityLog[]
   invoiceDateChangeLogs        InvoiceDateChangeLog[]
+  transactionLifecycleAudits   TransactionLifecycleAudit[]
   products                     Product[]
   salespersons                 Salesperson[]
   shoppingRequests             ShoppingRequest[]
@@ -102,6 +104,7 @@ model Category {
   icon                         String?
   color                        String?
   order                        Int                           @default(0)
+  salesGroup                   ProductSalesGroup             @default(OTHER)
   customerCategoryPricingRules CategoryCustomerPricingRule[]
   products                     Product[]
 
@@ -326,7 +329,7 @@ model InvoiceDateChangeLog {
 
 model ProductionActivityLog {
   id            String                      @id @default(cuid())
-  transactionId String
+  transactionId String?
   storeId       String
   invoiceNumber String?
   customerName  String?
@@ -340,7 +343,7 @@ model ProductionActivityLog {
   note          String?
   actor         User?                       @relation("production_activity_actor", fields: [actorId], references: [id])
   store         Store                       @relation(fields: [storeId], references: [id])
-  transaction   Transaction                 @relation(fields: [transactionId], references: [id])
+  transaction   Transaction?                @relation(fields: [transactionId], references: [id], onDelete: SetNull)
 
   @@index([storeId, createdAt])
   @@index([transactionId, createdAt])
@@ -529,6 +532,10 @@ model InventoryLog {
   supplierId          String?
   transactionId       String?
   suratJalanId        String?
+  sourceTransactionRef String?
+  stockGroupIdSnapshot String?
+  unitMultiplierSnapshot Float?
+  stockBaseDelta      Float?
   product             Product                          @relation(fields: [productId], references: [id], onDelete: Cascade)
   verification        InventoryLogVerification?
   correctionRequests  InventoryLogCorrectionRequest[]  @relation("inventory_log_correction_source")
@@ -543,8 +550,30 @@ model InventoryLog {
   @@index([reason, createdAt])
   @@index([status, createdAt])
   @@index([transactionId, createdAt])
+  @@index([sourceTransactionRef, createdAt])
   @@index([suratJalanId, createdAt])
   @@map("pos_inventory_logs")
+}
+
+model TransactionLifecycleAudit {
+  id             String                      @id @default(cuid())
+  storeId        String
+  transactionId  String
+  invoiceNumber  String?
+  action         TransactionLifecycleAction
+  previousStatus TransactionStatus
+  actorId        String?
+  actorName      String
+  actorRole      Role
+  snapshot       Json
+  createdAt      DateTime                    @default(now())
+  actor          User?                       @relation("transaction_lifecycle_audit_actor", fields: [actorId], references: [id], onDelete: SetNull)
+  store          Store                       @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, transactionId, action])
+  @@index([storeId, createdAt])
+  @@index([transactionId, createdAt])
+  @@map("pos_transaction_lifecycle_audits")
 }
 
 model InventoryLogVerification {
@@ -765,6 +794,8 @@ model ShoppingRequest {
   id              String                    @id @default(cuid())
   storeId         String
   number          String
+  name            String
+  normalizedName  String
   sequence        Int
   supplierId      String?
   status          ShoppingRequestStatus     @default(REQUESTED)
@@ -786,6 +817,7 @@ model ShoppingRequest {
 
   @@index([storeId, createdAt])
   @@unique([storeId, number])
+  @@unique([storeId, normalizedName])
   @@index([status, createdAt])
   @@index([status, stockAppliedAt])
   @@index([supplierId, createdAt])
@@ -947,6 +979,7 @@ model InventoryInboundReceiptLine {
   skuSnapshot              String
   unitSnapshot             String?
   costPriceSnapshot        Decimal?                          @db.Decimal(12, 2)
+  supplierCostPrice        Decimal?                          @db.Decimal(12, 2)
   costPriceApplied         Decimal?                          @db.Decimal(12, 2)
   expectedQuantitySnapshot Float
   receivedQuantitySnapshot Float
@@ -1560,6 +1593,20 @@ enum PaymentMethod {
   CREDIT
   QRIS
   TRANSFER
+  TEMPO
+}
+
+enum ProductSalesGroup {
+  ATK
+  PAPER
+  CARTRIDGE
+  INK
+  OTHER
+}
+
+enum TransactionLifecycleAction {
+  VOID
+  DELETE
 }
 
 enum TransactionStatus {

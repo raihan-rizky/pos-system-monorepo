@@ -57,6 +57,7 @@ export function ShoppingRequestList({
 }) {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [printTarget, setPrintTarget] = useState<ShoppingRequestDetail | null>(null);
   const [approveTarget, setApproveTarget] = useState<ShoppingRequestDetail | null>(null);
   const [editTarget, setEditTarget] = useState<ShoppingRequestDetail | null>(null);
@@ -79,6 +80,7 @@ export function ShoppingRequestList({
   const list = useShoppingRequests({
     page,
     limit: 10,
+    q: searchQuery.trim() || undefined,
     ...(statusFilter ? { status: statusFilter as "REQUESTED" | "APPROVED" | "CANCELLED" } : {}),
   });
   const summary = useShoppingRequestSummary();
@@ -95,6 +97,17 @@ export function ShoppingRequestList({
       />
 
       <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
+        <input
+          type="search"
+          aria-label="Cari nama atau nomor Daftar Belanja"
+          placeholder="Cari nama atau nomor Daftar Belanja"
+          value={searchQuery}
+          onChange={(event) => {
+            setSearchQuery(event.target.value);
+            setPage(1);
+          }}
+          className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:min-w-56 sm:flex-1"
+        />
         <select
           value={statusFilter}
           onChange={(e) => {
@@ -139,7 +152,7 @@ export function ShoppingRequestList({
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="break-all text-base font-black text-slate-950">{row.number}</p>
+                      <p className="break-words text-base font-black text-slate-950">{row.name}</p>
                       <span
                         className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${status.className}`}
                       >
@@ -147,7 +160,8 @@ export function ShoppingRequestList({
                       </span>
                     </div>
                      <p className="mt-1 break-words text-xs leading-relaxed text-slate-500">
-                      {row.supplierName ? `Supplier: ${row.supplierName} · ` : ""}
+                      Nomor: {row.number}
+                      {row.supplierName ? ` · Supplier: ${row.supplierName}` : ""}
                       Pemohon: {row.requestedByName ?? "-"}
                       {row.approvedByName ? ` · Disetujui: ${row.approvedByName}` : ""}
                      </p>

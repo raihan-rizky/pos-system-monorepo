@@ -42,6 +42,8 @@ const receipt = {
       unitSnapshot: "dus",
       expectedQuantity: 10,
       receivedQuantity: 8,
+      supplierCostPrice: 6_500,
+      costPriceSnapshot: 6_500,
       status: "PARTIAL",
       matchStatus: "MATCHED" as const,
       reviewStatus: "PENDING" as const,
@@ -56,6 +58,8 @@ const receipt = {
       unitSnapshot: "box",
       expectedQuantity: 5,
       receivedQuantity: 4,
+      supplierCostPrice: 8_250,
+      costPriceSnapshot: 8_250,
       status: "PARTIAL",
       matchStatus: "MISMATCHED" as const,
       reviewStatus: "APPROVED" as const,
@@ -116,6 +120,8 @@ describe("InboundReceiptReviewModal", () => {
     expect(html).toContain("Hapus");
     expect(html).toContain("Sesuai");
     expect(html).toContain("Tidak Sesuai");
+    expect(html).toContain("Harga Modal Supplier");
+    expect(html).toContain("Rp 6.500");
     expect(html).toContain("Konflik Qty");
     expect(html).toContain("Alasan penolakan");
     expect(html).not.toContain("Minta Revisi");

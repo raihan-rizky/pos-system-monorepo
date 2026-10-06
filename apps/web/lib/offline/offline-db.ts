@@ -12,6 +12,7 @@ import type { PricingPreference } from "@/features/customer-category-pricing/hel
 export type OfflinePaymentMethod = "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER";
 
 export type OfflineTransactionPayload = {
+  timeSource?: "SERVER_ESTIMATE" | "DEVICE_UNVERIFIED";
   items: OfflineCartItem[];
   paymentMethod: OfflinePaymentMethod;
   amountPaid: number;
@@ -24,7 +25,7 @@ export type OfflineTransactionPayload = {
   paymentStatus?: string;
   isJobOrder?: boolean;
   estimatedDoneAt?: string | null;
-  pricingPreference: PricingPreference;
+  pricingPreference?: PricingPreference;
   originalSubtotal: number;
   originalTotal: number;
 };

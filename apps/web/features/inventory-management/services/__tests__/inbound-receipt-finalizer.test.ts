@@ -70,6 +70,8 @@ function line(
     approvedByName: "Owner",
     approvedAt: now,
     note: null,
+    costPriceSnapshot: 120_000,
+    supplierCostPrice: 99_000,
     product: receiptProduct,
     stockGroupId: receiptProduct.stockGroupId,
     unitMultiplierToBase: receiptProduct.unitMultiplierToBase,
@@ -80,6 +82,8 @@ function line(
       productId: receiptProduct.id,
       quantity: 10,
       latestUnitPrice: 120_000,
+      costPriceSnapshot: 120_000,
+      supplierCostPrice: 99_000,
     },
     approvedReceivedExcludingCurrentReceipt: 0,
     ...overrides,
@@ -252,7 +256,7 @@ describe("inbound receipt finalizer", () => {
       expect.objectContaining({
         productId: "dus",
         quantity: 2,
-        unitCost: 120_000,
+        unitCost: 99_000,
       }),
     );
     const bundleInput =

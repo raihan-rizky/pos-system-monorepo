@@ -148,6 +148,8 @@ export interface LockedSubmittedInboundReceiptLine {
   approvedByName: string | null;
   approvedAt: Date | null;
   note: string | null;
+  costPriceSnapshot: number | null;
+  supplierCostPrice: number | null;
   product: Product;
   stockGroupId: string | null;
   unitMultiplierToBase: number;
@@ -239,6 +241,7 @@ export interface ReceivingQueueRepositoryRow {
   productName: string;
   sku: string;
   unit: string | null;
+  currentCostPrice: number | null;
   orderedQuantity: number;
   approvedReceivedQuantity: number;
   pendingReservedQuantity: number;
@@ -279,6 +282,7 @@ export interface ReceivingQueuePurchaseItem {
   productName: string;
   sku: string;
   unit: string | null;
+  currentCostPrice: number | null;
   orderedQuantity: number;
   approvedReceivedQuantity: number;
   pendingReservedQuantity: number;
@@ -509,6 +513,7 @@ export interface InventoryInboundReceiptRepository {
       matchStatus: InboundReceiptMatchStatus;
       receivedQuantity: number;
       note: string | null;
+      supplierCostPrice?: number | null;
       reviewStatus: "PENDING";
       approvedById: null;
       approvedByName: null;
@@ -524,6 +529,7 @@ export interface InventoryInboundReceiptRepository {
     input: {
       status?: InboundReceiptStatus;
       goodsPurchaseId?: string | null;
+      supplierId?: string | null;
     },
   ): Promise<unknown[]>;
   listReceivingQueue(
@@ -532,6 +538,7 @@ export interface InventoryInboundReceiptRepository {
       search?: string | null;
       take?: number;
       goodsPurchaseId?: string | null;
+      supplierId?: string | null;
     },
   ): Promise<ReceivingQueueRepositoryRow[]>;
   getGoodsPurchaseReceivingComparison(

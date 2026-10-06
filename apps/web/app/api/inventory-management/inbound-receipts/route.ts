@@ -29,6 +29,7 @@ const createSchema = z.object({
       goodsPurchaseItemId: z.string().min(1),
       matchStatus: z.enum(["MATCHED", "MISMATCHED"]),
       receivedQuantity: z.number().min(0),
+      supplierCostPrice: z.number().min(0).max(9_999_999_999.99).optional(),
       note: z.string().trim().max(500).optional().nullable(),
     }).strict(),
   ).min(1),
@@ -46,11 +47,13 @@ export async function GET(request: Request) {
     const rawStatus = url.searchParams.get("status");
     const goodsPurchaseId =
       url.searchParams.get("goodsPurchaseId")?.trim() || undefined;
+    const supplierId = url.searchParams.get("supplierId")?.trim() || undefined;
     const status = rawStatus ? statusSchema.parse(rawStatus) : undefined;
     const repository = new InventoryInboundReceiptRepository();
     const data = await repository.listInboundReceipts(user.storeId, {
       status: status as InboundReceiptStatus | undefined,
       goodsPurchaseId,
+      supplierId,
     });
 
     return NextResponse.json({ data });
@@ -71,7 +74,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission(
+      "inventory.inbound_receipt.create",
+      "create",
+    );
     const input = createSchema.parse(await request.json());
     const serviceInput = {
       repository: new InventoryInboundReceiptRepository(),

@@ -20,6 +20,8 @@ import { useTransactionHistory, Transaction } from "@/hooks/useTransactions";
 import { usePayTransactionDebt } from "@/hooks/useCustomers";
 import { useDebounce } from "@/hooks/useDebounce";
 import { ReceiptModal } from "@/components/ReceiptModal";
+import { PaymentTermsBadge } from "./PaymentTermsBadge";
+import { getPaymentPresentation } from "../helpers/payment-presentation";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("id-ID", {
@@ -272,7 +274,7 @@ export function DebtTransactionsList() {
   const [viewingTx, setViewingTx] = useState<Transaction | null>(null);
 
   const { data, isLoading, isFetching } = useTransactionHistory({
-    status: paymentStatus === "ALL" ? "DEBT_HISTORY" : paymentStatus === "DP" ? "DP" : "DEBT_HISTORY_COMPLETED", // Custom status parameter for backend
+    status: paymentStatus === "ALL" ? "DEBT_HISTORY" : paymentStatus === "DP" ? "DEBT_HISTORY_ACTIVE" : "DEBT_HISTORY_COMPLETED",
     search: debouncedSearch,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
@@ -526,8 +528,18 @@ export function DebtTransactionsList() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {transactions.map((tx) => {
-                      const isCompleted = tx.status === "COMPLETED";
-                      const remaining = Number(tx.total) - Number(tx.amountPaid);
+                      const paymentPresentation = getPaymentPresentation({
+                        status: tx.status,
+                        paymentMethod: tx.paymentMethod,
+                        total: Number(tx.total),
+                        amountPaid: Number(tx.amountPaid),
+                      });
+                      const isCompleted = paymentPresentation.settled;
+                      const remaining = paymentPresentation.remaining;
+                      const isDebtRecord =
+                        tx.status === "DP" ||
+                        tx.paymentMethod === "TEMPO" ||
+                        Boolean(tx.debtPaymentLogs?.length);
                       const daysOld = calculateDaysDifference(tx.createdAt);
                       const cName = tx.customerName || "Pelanggan Umum";
                       const paymentLog = tx.debtPaymentLogs?.[0];
@@ -552,6 +564,14 @@ export function DebtTransactionsList() {
                           <td className="px-6 py-4">
                             <div className="font-bold text-slate-900">{tx.invoiceNumber}</div>
                             <div className="mt-1 text-xs font-semibold text-slate-500">{formatDate(tx.createdAt)}</div>
+                            <div className="mt-2">
+                              <PaymentTermsBadge
+                                status={tx.status}
+                                paymentMethod={tx.paymentMethod}
+                                total={Number(tx.total)}
+                                amountPaid={Number(tx.amountPaid)}
+                              />
+                            </div>
                             <button
                               onClick={() => setViewingTx(tx)}
                               className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:underline"
@@ -561,13 +581,15 @@ export function DebtTransactionsList() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="font-bold text-slate-900">{formatCurrency(Number(tx.total))}</div>
-                            {!isCompleted && (
+                            {isDebtRecord && (
                               <>
-                                <div className="mt-1 text-xs font-bold text-red-600">
-                                  Sisa: {formatCurrency(remaining)}
-                                </div>
+                                {remaining > 0 && (
+                                  <div className="mt-1 text-xs font-bold text-red-600">
+                                    Sisa: {formatCurrency(remaining)}
+                                  </div>
+                                )}
                                 <div className="mt-0.5 text-[11px] font-bold text-emerald-600">
-                                  Dibayar (DP): {formatCurrency(Number(tx.amountPaid))}
+                                  Dibayar: {formatCurrency(Number(tx.amountPaid))}
                                 </div>
                               </>
                             )}
@@ -618,8 +640,18 @@ export function DebtTransactionsList() {
             {/* Mobile View: Cards */}
             <div className="grid gap-3 lg:hidden sm:grid-cols-2">
               {transactions.map((tx) => {
-                const isCompleted = tx.status === "COMPLETED";
-                const remaining = Number(tx.total) - Number(tx.amountPaid);
+                const paymentPresentation = getPaymentPresentation({
+                  status: tx.status,
+                  paymentMethod: tx.paymentMethod,
+                  total: Number(tx.total),
+                  amountPaid: Number(tx.amountPaid),
+                });
+                const isCompleted = paymentPresentation.settled;
+                const remaining = paymentPresentation.remaining;
+                const isDebtRecord =
+                  tx.status === "DP" ||
+                  tx.paymentMethod === "TEMPO" ||
+                  Boolean(tx.debtPaymentLogs?.length);
                 const daysOld = calculateDaysDifference(tx.createdAt);
                 const cName = tx.customerName || "Pelanggan Umum";
                 const paymentLog = tx.debtPaymentLogs?.[0];
@@ -664,6 +696,14 @@ export function DebtTransactionsList() {
                         <div>
                           <div className="font-bold text-slate-900">{tx.invoiceNumber}</div>
                           <div className="text-xs font-semibold text-slate-500">{formatDate(tx.createdAt)}</div>
+                          <div className="mt-2">
+                            <PaymentTermsBadge
+                              status={tx.status}
+                              paymentMethod={tx.paymentMethod}
+                              total={Number(tx.total)}
+                              amountPaid={Number(tx.amountPaid)}
+                            />
+                          </div>
                         </div>
                         <button 
                           onClick={() => setViewingTx(tx)}
@@ -685,7 +725,7 @@ export function DebtTransactionsList() {
                             <span className="font-black text-red-600 text-base">{formatCurrency(remaining)}</span>
                           </div>
                           <div className="flex justify-between text-xs mt-1">
-                            <span className="font-semibold text-slate-500">Dibayar (DP)</span>
+                            <span className="font-semibold text-slate-500">Dibayar</span>
                             <span className="font-bold text-emerald-600">{formatCurrency(Number(tx.amountPaid))}</span>
                           </div>
                           <div className="mt-2 text-right">
@@ -695,12 +735,20 @@ export function DebtTransactionsList() {
                           </div>
                         </>
                       ) : (
-                        <div className="flex justify-between text-sm mt-1 pt-1 border-t border-slate-50">
-                            <span className="font-bold text-slate-700">Waktu Pelunasan</span>
-                            <span className="font-black text-emerald-600 text-sm">
-                              {paymentLog ? formatDate(paymentLog.createdAt) : formatDate(tx.createdAt)}
-                            </span>
-                        </div>
+                        <>
+                          {isDebtRecord && (
+                            <div className="flex justify-between text-xs mt-1 pt-1 border-t border-slate-50">
+                              <span className="font-semibold text-slate-500">Dibayar</span>
+                              <span className="font-bold text-emerald-600">{formatCurrency(Number(tx.amountPaid))}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-sm mt-1 pt-1 border-t border-slate-50">
+                              <span className="font-bold text-slate-700">Waktu Pelunasan</span>
+                              <span className="font-black text-emerald-600 text-sm">
+                                {paymentLog ? formatDate(paymentLog.createdAt) : formatDate(tx.createdAt)}
+                              </span>
+                          </div>
+                        </>
                       )}
                     </div>
 

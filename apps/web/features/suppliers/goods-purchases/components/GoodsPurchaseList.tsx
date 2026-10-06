@@ -84,7 +84,7 @@ export function GoodsPurchaseList({
     "supplier.goods_purchase.reject",
     "update",
   );
-  const canReceive = canPerform("inventory", "update");
+  const canReceive = canPerform("inventory.inbound_receipt.create", "create");
   const list = useGoodsPurchases({
     page,
     limit: 10,

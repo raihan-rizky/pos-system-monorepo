@@ -267,7 +267,7 @@ export function priceProductForCustomerType(
   product: PriceableProduct,
   customerType: CustomerType,
   rules: CategoryPricingRule[],
-  pricingPreference: PricingPreference = "SPECIAL",
+  _pricingPreference: PricingPreference = "SPECIAL",
 ): PricedProductLine {
   const specialPrice = applyCategoryPricingRule(
     product,
@@ -280,10 +280,6 @@ export function priceProductForCustomerType(
     }),
   );
   const memberPrice = priceProductForMemberType(product, customerType);
-
-  if (pricingPreference === "MEMBER") {
-    return memberPrice ?? specialPrice;
-  }
 
   if (specialPrice.appliedPricing) {
     return specialPrice;

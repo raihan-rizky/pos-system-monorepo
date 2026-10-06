@@ -52,6 +52,7 @@ import {
   createShoppingRequest,
   approveShoppingRequest,
   cancelShoppingRequest,
+  ShoppingRequestNameConflictError,
   ShoppingRequestValidationError,
 } from "../shopping-requests-service";
 import * as shoppingRequestService from "../shopping-requests-service";
@@ -135,6 +136,7 @@ describe("createShoppingRequest", () => {
     vi.mocked(repo.createShoppingRequestWithItems).mockResolvedValue({
       id: "sr-1",
       number: "DPB-202606-001",
+      name: "DPB-202606-001",
       status: "REQUESTED" as never,
       supplierId: "supplier-1",
       supplierName: "Supplier A",
@@ -175,6 +177,7 @@ describe("createShoppingRequest", () => {
     await createShoppingRequest(
       {
         supplierId: "supplier-1",
+        name: "  Belanja Oktober  ",
         items: [
           {
             productId: "prod-1",
@@ -189,6 +192,8 @@ describe("createShoppingRequest", () => {
 
     expect(repo.createShoppingRequestWithItems).toHaveBeenCalledTimes(1);
     const args = vi.mocked(repo.createShoppingRequestWithItems).mock.calls[0][0];
+    expect(args.name).toBe("Belanja Oktober");
+    expect(args.normalizedName).toBe("belanja oktober");
     expect(args.items).toEqual([
       {
         productId: "prod-1",
@@ -201,10 +206,30 @@ describe("createShoppingRequest", () => {
     ]);
   });
 
+  it("translates duplicate normalized names into a conflict error", async () => {
+    vi.mocked(repo.createShoppingRequestWithItems).mockRejectedValue({
+      code: "P2002",
+      meta: { target: ["storeId", "normalizedName"] },
+    });
+
+    await expect(
+      createShoppingRequest(
+        {
+          supplierId: "supplier-1",
+          name: "Belanja Oktober",
+          items: [{ productId: "prod-1", requestedQty: 1 }],
+        },
+        actor,
+        () => [productSnapshot],
+      ),
+    ).rejects.toBeInstanceOf(ShoppingRequestNameConflictError);
+  });
+
   it("locks the store before allocating the monthly request sequence", async () => {
     vi.mocked(repo.createShoppingRequestWithItems).mockResolvedValue({
       id: "sr-locked",
       number: "DPB-202607-001",
+      name: "DPB-202607-001",
       status: "REQUESTED",
       supplierId: "supplier-1",
       supplierName: "Supplier A",
@@ -236,6 +261,9 @@ describe("createShoppingRequest", () => {
     expect(storeLockMock.mock.invocationCallOrder[0]).toBeLessThan(
       shoppingRequestCountMock.mock.invocationCallOrder[0],
     );
+    const createInput = vi.mocked(repo.createShoppingRequestWithItems).mock.calls[0][0];
+    expect(createInput.name).toBe(createInput.number);
+    expect(createInput.normalizedName).toBe(createInput.number.toLowerCase());
   });
 });
 
@@ -243,6 +271,7 @@ describe("approveShoppingRequest", () => {
   const draftRequest = {
     id: "sr-1",
     number: "DPB-202606-001",
+    name: "DPB-202606-001",
     status: "REQUESTED" as never,
     supplierId: "supplier-1",
     supplierName: "Supplier A",
@@ -503,6 +532,7 @@ describe("approveShoppingRequest", () => {
       "sr-1",
       {
         supplierId: "supplier-1",
+        name: "Belanja Oktober Baru",
         note: "Prioritas minggu ini",
         items: [
           {
@@ -519,6 +549,8 @@ describe("approveShoppingRequest", () => {
       id: "sr-1",
       actor,
       supplierId: "supplier-1",
+      name: "Belanja Oktober Baru",
+      normalizedName: "belanja oktober baru",
       note: "Prioritas minggu ini",
       items: [
         {
@@ -531,6 +563,28 @@ describe("approveShoppingRequest", () => {
         },
       ],
     });
+  });
+
+  it("translates a duplicate custom name during edit into a conflict error", async () => {
+    const updateRequest = shoppingRequestService.updateShoppingRequest;
+    vi.mocked(repo.findShoppingRequestById).mockResolvedValue(draftRequest);
+    productFindManyMock.mockResolvedValueOnce([productSnapshot]);
+    vi.mocked(repo.updateShoppingRequestWithItems).mockRejectedValue({
+      code: "P2002",
+      meta: { target: ["storeId", "normalizedName"] },
+    });
+
+    await expect(
+      updateRequest(
+        "sr-1",
+        {
+          supplierId: "supplier-1",
+          name: "Nama yang sudah dipakai",
+          items: [{ productId: "prod-1", requestedQty: 5 }],
+        },
+        actor,
+      ),
+    ).rejects.toBeInstanceOf(ShoppingRequestNameConflictError);
   });
 
   it("locks edit after the first item decision", async () => {
@@ -572,6 +626,7 @@ describe("approveShoppingRequest", () => {
     vi.mocked(repo.createShoppingRequestWithItems).mockResolvedValue({
       id: "sr-2",
       number: "DPB-202606-002",
+      name: "DPB-202606-002",
       status: "REQUESTED",
       supplierId: "supplier-1",
       supplierName: "Supplier A",

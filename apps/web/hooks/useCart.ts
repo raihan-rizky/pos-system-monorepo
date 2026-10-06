@@ -5,6 +5,7 @@ import type {
   CategoryCustomerPricingMode,
   CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { changeCartUnit } from "@/features/pos-checkout/helpers/cart-unit-change";
 
 export interface ProductCartItem {
   cartLineId: string;
@@ -22,6 +23,7 @@ export interface ProductCartItem {
   stock: number;
   unitMultiplierToBase?: number | null;
   stockGroup?: {
+    id?: string | null;
     baseUnit?: string | null;
   } | null;
   brandId?: string | null;
@@ -43,7 +45,29 @@ export interface ProductCartItem {
     originalUnitPrice: number;
     appliedUnitPrice: number;
   } | null;
+  unitOptions?: CartUnitOption[];
 }
+
+export type CartUnitOption = Pick<
+  ProductCartItem,
+  | "productId"
+  | "name"
+  | "price"
+  | "catalogPrice"
+  | "costPrice"
+  | "hargaAgen"
+  | "hargaDinas"
+  | "unit"
+  | "stock"
+  | "unitMultiplierToBase"
+  | "stockGroup"
+  | "brandId"
+  | "brandName"
+  | "categoryId"
+  | "categoryName"
+  | "size"
+  | "material"
+>;
 
 export interface PrintingServiceCartItem {
   cartLineId: string;
@@ -97,6 +121,17 @@ export function applyProductPriceUpdate(
           hargaAgen: prices.hargaAgen,
           hargaDinas: prices.hargaDinas,
           price: item.transactionPrice ?? prices.price,
+          unitOptions: item.unitOptions?.map((option) =>
+            option.productId === productId
+              ? {
+                  ...option,
+                  price: prices.price,
+                  catalogPrice: prices.price,
+                  hargaAgen: prices.hargaAgen,
+                  hargaDinas: prices.hargaDinas,
+                }
+              : option,
+          ),
         }
       : item,
   );
@@ -119,6 +154,11 @@ export function applyProductGroupMetadataUpdate(
       ? {
           ...item,
           ...metadata,
+          unitOptions: item.unitOptions?.map((option) =>
+            updatedProductIds.has(option.productId)
+              ? { ...option, ...metadata }
+              : option,
+          ),
         }
       : item,
   );
@@ -149,6 +189,38 @@ export function normalizeStoredCartItems(items: CartItem[]): CartItem[] {
       cartLineId:
         product.cartLineId ||
         buildProductCartLineId(product.productId, product.size, product.material),
+    };
+  });
+}
+
+export function applyProductUnitOptionUpdates(
+  items: CartItem[],
+  groups: CartUnitOption[][],
+): CartItem[] {
+  const optionsByProductId = new Map<string, CartUnitOption[]>();
+
+  for (const group of groups) {
+    const groupId = group.find((option) => option.stockGroup?.id)?.stockGroup?.id;
+    if (!groupId) continue;
+    const verifiedOptions = group.filter(
+      (option) => option.stockGroup?.id === groupId,
+    );
+    if (verifiedOptions.length < 2) continue;
+    for (const option of verifiedOptions) {
+      optionsByProductId.set(option.productId, verifiedOptions);
+    }
+  }
+
+  return items.map((item) => {
+    if (item.lineType !== "PRODUCT") return item;
+    const unitOptions = optionsByProductId.get(item.productId);
+    if (!unitOptions) return item;
+    const catalogGroupId = unitOptions[0]?.stockGroup?.id;
+    if (item.stockGroup?.id && item.stockGroup.id !== catalogGroupId) return item;
+    return {
+      ...item,
+      stockGroup: item.stockGroup ?? unitOptions[0]?.stockGroup ?? null,
+      unitOptions,
     };
   });
 }
@@ -197,7 +269,7 @@ export function useCart() {
   }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; price: number; costPrice?: number | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string }) => {
+    (product: { id: string; name: string; price: number; costPrice?: number | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { id?: string | null; baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string; unitOptions?: CartUnitOption[] }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -209,7 +281,12 @@ export function useCart() {
         if (existing) {
           return prev.map((item) =>
             item.lineType === "PRODUCT" && item.productId === product.id && item.size === product.size && item.material === product.material
-              ? { ...item, quantity: item.quantity + 1 }
+              ? {
+                  ...item,
+                  quantity: item.quantity + 1,
+                  unitOptions: product.unitOptions ?? item.unitOptions,
+                  stockGroup: product.stockGroup ?? item.stockGroup,
+                }
               : item
           );
         }
@@ -230,6 +307,7 @@ export function useCart() {
             stock: product.stock,
             unitMultiplierToBase: product.unitMultiplierToBase ?? null,
             stockGroup: product.stockGroup ?? null,
+            unitOptions: product.unitOptions,
             brandId: product.brandId ?? null,
             brandName: product.brandName ?? null,
             categoryId: product.categoryId,
@@ -262,7 +340,19 @@ export function useCart() {
     setItems((prev) => prev.filter((item) => item.cartLineId !== cartLineId));
   }, []);
 
+  const changeUnit = useCallback(
+    (cartLineId: string, target: CartUnitOption) => {
+      setItems((current) => changeCartUnit(current, cartLineId, target));
+    },
+    [],
+  );
+
+  const syncUnitOptions = useCallback((groups: CartUnitOption[][]) => {
+    setItems((current) => applyProductUnitOptionUpdates(current, groups));
+  }, []);
+
   const updateQuantity = useCallback((cartLineId: string, quantity: number) => {
+    if (!Number.isFinite(quantity)) return;
     if (quantity <= 0) {
       setItems((prev) => prev.filter((item) => item.cartLineId !== cartLineId));
       return;
@@ -336,9 +426,12 @@ export function useCart() {
 
   return {
     items,
+    hasLoadedStorage,
     addItem,
     addServiceItem,
     removeItem,
+    changeUnit,
+    syncUnitOptions,
     updateQuantity,
     updateTransactionPrice,
     syncProductPrices,

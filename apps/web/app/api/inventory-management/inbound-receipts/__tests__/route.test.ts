@@ -61,7 +61,7 @@ describe("/api/inventory-management/inbound-receipts", () => {
   it("lists inbound receipts for the current store", async () => {
     const response = await GET(
       new Request(
-        "http://localhost/api/inventory-management/inbound-receipts?status=SUBMITTED&goodsPurchaseId=gp-1",
+        "http://localhost/api/inventory-management/inbound-receipts?status=SUBMITTED&goodsPurchaseId=gp-1&supplierId=supplier-1",
       ),
     );
     const body = await response.json();
@@ -71,6 +71,7 @@ describe("/api/inventory-management/inbound-receipts", () => {
     expect(listInboundReceiptsMock).toHaveBeenCalledWith("store-main", {
       status: "SUBMITTED",
       goodsPurchaseId: "gp-1",
+      supplierId: "supplier-1",
     });
     expect(body.data).toEqual([{ id: "receipt-1" }]);
   });
@@ -95,7 +96,10 @@ describe("/api/inventory-management/inbound-receipts", () => {
     const body = await response.json();
 
     expect(response.status).toBe(201);
-    expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "update");
+    expect(requirePermissionMock).toHaveBeenCalledWith(
+      "inventory.inbound_receipt.create",
+      "create",
+    );
     expect(createAndSubmitGoodsPurchaseReceiptMock).toHaveBeenCalledWith(
       expect.objectContaining({
         user: expect.objectContaining({ id: "inventory-1" }),

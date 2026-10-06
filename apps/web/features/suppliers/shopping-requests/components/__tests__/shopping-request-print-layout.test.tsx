@@ -1,0 +1,86 @@
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import type { ShoppingRequestDetail } from "../../types/shopping-request";
+import { ShoppingRequestPrintPages } from "../ShoppingRequestPrintModal";
+
+vi.mock("@/hooks/useSettings", () => ({ useStoreSettings: () => ({ data: null }) }));
+vi.mock("../../api/shopping-requests-api", () => ({ getShoppingRequest: vi.fn() }));
+
+function makeDetail(): ShoppingRequestDetail {
+  return {
+    id: "sr-1",
+    number: "DPB-202610-001",
+    name: "DPB-202610-001",
+    status: "REQUESTED",
+    supplierId: null,
+    supplierName: null,
+    requestedByName: "Raihan",
+    approvedByName: null,
+    itemCount: 120,
+    decidedItemCount: 0,
+    pendingItemCount: 120,
+    totalRequestedQty: 120,
+    totalApprovedQty: null,
+    createdAt: "2026-10-05T03:00:00.000Z",
+    approvedAt: null,
+    note: null,
+    stockAppliedAt: null,
+    items: Array.from({ length: 120 }, (_, index) => ({
+      id: `item-${index + 1}`,
+      productId: `product-${index + 1}`,
+      productName: `Produk ${index + 1}`,
+      productSku: `SKU-${index + 1}`,
+      unit: "pcs",
+      stockOnHand: 10,
+      requestedQty: 1,
+      approvedQty: null,
+      stockMode: "PRODUCT_ONLY",
+      decisionStatus: "PENDING",
+      decidedById: null,
+      decidedByName: null,
+      decidedAt: null,
+      itemStockAppliedAt: null,
+      costPriceSnapshot: null,
+      imageUrl: null,
+      product: { unitMultiplierToBase: 1, stockGroup: null },
+    })),
+  };
+}
+
+describe("shopping request print layout", () => {
+  it("renders both A4 receipts and keeps the last item in each", () => {
+    const html = renderToStaticMarkup(
+      <ShoppingRequestPrintPages
+        detail={makeDetail()}
+        storeName="Toko Teladan"
+        storeAddress="Cilegon"
+        storePhone="0254"
+      />,
+    );
+
+    expect(html.match(/data-print-page="summary"/g)).toHaveLength(1);
+    expect(html.match(/data-print-page="full"/g)).toHaveLength(1);
+    expect(html).toContain("KEBUTUHAN BELANJA");
+    expect(html).toContain("SISA STOCK BARANG DI GUDANG");
+    expect(html).toContain("JUMLAH YANG DI ACC");
+    expect(html.match(/<th\b/g)).toHaveLength(8);
+    expect(html.match(/Produk 120/g)).toHaveLength(2);
+  });
+
+  it("uses paged print styles without clipping the receipt container", () => {
+    const stylesheet = readFileSync(
+      join(process.cwd(), "features/suppliers/shopping-requests/components/shopping-request-print.css"),
+      "utf8",
+    );
+
+    expect(stylesheet).toContain("size: A4");
+    expect(stylesheet).toContain("break-before: page");
+    expect(stylesheet).toContain("table-header-group");
+    expect(stylesheet).toContain("break-inside: avoid");
+    expect(stylesheet).toContain("overflow: visible");
+    expect(stylesheet).not.toMatch(/#shopping-request-print\s*\{[^}]*overflow:\s*hidden/s);
+  });
+});

@@ -30,22 +30,21 @@ function methodColor(name: string): string {
 }
 
 export const PaymentBreakdownCard: React.FC<PaymentBreakdownCardProps> =
-  React.memo(function PaymentBreakdownCard({ rows, totalRevenue, loading }) {
+  React.memo(function PaymentBreakdownCard({ rows, loading }) {
     const sorted = useMemo(
-      () => [...rows].sort((a, b) => b.revenue - a.revenue),
+      () => [...rows].sort((a, b) => b.collected - a.collected),
       [rows],
     );
     const denom = useMemo(() => {
-      if (totalRevenue > 0) return totalRevenue;
-      return rows.reduce((sum, r) => sum + r.revenue, 0);
-    }, [rows, totalRevenue]);
+      return rows.reduce((sum, row) => sum + row.collected, 0);
+    }, [rows]);
 
     return (
       <section className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
         <header className="px-5 py-4 border-b border-surface-100 flex items-center gap-2">
           <span className="w-1.5 h-5 rounded-full bg-brand-500" aria-hidden="true" />
           <h2 className="text-sm font-semibold text-surface-900">
-            Metode Pembayaran
+            Uang Diterima per Metode Pembayaran
           </h2>
           {!loading && sorted.length > 0 && (
             <span className="ml-auto text-[11px] font-medium text-surface-500">
@@ -60,11 +59,11 @@ export const PaymentBreakdownCard: React.FC<PaymentBreakdownCardProps> =
           ) : sorted.length > 0 ? (
             <div
               role="img"
-              aria-label="Komposisi revenue per metode pembayaran"
+              aria-label="Komposisi penerimaan per metode pembayaran"
               className="flex h-3 rounded-full overflow-hidden border border-surface-200"
             >
               {sorted.map((row) => {
-                const pct = denom > 0 ? (row.revenue / denom) * 100 : 0;
+                const pct = denom > 0 ? (row.collected / denom) * 100 : 0;
                 if (pct <= 0) return null;
                 return (
                   <span
@@ -96,7 +95,7 @@ export const PaymentBreakdownCard: React.FC<PaymentBreakdownCardProps> =
           ) : (
             <ul className="divide-y divide-surface-100">
               {sorted.map((row) => {
-                const pct = denom > 0 ? (row.revenue / denom) * 100 : 0;
+                const pct = denom > 0 ? (row.collected / denom) * 100 : 0;
                 return (
                   <li
                     key={row.method}
@@ -113,15 +112,12 @@ export const PaymentBreakdownCard: React.FC<PaymentBreakdownCardProps> =
                           {row.method}
                         </p>
                         <p className="text-sm font-semibold text-surface-900 tabular-nums shrink-0">
-                          {formatRupiah(row.revenue)}
+                          {formatRupiah(row.collected)}
                         </p>
                       </div>
                       <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-surface-500">
                         <span>
                           {row.transactionCount} transaksi · {pct.toFixed(1)}%
-                        </span>
-                        <span className="tabular-nums font-semibold text-emerald-700">
-                          {formatRupiah(row.collected)} terkumpul
                         </span>
                       </div>
                     </div>

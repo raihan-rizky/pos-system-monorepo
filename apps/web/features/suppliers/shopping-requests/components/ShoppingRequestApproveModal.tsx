@@ -24,6 +24,7 @@ import {
   approveShoppingRequestItemWithQuantity,
   parseApprovedQuantity,
 } from "../helpers/shopping-request-inline-approval";
+import { finishShoppingRequest } from "../helpers/shopping-request-completion";
 import type {
   ShoppingRequestDetail,
   ShoppingRequestItemDecisionStatus,
@@ -180,23 +181,27 @@ export function ShoppingRequestApproveModal({
     if (!confirmation.confirmed) return;
     setActionError(null);
     try {
-      await approveAllShoppingRequestItemsWithQuantities(
-        {
-          requestId: detail.id,
-          items: pendingRows.map((row) => ({
-            id: row.id,
-            approvedQty:
-              parseApprovedQuantity(row.approvedQtyInput) as number,
-          })),
-          canSetApprovedQty,
-          confirmOverRequested: confirmation.hasOverage,
-        },
-        {
-          saveQuantities: (variables) =>
-            saveApprovedQuantities.mutateAsync(variables),
-          approveItem: (variables) => approveItem.mutateAsync(variables),
-          approveAll: (variables) => approveAll.mutateAsync(variables),
-        },
+      await finishShoppingRequest(
+        () =>
+          approveAllShoppingRequestItemsWithQuantities(
+            {
+              requestId: detail.id,
+              items: pendingRows.map((row) => ({
+                id: row.id,
+                approvedQty:
+                  parseApprovedQuantity(row.approvedQtyInput) as number,
+              })),
+              canSetApprovedQty,
+              confirmOverRequested: confirmation.hasOverage,
+            },
+            {
+              saveQuantities: (variables) =>
+                saveApprovedQuantities.mutateAsync(variables),
+              approveItem: (variables) => approveItem.mutateAsync(variables),
+              approveAll: (variables) => approveAll.mutateAsync(variables),
+            },
+          ),
+        onClose,
       );
     } catch (cause) {
       setActionError(

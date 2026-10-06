@@ -68,6 +68,7 @@ const receivingQueue = {
           productName: "Kertas A4",
           sku: "KRT-A4",
           unit: "rim",
+          currentCostPrice: 12_500,
           orderedQuantity: 10,
           approvedReceivedQuantity: 2,
           pendingReservedQuantity: 3,
@@ -89,6 +90,7 @@ const receivingQueue = {
           productName: "Tinta Hitam",
           sku: "TNT-H",
           unit: "botol",
+          currentCostPrice: null,
           orderedQuantity: 8,
           approvedReceivedQuantity: 2,
           pendingReservedQuantity: 0,
@@ -217,6 +219,36 @@ describe("InboundReceiptModal", () => {
     expect(html).toMatch(
       /data-goods-purchase-id="gp-2"[^>]*aria-pressed="true"/,
     );
+  });
+
+  it("defaults the supplier modal input from the current product cost", () => {
+    const getLineInput = (
+      inboundReceiptModalModule as typeof inboundReceiptModalModule & {
+        getInboundReceiptLineInput?: (input: {
+          lineInputs: Record<string, unknown>;
+          itemId: string;
+          currentCostPrice: number | null;
+        }) => { supplierCostPrice: string };
+      }
+    ).getInboundReceiptLineInput;
+
+    expect(getLineInput).toBeTypeOf("function");
+    if (!getLineInput) return;
+
+    expect(
+      getLineInput({
+        lineInputs: {},
+        itemId: "gpi-1",
+        currentCostPrice: 12_500,
+      }).supplierCostPrice,
+    ).toBe("12500");
+    expect(
+      getLineInput({
+        lineInputs: {},
+        itemId: "gpi-2",
+        currentCostPrice: null,
+      }).supplierCostPrice,
+    ).toBe("");
   });
 
   it("validates finite received quantities, bounds, and conditional notes", () => {

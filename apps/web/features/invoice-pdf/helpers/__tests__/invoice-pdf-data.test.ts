@@ -153,6 +153,22 @@ describe("computeTotals", () => {
     expect(totals.balanceLabel).toBe("SISA");
   });
 
+  test("computes completed Tempo as a receivable, not as cash or a down payment", () => {
+    const txn = makeTransaction({
+      total: 100000,
+      amountPaid: 25000,
+      change: 0,
+      status: "COMPLETED",
+      paymentMethod: "TEMPO",
+    });
+    const totals = computeTotals(txn);
+
+    expect(totals.remaining).toBe(75000);
+    expect(totals.paymentLabel).toBe("TEMPO/TAGIHAN");
+    expect(totals.balanceLabel).toBe("SISA TAGIHAN");
+    expect(totals.paymentsList).toEqual([]);
+  });
+
   test("computes VOIDED transaction totals", () => {
     const txn = makeTransaction({ status: "VOIDED" });
     const totals = computeTotals(txn);
@@ -234,6 +250,24 @@ describe("buildInvoicePdfData", () => {
     expect(data.items[0].quantity).toBe(10);
     expect(data.items[0].unitPriceFormatted).toBe("5.000");
     expect(data.items[0].subtotalFormatted).toBe("50.000");
+  });
+
+  test("labels an unpaid Tempo invoice and keeps actual payment methods separate", () => {
+    const txn = makeTransaction({
+      total: 100000,
+      amountPaid: 25000,
+      change: 0,
+      status: "COMPLETED",
+      paymentMethod: "TEMPO",
+      payments: [{ method: "CASH", amount: 25000 }],
+    });
+    const data = buildInvoicePdfData(txn, DEFAULT_STORE);
+
+    expect(data.status.label).toBe("BELUM LUNAS");
+    expect(data.paymentTermsLabel).toBe("TEMPO/TAGIHAN");
+    expect(data.isTempo).toBe(true);
+    expect(data.totals.remaining).toBe(75000);
+    expect(data.totals.paymentsList.map((payment) => payment.label)).toEqual(["TUNAI"]);
   });
 
   test("uses invoiceDate instead of createdAt for printed invoice date", () => {
