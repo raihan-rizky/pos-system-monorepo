@@ -22,6 +22,7 @@ const productStockGroupUpdateManyMock = vi.hoisted(() => vi.fn());
 const productStockGroupFindFirstMock = vi.hoisted(() => vi.fn());
 const customerUpdateManyMock = vi.hoisted(() => vi.fn());
 const transactionRowLockMock = vi.hoisted(() => vi.fn());
+const stockRowLockMock = vi.hoisted(() => vi.fn(async (_strings: TemplateStringsArray, id: string) => [{ id }]));
 
 vi.mock("next/server", async () => {
   const actual = await vi.importActual<typeof import("next/server")>("next/server");
@@ -297,6 +298,7 @@ describe("DELETE /api/transactions/[id]", () => {
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
         $queryRawUnsafe: transactionRowLockMock,
+        $queryRaw: stockRowLockMock,
         transaction: {
           findUnique: transactionFindUniqueMock,
           findFirst: transactionFindUniqueMock,

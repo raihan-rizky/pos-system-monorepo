@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { netInitialPayments } from "@/features/customer-debt/helpers/net-initial-payments";
 
 const afterMock = vi.hoisted(() => vi.fn());
 vi.mock("@/features/invoice-date/services/internet-clock", () => ({ getInvoiceNow: async () => new Date() }));
@@ -195,6 +196,25 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
       }),
     );
     expect(queryRawMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { label: "cash", payments: undefined },
+    { label: "split tender", payments: [{ method: "TRANSFER", amount: 80000 }, { method: "CASH", amount: 70000 }] },
+  ])("records gross receipts and counts change once for $label overpayment", async ({ payments }) => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft-1/approve-draft", {
+      method: "POST",
+      body: JSON.stringify({ paymentMethod: "CASH", amountPaid: 150000, payments }),
+    }), { params: Promise.resolve({ id: "draft-1" }) });
+
+    expect(response.status).toBe(200);
+    const header = transactionUpdateManyMock.mock.calls[0][0].data;
+    const rows = transactionPaymentCreateManyMock.mock.calls[0][0].data;
+    expect(netInitialPayments(rows, header).reduce((sum, row) => sum + row.amount, 0)).toBe(100000);
+    expect(header).toMatchObject({ amountPaid: 150000, change: 50000 });
+    expect(rows.reduce((sum: number, row: { amount: number }) => sum + row.amount, 0)).toBe(150000);
+    expect(customerUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ totalSpent: { increment: 100000 } }) }));
   });
 
   it("returns 409 when the row is no longer DRAFT", async () => {

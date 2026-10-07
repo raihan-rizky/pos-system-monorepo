@@ -179,6 +179,62 @@ describe.skipIf(!enabled)("real PostgreSQL lifecycle races", () => {
     expect(await balances()).toEqual({ orders: 0, spent: 0, debt: 0, stock: 10 });
   }, 60000);
 
+  it.each(["VOID", "DELETE"] as const)("concurrent %s of different invoices restores opposite-order product lines without deadlock", async (action) => {
+    const secondProductId = `review-product-${action}`;
+    await client.product.create({ data: { id: secondProductId, sku: `REVIEW-${action}`, name: "Produk Uji Kedua", categoryId: "review-category", storeId, price: 100, stock: 8 } });
+    await client.product.update({ where: { id: "review-product" }, data: { stock: 8 } });
+    const productOrders = [["review-product", secondProductId], [secondProductId, "review-product"]];
+    for (const [index, products] of productOrders.entries()) {
+      const id = `opposite-invoice-${index}`;
+      await client.transaction.create({ data: {
+        id, invoiceNumber: `INV-OPPOSITE-${action}-${index}`, storeId, subtotal: 200, total: 200,
+        paymentMethod: "CASH", amountPaid: 200, status: "COMPLETED", stockDeductionSource: "TRANSACTION", cashierId: actor.id,
+        items: { create: products.map((productId) => ({ productId, productName: productId, quantity: 1, unitPrice: 100, subtotal: 100 })) },
+      } });
+      for (const [position, productId] of products.entries()) {
+        await client.inventoryLog.create({ data: {
+          productId, type: "OUT", reason: "SALE", quantity: 1, createdBy: actor.id,
+          transactionId: id, sourceTransactionRef: id, stockBaseDelta: -1, unitMultiplierSnapshot: 1,
+          createdAt: new Date(Date.UTC(2026, 9, 7, 0, 0, position)),
+        } });
+      }
+    }
+    const entered = latch();
+    let invoiceLocks = 0;
+    const run = (connection: PrismaClient, index: number) => connection.$transaction(async (tx) => {
+      let firstStockWrite = true;
+      const wrapped = new Proxy(tx, { get(target, property) {
+        if (property === "$queryRawUnsafe") return async (...args: any[]) => {
+          const result = await (target.$queryRawUnsafe as any)(...args);
+          if (String(args[0]).includes("pos_transactions")) {
+            if (++invoiceLocks === 2) entered.release();
+            await entered.promise;
+          }
+          return result;
+        };
+        if (property === "product") return new Proxy(target.product, { get(delegate, operation) {
+          if (operation === "updateMany") return async (args: any) => {
+            const result = await delegate.updateMany(args);
+            // Let an opposite-order writer take its first row lock on the old implementation.
+            if (firstStockWrite) { firstStockWrite = false; await new Promise((done) => setTimeout(done, 200)); }
+            return result;
+          };
+          const value = Reflect.get(delegate, operation);
+          return typeof value === "function" ? value.bind(delegate) : value;
+        } });
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      } });
+      return reverse(wrapped, { storeId, transactionId: `opposite-invoice-${index}`, actor, action });
+    }, { timeout: 60000 });
+
+    expect(await Promise.all([run(client, 0), run(competing, 1)])).toEqual(["APPLIED", "APPLIED"]);
+    const products = await client.product.findMany({ where: { id: { in: productOrders[0] } } });
+    expect(products.map((product) => product.stock)).toEqual([10, 10]);
+    expect(await client.transactionLifecycleAudit.count({ where: { action } })).toBe(2);
+    expect(await client.inventoryLog.count({ where: { reason: "SALE_RETURN" } })).toBe(4);
+  }, 60000);
+
   it("bulk customer allocation and invoice payment serialize and reject overpayment", async () => {
     await fixture(true);
     const locked = latch(); const release = latch(); const entered = latch();

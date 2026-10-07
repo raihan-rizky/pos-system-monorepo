@@ -10,6 +10,7 @@ const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
+const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
 const productCostFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
@@ -97,6 +98,7 @@ describe("POST /api/offline-sync/transactions", () => {
     salespersonFindFirstMock.mockResolvedValue(null);
     pricingRuleFindManyMock.mockResolvedValue([]);
     transactionCountMock.mockResolvedValue(0);
+    transactionFindManyMock.mockReset().mockResolvedValue([]);
     transactionCreateMock.mockResolvedValue({ id: "tx-1" });
     productCostFindManyMock.mockResolvedValue([
       { id: "product-1", costPrice: 500 },
@@ -106,6 +108,7 @@ describe("POST /api/offline-sync/transactions", () => {
       callback({
         transaction: {
           count: transactionCountMock,
+          findMany: transactionFindManyMock,
           create: transactionCreateMock,
         },
         product: { findMany: productCostFindManyMock },
@@ -143,6 +146,44 @@ describe("POST /api/offline-sync/transactions", () => {
         message: "Already synced",
       },
     ]);
+  });
+
+  it("allocates distinct invoice numbers for a historical offline backlog", async () => {
+    const invoices: Array<{ invoiceNumber: string; createdAt: Date }> = [];
+    transactionCountMock.mockImplementation(async ({ where }) => invoices.filter((row) =>
+      where.createdAt ? row.createdAt >= where.createdAt.gte : row.invoiceNumber.startsWith(where.invoiceNumber.startsWith),
+    ).length);
+    transactionFindManyMock.mockImplementation(async ({ where }) => invoices.filter((row) => row.invoiceNumber.startsWith(where.invoiceNumber.startsWith)));
+    transactionCreateMock.mockImplementation(async ({ data }) => {
+      if (invoices.some((row) => row.invoiceNumber === data.invoiceNumber)) {
+        throw { code: "P2002", meta: { target: ["invoiceNumber"] } };
+      }
+      invoices.push(data);
+      return { id: `tx-${invoices.length}` };
+    });
+
+    const response = await POST(request([offlineTx(), offlineTx({ clientMutationId: "offline-2" })]));
+    const body = await response.json();
+    expect(body.results.map((row: { status: string }) => row.status)).toEqual(["PENDING_APPROVAL", "PENDING_APPROVAL"]);
+    expect(new Set(invoices.map((row) => row.invoiceNumber)).size).toBe(2);
+  });
+
+  it("uses the highest invoice sequence across stores even when numbering has gaps", async () => {
+    const prefix = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-`;
+    transactionFindManyMock.mockResolvedValue([{ invoiceNumber: `${prefix}0001` }, { invoiceNumber: `${prefix}0003` }]);
+    await POST(request([offlineTx()]));
+    expect(transactionCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ invoiceNumber: `${prefix}0004` }) }));
+    expect(transactionFindManyMock).toHaveBeenCalledWith({ where: { invoiceNumber: { startsWith: prefix } }, select: { invoiceNumber: true } });
+  });
+
+  it("retries an invoice-number collision without treating it as a duplicate offline mutation", async () => {
+    transactionCreateMock.mockRejectedValueOnce({ code: "P2002", meta: { target: ["invoiceNumber"] } });
+    const response = await POST(request([offlineTx()]));
+    const body = await response.json();
+    expect(body.results[0].status).toBe("PENDING_APPROVAL");
+    expect(transactionCreateMock).toHaveBeenCalledTimes(2);
+    const numbers = transactionCreateMock.mock.calls.map(([args]) => args.data.invoiceNumber);
+    expect(numbers[0]).not.toBe(numbers[1]);
   });
 
   it("keeps later batch items reportable when one item fails with a final error", async () => {

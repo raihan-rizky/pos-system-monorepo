@@ -221,7 +221,9 @@ export async function POST(
 
     const savedPayments = (transaction.payments ?? []).filter((payment) => payment.method !== "TEMPO" && Number(payment.amount) > 0);
     const savedAmount = savedPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-    const preserveSavedPayments = parsed.data.paymentMethod === undefined && parsed.data.amountPaid === undefined && Math.abs(savedAmount - finalAmountPaid) < 0.01;
+    const preserveSavedPayments =
+      (parsed.data.paymentMethod === undefined || parsed.data.paymentMethod === transaction.paymentMethod) &&
+      Math.abs(savedAmount - finalAmountPaid) < 0.01;
     const actualMethod = paymentMethod === "TEMPO"
       ? transaction.paymentMethod !== "TEMPO" ? transaction.paymentMethod : savedPayments[0]?.method ?? "CASH"
       : paymentMethod;

@@ -1,4 +1,5 @@
 import type { Prisma } from "@pos/db";
+import { lockStockMutationRows } from "@/features/product-stock-groups/stock-group-lock";
 import { collectStockItems, planOutstandingReturns } from "../helpers/stock-lifecycle";
 
 export type TransactionReversalAction = "VOID" | "DELETE";
@@ -430,6 +431,19 @@ async function restoreStock(
 ): Promise<Array<Record<string, unknown>>> {
   const logs: Array<Record<string, unknown>> = [];
   const stockResults: Array<Record<string, unknown>> = [];
+
+  // Match the group-first, sorted product order used by other stock writers.
+  const locks = await lockStockMutationRows(tx, {
+    storeId: input.storeId,
+    stockGroupIds: returns.flatMap((item) => item.stockGroupIdSnapshot ? [item.stockGroupIdSnapshot] : []),
+    productIds: returns.map((item) => item.productId),
+  });
+  if (
+    locks.lockedStockGroupIds.length !== locks.stockGroupIds.length ||
+    locks.lockedProductIds.length !== locks.productIds.length
+  ) {
+    throw new TransactionReversalConflictError();
+  }
 
   for (const item of returns) {
     const amount = item.baseDelta;

@@ -51,6 +51,10 @@ vi.mock("@/lib/push-events", () => ({
   sendRolePushEvent: sendRolePushEventMock,
 }));
 
+vi.mock("@/features/invoice-date/services/internet-clock", () => ({
+  getInvoiceNow: async () => new Date("2026-05-23T03:00:00Z"),
+}));
+
 vi.mock("@pos/db", () => ({
   db: {
     customer: {
@@ -93,12 +97,7 @@ describe("POST /api/transactions printing service items", () => {
       storeId: "store-main",
       name: "Cashier One",
     });
-    requirePermissionMock.mockResolvedValue({
-      id: "cashier-1",
-      role: "CASHIER",
-      storeId: "store-main",
-      name: "Cashier One",
-    });
+    requirePermissionMock.mockImplementation(async () => requireRoleMock());
     handleAuthErrorMock.mockReturnValue(null);
     canRolePerformActionMock.mockReturnValue(true);
     getGlobalRolePermissionsMock.mockResolvedValue([]);

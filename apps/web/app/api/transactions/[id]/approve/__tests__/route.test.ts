@@ -191,6 +191,23 @@ describe("POST /api/transactions/[id]/approve", () => {
     });
   });
 
+  it("preserves split tender when the approval modal resubmits unchanged payment fields", async () => {
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({ ...current, payments: [
+      { method: "CASH", amount: 20000 },
+      { method: "TRANSFER", amount: 30000 },
+    ] });
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({ paymentMethod: "TRANSFER", amountPaid: 50000 }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+
+    expect(response.status).toBe(200);
+    expect(paymentCreateManyMock).toHaveBeenCalledWith({ data: [
+      { transactionId: "tx-1", method: "CASH", amount: 20000 },
+      { transactionId: "tx-1", method: "TRANSFER", amount: 30000 },
+    ] });
+  });
+
   it("commits the final initial-payment ledger when approval changes the tender", async () => {
     afterMock.mockImplementation(() => undefined);
     const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", { method: "POST", body: JSON.stringify({ paymentMethod: "CASH", amountPaid: 60000 }) }), { params: Promise.resolve({ id: "tx-1" }) });

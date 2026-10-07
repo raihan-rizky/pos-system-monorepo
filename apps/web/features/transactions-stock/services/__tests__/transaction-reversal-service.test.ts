@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { reverseTransaction } from "../transaction-reversal-service";
+import { reverseTransaction, TransactionReversalConflictError } from "../transaction-reversal-service";
 
 const transaction = {
   id: "tx-1",
@@ -181,6 +181,7 @@ function makeTx(options?: {
   const current = options?.current ?? transaction;
   return {
     $queryRawUnsafe: vi.fn().mockResolvedValue([{ id: current.id }]),
+    $queryRaw: vi.fn().mockImplementation(async (_strings: TemplateStringsArray, id: string) => [{ id }]),
     transaction: {
       findFirst: vi.fn().mockResolvedValue(current),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -224,6 +225,27 @@ function makeTx(options?: {
 }
 
 describe("reverseTransaction", () => {
+  it("locks all snapshot groups then sorted products before any stock return", async () => {
+    const tx = makeTx();
+    await reverseTransaction(tx as never, { transactionId: transaction.id, storeId: "store-1", actor: { id: "owner-1", name: "Owner", role: "OWNER" }, action: "VOID" });
+    expect(tx.$queryRaw.mock.calls.map(([strings, id]) => [strings.join(""), id])).toEqual([
+      [expect.stringContaining("pos_product_stock_groups"), "paper-group"],
+      [expect.stringContaining("pos_products"), "finished-paper"],
+      [expect.stringContaining("pos_products"), "raw-paper"],
+    ]);
+    const lastLock = tx.$queryRaw.mock.invocationCallOrder.at(-1)!;
+    expect(lastLock).toBeLessThan(tx.product.updateMany.mock.invocationCallOrder[0]);
+    expect(lastLock).toBeLessThan(tx.productStockGroup.updateMany.mock.invocationCallOrder[0]);
+  });
+
+  it("rejects missing stock lock targets before returning any stock", async () => {
+    const tx = makeTx();
+    tx.$queryRaw.mockResolvedValueOnce([]);
+    await expect(reverseTransaction(tx as never, { transactionId: transaction.id, storeId: "store-1", actor: { id: "owner-1", name: "Owner", role: "OWNER" }, action: "VOID" })).rejects.toBeInstanceOf(TransactionReversalConflictError);
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.productStockGroup.updateMany).not.toHaveBeenCalled();
+  });
+
   it("locks the customer before the invoice to serialize reversal with debt collections", async () => {
     const tx = makeTx();
     await reverseTransaction(tx as never, { transactionId: transaction.id, storeId: "store-1", actor: { id: "owner-1", name: "Owner", role: "OWNER" }, action: "VOID" });

@@ -5,6 +5,7 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { buildOfflineSyncDecision } from "@/lib/offline/offline-sync-core";
 import { applyProductStockDeltas } from "@/features/product-stock-groups/stock-mutations";
 import { buildTransactionStockJournal } from "@/features/transactions-stock/helpers/transaction-stock-journal";
+import { parseDocumentSequence } from "@/features/invoice-date/helpers/invoice-date-core";
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
@@ -365,134 +366,151 @@ async function createSyncedTransaction({
   appliedPricingByProductId: Map<string, AppliedCategoryPricing | null>;
   catalogPriceByProductId: Map<string, number>;
 }) {
-  return db.$transaction(async (tx: TxClient) => {
-    const isPendingApproval = decision.transactionStatus === "PENDING_APPROVAL";
-    const amountPaid = isPendingApproval ? 0 : Math.min(txData.amountPaid, decision.total);
-    if (!isPendingApproval && txData.customerId) {
-      await tx.customer.update({
-        where: { id: txData.customerId },
-        data: {
-          totalOrders: { increment: 1 }, totalSpent: { increment: amountPaid },
-          lastVisitAt: new Date(),
-        },
-      });
-    }
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const count = await tx.transaction.count({
-      where: { storeId, createdAt: { gte: dayStart } },
-    });
-    const invoiceNumber = `INV-${dateStr}-${String(count + 1).padStart(4, "0")}`;
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const invoicePrefix = `INV-${dateStr}-`;
+  const maxAttempts = 5;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await db.$transaction(async (tx: TxClient) => {
+        const isPendingApproval = decision.transactionStatus === "PENDING_APPROVAL";
+        const amountPaid = isPendingApproval ? 0 : Math.min(txData.amountPaid, decision.total);
+        if (!isPendingApproval && txData.customerId) {
+          await tx.customer.update({
+            where: { id: txData.customerId },
+            data: {
+              totalOrders: { increment: 1 }, totalSpent: { increment: amountPaid },
+              lastVisitAt: new Date(),
+            },
+          });
+        }
+        // The invoice key is globally unique and independent of captured createdAt.
+        const invoices = await tx.transaction.findMany({
+          where: { invoiceNumber: { startsWith: invoicePrefix } },
+          select: { invoiceNumber: true },
+        });
+        const highestSequence = invoices.reduce(
+          (highest, row) => Math.max(highest, parseDocumentSequence(row.invoiceNumber) ?? 0),
+          0,
+        );
+        const invoiceNumber = `${invoicePrefix}${String(highestSequence + 1 + attempt).padStart(4, "0")}`;
 
-    const transaction = await tx.transaction.create({
-      data: {
-        invoiceNumber,
-        storeId,
-        cashierId: user.role === "SALES" || isPendingApproval ? null : user.id,
-        requestedById: user.role === "SALES" || isPendingApproval ? user.id : null,
-        customerId: txData.customerId || null,
-        subtotal: decision.subtotal,
-        discount: txData.discount,
-        tax: 0,
-        total: decision.total,
-        paymentMethod: txData.paymentMethod,
-        amountPaid,
-        change: isPendingApproval ? 0 : Math.max(0, amountPaid - decision.total),
-        status: decision.transactionStatus || "PENDING_APPROVAL",
-        note: buildOfflineNote(txData.note, decision),
-        customerName: txData.customerName || null,
-        salesName: txData.salesName || null,
-        salespersonId: txData.salespersonId || null,
-        isJobOrder: txData.isJobOrder,
-        productionStatus: txData.isJobOrder ? "PRINTING" : null,
-        estimatedDoneAt: txData.estimatedDoneAt ? new Date(txData.estimatedDoneAt) : null,
-        offlineClientMutationId: txData.clientMutationId,
-        offlineOriginalPayload: txData as Prisma.JsonObject,
-        offlineSyncMetadata: {
-          reason: decision.reason,
-          removedItems: decision.removedItems,
-          originalTotal: txData.originalTotal,
-          adjustedTotal: decision.total,
-          timeSource: txData.timeSource ?? "DEVICE_UNVERIFIED",
-        } as Prisma.JsonObject,
-        invoiceDate: new Date(txData.createdAt),
-        createdAt: new Date(txData.createdAt),
-        items: {
-          create: decision.items.map((item) => {
-            const appliedPricing =
-              appliedPricingByProductId.get(item.productId) ?? null;
-            return {
+        const transaction = await tx.transaction.create({
+          data: {
+            invoiceNumber,
+            storeId,
+            cashierId: user.role === "SALES" || isPendingApproval ? null : user.id,
+            requestedById: user.role === "SALES" || isPendingApproval ? user.id : null,
+            customerId: txData.customerId || null,
+            subtotal: decision.subtotal,
+            discount: txData.discount,
+            tax: 0,
+            total: decision.total,
+            paymentMethod: txData.paymentMethod,
+            amountPaid,
+            change: isPendingApproval ? 0 : Math.max(0, amountPaid - decision.total),
+            status: decision.transactionStatus || "PENDING_APPROVAL",
+            note: buildOfflineNote(txData.note, decision),
+            customerName: txData.customerName || null,
+            salesName: txData.salesName || null,
+            salespersonId: txData.salespersonId || null,
+            isJobOrder: txData.isJobOrder,
+            productionStatus: txData.isJobOrder ? "PRINTING" : null,
+            estimatedDoneAt: txData.estimatedDoneAt ? new Date(txData.estimatedDoneAt) : null,
+            offlineClientMutationId: txData.clientMutationId,
+            offlineOriginalPayload: txData as Prisma.JsonObject,
+            offlineSyncMetadata: {
+              reason: decision.reason,
+              removedItems: decision.removedItems,
+              originalTotal: txData.originalTotal,
+              adjustedTotal: decision.total,
+              timeSource: txData.timeSource ?? "DEVICE_UNVERIFIED",
+            } as Prisma.JsonObject,
+            invoiceDate: new Date(txData.createdAt),
+            createdAt: new Date(txData.createdAt),
+            items: {
+              create: decision.items.map((item) => {
+                const appliedPricing =
+                  appliedPricingByProductId.get(item.productId) ?? null;
+                return {
+                  productId: item.productId,
+                  productName: item.name,
+                  size: item.size || null,
+                  material: item.material || null,
+                  quantity: item.quantity,
+                  unitPrice: item.price,
+                  discount: 0,
+                  subtotal: item.price * item.quantity,
+                  pricingRuleId: appliedPricing?.ruleId ?? null,
+                  pricingCustomerType: appliedPricing?.customerType ?? null,
+                  pricingCategoryId: appliedPricing?.categoryId ?? null,
+                  pricingCategoryName: appliedPricing?.categoryName ?? null,
+                  pricingMode: appliedPricing?.mode ?? null,
+                  pricingValue: appliedPricing?.value ?? null,
+                  pricingUnit: appliedPricing?.unit ?? null,
+                  pricingBrandId: appliedPricing?.brandId ?? null,
+                  pricingBrandName: appliedPricing?.brandName ?? null,
+                  originalUnitPrice:
+                    appliedPricing?.originalUnitPrice ??
+                    catalogPriceByProductId.get(item.productId) ??
+                    item.price,
+                  appliedUnitPrice: appliedPricing?.appliedUnitPrice ?? item.price,
+                };
+              }),
+            },
+          },
+          include: { items: true },
+        });
+
+        if (!isPendingApproval) {
+          const stockMovements = await applyProductStockDeltas(tx, {
+            storeId,
+            items: decision.items.map((item) => ({
               productId: item.productId,
-              productName: item.name,
-              size: item.size || null,
-              material: item.material || null,
-              quantity: item.quantity,
-              unitPrice: item.price,
-              discount: 0,
-              subtotal: item.price * item.quantity,
-              pricingRuleId: appliedPricing?.ruleId ?? null,
-              pricingCustomerType: appliedPricing?.customerType ?? null,
-              pricingCategoryId: appliedPricing?.categoryId ?? null,
-              pricingCategoryName: appliedPricing?.categoryName ?? null,
-              pricingMode: appliedPricing?.mode ?? null,
-              pricingValue: appliedPricing?.value ?? null,
-              pricingUnit: appliedPricing?.unit ?? null,
-              pricingBrandId: appliedPricing?.brandId ?? null,
-              pricingBrandName: appliedPricing?.brandName ?? null,
-              originalUnitPrice:
-                appliedPricing?.originalUnitPrice ??
-                catalogPriceByProductId.get(item.productId) ??
-                item.price,
-              appliedUnitPrice: appliedPricing?.appliedUnitPrice ?? item.price,
-            };
-          }),
-        },
-      },
-      include: { items: true },
-    });
+              delta: -item.quantity,
+            })),
+          });
 
-    if (!isPendingApproval) {
-      const stockMovements = await applyProductStockDeltas(tx, {
-        storeId,
-        items: decision.items.map((item) => ({
-          productId: item.productId,
-          delta: -item.quantity,
-        })),
-      });
+          const productIds = decision.items.map((item) => item.productId);
+          const productCosts = await tx.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, costPrice: true },
+          });
+          const costById = new Map(
+            productCosts.map((p) => [
+              p.id,
+              p.costPrice === null ? null : Number(p.costPrice.toString()),
+            ]),
+          );
 
-      const productIds = decision.items.map((item) => item.productId);
-      const productCosts = await tx.product.findMany({
-        where: { id: { in: productIds } },
-        select: { id: true, costPrice: true },
-      });
-      const costById = new Map(
-        productCosts.map((p) => [
-          p.id,
-          p.costPrice === null ? null : Number(p.costPrice.toString()),
-        ]),
-      );
+          await tx.inventoryLog.createMany({
+            data: buildTransactionStockJournal({
+              transactionId: transaction.id,
+              inventoryRows: decision.items.map((item) => ({
+                productId: item.productId,
+                type: "OUT",
+                reason: "SALE",
+                quantity: item.quantity,
+                unitCost: costById.get(item.productId) ?? null,
+                note: `Offline sync ${invoiceNumber}`,
+                createdBy: user.id,
+                person: user.name,
+              })),
+              stockMovements,
+            }),
+          });
+        }
 
-      await tx.inventoryLog.createMany({
-        data: buildTransactionStockJournal({
-          transactionId: transaction.id,
-          inventoryRows: decision.items.map((item) => ({
-            productId: item.productId,
-            type: "OUT",
-            reason: "SALE",
-            quantity: item.quantity,
-            unitCost: costById.get(item.productId) ?? null,
-            note: `Offline sync ${invoiceNumber}`,
-            createdBy: user.id,
-            person: user.name,
-          })),
-          stockMovements,
-        }),
+        return transaction;
       });
+    } catch (error) {
+      const failure = error as { code?: string; meta?: { target?: string | string[] } } | null;
+      const target = failure?.meta?.target;
+      const invoiceCollision = failure?.code === "P2002" &&
+        (Array.isArray(target) ? target.includes("invoiceNumber") : target?.includes("invoiceNumber"));
+      if (!invoiceCollision || attempt === maxAttempts - 1) throw error;
     }
-
-    return transaction;
-  });
+  }
+  throw new Error("Nomor invoice belum dapat dibuat. Silakan coba sinkronisasi kembali.");
 }
 
 function buildOfflineNote(

@@ -184,7 +184,8 @@ export async function POST(
         { status: 422 },
       );
     }
-    const finalAmountPaid = Math.min(amountPaid, total);
+    // Record gross tender; reports subtract the separately recorded change.
+    const finalAmountPaid = amountPaid;
     const submittedPaymentTotal = parsed.data.payments?.reduce(
       (sum, payment) => sum + payment.amount,
       0,
