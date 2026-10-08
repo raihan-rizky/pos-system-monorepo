@@ -333,6 +333,10 @@ describe("DELETE /api/transactions/[id]", () => {
     );
 
     expect(response.status).toBe(204);
+    expect(dbTransactionMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ timeout: 30_000 }),
+    );
     expect(productUpdateManyMock).toHaveBeenCalledWith({
       where: { id: "finished-paper", storeId: "store-main", stockGroupId: null },
       data: { stock: { increment: 2 } },

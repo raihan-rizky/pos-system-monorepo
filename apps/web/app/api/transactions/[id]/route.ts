@@ -241,7 +241,7 @@ export async function PATCH(
           await tx.transaction.update({ where: { id }, data: transactionUpdates });
         }
         return result;
-      });
+      }, { timeout: 30_000 });
       if (outcome === "NOT_FOUND") {
         return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
       }
@@ -338,13 +338,14 @@ export async function DELETE(
     const user = await requirePermission("transaction", "delete");
     const storeId = user.storeId || "store-main";
     ({ id } = await params);
-    const outcome = await db.$transaction((tx) =>
-      reverseTransaction(tx, {
+    const outcome = await db.$transaction(
+      (tx) => reverseTransaction(tx, {
         storeId,
         transactionId: id,
         action: "DELETE",
         actor: { id: user.id, name: user.name ?? null, role: user.role },
       }),
+      { timeout: 30_000 },
     );
     if (outcome === "NOT_FOUND") {
       return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
