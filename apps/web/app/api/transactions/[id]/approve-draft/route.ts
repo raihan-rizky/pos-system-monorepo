@@ -412,7 +412,7 @@ export async function POST(
 
             return { invoiceNumber, items: approved.items };
           },
-          { maxWait: 5000, timeout: 15000 },
+          { maxWait: 5000, timeout: 30_000 },
         );
         break;
       } catch (err) {

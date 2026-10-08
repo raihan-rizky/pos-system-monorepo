@@ -182,6 +182,10 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
     expect(customerUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(transactionUpdateManyMock.mock.invocationCallOrder[0]);
 
     expect(res.status).toBe(200);
+    expect(dbTransactionMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      { maxWait: 5_000, timeout: 30_000 },
+    );
     const body = await res.json();
     expect(body.status).toBe("COMPLETED");
     expect(body.invoiceNumber).toMatch(/^INV-\d{8}-\d{4}$/);
