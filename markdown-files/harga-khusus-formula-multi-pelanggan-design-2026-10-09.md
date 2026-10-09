@@ -10,6 +10,8 @@ Rancangan form satu halaman, daftar aturan ringkas, dan lokasi dokumentasi berik
 
 Pengguna mengoreksi arti modal pada review spesifikasi: modal adalah modal satuan terkecil, misalnya Rp700/pcs. Untuk aturan Modal + Rp4.000 pada Rim, harga hasil adalah Rp4.700/rim. Modal Rp700 dipakai secara langsung dan tidak dikalikan isi satu rim. Koreksi ini menggantikan asumsi modal per satuan target pada versi sebelumnya.
 
+Pengguna juga meminta warna atau badge untuk teks harga ketika Harga Khusus diterapkan. Rancangan menggunakan badge Harga Khusus dengan warna hijau lembut dan penekanan warna pada angka harga efektif, mengikuti komponen dan palette existing.
+
 Dokumen ini adalah spesifikasi desain untuk ditinjau sebelum rencana implementasi dibuat. Belum ada implementasi aplikasi atau migrasi database yang dijalankan pada tahap desain.
 
 ## Hasil yang diharapkan
@@ -118,6 +120,18 @@ Harga pada kartu produk, tombol/dropdown satuan, keranjang, dan pembayaran dihit
 
 Harga efektif ditampilkan sebagai angka utama dengan penanda Harga Khusus jika aturan diterapkan. Detail modal tetap mengikuti permission existing; penambahan rumus tidak membuka akses modal kepada role lain. Perubahan harga tidak mengubah angka jumlah saat pengguna mengganti satuan; perilaku stok/konversi existing dipertahankan.
 
+### Penanda Harga Khusus
+
+Ketika aturan Harga Khusus benar-benar menjadi sumber harga efektif, angka harga memakai `text-emerald-800` dan badge kecil berlabel Harga Khusus memakai `bg-emerald-50`, `text-emerald-800`, serta border `border-emerald-200`. Angka tetap menjadi informasi utama; badge diletakkan di samping atau di bawahnya mengikuti ruang yang tersedia. Label tetap dapat dibaca dan tidak bergantung pada warna saja. Warna hijau yang sudah dipakai aplikasi menandai penerapan aturan, bukan janji bahwa harga selalu lebih murah.
+
+Penanda konsisten pada kartu produk POS, pilihan satuan yang berbentuk tombol, keranjang, pembayaran, serta tabel/grid Produk. Untuk pilihan satuan berbentuk dropdown, teks opsi memuat Harga Khusus pada opsi yang cocok dan badge ditampilkan di samping harga satuan terpilih. Perubahan satuan, pelanggan, modal, atau status aturan memperbarui harga dan penanda secara bersamaan.
+
+Badge bergantung pada sumber harga dari resolver, bukan sekadar selisih dengan harga normal atau keberadaan aturan dalam kategori. Aturan yang menghasilkan harga sama dengan harga normal tetap memiliki penanda jika aturan itu benar-benar diterapkan. Produk yang jatuh ke fallback karena modal satuan terkecil tidak tersedia tidak memiliki badge tersebut. Harga Agen/Dinas menggunakan label sumbernya sendiri; metadata member sintetis `harga-agen` atau `harga-dinas` tidak diklasifikasikan sebagai aturan Harga Khusus.
+
+Harga manual transaksi tetap memakai penanda transaksi existing, sehingga aturan yang dikalahkan override tidak ditampilkan sebagai sumber harga final. Detail rumus/modal hanya tersedia sesuai permission existing. Badge merupakan informasi pasif, bukan tombol. Loading/error data aturan tidak menampilkan badge hasil aturan yang belum berhasil dihitung.
+
+Komponen presentasi dan helper klasifikasi sumber harga dipakai bersama agar label, warna, dan kondisi tampil tidak berbeda antarhalaman. Empty state, harga biasa, dan harga member tetap memakai penanda sumber yang sesuai. Kontras badge/harga, tampilan ponsel, dan pembaca layar ikut diverifikasi.
+
 Perubahan aturan atau modal satuan terkecil memicu refresh data terkait dan menghitung ulang harga dari data terbaru yang diterima, termasuk harga varian Rim/Dus yang bergantung pada sumber modal tersebut. Keranjang aktif menggunakan modal master satuan terkecil terbaru ketika tersedia, termasuk item yang tidak berada pada halaman katalog POS yang sedang terlihat. Mengubah modal Rim saja tidak mengganti sumber modal rumus selama pcs masih menjadi satuan terkecil grup. Harga manual tetap dipertahankan sesuai perilaku existing.
 
 ### Produk
@@ -158,7 +172,7 @@ Offline POS menghitung dengan sumber modal satuan terkecil dan aturan terakhir y
 
 ## Dokumentasi yang diperbarui saat implementasi
 
-- `apps/web/features/help-documentation/components/HelpContent.tsx`: langkah form sederhana, multi pelanggan, rumus modal satuan terkecil tanpa pengali konversi, preview Produk, dan fallback modal kosong.
+- `apps/web/features/help-documentation/components/HelpContent.tsx`: langkah form sederhana, multi pelanggan, rumus modal satuan terkecil tanpa pengali konversi, preview Produk, arti badge Harga Khusus, dan fallback modal kosong.
 - `apps/web/features/ai-assistant/workflows/workflow-catalog.ts`: langkah Harga Khusus dan alias rumus modal/multi pelanggan.
 - `apps/web/features/ai-assistant/docs/help/faq.md`, `products.md`, dan `pos.md`: petunjuk yang sesuai dengan UI dan urutan harga saat ini.
 - Dokumentasi implementasi bertanggal di `markdown-files`.
@@ -181,6 +195,8 @@ TDD wajib: tes yang membuktikan perilaku baru harus ditulis dan dijalankan gagal
 10. Pilihan Harga untuk di Produk mengubah harga tampilan tabel/grid sesuai resolver dan tidak mengubah data master.
 11. API online/draft/offline mengabaikan modal otomatis dari browser dan menghitung harga dari record master satuan terkecil terkait, walaupun pcs tidak ada dalam keranjang. Snapshot biaya dan margin existing tetap memakai biaya akuntansi satuan target; total drift offline mengikuti alur existing.
 12. Bantuan dan workflow AI menyebut langkah dan perilaku yang sudah diimplementasikan.
+13. Badge/warna Harga Khusus muncul hanya ketika aturan menjadi sumber harga final, termasuk ketika nilai harga hasil sama dengan harga normal. Harga fallback, harga Agen/Dinas, dan override manual tidak keliru diberi label sebagai aturan Harga Khusus. Pergantian pelanggan/satuan atau aturan dinonaktifkan memperbarui penanda di seluruh permukaan harga.
+14. Teks badge tetap dapat dibaca tanpa mengandalkan warna, mempunyai kontras yang memadai, dan tidak mengganggu layout ponsel. Opsi dropdown memiliki teks sumber harga yang konsisten dengan badge harga terpilih.
 
 Validasi akhir memakai suite Vitest terkait, TypeScript tanpa emit, ESLint langsung pada file yang berubah, pemeriksaan diff, dan pengujian browser pada development server yang sudah dikelola pengguna. Tidak menjalankan `pnpm build` atau task lint yang bergantung pada production build. Tidak memulai atau menghentikan development server.
 
