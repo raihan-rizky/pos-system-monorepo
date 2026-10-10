@@ -193,16 +193,16 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 8. Di Supplier > Pembelian Barang, gunakan **Barang Sudah Diterima?** untuk membuka modal dengan PB langsung terpilih, atau **Lihat Riwayat Penerimaan Barang** untuk membuka riwayat terfilter. Status PB menjadi **BARANG DITERIMA SEBAGIAN** atau **BARANG DITERIMA**; klik baris untuk membandingkan jumlah dipesan, diterima, pending, dan sisa.
 
 ### Q19: Bagaimana cara membuat Daftar Belanja kebutuhan toko ke supplier?
-**A:** Gunakan Daftar Belanja untuk mencatat kebutuhan dan estimasi biayanya tanpa mengubah stok:
+**A:** Daftar Belanja baru memakai satu persetujuan untuk menetapkan jumlah dan harga beli:
 1. Buka menu **Supplier**, lalu pilih tab **Daftar Belanja** dan klik **Buat Daftar Belanja**.
 2. Pilih supplier tujuan yang wajib diisi. Jika belum ada, isi nama dan tipe pada tambah supplier cepat; supplier baru otomatis terpilih.
-3. Cari produk melalui nama atau SKU. Gunakan thumbnail, unit, dan stok yang tampil untuk memastikan produk benar.
-4. Masukkan jumlah kebutuhan, tambahkan catatan bila perlu, lalu klik **Simpan Daftar Belanja**. Status menjadi **Diajukan**. Pembuatan dan approval daftar belanja tidak mengubah stok atau membuat Pengeluaran.
-5. Sebelum ada item yang diputuskan, Owner atau role dengan izin `supplier.shopping_request.edit:update` dapat memakai **Edit** untuk mengganti supplier, produk, jumlah kebutuhan, dan catatan.
-6. Owner atau role dengan izin `supplier.shopping_request.set_approved_qty:update` dapat memakai **Isi Jumlah yang Di-ACC** atau mengisi langsung di modal **Setujui Daftar Belanja**. Modal menampilkan **Kebutuhan Belanja** sebagai pembanding; input awal kosong jika belum pernah disimpan. Approver tanpa izin quantity melihat nilai secara read-only.
-7. Pengguna dengan izin `supplier.shopping_request.approve_stock:update` membuka **Setujui**, mengisi jumlah bila juga berwenang, lalu memeriksa **Estimasi pengeluaran** dari harga modal. Jumlah di atas kebutuhan memerlukan satu konfirmasi; item tanpa harga modal dihitung Rp0 dan diberi peringatan.
-8. Klik **Setujui Item** untuk memproses satu barang atau setujui semua item yang masih menunggu sekaligus. Jumlah yang baru diisi disimpan terlebih dahulu, lalu approval dijalankan. Nilai 0 menjadi **Tidak Disetujui**. Approval hanya mencatat keputusan, tanpa membuat Pengeluaran, mengubah stok, atau membuat log restock. Keputusan item bersifat final, dan daftar tetap **Diajukan** selama masih ada item menunggu.
-9. Setelah item terakhir diproses, daftar selesai otomatis dan dapat dipilih sebagai sumber **Pembelian Barang**. Pengeluaran baru dibuat setelah semua produk Pembelian Barang disetujui. Perubahan stok dilakukan melalui proses inventaris yang terpisah.
+3. Cari produk melalui nama atau SKU, isi jumlah, lalu pilih **Satuan** bila ingin memakai varian lain dalam grup stok yang sama. Pergantian tidak mengonversi angka: 12 pcs menjadi 12 dus.
+4. Tambahkan catatan bila perlu, lalu klik **Simpan Daftar Belanja**. Status menjadi **Diajukan**; belum ada Pengeluaran atau perubahan stok.
+5. Pemegang izin `supplier.shopping_request.edit:update` dapat memakai **Tindakan lainnya > Edit daftar** untuk mengubah supplier, produk, satuan, jumlah, atau catatan sebelum diputuskan.
+6. Pemegang izin `supplier.goods_purchase.approve:update` membuka **Tinjau & Setujui**, lalu mengisi **Jumlah**, **Satuan**, dan **Harga Beli** aktual pada satu modal. Harga awal mengikuti HPP master varian; barang tambahan dan pilihan pembaruan HPP juga tersedia.
+7. Jumlah nol berarti barang tidak disetujui. Jumlah di atas kebutuhan memerlukan konfirmasi; minimal satu barang harus disetujui.
+8. Klik **Setujui dan Catat Pembelian** sekali. Daftar dan Pembelian Barang langsung disetujui, lalu satu **Pengeluaran kategori Bahan** dibuat. Stok baru berubah setelah Penerimaan Barang disetujui.
+9. Pemegang izin `supplier.goods_purchase.reject:update` dapat menolak seluruh daftar dengan alasan. Penolakan tidak membuat Pembelian Barang atau Pengeluaran.
 
 ### Q28: Bagaimana cara melakukan Check In dan Check Out (Day Session) bagi Staf Gudang?
 **A:** Staf gudang wajib mengelola operasional harian melalui alur sesi (Day Session):
@@ -317,8 +317,8 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 6. Inbox tetap tersimpan di server walaupun izin browser push tidak aktif. Browser push dan suara hanya menjadi channel tambahan sesuai pengaturan perangkat.
 
 ### Q38: Bagaimana cara mengajukan dan memutuskan Pembelian Barang?
-**A:** Gunakan Pembelian Barang untuk mencatat pembelian aktual setelah Daftar Belanja disetujui:
-1. Buka **Supplier > Pembelian Barang**, lalu klik **Buat Pembelian Barang**.
+**A:** Pembelian Barang baru dibuat otomatis saat Daftar Belanja disetujui. Untuk menyelesaikan Pembelian Barang lama:
+1. Buka **Supplier > Daftar Belanja**. Pada kartu daftar lama yang sudah disetujui tanpa pembelian, klik **Lengkapi Pembelian Lama**.
 2. Pilih **Daftar Belanja yang sudah disetujui**. Supplier dan seluruh produk yang di-ACC muncul otomatis. Satu Daftar Belanja hanya dapat memiliki satu pembelian PENDING atau APPROVED; jika pembelian ditolak, daftar dapat dipilih kembali.
 3. Periksa jumlah setiap produk. Nilai awal mengikuti jumlah yang di-ACC. Isi **harga produk terbaru** yang nilai awalnya memakai HPP master.
 4. Jika harga terbaru berbeda dari HPP master, tentukan per produk apakah sistem perlu **update HPP**. Periksa **Total pengeluaran**, lalu klik **Ajukan Pembelian Barang**. Status awalnya **PENDING**.

@@ -14,6 +14,25 @@ function featureSource(file: string) {
 }
 
 describe("Daftar Belanja UI", () => {
+  it("keeps unit choices beside quantities and finalizes the new flow in one modal", () => {
+    expect(source("ShoppingRequestCreateModal.tsx")).toContain("ShoppingRequestUnitSelect");
+    expect(source("ShoppingRequestEditModal.tsx")).toContain("ShoppingRequestUnitSelect");
+    const approval = source("ShoppingRequestFinalApprovalModal.tsx");
+    expect(approval).toContain("ShoppingRequestUnitSelect");
+    expect(approval).toContain("Kebutuhan ${line.requestedQty} ${line.requestedUnit}");
+    expect(approval).toContain("Harga Beli");
+    expect(approval).toContain("Setujui dan Catat Pembelian");
+    expect(approval).toContain("useFinalizeShoppingRequest");
+  });
+
+  it("shows purchase history inside Daftar Belanja and redirects the old tab", () => {
+    const list = source("ShoppingRequestList.tsx");
+    const shell = readFileSync(join(process.cwd(), "features/suppliers/components/SupplierPageShell.tsx"), "utf8");
+    expect(list).toContain("row.purchase");
+    expect(list).toContain("GoodsPurchaseDetailModal");
+    expect(shell).toContain('requestedTab === "goods-purchases") return "shopping"');
+    expect(shell).not.toContain('onClick={() => setTab("goods-purchases")}');
+  });
   it("uses the reusable supplier selector without exposing stock controls", () => {
     const content = source("ShoppingRequestCreateModal.tsx");
 
@@ -206,7 +225,7 @@ describe("Daftar Belanja UI", () => {
     );
     expect(content).toContain('className="w-full sm:ml-auto sm:w-auto"');
     expect(content).toContain("xl:flex-row xl:items-center");
-    expect(content).toContain("[&>*]:w-full sm:[&>*]:w-auto");
+    expect(content).toContain("flex flex-col gap-2 sm:min-w-44");
     expect(content).not.toContain("md:flex-row md:items-center");
   });
 });

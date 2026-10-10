@@ -597,7 +597,7 @@ function sumLineTotals(
     .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
-async function finalizeGoodsPurchaseIfReady(
+export async function finalizeGoodsPurchaseIfReady(
   tx: TransactionClient,
   purchaseId: string,
   actor: GoodsPurchaseActor,

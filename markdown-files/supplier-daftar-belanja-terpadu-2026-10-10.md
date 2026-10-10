@@ -1,7 +1,7 @@
 # Daftar Belanja dan Pembelian Barang dalam Satu Persetujuan
 
 **Tanggal:** 2026-10-10
-**Status:** Rancangan disetujui untuk ditinjau sebagai spesifikasi tertulis
+**Status:** Diimplementasikan pada cabang `codex/supplier-shopping-merge`; migrasi database perlu dijalankan saat rilis.
 
 ## Tujuan
 
@@ -46,3 +46,10 @@ Di halaman Supplier, pengguna sekarang menyetujui jumlah pada Daftar Belanja, ke
 - Pengujian ditulis lebih dahulu dan diverifikasi gagal sebelum implementasi: hak akses API; finalisasi atomik; perubahan unit pada item yang telah ditambahkan tanpa mengubah angka jumlah; validasi varian satu grup dan duplikat; jumlah, harga, HPP, dan total Pengeluaran; pengiriman ulang dan konkurensi; penolakan; larangan endpoint lama bagi permohonan baru; keterbacaan riwayat lama; serta alur UI hingga penerimaan.
 - Jalankan pengujian terkait, `pnpm lint`, dan `pnpm type-check`. Jangan menjalankan `pnpm build` atau mengelola proses `pnpm dev` milik pengguna.
 - Perbarui Bantuan di `HelpContent.tsx`, panduan Supplier, katalog workflow AI bila alur panduan berubah, panduan visual, serta dokumentasi fitur di `markdown-files` agar semuanya menerangkan satu persetujuan.
+
+## Catatan implementasi
+
+- Permohonan baru memakai `approvalFlowVersion = 2`; data lama tetap versi 1. Migrasi menambah status `REJECTED` serta pelaku, waktu, dan alasan penolakan.
+- Finalisasi memakai transaksi Prisma yang juga menjalankan finalisasi keuangan Pembelian Barang yang sudah ada. Catatan Pembelian Barang hasil persetujuan dapat langsung dipakai untuk Penerimaan Barang.
+- Riwayat pembelian terdahulu ditampilkan sebagai tindakan sekunder pada kartu Daftar Belanja. Pembelian lama yang ditolak dapat diajukan ulang melalui **Lengkapi Pembelian Lama**.
+- Tidak ada stok yang ditambah ketika Daftar Belanja disetujui; perubahan stok tetap terjadi pada persetujuan Penerimaan Barang.

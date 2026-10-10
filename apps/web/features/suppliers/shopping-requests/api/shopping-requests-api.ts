@@ -9,6 +9,7 @@ import type {
   SaveShoppingRequestApprovedQuantitiesInput,
   UpdateShoppingRequestInput,
 } from "../types/shopping-request";
+import type { FinalizeShoppingRequestInput } from "../services/finalize-shopping-request";
 
 export type ShoppingRequestListParams = {
   q?: string;
@@ -157,4 +158,29 @@ export async function cancelShoppingRequest(
     throw new Error(error.message || "Failed to cancel shopping request");
   }
   return res.json();
+}
+
+export async function finalizeShoppingRequest(
+  id: string,
+  input: FinalizeShoppingRequestInput,
+): Promise<{ data: { shoppingRequestId: string; goodsPurchaseId: string } }> {
+  const response = await fetch(`/api/suppliers/shopping-requests/${id}/finalize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.message || "Daftar belanja belum bisa disetujui.");
+  return payload;
+}
+
+export async function rejectShoppingRequest(id: string, reason: string) {
+  const response = await fetch(`/api/suppliers/shopping-requests/${id}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.message || "Daftar belanja belum bisa ditolak.");
+  return payload;
 }

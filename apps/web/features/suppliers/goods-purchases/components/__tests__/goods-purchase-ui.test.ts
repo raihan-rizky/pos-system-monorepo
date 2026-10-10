@@ -22,11 +22,10 @@ const shell = readFileSync(
 );
 
 describe("goods purchase supplier UI", () => {
-  it("adds the Pembelian Barang tab and deep link", () => {
-    expect(shell).toContain('requestedTab === "goods-purchases"');
-    expect(shell).toContain("Pembelian Barang");
-    expect(shell).toContain("GoodsPurchaseList");
-    expect(shell).toContain("GoodsPurchaseCreateModal");
+  it("redirects the old purchase deep link into Daftar Belanja", () => {
+    expect(shell).toContain('requestedTab === "goods-purchases") return "shopping"');
+    expect(shell).toContain("ShoppingRequestList");
+    expect(shell).not.toContain('onClick={() => setTab("goods-purchases")}');
   });
 
   it("requires an approved shopping list before showing item inputs", () => {

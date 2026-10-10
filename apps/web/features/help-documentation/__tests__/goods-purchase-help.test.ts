@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("Bantuan Pembelian Barang", () => {
-  it("explains submission, per-product approval, RBAC, finance, and no stock impact", () => {
+describe("Bantuan Daftar Belanja terpadu", () => {
+  it("explains one approval, editable units, old purchases, finance, and no stock impact", () => {
     const source = readFileSync(
       join(
         process.cwd(),
@@ -13,16 +13,16 @@ describe("Bantuan Pembelian Barang", () => {
     );
 
     expect(source).toContain('id: "owner-goods-purchase"');
-    expect(source).toContain("Buat Pembelian Barang");
-    expect(source).toContain("Daftar Belanja yang sudah disetujui");
-    expect(source).toContain("⚠ LAMA");
-    expect(source).toContain("expense lama");
+    expect(source).toContain("Lengkapi Pembelian Lama");
+    expect(source).toContain("Pembelian Barang lama");
     expect(source).toContain("harga modal produk saat ini");
     expect(source).toContain("tidak mengubah HPP master");
-    expect(source).toContain("Belum Ada Aksi");
     expect(source).toContain("supplier.goods_purchase.approve");
     expect(source).toContain("supplier.goods_purchase.reject");
     expect(source).toContain("Pengeluaran kategori Bahan");
     expect(source).toContain("tidak mengubah stok");
+    expect(source).toContain("Setujui dan Catat Pembelian");
+    expect(source).toContain("12 pcs menjadi 12 dus");
+    expect(source).toContain("Pembelian Barang lama");
   });
 });

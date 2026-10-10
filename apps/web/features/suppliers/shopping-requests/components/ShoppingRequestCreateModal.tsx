@@ -9,6 +9,8 @@ import { SupplierSelector } from "@/features/suppliers/components/SupplierSelect
 import { ProductStockThumbnail } from "@/features/inventory-management/components/ProductStockThumbnail";
 import { useCreateShoppingRequest } from "../hooks/useShoppingRequests";
 import { ProductAutocomplete } from "./ProductAutocomplete";
+import { ShoppingRequestUnitSelect, type ShoppingUnitVariant } from "./ShoppingRequestUnitSelect";
+import { chooseUnitVariant } from "../helpers/shopping-request-unit-choice";
 
 interface CartItem {
   product: Product;
@@ -39,6 +41,22 @@ export function ShoppingRequestCreateModal({ open, onClose }: { open: boolean; o
 
   const updateItem = (productId: string, patch: Pick<CartItem, "requestedQty">) => {
     setCartItems((current) => current.map((item) => item.product.id === productId ? { ...item, ...patch } : item));
+  };
+
+  const changeUnit = (productId: string, variant: ShoppingUnitVariant) => {
+    try {
+      const selected = cartItems.find((item) => item.product.id === productId);
+      if (!selected) return;
+      const product: Product = {
+        ...selected.product,
+        ...variant,
+        stockGroup: variant.stockGroup ? { ...variant.stockGroup, baseUnit: variant.stockGroup.baseUnit ?? "" } : null,
+      };
+      setCartItems(chooseUnitVariant(cartItems, productId, product));
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Satuan tidak bisa diganti");
+    }
   };
 
   const save = async () => {
@@ -104,10 +122,11 @@ export function ShoppingRequestCreateModal({ open, onClose }: { open: boolean; o
                       </div>
                       <button type="button" onClick={() => setCartItems((current) => current.filter((row) => row.product.id !== item.product.id))} aria-label={`Hapus ${item.product.name}`} className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-5 w-5" /></button>
                     </div>
-                    <div className="mt-3 max-w-[220px]">
+                    <div className="mt-3 flex flex-wrap items-end gap-3">
                       <label className="text-xs font-bold text-slate-600">Kebutuhan
-                        <div className="relative mt-1"><input type="number" min="0.01" step="0.01" value={item.requestedQty || ""} onChange={(event) => updateItem(item.product.id, { requestedQty: Number(event.target.value) })} className="h-10 w-full rounded-lg border border-slate-200 px-3 pr-14 text-right font-bold" /><span className="absolute right-3 top-2.5 text-xs text-slate-400">{item.product.unit}</span></div>
+                        <input type="number" min="0.01" step="0.01" value={item.requestedQty || ""} onChange={(event) => updateItem(item.product.id, { requestedQty: Number(event.target.value) })} className="mt-1 h-10 w-28 rounded-lg border border-slate-200 px-3 text-right font-bold" />
                       </label>
+                      <ShoppingRequestUnitSelect productId={item.product.id} unit={item.product.unit} stockGroupId={item.product.stockGroupId ?? item.product.stockGroup?.id} onChange={(variant) => changeUnit(item.product.id, variant)} />
                     </div>
                   </article>
                 ))}

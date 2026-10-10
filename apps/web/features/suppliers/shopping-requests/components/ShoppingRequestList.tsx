@@ -3,16 +3,12 @@
 import React, { useState } from "react";
 import {
   ShoppingBag,
-  Trash2,
-  Printer,
   CheckCircle2,
   Loader2,
   ChevronRight,
   Clock3,
   Boxes,
   Percent,
-  PencilLine,
-  ListChecks,
 } from "lucide-react";
 import { Button, Modal } from "@pos/ui";
 
@@ -25,6 +21,11 @@ import { ShoppingRequestPrintModal } from "./ShoppingRequestPrintModal";
 import { ShoppingRequestApproveModal } from "./ShoppingRequestApproveModal";
 import { ShoppingRequestEditModal } from "./ShoppingRequestEditModal";
 import { ShoppingRequestApprovedQtyModal } from "./ShoppingRequestApprovedQtyModal";
+import { ShoppingRequestFinalApprovalModal } from "./ShoppingRequestFinalApprovalModal";
+import { GoodsPurchaseCreateModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseCreateModal";
+import { GoodsPurchaseApprovalModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseApprovalModal";
+import { GoodsPurchaseDetailModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseDetailModal";
+import { GoodsPurchaseRejectModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseRejectModal";
 import type {
   ShoppingRequestDetail,
   ShoppingRequestKpiSummary,
@@ -41,6 +42,10 @@ const STATUS_LABELS = {
     label: "Dibatalkan",
     className: "bg-slate-100 text-slate-500 border-slate-200",
   },
+  REJECTED: {
+    label: "Ditolak",
+    className: "bg-rose-50 text-rose-700 border-rose-200",
+  },
 } as const;
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("id-ID", {
@@ -52,8 +57,14 @@ const PERCENT_FORMATTER = new Intl.NumberFormat("id-ID", {
 
 export function ShoppingRequestList({
   onCreateClick,
+  onReceive,
+  onCompare,
+  onViewReceiptHistory,
 }: {
   onCreateClick: () => void;
+  onReceive: (purchaseId: string) => void;
+  onCompare: (purchaseId: string) => void;
+  onViewReceiptHistory: (purchaseId: string) => void;
 }) {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -63,6 +74,11 @@ export function ShoppingRequestList({
   const [editTarget, setEditTarget] = useState<ShoppingRequestDetail | null>(null);
   const [approvedQtyTarget, setApprovedQtyTarget] = useState<ShoppingRequestDetail | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ShoppingRequestDetail | null>(null);
+  const [finalApprovalId, setFinalApprovalId] = useState<string | null>(null);
+  const [purchaseDetailId, setPurchaseDetailId] = useState<string | null>(null);
+  const [purchaseApprovalId, setPurchaseApprovalId] = useState<string | null>(null);
+  const [purchaseRejectId, setPurchaseRejectId] = useState<string | null>(null);
+  const [legacyCreateOpen, setLegacyCreateOpen] = useState(false);
   const { canPerform } = useRole();
   const canApproveStock = canPerform(
     "supplier.shopping_request.approve_stock",
@@ -76,12 +92,16 @@ export function ShoppingRequestList({
     "supplier.shopping_request.set_approved_qty",
     "update",
   );
+  const canApprovePurchase = canPerform("supplier.goods_purchase.approve", "update");
+  const canRejectPurchase = canPerform("supplier.goods_purchase.reject", "update");
+  const canCreatePurchase = canPerform("supplier", "create");
+  const canReceive = canPerform("inventory.inbound_receipt.create", "create");
 
   const list = useShoppingRequests({
     page,
     limit: 10,
     q: searchQuery.trim() || undefined,
-    ...(statusFilter ? { status: statusFilter as "REQUESTED" | "APPROVED" | "CANCELLED" } : {}),
+    ...(statusFilter ? { status: statusFilter as "REQUESTED" | "APPROVED" | "CANCELLED" | "REJECTED" } : {}),
   });
   const summary = useShoppingRequestSummary();
 
@@ -120,6 +140,7 @@ export function ShoppingRequestList({
           <option value="REQUESTED">Diajukan</option>
           <option value="APPROVED">Disetujui</option>
           <option value="CANCELLED">Dibatalkan</option>
+          <option value="REJECTED">Ditolak</option>
         </select>
         <Button
           type="button"
@@ -160,12 +181,11 @@ export function ShoppingRequestList({
                       </span>
                     </div>
                      <p className="mt-1 break-words text-xs leading-relaxed text-slate-500">
-                      Nomor: {row.number}
-                      {row.supplierName ? ` · Supplier: ${row.supplierName}` : ""}
-                      Pemohon: {row.requestedByName ?? "-"}
-                      {row.approvedByName ? ` · Disetujui: ${row.approvedByName}` : ""}
+                      {row.supplierName ?? "Supplier belum dipilih"} · {row.number} · {new Date(row.createdAt).toLocaleDateString("id-ID")}
                      </p>
-                     {row.status === "REQUESTED" && (
+                     {row.purchase && <p className="mt-1 text-xs font-semibold text-cyan-700">Pembelian {row.purchase.number} · {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(row.purchase.totalAmount)}</p>}
+                     {row.rejectionReason && <p className="mt-1 text-xs text-rose-700">Alasan: {row.rejectionReason}</p>}
+                     {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && (
                        <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                          <div className="h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-slate-100">
                            <div
@@ -189,69 +209,35 @@ export function ShoppingRequestList({
                       value={row.totalApprovedQty ?? "-"}
                     />
                   </div>
-                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
-                     {row.status === "REQUESTED" &&
-                       row.decidedItemCount === 0 &&
-                       canEditRequest && (
-                         <Button
-                           type="button"
-                           size="sm"
-                           variant="secondary"
-                           onClick={() => setEditTarget({ ...row, items: [] })}
-                           icon={<PencilLine className="h-4 w-4" />}
-                         >
-                           Edit
-                         </Button>
-                       )}
-                     {row.status === "REQUESTED" &&
-                       row.pendingItemCount > 0 &&
-                       canSetApprovedQty && (
-                         <Button
-                           type="button"
-                           size="sm"
-                           variant="secondary"
-                           onClick={() =>
-                             setApprovedQtyTarget({ ...row, items: [] })
-                           }
-                           icon={<ListChecks className="h-4 w-4" />}
-                         >
-                           Isi Jumlah yang Di-ACC
-                         </Button>
-                       )}
-                     {row.status === "REQUESTED" && canApproveStock && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="primary"
-                        onClick={() => setApproveTarget({ ...row, items: [] })}
-                        icon={<CheckCircle2 className="h-4 w-4" />}
-                      >
-                        Setujui
-                      </Button>
+                  <div className="flex flex-col gap-2 sm:min-w-44">
+                    {row.status === "REQUESTED" && row.approvalFlowVersion === 2 && (canApprovePurchase || canRejectPurchase) && (
+                      <Button type="button" size="sm" onClick={() => setFinalApprovalId(row.id)}>{canApprovePurchase ? "Tinjau & Setujui" : "Tinjau Daftar"}</Button>
                     )}
-                    {row.status !== "CANCELLED" && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          setPrintTarget({ ...row, items: [] } as any);
-                        }}
-                        className="!py-1.5 !px-3 text-sm h-auto"
-                      >
-                        Lihat Struk
-                      </Button>
+                    {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && canApproveStock && (
+                      <Button type="button" size="sm" onClick={() => setApproveTarget({ ...row, items: [] })}>Proses Daftar Lama</Button>
                     )}
-                     {row.status === "REQUESTED" && row.decidedItemCount === 0 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setCancelTarget({ ...row, items: [] })}
-                        icon={<Trash2 className="h-4 w-4" />}
-                      >
-                        Cancel
-                      </Button>
+                    {row.purchase?.status === "PENDING" && canApprovePurchase && (
+                      <Button type="button" size="sm" onClick={() => setPurchaseApprovalId(row.purchase!.id)}>Proses Pembelian Lama</Button>
                     )}
+                    {row.status === "APPROVED" && (!row.purchase || row.purchase.status === "REJECTED") && row.approvalFlowVersion !== 2 && canCreatePurchase && (
+                      <Button type="button" size="sm" onClick={() => setLegacyCreateOpen(true)}>Lengkapi Pembelian Lama</Button>
+                    )}
+                    {row.purchase?.status === "APPROVED" && row.purchase.fulfillmentStatus !== "RECEIVED" && canReceive && (
+                      <Button type="button" size="sm" onClick={() => onReceive(row.purchase!.id)}>Catat Penerimaan</Button>
+                    )}
+                    <details className="rounded-lg border border-slate-200 bg-white text-sm">
+                      <summary className="cursor-pointer px-3 py-2 font-semibold text-slate-700">Tindakan lainnya</summary>
+                      <div className="flex flex-col gap-1 border-t border-slate-100 p-2">
+                        <button type="button" onClick={() => setPrintTarget({ ...row, items: [] })} className="rounded-md px-2 py-1.5 text-left hover:bg-slate-50">Lihat / cetak daftar</button>
+                        {row.status === "REQUESTED" && row.decidedItemCount === 0 && canEditRequest && <button type="button" onClick={() => setEditTarget({ ...row, items: [] })} className="rounded-md px-2 py-1.5 text-left hover:bg-slate-50">Edit daftar</button>}
+                        {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && row.pendingItemCount > 0 && canSetApprovedQty && <button type="button" onClick={() => setApprovedQtyTarget({ ...row, items: [] })} className="rounded-md px-2 py-1.5 text-left hover:bg-slate-50">Isi Jumlah yang Di-ACC</button>}
+                        {row.status === "REQUESTED" && row.decidedItemCount === 0 && <button type="button" onClick={() => setCancelTarget({ ...row, items: [] })} className="rounded-md px-2 py-1.5 text-left hover:bg-slate-50">Batalkan daftar</button>}
+                        {row.purchaseHistory?.map((purchase) => <button key={purchase.id} type="button" onClick={() => setPurchaseDetailId(purchase.id)} className="rounded-md px-2 py-1.5 text-left hover:bg-slate-50">Detail {purchase.number} · {purchase.status === "REJECTED" ? "Ditolak" : purchase.status === "PENDING" ? "Menunggu" : "Disetujui"}</button>)}
+                        {row.purchase?.status === "PENDING" && canRejectPurchase && <button type="button" onClick={() => setPurchaseRejectId(row.purchase!.id)} className="rounded-md px-2 py-1.5 text-left text-rose-700 hover:bg-rose-50">Tolak pembelian lama</button>}
+                        {row.purchase?.status === "APPROVED" && <button type="button" onClick={() => onViewReceiptHistory(row.purchase!.id)} className="rounded-md px-2 py-1.5 text-left hover:bg-slate-50">Riwayat penerimaan</button>}
+                        {row.purchase && row.purchase.fulfillmentStatus !== "NOT_RECEIVED" && <button type="button" onClick={() => onCompare(row.purchase!.id)} className="rounded-md px-2 py-1.5 text-left hover:bg-slate-50">Bandingkan penerimaan</button>}
+                      </div>
+                    </details>
                   </div>
                 </div>
                 <div className="mt-2 flex items-center gap-1 text-[11px] text-slate-400">
@@ -300,6 +286,11 @@ export function ShoppingRequestList({
         open={approveTarget !== null}
         onClose={() => setApproveTarget(null)}
       />
+      <ShoppingRequestFinalApprovalModal requestId={finalApprovalId} onClose={() => setFinalApprovalId(null)} />
+      <GoodsPurchaseCreateModal open={legacyCreateOpen} onClose={() => setLegacyCreateOpen(false)} />
+      <GoodsPurchaseApprovalModal purchaseId={purchaseApprovalId} onClose={() => setPurchaseApprovalId(null)} onFinalized={() => setPurchaseApprovalId(null)} />
+      <GoodsPurchaseDetailModal purchaseId={purchaseDetailId} onClose={() => setPurchaseDetailId(null)} />
+      <GoodsPurchaseRejectModal purchaseId={purchaseRejectId} onClose={() => setPurchaseRejectId(null)} />
       <ShoppingRequestEditModal
         detail={editTarget}
         open={editTarget !== null}

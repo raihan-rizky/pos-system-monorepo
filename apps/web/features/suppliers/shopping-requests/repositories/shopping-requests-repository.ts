@@ -29,6 +29,7 @@ type PrismaCreateItem = {
 
 export type CreateShoppingRequestInputRepo = {
   storeId: string;
+  approvalFlowVersion: number;
   number: string;
   name: string;
   normalizedName: string;
@@ -58,6 +59,7 @@ export function buildShoppingRequestWhere(
       { name: { contains: filters.q, mode: "insensitive" } },
       { number: { contains: filters.q, mode: "insensitive" } },
       { requestedByName: { contains: filters.q, mode: "insensitive" } },
+      { goodsPurchases: { some: { number: { contains: filters.q, mode: "insensitive" } } } },
     ];
   }
   return where;
@@ -77,6 +79,7 @@ export function listShoppingRequests(
       where: buildShoppingRequestWhere(filters),
       include: {
         supplier: { select: { id: true, name: true } },
+        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true } },
         _count: { select: { items: true } },
         items: {
           select: {
@@ -93,6 +96,15 @@ export function listShoppingRequests(
     .then((rows) =>
       rows.map((row) => ({
         id: row.id,
+        purchase: row.goodsPurchases?.[0] ? {
+          ...row.goodsPurchases[0],
+          totalAmount: Number(row.goodsPurchases[0].totalAmount.toString()),
+        } : null,
+        purchaseHistory: row.goodsPurchases.map((purchase) => ({
+          ...purchase,
+          totalAmount: Number(purchase.totalAmount.toString()),
+        })),
+        approvalFlowVersion: row.approvalFlowVersion,
         number: row.number,
         name: row.name,
         status: row.status,
@@ -121,6 +133,9 @@ export function listShoppingRequests(
               ),
         createdAt: row.createdAt.toISOString(),
         approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
+        rejectedAt: row.rejectedAt ? row.rejectedAt.toISOString() : null,
+        rejectedByName: row.rejectedByName,
+        rejectionReason: row.rejectionReason,
         note: row.note,
         stockAppliedAt: row.stockAppliedAt ? row.stockAppliedAt.toISOString() : null,
       })),
@@ -179,6 +194,7 @@ export function findShoppingRequestById(
       where: { id, ...(storeId ? { storeId } : {}) },
       include: {
         supplier: { select: { id: true, name: true } },
+        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true } },
         items: {
           include: {
             product: { select: { name: true, sku: true, unit: true, imageUrl: true, costPrice: true, conversionNeedsReview: true, unitMultiplierToBase: true, stockGroup: { select: { id: true, displayName: true, baseUnit: true, baseStock: true } } } },
@@ -225,6 +241,15 @@ export function findShoppingRequestById(
         : null;
       return {
         id: row.id,
+        purchase: row.goodsPurchases[0] ? {
+          ...row.goodsPurchases[0],
+          totalAmount: Number(row.goodsPurchases[0].totalAmount.toString()),
+        } : null,
+        purchaseHistory: row.goodsPurchases.map((purchase) => ({
+          ...purchase,
+          totalAmount: Number(purchase.totalAmount.toString()),
+        })),
+        approvalFlowVersion: row.approvalFlowVersion,
         number: row.number,
         name: row.name,
         status: row.status,
@@ -243,6 +268,9 @@ export function findShoppingRequestById(
         totalApprovedQty,
         createdAt: row.createdAt.toISOString(),
         approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
+        rejectedAt: row.rejectedAt ? row.rejectedAt.toISOString() : null,
+        rejectedByName: row.rejectedByName,
+        rejectionReason: row.rejectionReason,
         note: row.note,
         stockAppliedAt: row.stockAppliedAt ? row.stockAppliedAt.toISOString() : null,
         items,
@@ -257,6 +285,7 @@ export async function createShoppingRequestWithItems(
   const row = await tx.shoppingRequest.create({
     data: {
       storeId: input.storeId,
+      approvalFlowVersion: input.approvalFlowVersion,
       number: input.number,
       name: input.name,
       normalizedName: input.normalizedName,
@@ -753,6 +782,8 @@ function loadShoppingRequestDetailRow(
 
 function reify(row: {
   id: string;
+  goodsPurchases?: Array<{ id: string; number: string; status: "PENDING" | "APPROVED" | "REJECTED"; fulfillmentStatus: "NOT_RECEIVED" | "PARTIALLY_RECEIVED" | "RECEIVED"; totalAmount: { toString(): string } }>;
+  approvalFlowVersion: number;
   number: string;
   name: string;
   status: ShoppingRequestStatus;
@@ -761,6 +792,9 @@ function reify(row: {
   approvedByName: string | null;
   approvedById: string | null;
   approvedAt: Date | null;
+  rejectedAt: Date | null;
+  rejectedByName: string | null;
+  rejectionReason: string | null;
   note: string | null;
   stockAppliedAt: Date | null;
   createdAt: Date;
@@ -816,6 +850,15 @@ function reify(row: {
   const allApproved = items.every((item) => item.approvedQty !== null);
   return {
     id: row.id,
+    purchase: row.goodsPurchases?.[0] ? {
+      ...row.goodsPurchases[0],
+      totalAmount: Number(row.goodsPurchases[0].totalAmount.toString()),
+    } : null,
+    purchaseHistory: row.goodsPurchases?.map((purchase) => ({
+      ...purchase,
+      totalAmount: Number(purchase.totalAmount.toString()),
+    })) ?? [],
+    approvalFlowVersion: row.approvalFlowVersion,
     number: row.number,
     name: row.name,
     status: row.status,
@@ -836,6 +879,9 @@ function reify(row: {
       : null,
     createdAt: row.createdAt.toISOString(),
     approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
+    rejectedAt: row.rejectedAt ? row.rejectedAt.toISOString() : null,
+    rejectedByName: row.rejectedByName,
+    rejectionReason: row.rejectionReason,
     note: row.note,
     stockAppliedAt: row.stockAppliedAt ? row.stockAppliedAt.toISOString() : null,
     items,

@@ -799,12 +799,17 @@ model ShoppingRequest {
   sequence        Int
   supplierId      String?
   status          ShoppingRequestStatus     @default(REQUESTED)
+  approvalFlowVersion Int                    @default(1)
   requestedByName String?
   approvedById    String?
   approvedByName  String?
   approvedAt      DateTime?
   stockAppliedAt  DateTime?
   cancelledAt     DateTime?
+  rejectedAt      DateTime?
+  rejectedById    String?
+  rejectedByName  String?
+  rejectionReason String?
   note            String?
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
@@ -1825,6 +1830,7 @@ enum ShoppingRequestStatus {
   REQUESTED
   APPROVED
   CANCELLED
+  REJECTED
 }
 
 enum ShoppingRequestStockMode {

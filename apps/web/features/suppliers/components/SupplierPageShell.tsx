@@ -83,20 +83,6 @@ const ShoppingRequestCreateModal = dynamic(
     ).then((module) => module.ShoppingRequestCreateModal),
   { ssr: false },
 );
-const GoodsPurchaseList = dynamic(
-  () =>
-    import(
-      "@/features/suppliers/goods-purchases/components/GoodsPurchaseList"
-    ).then((module) => module.GoodsPurchaseList),
-  { ssr: false, loading: () => <DeferredPanelSkeleton /> },
-);
-const GoodsPurchaseCreateModal = dynamic(
-  () =>
-    import(
-      "@/features/suppliers/goods-purchases/components/GoodsPurchaseCreateModal"
-    ).then((module) => module.GoodsPurchaseCreateModal),
-  { ssr: false },
-);
 const GoodsPurchaseReceivingComparisonModal = dynamic(
   () =>
     import(
@@ -148,14 +134,13 @@ export function SupplierPageShell() {
     | "suppliers"
     | "recap"
     | "shopping"
-    | "goods-purchases"
     | "inbound-receipts"
   >(() => {
     if (requestedTab === "inbound-receipts" && canReadInboundReceipts) {
       return "inbound-receipts";
     }
     if (canReadSupplierWorkspace) {
-      if (requestedTab === "goods-purchases") return "goods-purchases";
+      if (requestedTab === "goods-purchases") return "shopping";
       if (requestedTab === "shopping-requests") return "shopping";
       if (requestedTab === "recap") return "recap";
       return "suppliers";
@@ -163,8 +148,6 @@ export function SupplierPageShell() {
     return "inbound-receipts";
   });
   const [shoppingCreateOpen, setShoppingCreateOpen] = useState(false);
-  const [goodsPurchaseCreateOpen, setGoodsPurchaseCreateOpen] =
-    useState(false);
   const [receiptCreateOpen, setReceiptCreateOpen] = useState(false);
   const [receiptRefreshTrigger, setReceiptRefreshTrigger] = useState(0);
   const [receivingGoodsPurchaseId, setReceivingGoodsPurchaseId] =
@@ -189,7 +172,7 @@ export function SupplierPageShell() {
       return;
     }
     if (canReadSupplierWorkspace) {
-      if (requestedTab === "goods-purchases") setTab("goods-purchases");
+      if (requestedTab === "goods-purchases") setTab("shopping");
       else if (requestedTab === "shopping-requests") setTab("shopping");
       else if (requestedTab === "recap") setTab("recap");
       else if (!requestedTab) setTab("suppliers");
@@ -355,13 +338,6 @@ export function SupplierPageShell() {
               >
                 Daftar Belanja
               </TabButton>
-              <TabButton
-                active={tab === "goods-purchases"}
-                onClick={() => setTab("goods-purchases")}
-                icon={<PackagePlus className="h-4 w-4" />}
-              >
-                Pembelian Barang
-              </TabButton>
             </>
           )}
           {canReadInboundReceipts && (
@@ -521,31 +497,14 @@ export function SupplierPageShell() {
               <h2 className="text-base font-black text-slate-950">Daftar Belanja</h2>
               <p className="text-sm text-slate-500">Buat dan cetak daftar kebutuhan barang untuk pengajuan belanja.</p>
             </div>
-            <ShoppingRequestList onCreateClick={() => setShoppingCreateOpen(true)} />
-          </section>
-        ) : (
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-3 py-4 sm:px-4">
-              <h2 className="text-base font-black text-slate-950">
-                Pembelian Barang
-              </h2>
-              <p className="text-sm text-slate-500">
-                Ajukan dan review pembelian aktual dari Daftar Belanja yang
-                sudah disetujui.
-              </p>
-            </div>
-            <GoodsPurchaseList
-              onCreateClick={() => setGoodsPurchaseCreateOpen(true)}
+            <ShoppingRequestList
+              onCreateClick={() => setShoppingCreateOpen(true)}
               onReceive={setReceivingGoodsPurchaseId}
               onCompare={setComparisonGoodsPurchaseId}
-              onViewReceiptHistory={(purchaseId) =>
-                router.push(
-                  `/suppliers?tab=inbound-receipts&goodsPurchaseId=${purchaseId}`,
-                )
-              }
+              onViewReceiptHistory={(purchaseId) => router.push(`/suppliers?tab=inbound-receipts&goodsPurchaseId=${purchaseId}`)}
             />
           </section>
-        )}
+        ) : null}
       </div>
 
       <SupplierFormModal
@@ -573,12 +532,6 @@ export function SupplierPageShell() {
         />
       )}
 
-      {goodsPurchaseCreateOpen && (
-        <GoodsPurchaseCreateModal
-          open={goodsPurchaseCreateOpen}
-          onClose={() => setGoodsPurchaseCreateOpen(false)}
-        />
-      )}
 
       {(receiptCreateOpen || receivingGoodsPurchaseId) && (
         <InboundReceiptModal
@@ -594,6 +547,7 @@ export function SupplierPageShell() {
             setReceiptCreateOpen(false);
             setReceiptRefreshTrigger((current) => current + 1);
             invalidateGoodsReceiptQueries(queryClient);
+            queryClient.invalidateQueries({ queryKey: ["shopping-requests"] });
           }}
         />
       )}

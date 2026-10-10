@@ -48,5 +48,5 @@ it("lets users search daftar belanja by its custom name or document number", () 
   expect(source).toContain("q: searchQuery.trim() || undefined");
   expect(source).toContain('placeholder="Cari nama atau nomor Daftar Belanja"');
   expect(source).toContain("{row.name}");
-  expect(source).toContain("Nomor: {row.number}");
+  expect(source).toContain("{row.number}");
 });

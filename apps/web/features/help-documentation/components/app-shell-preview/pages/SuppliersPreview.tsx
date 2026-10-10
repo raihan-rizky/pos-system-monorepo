@@ -12,7 +12,7 @@ import {
 import type { PreviewContext } from "../types";
 
 export function SuppliersPreview(ctx: PreviewContext) {
-  const shopping = ["suppliers-shopping", "suppliers-request-open", "suppliers-approve-open"].includes(ctx.state);
+  const shopping = ["suppliers-shopping", "suppliers-request-open", "suppliers-approve-open", "suppliers-goods-purchase", "suppliers-goods-purchase-create-open", "suppliers-goods-purchase-approve-open"].includes(ctx.state);
   const goodsPurchase = ["suppliers-goods-purchase", "suppliers-goods-purchase-create-open", "suppliers-goods-purchase-approve-open"].includes(ctx.state);
   const formOpen = ctx.state === "suppliers-form-open";
   const requestOpen = ctx.state === "suppliers-request-open";
@@ -32,7 +32,6 @@ export function SuppliersPreview(ctx: PreviewContext) {
           <span className={cx("inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold", !shopping && !goodsPurchase ? 'bg-white shadow-sm' : 'text-slate-500')}><Building2 className="h-4 w-4" />Supplier</span>
           <span className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500"><Boxes className="h-4 w-4" />Rekap Stock In</span>
           <GuideTarget ctx={ctx} target="suppliers-shopping-tab" className={cx("inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold", shopping ? 'bg-white shadow-sm' : 'text-slate-500')}><ShoppingCart className="h-4 w-4" />Daftar Belanja</GuideTarget>
-          <GuideTarget ctx={ctx} target="suppliers-goods-purchase-tab" className={cx("inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold", goodsPurchase ? 'bg-white shadow-sm' : 'text-slate-500')}><ShoppingCart className="h-4 w-4" />Pembelian Barang</GuideTarget>
         </div>
 
         {goodsPurchase ? <GoodsPurchasePanel ctx={ctx} /> : shopping ? <ShoppingPanel ctx={ctx} /> : <SupplierList ctx={ctx} />}
@@ -40,7 +39,7 @@ export function SuppliersPreview(ctx: PreviewContext) {
 
       {formOpen ? <PreviewModal ctx={ctx} target="suppliers-add" title="Tambah Supplier"><div className="grid grid-cols-2 gap-4"><PreviewField label="Kode Supplier" value="SUP-0042" /><PreviewField label="Tipe" value="DISTRIBUTOR" /><PreviewField label="Nama Supplier" value="CV Sumber Rezeki" /><PreviewField label="Nomor Telepon" value="0812 9000 1122" /></div></PreviewModal> : null}
       {requestOpen ? <RequestModal ctx={ctx} /> : null}
-      {approveOpen ? <PreviewModal ctx={ctx} target="suppliers-approve" title="Approve Daftar Belanja"><p className="text-sm font-bold">Kebutuhan Belanja</p><div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm">12 rim Kertas A4 · 6 botol Tinta Epson · 4 roll Laminasi</div></PreviewModal> : null}
+      {approveOpen ? <PreviewModal ctx={ctx} target="suppliers-approve" title="Setujui Daftar Belanja"><p className="text-sm font-bold">Jumlah · Satuan · Harga Beli</p><div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm">12 dus Kertas A4 · Rp85.000 per dus</div><p className="mt-3 text-sm font-bold">Setujui dan Catat Pembelian</p></PreviewModal> : null}
       {goodsPurchaseCreateOpen ? <GoodsPurchaseModal ctx={ctx} /> : null}
       {goodsPurchaseApproveOpen ? <GoodsPurchaseApprovalModal ctx={ctx} /> : null}
     </PreviewPageRoot>

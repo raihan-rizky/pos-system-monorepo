@@ -1,4 +1,4 @@
-export type ShoppingRequestStatus = "REQUESTED" | "APPROVED" | "CANCELLED";
+export type ShoppingRequestStatus = "REQUESTED" | "APPROVED" | "CANCELLED" | "REJECTED";
 
 export type ShoppingRequestStockMode = "GROUP_STOCK" | "PRODUCT_ONLY";
 export type ShoppingRequestItemDecisionStatus =
@@ -10,6 +10,7 @@ export const SHOPPING_REQUEST_STATUSES: ShoppingRequestStatus[] = [
   "REQUESTED",
   "APPROVED",
   "CANCELLED",
+  "REJECTED",
 ];
 
 export interface ShoppingRequestKpiSummary {
@@ -21,6 +22,15 @@ export interface ShoppingRequestKpiSummary {
 
 export interface ShoppingRequestListItem {
   id: string;
+  purchase?: {
+    id: string;
+    number: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    fulfillmentStatus: "NOT_RECEIVED" | "PARTIALLY_RECEIVED" | "RECEIVED";
+    totalAmount: number;
+  } | null;
+  purchaseHistory?: NonNullable<ShoppingRequestListItem["purchase"]>[];
+  approvalFlowVersion?: number;
   number: string;
   name: string;
   status: ShoppingRequestStatus;
@@ -35,6 +45,9 @@ export interface ShoppingRequestListItem {
   totalApprovedQty: number | null;
   createdAt: string;
   approvedAt: string | null;
+  rejectedAt?: string | null;
+  rejectedByName?: string | null;
+  rejectionReason?: string | null;
   note: string | null;
   stockAppliedAt: string | null;
 }

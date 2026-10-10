@@ -196,6 +196,7 @@ describe("createShoppingRequest", () => {
 
     expect(repo.createShoppingRequestWithItems).toHaveBeenCalledTimes(1);
     const args = vi.mocked(repo.createShoppingRequestWithItems).mock.calls[0][0];
+    expect(args.approvalFlowVersion).toBe(2);
     expect(args.name).toBe("Belanja Oktober");
     expect(args.normalizedName).toBe("belanja oktober");
     expect(args.items).toEqual([
@@ -334,6 +335,13 @@ describe("approveShoppingRequest", () => {
       },
     ],
   };
+
+  it("blocks the old approval path for a new one-approval request", async () => {
+    vi.mocked(repo.findShoppingRequestById).mockResolvedValue({ ...draftRequest, approvalFlowVersion: 2 });
+    await expect(approveShoppingRequest("sr-1", { items: [{ id: "sri-1" }, { id: "sri-2" }] }, actor))
+      .rejects.toThrow("persetujuan terpadu");
+    expect(repo.approveShoppingRequestItems).not.toHaveBeenCalled();
+  });
 
   it("rejects if request is not REQUESTED", async () => {
     vi.mocked(repo.findShoppingRequestById).mockResolvedValue({

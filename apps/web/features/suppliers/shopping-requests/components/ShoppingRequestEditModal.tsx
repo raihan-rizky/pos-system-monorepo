@@ -13,6 +13,8 @@ import {
 } from "../hooks/useShoppingRequests";
 import type { ShoppingRequestDetail } from "../types/shopping-request";
 import { ProductAutocomplete } from "./ProductAutocomplete";
+import { ShoppingRequestUnitSelect, type ShoppingUnitVariant } from "./ShoppingRequestUnitSelect";
+import { chooseUnitVariant } from "../helpers/shopping-request-unit-choice";
 
 interface EditItem {
   productId: string;
@@ -22,6 +24,7 @@ interface EditItem {
   imageUrl: string | null;
   stock: number;
   stockGroupName: string | null;
+  stockGroupId: string | null;
   requestedQty: number;
 }
 
@@ -56,6 +59,7 @@ export function ShoppingRequestEditModal({
         imageUrl: item.imageUrl,
         stock: item.stockOnHand,
         stockGroupName: item.product.stockGroup?.displayName ?? null,
+        stockGroupId: item.product.stockGroup?.id ?? null,
         requestedQty: item.requestedQty,
       })),
     );
@@ -75,6 +79,7 @@ export function ShoppingRequestEditModal({
               imageUrl: product.imageUrl,
               stock: product.stock,
               stockGroupName: product.stockGroup?.displayName ?? null,
+              stockGroupId: product.stockGroupId ?? product.stockGroup?.id ?? null,
               requestedQty: 1,
             },
             ...current,
@@ -91,6 +96,30 @@ export function ShoppingRequestEditModal({
         item.productId === productId ? { ...item, ...patch } : item,
       ),
     );
+
+  const changeUnit = (productId: string, variant: ShoppingUnitVariant) => {
+    try {
+      chooseUnitVariant(
+        items.map((item) => ({ product: { id: item.productId, unit: item.unit, stockGroupId: item.stockGroupId }, requestedQty: item.requestedQty })),
+        productId,
+        { id: variant.id, unit: variant.unit, stockGroupId: variant.stockGroupId },
+      );
+      setItems((current) => current.map((item) => item.productId === productId ? {
+        ...item,
+        productId: variant.id,
+        name: variant.name,
+        sku: variant.sku,
+        unit: variant.unit,
+        imageUrl: variant.imageUrl,
+        stock: variant.stock,
+        stockGroupId: variant.stockGroupId,
+        stockGroupName: variant.stockGroup?.displayName ?? null,
+      } : item));
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Satuan tidak bisa diganti");
+    }
+  };
 
   const save = async () => {
     if (!detail || !supplierId || items.length === 0) return;
@@ -197,27 +226,14 @@ export function ShoppingRequestEditModal({
                       <Trash2 className="h-5 w-5" />
                     </button>
                   </div>
-                  <div className="mt-3 max-w-[220px]">
+                  <div className="mt-3 flex flex-wrap items-end gap-3">
                     <label className="text-xs font-bold text-slate-600">
                       Jumlah Kebutuhan
-                      <div className="relative mt-1">
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={item.requestedQty || ""}
-                          onChange={(event) =>
-                            updateItem(item.productId, {
-                              requestedQty: Number(event.target.value),
-                            })
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-200 px-3 pr-12 text-right font-black"
-                        />
-                        <span className="absolute right-3 top-2.5 text-xs text-slate-400">
-                          {item.unit}
-                        </span>
-                      </div>
+                      <input type="number" min="0.01" step="0.01" value={item.requestedQty || ""}
+                        onChange={(event) => updateItem(item.productId, { requestedQty: Number(event.target.value) })}
+                        className="mt-1 h-10 w-28 rounded-lg border border-slate-200 px-3 text-right font-black" />
                     </label>
+                    <ShoppingRequestUnitSelect productId={item.productId} unit={item.unit} stockGroupId={item.stockGroupId} onChange={(variant) => changeUnit(item.productId, variant)} />
                   </div>
                 </article>
               ))}

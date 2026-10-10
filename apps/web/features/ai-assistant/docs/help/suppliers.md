@@ -2,12 +2,12 @@
 
 ## Lokasi dan tab
 
-Buka sidebar **Katalog > Supplier** (`/suppliers`). Halaman ini memiliki empat tab:
+Buka sidebar **Katalog > Supplier** (`/suppliers`). Halaman ini memiliki empat tab. Tautan lama `?tab=goods-purchases` membuka Daftar Belanja.
 
 - **Supplier**: daftar supplier, total pembelian, jumlah restock, supplier aktif, dan top supplier.
 - **Rekap Stock In**: hanya menampilkan restock supplier yang sudah disetujui.
-- **Daftar Belanja**: membuat, menyetujui/membatalkan sesuai permission, melihat detail, dan mencetak kebutuhan barang.
-- **Pembelian Barang**: mencatat pembelian aktual dari Daftar Belanja yang disetujui, termasuk harga terbaru, review per produk, dan riwayat status.
+- **Daftar Belanja**: pengajuan, satu persetujuan jumlah dan harga, Pembelian Barang terkait, serta riwayatnya.
+- **Penerimaan Barang**: mencatat barang yang benar-benar datang dari pembelian yang sudah disetujui.
 
 ## Mengelola supplier
 
@@ -20,19 +20,22 @@ Klik kartu supplier untuk melihat profil dan histori Stock In yang sudah disetuj
 Semua halaman dan aksi supplier mengikuti permission resource `supplier` dan akses halaman RBAC.
 
 ## Membuat Daftar Belanja
-Supplier wajib dipilih; jika belum tersedia, pengguna dapat menambahkan nama dan tipe supplier dengan quick add. Pengguna memilih produk, mengisi jumlah kebutuhan, dan dapat menambahkan catatan. Daftar disimpan dengan status Diajukan. Pembuatan dan approval Daftar Belanja tidak mengubah stok atau membuat Pengeluaran.
 
-Sebelum item pertama diputuskan, Owner atau role dengan `supplier.shopping_request.edit:update` dapat mengedit isi permohonan. Owner atau role dengan `supplier.shopping_request.set_approved_qty:update` dapat menyiapkan **Jumlah yang Di-ACC** melalui tombol tersendiri atau mengisinya langsung di modal **Setujui Daftar Belanja**. Modal menampilkan **Kebutuhan Belanja** sebagai pembanding; input awal kosong bila jumlah belum pernah disimpan. Approver tanpa izin quantity hanya melihat nilai secara read-only. Jumlah lebih besar dari kebutuhan memerlukan satu konfirmasi, sedangkan nilai 0 akan diproses sebagai **Tidak Disetujui**.
+Pilih supplier, cari barang, isi jumlah kebutuhan, dan tambahkan catatan bila perlu. Setelah barang masuk daftar, pilih **Satuan** lain dari varian dalam grup stok yang sama. Angka jumlah tidak dikonversi: **12 pcs menjadi 12 dus**. Nama satuan dan stok mengikuti varian yang dipilih. Varian yang sudah ada di daftar tidak bisa dipilih dua kali.
 
-Role dengan `supplier.shopping_request.approve_stock:update` dapat memproses satu item melalui **Setujui Item** atau menyetujui semua item tersisa. Jumlah yang diisi langsung disimpan sebelum approval dijalankan. Modal menampilkan **Estimasi pengeluaran** dari Jumlah yang Di-ACC dan harga modal; harga modal yang kosong dihitung Rp0 dengan peringatan. Approval hanya mencatat keputusan, tanpa membuat Pengeluaran, mengubah stok, atau membuat log restock. Item yang sudah diputuskan terkunci, sedangkan daftar tetap Diajukan sampai semua item selesai. Setelah item terakhir diproses, Daftar Belanja tersedia sebagai sumber Pembelian Barang. Lihat langkah lengkap di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q19-bagaimana-cara-membuat-daftar-belanja-kebutuhan-toko-ke-supplier).
+Simpan daftar dengan status **Diajukan**. Pemegang izin `supplier.shopping_request.edit:update` dapat mengubah supplier, produk, satuan, jumlah, dan catatan sebelum item diputuskan. Gunakan **Tindakan lainnya** pada kartu untuk mengedit, membatalkan, atau mencetak. Pembuatan belum membuat Pengeluaran dan tidak mengubah stok.
 
-## Pembelian Barang
+## Satu persetujuan jumlah dan harga
 
-Di tab **Pembelian Barang**, klik **Buat Pembelian Barang** lalu pilih Daftar Belanja yang sudah disetujui. Supplier dan produk yang di-ACC muncul otomatis. Jumlah awal mengikuti nilai di-ACC, sedangkan harga produk terbaru mengikuti HPP master. Jika harga berbeda, pengguna memilih per produk apakah HPP master perlu diperbarui. Total pengeluaran dihitung dari jumlah dikali harga terbaru.
+Pemegang izin `supplier.goods_purchase.approve:update` memilih **Tinjau & Setujui** pada daftar baru. Dalam satu modal, periksa **Jumlah**, **Satuan**, dan **Harga Beli** aktual untuk setiap barang. Harga awal mengikuti HPP master varian terpilih; periksa manual bila HPP belum tersedia. Mengganti satuan mempertahankan angka jumlah dan memuat harga awal varian baru. Jumlah nol berarti barang tidak disetujui. Barang tambahan dan pilihan pembaruan HPP tersedia dalam modal yang sama. Jumlah melebihi kebutuhan perlu konfirmasi.
 
-Pengajuan disimpan sebagai **PENDING**. Izin `supplier.goods_purchase.approve:update` dan `supplier.goods_purchase.reject:update` terpisah dan default-nya hanya OWNER. Saat review, approver dapat menyetujui, mengedit, atau menghapus setiap produk, serta menambah produk master dengan unit besar. Edit produk yang sudah disetujui mengembalikannya menjadi **Belum Ada Aksi** setelah konfirmasi. Minimal satu produk harus tetap ada.
+Klik **Setujui dan Catat Pembelian** sekali. Sistem menyetujui Daftar Belanja, membuat Pembelian Barang berstatus disetujui, menerapkan pembaruan HPP yang dipilih, dan mencatat tepat satu Pengeluaran kategori Bahan dalam satu transaksi. Pemegang izin `supplier.goods_purchase.reject:update` dapat menolak seluruh daftar dengan alasan; penolakan tidak membuat pembelian atau Pengeluaran.
 
-Setelah semua produk disetujui, dokumen otomatis menjadi **APPROVED**, update HPP terpilih dijalankan, dan satu Pengeluaran kategori Bahan dibuat memakai total final. Dokumen yang ditolak wajib memiliki alasan dan membebaskan Daftar Belanja agar dapat dipilih kembali. Seluruh proses Pembelian Barang tidak mengubah stok; penerimaan barang fisik tetap memakai workflow inventaris terpisah. Lihat [FAQ Q38](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q38-bagaimana-cara-mengajukan-dan-memutuskan-pembelian-barang).
+Persetujuan tidak mengubah stok. Setelah barang datang, pilih **Catat Penerimaan** pada kartu pembelian yang disetujui. Riwayat dan perbandingan penerimaan ada di **Tindakan lainnya**. Stok baru bertambah ketika penerimaan disetujui.
+
+## Dokumen lama
+
+Daftar dan Pembelian Barang lama tetap terlihat di Daftar Belanja. Pembelian lama yang masih menunggu bisa diproses dengan alur review lama dari kartunya. Daftar lama yang sudah disetujui tanpa pembelian menampilkan **Lengkapi Pembelian Lama**; jika ada Pengeluaran lama, sistem menggantinya saat pembelian baru selesai agar tidak dihitung dua kali. Permohonan lama yang sedang diputuskan per item tetap memakai tindakan dan izin lamanya.
 
 ## Kemampuan Pak Teladan
 

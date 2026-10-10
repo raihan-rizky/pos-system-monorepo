@@ -17,6 +17,8 @@ import {
   cancelShoppingRequest,
   saveShoppingRequestApprovedQuantities,
   updateShoppingRequest,
+  finalizeShoppingRequest,
+  rejectShoppingRequest,
   type ShoppingRequestListParams,
   type ShoppingRequestListResponse,
 } from "../api/shopping-requests-api";
@@ -28,6 +30,7 @@ import type {
   ShoppingRequestDetail,
   UpdateShoppingRequestInput,
 } from "../types/shopping-request";
+import type { FinalizeShoppingRequestInput } from "../services/finalize-shopping-request";
 
 export function useShoppingRequests(params: ShoppingRequestListParams = {}) {
   return useQuery({
@@ -188,5 +191,27 @@ export function useCancelShoppingRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shopping-requests"] });
     },
+  });
+}
+
+export function useFinalizeShoppingRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: FinalizeShoppingRequestInput }) => finalizeShoppingRequest(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shopping-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["goods-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["suppliers", "summary"] });
+    },
+  });
+}
+
+export function useRejectShoppingRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => rejectShoppingRequest(id, reason),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shopping-requests"] }),
   });
 }

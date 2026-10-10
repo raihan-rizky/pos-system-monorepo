@@ -4,6 +4,14 @@ import { readFileSync } from "node:fs";
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
+  it("guides one approval from Daftar Belanja and keeps the old purchase route within it", () => {
+    const shopping = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19);
+    const purchase = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 38);
+    expect(JSON.stringify(shopping)).toContain("Setujui dan Catat Pembelian");
+    expect(JSON.stringify(shopping)).toContain("12 pcs menjadi 12 dus");
+    expect(JSON.stringify(shopping)).toContain("supplier.goods_purchase.approve:update");
+    expect(purchase?.route).toBe("/suppliers?tab=shopping-requests");
+  });
   it("keeps Surat Jalan creation aligned with transaction-owned stock", () => {
     const deliveryOrder = FAQ_WORKFLOWS.find(
       (workflow) => workflow.faqNumber === 8,
@@ -194,9 +202,8 @@ describe("FAQ workflow catalog", () => {
     const report = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 21);
     const purchase = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 38);
 
-    expect(JSON.stringify(shopping)).toContain("Estimasi pengeluaran");
-    expect(JSON.stringify(shopping)).toContain("harga modal");
-    expect(JSON.stringify(shopping)).toContain("tidak membuat Pengeluaran");
+    expect(JSON.stringify(shopping)).toContain("Harga Beli aktual");
+    expect(JSON.stringify(shopping)).toContain("satu Pengeluaran kategori Bahan");
     expect(JSON.stringify(expense)).toContain("Badge Pembelian Barang");
     expect(JSON.stringify(expense)).toContain("tidak dapat diedit atau dihapus");
     expect(JSON.stringify(report)).toContain("Laba Bersih (Estimasi)");
@@ -209,8 +216,8 @@ describe("FAQ workflow catalog", () => {
 
     expect(purchase).toMatchObject({
       id: "faq-q38-goods-purchase",
-      route: "/suppliers?tab=goods-purchases",
-      actionLabel: "Buka Pembelian Barang",
+      route: "/suppliers?tab=shopping-requests",
+      actionLabel: "Buka Daftar Belanja",
     });
     const serialized = JSON.stringify(purchase);
     expect(serialized).toContain("Daftar Belanja yang sudah disetujui");
@@ -236,19 +243,13 @@ describe("FAQ workflow catalog", () => {
     expect(serialized).toContain("Harga aktual disimpan sebagai snapshot");
   });
 
-  it("documents prepared quantities, edit RBAC, and individual item approval", () => {
+  it("documents editable units and one final approval", () => {
     const shopping = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19);
     const serialized = JSON.stringify(shopping);
 
-    expect(serialized).toContain("Isi Jumlah yang Di-ACC");
-    expect(serialized).toContain("Setujui Item");
-    expect(serialized).toContain("Tidak Disetujui");
+    expect(serialized).toContain("12 pcs menjadi 12 dus");
+    expect(serialized).toContain("Setujui dan Catat Pembelian");
     expect(serialized).toContain("supplier.shopping_request.edit:update");
-    expect(serialized).toContain(
-      "supplier.shopping_request.set_approved_qty:update",
-    );
-    expect(serialized).toContain("langsung di modal Setujui Daftar Belanja");
-    expect(serialized).toContain("Kebutuhan Belanja");
-    expect(serialized).toContain("read-only");
+    expect(serialized).toContain("supplier.goods_purchase.approve:update");
   });
 });

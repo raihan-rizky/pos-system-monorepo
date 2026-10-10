@@ -105,6 +105,7 @@ export async function createShoppingRequest(
     return createShoppingRequestWithItems(
       {
         storeId: actor.storeId,
+        approvalFlowVersion: 2,
         number,
         ...resolvedName,
         sequence,
@@ -149,6 +150,7 @@ export async function approveShoppingRequest(
   actor: ShoppingRequestActor,
 ): Promise<ShoppingRequestDetail> {
   const request = await getShoppingRequestOrThrow(id, actor.storeId);
+  assertLegacyApprovalFlow(request);
   assertRequested(request);
 
   const inputIds = new Set<string>();
@@ -194,6 +196,7 @@ export async function saveShoppingRequestApprovedQuantities(
   actor: ShoppingRequestActor,
 ): Promise<ShoppingRequestDetail> {
   const request = await getShoppingRequestOrThrow(id, actor.storeId);
+  assertLegacyApprovalFlow(request);
   assertRequested(request);
   const seen = new Set<string>();
   for (const row of input.items) {
@@ -245,6 +248,7 @@ export async function approveShoppingRequestItem(
   actor: ShoppingRequestActor,
 ): Promise<ShoppingRequestDetail> {
   const request = await getShoppingRequestOrThrow(requestId, actor.storeId);
+  assertLegacyApprovalFlow(request);
   assertRequested(request);
   const item = request.items.find((candidate) => candidate.id === itemId);
   if (!item) {
@@ -353,6 +357,12 @@ export async function cancelShoppingRequest(
     return await cancelShoppingRequestIfUndecided({ id, actor });
   } catch (error) {
     throw translateShoppingRequestError(error);
+  }
+}
+
+function assertLegacyApprovalFlow(request: ShoppingRequestDetail) {
+  if (request.approvalFlowVersion === 2) {
+    throw new ShoppingRequestValidationError("Daftar belanja ini memakai persetujuan terpadu. Muat ulang halaman.");
   }
 }
 
