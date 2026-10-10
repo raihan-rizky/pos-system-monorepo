@@ -3,6 +3,14 @@ import type { Product } from '@/hooks/useProducts';
 import { groupProductsByNameAndCategory, selectDefaultVariant } from '../services/product-grouping-service';
 
 describe('ProductGroupingService', () => {
+  it('keeps the base modal of each variant and the chosen default independently', () => {
+    const grouped = groupProductsByNameAndCategory([
+      { id: 'rim', name: 'Kertas', unit: 'rim', stock: 20, price: 10000, costPrice: 9000, baseCostPrice: 700, baseCostUnit: 'pcs', category: { id: 'paper' } },
+      { id: 'other', name: 'Kertas', unit: 'pcs', stock: 1, price: 2000, costPrice: 800, baseCostPrice: 800, baseCostUnit: 'pcs', category: { id: 'paper' } },
+    ] as Product[]);
+    expect(grouped[0].baseCostPrice).toBe(700);
+    expect(grouped[0].variants[1].baseCostPrice).toBe(800);
+  });
   describe('selectDefaultVariant', () => {
     it('selects variant with highest stock', () => {
       const variants: Product[] = [

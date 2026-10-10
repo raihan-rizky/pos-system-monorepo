@@ -33,6 +33,13 @@ function normalizePooledPostgresUrl(url?: string) {
         parsedUrl.searchParams.set("sslmode", "require");
       }
 
+      if (
+        parsedUrl.hostname.includes("supabase.com") &&
+        !parsedUrl.searchParams.has("connect_timeout")
+      ) {
+        parsedUrl.searchParams.set("connect_timeout", "15");
+      }
+
       return parsedUrl.toString();
     }
   } catch {

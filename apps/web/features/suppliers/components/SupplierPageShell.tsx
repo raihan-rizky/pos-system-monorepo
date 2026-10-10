@@ -166,6 +166,7 @@ export function SupplierPageShell() {
   const [goodsPurchaseCreateOpen, setGoodsPurchaseCreateOpen] =
     useState(false);
   const [receiptCreateOpen, setReceiptCreateOpen] = useState(false);
+  const [receiptRefreshTrigger, setReceiptRefreshTrigger] = useState(0);
   const [receivingGoodsPurchaseId, setReceivingGoodsPurchaseId] =
     useState<string | null>(null);
   const [comparisonGoodsPurchaseId, setComparisonGoodsPurchaseId] =
@@ -378,6 +379,7 @@ export function SupplierPageShell() {
           <InboundReceiptTab
             goodsPurchaseId={requestedGoodsPurchaseId}
             supplierId={requestedSupplierId}
+            refreshTrigger={receiptRefreshTrigger}
             onCreateReceipt={() => setReceiptCreateOpen(true)}
           />
         ) : tab === "suppliers" ? (
@@ -590,6 +592,7 @@ export function SupplierPageShell() {
           onSuccess={() => {
             setReceivingGoodsPurchaseId(null);
             setReceiptCreateOpen(false);
+            setReceiptRefreshTrigger((current) => current + 1);
             invalidateGoodsReceiptQueries(queryClient);
           }}
         />

@@ -51,6 +51,47 @@ const allPaperRimBrandRule: CustomerCategoryPricingRule = {
 };
 
 describe("priceCartItemsForCheckout", () => {
+  it("keeps rule metadata when a submitted manual price is not allowed", () => {
+    const [priced] = priceCartItemsForCheckout({ items: [paperRim], customerType: "UMUM", pricingRules: [allPaperRimBrandRule], manualPrices: { [paperRim.cartLineId]: 6000 }, role: "SALES" });
+    if (priced.lineType !== "PRODUCT") throw new Error("Expected product");
+    expect(priced.price).toBe(9000);
+    expect(priced.appliedPricing?.ruleId).toBe(allPaperRimBrandRule.id);
+  });
+  it("prices cart unit options with the same customer rules", () => {
+    const [priced] = priceCartItemsForCheckout({
+      items: [{ ...paperRim, unitOptions: [{ ...paperRim, baseCostPrice: 700, baseCostUnit: "pcs" }] }],
+      customerType: "UMUM", pricingRules: [{ ...allPaperRimBrandRule, mode: "COST_PLUS_FLAT", value: 4000 }], manualPrices: {}, role: "SALES",
+    });
+    if (priced.lineType !== "PRODUCT") throw new Error("Expected product");
+    expect(priced.unitOptions?.[0].price).toBe(4700);
+    expect(priced.unitOptions?.[0].catalogPrice).toBe(10000);
+  });
+  it("uses smallest-unit modal directly for a selected rim and multiple customers", () => {
+    const [priced] = priceCartItemsForCheckout({
+      items: [{ ...paperRim, baseCostPrice: 700, baseCostUnit: "pcs", quantity: 2 }],
+      customerType: "AGEN",
+      pricingRules: [{ ...allPaperRimBrandRule, customerTypes: ["UMUM", "AGEN"], mode: "COST_PLUS_FLAT", value: 4000 }],
+      manualPrices: {},
+      role: "SALES",
+    });
+    expect(priced.price).toBe(4700);
+    expect(priced.price * priced.quantity).toBe(9400);
+    if (priced.lineType !== "PRODUCT") throw new Error("Expected product");
+    expect(priced.appliedPricing?.ruleId).toBe(allPaperRimBrandRule.id);
+  });
+
+  it("does not classify a manual transaction price as an automatic special price", () => {
+    const [priced] = priceCartItemsForCheckout({
+      items: [{ ...paperRim, transactionPrice: 8000 }],
+      customerType: "UMUM",
+      pricingRules: [allPaperRimBrandRule],
+      manualPrices: {},
+      role: "SALES",
+    });
+    expect(priced.price).toBe(8000);
+    if (priced.lineType !== "PRODUCT") throw new Error("Expected product");
+    expect(priced.appliedPricing).toBeNull();
+  });
   it("keeps a cart transaction price ahead of automatic customer pricing", () => {
     const [priced] = priceCartItemsForCheckout({
       items: [

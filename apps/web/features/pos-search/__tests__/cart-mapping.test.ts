@@ -3,6 +3,12 @@ import type { Product } from '@/hooks/useProducts';
 import { mapProductToCartItem } from '../services/cart-mapping';
 
 describe('CartMappingService', () => {
+  it('keeps smallest-unit modal separate from accounting modal when mapping a variant', () => {
+    const mapped = mapProductToCartItem({ ...variantProduct, variants: variantProduct.variants?.map(v => ({ ...v, baseCostPrice: 700, baseCostUnit: 'pcs' })) }, 'acco-dus');
+    expect(mapped.baseCostPrice).toBe(700);
+    expect(mapped.baseCostUnit).toBe('pcs');
+    expect(mapped.costPrice).toBe(9000);
+  });
   const mockCategory = {
     id: 'cat1',
     name: 'Office Supplies',

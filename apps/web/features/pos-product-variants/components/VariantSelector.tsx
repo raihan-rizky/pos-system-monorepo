@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import type { ProductVariant } from '@/hooks/useProducts';
 import { formatRupiah } from '@/lib/utils';
+import { isSpecialCategoryPricing } from '@/features/customer-category-pricing/helpers/pricing-rules';
 
 interface VariantSelectorProps {
   variants: ProductVariant[];
@@ -23,6 +24,7 @@ export const VariantSelector: React.FC<VariantSelectorProps> = ({
   return (
     <div className="relative w-full group">
       <select
+        aria-label="Pilih satuan produk"
         value={selected}
         onChange={handleChange}
         onClick={(e) => e.stopPropagation()}
@@ -39,7 +41,7 @@ export const VariantSelector: React.FC<VariantSelectorProps> = ({
           const suffix = Math.floor(variant.stock ?? 0) <= 0 ? ' (Stok Habis)' : '';
           return (
             <option key={variant.id} value={variant.id}>
-              {variant.unit} • {formatRupiah(variant.price)}{suffix}
+              {variant.unit} • {formatRupiah(variant.displayPrice ?? variant.price)}{isSpecialCategoryPricing(variant.appliedPricing) ? ' • Harga Khusus' : ''}{suffix}
             </option>
           );
         })}

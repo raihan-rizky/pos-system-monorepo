@@ -1,3 +1,4 @@
+import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
@@ -174,7 +175,8 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    const rawProducts = products.map((product) => withCalculatedStock(product));
+    const baseCosts = await loadProductBaseCosts(db, products);
+    const rawProducts = products.map((product) => ({ ...withCalculatedStock(product), ...baseCosts.get(product.id) }));
     const groupedProducts = groupProductsByNameAndCategory(rawProducts as any);
 
     const res = apiList(

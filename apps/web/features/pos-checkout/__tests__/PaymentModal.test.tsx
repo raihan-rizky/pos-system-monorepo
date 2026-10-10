@@ -53,6 +53,10 @@ vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
   useCustomerCategoryPricingRules: () => ({ data: [], isError: false }),
 }));
 
+vi.mock("@/features/pos-checkout/hooks/useCartCatalogPrices", () => ({
+  useCartCatalogPrices: (items: ProductCartItem[]) => items,
+}));
+
 vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({
   CustomerCheckoutSelect: () => <div>Pilih pelanggan</div>,
 }));

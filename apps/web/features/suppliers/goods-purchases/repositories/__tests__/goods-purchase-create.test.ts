@@ -2,15 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const shoppingRequestFindMany = vi.hoisted(() => vi.fn());
 const productFindMany = vi.hoisted(() => vi.fn());
+const transactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@pos/db", () => ({
   db: {
+    $transaction: transactionMock,
     shoppingRequest: { findMany: shoppingRequestFindMany },
     product: { findMany: productFindMany },
   },
 }));
 
 import {
+  createGoodsPurchaseRecord,
   listEligibleShoppingRequests,
   listLargeUnitProducts,
 } from "../goods-purchases-repository";
@@ -20,6 +23,29 @@ describe("goods purchase create repository", () => {
     vi.clearAllMocks();
     shoppingRequestFindMany.mockResolvedValue([]);
     productFindMany.mockResolvedValue([]);
+  });
+
+  it("allows enough time for the goods-purchase creation transaction", async () => {
+    await createGoodsPurchaseRecord(
+      {
+        shoppingRequestId: "request-1",
+        items: [
+          {
+            shoppingRequestItemId: "request-item-1",
+            productId: "product-1",
+            quantity: 1,
+            latestUnitPrice: 11_180,
+            updateMasterHpp: false,
+          },
+        ],
+      },
+      { id: "owner-1", name: "Owner", storeId: "store-1" },
+      new Date("2026-07-24T03:00:00.000Z"),
+    );
+
+    expect(transactionMock).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 15_000,
+    });
   });
 
   it("lists approved requests without an expense or with only a legacy expense", async () => {

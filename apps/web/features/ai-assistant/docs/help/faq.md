@@ -23,20 +23,20 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 2. **Edit Detail Produk:** Klik tombol **Edit** (ikon pensil) pada baris produk untuk mengubah detail produk secara penuh, termasuk mengganti harga jual dasar dan nilai Harga Modal/HPP.
 
 ### Q3: Bagaimana cara mengatur harga khusus/diskon bagi grup pelanggan (Agen, Industri, Dinas)?
-**A:** Anda dapat membuat kebijakan harga diskon khusus yang berlaku untuk kategori produk, unit, dan merek tertentu bagi semua pelanggan atau kelompok pelanggan tertentu:
-1. Buka halaman **Produk > Harga Khusus** (hanya dapat diakses oleh **OWNER**).
-2. Pada form di sisi kanan layar, tentukan pengaturan aturan:
-   - **Tipe Pelanggan:** Pilih **Semua pelanggan** atau kelompok pelanggan (**UMUM**, **AGEN**, **INDUSTRI**, atau **PEMERINTAH** [Dinas]).
-   - **Kategori:** Pilih kategori produk yang ingin diberikan harga khusus.
-   - **Unit:** Isi unit seperti `rim`, `pcs`, atau `dus` jika aturan hanya untuk unit itu. Kosongkan untuk semua unit.
-   - **Merek:** Pilih **Semua merek** atau merek tertentu. Jika merek belum tersedia, tambahkan dari kolom merek baru.
-   - **Mode Diskon:**
-     - **Diskon (%):** Potongan dalam bentuk persentase dari harga dasar (misal: diskon 10%).
-     - **Diskon Rp:** Potongan nominal tetap dalam rupiah (misal: potongan Rp 5.000).
-   - **Nilai:** Isi persentase atau nominal Rupiah diskon.
-3. Klik **Simpan**. Sistem akan otomatis menerapkan diskon ini ketika kategori, unit, merek, dan tipe pelanggan cocok saat transaksi di POS.
-4. Untuk pelanggan **Agen** atau **Pemerintah**, rule Harga Khusus yang cocok dipakai lebih dulu secara default.
-5. Di modal **Pembayaran**, kasir dapat memilih **Harga Agen/Dinas** untuk seluruh transaksi. Jika harga member belum tersedia, sistem kembali memakai Harga Khusus yang cocok.
+**A:** Owner dapat membuat satu aturan untuk satu atau beberapa tipe pelanggan:
+
+1. Buka **Produk > Harga Khusus**, lalu klik **Tambah aturan**.
+2. Pilih **Kategori** dan **Satuan** dari daftar. Untuk diskon yang tidak dibatasi satuan, pilih **Semua satuan**. Rumus modal memerlukan satuan tertentu. Aturan untuk Rim berlaku saat satuan Rim dipilih; satuan lain mengikuti aturannya masing-masing.
+3. Centang tipe pelanggan yang diinginkan, misalnya **Umum dan Agen**. **Semua pelanggan** berlaku untuk keempat tipe dan dipilih sendiri.
+4. Pilih cara menghitung harga: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, atau **Modal + persen**, lalu isi nilainya.
+5. Periksa **Contoh harga**. Buka **Pengaturan tambahan** jika ingin memilih merek, menambah merek, atau mengubah status aktif. Klik **Simpan aturan** setelah sesuai.
+6. Di tab Produk, gunakan **Harga untuk: Umum/Agen/Industri/Pemerintah** untuk melihat harga yang berlaku; pilihan awalnya **Umum**. Di POS, harga mengikuti pelanggan dan satuan yang dipilih.
+
+**Cara membaca modal:** rumus menggunakan modal satuan terkecil secara langsung, tanpa mengalikannya dengan isi kemasan. Modal **Rp700/pcs + Rp4.000** dengan aturan satuan **Rim** menghasilkan **Rp4.700/rim**; dua rim berjumlah **Rp9.400**. **Modal + 10%** menghasilkan **Rp770/rim**. Jika modal pcs berubah menjadi Rp800, harga dengan tambahan Rp4.000 menjadi Rp4.800/rim. Perubahan modal Rim sendiri tidak mengganti sumber modal pcs untuk rumus ini.
+
+Harga yang benar-benar memakai aturan diberi **warna hijau** dan badge **Harga Khusus**, termasuk saat hasilnya sama dengan harga normal. Urutan harga otomatis adalah **Harga Khusus yang dapat diterapkan → Harga Agen/Dinas yang sesuai → harga normal**. Jika sumber modal satuan terkecil belum tersedia atau tidak valid, rumus tidak diterapkan dan harga member/normal digunakan. Kasir tidak memilih prioritas harga saat pembayaran.
+
+Harga yang dimasukkan manual untuk transaksi tetap memakai penanda **Hanya berlaku untuk transaksi ini** dan tidak diberi badge aturan otomatis. Pengaturan rumus tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
 
 ### Q4: Bagaimana cara mengimpor data produk atau kuantitas stok secara massal lewat Excel?
 **A:** Untuk memproses data dalam jumlah banyak secara instan:

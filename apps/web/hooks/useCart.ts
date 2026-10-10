@@ -16,6 +16,8 @@ export interface ProductCartItem {
   catalogPrice: number;
   transactionPrice?: number | null;
   costPrice?: number | null;
+  baseCostPrice?: number | null;
+  baseCostUnit?: string | null;
   hargaDinas?: number | null;
   hargaAgen?: number | null;
   quantity: number;
@@ -55,6 +57,8 @@ export type CartUnitOption = Pick<
   | "price"
   | "catalogPrice"
   | "costPrice"
+  | "baseCostPrice"
+  | "baseCostUnit"
   | "hargaAgen"
   | "hargaDinas"
   | "unit"
@@ -67,6 +71,7 @@ export type CartUnitOption = Pick<
   | "categoryName"
   | "size"
   | "material"
+  | "appliedPricing"
 >;
 
 export interface PrintingServiceCartItem {
@@ -269,7 +274,7 @@ export function useCart() {
   }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; price: number; costPrice?: number | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { id?: string | null; baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string; unitOptions?: CartUnitOption[] }) => {
+    (product: { id: string; name: string; price: number; costPrice?: number | null; baseCostPrice?: number | null; baseCostUnit?: string | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { id?: string | null; baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string; unitOptions?: CartUnitOption[] }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -300,6 +305,8 @@ export function useCart() {
             price: product.price,
             catalogPrice: product.price,
             costPrice: product.costPrice ?? null,
+            baseCostPrice: product.baseCostPrice ?? null,
+            baseCostUnit: product.baseCostUnit ?? null,
             hargaDinas: product.hargaDinas ?? null,
             hargaAgen: product.hargaAgen ?? null,
             quantity: 1,

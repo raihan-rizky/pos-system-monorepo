@@ -4,6 +4,18 @@ import { ProductCard } from '../components/ProductCard';
 import type { Product } from '@/hooks/useProducts';
 
 describe('ProductCard', () => {
+  it('shows the effective unit price and badge for a matching formula', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, baseCostPrice: 700, baseCostUnit: 'pcs' })) }} onAddToCart={vi.fn()} customerType="UMUM" categoryPricingRules={[{ id: 'special', categoryId: 'cat1', customerType: 'ALL', mode: 'COST_PLUS_FLAT', value: 4000, unit: 'dus', isActive: true }]} />);
+    expect(html).toContain('4.700');
+    expect(html).toContain('Harga Khusus');
+    expect(html).toContain('text-emerald-800');
+    expect(html).not.toContain('700/pcs');
+  });
+  it('does not show a special badge for member pricing', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 4200 })) }} onAddToCart={vi.fn()} customerType="AGEN" categoryPricingRules={[]} />);
+    expect(html).toContain('4.200');
+    expect(html).not.toContain('>Harga Khusus<');
+  });
   const mockProduct: Product = {
     id: 'group-1',
     name: 'Coffee',

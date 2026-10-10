@@ -466,6 +466,16 @@ describe("GET /api/products", () => {
     productCountMock.mockResolvedValue(1);
   });
 
+  it("includes the base-unit modal even when the base product is outside this page", async () => {
+    const rim = { id: "rim", storeId: "store-main", name: "Kertas A4", price: 50000, costPrice: 9000, unit: "rim", stock: 10, stockGroupId: "paper", category: { id: "cat-paper", name: "Kertas" }, stockGroup: { id: "paper", baseUnit: "pcs", baseStock: 5000 } };
+    productFindManyMock.mockImplementation(async (args: any) => args.where.OR ? [{ ...rim }, { ...rim, id: "pcs", unit: "pcs", costPrice: 700 }] : [rim]);
+    const response = await GET(new Request("http://localhost/api/products?limit=1"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.data[0]).toMatchObject({ baseCostPrice: 700, baseCostUnit: "pcs", costPrice: 9000 });
+    expect(body.data[0].variants[0].baseCostPrice).toBe(700);
+  });
+
   it("filters products to groups with at least the requested variant count", async () => {
     const response = await GET(
       new Request("http://localhost/api/products?stockGroupMinVariants=2"),

@@ -125,7 +125,7 @@ export async function createShoppingRequest(
       },
       tx,
     );
-    });
+    }, { timeout: 15_000 });
   } catch (error) {
     if (isShoppingRequestNameUniqueConflict(error)) {
       throw new ShoppingRequestNameConflictError();

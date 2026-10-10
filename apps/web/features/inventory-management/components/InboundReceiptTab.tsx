@@ -47,6 +47,7 @@ export interface InboundReceiptTabProps {
   goodsPurchaseId?: string | null;
   supplierId?: string | null;
   onCreateReceipt?: () => void;
+  refreshTrigger?: number;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -62,6 +63,7 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
   goodsPurchaseId,
   supplierId,
   onCreateReceipt,
+  refreshTrigger = 0,
 }) => {
   const { canPerform } = useRole();
   const [receipts, setReceipts] = React.useState<InboundReceiptListItem[]>([]);
@@ -113,7 +115,7 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
 
   React.useEffect(() => {
     void loadReceipts();
-  }, [loadReceipts]);
+  }, [loadReceipts, refreshTrigger]);
 
   const handleSuccess = (nextMessage: string) => {
     setMessage(nextMessage);

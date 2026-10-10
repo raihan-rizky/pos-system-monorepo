@@ -29,10 +29,15 @@ import {
 import { formatInvoiceWib } from "@/features/invoice-date/helpers/server-clock";
 import type { ServerClockSource } from "@/features/invoice-date/helpers/server-clock";
 import { useServerClock } from "@/features/invoice-date/hooks/useServerClock";
+import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
+import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
 
 
 
 interface PaymentModalProps {
+  initialCustomerSelection?: CheckoutCustomerSelection;
+  onCustomerSelectionChange?: (selection: CheckoutCustomerSelection) => void;
   open: boolean;
   onClose: () => void;
   items: CartItem[];
@@ -122,6 +127,8 @@ export function PaymentModal({
   isSavingDraft,
   draftError,
   onUpdateTransactionPrice,
+  initialCustomerSelection,
+  onCustomerSelectionChange,
 }: PaymentModalProps) {
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>(["CASH"]);
   const [discountMode, setDiscountMode] = useState<"RP" | "PERCENT">("RP");
@@ -144,7 +151,7 @@ export function PaymentModal({
   };
   const [note, setNote] = useState("");
   const [customerSelection, setCustomerSelection] =
-    useState<CheckoutCustomerSelection>({ kind: "general" });
+    useState<CheckoutCustomerSelection>(initialCustomerSelection ?? { kind: "general" });
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   const [customerError, setCustomerError] = useState<string | null>(null);
   const createCustomer = useCreateCustomer();
@@ -172,8 +179,9 @@ export function PaymentModal({
     role,
     selectedCustomerType,
   );
+  const currentCatalogItems = useCartCatalogPrices(items, open);
   const pricedItems = priceCartItemsForCheckout({
-    items,
+    items: currentCatalogItems,
     customerType: selectedCustomerType,
     pricingRules: pricingRulesQuery.data ?? [],
     manualPrices,
@@ -366,10 +374,11 @@ export function PaymentModal({
               <span className="text-surface-600">
                 {item.name} × {item.quantity}
               </span>
-              <span className="font-medium text-surface-900">
+              <span className={`font-medium ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-surface-900"}`}>
                 {formatRupiah(item.price * item.quantity)}
               </span>
               </div>
+              {item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) && <SpecialPriceBadge />}
               {item.lineType === "PRODUCT" && canEditCustomPrices && (
                 <div className="mt-2 space-y-1.5">
                   {(() => {
@@ -526,7 +535,7 @@ export function PaymentModal({
 
         <CustomerCheckoutSelect
           value={customerSelection}
-          onChange={setCustomerSelection}
+          onChange={(selection) => { setCustomerSelection(selection); onCustomerSelectionChange?.(selection); }}
           error={customerError}
           disabled={createCustomer.isPending}
           onClearError={() => setCustomerError(null)}

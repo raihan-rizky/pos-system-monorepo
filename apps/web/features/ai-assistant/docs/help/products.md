@@ -18,3 +18,15 @@ Langkah operasional detail dapat dilihat langsung di [FAQ](file:///d:/main_proje
 ## Kemampuan Pak Teladan
 
 Pak Teladan dapat mencari produk aktif berdasarkan nama, SKU, atau barcode serta membaca harga dan stok produk spesifik untuk role OWNER, ADMIN, INVENTORY, dan CASHIER. Daftar stok rendah tersedia bagi OWNER, ADMIN, dan INVENTORY. Pak Teladan dapat membuka modal **Tambah Produk** jika role memiliki izin, tetapi tidak mengisi atau menyimpan form. Pak Teladan tidak membuat, mengubah, menghapus, atau mengimpor data secara otomatis. Data produk harus berasal dari tool/backend.
+
+## Harga Khusus dan pratinjau pelanggan
+
+Owner membuka tab **Harga Khusus**, lalu memilih **Tambah aturan**. Formulir memuat kategori, pilihan satuan, tipe pelanggan, dan cara menghitung harga. Satu aturan dapat berlaku untuk beberapa tipe sekaligus, misalnya **Umum dan Agen**; **Semua pelanggan** dipilih sendiri. Pilihan satuan mengikuti kategori. Rumus modal memerlukan satuan tertentu; diskon dapat memakai Semua satuan. Aturan untuk Rim hanya berlaku saat satuan Rim dipilih.
+
+Empat cara menghitung harga tersedia: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, dan **Modal + persen**. Periksa contoh harga sebelum **Simpan aturan**. Pengaturan merek, tambah merek, dan status aktif tersedia di **Pengaturan tambahan**.
+
+**Nonaktifkan** menghentikan penerapan aturan. Aturan tetap tersimpan dan bisa diaktifkan kembali melalui **Ubah → Pengaturan tambahan → Aturan aktif**.
+
+Rumus modal menggunakan nilai modal satuan terkecil dari grup produk yang sama di toko yang sama, tanpa perkalian isi kemasan. Contoh: modal **Rp700/pcs + Rp4.000** untuk **Rim** menghasilkan **Rp4.700/rim**. Tambahan **10%** menghasilkan **Rp770/rim**. Rumus mengikuti modal satuan terkecil terbaru. Jika sumber modal tidak tersedia atau tidak valid, harga Agen/Dinas yang sesuai atau harga normal tetap digunakan.
+
+Di tab **Produk**, pilih **Harga untuk: Umum/Agen/Industri/Pemerintah**; pilihan awalnya **Umum**. Harga hasil aturan ditandai **hijau** dan badge **Harga Khusus**. Harga Agen/Dinas biasa dan harga manual transaksi tidak memakai badge aturan otomatis. Aturan berlaku dinamis di Produk dan POS, tanpa mengubah modal akuntansi atau transaksi lama.

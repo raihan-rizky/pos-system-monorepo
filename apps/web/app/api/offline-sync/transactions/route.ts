@@ -1,3 +1,4 @@
+import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
@@ -170,6 +171,8 @@ async function syncOne(
         name: true,
         price: true,
         costPrice: true,
+        storeId: true,
+        stockGroupId: true,
         hargaDinas: true,
         hargaAgen: true,
         size: true,
@@ -196,6 +199,7 @@ async function syncOne(
       },
     }),
   ]);
+  const baseCosts = await loadProductBaseCosts(db, products);
   const productById = new Map(products.map((product) => [product.id, product]));
 
   if (productById.size !== productIds.length) {
@@ -223,6 +227,7 @@ async function syncOne(
     categoryId: rule.categoryId,
     categoryName: rule.category.name,
     customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
+    customerTypes: rule.customerTypes,
     unit: rule.unit,
     brandId: rule.brandId,
     brandName: rule.brand?.name ?? null,
@@ -244,6 +249,7 @@ async function syncOne(
         categoryId: product.categoryId,
         categoryName: product.category?.name ?? null,
         price: Number(product.price),
+        ...baseCosts.get(product.id),
         hargaDinas:
           product.hargaDinas == null ? null : Number(product.hargaDinas),
         hargaAgen:

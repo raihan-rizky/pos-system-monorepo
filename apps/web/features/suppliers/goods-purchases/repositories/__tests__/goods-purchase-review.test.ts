@@ -23,6 +23,7 @@ const tx = vi.hoisted(() => ({
   inventoryLog: { create: vi.fn() },
   productStockGroup: { update: vi.fn() },
 }));
+const transactionMock = vi.hoisted(() => vi.fn());
 
 const DecimalMock = vi.hoisted(
   () =>
@@ -63,9 +64,7 @@ vi.mock("@pos/db", () => ({
     PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {},
   },
   db: {
-    $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) =>
-      callback(tx),
-    ),
+    $transaction: transactionMock,
   },
 }));
 
@@ -145,6 +144,9 @@ function purchase(
 describe("goods purchase item review transaction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    transactionMock.mockImplementation(
+      async (callback: (client: typeof tx) => unknown) => callback(tx),
+    );
     tx.goodsPurchaseItem.update.mockResolvedValue({});
     tx.goodsPurchaseItem.create.mockResolvedValue({});
     tx.goodsPurchaseItem.delete.mockResolvedValue({});
@@ -155,6 +157,16 @@ describe("goods purchase item review transaction", () => {
     tx.product.update.mockResolvedValue({});
     tx.productPriceLog.createMany.mockResolvedValue({ count: 1 });
     tx.$queryRaw.mockResolvedValue([{ id: "purchase-1" }]);
+  });
+
+  it("allows enough time for the goods-purchase approval transaction", async () => {
+    transactionMock.mockResolvedValue(undefined);
+
+    await approveGoodsPurchaseItemRecord("purchase-1", "item-1", actor, now);
+
+    expect(transactionMock).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 15_000,
+    });
   });
 
   it("locks the pending purchase before mutating an item", async () => {

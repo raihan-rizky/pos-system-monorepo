@@ -3,18 +3,9 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
+import { fetchProducts, productQueryKey } from "./useProducts";
 
 const POS_PREFETCH_PAGE_SIZE = 24;
-
-async function fetchPosProductsPage() {
-  const params = new URLSearchParams({
-    page: "1",
-    limit: String(POS_PREFETCH_PAGE_SIZE),
-  });
-  const res = await fetch(`/api/products?${params.toString()}`);
-  if (!res.ok) throw new Error("Failed to prefetch products");
-  return res.json();
-}
 
 async function fetchCategories() {
   const res = await fetch("/api/categories");
@@ -48,16 +39,10 @@ export function useAppPrefetch(enabled = true) {
     const timer = setTimeout(() => {
       if (!isPosPage) {
         queryClient.prefetchQuery({
-          queryKey: [
-            "products",
-            "page",
-            "",
-            "",
-            1,
-            POS_PREFETCH_PAGE_SIZE,
-            false,
-          ],
-          queryFn: fetchPosProductsPage,
+          queryKey: productQueryKey("", "", { limit: POS_PREFETCH_PAGE_SIZE }),
+          queryFn: ({ signal }) => fetchProducts(
+            "", "", 1, POS_PREFETCH_PAGE_SIZE, false, undefined, undefined, signal,
+          ),
           staleTime: 5 * 60 * 1000,
         });
         queryClient.prefetchQuery({

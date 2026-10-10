@@ -10,17 +10,21 @@ const storeLockMock = vi.hoisted(() =>
 const shoppingRequestCountMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue(0),
 );
+const transactionOptionsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@pos/db", () => ({
   db: {
-    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        $queryRaw: storeLockMock,
-        shoppingRequest: { count: shoppingRequestCountMock },
-        supplier: { findFirst: supplierFindFirstMock },
-      };
-      return fn(tx);
-    }),
+    $transaction: vi.fn(
+      async (fn: (tx: unknown) => Promise<unknown>, options?: unknown) => {
+        transactionOptionsMock(options);
+        const tx = {
+          $queryRaw: storeLockMock,
+          shoppingRequest: { count: shoppingRequestCountMock },
+          supplier: { findFirst: supplierFindFirstMock },
+        };
+        return fn(tx);
+      },
+    ),
     product: {
       findMany: productFindManyMock,
     },
@@ -204,6 +208,9 @@ describe("createShoppingRequest", () => {
         stockMode: "PRODUCT_ONLY",
       },
     ]);
+    expect(transactionOptionsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ timeout: 15_000 }),
+    );
   });
 
   it("translates duplicate normalized names into a conflict error", async () => {

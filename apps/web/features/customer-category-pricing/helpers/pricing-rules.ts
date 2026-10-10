@@ -3,7 +3,7 @@ export type CustomerType = (typeof CUSTOMER_TYPES)[number];
 export const PRICING_CUSTOMER_TYPES = ["ALL", ...CUSTOMER_TYPES] as const;
 export type PricingCustomerType = (typeof PRICING_CUSTOMER_TYPES)[number];
 
-export const PRICING_MODES = ["FLAT_DISCOUNT", "PERCENT_DISCOUNT"] as const;
+export const PRICING_MODES = ["FLAT_DISCOUNT", "PERCENT_DISCOUNT", "COST_PLUS_FLAT", "COST_PLUS_PERCENT"] as const;
 export type CategoryCustomerPricingMode = (typeof PRICING_MODES)[number];
 export const PRICING_PREFERENCES = ["SPECIAL", "MEMBER"] as const;
 export type PricingPreference = (typeof PRICING_PREFERENCES)[number];
@@ -13,6 +13,7 @@ export interface CategoryPricingRule {
   categoryId: string;
   categoryName?: string | null;
   customerType: PricingCustomerType;
+  customerTypes?: PricingCustomerType[];
   mode: CategoryCustomerPricingMode;
   value: number;
   isActive: boolean;
@@ -26,6 +27,8 @@ export interface PriceableProduct {
   categoryId: string;
   categoryName?: string | null;
   price: number;
+  baseCostPrice?: number | null;
+  baseCostUnit?: string | null;
   hargaDinas?: number | null;
   hargaAgen?: number | null;
   unit?: string | null;
@@ -91,6 +94,18 @@ export function isRegularPriceFallback(input: {
   return input.appliedPricing === null;
 }
 
+export function getPricingRuleCustomerTypes(rule: Pick<CategoryPricingRule, "customerType" | "customerTypes">): PricingCustomerType[] {
+  const targets = rule.customerTypes ?? [rule.customerType];
+  if (targets.length === 0) return ["ALL"];
+  if (targets.some((target) => !isPricingCustomerType(target))) return [];
+  if (targets.includes("ALL") && targets.length > 1) return [];
+  return [...new Set(targets)];
+}
+
+export function isSpecialCategoryPricing(appliedPricing: Pick<AppliedCategoryPricing, "ruleId"> | null | undefined): boolean {
+  return Boolean(appliedPricing?.ruleId && !["harga-agen", "harga-dinas"].includes(appliedPricing.ruleId));
+}
+
 export function findMatchingCategoryPricingRule(
   rules: CategoryPricingRule[],
   input: {
@@ -106,7 +121,8 @@ export function findMatchingCategoryPricingRule(
   const matches = rules
     .map((rule, index) => {
       if (!rule.isActive || rule.categoryId !== input.categoryId) return null;
-      if (rule.customerType !== "ALL" && rule.customerType !== input.customerType) {
+      const targets = getPricingRuleCustomerTypes(rule);
+      if (!targets.includes("ALL") && !targets.includes(input.customerType)) {
         return null;
       }
 
@@ -116,7 +132,7 @@ export function findMatchingCategoryPricingRule(
       const ruleBrandId = rule.brandId ?? null;
       if (ruleBrandId && ruleBrandId !== productBrandId) return null;
 
-      const hasSpecificCustomer = rule.customerType !== "ALL";
+      const hasSpecificCustomer = !targets.includes("ALL");
       const hasSpecificUnit = Boolean(ruleUnit);
       const hasSpecificBrand = Boolean(ruleBrandId);
       const updatedAtTime =
@@ -168,10 +184,12 @@ export function applyCategoryPricingRule(
   const ruleUnit = normalizePricingUnit(rule?.unit);
   const productUnit = normalizePricingUnit(product.unit);
   const ruleBrandId = rule?.brandId ?? null;
+  const targets = rule ? getPricingRuleCustomerTypes(rule) : [];
   if (
     !rule ||
     !rule.isActive ||
-    (rule.customerType !== "ALL" && rule.customerType !== customerType) ||
+    (!targets.includes("ALL") && !targets.includes(customerType)) ||
+    !Number.isFinite(rule.value) || rule.value < 0 ||
     rule.categoryId !== product.categoryId ||
     (ruleUnit && ruleUnit !== productUnit) ||
     (ruleBrandId && ruleBrandId !== (product.brandId ?? null))
@@ -179,12 +197,21 @@ export function applyCategoryPricingRule(
     return { unitPrice: originalUnitPrice, appliedPricing: null };
   }
 
-  const appliedUnitPrice =
-    rule.mode === "FLAT_DISCOUNT"
-      ? roundCurrency(originalUnitPrice - rule.value)
-      : roundCurrency(originalUnitPrice * (1 - rule.value / 100));
+  const costFormula = rule.mode === "COST_PLUS_FLAT" || rule.mode === "COST_PLUS_PERCENT";
+  if (costFormula && (product.baseCostPrice == null || !Number.isFinite(product.baseCostPrice) || product.baseCostPrice < 0 || !normalizePricingUnit(product.baseCostUnit))) {
+    return { unitPrice: originalUnitPrice, appliedPricing: null };
+  }
+  const baseCost = product.baseCostPrice ?? 0;
+  const computedPrice = rule.mode === "COST_PLUS_FLAT"
+    ? baseCost + rule.value
+    : rule.mode === "COST_PLUS_PERCENT"
+      ? baseCost * (1 + rule.value / 100)
+      : rule.mode === "FLAT_DISCOUNT"
+        ? originalUnitPrice - rule.value
+        : originalUnitPrice * (1 - rule.value / 100);
+  const appliedUnitPrice = roundCurrency(computedPrice);
 
-  if (appliedUnitPrice <= 0) {
+  if (!Number.isFinite(appliedUnitPrice) || appliedUnitPrice <= 0) {
     return { unitPrice: originalUnitPrice, appliedPricing: null };
   }
 
@@ -395,6 +422,12 @@ export function formatPricingRuleLabel(input: {
   }
   if (input.ruleId === "harga-agen") {
     return "Harga Agen";
+  }
+  if (input.mode === "COST_PLUS_FLAT") {
+    return `${input.customerType} Modal + Rp ${input.value.toLocaleString("id-ID")}`;
+  }
+  if (input.mode === "COST_PLUS_PERCENT") {
+    return `${input.customerType} Modal + ${input.value}%`;
   }
   if (input.mode === "FLAT_DISCOUNT") {
     return `${input.customerType} diskon Rp ${input.value.toLocaleString("id-ID")}`;

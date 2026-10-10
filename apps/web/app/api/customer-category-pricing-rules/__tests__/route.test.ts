@@ -9,6 +9,14 @@ const ruleFindFirstMock = vi.hoisted(() => vi.fn());
 const ruleCreateMock = vi.hoisted(() => vi.fn());
 const categoryFindUniqueMock = vi.hoisted(() => vi.fn());
 const brandFindUniqueMock = vi.hoisted(() => vi.fn());
+const transactionMock = vi.hoisted(() => vi.fn());
+const lockMock = vi.hoisted(() => vi.fn());
+const testDb = vi.hoisted(() => ({
+  categoryCustomerPricingRule: { findMany: ruleFindManyMock, findFirst: ruleFindFirstMock, create: ruleCreateMock },
+  category: { findUnique: categoryFindUniqueMock },
+  brand: { findUnique: brandFindUniqueMock },
+  $queryRaw: lockMock,
+}));
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -18,6 +26,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
+    $transaction: transactionMock,
     categoryCustomerPricingRule: {
       findMany: ruleFindManyMock,
       findFirst: ruleFindFirstMock,
@@ -35,6 +44,8 @@ vi.mock("@pos/db", () => ({
 describe("/api/customer-category-pricing-rules", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    transactionMock.mockImplementation(async (callback) => callback(testDb));
+    lockMock.mockResolvedValue([]);
     requirePermissionMock.mockResolvedValue({
       id: "cashier-1",
       role: "CASHIER",
@@ -57,6 +68,80 @@ describe("/api/customer-category-pricing-rules", () => {
     }));
     categoryFindUniqueMock.mockResolvedValue({ id: "cat-1" });
     brandFindUniqueMock.mockResolvedValue({ id: "brand-1", storeId: "store-main" });
+  });
+
+  it("stores a single formula rule for multiple customer types", async () => {
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["UMUM", "AGEN"], unit: "Rim", mode: "COST_PLUS_FLAT", value: 4000 }),
+    }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ customerTypes: ["UMUM", "AGEN"], unit: "rim", mode: "COST_PLUS_FLAT" });
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(lockMock).toHaveBeenCalledTimes(1);
+    expect(ruleCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ customerTypes: ["UMUM", "AGEN"] }) }));
+  });
+
+  it("saves when the database lock returns a Prisma-supported type", async () => {
+    lockMock.mockImplementation((strings: TemplateStringsArray) => {
+      if (!strings.join("").includes("::text")) throw new Error("Failed to deserialize column of type 'void'");
+      return Promise.resolve([{ pg_advisory_xact_lock: "" }]);
+    });
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["UMUM"], unit: "rim", mode: "COST_PLUS_FLAT", value: 4000 }),
+    }));
+    expect(response.status).toBe(201);
+  });
+
+  it("gives creation enough time for a remote database transaction", async () => {
+    transactionMock.mockImplementation((callback, options) => {
+      if (!options || options.timeout < 15000) throw new Error("Transaction expired after Prisma's default 5000ms");
+      return callback(testDb);
+    });
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["UMUM"], unit: "rim", mode: "COST_PLUS_FLAT", value: 4000 }),
+    }));
+    expect(response.status).toBe(201);
+  });
+
+  it("rejects overlapping explicit targets inside the locked transaction", async () => {
+    ruleFindManyMock.mockResolvedValue([{ id: "other", customerTypes: ["AGEN", "INDUSTRI"], customerType: null }]);
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["UMUM", "AGEN"], unit: "rim", mode: "COST_PLUS_FLAT", value: 4000 }),
+    }));
+    expect(response.status).toBe(409);
+    expect(lockMock.mock.invocationCallOrder[0]).toBeLessThan(ruleFindManyMock.mock.invocationCallOrder[0]);
+    expect(ruleCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("allows ALL fallback alongside explicit targets", async () => {
+    ruleFindManyMock.mockResolvedValue([{ id: "all", customerTypes: [], customerType: null }]);
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["AGEN"], unit: "rim", mode: "COST_PLUS_PERCENT", value: 150 }),
+    }));
+    expect(response.status).toBe(201);
+  });
+
+  it.each(["COST_PLUS_FLAT", "COST_PLUS_PERCENT"])("allows modal with zero addition for %s", async (mode) => {
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["AGEN"], unit: "rim", mode, value: 0 }),
+    }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ mode, value: 0 });
+  });
+
+  it.each([
+    { customerTypes: ["ALL", "AGEN"] },
+    { customerTypes: [] },
+    { customerTypes: ["UMUM"], customerType: "AGEN" },
+    { customerTypes: ["AGEN"], unit: null },
+    { customerTypes: ["AGEN"], value: -1 },
+    { customerTypes: ["AGEN"], value: "Infinity" },
+  ])("rejects invalid formula input %j", async (invalid) => {
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", unit: "rim", mode: "COST_PLUS_FLAT", value: 4000, ...invalid }),
+    }));
+    expect(response.status).toBe(422);
+    expect(ruleCreateMock).not.toHaveBeenCalled();
   });
 
   it("allows checkout roles to read active rules", async () => {
@@ -94,7 +179,7 @@ describe("/api/customer-category-pricing-rules", () => {
   });
 
   it("rejects duplicate active customer type and category rules", async () => {
-    ruleFindFirstMock.mockResolvedValue({ id: "existing-rule" });
+    ruleFindManyMock.mockResolvedValue([{ id: "existing-rule", customerType: "AGEN", customerTypes: ["AGEN"] }]);
 
     const response = await POST(
       new Request("http://localhost/api/customer-category-pricing-rules", {
@@ -144,12 +229,11 @@ describe("/api/customer-category-pricing-rules", () => {
     const body = await response.json();
 
     expect(response.status).toBe(201);
-    expect(ruleFindFirstMock).toHaveBeenCalledWith(
+    expect(ruleFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           storeId: "store-main",
           categoryId: "cat-1",
-          customerType: null,
           unit: "rim",
           brandId: "brand-1",
           isActive: true,

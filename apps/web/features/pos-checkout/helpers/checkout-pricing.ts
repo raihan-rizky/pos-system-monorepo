@@ -16,6 +16,7 @@ export function mapCheckoutPricingRule(
     categoryId: rule.categoryId,
     categoryName: rule.category.name,
     customerType: rule.customerType,
+    customerTypes: rule.customerTypes,
     mode: rule.mode,
     value: Number(rule.value),
     isActive: rule.isActive,
@@ -49,6 +50,8 @@ export function priceCartItemsForCheckout(input: {
         unit: item.unit,
         brandId: item.brandId,
         brandName: item.brandName,
+        baseCostPrice: item.baseCostPrice,
+        baseCostUnit: item.baseCostUnit,
       },
       input.customerType,
       activePricingRules,
@@ -59,12 +62,8 @@ export function priceCartItemsForCheckout(input: {
       submittedManualPrice == null && item.transactionPrice != null
         ? {
             unitPrice: item.transactionPrice,
-            appliedPricing: priced.appliedPricing
-              ? {
-                  ...priced.appliedPricing,
-                  appliedUnitPrice: item.transactionPrice,
-                }
-              : null,
+            appliedPricing: null,
+            manualOverrideApplied: true,
           }
         : resolveCustomPricedLine({
             pricedLine: priced,
@@ -76,7 +75,17 @@ export function priceCartItemsForCheckout(input: {
     return {
       ...item,
       price: resolved.unitPrice,
-      appliedPricing: resolved.appliedPricing,
+      appliedPricing: resolved.manualOverrideApplied ? null : resolved.appliedPricing,
+      unitOptions: item.unitOptions?.map(option => {
+        const optionPrice = priceProductForCustomerType({
+          categoryId: option.categoryId, categoryName: option.categoryName,
+          price: option.catalogPrice, unit: option.unit,
+          brandId: option.brandId, brandName: option.brandName,
+          hargaAgen: option.hargaAgen, hargaDinas: option.hargaDinas,
+          baseCostPrice: option.baseCostPrice, baseCostUnit: option.baseCostUnit,
+        }, input.customerType, activePricingRules);
+        return { ...option, price: optionPrice.unitPrice, appliedPricing: optionPrice.appliedPricing };
+      }),
     };
   });
 }

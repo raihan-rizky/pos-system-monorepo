@@ -5,6 +5,8 @@ import { StockWarningBadge } from "@/features/product-stock-warnings/components"
 import { CategoryIcon } from "@/lib/category-icons";
 import { getDefaultProductImage } from "@/lib/utils";
 import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
+import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
+import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 interface ProductTableProps {
   products: Product[];
@@ -72,6 +74,7 @@ export default function ProductTable({
           </thead>
           <tbody>
             {products.map(product => {
+              const effectivePrice = product.displayPrice ?? product.price;
               const isLow = product.stock <= product.minStock;
               const stockLabel = formatCompoundStock(product);
               return (
@@ -138,15 +141,16 @@ export default function ProductTable({
                   {/* Price */}
                   <td className="py-3.5 px-5 align-middle text-right">
                     <p className="font-semibold text-surface-900 text-sm tabular-nums">
-                      {new Intl.NumberFormat("id-ID").format(product.price)}
+                      <span className={isSpecialCategoryPricing(product.appliedPricing) ? "text-emerald-800" : undefined}>{new Intl.NumberFormat("id-ID").format(product.displayPrice ?? product.price)}</span>
                     </p>
+                    {isSpecialCategoryPricing(product.appliedPricing) && <SpecialPriceBadge />}
                     {canChangePrice && product.costPrice && (
                       <>
                         <p className="text-[11px] text-surface-400 mt-0.5 tabular-nums">
                           HPP: {new Intl.NumberFormat("id-ID").format(product.costPrice)}
                         </p>
                         <p className="text-[11px] text-emerald-600 font-medium mt-0.5 tabular-nums">
-                          Margin: {new Intl.NumberFormat("id-ID").format(product.price - product.costPrice)} {product.price > 0 ? `(${((product.price - product.costPrice) / product.price * 100).toFixed(1)}%)` : ""}
+                          Margin: {new Intl.NumberFormat("id-ID").format(effectivePrice - product.costPrice)} {effectivePrice > 0 ? `(${((effectivePrice - product.costPrice) / effectivePrice * 100).toFixed(1)}%)` : ""}
                         </p>
                       </>
                     )}
@@ -229,6 +233,7 @@ export default function ProductTable({
       {/* ─── MOBILE CARDS ─── */}
       <div className="flex flex-col gap-3.5 md:hidden p-4">
         {products.map(product => {
+          const effectivePrice = product.displayPrice ?? product.price;
           const isLow = product.stock <= product.minStock;
           const isOut = product.stock <= 0;
           const stockLabel = formatCompoundStock(product);
@@ -362,15 +367,16 @@ export default function ProductTable({
                 <div className="bg-slate-50/60 rounded-2xl p-3 border border-slate-100/80">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Harga Jual</p>
                   <p className="text-[15px] font-black text-slate-900 tabular-nums">
-                    {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.price)}
+                    <span className={isSpecialCategoryPricing(product.appliedPricing) ? "text-emerald-800" : undefined}>{new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.displayPrice ?? product.price)}</span>
                   </p>
+                  {isSpecialCategoryPricing(product.appliedPricing) && <SpecialPriceBadge />}
                   {canChangePrice && product.costPrice && (
                     <>
                       <p className="text-[10px] font-bold text-slate-500 mt-1">
                         HPP: {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.costPrice)}
                       </p>
                       <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
-                        Margin: {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.price - product.costPrice)} {product.price > 0 ? `(${((product.price - product.costPrice) / product.price * 100).toFixed(1)}%)` : ""}
+                        Margin: {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(effectivePrice - product.costPrice)} {effectivePrice > 0 ? `(${((effectivePrice - product.costPrice) / effectivePrice * 100).toFixed(1)}%)` : ""}
                       </p>
                     </>
                   )}

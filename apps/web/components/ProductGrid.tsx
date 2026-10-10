@@ -1,16 +1,12 @@
 "use client";
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback } from "react";
 import { Search } from "lucide-react";
 import type { Product } from "@/hooks/useProducts";
 import { ProductCard } from "@/features/pos-product-variants";
-import { useRole } from "@/components/providers/RoleProvider";
-import { shouldShowDeleteAction } from "@/features/rbac/helpers/rbac-ui";
 import {
-  isRegularPriceFallback,
   type CategoryPricingRule,
   type CustomerType,
-  priceProductForCustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 interface ProductGridProps {
@@ -34,8 +30,6 @@ export function ProductGrid({
   customerType,
   categoryPricingRules,
 }: ProductGridProps) {
-  const { canPerform } = useRole();
-  const canDeleteProducts = shouldShowDeleteAction("product", canPerform);
 
   const handleAddToCart = useCallback(
     (product: Product, variantId?: string) => {
@@ -44,31 +38,6 @@ export function ProductGrid({
     [onAddToCart]
   );
 
-  const regularPriceHintByProductId = useMemo(() => {
-    const map = new Map<string, boolean>();
-    if (!customerType || !categoryPricingRules) return map;
-    for (const product of products) {
-      const priced = priceProductForCustomerType(
-        {
-          categoryId: product.category.id,
-          categoryName: product.category.name,
-          price: product.price,
-          hargaDinas: product.hargaDinas,
-          hargaAgen: product.hargaAgen,
-        },
-        customerType,
-        categoryPricingRules,
-      );
-      map.set(
-        product.id,
-        isRegularPriceFallback({
-          appliedPricing: priced.appliedPricing,
-          customerType,
-        }),
-      );
-    }
-    return map;
-  }, [products, customerType, categoryPricingRules]);
 
   if (isLoading) {
     return (
@@ -102,7 +71,9 @@ export function ProductGrid({
           isEditMode={isEditMode}
           onEditProduct={onEditProduct}
           onDeleteProduct={onDeleteProduct}
-          showRegularPriceHint={regularPriceHintByProductId.get(product.id) ?? false}
+          customerType={customerType}
+          categoryPricingRules={categoryPricingRules}
+          showRegularPriceHint={false}
         />
       ))}
     </div>

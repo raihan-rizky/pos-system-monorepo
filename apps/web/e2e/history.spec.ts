@@ -74,3 +74,24 @@ test("history page opens a receipt for draft transactions", async ({ appPage: pa
     draftDialog.getByRole("button", { name: "Cetak Nota Penawaran" }),
   ).toBeVisible();
 });
+
+test("history row actions escape the scrollable table clipping boundary", async ({ appPage: page }) => {
+  await page.setViewportSize({ width: 1280, height: 529 });
+  await page.goto("/history");
+
+  const transactionEntry = page.getByRole("button", { name: /INV-20260509-0001/ });
+  await expect(transactionEntry).toBeVisible();
+  await transactionEntry.getByRole("button", { name: "Pilihan aksi" }).click();
+
+  const voidAction = page.getByRole("button", { name: "Void", exact: true });
+  await expect(voidAction).toBeVisible();
+  const receivesPointerEvents = await voidAction.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const hitTarget = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return hitTarget === button || Boolean(hitTarget && button.contains(hitTarget));
+  });
+
+  expect(receivesPointerEvents).toBe(true);
+  await voidAction.click();
+  await expect(page.getByRole("heading", { name: "Batalkan Transaksi?" })).toBeVisible();
+});

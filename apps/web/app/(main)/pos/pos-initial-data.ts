@@ -1,3 +1,5 @@
+import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
+import { groupProductsByNameAndCategory } from "@/features/pos-search/services/product-grouping-service";
 import { db } from "@pos/db";
 import { requirePermission } from "@/lib/rbac/guard";
 import { buildPaginationMeta } from "@/lib/api/responses";
@@ -24,13 +26,16 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
       isActive: true,
     };
 
+    const productsUpdatedAt = Date.now();
     const [products, total, categories, storeSettings] = await Promise.all([
       db.product.findMany({
         where,
         select: {
           id: true,
+          storeId: true,
           name: true,
           sku: true,
+          barcode: true,
           price: true,
           costPrice: true,
           hargaDinas: true,
@@ -77,26 +82,31 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
       }),
     ]);
 
+    const baseCosts = await loadProductBaseCosts(db, products);
+    const catalogProducts = products.map((product) => ({
+      ...baseCosts.get(product.id),
+      ...withCalculatedStock({
+        ...product,
+        price: Number(product.price),
+        costPrice: product.costPrice == null ? null : Number(product.costPrice),
+        hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
+        hargaAgen: product.hargaAgen == null ? null : Number(product.hargaAgen),
+        stock: Number(product.stock),
+      }),
+      stockGroup: product.stockGroup
+        ? {
+            ...product.stockGroup,
+            baseStock: Number(product.stockGroup.baseStock),
+          }
+        : null,
+    }));
+
     return {
       products: {
-        data: products.map((product) => ({
-          ...withCalculatedStock({
-            ...product,
-            price: Number(product.price),
-            costPrice: product.costPrice == null ? null : Number(product.costPrice),
-            hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
-            hargaAgen: product.hargaAgen == null ? null : Number(product.hargaAgen),
-            stock: Number(product.stock),
-          }),
-          stockGroup: product.stockGroup
-            ? {
-                ...product.stockGroup,
-                baseStock: Number(product.stockGroup.baseStock),
-              }
-            : null,
-        })),
+        data: groupProductsByNameAndCategory(catalogProducts),
         pagination: buildPaginationMeta(total, 1, POS_PAGE_SIZE),
       },
+      productsUpdatedAt,
       categories,
       shiftEnabled: storeSettings?.shiftEnabled ?? true,
     };

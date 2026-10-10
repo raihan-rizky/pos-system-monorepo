@@ -11,6 +11,7 @@ export interface CustomerCategoryPricingRule {
   storeId: string;
   categoryId: string;
   customerType: PricingCustomerType;
+  customerTypes?: PricingCustomerType[];
   unit: string | null;
   brandId: string | null;
   mode: CategoryCustomerPricingMode;
@@ -35,7 +36,8 @@ export interface CustomerCategoryPricingRule {
 
 export interface CustomerCategoryPricingRuleInput {
   categoryId: string;
-  customerType: PricingCustomerType;
+  customerType?: PricingCustomerType;
+  customerTypes?: PricingCustomerType[];
   unit?: string | null;
   brandId?: string | null;
   mode: CategoryCustomerPricingMode;
@@ -62,7 +64,7 @@ async function fetchRules(
   const res = await fetch(`/api/customer-category-pricing-rules?${sp.toString()}`);
   if (!res.ok) {
     const error = await res.json().catch(() => null);
-    throw new Error(error?.error ?? error?.message ?? "Failed to fetch pricing rules");
+    throw new Error(error?.error ?? error?.message ?? "Aturan harga belum berhasil dimuat");
   }
   const json = (await res.json()) as { data: CustomerCategoryPricingRule[] };
   return json.data;
@@ -78,7 +80,7 @@ async function createRule(
   });
   if (!res.ok) {
     const error = await res.json();
-    throw Object.assign(new Error(error?.error ?? error?.message ?? "Failed to create pricing rule"), {
+    throw Object.assign(new Error(error?.error ?? error?.message ?? "Aturan harga belum berhasil disimpan"), {
       status: res.status,
       data: error,
     });
@@ -97,7 +99,7 @@ async function updateRule(
   });
   if (!res.ok) {
     const error = await res.json();
-    throw Object.assign(new Error(error?.error ?? error?.message ?? "Failed to update pricing rule"), {
+    throw Object.assign(new Error(error?.error ?? error?.message ?? "Aturan harga belum berhasil disimpan"), {
       status: res.status,
       data: error,
     });
@@ -111,7 +113,7 @@ async function deleteRule(id: string): Promise<void> {
   });
   if (!res.ok) {
     const error = await res.json();
-    throw new Error(error?.error ?? error?.message ?? "Failed to delete pricing rule");
+    throw new Error(error?.error ?? error?.message ?? "Aturan harga belum berhasil dinonaktifkan");
   }
 }
 
@@ -131,6 +133,9 @@ export function useCreateCustomerCategoryPricingRule() {
     mutationFn: createRule,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customer-category-pricing-rules"] });
+      qc.invalidateQueries({ queryKey: ["pricing-scope-units"] });
+      qc.invalidateQueries({ queryKey: ["pricing-scope-options"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
     },
   });
 }
@@ -141,6 +146,9 @@ export function useUpdateCustomerCategoryPricingRule() {
     mutationFn: updateRule,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customer-category-pricing-rules"] });
+      qc.invalidateQueries({ queryKey: ["pricing-scope-units"] });
+      qc.invalidateQueries({ queryKey: ["pricing-scope-options"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
     },
   });
 }
@@ -151,6 +159,55 @@ export function useDeleteCustomerCategoryPricingRule() {
     mutationFn: deleteRule,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customer-category-pricing-rules"] });
+      qc.invalidateQueries({ queryKey: ["pricing-scope-units"] });
+      qc.invalidateQueries({ queryKey: ["pricing-scope-options"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
     },
+  });
+}
+
+export interface PricingScopeOptions {
+  units: string[];
+  products: Array<{ id: string; name: string; unit: string; price: number; brandId: string | null; baseCostPrice: number | null; baseCostUnit: string | null }>;
+}
+
+async function fetchPricingScopeOptions(
+  categoryId: string,
+  view: "units" | "preview",
+  signal: AbortSignal,
+  unit?: string | null,
+  brandId?: string | null,
+): Promise<PricingScopeOptions> {
+  const params = new URLSearchParams({ categoryId, view });
+  if (unit) params.set("unit", unit);
+  if (brandId) params.set("brandId", brandId);
+  const response = await fetch(`/api/customer-category-pricing-rules/scope-options?${params}`, { signal });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message ?? (view === "units" ? "Satuan belum berhasil dimuat" : "Contoh harga belum berhasil dimuat"));
+  }
+  const json = await response.json() as { data: PricingScopeOptions };
+  return json.data;
+}
+
+export function usePricingUnitOptions(categoryId?: string) {
+  return useQuery({
+    queryKey: ["pricing-scope-units", categoryId],
+    enabled: Boolean(categoryId),
+    queryFn: async ({ signal }) => (await fetchPricingScopeOptions(categoryId!, "units", signal)).units,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+}
+
+export function usePricingScopeOptions(categoryId?: string, unit?: string | null, brandId?: string | null, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ["pricing-scope-options", categoryId, unit, brandId],
+    enabled: Boolean(categoryId) && options.enabled !== false,
+    queryFn: ({ signal }) => fetchPricingScopeOptions(categoryId!, "preview", signal, unit, brandId),
+    staleTime: 15_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 }

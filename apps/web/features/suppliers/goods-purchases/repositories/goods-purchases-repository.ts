@@ -520,7 +520,7 @@ export async function createGoodsPurchaseRecord(
       });
       if (!row) throw new GoodsPurchaseRepositoryError("NOT_FOUND");
       return mapGoodsPurchaseDetail(row);
-    });
+    }, { timeout: 15_000 });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -762,7 +762,7 @@ export async function approveGoodsPurchaseItemRecord(
       },
     });
     return finalizeGoodsPurchaseIfReady(tx, purchaseId, actor, now);
-  });
+  }, { timeout: 15_000 });
 }
 
 export async function editGoodsPurchaseItemRecord(

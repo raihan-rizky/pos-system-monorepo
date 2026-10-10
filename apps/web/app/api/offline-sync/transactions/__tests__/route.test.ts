@@ -384,4 +384,15 @@ describe("POST /api/offline-sync/transactions", () => {
       }),
     );
   });
+  it.each([[700, 4700], [800, 4800]])("uses current base modal %i for Rim price %i and preserves accounting cost", async (baseCost, rimPrice) => {
+    const rim = { id: "product-1", storeId: "store-main", name: "Kertas A4", price: 50000, costPrice: 9000, unit: "rim", stock: 10, stockGroupId: "paper", categoryId: "cat-paper", category: { name: "Kertas" }, brandId: null, brand: null };
+    productFindManyMock.mockImplementation(async (args: any) => args.where.OR ? [{ ...rim, stockGroup: { baseUnit: "pcs", storeId: "store-main" } }, { ...rim, id: "base-pcs", unit: "pcs", costPrice: baseCost, stockGroup: { baseUnit: "pcs", storeId: "store-main" } }] : [rim]);
+    pricingRuleFindManyMock.mockResolvedValue([{ id: "formula-paper", categoryId: "cat-paper", category: { name: "Kertas" }, customerType: "PEMERINTAH", customerTypes: ["UMUM", "AGEN"], unit: "rim", brandId: null, brand: null, mode: "COST_PLUS_FLAT", value: 4000, isActive: true }]);
+    productCostFindManyMock.mockResolvedValue([{ id: "product-1", costPrice: 9000 }]);
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), items: [{ productId: "product-1", name: "Kertas A4", price: rimPrice, quantity: 2 }], amountPaid: rimPrice * 2, originalSubtotal: rimPrice * 2, originalTotal: rimPrice * 2 })]));
+    expect(response.status).toBe(200);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: rimPrice, subtotal: rimPrice * 2, pricingRuleId: "formula-paper" });
+    expect(inventoryLogCreateManyMock.mock.calls[0][0].data[0].unitCost).toBe(9000);
+  });
+
 });

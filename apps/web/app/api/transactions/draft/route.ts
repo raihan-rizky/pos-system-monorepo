@@ -1,3 +1,4 @@
+import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
@@ -161,6 +162,8 @@ export async function POST(request: Request) {
             name: true,
             price: true,
             costPrice: true,
+            storeId: true,
+            stockGroupId: true,
             hargaDinas: true,
             hargaAgen: true,
             size: true,
@@ -200,6 +203,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const baseCosts = await loadProductBaseCosts(db, products);
     const productById = new Map(
       products.map((product) => [product.id, product]),
     );
@@ -220,6 +224,7 @@ export async function POST(request: Request) {
       categoryId: rule.categoryId,
       categoryName: rule.category.name,
       customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
+      customerTypes: rule.customerTypes,
       unit: rule.unit,
       brandId: rule.brandId,
       brandName: rule.brand?.name ?? null,
@@ -237,6 +242,7 @@ export async function POST(request: Request) {
           categoryId: product.categoryId,
           categoryName: product.category.name,
           price: Number(product.price),
+          ...baseCosts.get(product.id),
           hargaDinas:
             product.hargaDinas == null ? null : Number(product.hargaDinas),
           hargaAgen:

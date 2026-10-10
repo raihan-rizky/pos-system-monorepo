@@ -1062,6 +1062,7 @@ model CategoryCustomerPricingRule {
   storeId       String
   categoryId    String
   customerType  CustomerType?
+  customerTypes CustomerType[]              @default([])
   unit          String?
   brandId       String?
   mode          CategoryCustomerPricingMode
@@ -1799,6 +1800,8 @@ enum CustomerType {
 enum CategoryCustomerPricingMode {
   FLAT_DISCOUNT
   PERCENT_DISCOUNT
+  COST_PLUS_FLAT
+  COST_PLUS_PERCENT
 }
 
 enum SuratJalanStatus {

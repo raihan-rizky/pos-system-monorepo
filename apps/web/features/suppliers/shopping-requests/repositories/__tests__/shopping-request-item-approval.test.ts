@@ -164,6 +164,9 @@ describe("shopping request item decisions", () => {
       items: [{ id: "1", approvedQty: 4 }],
     });
 
+    expect(transactionMock).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 15_000,
+    });
     expect(tx.shoppingRequestItem.updateMany).toHaveBeenCalledWith({
       where: {
         id: "1",

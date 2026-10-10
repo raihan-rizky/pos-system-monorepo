@@ -10,6 +10,9 @@ import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowDeleteAction } from "@/features/rbac/helpers/rbac-ui";
 import { VariantSelector } from "./VariantSelector";
 import { orderUnits } from "../helpers/unit-order";
+import { priceCatalogVariantForCustomer } from "@/features/customer-category-pricing/helpers/product-pricing";
+import { isSpecialCategoryPricing, type CategoryPricingRule, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 
 interface ProductCardProps {
   product: Product;
@@ -18,6 +21,8 @@ interface ProductCardProps {
   onEditProduct?: (product: Product) => void;
   onDeleteProduct?: (product: Product) => void;
   showRegularPriceHint?: boolean;
+  customerType?: CustomerType;
+  categoryPricingRules?: CategoryPricingRule[];
 }
 
 const BLUR_DATA_URL =
@@ -30,6 +35,8 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   onEditProduct,
   onDeleteProduct,
   showRegularPriceHint = false,
+  customerType = "UMUM",
+  categoryPricingRules = [],
 }) => {
   const { canPerform } = useRole();
   const canDeleteProducts = shouldShowDeleteAction("product", canPerform);
@@ -59,6 +66,13 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
   const hargaAgen = "hargaAgen" in selectedVariant ? selectedVariant.hargaAgen : product.hargaAgen;
   const hargaDinas = "hargaDinas" in selectedVariant ? selectedVariant.hargaDinas : product.hargaDinas;
+  const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules);
+  const selectedPrice = priceVariant(selectedVariant.id);
+  const hasSpecialPrice = isSpecialCategoryPricing(selectedPrice.appliedPricing);
+  const pricedVariants = orderedVariants.map(v => {
+    const priced = priceVariant(v.id);
+    return { ...v, displayPrice: priced.unitPrice, appliedPricing: priced.appliedPricing };
+  });
 
   const isOutOfStock = Math.floor(selectedVariant.stock ?? 0) <= 0;
   const isLowStock = Math.floor(selectedVariant.stock ?? 0) <= 5;
@@ -152,9 +166,10 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
       {/* Price + Stock */}
       <div className="w-full mt-2.5">
-        <p className="text-base font-bold text-brand-600">
-          {formatRupiah(Number(selectedVariant.price))}
+        <p className={`text-base font-bold ${hasSpecialPrice ? "text-emerald-800" : "text-brand-600"}`}>
+          {formatRupiah(selectedPrice.unitPrice)}
         </p>
+        {hasSpecialPrice && <SpecialPriceBadge />}
         <div className="mt-1 space-y-0.5 text-[11px] leading-snug">
           <p className="flex flex-wrap items-center gap-1">
             <span className="font-medium text-surface-500">Agen:</span>
@@ -181,7 +196,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             )}
           </p>
         </div>
-        {showRegularPriceHint && (
+        {(showRegularPriceHint || (customerType !== "UMUM" && !selectedPrice.appliedPricing)) && (
           <span
             className="inline-block mt-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md"
             title="Tidak ada Harga Dinas atau Harga Khusus — menggunakan harga reguler"
@@ -246,8 +261,9 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                   )}
                 </div>
                 <span className={`text-[10px] font-medium text-left truncate ${isSelected ? "text-brand-600" : "text-surface-500"}`}>
-                  {formatRupiah(variant.price)}
+                  {formatRupiah(priceVariant(variant.id).unitPrice)}
                 </span>
+                {isSpecialCategoryPricing(priceVariant(variant.id).appliedPricing) && <SpecialPriceBadge />}
               </button>
             );
           })}
@@ -258,7 +274,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
       {showVariantDropdown && (
         <div className="w-full mt-2" onClick={(e) => e.stopPropagation()}>
           <VariantSelector
-            variants={orderedVariants}
+            variants={pricedVariants}
             selected={selectedVariantId}
             onChange={setSelectedVariantId}
           />

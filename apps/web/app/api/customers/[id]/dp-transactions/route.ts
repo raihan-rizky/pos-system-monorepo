@@ -33,6 +33,7 @@ export async function GET(
         storeId,
         OR: [
           { status: "DP" },
+          { status: "COMPLETED", paymentMethod: "TEMPO" },
           {
             status: "COMPLETED",
             debtPaymentLogs: { some: { customerId: id } },

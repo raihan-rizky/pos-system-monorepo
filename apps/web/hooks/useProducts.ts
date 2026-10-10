@@ -1,14 +1,20 @@
 "use client";
 
+import { useEffect } from "react";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "./useDebounce";
 import type { ProductStockStatusFilter } from "@/features/pos-search/pos-stock-filter";
+import type { AppliedCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 export interface ProductVariant {
+  displayPrice?: number;
+  appliedPricing?: AppliedCategoryPricing | null;
   id: string;
   unit: string;
   price: number;
   costPrice: number | null;
+  baseCostPrice?: number | null;
+  baseCostUnit?: string | null;
   stock: number;
   sku: string;
   brandId?: string | null;
@@ -32,12 +38,16 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  displayPrice?: number;
+  appliedPricing?: AppliedCategoryPricing | null;
   id: string;
   name: string;
   sku: string;
   barcode?: string | null;
   price: number;
   costPrice: number | null;
+  baseCostPrice?: number | null;
+  baseCostUnit?: string | null;
   hargaDinas: number | null;
   hargaAgen: number | null;
   stock: number;
@@ -107,9 +117,27 @@ export interface UseProductsOptions {
   stockStatus?: ProductStockStatusFilter;
   stockGroupMinVariants?: number;
   initialData?: ProductsResponse;
+  initialDataUpdatedAt?: number;
 }
 
-async function fetchProducts(
+export function productQueryKey(
+  search?: string,
+  categoryId?: string,
+  options: UseProductsOptions = {},
+) {
+  return [
+    "products",
+    search?.trim() || "",
+    categoryId || "",
+    options.page ?? 1,
+    options.limit ?? 100,
+    options.inStockOnly ?? false,
+    options.stockStatus === "all" ? undefined : options.stockStatus,
+    options.stockGroupMinVariants || undefined,
+  ] as const;
+}
+
+export async function fetchProducts(
   search?: string,
   categoryId?: string,
   page = 1,
@@ -117,6 +145,7 @@ async function fetchProducts(
   inStockOnly = false,
   stockStatus?: ProductStockStatusFilter,
   stockGroupMinVariants?: number,
+  signal?: AbortSignal,
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
@@ -131,14 +160,17 @@ async function fetchProducts(
     params.set("stockGroupMinVariants", String(stockGroupMinVariants));
   }
 
-  const res = await fetch(`/api/products?${params.toString()}`);
+  const res = await fetch(`/api/products?${params.toString()}`, { signal });
+  signal?.throwIfAborted();
   if (!res.ok) {
     const { getCachedCatalogProducts } = await import("@/lib/offline/offline-db");
+    signal?.throwIfAborted();
     const cached = await getCachedCatalogProducts<Product>(
       search,
       categoryId,
       inStockOnly,
     );
+    signal?.throwIfAborted();
     if (cached.length > 0) {
       return {
         data: cached,
@@ -156,7 +188,9 @@ async function fetchProducts(
   }
   const response = (await res.json()) as ProductsResponse;
   const { cacheCatalogProducts } = await import("@/lib/offline/offline-db");
-  await cacheCatalogProducts(response.data);
+  signal?.throwIfAborted();
+  await cacheCatalogProducts(response.data, signal);
+  signal?.throwIfAborted();
   return response;
 }
 
@@ -191,17 +225,8 @@ export function useProducts(
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
 
   return useQuery({
-    queryKey: [
-      "products",
-      debouncedSearch,
-      categoryId,
-      page,
-      limit,
-      inStockOnly,
-      stockStatus,
-      options.stockGroupMinVariants,
-    ],
-    queryFn: () =>
+    queryKey: productQueryKey(debouncedSearch, categoryId, options),
+    queryFn: ({ signal }) =>
       fetchProducts(
         debouncedSearch,
         categoryId,
@@ -210,6 +235,7 @@ export function useProducts(
         inStockOnly,
         stockStatus,
         options.stockGroupMinVariants,
+        signal,
       ),
     select: (data) => data.data,
     placeholderData: keepPreviousData,
@@ -493,19 +519,39 @@ export function useProductsPage(
 ) {
   const { page = 1, limit = 100, inStockOnly = false, stockStatus } = options;
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
+  const queryClient = useQueryClient();
+  const canUseInitialData =
+    !debouncedSearch &&
+    !categoryId &&
+    !inStockOnly &&
+    (!stockStatus || stockStatus === "all") &&
+    !options.stockGroupMinVariants &&
+    options.initialData?.pagination.page === page &&
+    options.initialData.pagination.limit === limit;
+  const initialData = canUseInitialData ? options.initialData : undefined;
+
+  useEffect(() => {
+    if (!initialData) return;
+    let current = true;
+    const key = productQueryKey("", "", {
+      page: initialData.pagination.page,
+      limit: initialData.pagination.limit,
+    });
+    void import("@/lib/offline/offline-db")
+      .then(({ cacheCatalogProducts }) => {
+        if (current && queryClient.getQueryData(key) === initialData) {
+          return cacheCatalogProducts(initialData.data);
+        }
+      })
+      .catch(() => {
+        // Optional offline storage must not block the server-loaded catalog.
+      });
+    return () => { current = false; };
+  }, [initialData, queryClient]);
 
   return useQuery({
-    queryKey: [
-      "products",
-      debouncedSearch,
-      categoryId,
-      page,
-      limit,
-      inStockOnly,
-      stockStatus,
-      options.stockGroupMinVariants,
-    ],
-    queryFn: () =>
+    queryKey: productQueryKey(debouncedSearch, categoryId, options),
+    queryFn: ({ signal }) =>
       fetchProducts(
         debouncedSearch,
         categoryId,
@@ -514,7 +560,10 @@ export function useProductsPage(
         inStockOnly,
         stockStatus,
         options.stockGroupMinVariants,
+        signal,
       ),
+    initialData,
+    initialDataUpdatedAt: canUseInitialData ? options.initialDataUpdatedAt : undefined,
     placeholderData: keepPreviousData,
   });
 }

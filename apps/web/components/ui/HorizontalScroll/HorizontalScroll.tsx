@@ -35,8 +35,8 @@ const DRAG_THRESHOLD = 4;
  *   there's more to see.
  *
  * The component never blocks page-level vertical scroll: vertical touch
- * gestures fall through to the parent because we only opt into horizontal
- * panning via `touch-action: pan-x`.
+ * gestures fall through to the parent while horizontal gestures scroll the
+ * rail. The browser handles both directions and pinch zoom natively.
  */
 export const HorizontalScroll = React.forwardRef<
   HTMLDivElement,
@@ -223,7 +223,7 @@ export const HorizontalScroll = React.forwardRef<
           isDragging ? "cursor-grabbing" : "cursor-grab"
         } ${className}`}
         style={{
-          touchAction: "pan-x",
+          touchAction: "auto",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorX: "contain",
           scrollbarWidth: "none",

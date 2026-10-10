@@ -290,14 +290,14 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-special-pricing",
       title: "Mengatur Harga Grup Pelanggan (Harga Khusus)",
-      description: "Atur harga khusus untuk semua pelanggan atau grup tertentu berdasarkan kategori, unit, dan merek. Harga Khusus yang cocok dipakai lebih dulu secara default, lalu kasir bisa memilih Harga Agen/Dinas saat pembayaran.",
+      description: "Buat aturan harga untuk kategori dan satuan tertentu. Pilih satu atau beberapa tipe pelanggan, lalu gunakan diskon atau rumus dari modal satuan terkecil.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Tab Harga Khusus", description: "Buka menu 'Produk' di sidebar, lalu klik tab 'Harga Khusus' di bagian atas (hanya diakses oleh Owner).", icon: <Settings className="w-8 h-8" /> },
-        { title: "Isi Aturan Harga", description: "Di kolom aturan sebelah kanan, pilih Tipe Pelanggan termasuk Semua pelanggan, kategori produk, unit opsional, merek opsional, dan mode diskon persen atau rupiah.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Atur Unit & Merek", description: "Kosongkan Unit untuk semua unit, pilih Semua merek untuk semua merek, atau pilih merek tertentu. Jika merek belum ada, ketik nama merek baru lalu klik Tambah.", icon: <Tag className="w-8 h-8" /> },
-        { title: "Masukkan Nilai Diskon", description: "Masukkan nominal atau persentase diskon yang ingin diberikan untuk grup tersebut, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Pilih Prioritas saat Pembayaran", description: "Untuk pelanggan Agen atau Pemerintah, Harga Khusus yang cocok dipakai lebih dulu secara default. Kasir dapat memilih Harga Agen/Dinas untuk seluruh transaksi. Jika harga tersebut belum tersedia, sistem kembali memakai Harga Khusus yang cocok.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Tambah Aturan", description: "Buka Produk > Harga Khusus sebagai Owner, lalu klik Tambah aturan. Semua pengaturan tersedia dalam satu formulir.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Produk & Pelanggan", description: "Pilih kategori dan satuan dari daftar. Centang satu atau beberapa tipe pelanggan, misalnya Umum dan Agen. Pilih Semua pelanggan jika aturan berlaku untuk setiap tipe. Untuk diskon yang tidak dibatasi satuan, pilih Semua satuan. Rumus modal memerlukan satuan tertentu.", icon: <Users className="w-8 h-8" /> },
+        { title: "Pilih Cara Menghitung Harga", description: "Pilih Diskon rupiah, Diskon persen, Modal + rupiah, atau Modal + persen. Modal memakai nilai satuan terkecil secara langsung: modal Rp700/pcs + Rp4.000 untuk Rim menghasilkan Rp4.700/rim; tambahan 10% menghasilkan Rp770/rim. Modal tidak dikalikan isi rim.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Periksa Contoh & Simpan", description: "Lihat contoh harga sebelum menyimpan. Buka Pengaturan tambahan untuk membatasi merek, menambah merek, atau mengubah status aktif. Klik Simpan aturan setelah sesuai. Nonaktifkan menghentikan penerapan aturan; aturan tetap tersimpan dan dapat diaktifkan kembali lewat Ubah. Rumus mengikuti modal satuan terkecil terbaru; satuan lain mengikuti aturannya sendiri.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Lihat Harga yang Berlaku", description: "Di Produk, pilih Harga untuk; pilihan awalnya Umum. Di POS, harga mengikuti pelanggan dan satuan yang dipilih. Harga dari aturan ditandai warna hijau dan badge Harga Khusus. Urutannya otomatis: Harga Khusus yang dapat diterapkan, Harga Agen/Dinas yang sesuai, lalu harga normal. Harga manual tetap memakai penanda Hanya berlaku untuk transaksi ini.", icon: <ShoppingCart className="w-8 h-8" /> },
       ]
     },
     {

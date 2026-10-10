@@ -55,6 +55,11 @@ import {
   type ProductsResponse,
 } from "@/hooks/useProducts";
 import { useCart, type ProductCartItem } from "@/hooks/useCart";
+import { useCustomerCategoryPricingRules, type CustomerCategoryPricingRule } from "@/hooks/useCustomerCategoryPricingRules";
+import { mapCheckoutPricingRule, priceCartItemsForCheckout } from "@/features/pos-checkout/helpers/checkout-pricing";
+import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
+import { CustomerCheckoutSelect } from "@/features/pos-checkout/components/CustomerCheckoutSelect";
+import type { CheckoutCustomerSelection } from "@/features/pos-checkout/customer-selection";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
 import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
@@ -82,6 +87,7 @@ import {
 import type { DraftCreateInput } from "@/features/transactions-draft";
 
 const POS_PAGE_SIZE = 24;
+const EMPTY_PRICING_RULES: CustomerCategoryPricingRule[] = [];
 
 const PosPriceQuickEditModal = dynamic(
   () =>
@@ -100,6 +106,7 @@ const PosProductQuickEditModal = dynamic(
 
 export type POSInitialData = {
   products: ProductsResponse | null;
+  productsUpdatedAt?: number;
   categories: Category[];
   activeShift?: CashierShift | null;
   shiftEnabled?: boolean;
@@ -187,6 +194,7 @@ export default function POSClientPage({
     limit: POS_PAGE_SIZE,
     inStockOnly: hideOutOfStock,
     initialData: initialData.products ?? undefined,
+    initialDataUpdatedAt: initialData.productsUpdatedAt,
   });
   const visibleProducts = useMemo(
     () =>
@@ -210,6 +218,19 @@ export default function POSClientPage({
     enabled: Boolean(productEditItem),
   });
   const cart = useCart();
+  const [pricingCustomer, setPricingCustomer] = useState<CheckoutCustomerSelection>({ kind: "general" });
+  const customerType = pricingCustomer.kind === "existing" ? pricingCustomer.customer.type ?? "UMUM" : "UMUM";
+  const { data: categoryRules = EMPTY_PRICING_RULES } = useCustomerCategoryPricingRules({ activeOnly: true });
+  const catalogCartItems = useCartCatalogPrices(cart.items);
+  const pricedCartItems = useMemo(
+    () => priceCartItemsForCheckout({ items: catalogCartItems, customerType, pricingRules: categoryRules, manualPrices: {}, role }),
+    [catalogCartItems, customerType, categoryRules, role],
+  );
+  const pricedCartSubtotal = useMemo(
+    () => pricedCartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    [pricedCartItems],
+  );
+  const pricingRules = useMemo(() => categoryRules.map(mapCheckoutPricingRule), [categoryRules]);
   const updateProduct = useUpdateProduct();
   const updateProductGroup = useUpdateProductGroupMetadata();
   const hasLoadedCartStorage = cart.hasLoadedStorage;
@@ -262,12 +283,13 @@ export default function POSClientPage({
     [cart.items],
   );
 
+  const addCartItem = cart.addItem;
   const addProductToCart = useCallback(
     (product: Product, variantId?: string) => {
       const cartItemInput = mapProductToCartItem(product, variantId);
-      cart.addItem(cartItemInput);
+      addCartItem(cartItemInput);
     },
-    [cart],
+    [addCartItem],
   );
 
   const handleProductClick = useCallback(
@@ -813,10 +835,15 @@ export default function POSClientPage({
 
           {activeTab === "products" ? (
             <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-6 py-3 md:py-4">
+              <div className="mb-3 max-w-md">
+                <CustomerCheckoutSelect value={pricingCustomer} onChange={setPricingCustomer} />
+              </div>
               <ProductGrid
                 products={visibleProducts}
                 onAddToCart={handleProductClick}
                 isLoading={productsLoading}
+                customerType={customerType}
+                categoryPricingRules={pricingRules}
               />
             </div>
           ) : (
@@ -838,8 +865,8 @@ export default function POSClientPage({
         {isDesktopCartOpen && (
           <div className="hidden lg:block w-[340px] flex-shrink-0">
             <CartSidebar
-              items={cart.items}
-              subtotal={cart.subtotal}
+              items={pricedCartItems}
+              subtotal={pricedCartSubtotal}
               totalItems={cart.totalItems}
               onUpdateQuantity={cart.updateQuantity}
               onChangeUnit={cart.changeUnit}
@@ -874,7 +901,7 @@ export default function POSClientPage({
           </span>
           <span className="text-xs opacity-80">/</span>
           <span className="font-extrabold text-sm">
-            {formatRupiah(cart.subtotal)}
+            {formatRupiah(pricedCartSubtotal)}
           </span>
         </button>
       )}
@@ -889,8 +916,8 @@ export default function POSClientPage({
           />
           <div className="relative bg-white rounded-t-3xl max-h-[85vh] flex flex-col animate-slide-up-full shadow-2xl">
             <CartSidebar
-              items={cart.items}
-              subtotal={cart.subtotal}
+              items={pricedCartItems}
+              subtotal={pricedCartSubtotal}
               totalItems={cart.totalItems}
               onUpdateQuantity={cart.updateQuantity}
               onChangeUnit={cart.changeUnit}
@@ -921,8 +948,10 @@ export default function POSClientPage({
         <PaymentModal
           open={showPayment}
           onClose={() => setShowPayment(false)}
-          items={cart.items}
-          subtotal={cart.subtotal}
+          items={catalogCartItems}
+          subtotal={pricedCartSubtotal}
+          initialCustomerSelection={pricingCustomer}
+          onCustomerSelectionChange={setPricingCustomer}
           onConfirm={handleCheckout}
           onSaveDraft={hasServiceItems ? undefined : handleSaveDraft}
           isProcessing={createTransaction.isPending}

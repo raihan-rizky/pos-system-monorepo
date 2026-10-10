@@ -146,6 +146,18 @@ describe("PUT /api/products/[id]", () => {
     );
   });
 
+  it("reads one store-scoped product with refreshed smallest-unit modal", async () => {
+    const rim = { id: "rim", storeId: "store-main", name: "Kertas A4", price: 50000, costPrice: 9000, unit: "rim", stock: 10, stockGroupId: "paper", stockGroup: { id: "paper", baseUnit: "pcs", baseStock: 5000 } };
+    productFindFirstMock.mockResolvedValue(rim);
+    productFindManyMock.mockResolvedValue([rim, { ...rim, id: "pcs", unit: "pcs", costPrice: 700 }]);
+    const { GET } = await import("../route");
+    const response = await GET(new Request("http://localhost/api/products/rim"), { params: Promise.resolve({ id: "rim" }) });
+    expect(response.status).toBe(200);
+    expect(requirePermissionMock).toHaveBeenCalledWith("product", "read");
+    expect(productFindFirstMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "rim", storeId: "store-main", isActive: true } }));
+    expect((await response.json()).data).toMatchObject({ baseCostPrice: 700, baseCostUnit: "pcs", costPrice: 9000 });
+  });
+
   it("writes price and HPP change logs with the manual note", async () => {
     const response = await PUT(
       new Request("http://localhost/api/products/product-1", {

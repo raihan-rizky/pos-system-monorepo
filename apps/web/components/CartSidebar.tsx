@@ -9,6 +9,8 @@ import type { QuotationCheckoutMode } from "@/features/nota-penawaran/helpers/qu
 import { orderUnits } from "@/features/pos-product-variants/helpers/unit-order";
 import { CartQuantityInput } from "@/features/pos-checkout/components/CartQuantityInput";
 import styles from "./CartSidebar.module.css";
+import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 
 interface CartSidebarProps {
   items: CartItem[];
@@ -189,7 +191,7 @@ export function CartSidebar({
                         >
                           {options.map((option) => (
                             <option key={option.productId} value={option.productId}>
-                              {option.unit} • {formatRupiah(option.catalogPrice)}
+                              {option.unit} • {formatRupiah(option.price)}{isSpecialCategoryPricing(option.appliedPricing) ? " • Harga Khusus" : ""}
                             </option>
                           ))}
                         </select>
@@ -233,9 +235,10 @@ export function CartSidebar({
                       </div>
                     </dl>
                   )}
-                  <p className="text-sm font-bold text-brand-600 mt-1">
+                  <p className={`text-sm font-bold mt-1 ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-brand-600"}`}>
                     {formatRupiah(item.price * item.quantity)}
                   </p>
+                  {item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) && <SpecialPriceBadge />}
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <div className="flex items-center gap-1">

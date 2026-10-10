@@ -51,6 +51,7 @@ describe("GET /api/customers/[id]/dp-transactions", () => {
           storeId: "store-main",
           OR: [
             { status: "DP" },
+            { status: "COMPLETED", paymentMethod: "TEMPO" },
             {
               status: "COMPLETED",
               debtPaymentLogs: { some: { customerId: "customer-1" } },

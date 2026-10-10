@@ -553,7 +553,7 @@ export async function saveShoppingRequestApprovedQuantities(input: {
     );
     if (!row) throw new Error("NOT_FOUND");
     return reify(row);
-  });
+  }, { timeout: 15_000 });
 }
 
 export async function approveShoppingRequestItems(input: {

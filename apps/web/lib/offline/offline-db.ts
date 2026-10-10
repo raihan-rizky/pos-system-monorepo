@@ -178,11 +178,43 @@ export async function clearSyncedOfflineTransactions() {
   window.dispatchEvent(new CustomEvent("pos-offline-queue-changed"));
 }
 
-export async function cacheCatalogProducts<T extends { id: string }>(products: T[]) {
+export async function cacheCatalogProducts<T extends { id: string }>(
+  products: T[],
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted();
   const updatedAt = new Date().toISOString();
-  await offlineDb.catalogProducts.bulkPut(
-    products.map((product) => ({ ...product, updatedAt })),
-  );
+  const rows = products.map((product) => ({ ...product, updatedAt }));
+  if (!signal) {
+    await offlineDb.catalogProducts.bulkPut(rows);
+    return;
+  }
+
+  let cancelled = false;
+  let removeAbortListener: (() => void) | undefined;
+  try {
+    await offlineDb.transaction("rw", offlineDb.catalogProducts, async (transaction) => {
+      // Dexie may wrap a thrown DOMException; record this cancellation first.
+      if (signal.aborted) cancelled = true;
+      signal.throwIfAborted();
+      const onAbort = () => {
+        if (transaction.active) {
+          transaction.abort();
+          cancelled = true;
+        }
+      };
+      signal.addEventListener("abort", onAbort);
+      removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+      await offlineDb.catalogProducts.bulkPut(rows);
+    });
+  } catch (error) {
+    if (cancelled) throw signal.reason;
+    throw error;
+  } finally {
+    // bulkPut can resolve before commit. Keep cancellation until the transaction
+    // settles; aborting after commit cannot undo an already persisted catalog.
+    removeAbortListener?.();
+  }
 }
 
 export async function getCachedCatalogProducts<T>(

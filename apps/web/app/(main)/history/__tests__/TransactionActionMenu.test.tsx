@@ -43,20 +43,20 @@ const mockProps = {
 };
 
 describe("TransactionActionMenu z-level and positioning", () => {
-  it("renders with mt-2 when showUpward is false or not provided", () => {
+  it("prefers the bottom placement when showUpward is false or not provided", () => {
     const html = renderToStaticMarkup(
       <TransactionActionMenu {...mockProps} initialOpen={true} />
     );
-    expect(html).toContain("mt-2");
-    expect(html).not.toContain("bottom-full mb-2");
+    expect(html).toContain('data-placement="bottom"');
+    expect(html).toContain("position:fixed");
   });
 
-  it("renders with bottom-full mb-2 when showUpward is true", () => {
+  it("prefers the top placement when showUpward is true", () => {
     const html = renderToStaticMarkup(
       <TransactionActionMenu {...mockProps} initialOpen={true} showUpward={true} />
     );
-    expect(html).toContain("bottom-full mb-2");
-    expect(html).not.toContain("mt-2");
+    expect(html).toContain('data-placement="top"');
+    expect(html).toContain("position:fixed");
   });
 
   it("renders with a high z-index (z-[100]) to prevent being covered by floating widgets", () => {
@@ -65,5 +65,12 @@ describe("TransactionActionMenu z-level and positioning", () => {
     );
     expect(html).toContain("z-[100]");
     expect(html).not.toContain("z-50");
+  });
+
+  it("renders an open menu as viewport-fixed to escape scroll-container clipping", () => {
+    const html = renderToStaticMarkup(
+      <TransactionActionMenu {...mockProps} initialOpen={true} />
+    );
+    expect(html).toContain("position:fixed");
   });
 });

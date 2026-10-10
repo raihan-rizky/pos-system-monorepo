@@ -52,6 +52,11 @@ import {
   useProductImportJobStatus,
 } from "@/features/product-import/hooks/useProductImport";
 import { useProductSelection } from "./hooks/useProductSelection";
+import { useCustomerCategoryPricingRules } from "@/hooks/useCustomerCategoryPricingRules";
+import { mapCheckoutPricingRule } from "@/features/pos-checkout/helpers/checkout-pricing";
+import { priceCatalogProductForCustomer } from "@/features/customer-category-pricing/helpers/product-pricing";
+import { CUSTOMER_TYPES, isSpecialCategoryPricing, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 
 const ProductPriceLogsTab = lazy(
   () => import("@/app/(main)/products/ProductPriceLogsTab"),
@@ -196,6 +201,8 @@ function StatCard({
 }
 
 export default function ProductsClientPage() {
+  const [pricingCustomerType, setPricingCustomerType] = useState<CustomerType>("UMUM");
+  const { data: categoryPricingRules = [] } = useCustomerCategoryPricingRules({ activeOnly: true });
   const { canPerform, role } = useRole();
   const canCreateProducts = shouldShowAction("product", "create", canPerform);
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
@@ -320,7 +327,7 @@ export default function ProductsClientPage() {
   }, [pagination, page]);
 
   const processedProducts = React.useMemo(() => {
-    let result = [...products];
+    let result = products.map(product => priceCatalogProductForCustomer(product, pricingCustomerType, categoryPricingRules.map(mapCheckoutPricingRule)));
 
     // Status Filter
     if (stockFilter === "low") {
@@ -330,14 +337,14 @@ export default function ProductsClientPage() {
     // Sort
     result.sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
-      if (sortBy === "price_asc") return a.price - b.price;
-      if (sortBy === "price_desc") return b.price - a.price;
+      if (sortBy === "price_asc") return a.displayPrice - b.displayPrice;
+      if (sortBy === "price_desc") return b.displayPrice - a.displayPrice;
       if (sortBy === "stock_asc") return a.stock - b.stock;
       return 0;
     });
 
     return result;
-  }, [products, stockFilter, sortBy]);
+  }, [products, stockFilter, sortBy, pricingCustomerType, categoryPricingRules]);
 
   const stats = statsQuery.data;
   const statsReady = stats !== undefined;
@@ -470,7 +477,7 @@ export default function ProductsClientPage() {
     deleteTargetId ? products.find((p) => p.id === deleteTargetId) ?? null : null;
 
   return (
-    <div className="flex-1 overflow-y-auto w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-purple-50/50 min-h-screen">
+    <div className="flex-1 overflow-y-auto w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-purple-50/50 min-h-0">
       <div className="max-w-[96rem] mx-auto px-4 sm:px-6 lg:px-4 xl:px-6 pt-8 pb-24 space-y-8">
         {/* -- Header -- */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -962,6 +969,12 @@ export default function ProductsClientPage() {
 
             {/* Content Area */}
             <div className="bg-slate-50/50 min-h-[400px]">
+              <div className="flex items-center gap-2 px-5 pt-4">
+                <label htmlFor="product-price-customer" className="text-sm font-medium text-slate-600">Harga untuk:</label>
+                <select id="product-price-customer" value={pricingCustomerType} onChange={event => setPricingCustomerType(event.target.value as CustomerType)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500">
+                  {CUSTOMER_TYPES.map(type => <option key={type} value={type}>{type === "UMUM" ? "Umum" : type === "AGEN" ? "Agen" : type === "INDUSTRI" ? "Industri" : "Pemerintah"}</option>)}
+                </select>
+              </div>
               {view === "table" && (
                 <ProductTable
                   products={processedProducts}
@@ -1302,6 +1315,7 @@ function ProductGrid({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 p-5 md:p-6 items-stretch">
       {products.map((p) => {
+        const effectivePrice = p.displayPrice ?? p.price;
         const isLow = p.stock <= p.minStock;
         return (
           <div
@@ -1376,16 +1390,17 @@ function ProductGrid({
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                   Harga
                 </p>
-                <p className="text-lg font-black text-slate-900 tracking-tight">
-                  {fmt(p.price)}
+                <p className={`text-lg font-black tracking-tight ${isSpecialCategoryPricing(p.appliedPricing) ? "text-emerald-800" : "text-slate-900"}`}>
+                  {fmt(p.displayPrice ?? p.price)}
                 </p>
+                {isSpecialCategoryPricing(p.appliedPricing) && <SpecialPriceBadge />}
                 {canChangePrice && p.costPrice !== null && (
                   <>
                     <p className="text-[10px] font-bold text-slate-500 mt-0.5">
                       HPP: {fmt(p.costPrice)}
                     </p>
                     <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
-                      Margin: {fmt(p.price - p.costPrice)} {p.price > 0 ? `(${((p.price - p.costPrice) / p.price * 100).toFixed(1)}%)` : ""}
+                      Margin: {fmt(effectivePrice - p.costPrice)} {effectivePrice > 0 ? `(${((effectivePrice - p.costPrice) / effectivePrice * 100).toFixed(1)}%)` : ""}
                     </p>
                   </>
                 )}

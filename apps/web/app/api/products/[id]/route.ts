@@ -1,3 +1,4 @@
+import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
@@ -49,6 +50,28 @@ async function findStoreBrand(brandId: string | null | undefined, storeId: strin
     where: { id: brandId, storeId },
     select: { id: true, name: true, normalizedName: true },
   });
+}
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await requirePermission("product", "read");
+    const { id } = await params;
+    const product = await db.product.findFirst({
+      where: { id, storeId: user.storeId || "store-main", isActive: true },
+      include: { category: true, brand: true, stockGroup: true },
+    });
+    if (!product) return NextResponse.json({ message: "Produk tidak ditemukan" }, { status: 404 });
+    const baseCosts = await loadProductBaseCosts(db, [product]);
+    return NextResponse.json({ data: { ...withCalculatedStock(product), ...baseCosts.get(product.id) } });
+  } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError) return authError;
+    log.error("Failed to fetch product:", error);
+    return NextResponse.json({ message: "Produk belum dapat dimuat. Coba lagi." }, { status: 500 });
+  }
 }
 
 export async function PUT(

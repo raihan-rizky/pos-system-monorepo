@@ -29,7 +29,7 @@ export class InventoryInboundReceiptRepository
   implements InventoryInboundReceiptRepositoryContract
 {
   runInTransaction<T>(callback: (tx: Tx) => Promise<T>): Promise<T> {
-    return db.$transaction((tx) => callback(tx));
+    return db.$transaction((tx) => callback(tx), { timeout: 60_000 });
   }
 
   async lockSubmittedReceipt(
