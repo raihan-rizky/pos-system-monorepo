@@ -106,6 +106,15 @@
   text-align: center;
 }
 
+.shopping-request-print-table th:first-child {
+  width: 10mm;
+}
+
+.shopping-request-print-table th:first-child,
+.shopping-request-print-table td:first-child {
+  padding-inline: 4px;
+}
+
 .shopping-request-print-table td:first-child,
 .shopping-request-print-table td:nth-child(n + 3) {
   text-align: center;

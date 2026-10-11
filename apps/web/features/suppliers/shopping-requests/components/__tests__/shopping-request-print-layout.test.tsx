@@ -51,6 +51,34 @@ function makeDetail(): ShoppingRequestDetail {
 }
 
 describe("shopping request print layout", () => {
+  it("includes acknowledgment signatures after the table on the first receipt", () => {
+    const html = renderToStaticMarkup(
+      <ShoppingRequestPrintPages
+        detail={makeDetail()}
+        storeName="Toko Teladan"
+        storeAddress="Cilegon"
+        storePhone="0254"
+      />,
+    );
+    const summary = html.split('data-print-page="summary"')[1].split('data-print-page="full"')[0];
+
+    expect(summary).toContain("Mengetahui:");
+    expect(summary).toContain("Wakil Direktur");
+    expect(summary).toContain("Kepala Gudang");
+    expect(summary.match(/\(_______________\)/g)).toHaveLength(2);
+    expect(summary.indexOf("Mengetahui:")).toBeGreaterThan(summary.indexOf("</table>"));
+    expect(html.match(/Mengetahui:/g)).toHaveLength(2);
+  });
+
+  it("keeps the number column compact in both preview and print tables", () => {
+    const stylesheet = readFileSync(
+      join(process.cwd(), "features/suppliers/shopping-requests/components/shopping-request-print.css"),
+      "utf8",
+    );
+
+    expect(stylesheet).toMatch(/\.shopping-request-print-table th:first-child\s*\{[^}]*width:\s*10mm/s);
+  });
+
   it("renders both A4 receipts and keeps the last item in each", () => {
     const html = renderToStaticMarkup(
       <ShoppingRequestPrintPages

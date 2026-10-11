@@ -111,23 +111,21 @@ export function ShoppingRequestPrintPages({
             </tbody>
           </table>
 
-          {layout.kind === "full" && (
-            <div className="shopping-request-print-signatures">
-              <p>Mengetahui:</p>
-              <div>
-                <section>
-                  <p>Wakil Direktur</p>
-                  <span />
-                  <p>(_______________)</p>
-                </section>
-                <section>
-                  <p>Kepala Gudang</p>
-                  <span />
-                  <p>(_______________)</p>
-                </section>
-              </div>
+          <div className="shopping-request-print-signatures">
+            <p>Mengetahui:</p>
+            <div>
+              <section>
+                <p>Wakil Direktur</p>
+                <span />
+                <p>(_______________)</p>
+              </section>
+              <section>
+                <p>Kepala Gudang</p>
+                <span />
+                <p>(_______________)</p>
+              </section>
             </div>
-          )}
+          </div>
         </section>
       ))}
     </div>
