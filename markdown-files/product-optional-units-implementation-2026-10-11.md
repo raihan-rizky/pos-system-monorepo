@@ -4,6 +4,8 @@ Date: 2026-10-11 (Asia/Jakarta)
 Branch: `codex/product-optional-units`
 Worktree: `C:/Users/Raihan Rizki/.codex/worktrees/product-optional-units/pos-system-monorepo`
 
+Latest integration status: merged into local `main` as feature-only commit `8b93170` on 2026-10-11. No push was performed. The branch/worktree and recovery stash are retained.
+
 ## Delivered behavior
 
 The Products creation form starts with one unit and always offers **Tambah unit lain (opsional)**. Additional units can be larger or smaller than the original unit. Each row shows an explicit conversion, an editable suggested selling price, and a removable unit badge. **Detail tambahan** holds SKU, barcode, and optional HPP.
@@ -26,9 +28,23 @@ The API normalizes stock into the smallest unit, then creates the group, product
 - Browser snapshots: `output/playwright/product-units/mobile-small-unit.png` and `desktop-small-unit.png`; both inspected visually. Browser fixture recorded no page errors.
 - Read-only code review found two P2 UX issues; both fixes were reviewed and resolved. Database rollback tests simulate transaction commits; no real database mutation/rollback test was performed.
 - Isolated GitNexus refresh completed with 9,055 nodes, 21,911 edges, and 300 flows. The first parse-worker startup attempt failed; a verbose single-worker diagnostic retry succeeded without source/tooling changes. FTS remains unavailable; exact symbol queries work. Headroom was used at session start, during large-output reviews, and before handoff.
-- Final primary-checkout comparison: 46 of the 49 saved WIP files still match. Three help/catalog files have subsequent unrelated description/unit-badge guidance edits; those edits were preserved. The optional-unit implementation remains isolated and uncommitted because existing files also contain user WIP. No dependencies or database schema were changed; no production build or push was performed.
+- Before integration, 46 of the 49 saved WIP files still matched. Three help/catalog files had subsequent unrelated description/unit-badge guidance edits; those edits were preserved. The feature was kept isolated and uncommitted until the user authorized the local main merge described below. No dependencies or database schema were changed; no production build or push was performed.
 - Final GitNexus change detection covers the combined checkout, including copied unrelated WIP: 41 tracked files, 55 symbols, 17 flows, critical aggregate risk. This is not a feature-only risk estimate. Exact upstream impact for the new ProductUnitFields component is LOW: one caller, ProductFormModal, and no indexed processes. The feature-only patch is reviewed separately against the saved WIP baseline.
 - Headroom tools were available and used earlier in this session, but are unavailable at the final verification checkpoint. Final command output is bounded instead.
+
+## Local main integration
+
+The user authorized resolving conflicts and merging to local main. The feature-only commit contains 19 files and excludes earlier uncommitted description, catalog, Supplier, POS, and other work. GitNexus staged change detection covered 41 symbols and seven processes, with HIGH aggregate risk from the form/API scope; the expected scope was reviewed before committing. Help and workflow symbol impacts were LOW with no indexed direct callers or processes.
+
+Tracked main WIP was copied to a recovery snapshot, then retained in a dedicated stash before a fast-forward merge. Four conflicts during stash restoration were resolved against prepared combined files: product help, workflow catalog, HelpContent, and payload tests. Both the optional-unit guidance and the newer catalog/description guidance remain present. All 30 unaffected tracked WIP files match their recovery hashes, and all 19 combined feature files match their reviewed contents. No unmerged or unrelated staged files remain. No production build or server lifecycle change occurred during the merge.
+
+Recovery location: `C:/Users/Raihan Rizki/.codex/backups/product-optional-units-2026-10-11/merge-preflight`. The dedicated stash hash is saved in `main-recovery-stash.txt`. The earlier recovery snapshot is retained too.
+
+Headroom became available again during integration. Stats and compression calls were used; its configured proxy reports unreachable, so output remains bounded.
+
+Merged-main browser regression passes with no page errors. Source TypeScript passes. The workspace type check reports only the same three generated-validator baseline errors in stock-history and internal-stock-out approve/reject; three other workspace tasks pass from cache.
+
+Merged-main full regression run: **2,478 passed, 10 skipped** across 449 files (447 passed, two skipped), exit code 0. Runtime: 865.74 seconds. The increase from the worktree run reflects newer catalog regression coverage present in main. `git diff --check` passes, there are no unmerged paths, and unrelated WIP remains unstaged. The full test log and source-check configuration are saved in the recovery location above.
 
 ## Workspace notes
 
