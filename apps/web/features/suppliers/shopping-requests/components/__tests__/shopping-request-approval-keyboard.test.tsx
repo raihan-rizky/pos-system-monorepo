@@ -55,7 +55,7 @@ class FakeElement {
   constructor(readonly name: string, readonly visible = true, readonly disabled = false) {}
   focus() { active = this; }
   getClientRects() { return this.visible ? [{}] : []; }
-  contains(element: FakeElement) { return element === this || this.children.some((child) => child.contains(element)); }
+  contains(element: FakeElement): boolean { return element === this || this.children.some((child) => child.contains(element)); }
 }
 let opener: FakeElement, first: FakeElement, last: FakeElement, dialog: FakeElement;
 let background: FakeElement, preexistingInert: FakeElement, dialogSibling: FakeElement;
