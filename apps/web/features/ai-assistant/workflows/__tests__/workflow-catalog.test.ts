@@ -171,6 +171,17 @@ describe("FAQ workflow catalog", () => {
     expect(JSON.stringify(customerWorkflow)).toContain("saran");
   });
 
+  it("explains optional units, both conversion directions, and stock entered once", () => {
+    const productWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 1);
+    const text = JSON.stringify(productWorkflow);
+    expect(text).toContain("Tambah unit lain (opsional)");
+    expect(text).toContain("lebih besar atau lebih kecil");
+    expect(text).toContain("Unit kecil");
+    expect(text).toContain("Unit besar");
+    expect(text).toContain("stok awal sekali");
+    expect(text).toContain("otomatis dikelompokkan");
+  });
+
   it("documents proof compression and delegated deletion", () => {
     const proof = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 11);
     const serialized = JSON.stringify(proof);

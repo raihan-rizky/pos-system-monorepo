@@ -25,6 +25,51 @@ const formData = {
 };
 
 describe("buildProductFormPayload", () => {
+  const addedUnit = {
+    id: "unit-1", unit: "dus", direction: "larger" as const, quantity: "12",
+    price: "", priceEdited: false, sku: "", skuEdited: false,
+    barcode: "", costPrice: "",
+  };
+
+  it("optionally creates a larger unit with a suggested independent price", () => {
+    const payload = buildProductFormPayload({
+      ...formData, unit: "pcs", sku: "KERTAS-PCS", price: "2000",
+      additionalUnits: [addedUnit],
+    }, "create");
+    expect(payload).toMatchObject({ additionalUnitVariants: [{
+      unit: "dus", sku: "KERTAS-DUS", relativeQuantity: 12, price: 24000,
+    }] });
+  });
+
+  it("can start with the larger unit and add a smaller selling unit", () => {
+    expect(buildProductFormPayload({
+      ...formData, unit: "dus", sku: "KERTAS-DUS", price: "24000",
+      additionalUnits: [{ ...addedUnit, unit: "pcs", direction: "smaller" as const }],
+    }, "create")).toMatchObject({ additionalUnitVariants: [{
+      unit: "pcs", sku: "KERTAS-PCS", relativeQuantity: 1 / 12, price: 2000,
+    }] });
+  });
+
+  it("preserves manually edited prices and SKUs including a free selling price", () => {
+    expect(buildProductFormPayload({
+      ...formData, unit: "pcs", sku: "KERTAS-PCS", price: "2500",
+      additionalUnits: [{ ...addedUnit, price: "0", priceEdited: true, sku: "CUSTOM", skuEdited: true }],
+    }, "create")).toMatchObject({ additionalUnitVariants: [{ price: 0, sku: "CUSTOM" }] });
+  });
+
+  it("does not include added units after all rows are removed or when editing", () => {
+    expect(buildProductFormPayload({ ...formData, additionalUnits: [] }, "create"))
+      .not.toHaveProperty("additionalUnitVariants");
+    expect(buildProductFormPayload({ ...formData, additionalUnits: [addedUnit] }, "edit"))
+      .not.toHaveProperty("additionalUnitVariants");
+  });
+
+  it("rejects duplicate unit names before creating a payload", () => {
+    expect(() => buildProductFormPayload({
+      ...formData, unit: "pcs", additionalUnits: [{ ...addedUnit, unit: " PCS " }],
+    }, "create")).toThrow(/sudah digunakan/i);
+  });
+
   it("includes pricing when creating a product", () => {
     expect(buildProductFormPayload(formData, "create")).toEqual(
       expect.objectContaining({

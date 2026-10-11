@@ -275,6 +275,7 @@ export function useProductStats(search?: string, categoryId?: string) {
 }
 
 export interface CreateProductInput {
+  additionalUnitVariants?: import("@/lib/product-form/product-unit-variants").AdditionalUnitInput[];
   name: string;
   sku: string;
   barcode?: string | null;
@@ -322,6 +323,9 @@ export function useCreateProduct() {
     mutationFn: createProduct,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-group"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-management"] });
       queryClient.invalidateQueries({ queryKey: ["product-price-logs"] });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });

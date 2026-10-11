@@ -77,7 +77,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka katalog produk", description: "Masuk ke sidebar Katalog, lalu buka halaman Produk." },
       { title: "Mulai tambah produk", description: "Klik tombol Tambah Produk di kanan atas halaman, atau minta Pak Teladan membuka modal Tambah Produk." },
       { title: "Isi data utama", description: "Lengkapi nama produk, SKU unik, kategori, merek bila ada, harga jual, Harga Agen atau Harga Dinas bila perlu, stok awal, satuan, dan batas minimum stok. Jika merek belum tersedia, tambah merek baru dari form." },
-      { title: "Tambahkan varian bila perlu", description: "Jika barang punya unit pecahan, tambahkan varian unit terkecil beserta SKU, barcode, dan harga jualnya." },
+      { title: "Tambahkan unit bila perlu", description: "Klik Tambah unit lain (opsional) jika produk dijual dalam satuan lain. Pilih lebih besar atau lebih kecil dari unit utama, lalu isi konversi, misalnya 1 dus = 12 pcs. Badge Unit kecil dan Unit besar mengikuti konversi. Harga jual dan SKU disarankan otomatis; harga bisa diubah, sedangkan SKU, barcode, dan HPP tersedia di Detail tambahan. Masukkan stok awal sekali dalam unit utama. Semua unit otomatis dikelompokkan saat disimpan dan memakai stok bersama." },
       { title: "Simpan produk", description: "Periksa ulang isian, lalu klik Simpan. Pak Teladan dapat membuka halaman dan modal, tetapi tidak mengisi atau menyimpan form otomatis." },
     ],
   }),

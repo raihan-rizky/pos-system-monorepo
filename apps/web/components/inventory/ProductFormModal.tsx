@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { Plus, Upload, X, RefreshCw } from "lucide-react";
 import { useCreateProduct, useUpdateProduct, Product } from "@/hooks/useProducts";
 import { useBrands, useCreateBrand } from "@/hooks/useBrands";
 import { buildProductFormPayload } from "@/lib/product-form/product-form-payload";
+import { getProductUnitBadges, validateUnitDrafts, type UnitVariantDraft } from "@/lib/product-form/product-unit-variants";
+import { ProductUnitFields, UnitSizeBadge } from "./ProductUnitFields";
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -37,6 +39,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     smallestPrice: "",
     smallestCostPrice: "",
     includeSmallestUnitVariant: false,
+    additionalUnits: [] as UnitVariantDraft[],
     stock: "0",
     size: "",
     material: "",
@@ -46,6 +49,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [newBrandName, setNewBrandName] = useState("");
+  const [unitErrors, setUnitErrors] = useState<Record<string, string>>({});
+  const submitting = useRef(false);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -97,6 +102,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         smallestPrice: "",
         smallestCostPrice: "",
         includeSmallestUnitVariant: false,
+        additionalUnits: [],
         stock: initialData.stock.toString(),
         size: initialData.size || "",
         material: initialData.material || "",
@@ -121,6 +127,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         smallestPrice: "",
         smallestCostPrice: "",
         includeSmallestUnitVariant: false,
+        additionalUnits: [],
         stock: "0",
         size: "",
         material: "",
@@ -129,6 +136,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     }
     if (isOpen) {
       setNewBrandName("");
+      setError(null);
+      setUnitErrors({});
     }
   }, [isOpen, initialData, categories]);
 
@@ -151,7 +160,22 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current || isUploading) return;
     setError(null);
+    const errors = productId ? {} : validateUnitDrafts(formData, formData.additionalUnits);
+    setUnitErrors(errors);
+    const firstInvalid = Object.keys(errors)[0];
+    if (firstInvalid) {
+      const row = document.getElementById(firstInvalid);
+      if (/SKU|HPP/.test(errors[firstInvalid])) {
+        const details = row?.querySelector("details");
+        if (details) details.open = true;
+      }
+      const field = /SKU/.test(errors[firstInvalid]) ? "sku" : /HPP/.test(errors[firstInvalid]) ? "cost" : /konversi/.test(errors[firstInvalid]) ? "quantity" : /harga/.test(errors[firstInvalid]) ? "price" : "unit";
+      document.getElementById(`${firstInvalid}-${field}`)?.focus();
+      return;
+    }
+    submitting.current = true;
 
     try {
       if (productId) {
@@ -164,10 +188,12 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan");
+    } finally {
+      submitting.current = false;
     }
   };
 
-  const isProcessing = createProduct.isPending || updateProduct.isPending || createBrand.isPending;
+  const isProcessing = createProduct.isPending || updateProduct.isPending || createBrand.isPending || isUploading;
   const regularPrice = productId && initialData ? Number(initialData.price) : Number(formData.price || "0");
   const showHargaDinasWarning =
     formData.hargaDinas.trim() !== "" &&
@@ -175,29 +201,12 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   const showHargaAgenWarning =
     formData.hargaAgen.trim() !== "" &&
     Number(formData.hargaAgen) < regularPrice;
-  const unitMultiplier = Number(formData.unitMultiplierToBase || "1");
-  const canAddSmallestUnitVariant = !productId && Number.isFinite(unitMultiplier) && unitMultiplier > 1;
-  const showSmallestUnitVariant =
-    canAddSmallestUnitVariant && formData.includeSmallestUnitVariant;
-  const derivedBaseStock = showSmallestUnitVariant
-    ? Number(formData.stock || "0") * unitMultiplier
-    : 0;
-
-  const suggestSmallestSku = (sku: string, unit: string) => {
-    const trimmedSku = sku.trim();
-    const suffix = unit.trim().replace(/\s+/g, "-").toUpperCase();
-    if (!trimmedSku || !suffix) return "";
-    const family = trimmedSku.includes("-")
-      ? trimmedSku.slice(0, trimmedSku.lastIndexOf("-"))
-      : trimmedSku;
-    return `${family}-${suffix}`;
-  };
 
   return (
     <Modal open={isOpen} onClose={onClose} title={productId ? "Ubah Produk" : "Tambah Produk"}>
       <form onSubmit={handleSubmit} className="space-y-4 mt-4">
         {error && (
-          <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm font-medium border border-red-100">
+          <div role="alert" className="p-3 rounded-lg bg-red-50 text-red-700 text-sm font-medium border border-red-100">
             {error}
           </div>
         )}
@@ -214,16 +223,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             label="SKU / Kode Barang"
             placeholder="Contoh: BNR-FLX-280"
             value={formData.sku}
-            onChange={(e) => {
-              const nextSku = e.target.value;
-              setFormData((current) => ({
-                ...current,
-                sku: nextSku,
-                smallestSku: current.smallestSku
-                  ? current.smallestSku
-                  : suggestSmallestSku(nextSku, current.smallestUnit),
-              }));
-            }}
+            onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
             required
           />
         </div>
@@ -327,159 +327,34 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
               onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
             />
           )}
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="product-primary-unit" className="text-sm font-medium text-surface-700">Unit</label>
+              {!productId && <UnitSizeBadge role={getProductUnitBadges(formData.additionalUnits)[0]} />}
+            </div>
           <Input
-            label="Unit"
+            id="product-primary-unit"
             placeholder="pcs, rim, meter, dus"
             value={formData.unit}
             onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
             required
           />
-          {!productId && (
-            <Input
-              label="Isi per Unit Terkecil"
-              type="number"
-              min="1"
-              step="any"
-              value={formData.unitMultiplierToBase}
-              onChange={(e) =>
-                setFormData({ ...formData, unitMultiplierToBase: e.target.value })
-              }
-              required
-            />
-          )}
+          </div>
           <Input
             label="Stok Saat Ini"
             type="number"
             min="0"
+            step="any"
             value={formData.stock}
             onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
             required
           />
         </div>
 
-        {canAddSmallestUnitVariant && !showSmallestUnitVariant && (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-black text-slate-900">
-                  Varian Unit Terkecil
-                </p>
-                <p className="mt-1 text-xs font-semibold text-slate-500">
-                  Tambahkan jika produk ini juga dijual dalam unit terkecil.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() =>
-                  setFormData((current) => ({
-                    ...current,
-                    includeSmallestUnitVariant: true,
-                    smallestSku:
-                      current.smallestSku ||
-                      suggestSmallestSku(current.sku, current.smallestUnit),
-                  }))
-                }
-              >
-                Tambah Varian Unit Terkecil
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {showSmallestUnitVariant && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <div className="mb-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-black text-slate-900">
-                    Varian Unit Terkecil
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    Produk unit terkecil akan dibuat sebagai produk yang bisa dijual.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData({
-                      ...formData,
-                      includeSmallestUnitVariant: false,
-                    })
-                  }
-                  className="rounded-lg px-2 py-1 text-xs font-black text-slate-500 hover:bg-slate-200"
-                >
-                  Hapus
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label="Unit Terkecil"
-                placeholder="pcs, lbr, bh"
-                value={formData.smallestUnit}
-                onChange={(e) => {
-                  const nextUnit = e.target.value;
-                  setFormData((current) => ({
-                    ...current,
-                    smallestUnit: nextUnit,
-                    smallestSku: suggestSmallestSku(current.sku, nextUnit),
-                  }));
-                }}
-                required
-              />
-              <Input
-                label="SKU Unit Terkecil"
-                placeholder="Contoh: JOYKO-PCS"
-                value={formData.smallestSku}
-                onChange={(e) =>
-                  setFormData({ ...formData, smallestSku: e.target.value })
-                }
-                required
-              />
-              <Input
-                label="Barcode Unit Terkecil"
-                placeholder="Opsional"
-                value={formData.smallestBarcode}
-                onChange={(e) =>
-                  setFormData({ ...formData, smallestBarcode: e.target.value })
-                }
-              />
-              <Input
-                label="Harga Jual Unit Terkecil"
-                type="number"
-                min="0"
-                value={formData.smallestPrice}
-                onChange={(e) =>
-                  setFormData({ ...formData, smallestPrice: e.target.value })
-                }
-                required
-              />
-              <Input
-                label="HPP Unit Terkecil"
-                type="number"
-                min="0"
-                placeholder="Opsional"
-                value={formData.smallestCostPrice}
-                onChange={(e) =>
-                  setFormData({ ...formData, smallestCostPrice: e.target.value })
-                }
-              />
-            </div>
-            <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-xs font-bold text-sky-700">
-              <p>Base unit: {formData.smallestUnit || "-"}</p>
-              <p>
-                Shared stock: {Number.isFinite(derivedBaseStock) ? derivedBaseStock : 0}{" "}
-                {formData.smallestUnit || "unit"}
-              </p>
-              <p>
-                Tampilan: {formData.stock || "0"} {formData.unit || "unit"} ={" "}
-                {Number.isFinite(derivedBaseStock) ? derivedBaseStock : 0}{" "}
-                {formData.smallestUnit || "unit"}
-              </p>
-            </div>
-          </div>
-        )}
+        {!productId && <ProductUnitFields
+          primary={formData} rows={formData.additionalUnits} errors={unitErrors} disabled={isProcessing}
+          onChange={(additionalUnits) => setFormData((current) => ({ ...current, additionalUnits }))}
+        />}
 
         <div className="grid grid-cols-2 gap-4">
           <Input

@@ -26,6 +26,7 @@ import {
   StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
 import { groupProductsByNameAndCategory } from "@/features/pos-search/services/product-grouping-service";
+import { normalizeProductUnitGroup } from "@/lib/product-form/product-unit-variants";
 
 import { getLogger } from "@/lib/logger";
 
@@ -48,6 +49,14 @@ const productSchema = z.object({
   categoryId: z.string().min(1, "Category is required"),
   brandId: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
+  additionalUnitVariants: z.array(z.object({
+    unit: z.string().trim().min(1, "Isi nama unit tambahan."),
+    sku: z.string().trim().min(1, "Isi SKU unit tambahan."),
+    relativeQuantity: z.coerce.number().finite().positive("Konversi unit harus berupa angka positif."),
+    price: z.coerce.number().finite().min(0, "Harga jual tidak boleh negatif."),
+    barcode: z.string().optional().nullable(),
+    costPrice: z.coerce.number().finite().min(0, "HPP tidak boleh negatif.").optional().nullable(),
+  })).optional(),
   smallestUnitVariant: z.object({
     unit: z.string().trim().min(1),
     sku: z.string().trim().min(1),
@@ -57,6 +66,22 @@ const productSchema = z.object({
     multiplierFromPackaging: z.coerce.number().positive(),
   }).optional(),
 }).superRefine((value, ctx) => {
+  if (value.additionalUnitVariants && value.smallestUnitVariant) {
+    ctx.addIssue({ code: "custom", path: ["additionalUnitVariants"], message: "Gunakan satu cara untuk menambahkan unit." });
+  }
+  if (value.additionalUnitVariants?.length) {
+    const skus = new Set([value.sku.trim().toUpperCase()]);
+    value.additionalUnitVariants.forEach((variant, index) => {
+      const sku = variant.sku.toUpperCase();
+      if (skus.has(sku)) ctx.addIssue({ code: "custom", path: ["additionalUnitVariants", index, "sku"], message: "SKU sudah digunakan. Pilih SKU yang berbeda." });
+      skus.add(sku);
+    });
+    try {
+      normalizeProductUnitGroup(value.unit, value.stock, value.additionalUnitVariants);
+    } catch (error) {
+      ctx.addIssue({ code: "custom", path: ["additionalUnitVariants"], message: error instanceof Error ? error.message : "Periksa konversi unit." });
+    }
+  }
   if (
     value.smallestUnitVariant &&
     value.smallestUnitVariant.unit.trim().toLowerCase() ===
@@ -231,6 +256,12 @@ export async function POST(request: Request) {
       }
     }
 
+    for (const variant of validatedData.additionalUnitVariants ?? []) {
+      if (await db.product.findUnique({ where: { sku: variant.sku } })) {
+        return NextResponse.json({ message: `SKU ${variant.sku} sudah digunakan. Ubah SKU di Detail tambahan.` }, { status: 409 });
+      }
+    }
+
     const storeId = user.storeId || "store-main";
     const unitMultiplierProvided = body.unitMultiplierToBase !== undefined && body.unitMultiplierToBase !== null;
 
@@ -242,6 +273,65 @@ export async function POST(request: Request) {
     }
 
     const product = await db.$transaction(async (tx) => {
+      const { additionalUnitVariants: _additionalVariants, ...legacyData } = validatedData;
+      if (validatedData.additionalUnitVariants?.length) {
+        const { additionalUnitVariants, smallestUnitVariant: _legacyVariant, ...primaryData } = validatedData;
+        const normalized = normalizeProductUnitGroup(primaryData.unit, primaryData.stock, additionalUnitVariants);
+        const groupKey = normalizeStockGroupKey(primaryData);
+        const existingGroup = await tx.productStockGroup.findUnique({
+          where: { storeId_groupKey: { storeId, groupKey } },
+        });
+        if (existingGroup) throw new Error("STOCK_GROUP_ALREADY_EXISTS");
+        const group = await tx.productStockGroup.create({
+          data: { storeId, groupKey, displayName: primaryData.name, baseUnit: normalized.baseUnit, baseStock: normalized.baseStock },
+        });
+        const original = await tx.product.create({
+          data: { ...primaryData, unit: primaryData.unit.trim(), sku: primaryData.sku.trim(),
+            stockGroupId: group.id, unitMultiplierToBase: normalized.primaryMultiplier,
+            conversionNeedsReview: false, storeId },
+          include: {
+            category: { select: { id: true, name: true, icon: true, color: true } },
+            brand: { select: { id: true, name: true, normalizedName: true } },
+            stockGroup: { select: { id: true, groupKey: true, displayName: true, baseUnit: true, baseStock: true } },
+          },
+        });
+        const products = [original];
+        for (const [index, variant] of additionalUnitVariants.entries()) {
+          const multiplier = normalized.additionalMultipliers[index];
+          products.push(await tx.product.create({
+            data: {
+              name: primaryData.name, description: primaryData.description,
+              categoryId: primaryData.categoryId, brandId: primaryData.brandId,
+              imageUrl: primaryData.imageUrl, material: primaryData.material, size: primaryData.size,
+              minStock: primaryData.minStock, unit: variant.unit, sku: variant.sku, barcode: variant.barcode,
+              price: variant.price, costPrice: variant.costPrice ?? null,
+              stock: normalized.baseStock / multiplier, unitMultiplierToBase: multiplier,
+              stockGroupId: group.id, conversionNeedsReview: false, storeId,
+            },
+            include: {
+              category: { select: { id: true, name: true, icon: true, color: true } },
+              brand: { select: { id: true, name: true, normalizedName: true } },
+              stockGroup: { select: { id: true, groupKey: true, displayName: true, baseUnit: true, baseStock: true } },
+            },
+          }));
+        }
+        const priceLogEntries = products.flatMap((created) => buildProductPriceLogEntries({
+          productId: created.id, storeId, before: null,
+          after: { price: created.price, costPrice: created.costPrice },
+          actor: user, source: "MANUAL",
+        }));
+        if (priceLogEntries.length) await tx.productPriceLog.createMany({ data: priceLogEntries });
+        await tx.productStockGroupActivity?.create({
+          data: {
+            stockGroupId: group.id, type: "PAIRED_VARIANTS_CREATED", productId: original.id,
+            note: `Unit produk dibuat: ${[primaryData.unit, ...additionalUnitVariants.map((variant) => variant.unit)].join(", ")}`,
+            createdBy: user.id, person: user.name ?? null,
+            after: { baseUnit: normalized.baseUnit, baseStock: normalized.baseStock,
+              variants: products.map((created) => ({ id: created.id, unit: created.unit, unitMultiplierToBase: created.unitMultiplierToBase })) },
+          },
+        });
+        return original;
+      }
       if (validatedData.smallestUnitVariant) {
         const smallest = validatedData.smallestUnitVariant;
         const multiplier = smallest.multiplierFromPackaging;
@@ -273,7 +363,7 @@ export async function POST(request: Request) {
           },
         });
         const { smallestUnitVariant: _smallestUnitVariant, ...packagingData } =
-          validatedData;
+          legacyData;
 
         const packaging = await tx.product.create({
           data: {
@@ -476,7 +566,7 @@ export async function POST(request: Request) {
 
       const created = await tx.product.create({
         data: {
-          ...validatedData,
+          ...legacyData,
           unitMultiplierToBase: multiplier,
           stockGroupId: group.id,
           conversionNeedsReview: shouldMarkConversionForReview({
@@ -533,7 +623,7 @@ export async function POST(request: Request) {
     log.error("Failed to create product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { message: "Validation error", errors: error.flatten().fieldErrors },
+        { message: error.issues[0]?.message || "Periksa data produk dan unitnya.", errors: error.flatten().fieldErrors },
         { status: 422 }
       );
     }
@@ -541,7 +631,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           message:
-            "A matching stock group already exists. Add or manage unit variants from the existing stock group.",
+            "Grup stok produk ini sudah ada. Tambahkan atau atur unit dari grup stok tersebut.",
         },
         { status: 409 },
       );
@@ -561,7 +651,7 @@ export async function POST(request: Request) {
       );
     }
     return NextResponse.json(
-      { message: "Failed to create product" },
+      { message: "Produk belum berhasil disimpan. Silakan coba lagi." },
       { status: 500 }
     );
   }

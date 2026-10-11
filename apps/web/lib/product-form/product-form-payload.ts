@@ -1,4 +1,5 @@
 import type { CreateProductInput, UpdateProductInput } from "@/hooks/useProducts";
+import { buildAdditionalUnitInputs, type UnitVariantDraft } from "./product-unit-variants";
 
 export type ProductFormMode = "create" | "edit";
 
@@ -24,6 +25,7 @@ export type ProductFormValues = {
   size: string;
   material: string;
   imageUrl: string;
+  additionalUnits?: UnitVariantDraft[];
 };
 
 type ProductDetailsUpdatePayload = Omit<
@@ -65,6 +67,9 @@ export function buildProductFormPayload(
 
   return {
     ...common,
+    ...(formData.additionalUnits?.length
+      ? { additionalUnitVariants: buildAdditionalUnitInputs(formData, formData.additionalUnits) }
+      : {}),
     price: Number(formData.price),
     costPrice: formData.costPrice ? Number(formData.costPrice) : undefined,
     smallestUnitVariant:

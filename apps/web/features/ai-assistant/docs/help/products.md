@@ -15,6 +15,12 @@ Langkah operasional detail dapat dilihat langsung di [FAQ](file:///d:/main_proje
 - **Import Massal Excel:** Prosedur unggah data produk & stok via file spreadsheet dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q4-bagaimana-cara-mengimpor-data-produk-atau-kuantitas-stok-secara-massal-lewat-excel).
 - **Mengatur Grup Stok (Stock Group):** Penggabungan varian produk yang berbagi stok fisik dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q5-bagaimana-cara-mengatur-grup-stok-stock-group).
 
+## Unit lain saat menambah produk
+
+Tambahan unit bersifat opsional. Klik **Tambah unit lain (opsional)**, isi nama unit, pilih apakah lebih besar atau lebih kecil dari unit utama, lalu isi konversi seperti **1 dus = 12 pcs**. Badge **Unit kecil** (hijau) dan **Unit besar** (ungu) mengikuti konversi, bukan nama unit. Bila ukurannya sama, badge menjadi **Unit setara**.
+
+Harga jual disarankan dari harga unit utama dan konversi; harga yang diubah manual tetap dipertahankan, termasuk Rp0. SKU disarankan otomatis dan bisa diubah di **Detail tambahan**, bersama barcode dan HPP opsional. Masukkan stok awal sekali dalam unit utama. Semua unit otomatis menjadi satu grup stok saat disimpan. Nama unit dan SKU harus berbeda. Jika penyimpanan gagal, isian tetap tersedia untuk diperbaiki dan dicoba lagi.
+
 ## Kemampuan Pak Teladan
 
 Pak Teladan dapat mencari produk aktif berdasarkan nama, SKU, atau barcode serta membaca harga dan stok produk spesifik untuk role OWNER, ADMIN, INVENTORY, dan CASHIER. Daftar stok rendah tersedia bagi OWNER, ADMIN, dan INVENTORY. Pak Teladan dapat membuka modal **Tambah Produk** jika role memiliki izin, tetapi tidak mengisi atau menyimpan form. Pak Teladan tidak membuat, mengubah, menghapus, atau mengimpor data secara otomatis. Data produk harus berasal dari tool/backend.

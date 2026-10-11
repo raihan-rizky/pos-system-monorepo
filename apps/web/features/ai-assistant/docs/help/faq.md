@@ -13,8 +13,8 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 3. Isi formulir pendaftaran produk:
    - **Informasi Utama:** Nama produk, SKU (harus unik), Kategori, dan Merek bila ada. Jika merek belum tersedia, ketik nama merek baru lalu klik **Tambah**.
    - **Harga:** Harga Jual dasar, Harga Dinas (opsional), dan Harga Modal/HPP (opsional).
-   - **Stok & Satuan:** Satuan/Unit (misal: pcs, box), Isi per Unit Terkecil, Stok Saat Ini, dan Batas Minimum Stok.
-4. **Varian Unit Terkecil (Opsional):** Jika satu barang juga dijual dalam unit pecahan (misal: jual per box dan per pcs), gunakan opsi **Tambah Varian Unit Terkecil**. Masukkan nama unit, SKU baru yang unik, harga jual, dan barcode. Sistem otomatis membagi stok dasar berdasarkan faktor konversi unit.
+   - **Stok & Satuan:** Satuan/Unit (misal: pcs, dus), Stok Saat Ini dalam unit tersebut, dan Batas Minimum Stok.
+4. **Unit lain (opsional):** Klik **Tambah unit lain (opsional)** jika barang juga dijual dalam satuan lain. Pilih **Lebih besar** atau **Lebih kecil** dari unit utama, lalu isi konversi, misalnya **1 dus = 12 pcs**. Badge **Unit kecil** berwarna hijau dan **Unit besar** berwarna ungu mengikuti konversi. Harga jual dan SKU disarankan otomatis dan bisa diubah; buka **Detail tambahan** untuk SKU, barcode, dan HPP. Anda dapat menambahkan beberapa unit atau menghapus unit yang tidak diperlukan. Masukkan stok awal sekali dalam unit utama. Semua unit otomatis dikelompokkan saat disimpan dan memakai stok bersama, tanpa menghitung stok dua kali.
 5. Klik **Simpan**.
 
 ### Q2: Bagaimana cara mengubah harga jual produk agar tercatat di riwayat?

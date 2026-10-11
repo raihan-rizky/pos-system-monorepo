@@ -54,6 +54,153 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/products", () => {
+  const originalUnitInput = {
+    name: "Kertas", sku: "KERTAS-PCS", categoryId: "cat-1", unit: "pcs",
+    stock: 24, minStock: 5, price: 2000, description: "Kertas putih",
+  };
+  const boxInput = { unit: "dus", sku: "KERTAS-DUS", relativeQuantity: 12, price: 22000 };
+
+  it.each([
+    { unit: "pcs", stock: 24, variant: boxInput, baseUnit: "pcs", primaryMultiplier: 1, addedMultiplier: 12 },
+    { unit: "dus", stock: 2, variant: { ...boxInput, unit: "pcs", sku: "KERTAS-ECER", relativeQuantity: 1 / 12, price: 2000 }, baseUnit: "pcs", primaryMultiplier: 12, addedMultiplier: 1 },
+  ])("creates optional units with shared stock when starting in $unit", async (example) => {
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, unit: example.unit, stock: example.stock, additionalUnitVariants: [example.variant] }),
+    }));
+    expect(response.status).toBe(201);
+    expect(productCreateMock).toHaveBeenCalledTimes(2);
+    expect(txProductStockGroupCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ baseUnit: example.baseUnit, baseStock: 24 }),
+    }));
+    expect(productCreateMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      data: expect.objectContaining({ stockGroupId: "group-created", unitMultiplierToBase: example.primaryMultiplier }),
+    }));
+    expect(productCreateMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      data: expect.objectContaining({ stockGroupId: "group-created", unitMultiplierToBase: example.addedMultiplier, price: example.variant.price, description: "Kertas putih" }),
+    }));
+  });
+
+  it("creates several additional units without adding their equivalent stock twice", async () => {
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [boxInput, { unit: "pak", sku: "KERTAS-PAK", relativeQuantity: 6, price: 11000 }] }),
+    }));
+    expect(response.status).toBe(201);
+    expect(productCreateMock).toHaveBeenCalledTimes(3);
+    expect(txProductStockGroupCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ baseStock: 24 }) }));
+  });
+
+  it.each([
+    { ...boxInput, unit: " PCS " },
+    { ...boxInput, sku: "KERTAS-PCS" },
+    { ...boxInput, relativeQuantity: 0 },
+    { ...boxInput, price: -1 },
+  ])("rejects invalid additional unit data before starting a transaction", async (variant) => {
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [variant] }),
+    }));
+    expect(response.status).toBe(422);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects combining new additional units and the legacy paired input", async () => {
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [boxInput], smallestUnitVariant: { unit: "lembar", sku: "KERTAS-LBR", price: 100, multiplierFromPackaging: 10 } }),
+    }));
+    expect(response.status).toBe(422);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects mixing an empty additional-unit array with the legacy paired input", async () => {
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [], smallestUnitVariant: { unit: "lembar", sku: "KERTAS-LBR", price: 100, multiplierFromPackaging: 10 } }),
+    }));
+    expect(response.status).toBe(422);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("omits request-only unit data from a single-product database write", async () => {
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [] }),
+    }));
+    expect(response.status).toBe(201);
+    expect(productCreateMock.mock.calls[0][0].data).not.toHaveProperty("additionalUnitVariants");
+  });
+
+  it("fails the transaction if a later additional-unit creation fails", async () => {
+    productCreateMock.mockResolvedValueOnce({ id: "original", ...originalUnitInput })
+      .mockRejectedValueOnce(new Error("variant write failed"));
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [boxInput] }),
+    }));
+    expect(response.status).toBe(500);
+    expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an additional SKU already in the database before writing", async () => {
+    productFindUniqueMock.mockImplementation(async ({ where }) => where.sku === boxInput.sku ? { id: "existing" } : null);
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [boxInput] }),
+    }));
+    expect(response.status).toBe(409);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a matching existing group without creating another stock balance", async () => {
+    txProductStockGroupFindUniqueMock.mockResolvedValue({ id: "existing-group" });
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [boxInput] }),
+    }));
+    expect(response.status).toBe(409);
+    expect(txProductStockGroupCreateMock).not.toHaveBeenCalled();
+    expect(productCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a conflict when a unique constraint races the SKU precheck", async () => {
+    productCreateMock.mockRejectedValueOnce({ code: "P2002" });
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [boxInput] }),
+    }));
+    expect(response.status).toBe(409);
+    expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["variant", "price-log", "activity"])("leaves no committed products or balance when the %s write fails", async (failure) => {
+    const committed: unknown[] = [];
+    let stagedWrites = 0;
+    transactionMock.mockImplementation(async (callback) => {
+      const pending: unknown[] = [];
+      let productCount = 0;
+      const result = await callback({
+        productStockGroup: {
+          findUnique: async () => null,
+          create: async ({ data }: { data: unknown }) => { pending.push(data); stagedWrites++; return { id: "new-group" }; },
+        },
+        product: { create: async ({ data }: { data: Record<string, unknown> }) => {
+          productCount++;
+          if (failure === "variant" && productCount === 2) throw new Error("variant failed");
+          pending.push(data); stagedWrites++;
+          return { ...data, id: `unit-${productCount}` };
+        } },
+        productPriceLog: { createMany: async ({ data }: { data: unknown }) => {
+          if (failure === "price-log") throw new Error("price log failed");
+          pending.push(data); stagedWrites++; return { count: 2 };
+        } },
+        productStockGroupActivity: { create: async () => { throw new Error("activity failed"); } },
+      });
+      committed.push(...pending);
+      return result;
+    });
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, additionalUnitVariants: [boxInput] }),
+    }));
+    expect(response.status).toBe(500);
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(stagedWrites).toBeGreaterThan(0);
+    expect(committed).toEqual([]);
+    expect(productCreateMock).not.toHaveBeenCalled();
+    expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermissionMock.mockResolvedValue({
@@ -78,7 +225,7 @@ describe("POST /api/products", () => {
       baseUnit: "meter",
       baseStock: 0,
     });
-    productCreateMock.mockResolvedValue({
+    productCreateMock.mockReset().mockResolvedValue({
       id: "product-1",
       name: "Banner Flexi",
       sku: "BNR-FLX",
