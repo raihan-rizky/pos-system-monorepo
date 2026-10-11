@@ -70,6 +70,23 @@ describe("shopping request print layout", () => {
     expect(html.match(/Produk 120/g)).toHaveLength(2);
   });
 
+  it("shows one receipt at a time in the preview while keeping both for printing", () => {
+    const props = {
+      detail: makeDetail(),
+      storeName: "Toko Teladan",
+      storeAddress: "Cilegon",
+      storePhone: "0254",
+    };
+    const firstPage = renderToStaticMarkup(<ShoppingRequestPrintPages {...props} activePage={0} />);
+    const secondPage = renderToStaticMarkup(<ShoppingRequestPrintPages {...props} activePage={1} />);
+
+    expect(firstPage.match(/data-print-page=/g)).toHaveLength(2);
+    expect(firstPage).toMatch(/data-print-page="summary"[^>]*shopping-request-print-page--active/);
+    expect(firstPage).not.toMatch(/data-print-page="full"[^>]*shopping-request-print-page--active/);
+    expect(secondPage).toMatch(/data-print-page="full"[^>]*shopping-request-print-page--active/);
+    expect(secondPage).not.toMatch(/data-print-page="summary"[^>]*shopping-request-print-page--active/);
+  });
+
   it("uses paged print styles without clipping the receipt container", () => {
     const stylesheet = readFileSync(
       join(process.cwd(), "features/suppliers/shopping-requests/components/shopping-request-print.css"),
@@ -81,6 +98,8 @@ describe("shopping request print layout", () => {
     expect(stylesheet).toContain("table-header-group");
     expect(stylesheet).toContain("break-inside: avoid");
     expect(stylesheet).toContain("overflow: visible");
+    expect(stylesheet).toMatch(/@media screen\s*\{[^}]*shopping-request-print-page:not\(\.shopping-request-print-page--active\)\s*\{\s*display:\s*none/s);
+    expect(stylesheet).toContain("font-family: Arial, sans-serif");
     expect(stylesheet).not.toMatch(/#shopping-request-print\s*\{[^}]*overflow:\s*hidden/s);
   });
 });

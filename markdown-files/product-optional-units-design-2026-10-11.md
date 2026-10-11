@@ -2,7 +2,7 @@
 
 Date: 2026-10-11 (Asia/Jakarta)
 Project: pos-system-monorepo
-Status: design approved in conversation; written specification pending user review.
+Status: design and written specification approved in conversation; implementation plan prepared.
 
 ## Objective and approved decisions
 
@@ -93,4 +93,4 @@ Repository instructions request documentation in `D:/main_project/pos-system-mon
 
 ## Specification self-review
 
-The scope is limited to optional product units during creation. Conversion direction, pricing edit preservation, badge semantics for multiple sizes and equal units, stock normalization, legacy API compatibility, transaction rollback, errors, and verification are specified. No unresolved placeholders remain. Written user review is the next brainstorming checkpoint before the implementation plan.
+The scope is limited to optional product units during creation. Conversion direction, pricing edit preservation, badge semantics for multiple sizes and equal units, stock normalization, legacy API compatibility, transaction rollback, errors, and verification are specified. No unresolved placeholders remain. The user approved the written specification with "continue"; the implementation plan is `product-optional-units-plan-2026-10-11.md`.

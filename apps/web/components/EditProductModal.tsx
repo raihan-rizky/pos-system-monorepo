@@ -262,6 +262,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
 
 export type PosProductGroupUpdate = {
   name: string;
+  description?: string | null;
   categoryId: string;
   brandId: string | null;
 };
@@ -284,6 +285,8 @@ export function PosProductQuickEditModal({
   onSave,
 }: PosProductQuickEditModalProps) {
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [descriptionChanged, setDescriptionChanged] = useState(false);
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -292,6 +295,8 @@ export function PosProductQuickEditModal({
   useEffect(() => {
     if (!open || !item) return;
     setName(item.name);
+    setDescription(item.description ?? "");
+    setDescriptionChanged(false);
     setCategoryId(item.categoryId);
     setBrandId(item.brandId ?? "");
     setError(null);
@@ -313,6 +318,9 @@ export function PosProductQuickEditModal({
     try {
       await onSave({
         name: name.trim(),
+        ...(item.description !== undefined || descriptionChanged
+          ? { description: description.trim() || null }
+          : {}),
         categoryId,
         brandId: brandId || null,
       });
@@ -332,7 +340,7 @@ export function PosProductQuickEditModal({
     <Modal open={open} onClose={onClose} title="Ubah Produk">
       <div className="mt-4 space-y-4">
         <div className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-xs font-medium text-brand-800">
-          Perubahan Nama, Kategori, dan Merek berlaku untuk seluruh varian produk ini.
+          Perubahan Nama, Deskripsi, Kategori, dan Merek berlaku untuk seluruh varian produk ini.
         </div>
 
         {error && (
@@ -347,6 +355,21 @@ export function PosProductQuickEditModal({
           onChange={(event) => setName(event.target.value)}
           required
         />
+
+        <div className="space-y-1.5">
+          <label htmlFor="pos-product-description" className="text-sm font-medium text-surface-700">Deskripsi produk <span className="font-normal text-surface-500">(opsional)</span></label>
+          <textarea
+            id="pos-product-description"
+            rows={3}
+            value={description}
+            onChange={(event) => {
+              setDescription(event.target.value);
+              setDescriptionChanged(true);
+            }}
+            placeholder="Contoh: Kertas A4 80 gsm, isi 500 lembar."
+            className="w-full resize-y rounded-xl border border-surface-200 bg-white px-4 py-2.5 text-sm text-surface-900 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400"
+          />
+        </div>
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-surface-700">Kategori</label>

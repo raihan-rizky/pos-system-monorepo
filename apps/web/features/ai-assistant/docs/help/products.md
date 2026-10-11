@@ -21,7 +21,15 @@ Tambahan unit bersifat opsional. Klik **Tambah unit lain (opsional)**, isi nama 
 
 Harga jual disarankan dari harga unit utama dan konversi; harga yang diubah manual tetap dipertahankan, termasuk Rp0. SKU disarankan otomatis dan bisa diubah di **Detail tambahan**, bersama barcode dan HPP opsional. Masukkan stok awal sekali dalam unit utama. Semua unit otomatis menjadi satu grup stok saat disimpan. Nama unit dan SKU harus berbeda. Jika penyimpanan gagal, isian tetap tersedia untuk diperbaiki dan dicoba lagi.
 
+## Deskripsi produk
+
+Kolom **Deskripsi produk** bersifat opsional pada form tambah dan edit. Isi detail seperti ukuran, bahan, atau isi kemasan. Kosongkan kolom lalu simpan untuk menghapus deskripsi lama.
+
+Pada kartu POS, deskripsi berada di bawah nama, maksimal dua baris. Arahkan kursor, fokuskan deskripsi dengan keyboard, atau ketuk pada layar sentuh untuk membuka balon berisi teks lengkap. Tekan **Escape** atau ketuk di luar balon untuk menutupnya. Membuka balon tidak menambahkan produk ke keranjang. Deskripsi mengikuti varian yang dipilih; edit cepat dari keranjang memperbarui deskripsi seluruh varian dalam grup.
+
 ## Kemampuan Pak Teladan
+
+Daftar Produk dalam tampilan tabel, HP, dan grid menampilkan deskripsi maksimal dua baris. Arahkan kursor, fokuskan dengan keyboard, atau ketuk deskripsi untuk membaca teks lengkap dalam balon; Escape menutupnya. Badge satuan menampilkan seluruh satuan terdaftar tanpa duplikasi, termasuk yang stoknya kosong. Setiap satuan pada produk memiliki warna berbeda. Badge bersifat informasi.
 
 Pak Teladan dapat mencari produk aktif berdasarkan nama, SKU, atau barcode serta membaca harga dan stok produk spesifik untuk role OWNER, ADMIN, INVENTORY, dan CASHIER. Daftar stok rendah tersedia bagi OWNER, ADMIN, dan INVENTORY. Pak Teladan dapat membuka modal **Tambah Produk** jika role memiliki izin, tetapi tidak mengisi atau menyimpan form. Pak Teladan tidak membuat, mengubah, menghapus, atau mengimpor data secara otomatis. Data produk harus berasal dari tool/backend.
 

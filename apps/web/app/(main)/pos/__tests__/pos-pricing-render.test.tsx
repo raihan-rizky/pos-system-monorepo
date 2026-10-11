@@ -91,6 +91,7 @@ function render() {
     grid: findProps(tree, element => element.type === ProductGrid),
     cart: findProps(tree, element => element.type === CartSidebar),
     customer: findProps(tree, element => element.type === CustomerCheckoutSelect),
+    payment: findProps(tree, element => typeof element.props.onCustomerSelectionChange === "function" && "initialCustomerSelection" in element.props),
     search: findProps(tree, element => element.type === "input" && typeof element.props.onChange === "function"),
   };
 }
@@ -131,13 +132,26 @@ describe("POS pricing across unrelated renders", () => {
     expect(harness.cart.addItem).toHaveBeenCalledWith(expect.objectContaining({ id: "paper", price: 2000 }));
   });
 
-  it("refreshes customer prices when the checkout customer changes", () => {
+  it("does not show a customer selector above the product grid", () => {
+    expect(render().customer).toBeUndefined();
+  });
+
+  it("refreshes customer prices from payment and retains the selection on reopen", () => {
     const before = render();
-    before.customer.onChange({ kind: "existing", customer: { id: "agent", name: "Agen", type: "AGEN" } });
+    before.cart.onCheckout();
+    const opened = render();
+    expect(opened.payment.initialCustomerSelection).toEqual({ kind: "general" });
+    const selection = { kind: "existing", customer: { id: "agent", name: "Agen", type: "AGEN" } };
+    opened.payment.onCustomerSelectionChange(selection);
     const after = render();
     expect(after.grid.customerType).toBe("AGEN");
     expect(after.cart.items[0].price).toBe(1800);
     expect(after.cart.subtotal).toBe(1800);
+    after.payment.onClose();
+    const closed = render();
+    expect(closed.payment).toBeUndefined();
+    closed.cart.onCheckout();
+    expect(render().payment.initialCustomerSelection).toEqual(selection);
   });
 
   it("refreshes cart prices when new catalog data arrives", () => {

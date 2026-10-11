@@ -5,6 +5,7 @@ export type ProductFormMode = "create" | "edit";
 
 export type ProductFormValues = {
   name: string;
+  description?: string;
   sku: string;
   categoryId: string;
   brandId?: string;
@@ -47,6 +48,7 @@ export function buildProductFormPayload(
 ): CreateProductInput | ProductDetailsUpdatePayload {
   const common = {
     name: formData.name,
+    description: formData.description?.trim() || null,
     sku: formData.sku,
     categoryId: formData.categoryId,
     brandId: formData.brandId || null,

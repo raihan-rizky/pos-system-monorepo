@@ -3,6 +3,14 @@ import type { Product } from '@/hooks/useProducts';
 import { mapProductToCartItem } from '../services/cart-mapping';
 
 describe('CartMappingService', () => {
+  it('carries descriptions into quick edit without borrowing another variant description', () => {
+    expect(mapProductToCartItem({ ...simpleProduct, description: 'Pena tinta biru' }))
+      .toMatchObject({ description: 'Pena tinta biru' });
+    const product = { ...variantProduct, description: 'Deskripsi grup', variants: variantProduct.variants?.map(v => ({ ...v, description: v.id === 'acco-dus' ? 'Isi 12 pak' : null })) };
+    expect(mapProductToCartItem(product, 'acco-dus')).toMatchObject({ description: 'Isi 12 pak' });
+    expect(mapProductToCartItem(product, 'acco-pak')).toMatchObject({ description: null });
+  });
+
   it('keeps smallest-unit modal separate from accounting modal when mapping a variant', () => {
     const mapped = mapProductToCartItem({ ...variantProduct, variants: variantProduct.variants?.map(v => ({ ...v, baseCostPrice: 700, baseCostUnit: 'pcs' })) }, 'acco-dus');
     expect(mapped.baseCostPrice).toBe(700);

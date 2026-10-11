@@ -7,6 +7,7 @@ import { getDefaultProductImage } from "@/lib/utils";
 import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { ProductCatalogDetails } from "./ProductCatalogDetails";
 
 interface ProductTableProps {
   products: Product[];
@@ -109,13 +110,14 @@ export default function ProductTable({
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div>
+                      <div className="min-w-0 max-w-sm">
                         <p
                           className="font-semibold text-surface-900 group-hover:text-brand-600 transition-colors cursor-pointer text-sm"
                           onClick={() => {
                             if (canUpdateProduct) onEdit(product.id);
                           }}
                         >{product.name}</p>
+                        <ProductCatalogDetails product={product} />
                         <p className="text-[11px] text-surface-400 mt-0.5">
                           {product.sku}{product.size ? ` · ${product.size}` : ""}{product.material ? ` · ${product.material}` : ""}
                         </p>
@@ -284,6 +286,7 @@ export default function ProductTable({
                       >
                         {product.name}
                       </h3>
+                      <ProductCatalogDetails product={product} />
                       <p
                         className="text-[10px] font-bold text-slate-400 mt-1 tracking-wider uppercase break-all"
                       >

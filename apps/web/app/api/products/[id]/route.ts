@@ -243,6 +243,9 @@ export async function PUT(
               name: groupName,
               categoryId: groupCategoryId,
               brandId: validatedData.brandId ?? null,
+              ...(validatedData.description !== undefined
+                ? { description: validatedData.description }
+                : {}),
             },
           });
 
@@ -252,6 +255,9 @@ export async function PUT(
         return NextResponse.json({
           productIds,
           name: groupName,
+          description: validatedData.description !== undefined
+            ? validatedData.description
+            : existingProduct.description ?? null,
           category,
           brand: selectedBrand,
         });

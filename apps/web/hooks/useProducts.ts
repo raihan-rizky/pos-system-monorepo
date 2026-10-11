@@ -7,6 +7,7 @@ import type { ProductStockStatusFilter } from "@/features/pos-search/pos-stock-f
 import type { AppliedCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 export interface ProductVariant {
+  description?: string | null;
   displayPrice?: number;
   appliedPricing?: AppliedCategoryPricing | null;
   id: string;
@@ -38,6 +39,7 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  description?: string | null;
   displayPrice?: number;
   appliedPricing?: AppliedCategoryPricing | null;
   id: string;
@@ -369,6 +371,7 @@ export function useUpdateProduct() {
 export interface UpdateProductGroupMetadataInput {
   id: string;
   name: string;
+  description?: string | null;
   categoryId: string;
   brandId: string | null;
 }
@@ -376,6 +379,7 @@ export interface UpdateProductGroupMetadataInput {
 export interface ProductGroupMetadataResult {
   productIds: string[];
   name: string;
+  description?: string | null;
   category: { id: string; name: string; icon?: string | null; color?: string | null };
   brand: { id: string; name: string; normalizedName?: string } | null;
 }

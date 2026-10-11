@@ -42,6 +42,7 @@ function NavItem({
   badgeVariant?: "amber" | "blue" | "red";
 }) {
   const router = useRouter();
+  const shouldPrefetch = process.env.NODE_ENV === "production";
   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     onNavigate?.();
     if (typeof window !== "undefined" && !navigator.onLine) {
@@ -53,8 +54,8 @@ function NavItem({
   return (
     <Link
       href={href}
-      prefetch
-      onMouseEnter={() => router.prefetch(href)}
+      prefetch={shouldPrefetch}
+      onMouseEnter={shouldPrefetch ? () => router.prefetch(href) : undefined}
       onClick={handleClick}
       title={isCollapsed ? label : undefined}
       aria-label={label}

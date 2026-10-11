@@ -1,4 +1,5 @@
 export interface ProductVariant {
+  description?: string | null;
   id: string;
   unit: string;
   price: number;
@@ -23,6 +24,7 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  description?: string | null;
   id: string;
   name: string;
   sku: string;

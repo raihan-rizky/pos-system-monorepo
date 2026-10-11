@@ -4,6 +4,12 @@
   overflow: visible;
 }
 
+@media screen {
+  .shopping-request-print-page:not(.shopping-request-print-page--active) {
+    display: none;
+  }
+}
+
 .shopping-request-print-page {
   box-sizing: border-box;
   width: 210mm;
@@ -12,7 +18,7 @@
   background: #fff;
   color: #000;
   font-family: Arial, sans-serif;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .shopping-request-print-header {
@@ -37,7 +43,7 @@
 
 .shopping-request-print-store h2 {
   margin: 0 0 2px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -47,7 +53,7 @@
 
 .shopping-request-print-store-name {
   color: #003366;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 

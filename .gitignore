@@ -5,6 +5,7 @@ node_modules/
 # Build
 dist/
 .next/
+apps/web/.next-e2e/
 out/
 
 # Turbo
@@ -60,6 +61,7 @@ test_rls.js
 markdown-files/
 
 # AI settings and configurations
+.serena/
 .claude
 .claude.json
 .opencode

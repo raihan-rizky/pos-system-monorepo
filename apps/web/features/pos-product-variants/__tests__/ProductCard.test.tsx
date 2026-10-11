@@ -4,10 +4,30 @@ import { ProductCard } from '../components/ProductCard';
 import type { Product } from '@/hooks/useProducts';
 
 describe('ProductCard', () => {
-  it('shows the effective unit price and badge for a matching formula', () => {
+  it('renders a two-line description trigger for the active variant', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, description: 'Deskripsi grup', variants: mockProduct.variants?.map(v => ({ ...v, description: v.id === '1' ? 'Isi dua belas botol' : 'Satu botol' })) }} onAddToCart={vi.fn()} />);
+    expect(html).toContain('Isi dua belas botol');
+    expect(html).not.toContain('Deskripsi grup');
+    expect(html).toContain('line-clamp-2');
+    expect(html).toContain('aria-label="Deskripsi produk"');
+  });
+
+  it('hides the description trigger when the active variant has no description', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, description: 'Deskripsi varian lain', variants: mockProduct.variants?.map(v => ({ ...v, description: null })) }} onAddToCart={vi.fn()} />);
+    expect(html).not.toContain('aria-label="Deskripsi produk"');
+    expect(html).not.toContain('Deskripsi varian lain');
+  });
+
+  it('shows the description for an ungrouped product', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: undefined, defaultVariant: undefined, description: 'Kopi bubuk 250 gram' }} onAddToCart={vi.fn()} />);
+    expect(html).toContain('Kopi bubuk 250 gram');
+  });
+
+  it('shows the effective unit price and badge beside it for a matching formula', () => {
     const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, baseCostPrice: 700, baseCostUnit: 'pcs' })) }} onAddToCart={vi.fn()} customerType="UMUM" categoryPricingRules={[{ id: 'special', categoryId: 'cat1', customerType: 'ALL', mode: 'COST_PLUS_FLAT', value: 4000, unit: 'dus', isActive: true }]} />);
     expect(html).toContain('4.700');
     expect(html).toContain('Harga Khusus');
+    expect(html).toMatch(/<div class="flex items-center gap-2"><p class="text-base font-bold text-emerald-800">Rp\s4\.700<\/p><span role="img" aria-label="Harga Khusus"/);
     expect(html).toContain('text-emerald-800');
     expect(html).not.toContain('700/pcs');
   });

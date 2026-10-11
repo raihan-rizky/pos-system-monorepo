@@ -69,6 +69,21 @@ If you add or update dependencies remember to:
 - **Always update the Bantuan (Help) page content** in [HelpContent.tsx](file:///d:/main_project/pos-system-monorepo/apps/web/features/help-documentation/components/HelpContent.tsx) whenever a new feature is added, ensuring the user-facing help documentation is always kept in sync.
 - **Always update the AI Assistant workflow catalog** in [workflow-catalog.ts](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/workflows/workflow-catalog.ts) whenever a guided workflow is added or modified, keeping the AI assistant's procedural knowledge in sync.
 
+## Mandatory Headroom MCP Usage
+
+Every development and testing session must use Headroom MCP: call
+`mcp__headroom__headroom_stats` at the start and end of the session. Before
+reasoning over large file contents, search results, logs, build output, or test output, call
+`mcp__headroom__headroom_compress` and work from the compressed result. Call
+`mcp__headroom__headroom_retrieve` with the returned hash only when the full
+original content is required to make a decision. Use
+`mcp__headroom__headroom_stats` when reviewing context usage as well. Keep small,
+security-sensitive, or decision-critical
+snippets local and bounded; do not send repository secrets, credentials, or
+unnecessary private content to Headroom. If Headroom MCP is unavailable, say so
+in the execution notes and continue with bounded command output rather than
+silently skipping the requirement.
+
 ---
 
 Following these practices ensures that the agent-assisted development workflow stays

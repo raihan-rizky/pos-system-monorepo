@@ -348,7 +348,7 @@ describe("PUT /api/products/[id]", () => {
     expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("updates the selected stock group metadata atomically for every variant", async () => {
+  it.each(["Kertas A4 isi 500 lembar", null, undefined])("updates group metadata and description (%s) atomically for every variant", async (description) => {
     productFindFirstMock.mockResolvedValue({
       id: "product-1",
       storeId: "store-main",
@@ -388,6 +388,7 @@ describe("PUT /api/products/[id]", () => {
           name: "Kertas Premium",
           categoryId: "cat-office",
           brandId: "brand-joyko",
+          description,
         }),
       }),
       { params: Promise.resolve({ id: "product-1" }) },
@@ -403,6 +404,7 @@ describe("PUT /api/products/[id]", () => {
         name: "Kertas Premium",
         categoryId: "cat-office",
         brandId: "brand-joyko",
+        ...(description !== undefined ? { description } : {}),
       },
     });
     await expect(response.json()).resolves.toMatchObject({

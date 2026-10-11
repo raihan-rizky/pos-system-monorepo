@@ -12,6 +12,7 @@ export interface ProductCartItem {
   lineType: "PRODUCT";
   productId: string;
   name: string;
+  description?: string | null;
   price: number;
   catalogPrice: number;
   transactionPrice?: number | null;
@@ -54,6 +55,7 @@ export type CartUnitOption = Pick<
   ProductCartItem,
   | "productId"
   | "name"
+  | "description"
   | "price"
   | "catalogPrice"
   | "costPrice"
@@ -147,6 +149,7 @@ export function applyProductGroupMetadataUpdate(
   productIds: string[],
   metadata: {
     name: string;
+    description?: string | null;
     categoryId: string;
     categoryName: string;
     brandId: string | null;
@@ -274,7 +277,7 @@ export function useCart() {
   }, [hasLoadedStorage, items]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; price: number; costPrice?: number | null; baseCostPrice?: number | null; baseCostUnit?: string | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { id?: string | null; baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string; unitOptions?: CartUnitOption[] }) => {
+    (product: { id: string; name: string; description?: string | null; price: number; costPrice?: number | null; baseCostPrice?: number | null; baseCostUnit?: string | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { id?: string | null; baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string; unitOptions?: CartUnitOption[] }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -289,6 +292,7 @@ export function useCart() {
               ? {
                   ...item,
                   quantity: item.quantity + 1,
+                  description: product.description,
                   unitOptions: product.unitOptions ?? item.unitOptions,
                   stockGroup: product.stockGroup ?? item.stockGroup,
                 }
@@ -302,6 +306,7 @@ export function useCart() {
             lineType: "PRODUCT",
             productId: product.id,
             name: product.name,
+            description: product.description,
             price: product.price,
             catalogPrice: product.price,
             costPrice: product.costPrice ?? null,
@@ -402,6 +407,7 @@ export function useCart() {
       productIds: string[],
       metadata: {
         name: string;
+        description?: string | null;
         categoryId: string;
         categoryName: string;
         brandId: string | null;

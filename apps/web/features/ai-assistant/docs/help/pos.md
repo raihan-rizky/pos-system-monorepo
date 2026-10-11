@@ -11,7 +11,7 @@ Proses melayani penjualan langsung dapat dilakukan dengan cepat menggunakan laya
 
 ## Harga otomatis dan tanda Harga Khusus
 
-Harga di kartu produk, pilihan satuan, keranjang, dan pembayaran mengikuti pelanggan serta satuan yang dipilih. Urutannya adalah **Harga Khusus yang dapat diterapkan → Harga Agen/Dinas yang sesuai → harga normal**. Kasir tidak memilih prioritas harga saat pembayaran.
+Saat POS dibuka, harga memakai tipe pelanggan Umum. Klik **Bayar**, lalu pilih pelanggan di modal **Pembayaran**. Harga di kartu produk, pilihan satuan, keranjang, dan pembayaran otomatis mengikuti tipe pelanggan serta satuan yang dipilih. Pilihan pelanggan tetap tersimpan ketika modal ditutup dan dibuka kembali dalam transaksi yang sama. Urutannya adalah **Harga Khusus yang dapat diterapkan → Harga Agen/Dinas yang sesuai → harga normal**. Kasir tidak memilih prioritas harga saat pembayaran.
 
 Harga yang benar-benar berasal dari aturan ditandai **hijau** dan badge **Harga Khusus**, termasuk bila nominalnya sama dengan harga normal. Pada daftar pilihan satuan, keterangan Harga Khusus menandai satuan yang memakai aturan. Harga Agen/Dinas biasa tidak diberi badge ini.
 
@@ -23,8 +23,10 @@ Harga manual untuk transaksi tetap berlaku sampai override dihapus. Penandanya a
 
 - Pengguna dengan permission **edit produk** dapat mengaktifkan ikon **Edit Cepat** pada header keranjang.
 - Setiap produk menampilkan referensi **Harga Normal**, **Harga Agen**, dan **Harga Dinas**.
-- Ikon produk membuka modal untuk mengubah Nama, Kategori, dan Merek seluruh varian dalam grup.
+- Ikon produk membuka modal untuk mengubah Nama, Deskripsi produk, Kategori, dan Merek seluruh varian dalam grup. Deskripsi opsional; kosongkan lalu simpan untuk menghapusnya.
 - Ikon harga membuka modal **Ubah Harga Produk**. Harga Normal/Agen/Dinas mengubah master varian terpilih, sedangkan **Harga Khusus** diberi keterangan **Hanya berlaku untuk transaksi ini**.
 - Harga Khusus transaksi menang atas harga otomatis sampai override dihapus.
+
+Deskripsi tampil di bawah nama pada kartu POS, maksimal dua baris, mengikuti varian terpilih. Arahkan kursor, fokuskan lewat keyboard, atau ketuk deskripsi untuk membaca teks lengkap dalam balon. Tekan Escape atau ketuk di luar untuk menutup. Interaksi deskripsi tidak menambahkan barang ke keranjang.
 
 Tombol dan tindakan dapat berbeda menurut permission RBAC. Pak Teladan hanya dapat menjelaskan alur; ia tidak dapat menambah item ke keranjang, membuka shift, menyimpan draft, atau menyelesaikan transaksi.

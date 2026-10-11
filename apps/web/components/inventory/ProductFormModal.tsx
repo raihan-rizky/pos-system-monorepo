@@ -23,6 +23,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
   const [formData, setFormData] = useState({
     name: "",
+    description: "",
     sku: "",
     categoryId: "",
     brandId: "",
@@ -86,6 +87,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     if (isOpen && initialData) {
       setFormData({
         name: initialData.name,
+        description: initialData.description ?? "",
         sku: initialData.sku,
         categoryId: initialData.category?.id || "",
         brandId: initialData.brandId || initialData.brand?.id || "",
@@ -111,6 +113,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     } else if (isOpen) {
       setFormData({
         name: "",
+        description: "",
         sku: "",
         categoryId: categories[0]?.id || "",
         brandId: "",
@@ -225,6 +228,18 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             value={formData.sku}
             onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
             required
+          />
+        </div>
+
+        <div>
+          <label htmlFor="inventory-product-description" className="mb-1 block text-sm font-medium text-surface-700">Deskripsi produk <span className="font-normal text-surface-500">(opsional)</span></label>
+          <textarea
+            id="inventory-product-description"
+            rows={3}
+            value={formData.description}
+            onChange={(event) => setFormData({ ...formData, description: event.target.value })}
+            placeholder="Contoh: Kertas A4 80 gsm, isi 500 lembar."
+            className="w-full resize-y rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-surface-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
           />
         </div>
 

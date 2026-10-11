@@ -70,6 +70,19 @@ describe("buildProductFormPayload", () => {
     }, "create")).toThrow(/sudah digunakan/i);
   });
 
+  it.each(["create", "edit"] as const)("saves trimmed descriptions in %s mode", (mode) => {
+    const values = { ...formData, description: "  Kertas A4\nIsi 500 lembar  " };
+    const payload = mode === "create"
+      ? buildProductFormPayload(values, "create")
+      : buildProductFormPayload(values, "edit");
+    expect(payload).toMatchObject({ description: "Kertas A4\nIsi 500 lembar" });
+  });
+
+  it.each(["", "   ", undefined])("clears empty descriptions (%s)", (description) => {
+    expect(buildProductFormPayload({ ...formData, description }, "edit"))
+      .toMatchObject({ description: null });
+  });
+
   it("includes pricing when creating a product", () => {
     expect(buildProductFormPayload(formData, "create")).toEqual(
       expect.objectContaining({

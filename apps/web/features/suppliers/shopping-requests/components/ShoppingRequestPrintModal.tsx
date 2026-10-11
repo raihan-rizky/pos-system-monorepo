@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Printer, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Loader2 } from "lucide-react";
 import { Button, Modal } from "@pos/ui";
 
 import { useStoreSettings } from "@/hooks/useSettings";
@@ -33,11 +33,13 @@ export function ShoppingRequestPrintPages({
   storeName,
   storeAddress,
   storePhone,
+  activePage = 0,
 }: {
   detail: ShoppingRequestDetail | (ShoppingRequestListItem & { items: ShoppingRequestDetail["items"] });
   storeName: string;
   storeAddress: string;
   storePhone: string;
+  activePage?: number;
 }) {
   const rows = buildShoppingRequestPrintRows(detail);
 
@@ -46,8 +48,8 @@ export function ShoppingRequestPrintPages({
       {SHOPPING_REQUEST_PRINT_LAYOUTS.map((layout) => (
         <section
           key={layout.kind}
-          className="shopping-request-print-page"
           data-print-page={layout.kind}
+          className={`shopping-request-print-page${SHOPPING_REQUEST_PRINT_LAYOUTS[activePage]?.kind === layout.kind ? " shopping-request-print-page--active" : ""}`}
         >
           <header className="shopping-request-print-header">
             <div className="shopping-request-print-store">
@@ -144,6 +146,11 @@ export function ShoppingRequestPrintModal({
   const { data: storeSettings } = useStoreSettings();
   const [loaded, setLoaded] = useState<ShoppingRequestDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activePage, setActivePage] = useState(0);
+
+  useEffect(() => {
+    setActivePage(0);
+  }, [open, detail?.id]);
 
   useEffect(() => {
     if (!open || !detail) {
@@ -188,14 +195,40 @@ export function ShoppingRequestPrintModal({
             Memuat detail...
           </div>
         ) : (
-          <div className="shopping-request-print-preview overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
-            <ShoppingRequestPrintPages
-              detail={loaded}
-              storeName={storeSettings?.name || "TOKO TELADAN"}
-              storeAddress={storeSettings?.address || "Jl. Temu Putih No.30 Cilegon"}
-              storePhone={storeSettings?.phone || "0254 393022"}
-            />
-          </div>
+          <>
+            <nav className="shopping-request-print-hide flex items-center justify-center gap-3" aria-label="Navigasi halaman struk">
+              <button
+                type="button"
+                aria-label="Halaman sebelumnya"
+                disabled={activePage === 0}
+                onClick={() => setActivePage(0)}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-surface-200 text-surface-700 hover:bg-surface-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <span className="min-w-28 text-center text-sm font-medium text-surface-700" aria-live="polite">
+                Halaman {activePage + 1} dari {SHOPPING_REQUEST_PRINT_LAYOUTS.length}
+              </span>
+              <button
+                type="button"
+                aria-label="Halaman berikutnya"
+                disabled={activePage === SHOPPING_REQUEST_PRINT_LAYOUTS.length - 1}
+                onClick={() => setActivePage(1)}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-surface-200 text-surface-700 hover:bg-surface-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </nav>
+            <div className="shopping-request-print-preview -mx-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0">
+              <ShoppingRequestPrintPages
+                detail={loaded}
+                storeName={storeSettings?.name || "TOKO TELADAN"}
+                storeAddress={storeSettings?.address || "Jl. Temu Putih No.30 Cilegon"}
+                storePhone={storeSettings?.phone || "0254 393022"}
+                activePage={activePage}
+              />
+            </div>
+          </>
         )}
 
         <div className="shopping-request-print-hide sticky bottom-[-16px] z-10 mt-4 flex flex-col gap-3 border-t border-surface-100 bg-white px-6 pb-4 pt-4 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] sm:flex-row-reverse">

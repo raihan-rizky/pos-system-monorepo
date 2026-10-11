@@ -3,6 +3,15 @@ import type { Product } from '@/hooks/useProducts';
 import { groupProductsByNameAndCategory, selectDefaultVariant } from '../services/product-grouping-service';
 
 describe('ProductGroupingService', () => {
+  it('preserves the default description and each variant description independently', () => {
+    const [group] = groupProductsByNameAndCategory([
+      { id: 'pcs', name: 'Kertas', unit: 'pcs', stock: 1, description: 'Satu lembar', category: { id: 'paper' } },
+      { id: 'rim', name: 'Kertas', unit: 'rim', stock: 20, description: 'Isi 500 lembar', category: { id: 'paper' } },
+    ] as unknown as Product[]);
+    expect(group.description).toBe('Isi 500 lembar');
+    expect(group.variants.map((variant) => variant.description)).toEqual(['Satu lembar', 'Isi 500 lembar']);
+  });
+
   it('keeps the base modal of each variant and the chosen default independently', () => {
     const grouped = groupProductsByNameAndCategory([
       { id: 'rim', name: 'Kertas', unit: 'rim', stock: 20, price: 10000, costPrice: 9000, baseCostPrice: 700, baseCostUnit: 'pcs', category: { id: 'paper' } },

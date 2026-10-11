@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import ProductTable from "@/components/inventory/ProductTable";
+import { ProductCatalogDetails } from "@/components/inventory/ProductCatalogDetails";
 import { CategoryIcon } from "@/lib/category-icons";
 import { useRole } from "@/components/providers/RoleProvider";
 import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
@@ -1373,6 +1374,7 @@ function ProductGrid({
               >
                 {p.name}
               </p>
+              <ProductCatalogDetails product={p} />
               <div className="flex items-center gap-2 mt-1.5">
                 <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold tracking-wider">
                   SKU: {p.sku}

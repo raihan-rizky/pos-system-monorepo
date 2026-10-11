@@ -1,4 +1,5 @@
 import prismaWorkaround from "@prisma/nextjs-monorepo-workaround-plugin";
+import { fileURLToPath } from "node:url";
 
 const { PrismaPlugin } = prismaWorkaround;
 const r2PublicUrl = process.env.R2_PUBLIC_BASE_URL
@@ -9,6 +10,10 @@ const r2PublicUrl = process.env.R2_PUBLIC_BASE_URL
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   transpilePackages: ["@pos/ui", "@pos/db", "@pos/config"],
+  // Prisma Client is externalized by Next.js; the webpack hook remains for webpack runs.
+  turbopack: {
+    root: fileURLToPath(new URL("../../", import.meta.url)),
+  },
 
   async rewrites() {
     return [

@@ -32,7 +32,7 @@ export function useAppPrefetch(enabled = true) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || process.env.NODE_ENV !== "production") return;
     const isPosPage = pathname === "/pos" || pathname.startsWith("/pos/");
 
     // Run after the first page's own data load and hydration have priority.

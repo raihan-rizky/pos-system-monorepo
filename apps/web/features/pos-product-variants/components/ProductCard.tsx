@@ -9,6 +9,7 @@ import { StockWarningBadge } from "@/features/product-stock-warnings/components"
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowDeleteAction } from "@/features/rbac/helpers/rbac-ui";
 import { VariantSelector } from "./VariantSelector";
+import { ProductDescriptionTooltip } from "./ProductDescriptionTooltip";
 import { orderUnits } from "../helpers/unit-order";
 import { priceCatalogVariantForCustomer } from "@/features/customer-category-pricing/helpers/product-pricing";
 import { isSpecialCategoryPricing, type CategoryPricingRule, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
@@ -66,6 +67,8 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
   const hargaAgen = "hargaAgen" in selectedVariant ? selectedVariant.hargaAgen : product.hargaAgen;
   const hargaDinas = "hargaDinas" in selectedVariant ? selectedVariant.hargaDinas : product.hargaDinas;
+  const descriptionVariant = product.variants?.find((variant) => variant.id === selectedVariant.id);
+  const description = descriptionVariant ? descriptionVariant.description : product.description;
   const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules);
   const selectedPrice = priceVariant(selectedVariant.id);
   const hasSpecialPrice = isSpecialCategoryPricing(selectedPrice.appliedPricing);
@@ -157,19 +160,24 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
       </div>
 
       {/* Product name */}
-      <h3
-        className="text-sm font-semibold text-surface-900 leading-snug break-words mb-auto w-full"
-        title={product.name}
-      >
-        {product.name}
-      </h3>
+      <div className="mb-auto w-full">
+        <h3
+          className="text-sm font-semibold text-surface-900 leading-snug break-words w-full"
+          title={product.name}
+        >
+          {product.name}
+        </h3>
+        <ProductDescriptionTooltip key={selectedVariant.id} description={description} />
+      </div>
 
       {/* Price + Stock */}
       <div className="w-full mt-2.5">
-        <p className={`text-base font-bold ${hasSpecialPrice ? "text-emerald-800" : "text-brand-600"}`}>
-          {formatRupiah(selectedPrice.unitPrice)}
-        </p>
-        {hasSpecialPrice && <SpecialPriceBadge />}
+        <div className="flex items-center gap-2">
+          <p className={`text-base font-bold ${hasSpecialPrice ? "text-emerald-800" : "text-brand-600"}`}>
+            {formatRupiah(selectedPrice.unitPrice)}
+          </p>
+          {hasSpecialPrice && <SpecialPriceBadge />}
+        </div>
         <div className="mt-1 space-y-0.5 text-[11px] leading-snug">
           <p className="flex flex-wrap items-center gap-1">
             <span className="font-medium text-surface-500">Agen:</span>

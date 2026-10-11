@@ -1,8 +1,12 @@
 "use client";
 
-import React, { lazy, Suspense, useCallback, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useCustomerRecap } from "../hooks/useCustomerRecap";
+import {
+  loadCustomerRecapExpanded,
+  saveCustomerRecapExpanded,
+} from "../helpers/customer-recap-preferences";
 import type { CustomerRecapQuery } from "../types/customer-recap";
 import { RecapPeriodPicker } from "./RecapPeriodPicker";
 import { CustomerRecapExportMenu } from "./CustomerRecapExportMenu";
@@ -29,8 +33,20 @@ export function CustomerRecapSection({
   onRangeChange,
   onSelectCustomer,
 }: CustomerRecapSectionProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [preferenceLoaded, setPreferenceLoaded] = useState(false);
   const { data } = useCustomerRecap(range);
+
+  useEffect(() => {
+    setExpanded(loadCustomerRecapExpanded());
+    setPreferenceLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!preferenceLoaded) return;
+    saveCustomerRecapExpanded(expanded);
+  }, [expanded, preferenceLoaded]);
+
   const handleToggle = useCallback(() => {
     setExpanded((current) => !current);
   }, []);

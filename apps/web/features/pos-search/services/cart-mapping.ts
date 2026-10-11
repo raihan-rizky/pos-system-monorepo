@@ -19,6 +19,7 @@ function mapStockGroupUnitOptions(
   return variants.map((variant) => ({
     productId: variant.id,
     name: product.name,
+    description: variant.description,
     price: Number(variant.price),
     catalogPrice: Number(variant.price),
     costPrice: variant.costPrice,
@@ -62,6 +63,7 @@ export function mapProductToCartItem(product: Product, variantId?: string) {
     return {
       id: variant.id,
       name: product.name,
+      description: variant.description,
       price: Number(variant.price),
       costPrice: variant.costPrice,
       baseCostPrice: variant.baseCostPrice,
@@ -86,6 +88,7 @@ export function mapProductToCartItem(product: Product, variantId?: string) {
   return {
     id: product.id,
     name: product.name,
+    description: product.description,
     price: Number(product.price),
     costPrice: product.costPrice,
     baseCostPrice: product.baseCostPrice,

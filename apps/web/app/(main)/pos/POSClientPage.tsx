@@ -6,6 +6,7 @@ import { AlertTriangle, Check, CircleMinus, Clock, Search, ShoppingCart, X } fro
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
 import { ShiftStatusBanner } from "@/components/ShiftStatusBanner";
+import { PosTopPanel } from "@/features/pos-search/components/PosTopPanel";
 import { Pagination } from "@/components/Pagination";
 import { Button, Input, Modal } from "@pos/ui";
 import { CategoryIcon } from "@/lib/category-icons";
@@ -58,7 +59,6 @@ import { useCart, type ProductCartItem } from "@/hooks/useCart";
 import { useCustomerCategoryPricingRules, type CustomerCategoryPricingRule } from "@/hooks/useCustomerCategoryPricingRules";
 import { mapCheckoutPricingRule, priceCartItemsForCheckout } from "@/features/pos-checkout/helpers/checkout-pricing";
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
-import { CustomerCheckoutSelect } from "@/features/pos-checkout/components/CustomerCheckoutSelect";
 import type { CheckoutCustomerSelection } from "@/features/pos-checkout/customer-selection";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
 import { useCreateDraft } from "@/features/transactions-draft";
@@ -360,6 +360,7 @@ export default function POSClientPage({
       });
       cart.syncProductGroupMetadata(updated.productIds, {
         name: updated.name,
+        description: updated.description,
         categoryId: updated.category.id,
         categoryName: updated.category.name,
         brandId: updated.brand?.id ?? null,
@@ -646,18 +647,18 @@ export default function POSClientPage({
 
   return (
     <>
-      {shiftRequired && !shiftLoading && activeShift && (
-        <ShiftStatusBanner
-          shift={activeShift}
-          onCloseShift={() => setShowCloseShift(true)}
-          canCloseShift={!isSales && !activeShift.isLocalOnly}
-        />
-      )}
-
       <div className="flex flex-1 overflow-hidden">
         {/* Products Area */}
         {/* Layout fix: remove fixed width, hide overflow, and keep min-w-0 */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          <PosTopPanel>
+            {shiftRequired && !shiftLoading && activeShift && (
+              <ShiftStatusBanner
+                shift={activeShift}
+                onCloseShift={() => setShowCloseShift(true)}
+                canCloseShift={!isSales && !activeShift.isLocalOnly}
+              />
+            )}
           {/* Top Bar */}
           <header className="flex items-center gap-2 md:gap-4 px-3 md:px-6 py-3 md:py-4 bg-white border-b border-surface-100">
             <div className="flex rounded-xl border border-surface-200 bg-surface-50 p-1">
@@ -743,20 +744,6 @@ export default function POSClientPage({
             </div>
           </header>
 
-          {checkoutNotice && (
-            <div
-              role="status"
-              className={`mx-3 mt-3 rounded-xl border px-4 py-3 text-sm font-medium md:mx-6 ${checkoutNotice.tone === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : checkoutNotice.tone === "danger"
-                  ? "border-danger-200 bg-danger-50 text-danger-700"
-                  : "border-warning-200 bg-warning-50 text-warning-900"
-                }`}
-            >
-              {checkoutNotice.message}
-            </div>
-          )}
-
           {/* Category Filter */}
           {activeTab === "products" && (
             <HorizontalScroll
@@ -833,11 +820,24 @@ export default function POSClientPage({
             </HorizontalScroll>
           )}
 
+          </PosTopPanel>
+
+          {checkoutNotice && (
+            <div
+              role="status"
+              className={`mx-3 mt-3 rounded-xl border px-4 py-3 text-sm font-medium md:mx-6 ${checkoutNotice.tone === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : checkoutNotice.tone === "danger"
+                  ? "border-danger-200 bg-danger-50 text-danger-700"
+                  : "border-warning-200 bg-warning-50 text-warning-900"
+                }`}
+            >
+              {checkoutNotice.message}
+            </div>
+          )}
+
           {activeTab === "products" ? (
             <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-6 py-3 md:py-4">
-              <div className="mb-3 max-w-md">
-                <CustomerCheckoutSelect value={pricingCustomer} onChange={setPricingCustomer} />
-              </div>
               <ProductGrid
                 products={visibleProducts}
                 onAddToCart={handleProductClick}
