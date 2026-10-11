@@ -19,7 +19,8 @@ describe("Daftar Belanja UI", () => {
     expect(source("ShoppingRequestEditModal.tsx")).toContain("ShoppingRequestUnitSelect");
     const approval = source("ShoppingRequestFinalApprovalModal.tsx");
     expect(approval).toContain("ShoppingRequestUnitSelect");
-    expect(approval).toContain("Kebutuhan ${line.requestedQty} ${line.requestedUnit}");
+    expect(approval).toContain("Satuan pembelian: ${line.unit}");
+    expect(approval).toContain("Permintaan awal: ${line.requestedQty} ${line.requestedUnit}");
     expect(approval).toContain("Harga Beli");
     expect(approval).toContain("Setujui dan Catat Pembelian");
     expect(approval).toContain("useFinalizeShoppingRequest");

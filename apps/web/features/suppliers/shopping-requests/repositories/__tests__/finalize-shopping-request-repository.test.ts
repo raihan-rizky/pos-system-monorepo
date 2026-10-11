@@ -32,7 +32,7 @@ function makeTransaction() {
     shoppingRequestItem: { update: vi.fn().mockResolvedValue({}) },
     product: { findMany: vi.fn().mockResolvedValue([{
       id: "dus", name: "Kertas Dus", sku: "KDS", unit: "dus", stock: 2,
-      stockGroupId: "group-1", stockGroup: null, unitMultiplierToBase: 12, costPrice: null,
+      stockGroupId: "group-1", stockGroup: null, unitMultiplierToBase: 12, costPrice: null, isActive: true,
     }]) },
     goodsPurchase: {
       count: vi.fn().mockResolvedValue(0),
@@ -76,5 +76,25 @@ describe("finalizeShoppingRequestRecord", () => {
     finalizePurchase.mockRejectedValueOnce(new Error("expense failed"));
 
     await expect(finalizeShoppingRequestRecord("request-1", input, actor)).rejects.toThrow("expense failed");
+  });
+
+  it("loads inactive original items for zero-quantity decisions without purchasing them", async () => {
+    const tx = makeTransaction();
+    const products = [
+      { id: "pcs", name: "Kertas Pcs", sku: "PCS", unit: "pcs", stock: 0, stockGroupId: "group-1", stockGroup: null, unitMultiplierToBase: 1, costPrice: null, isActive: false },
+      { id: "dus", name: "Kertas Dus", sku: "DUS", unit: "dus", stock: 2, stockGroupId: "group-1", stockGroup: null, unitMultiplierToBase: 12, costPrice: null, isActive: true },
+    ];
+    tx.product.findMany.mockImplementation(async ({ where }) => products.filter((product) =>
+      where.id.in.includes(product.id) && (where.isActive === undefined || product.isActive === where.isActive),
+    ));
+    transaction.mockImplementationOnce((callback: (tx: unknown) => Promise<unknown>) => callback(tx));
+    await finalizeShoppingRequestRecord("request-1", {
+      items: [{ ...input.items[0], productId: "pcs", approvedQty: 0 }],
+      extraItems: [{ productId: "dus", quantity: 1, latestUnitPrice: 1000, updateMasterHpp: false }],
+    }, actor);
+    const created = tx.goodsPurchase.create.mock.calls[0][0].data.items.create;
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ productId: "dus", quantity: 1 });
+    expect(tx.shoppingRequestItem.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ decisionStatus: "REJECTED", approvedQty: 0 }) }));
   });
 });

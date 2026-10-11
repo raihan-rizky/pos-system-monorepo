@@ -26,7 +26,7 @@ export type FinalizeShoppingRequestInput = {
 
 export function validateFinalApproval(
   requestItems: Array<{ id: string; productId: string; requestedQty: number; stockGroupId: string | null }>,
-  products: Array<{ id: string; stockGroupId: string | null }>,
+  products: Array<{ id: string; stockGroupId: string | null; isActive: boolean }>,
   input: FinalizeShoppingRequestInput,
 ): FinalizeShoppingRequestInput {
   if (input.items.length !== requestItems.length) {
@@ -45,7 +45,10 @@ export function validateFinalApproval(
     }
     seenItems.add(item.shoppingRequestItemId);
     const selected = productById.get(item.productId);
-    if (!selected) throw new FinalApprovalError("Produk tidak aktif atau tidak ditemukan.");
+    if (!selected || (!selected.isActive &&
+      (item.approvedQty !== 0 || item.productId !== requested.productId))) {
+      throw new FinalApprovalError("Produk tidak aktif atau tidak ditemukan.");
+    }
     if (item.productId !== requested.productId &&
       (!requested.stockGroupId || requested.stockGroupId !== selected.stockGroupId)) {
       throw new FinalApprovalError("Satuan pengganti harus berasal dari grup stok yang sama.");
@@ -63,7 +66,7 @@ export function validateFinalApproval(
   }
 
   for (const item of input.extraItems) {
-    if (!productById.has(item.productId)) throw new FinalApprovalError("Produk tambahan tidak aktif atau tidak ditemukan.");
+    if (!productById.get(item.productId)?.isActive) throw new FinalApprovalError("Produk tambahan tidak aktif atau tidak ditemukan.");
     if (!Number.isFinite(item.quantity) || item.quantity <= 0 ||
       !Number.isFinite(item.latestUnitPrice) || item.latestUnitPrice < 0) {
       throw new FinalApprovalError("Jumlah barang tambahan harus lebih dari nol dan harganya tidak boleh negatif.");

@@ -31,6 +31,7 @@ import type {
   UpdateShoppingRequestInput,
 } from "../types/shopping-request";
 import type { FinalizeShoppingRequestInput } from "../services/finalize-shopping-request";
+import { invalidateGoodsPurchaseMutationQueries } from "../../goods-purchases/hooks/useGoodsPurchases";
 
 export function useShoppingRequests(params: ShoppingRequestListParams = {}) {
   return useQuery({
@@ -199,10 +200,7 @@ export function useFinalizeShoppingRequest() {
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: FinalizeShoppingRequestInput }) => finalizeShoppingRequest(id, input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shopping-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["goods-purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      invalidateGoodsPurchaseMutationQueries(queryClient, true);
       queryClient.invalidateQueries({ queryKey: ["suppliers", "summary"] });
     },
   });

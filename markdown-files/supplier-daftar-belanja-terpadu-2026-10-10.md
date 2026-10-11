@@ -53,3 +53,15 @@ Di halaman Supplier, pengguna sekarang menyetujui jumlah pada Daftar Belanja, ke
 - Finalisasi memakai transaksi Prisma yang juga menjalankan finalisasi keuangan Pembelian Barang yang sudah ada. Catatan Pembelian Barang hasil persetujuan dapat langsung dipakai untuk Penerimaan Barang.
 - Riwayat pembelian terdahulu ditampilkan sebagai tindakan sekunder pada kartu Daftar Belanja. Pembelian lama yang ditolak dapat diajukan ulang melalui **Lengkapi Pembelian Lama**.
 - Tidak ada stok yang ditambah ketika Daftar Belanja disetujui; perubahan stok tetap terjadi pada persetujuan Penerimaan Barang.
+
+## Perbaikan regresi 2026-10-11
+
+- Konfirmasi jumlah berlebih dan alasan penolakan direset saat membuka permohonan lain atau menutup modal. Draft jumlah dan harga tidak ditimpa oleh refetch latar belakang pada sesi yang sama.
+- Semua mutasi Pembelian Barang lama memperbarui cache Daftar Belanja. Finalisasi baru dan lama memakai helper invalidasi bersama untuk Keuangan, laporan, produk, dan pilihan satuan/HPP. Invalidasi prefix pembelian juga mencakup daftar yang memenuhi syarat tanpa permintaan invalidasi duplikat.
+- Penerimaan menyegarkan kartu Daftar Belanja melalui helper yang sama untuk integrasi penerimaan.
+- Produk asli yang sudah dinonaktifkan tetap dapat ditolak dengan jumlah nol, sehingga barang aktif lainnya dapat disetujui. Produk nonaktif tidak boleh dibeli, ditambahkan, atau dipakai sebagai satuan pengganti.
+- Tes regresi mencakup lifecycle sesi modal, draft pada refetch, mutasi pembelian lama, cache Keuangan/HPP, dan validasi produk nonaktif. Tidak ada perubahan izin, pembukuan, atau aturan penambahan stok.
+
+### Final review correction
+
+Finalized unified and legacy approvals also invalidate `product-price-logs` and `stock-group`, so cached HPP history and group margins refresh after a selected master-HPP update. Regression tests reproduced stale data in both paths before the fix; all nine focused cache tests passed after the correction. Non-finalized review and legacy quantity-only approval keep these caches untouched.

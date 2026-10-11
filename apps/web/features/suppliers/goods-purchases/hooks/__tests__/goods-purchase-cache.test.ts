@@ -103,6 +103,9 @@ describe("goods purchase cache helpers", () => {
       queryKey: ["goods-purchases"],
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["shopping-requests"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["inventory-management"],
     });
     expect(invalidateSpy).toHaveBeenCalledWith({

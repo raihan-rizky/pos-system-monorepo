@@ -40,9 +40,9 @@ export async function finalizeShoppingRequestRecord(
         ...input.extraItems.map((item) => item.productId),
       ])];
       const products = await tx.product.findMany({
-        where: { id: { in: selectedProductIds }, storeId: actor.storeId, isActive: true },
+        where: { id: { in: selectedProductIds }, storeId: actor.storeId },
         select: {
-          id: true, name: true, sku: true, unit: true, stock: true,
+          id: true, name: true, sku: true, unit: true, stock: true, isActive: true,
           stockGroupId: true, stockGroup: { select: { baseStock: true } },
           unitMultiplierToBase: true, costPrice: true,
         },

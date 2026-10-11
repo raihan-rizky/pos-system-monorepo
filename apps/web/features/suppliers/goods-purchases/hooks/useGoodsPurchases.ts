@@ -68,10 +68,7 @@ export function useCreateGoodsPurchase() {
     mutationFn: (input: CreateGoodsPurchaseInput) =>
       createGoodsPurchase(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["goods-purchases"] });
-      queryClient.invalidateQueries({
-        queryKey: ["goods-purchases", "eligible"],
-      });
+      invalidateGoodsPurchaseMutationQueries(queryClient, false);
     },
   });
 }
@@ -139,10 +136,7 @@ export function useRejectGoodsPurchase() {
       rejectGoodsPurchase(id, reason),
     onSuccess: ({ data }) => {
       syncGoodsPurchaseCaches(queryClient, data);
-      queryClient.invalidateQueries({ queryKey: ["goods-purchases"] });
-      queryClient.invalidateQueries({
-        queryKey: ["goods-purchases", "eligible"],
-      });
+      invalidateGoodsPurchaseMutationQueries(queryClient, false);
     },
   });
 }
@@ -188,14 +182,18 @@ export function invalidateGoodsPurchaseMutationQueries(
   queryClient: QueryClient,
   finalized: boolean,
 ): void {
+  // Purchase status and totals are also embedded in shopping request history.
+  queryClient.invalidateQueries({ queryKey: ["goods-purchases"] });
+  queryClient.invalidateQueries({ queryKey: ["shopping-requests"] });
   if (!finalized) return;
   for (const queryKey of [
-    ["goods-purchases"],
     ["finance"],
     ["financial-report"],
     ["products"],
+    ["product-price-logs"],
+    ["stock-group"],
+    ["shopping-request-unit-variants"],
     ["dashboard"],
-    ["goods-purchases", "eligible"],
   ]) {
     queryClient.invalidateQueries({ queryKey });
   }
@@ -206,6 +204,7 @@ export function invalidateGoodsReceiptQueries(
 ): void {
   for (const queryKey of [
     ["goods-purchases"],
+    ["shopping-requests"],
     ["inventory-management"],
     ["inventory-logs"],
   ]) {
