@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryObserver, type QueryObserverOptions } from "@tanstack/react-query";
-import { fetchProducts, useProducts, useProductsPage, type Product, type ProductsResponse } from "@/hooks/useProducts";
+import { fetchProducts, useProducts, useProductsPage, useProductUnits, type Product, type ProductsResponse } from "@/hooks/useProducts";
 import { useAppPrefetch } from "@/hooks/usePrefetch";
 
 const mocks = vi.hoisted(() => ({
@@ -117,6 +117,66 @@ describe("product query cache and request lifecycle", () => {
   it("normalizes empty filters consistently for both product hook consumers", () => {
     const list = useProducts(undefined, undefined, { limit: 24 }) as unknown as Options;
     expect(list.queryKey).toEqual(pageOptions().queryKey);
+  });
+
+  it("separates unit-filtered catalog pages from the unfiltered cache", () => {
+    const options = { unit: "dus" } as Parameters<typeof useProductsPage>[2];
+    expect(pageOptions("", "", options).queryKey).not.toEqual(pageOptions().queryKey);
+  });
+
+  it("loads unit choices independently of paginated product requests", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ data: ["dus", "pcs"] })));
+    const options = useProductUnits() as unknown as QueryObserverOptions<string[]>;
+    const units = await mocks.client!.fetchQuery(options);
+    expect(fetch).toHaveBeenCalledWith("/api/products/units", expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(units).toEqual(["dus", "pcs"]);
+    expect(options.queryKey?.slice(0, 2)).toEqual(["products", "units"]);
+  });
+
+  it.each([["list", useProducts], ["page", useProductsPage]] as const)("sends the unit filter to the API (%s)", async (_name, hook) => {
+    const options = hook("paper", "cat-paper", { unit: "dus" } as Parameters<typeof useProductsPage>[2]) as unknown as Options;
+    await mocks.client!.fetchQuery(options);
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0][0]), "http://localhost");
+    expect(url.searchParams.get("unit")).toBe("dus");
+    expect(url.searchParams.get("categoryId")).toBe("cat-paper");
+  });
+
+  it("does not seed a unit-filtered page with unfiltered server data", () => {
+    const options = pageOptions("", "", { initialData, unit: "dus" } as Parameters<typeof useProductsPage>[2]);
+    expect(options.initialData).toBeUndefined();
+  });
+
+  it("applies the unit filter to cached offline products and their variants", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response("unavailable", { status: 503 }));
+    mocks.getCachedCatalogProducts.mockResolvedValue([
+      { id: "paper", unit: "pcs", variants: [{ id: "paper-pcs", unit: "pcs" }, { id: "paper-dus", unit: "dus" }] },
+      { id: "pen", unit: "pcs" },
+      { id: "box", unit: "dus" },
+    ]);
+    const result = await mocks.client!.fetchQuery(pageOptions("", "", { unit: "dus" } as Parameters<typeof useProductsPage>[2]));
+    expect(result.data.map(product => product.id)).toEqual(["paper-dus", "box"]);
+    expect(result.data[0].unit).toBe("dus");
+    expect(result.data[0].variants?.map(variant => variant.unit)).toEqual(["dus"]);
+    expect(result.pagination.total).toBe(2);
+  });
+
+  it("preserves cached sibling units after viewing a single-unit online result", async () => {
+    const pcs = { id: "paper-pcs", unit: "pcs", price: 1000, stock: 10, sku: "PAPER-PCS" };
+    const dus = { id: "paper-dus", unit: "dus", price: 10000, stock: 1, sku: "PAPER-DUS" };
+    const fullProduct = { ...initialData.data[0], ...pcs, variants: [pcs, dus] } as Product;
+    const cache = new Map<string, Product>();
+    mocks.cacheCatalogProducts.mockImplementation(async (products: Product[]) => {
+      products.forEach(product => cache.set(product.id, product));
+    });
+    mocks.getCachedCatalogProducts.mockImplementation(async () => [...cache.values()]);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...initialData, data: [fullProduct] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...initialData, data: [{ ...fullProduct, variants: [pcs] }] })))
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    await fetchProducts("", "", 1, 24);
+    await fetchProducts("", "", 1, 24, false, undefined, undefined, undefined, "pcs");
+    const result = await fetchProducts("", "", 1, 24, false, undefined, undefined, undefined, "dus");
+    expect(result.data.map(product => product.id)).toEqual(["paper-dus"]);
   });
 
   it("reuses the prefetched POS page through the consuming product hook", async () => {

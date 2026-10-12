@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   useProductsPage,
   useCategories,
+  useProductUnits,
   useProductStats,
   useDeleteProduct,
   useBulkDeleteProducts,
@@ -222,6 +223,7 @@ export default function ProductsClientPage() {
     useState<BulkDeleteProductsResult | null>(null);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [unit, setUnit] = useState("");
   // Default to grid on mobile, table on desktop. We'll manage this via state, but default "grid" is safer for initial mobile load.
   const [view, setView] = useState<"table" | "grid">("grid");
 
@@ -268,6 +270,7 @@ export default function ProductsClientPage() {
   >("name");
 
   const productsQuery = useProductsPage(search, categoryId, {
+    unit,
     page,
     limit: PRODUCTS_PER_PAGE,
     stockStatus:
@@ -282,6 +285,8 @@ export default function ProductsClientPage() {
 
   const statsQuery = useProductStats(search, categoryId);
   const { data: categoriesData } = useCategories();
+  const unitsQuery = useProductUnits();
+  const units = unitsQuery.data ?? [];
   const activeImportJobQuery = useActiveProductImportJob();
   const activeImportJob = activeImportJobQuery.data ?? null;
   const observedImportJobId = activeImportJob?.id ?? lastObservedImportJob?.id ?? null;
@@ -314,7 +319,7 @@ export default function ProductsClientPage() {
   // Reset to page 1 whenever search, category, or stock filter changes
   useEffect(() => {
     setPage(1);
-  }, [search, categoryId, stockFilter, groupedOnly]);
+  }, [search, categoryId, unit, stockFilter, groupedOnly]);
 
   // Clamp page when result set shrinks (e.g. category change reduces total pages)
   useEffect(() => {
@@ -799,11 +804,13 @@ export default function ProductsClientPage() {
               <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0 relative">
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center justify-center gap-2 px-4 py-3.5 border rounded-2xl text-sm font-bold transition-all ${showFilters || stockFilter !== "all" || sortBy !== "name" || groupedOnly ? "bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20" : "bg-slate-50 hover:bg-slate-100 border-slate-200/60 text-slate-700"}`}
+                  aria-label="Filter"
+                  aria-expanded={showFilters}
+                  className={`flex items-center justify-center gap-2 px-4 py-3.5 border rounded-2xl text-sm font-bold transition-all ${showFilters || unit || stockFilter !== "all" || sortBy !== "name" || groupedOnly ? "bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20" : "bg-slate-50 hover:bg-slate-100 border-slate-200/60 text-slate-700"}`}
                 >
                   <SlidersHorizontal className="w-4 h-4" />
                   <span className="hidden sm:inline">Filter</span>
-                  {(stockFilter !== "all" || sortBy !== "name" || groupedOnly) && (
+                  {(unit || stockFilter !== "all" || sortBy !== "name" || groupedOnly) && (
                     <span className="w-2 h-2 rounded-full bg-blue-400 absolute -top-1 -right-1 border-2 border-white"></span>
                   )}
                 </button>
@@ -815,8 +822,42 @@ export default function ProductsClientPage() {
                       className="fixed inset-0 z-20"
                       onClick={() => setShowFilters(false)}
                     />
-                    <div className="absolute top-full right-0 mt-3 w-64 bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 p-5 z-30 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="absolute top-full right-0 mt-3 w-64 max-h-[70vh] overflow-y-auto bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 p-5 z-30 animate-in fade-in slide-in-from-top-2 duration-300">
                       <div className="space-y-5">
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <label htmlFor="product-unit-filter" className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              Satuan
+                            </label>
+                            {unit && (
+                              <button type="button" onClick={() => setUnit("")} className="text-[10px] font-bold text-blue-600 hover:underline">
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                          <select
+                            id="product-unit-filter"
+                            name="unit"
+                            value={unit}
+                            disabled={unitsQuery.isLoading}
+                            onChange={(event) => {
+                              setUnit(event.target.value);
+                              setPage(1);
+                              setShowFilters(false);
+                            }}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                          >
+                            <option value="">{unitsQuery.isLoading ? "Memuat satuan..." : "Semua satuan"}</option>
+                            {unit && !units.includes(unit) && <option value={unit}>{unit}</option>}
+                            {units.map((option) => <option key={option} value={option}>{option}</option>)}
+                          </select>
+                          {unitsQuery.isError && (
+                            <div className="mt-2 text-xs text-red-600" role="alert">
+                              Satuan belum bisa dimuat. <button type="button" onClick={() => void unitsQuery.refetch()} className="font-bold underline">Coba lagi</button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="h-px bg-slate-100" />
                         <div>
                           <div className="flex items-center justify-between mb-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -1026,11 +1067,12 @@ export default function ProductsClientPage() {
                   <p className="text-slate-500 text-center max-w-xs mt-1">
                     Coba ubah pencarian atau filter untuk menemukan produk.
                   </p>
-                  {(search || categoryId !== "" || stockFilter !== "all" || groupedOnly) && (
+                  {(search || categoryId !== "" || unit || stockFilter !== "all" || groupedOnly) && (
                     <button
                       onClick={() => {
                         setSearch("");
                         setCategoryId("");
+                        setUnit("");
                         setStockFilter("all");
                         setGroupedOnly(false);
                       }}

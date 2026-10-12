@@ -113,6 +113,7 @@ export interface ProductsResponse {
 }
 
 export interface UseProductsOptions {
+  unit?: string;
   page?: number;
   limit?: number;
   inStockOnly?: boolean;
@@ -136,6 +137,7 @@ export function productQueryKey(
     options.inStockOnly ?? false,
     options.stockStatus === "all" ? undefined : options.stockStatus,
     options.stockGroupMinVariants || undefined,
+    ...(options.unit?.trim() ? [options.unit.trim().toLowerCase()] : []),
   ] as const;
 }
 
@@ -148,8 +150,11 @@ export async function fetchProducts(
   stockStatus?: ProductStockStatusFilter,
   stockGroupMinVariants?: number,
   signal?: AbortSignal,
+  unit?: string,
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
+  const normalizedUnit = unit?.trim().toLowerCase() || "";
+  if (normalizedUnit) params.set("unit", normalizedUnit);
   if (search) params.set("search", search);
   if (categoryId) params.set("categoryId", categoryId);
   params.set("page", String(page));
@@ -167,19 +172,33 @@ export async function fetchProducts(
   if (!res.ok) {
     const { getCachedCatalogProducts } = await import("@/lib/offline/offline-db");
     signal?.throwIfAborted();
-    const cached = await getCachedCatalogProducts<Product>(
+    const cachedProducts = await getCachedCatalogProducts<Product>(
       search,
       categoryId,
       inStockOnly,
     );
     signal?.throwIfAborted();
-    if (cached.length > 0) {
+    if (cachedProducts.length > 0) {
+      const cached = normalizedUnit
+        ? cachedProducts.flatMap((product) => {
+            const variants = product.variants?.filter(
+              (variant) => variant.unit.trim().toLowerCase() === normalizedUnit,
+            );
+            if (product.unit.trim().toLowerCase() === normalizedUnit) {
+              return [{ ...product, variants }];
+            }
+            const variant = variants?.[0];
+            return variant
+              ? [{ ...product, ...variant, variants, defaultVariant: variant }]
+              : [];
+          })
+        : cachedProducts;
       return {
         data: cached,
         pagination: {
           total: cached.length,
           page: 1,
-          limit: cached.length,
+          limit: Math.max(1, cached.length),
           totalPages: 1,
           hasNextPage: false,
           hasPreviousPage: false,
@@ -191,7 +210,8 @@ export async function fetchProducts(
   const response = (await res.json()) as ProductsResponse;
   const { cacheCatalogProducts } = await import("@/lib/offline/offline-db");
   signal?.throwIfAborted();
-  await cacheCatalogProducts(response.data, signal);
+  // Filtered groups omit sibling units and must not replace complete offline groups.
+  if (!normalizedUnit) await cacheCatalogProducts(response.data, signal);
   signal?.throwIfAborted();
   return response;
 }
@@ -218,6 +238,18 @@ export function useCategories(initialData?: Category[]) {
   });
 }
 
+export function useProductUnits() {
+  return useQuery({
+    queryKey: ["products", "units"],
+    queryFn: async ({ signal }): Promise<string[]> => {
+      const res = await fetch("/api/products/units", { signal });
+      if (!res.ok) throw new Error("Daftar satuan belum bisa dimuat.");
+      const json = (await res.json()) as { data: string[] };
+      return json.data;
+    },
+  });
+}
+
 export function useProducts(
   search?: string,
   categoryId?: string,
@@ -238,6 +270,7 @@ export function useProducts(
         stockStatus,
         options.stockGroupMinVariants,
         signal,
+        options.unit,
       ),
     select: (data) => data.data,
     placeholderData: keepPreviousData,
@@ -534,6 +567,7 @@ export function useProductsPage(
     !inStockOnly &&
     (!stockStatus || stockStatus === "all") &&
     !options.stockGroupMinVariants &&
+    !options.unit?.trim() &&
     options.initialData?.pagination.page === page &&
     options.initialData.pagination.limit === limit;
   const initialData = canUseInitialData ? options.initialData : undefined;
@@ -569,6 +603,7 @@ export function useProductsPage(
         stockStatus,
         options.stockGroupMinVariants,
         signal,
+        options.unit,
       ),
     initialData,
     initialDataUpdatedAt: canUseInitialData ? options.initialDataUpdatedAt : undefined,

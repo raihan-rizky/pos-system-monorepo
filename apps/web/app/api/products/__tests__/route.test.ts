@@ -576,6 +576,17 @@ describe("POST /api/products", () => {
 });
 
 describe("GET /api/products", () => {
+  it("applies a unit filter to both rows and counts before pagination", async () => {
+    const response = await GET(new Request("http://localhost/api/products?unit=dus&categoryId=cat-1&page=2&limit=10"));
+    expect(response.status).toBe(200);
+    const expectedWhere = expect.objectContaining({
+      storeId: "store-main", isActive: true, categoryId: "cat-1",
+      unit: { equals: "dus", mode: "insensitive" },
+    });
+    expect(productFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expectedWhere, skip: 10, take: 10 }));
+    expect(productCountMock).toHaveBeenCalledWith({ where: expectedWhere });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermissionMock.mockResolvedValue({

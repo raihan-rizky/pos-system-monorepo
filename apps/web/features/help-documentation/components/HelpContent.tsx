@@ -265,7 +265,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Menu Produk", description: "Buka menu samping (sidebar) sebelah kiri layar Anda, masuk ke kategori 'Katalog', kemudian klik menu 'Produk' (ikon paket).", icon: <Package className="w-8 h-8" /> },
-        { title: "Cari Produk", description: "Cari produk yang ingin diubah stoknya di dalam tabel daftar produk.", icon: <Search className="w-8 h-8" /> },
+        { title: "Cari Produk", description: "Cari produk yang ingin diubah stoknya di dalam tabel daftar produk. Untuk mencari kemasan tertentu, klik 'Filter', lalu pilih 'Satuan', misalnya dus atau pcs. Pilihan satuan berasal dari semua produk aktif toko dan bisa digabung dengan pencarian, kategori, serta status stok. Saat satuan diganti, daftar kembali ke halaman pertama. Pilih 'Semua satuan' atau klik Reset untuk menghapus filter satuan.", icon: <Search className="w-8 h-8" /> },
         { title: "Klik Tombol Ubah Produk", description: "Klik tombol aksi 'Ubah Produk' (ikon pensil/edit) di kolom paling kanan untuk membuka modal edit produk.", icon: <Settings className="w-8 h-8" /> },
         { title: "Ubah Stok Saat Ini", description: "Pada form modal 'Ubah Produk' yang muncul, cari input 'Stok Saat Ini', lalu ketikkan jumlah stok terbaru yang Anda inginkan.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Simpan Perubahan", description: "Klik tombol 'Simpan Produk' di pojok kanan bawah modal untuk memperbarui stok produk secara langsung di sistem.", icon: <ShieldCheck className="w-8 h-8" /> },
@@ -467,7 +467,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Warehouse className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Menu Produk", description: "Buka menu samping (sidebar) sebelah kiri layar Anda, masuk ke kategori 'Katalog', kemudian klik menu 'Produk' (ikon paket).", icon: <Package className="w-8 h-8" /> },
-        { title: "Cari Produk", description: "Cari produk yang ingin diubah stoknya di dalam tabel daftar produk.", icon: <Search className="w-8 h-8" /> },
+        { title: "Cari Produk", description: "Cari produk yang ingin diubah stoknya di dalam tabel daftar produk. Untuk mencari kemasan tertentu, klik 'Filter', lalu pilih 'Satuan', misalnya dus atau pcs. Pilihan satuan berasal dari semua produk aktif toko dan bisa digabung dengan pencarian, kategori, serta status stok. Saat satuan diganti, daftar kembali ke halaman pertama. Pilih 'Semua satuan' atau klik Reset untuk menghapus filter satuan.", icon: <Search className="w-8 h-8" /> },
         { title: "Klik Tombol Ubah Produk", description: "Klik tombol aksi 'Ubah Produk' (ikon pensil/edit) di kolom paling kanan untuk membuka modal edit produk.", icon: <Settings className="w-8 h-8" /> },
         { title: "Ubah Stok Saat Ini", description: "Pada form modal 'Ubah Produk' yang muncul, cari input 'Stok Saat Ini', lalu ketikkan jumlah stok terbaru yang Anda inginkan.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Simpan Perubahan", description: "Klik tombol 'Simpan Produk' di pojok kanan bawah modal untuk memperbarui stok produk secara langsung di sistem.", icon: <ShieldCheck className="w-8 h-8" /> },

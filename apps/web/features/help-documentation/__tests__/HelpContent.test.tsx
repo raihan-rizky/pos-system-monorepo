@@ -1,8 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import HelpContent from '../components/HelpContent';
+import HelpContent, { HELP_ROLE_CONTENT } from '../components/HelpContent';
 
 describe('HelpContent', () => {
+  it.each(['OWNER', 'ADMIN'])('explains the product unit filter for %s', (role) => {
+    const descriptions = HELP_ROLE_CONTENT[role].flatMap(guide => guide.steps.map(step => step.description)).join(' ');
+    expect(descriptions).toContain("pilih 'Satuan'");
+    expect(descriptions).toContain("Semua satuan");
+    expect(descriptions).toContain("halaman pertama");
+  });
+
   it('documents transaction-owned stock for new Surat Jalan records', () => {
     const html = renderToStaticMarkup(
       <HelpContent targetRole="SALES" searchQuery="Membuat Surat Jalan" />

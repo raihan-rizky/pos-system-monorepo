@@ -113,6 +113,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
+    const unit = searchParams.get("unit")?.trim() || "";
     const storeId = user.storeId || "store-main";
     // Cap at 200 to prevent unbounded result sets on Vercel
     const { page, limit, skip } = parsePagination(searchParams, {
@@ -167,6 +168,7 @@ export async function GET(request: Request) {
       isActive: true,
       ...(searchWhere ?? {}),
       ...(categoryId && { categoryId }),
+      ...(unit && { unit: { equals: unit, mode: "insensitive" as const } }),
       ...(stockFilter ?? {}),
       ...(stockGroupFilter ?? {}),
     };
