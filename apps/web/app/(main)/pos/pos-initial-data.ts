@@ -34,6 +34,7 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
           id: true,
           storeId: true,
           name: true,
+          description: true,
           sku: true,
           barcode: true,
           price: true,

@@ -158,6 +158,26 @@ describe("PUT /api/products/[id]", () => {
     expect((await response.json()).data).toMatchObject({ baseCostPrice: 700, baseCostUnit: "pcs", costPrice: 9000 });
   });
 
+  it.each(["Deskripsi baru\nUntuk produk yang sudah ada", null])("writes an existing product description (%s) and returns it", async (description) => {
+    productUpdateMock.mockImplementationOnce(async ({ data }) => ({
+      id: "product-1", ...data, price: 15000, costPrice: 9000,
+      stock: 10, category: { id: "cat-1", name: "Jasa Cetak" },
+    }));
+    const response = await PUT(
+      new Request("http://localhost/api/products/product-1", {
+        method: "PUT",
+        body: JSON.stringify({ description }),
+      }),
+      { params: Promise.resolve({ id: "product-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(productUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "product-1" }, data: expect.objectContaining({ description }),
+    }));
+    expect((await response.json()).description).toBe(description);
+  });
+
   it("writes price and HPP change logs with the manual note", async () => {
     const response = await PUT(
       new Request("http://localhost/api/products/product-1", {

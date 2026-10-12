@@ -121,6 +121,30 @@ describe("loadPOSInitialData", () => {
     expect(matchesSearchTokens(sheetVariant, parseSearchQuery("890222"))).toBe(true);
   });
 
+  it.each(["Kertas A4 isi 500 lembar", null])("preserves saved descriptions (%s) in the initial catalog and each variant", async (description) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("E2E_AUTH_BYPASS", "0");
+    mocks.requirePermission.mockResolvedValue({ storeId: "store-main" });
+    const product = {
+      id: "rim", storeId: "store-main", name: "Kertas A4", sku: "rim",
+      description, price: 50000, costPrice: 9000, unit: "rim", stock: 10,
+      category: { id: "cat-paper", name: "Kertas" }, stockGroupId: null,
+      stockGroup: null, isActive: true,
+    };
+    mocks.productFindMany.mockImplementation(async ({ select }) => [
+      projectSelectedFields(product, select),
+      projectSelectedFields({ ...product, id: "pcs", unit: "pcs", stock: 5, description: "Satu lembar" }, select),
+    ]);
+    mocks.productCount.mockResolvedValue(2);
+    mocks.categoryFindMany.mockResolvedValue([]);
+    mocks.storeSettingsFindUnique.mockResolvedValue({ shiftEnabled: true });
+
+    const result = await loadPOSInitialData();
+    const group = result.products?.data[0];
+    expect(group?.description).toBe(description);
+    expect(group?.variants?.map((variant) => variant.description)).toEqual([description, "Satu lembar"]);
+  });
+
   it("loads smallest-unit modal outside the first page and groups initial variants like the API", async () => {
     vi.stubEnv("NODE_ENV", "production");
     mocks.requirePermission.mockResolvedValue({ storeId: "store-main" });
