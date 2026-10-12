@@ -57,6 +57,7 @@ const receivingQueue = {
     {
       id: "gp-1",
       number: "PB-202607-001",
+      shoppingRequestName: "Restok Kertas Oktober",
       supplierId: "supplier-1",
       supplierName: "CV Kertas",
       fulfillmentStatus: "NOT_RECEIVED" as const,
@@ -198,6 +199,34 @@ describe("InboundReceiptModal", () => {
     expect(html).not.toContain("Invoice Daftar Belanja");
     expect(html).not.toContain("Status Line");
     expect(html).not.toContain("Qty Ekspektasi");
+  });
+
+  it("shows the custom name above invoice, supplier, and product count", () => {
+    const html = renderModal();
+    const purchaseCard = html.match(
+      /<button[^>]*data-goods-purchase-id="gp-1"[^>]*>([\s\S]*?)<\/button>/,
+    )?.[1];
+
+    expect(purchaseCard).toMatch(
+      /<span[^>]*font-black[^>]*>Restok Kertas Oktober<\/span>/,
+    );
+    expect(purchaseCard).toMatch(
+      /<span[^>]*text-xs[^>]*>PB-202607-001 · CV Kertas · 1 produk<\/span>/,
+    );
+  });
+
+  it("uses the invoice number as title when no custom name is available", () => {
+    const html = renderModal();
+    const purchaseCard = html.match(
+      /<button[^>]*data-goods-purchase-id="gp-2"[^>]*>([\s\S]*?)<\/button>/,
+    )?.[1];
+
+    expect(purchaseCard).toMatch(
+      /<span[^>]*font-black[^>]*>PB-202607-002<\/span>/,
+    );
+    expect(purchaseCard).toMatch(
+      /<span[^>]*text-xs[^>]*>PB-202607-002 · CV Tinta · 1 produk<\/span>/,
+    );
   });
 
   it("preselects gp-2 after the asynchronous receiving queue loads", async () => {

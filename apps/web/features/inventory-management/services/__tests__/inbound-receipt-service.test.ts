@@ -337,6 +337,23 @@ describe("inbound receipt service", () => {
     });
   });
 
+  it("preserves the shopping request custom name in the receiving queue", async () => {
+    const repository = createRepository();
+    vi.mocked(repository.listReceivingQueue).mockResolvedValueOnce([
+      { ...receivingQueueRows()[0], shoppingRequestName: "Restok Kertas Oktober" },
+    ]);
+
+    const result = await getReceivingQueue({
+      repository,
+      user: { id: "inventory-1", role: "INVENTORY", storeId: "store-main" },
+    });
+
+    expect(result.purchases[0]).toMatchObject({
+      number: "PB-202607-001",
+      shoppingRequestName: "Restok Kertas Oktober",
+    });
+  });
+
   it("groups purchase items and counts each submitted receipt once", async () => {
     const repository = createRepository();
     vi.mocked(repository.listReceivingQueue).mockResolvedValueOnce([
@@ -450,6 +467,7 @@ describe("inbound receipt service", () => {
       {
         id: "gp-1",
         number: "PB-202607-001",
+        shoppingRequest: { name: "Restok Kertas" },
         supplierId: "supplier-1",
         supplierNameSnapshot: "CV Kertas",
         fulfillmentStatus: "PARTIALLY_RECEIVED",
@@ -522,6 +540,7 @@ describe("inbound receipt service", () => {
       {
         id: "gp-1",
         number: "PB-202607-001",
+        shoppingRequest: { name: "Restok Kertas" },
         supplierId: "supplier-1",
         supplierNameSnapshot: "CV Kertas",
         fulfillmentStatus: "NOT_RECEIVED",

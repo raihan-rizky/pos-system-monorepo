@@ -233,6 +233,7 @@ export interface ReceivingQueueReceiptLine {
 export interface ReceivingQueueRepositoryRow {
   goodsPurchaseId: string;
   goodsPurchaseNumber: string;
+  shoppingRequestName?: string | null;
   supplierId: string | null;
   supplierName: string;
   fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
@@ -269,6 +270,7 @@ export interface ReceivingQueueItem {
 export interface ReceivingQueuePurchase {
   id: string;
   number: string;
+  shoppingRequestName?: string | null;
   supplierId: string | null;
   supplierName: string;
   fulfillmentStatus: GoodsPurchaseFulfillmentStatus;

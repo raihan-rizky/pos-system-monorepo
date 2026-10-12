@@ -1205,6 +1205,7 @@ export class InventoryInboundReceiptRepository
         number: true,
         supplierId: true,
         supplierNameSnapshot: true,
+        shoppingRequest: { select: { name: true } },
         fulfillmentStatus: true,
         items: {
           orderBy: { createdAt: "asc" },
@@ -1263,6 +1264,7 @@ export class InventoryInboundReceiptRepository
         return {
           goodsPurchaseId: purchase.id,
           goodsPurchaseNumber: purchase.number,
+          shoppingRequestName: purchase.shoppingRequest.name,
           supplierId: purchase.supplierId,
           supplierName: purchase.supplierNameSnapshot,
           fulfillmentStatus: purchase.fulfillmentStatus,

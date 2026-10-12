@@ -265,6 +265,7 @@ export async function getReceivingQueue(
         purchase: {
           id: row.goodsPurchaseId,
           number: row.goodsPurchaseNumber,
+          shoppingRequestName: row.shoppingRequestName ?? null,
           supplierId: row.supplierId,
           supplierName: row.supplierName,
           fulfillmentStatus: row.fulfillmentStatus,

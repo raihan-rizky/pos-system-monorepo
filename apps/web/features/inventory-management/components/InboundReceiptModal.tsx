@@ -360,11 +360,12 @@ export function InboundReceiptModal({
                     }`}
                   >
                     {isSelected && <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-cyan-700 px-2 py-0.5 text-xs font-bold text-white"><CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />Dipilih</span>}
-                    <span className="block font-black text-slate-900">
-                      {purchase.number}
+                    <span className="block break-words font-black text-slate-900">
+                      {purchase.shoppingRequestName?.trim() || purchase.number}
                     </span>
-                    <span className="mt-1 block text-xs text-slate-500">
-                      {purchase.supplierName} · {purchase.items.length} produk
+                    <span className="mt-1 block break-words text-xs text-slate-500">
+                      {purchase.number} · {purchase.supplierName} ·{" "}
+                      {purchase.items.length} produk
                     </span>
                     {purchase.pendingReceiptCount > 0 && (
                       <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">
