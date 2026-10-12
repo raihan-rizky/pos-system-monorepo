@@ -173,6 +173,16 @@ describe("InboundReceiptModal", () => {
     vi.clearAllMocks();
   });
 
+  it("identifies the selected purchase and explains quantities before entry", () => {
+    const html = renderModal("gp-2");
+    expect(html).toContain("Dipilih");
+    expect(html).toContain("Bisa diterima");
+    expect(html).toContain("Jumlah maksimal");
+    expect(html).toContain("Harga per satuan dalam rupiah");
+    expect(html.includes("Catat barang yang tiba")).toBe(true);
+    expect(html.includes("Stok bertambah setelah disetujui")).toBe(true);
+  });
+
   it("renders the Goods Purchase receiving flow without legacy invoice fields", () => {
     const html = renderModal();
 

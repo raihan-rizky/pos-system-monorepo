@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "@pos/ui";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, CheckCircle2, PackageCheck, Clock3 } from "lucide-react";
 import {
   createInboundReceipt,
   fetchReceivingQueue,
@@ -303,8 +303,9 @@ export function InboundReceiptModal({
       size="3xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-          <p className="text-xs font-medium text-slate-600">
+        <div className="flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
+          <PackageCheck aria-hidden="true" className="h-5 w-5 shrink-0 text-cyan-700" />
+          <p className="text-sm font-medium text-cyan-900">
             Pilih Pembelian Barang yang sudah disetujui, lalu catat jumlah
             barang yang benar-benar tiba.
           </p>
@@ -320,10 +321,12 @@ export function InboundReceiptModal({
           </div>
         )}
 
-        <section>
-          <label className="mb-1 block text-xs font-bold text-slate-600">
-            Pilih Pembelian Barang
-          </label>
+        <section aria-labelledby="inbound-purchase-heading">
+          <div className="mb-3 flex items-center gap-2">
+            <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-700 text-sm font-bold text-white">1</span>
+            <h2 id="inbound-purchase-heading" className="text-sm font-bold text-slate-900">Pilih Pembelian Barang</h2>
+            {!isLoading && <span className="ml-auto rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{purchases.length} dokumen</span>}
+          </div>
           <input
             type="hidden"
             name="inboundGoodsPurchaseId"
@@ -340,7 +343,7 @@ export function InboundReceiptModal({
               Belum ada Pembelian Barang yang bisa diterima.
             </div>
           ) : (
-            <div className="grid gap-2">
+            <div className="grid max-h-72 gap-2 overflow-y-auto p-1">
               {purchases.map((purchase) => {
                 const isSelected = purchase.id === goodsPurchaseId;
                 return (
@@ -350,12 +353,13 @@ export function InboundReceiptModal({
                     data-goods-purchase-id={purchase.id}
                     aria-pressed={isSelected}
                     onClick={() => selectPurchase(purchase.id)}
-                    className={`w-full rounded-xl border px-3 py-3 text-left text-sm transition ${
+                    className={`relative w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 ${
                       isSelected
-                        ? "border-slate-900 bg-slate-50"
-                        : "border-slate-200 bg-white hover:border-slate-300"
+                        ? "border-cyan-500 bg-cyan-50 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-cyan-300 hover:bg-cyan-50/50"
                     }`}
                   >
+                    {isSelected && <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-cyan-700 px-2 py-0.5 text-xs font-bold text-white"><CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />Dipilih</span>}
                     <span className="block font-black text-slate-900">
                       {purchase.number}
                     </span>
@@ -363,7 +367,8 @@ export function InboundReceiptModal({
                       {purchase.supplierName} · {purchase.items.length} produk
                     </span>
                     {purchase.pendingReceiptCount > 0 && (
-                      <span className="mt-2 block text-xs font-bold text-amber-700">
+                      <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">
+                        <Clock3 aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                         Ada {purchase.pendingReceiptCount} penerimaan menunggu
                         persetujuan
                       </span>
@@ -375,7 +380,11 @@ export function InboundReceiptModal({
           )}
         </section>
 
-        <section className="space-y-3">
+        <section className="space-y-3" aria-labelledby="inbound-products-heading">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-700 text-sm font-bold text-white">2</span>
+            <h2 id="inbound-products-heading" className="text-sm font-bold text-slate-900">Catat barang yang tiba</h2>
+          </div>
           {!isLoading && !selectedPurchase && purchases.length > 0 && (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
               Pilih Pembelian Barang untuk melihat produknya.
@@ -409,12 +418,13 @@ export function InboundReceiptModal({
             rows={2}
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            className="mt-1 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition-colors focus:border-slate-400"
+            className="mt-1 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition-colors focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
             placeholder="Catatan umum penerimaan (opsional)"
           />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-4">
+          <p className="mr-auto flex w-full items-center gap-1.5 text-xs font-medium text-emerald-800 sm:w-auto"><CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />Stok bertambah setelah disetujui</p>
           <Button
             type="button"
             variant="secondary"
@@ -426,7 +436,8 @@ export function InboundReceiptModal({
           <Button
             type="submit"
             disabled={!canSubmit}
-            className="bg-slate-900 text-white hover:bg-slate-800"
+            icon={<PackageCheck aria-hidden="true" className="h-4 w-4" />}
+            className="!bg-emerald-700 text-white hover:!bg-emerald-800"
           >
             {isSubmitting ? "Memproses..." : "Ajukan ke Owner"}
           </Button>
@@ -455,20 +466,24 @@ function InboundReceiptLine({
     );
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4">
+    <article className={`rounded-xl border border-l-4 bg-white p-4 shadow-sm ${input.matchStatus === "MISMATCHED" ? "border-rose-200 border-l-rose-500" : "border-cyan-100 border-l-cyan-500"}`}>
       <div className="mb-3">
+        <span className={`mb-2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-bold ${input.matchStatus === "MISMATCHED" ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>
+          {input.matchStatus === "MISMATCHED" ? <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" /> : <PackageCheck aria-hidden="true" className="h-3.5 w-3.5" />}
+          {input.matchStatus === "MISMATCHED" ? "Barang tidak sesuai" : "Barang sesuai"}
+        </span>
         <p className="text-sm font-black text-slate-900">
           {item.productName}
         </p>
         <p className="text-xs text-slate-500">
           {item.sku} · {item.unit ?? "unit"}
         </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Dipesan {formatQuantity(item.orderedQuantity)} · Sudah diterima{" "}
-          {formatQuantity(item.approvedReceivedQuantity)} · Menunggu{" "}
-          {formatQuantity(item.pendingReservedQuantity)} · Tersedia{" "}
-          {formatQuantity(item.availableQuantity)}
-        </p>
+        <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+          <div className="rounded-lg bg-slate-100 p-2 text-slate-700"><dt>Dipesan</dt><dd className="mt-1 text-sm font-bold tabular-nums">{formatQuantity(item.orderedQuantity)}</dd></div>
+          <div className="rounded-lg bg-emerald-50 p-2 text-emerald-800"><dt>Sudah diterima</dt><dd className="mt-1 text-sm font-bold tabular-nums">{formatQuantity(item.approvedReceivedQuantity)}</dd></div>
+          <div className="rounded-lg bg-amber-50 p-2 text-amber-800"><dt>Menunggu</dt><dd className="mt-1 text-sm font-bold tabular-nums">{formatQuantity(item.pendingReservedQuantity)}</dd></div>
+          <div className="rounded-lg bg-cyan-50 p-2 text-cyan-800"><dt>Bisa diterima</dt><dd className="mt-1 text-sm font-bold tabular-nums">{formatQuantity(item.availableQuantity)}</dd></div>
+        </dl>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -483,7 +498,7 @@ function InboundReceiptLine({
                   .value as InboundReceiptMatchStatus,
               })
             }
-            className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+            className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
           >
             <option value="MATCHED">Sesuai</option>
             <option value="MISMATCHED">Tidak Sesuai</option>
@@ -503,9 +518,10 @@ function InboundReceiptLine({
             onChange={(event) =>
               onChange({ receivedQuantity: event.target.value })
             }
-            className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+            className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
             placeholder={`Maks. ${formatQuantity(item.availableQuantity)}`}
           />
+          <span className="mt-1 block text-[11px] font-medium text-cyan-700">Jumlah maksimal {formatQuantity(item.availableQuantity)} {item.unit ?? "unit"}</span>
         </label>
 
         <label className="text-xs font-bold text-slate-600">
@@ -521,9 +537,10 @@ function InboundReceiptLine({
             onChange={(event) =>
               onChange({ supplierCostPrice: event.target.value })
             }
-            className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+            className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
             placeholder="Masukkan harga modal"
           />
+          <span className="mt-1 block text-[11px] font-medium text-slate-500">Harga per satuan dalam rupiah</span>
         </label>
 
         <label className="text-xs font-bold text-slate-600">
@@ -532,14 +549,16 @@ function InboundReceiptLine({
             name={`inboundLines.${item.goodsPurchaseItemId}.note`}
             value={input.note}
             required={noteRequired}
+            aria-describedby={noteRequired ? `inbound-note-help-${item.goodsPurchaseItemId}` : undefined}
             onChange={(event) => onChange({ note: event.target.value })}
-            className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+            className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
             placeholder={
               noteRequired
                 ? "Wajib: jelaskan selisih jumlah"
                 : "Opsional jika jumlah sesuai"
             }
           />
+          {noteRequired && <span id={`inbound-note-help-${item.goodsPurchaseItemId}`} className="mt-1 block text-[11px] font-medium text-amber-800">Jumlah berbeda dari sisa pesanan. Tambahkan alasannya, ya.</span>}
         </label>
       </div>
     </article>
