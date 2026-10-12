@@ -27,6 +27,7 @@ import { GoodsPurchaseCreateModal } from "@/features/suppliers/goods-purchases/c
 import { GoodsPurchaseApprovalModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseApprovalModal";
 import { GoodsPurchaseDetailModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseDetailModal";
 import { GoodsPurchaseRejectModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseRejectModal";
+import type { GoodsPurchaseFulfillmentStatus } from "../../goods-purchases/types/goods-purchase";
 import type {
   ShoppingRequestDetail,
   ShoppingRequestKpiSummary,
@@ -46,6 +47,21 @@ const STATUS_LABELS = {
   REJECTED: {
     label: "Ditolak",
     className: "bg-rose-50 text-rose-700 border-rose-200",
+  },
+} as const;
+
+const FULFILLMENT_STATUS_LABELS = {
+  NOT_RECEIVED: {
+    label: "BARANG BELUM DITERIMA",
+    className: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  PARTIALLY_RECEIVED: {
+    label: "BARANG DITERIMA SEBAGIAN",
+    className: "bg-cyan-50 text-cyan-700 border-cyan-200",
+  },
+  RECEIVED: {
+    label: "BARANG SUDAH DITERIMA",
+    className: "bg-purple-50 text-purple-700 border-purple-200",
   },
 } as const;
 
@@ -69,6 +85,7 @@ export function ShoppingRequestList({
 }) {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<GoodsPurchaseFulfillmentStatus | "">("");
   const [searchQuery, setSearchQuery] = useState("");
   const [printTarget, setPrintTarget] = useState<ShoppingRequestDetail | null>(null);
   const [approveTarget, setApproveTarget] = useState<ShoppingRequestDetail | null>(null);
@@ -102,6 +119,7 @@ export function ShoppingRequestList({
     page,
     limit: 10,
     q: searchQuery.trim() || undefined,
+    fulfillmentStatus: fulfillmentFilter || undefined,
     ...(statusFilter ? { status: statusFilter as "REQUESTED" | "APPROVED" | "CANCELLED" | "REJECTED" } : {}),
   });
   const summary = useShoppingRequestSummary();
@@ -117,7 +135,7 @@ export function ShoppingRequestList({
         isError={summary.isError}
       />
 
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
         <input
           type="search"
           aria-label="Cari nama atau nomor Daftar Belanja"
@@ -130,6 +148,7 @@ export function ShoppingRequestList({
           className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:min-w-56 sm:flex-1"
         />
         <select
+          aria-label="Status persetujuan"
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
@@ -142,6 +161,20 @@ export function ShoppingRequestList({
           <option value="APPROVED">Disetujui</option>
           <option value="CANCELLED">Dibatalkan</option>
           <option value="REJECTED">Ditolak</option>
+        </select>
+        <select
+          aria-label="Status penerimaan barang"
+          value={fulfillmentFilter}
+          onChange={(event) => {
+            setFulfillmentFilter(event.target.value as GoodsPurchaseFulfillmentStatus | "");
+            setPage(1);
+          }}
+          className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:w-auto"
+        >
+          <option value="">Semua penerimaan</option>
+          <option value="NOT_RECEIVED">Belum diterima</option>
+          <option value="PARTIALLY_RECEIVED">Diterima sebagian</option>
+          <option value="RECEIVED">Sudah diterima</option>
         </select>
         <Button
           type="button"
@@ -166,6 +199,9 @@ export function ShoppingRequestList({
         <div className="grid gap-3">
           {rows.map((row) => {
             const status = STATUS_LABELS[row.status];
+            const fulfillment = row.purchase?.status === "APPROVED"
+              ? FULFILLMENT_STATUS_LABELS[row.purchase.fulfillmentStatus]
+              : null;
             return (
               <article
                 key={row.id}
@@ -180,6 +216,13 @@ export function ShoppingRequestList({
                       >
                         {status.label}
                       </span>
+                      {fulfillment && (
+                        <span
+                          className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${fulfillment.className}`}
+                        >
+                          {fulfillment.label}
+                        </span>
+                      )}
                     </div>
                      <p className="mt-1 break-words text-xs leading-relaxed text-slate-500">
                       {row.supplierName ?? "Supplier belum dipilih"} · {row.number} · {new Date(row.createdAt).toLocaleDateString("id-ID")}

@@ -1,4 +1,5 @@
 import { db, Prisma } from "@pos/db";
+import type { GoodsPurchaseFulfillmentStatus } from "../../goods-purchases/types/goods-purchase";
 import type {
   ShoppingRequestDetail,
   ShoppingRequestItemRecord,
@@ -13,6 +14,7 @@ export type ShoppingRequestListFilters = {
   storeId: string;
   q?: string;
   status?: ShoppingRequestStatus;
+  fulfillmentStatus?: GoodsPurchaseFulfillmentStatus;
   supplierId?: string;
   skip: number;
   take: number;
@@ -54,6 +56,11 @@ export function buildShoppingRequestWhere(
   const where: Prisma.ShoppingRequestWhereInput = { storeId: filters.storeId };
   if (filters.status) where.status = filters.status;
   if (filters.supplierId) where.supplierId = filters.supplierId;
+  if (filters.fulfillmentStatus) {
+    where.goodsPurchases = {
+      some: { status: "APPROVED", fulfillmentStatus: filters.fulfillmentStatus },
+    };
+  }
   if (filters.q) {
     where.OR = [
       { name: { contains: filters.q, mode: "insensitive" } },

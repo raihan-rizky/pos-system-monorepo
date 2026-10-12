@@ -123,4 +123,19 @@ describe("GET /api/suppliers/shopping-requests", () => {
     expect(response.status).toBe(403);
     expect(listShoppingRequestsPageMock).not.toHaveBeenCalled();
   });
+
+  it.each(["NOT_RECEIVED", "PARTIALLY_RECEIVED", "RECEIVED"])("passes the %s receiving filter to the service", async (fulfillmentStatus) => {
+    requirePermissionMock.mockResolvedValue({ id: "admin-1", storeId: "store-utama" });
+    const response = await GET(new Request(`http://localhost/api/suppliers/shopping-requests?fulfillmentStatus=${fulfillmentStatus}&page=2&limit=10`));
+    expect(response.status).toBe(200);
+    expect(listShoppingRequestsPageMock).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: "store-utama", fulfillmentStatus, skip: 10, take: 10,
+    }));
+  });
+
+  it("ignores unsupported receiving filters", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "admin-1", storeId: "store-utama" });
+    await GET(new Request("http://localhost/api/suppliers/shopping-requests?fulfillmentStatus=INVALID"));
+    expect(listShoppingRequestsPageMock).toHaveBeenCalledWith(expect.objectContaining({ fulfillmentStatus: undefined }));
+  });
 });

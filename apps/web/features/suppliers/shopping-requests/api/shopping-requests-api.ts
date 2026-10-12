@@ -10,10 +10,12 @@ import type {
   UpdateShoppingRequestInput,
 } from "../types/shopping-request";
 import type { FinalizeShoppingRequestInput } from "../services/finalize-shopping-request";
+import type { GoodsPurchaseFulfillmentStatus } from "../../goods-purchases/types/goods-purchase";
 
 export type ShoppingRequestListParams = {
   q?: string;
   status?: ShoppingRequestStatus;
+  fulfillmentStatus?: GoodsPurchaseFulfillmentStatus;
   supplierId?: string;
   page?: number;
   limit?: number;
@@ -37,6 +39,7 @@ export async function listShoppingRequests(
   const searchParams = new URLSearchParams();
   if (params.q) searchParams.set("q", params.q);
   if (params.status) searchParams.set("status", params.status);
+  if (params.fulfillmentStatus) searchParams.set("fulfillmentStatus", params.fulfillmentStatus);
   if (params.supplierId) searchParams.set("supplierId", params.supplierId);
   if (params.page) searchParams.set("page", String(params.page));
   if (params.limit) searchParams.set("limit", String(params.limit));

@@ -58,12 +58,20 @@ export async function GET(request: Request) {
       ? (rawStatus as (typeof SHOPPING_REQUEST_STATUSES)[number])
       : undefined;
     const supplierId = searchParams.get("supplierId") || undefined;
+    const rawFulfillmentStatus = searchParams.get("fulfillmentStatus");
+    const fulfillmentStatus =
+      rawFulfillmentStatus === "NOT_RECEIVED" ||
+      rawFulfillmentStatus === "PARTIALLY_RECEIVED" ||
+      rawFulfillmentStatus === "RECEIVED"
+        ? rawFulfillmentStatus
+        : undefined;
 
     const result = await listShoppingRequestsPage({
       storeId: user.storeId,
       q,
       status,
       supplierId,
+      fulfillmentStatus,
       skip,
       take: limit,
     });
