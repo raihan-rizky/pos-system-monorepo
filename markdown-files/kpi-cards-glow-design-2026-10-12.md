@@ -11,7 +11,7 @@ Kartu KPI yang memiliki nilai positif mendapat halo statis lembut agar metrik ak
 - Kondisi glow memakai angka mentah dari ringkasan: `pendingRequestCount`, `pendingRequestedQty`, `approvedRequestCount`, dan `fulfillmentRate`.
 - Nilai lebih besar dari nol mengaktifkan glow statis dengan warna yang mengikuti tone kartu amber, cyan, emerald, atau violet.
 - Nilai nol dan status tidak tersedia (`—`) memakai bayangan kartu biasa tanpa halo.
-- Glow tidak mengubah label, nilai, deskripsi, susunan, atau perilaku hover kartu.
+- Glow tidak mengubah label, nilai, deskripsi, atau susunan kartu. Halo tetap tampil saat hover dan sedikit menguat mengikuti state hover yang sudah ada.
 
 ## Pilihan desain
 
@@ -25,4 +25,8 @@ Perubahan berpusat pada `ShoppingRequestKpiCard` dan pemanggilnya di `ShoppingRe
 
 ## Validasi
 
-Periksa keadaan nilai positif, nol, dan data tidak tersedia. Jalankan pemeriksaan lint dan TypeScript yang sesuai tanpa menjalankan production build.
+Glow ditentukan dari angka mentah yang positif; nilai nol dan data tidak tersedia memakai bayangan biasa. Tidak ada perubahan API, perhitungan KPI, teks, atau susunan kartu.
+
+Pemeriksaan ESLint khusus komponen (`pnpm exec eslint apps/web/features/suppliers/shopping-requests/components/ShoppingRequestList.tsx`) dan `git diff --check` lulus.
+
+Pemeriksaan workspace `pnpm lint` dan `pnpm type-check` terhenti saat `@pos/db:build` menjalankan Prisma dan gagal mengganti `query_engine-windows.dll.node` dengan `EPERM`. Pemeriksaan TypeScript paket web juga menemukan error pada `.next-e2e/types/validator.ts`: route `stock-history` kosong dan tipe `params` route internal stock-out tidak sesuai dengan validator Next.js. Komponen KPI tidak muncul dalam daftar error. Production build tidak dijalankan.

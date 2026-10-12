@@ -360,6 +360,17 @@ const KPI_TONE_CLASSES = {
   violet: "border-violet-200 bg-violet-50 text-violet-700",
 } as const;
 
+const KPI_GLOW_CLASSES = {
+  amber:
+    "shadow-[0_0_16px_rgba(245,158,11,0.18)] hover:shadow-[0_0_18px_rgba(245,158,11,0.22)]",
+  cyan:
+    "shadow-[0_0_16px_rgba(6,182,212,0.18)] hover:shadow-[0_0_18px_rgba(6,182,212,0.22)]",
+  emerald:
+    "shadow-[0_0_16px_rgba(16,185,129,0.18)] hover:shadow-[0_0_18px_rgba(16,185,129,0.22)]",
+  violet:
+    "shadow-[0_0_16px_rgba(139,92,246,0.18)] hover:shadow-[0_0_18px_rgba(139,92,246,0.22)]",
+} as const;
+
 function ShoppingRequestKpiGrid({
   summary,
   isPending,
@@ -398,6 +409,7 @@ function ShoppingRequestKpiGrid({
         description="Permohonan aktif menunggu keputusan"
         icon={<Clock3 className="h-5 w-5" />}
         tone="amber"
+        isGlowing={!unavailable && (summary?.pendingRequestCount ?? 0) > 0}
       />
       <ShoppingRequestKpiCard
         label="Qty Menunggu"
@@ -405,6 +417,7 @@ function ShoppingRequestKpiGrid({
         description="Akumulasi kebutuhan aktif"
         icon={<Boxes className="h-5 w-5" />}
         tone="cyan"
+        isGlowing={!unavailable && (summary?.pendingRequestedQty ?? 0) > 0}
       />
       <ShoppingRequestKpiCard
         label="Sudah Disetujui"
@@ -412,6 +425,7 @@ function ShoppingRequestKpiGrid({
         description="Total sepanjang riwayat"
         icon={<CheckCircle2 className="h-5 w-5" />}
         tone="emerald"
+        isGlowing={!unavailable && (summary?.approvedRequestCount ?? 0) > 0}
       />
       <ShoppingRequestKpiCard
         label="Rasio Qty Di-ACC"
@@ -423,6 +437,7 @@ function ShoppingRequestKpiGrid({
         description="Qty di-ACC dari kebutuhan yang diputuskan"
         icon={<Percent className="h-5 w-5" />}
         tone="violet"
+        isGlowing={!unavailable && (summary?.fulfillmentRate ?? 0) > 0}
       />
     </section>
   );
@@ -434,15 +449,21 @@ function ShoppingRequestKpiCard({
   description,
   icon,
   tone,
+  isGlowing,
 }: {
   label: string;
   value: React.ReactNode;
   description: string;
   icon: React.ReactNode;
   tone: keyof typeof KPI_TONE_CLASSES;
+  isGlowing: boolean;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+    <article
+      className={`rounded-2xl border border-slate-200 bg-white p-4 transition-shadow ${
+        isGlowing ? KPI_GLOW_CLASSES[tone] : "shadow-sm hover:shadow-md"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">

@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ProductCard } from '../components/ProductCard';
 import type { Product } from '@/hooks/useProducts';
+import type { CategoryPricingRule } from '@/features/customer-category-pricing/helpers/pricing-rules';
 
 describe('ProductCard', () => {
   it('renders a two-line description trigger for the active variant', () => {
@@ -239,6 +240,71 @@ describe('ProductCard', () => {
 
     expect(html).toContain('Belum ada harga agen');
     expect(html).toContain('Belum ada harga dinas');
+  });
+
+  it.each([
+    { label: 'Agen', customerType: 'AGEN', mode: 'FLAT_DISCOUNT', value: 500, expected: '49.500' },
+    { label: 'Dinas', customerType: 'PEMERINTAH', mode: 'PERCENT_DISCOUNT', value: 15, expected: '42.500' },
+    { label: 'Agen', customerType: 'AGEN', mode: 'COST_PLUS_FLAT', value: 500, expected: '40.500' },
+    { label: 'Dinas', customerType: 'PEMERINTAH', mode: 'COST_PLUS_PERCENT', value: 10, expected: '44.000' },
+  ] as const)('shows the $mode rule price in the $label row without a manual member price', ({ label, customerType, mode, value, expected }) => {
+    const rule: CategoryPricingRule = { id: 'special', categoryId: 'cat1', customerType, mode, value, unit: 'dus', isActive: true };
+    const product = { ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, baseCostPrice: 40000, baseCostUnit: 'dus' })) };
+    const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} categoryPricingRules={[rule]} />);
+    const row = html.match(new RegExp(`<p\\b[^>]*><span\\b[^>]*>${label}:<\\/span>.*?<\\/p>`))?.[0];
+
+    expect(row?.replace(/\s/g, ' ')).toContain(expected);
+    expect(row).not.toContain('Belum ada harga');
+    expect(html).toContain(label === 'Agen' ? 'Belum ada harga dinas' : 'Belum ada harga agen');
+  });
+
+  it('shows an ALL rule in both member rows instead of their manual prices', () => {
+    const product = { ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 45000, hargaDinas: 47000 })) };
+    const rule: CategoryPricingRule = { id: 'special', categoryId: 'cat1', customerType: 'ALL', mode: 'PERCENT_DISCOUNT', value: 15, unit: 'dus', isActive: true };
+    const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} customerType="AGEN" categoryPricingRules={[rule]} />);
+
+    for (const label of ['Agen', 'Dinas']) {
+      const row = html.match(new RegExp(`<p\\b[^>]*><span\\b[^>]*>${label}:<\\/span>.*?<\\/p>`))?.[0];
+      expect(row).toContain('42.500');
+      expect(row).not.toContain(label === 'Agen' ? '45.000' : '47.000');
+    }
+  });
+
+  it.each(['inactive', 'other-category', 'other-unit', 'other-brand', 'other-customer', 'zero-result'] as const)('retains manual member prices for an %s rule', (scope) => {
+    const product = { ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 45000, hargaDinas: 47000 })) };
+    const rule: CategoryPricingRule = {
+      id: 'special', categoryId: scope === 'other-category' ? 'other' : 'cat1',
+      customerType: scope === 'other-customer' ? 'INDUSTRI' : 'ALL',
+      mode: 'FLAT_DISCOUNT', value: scope === 'zero-result' ? 50000 : 500, isActive: scope !== 'inactive',
+      unit: scope === 'other-unit' ? 'pcs' : 'dus', brandId: scope === 'other-brand' ? 'other' : null,
+    };
+    const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} categoryPricingRules={[rule]} />);
+
+    expect(html.match(/<p\b[^>]*><span\b[^>]*>Agen:<\/span>.*?<\/p>/)?.[0]).toContain('45.000');
+    expect(html.match(/<p\b[^>]*><span\b[^>]*>Dinas:<\/span>.*?<\/p>/)?.[0]).toContain('47.000');
+  });
+
+  it('uses the selected unit and prioritizes its rule over the all-unit rule in both rows', () => {
+    const product = { ...mockProduct, defaultVariant: mockProduct.variants![1] };
+    const rules: CategoryPricingRule[] = [
+      { id: 'all-units', categoryId: 'cat1', customerType: 'ALL', mode: 'PERCENT_DISCOUNT', value: 15, isActive: true },
+      { id: 'pcs', categoryId: 'cat1', customerType: 'ALL', mode: 'FLAT_DISCOUNT', value: 500, unit: 'pcs', isActive: true },
+    ];
+    const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} categoryPricingRules={rules} />);
+
+    for (const label of ['Agen', 'Dinas']) {
+      expect(html.match(new RegExp(`<p\\b[^>]*><span\\b[^>]*>${label}:<\\/span>.*?<\\/p>`))?.[0]).toContain('4.500');
+    }
+  });
+
+  it('shows rule prices in both member rows for an ungrouped product', () => {
+    const product = { ...mockProduct, variants: undefined, defaultVariant: undefined };
+    const rule: CategoryPricingRule = { id: 'special', categoryId: 'cat1', customerType: 'ALL', mode: 'FLAT_DISCOUNT', value: 500, isActive: true };
+    const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} categoryPricingRules={[rule]} />);
+
+    for (const label of ['Agen', 'Dinas']) {
+      expect(html.match(new RegExp(`<p\\b[^>]*><span\\b[^>]*>${label}:<\\/span>.*?<\\/p>`))?.[0]).toContain('49.500');
+    }
   });
 
   it('shows the smaller unit before the larger unit regardless of input order', () => {

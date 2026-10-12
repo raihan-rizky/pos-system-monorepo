@@ -51,23 +51,10 @@ test("settings can request a WhatsApp pairing code", async ({ appPage: page }) =
 
 test("owner can pause and resume Shift Kasir from settings", async ({ appPage: page }) => {
   let patchBody: Record<string, unknown> | null = null;
-
-  await page.route("**/api/settings/shift", async (route) => {
-    if (route.request().method() === "PATCH") {
-      patchBody = JSON.parse(route.request().postData() || "{}");
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ enabled: false }),
-      });
-      return;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/settings/shift" && request.method() === "PATCH") {
+      patchBody = JSON.parse(request.postData() || "{}");
     }
-
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ enabled: true }),
-    });
   });
 
   await page.goto("/settings");
@@ -81,6 +68,10 @@ test("owner can pause and resume Shift Kasir from settings", async ({ appPage: p
 
   await expect(page.getByRole("switch", { name: "Gunakan Shift Kasir" })).toHaveAttribute("aria-pressed", "false");
   expect(patchBody).toEqual({ enabled: false });
+
+  await page.getByRole("switch", { name: "Gunakan Shift Kasir" }).click();
+  await expect(page.getByRole("switch", { name: "Gunakan Shift Kasir" })).toHaveAttribute("aria-checked", "true");
+  expect(patchBody).toEqual({ enabled: true });
 });
 
 test("owner can preview and confirm a selective database reset without a real wipe", async ({ appPage: page }) => {

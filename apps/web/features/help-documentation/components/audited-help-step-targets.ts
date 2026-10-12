@@ -14,7 +14,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "owner-reports": [["finance", "finance-primary"], ["finance", "finance-date-filter"], ["finance", "finance-export"]],
   "owner-performance": [["salespersons", "salespersons-primary"], ["salespersons", "salespersons-summary"], ["salespersons", "salespersons-detail"]],
   "owner-approval-stock": [["inventory", "inventory-primary"], ["inventory", "inventory-stock-log-tab"], ["inventory", "inventory-approval-actions"], ["inventory", "inventory-approval-actions"]],
-  "owner-approval-belanja": [["suppliers", "suppliers-shopping-tab"], ...same("suppliers", "suppliers-approve", 4)],
+  "owner-approval-belanja": [["suppliers", "suppliers-shopping-tab"], ...same("suppliers", "suppliers-approve", 3), ["suppliers", "suppliers-shopping-tab"], ["suppliers", "suppliers-approve"]],
   "owner-goods-purchase": [
     ["suppliers", "suppliers-shopping-tab"],
     ["suppliers", "suppliers-goods-purchase-create"],

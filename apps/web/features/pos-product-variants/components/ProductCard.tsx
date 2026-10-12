@@ -65,8 +65,13 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
     );
   }, [product, selectedVariantId]);
 
-  const hargaAgen = "hargaAgen" in selectedVariant ? selectedVariant.hargaAgen : product.hargaAgen;
-  const hargaDinas = "hargaDinas" in selectedVariant ? selectedVariant.hargaDinas : product.hargaDinas;
+  const catalogVariant = product.variants?.find(v => v.id === selectedVariant.id);
+  const agenPrice = priceCatalogVariantForCustomer(product, catalogVariant, "AGEN", categoryPricingRules);
+  const dinasPrice = priceCatalogVariantForCustomer(product, catalogVariant, "PEMERINTAH", categoryPricingRules);
+  const hasSpecialAgenPrice = isSpecialCategoryPricing(agenPrice.appliedPricing);
+  const hasSpecialDinasPrice = isSpecialCategoryPricing(dinasPrice.appliedPricing);
+  const hargaAgen = hasSpecialAgenPrice ? agenPrice.unitPrice : ("hargaAgen" in selectedVariant ? selectedVariant.hargaAgen : product.hargaAgen);
+  const hargaDinas = hasSpecialDinasPrice ? dinasPrice.unitPrice : ("hargaDinas" in selectedVariant ? selectedVariant.hargaDinas : product.hargaDinas);
   const descriptionVariant = product.variants?.find((variant) => variant.id === selectedVariant.id);
   const description = descriptionVariant ? descriptionVariant.description : product.description;
   const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules);

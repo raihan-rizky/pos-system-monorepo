@@ -37,6 +37,7 @@ export async function authenticate(page: Page, role: Role = "OWNER") {
 export async function mockApis(page: Page) {
   let currentJobOrder = { ...jobOrder };
   let currentStoreSettings = { ...storeSettings };
+  let currentShiftSettings = { enabled: true };
   let currentProductionActivity: Array<Record<string, unknown>> = [];
 
   await page.route("**/auth/v1/token**", async (route) => {
@@ -52,6 +53,12 @@ export async function mockApis(page: Page) {
     if (path === "/api/categories") return json(route, categories);
     if (path === "/api/products" && method === "GET") return json(route, { data: products, pagination: { total: products.length, page: 1, limit: 100, totalPages: 1 } });
     if (path === "/api/products" && method === "POST") return json(route, { ...products[0], id: "prod-new" }, 201);
+    if (path.match(/^\/api\/products\/[^/]+$/) && method === "GET") {
+      const product = products.find((item) => item.id === decodeURIComponent(path.split("/")[3]));
+      return product
+        ? json(route, { data: product })
+        : json(route, { message: "Produk tidak ditemukan" }, 404);
+    }
     if (path.startsWith("/api/products/")) return json(route, { ...products[0], name: "Updated Product" });
     if (path === "/api/inventory") return emptyOk(route);
 
@@ -263,7 +270,13 @@ export async function mockApis(page: Page) {
       };
       return json(route, currentStoreSettings);
     }
-    if (path === "/api/settings/shift") return json(route, { enabled: true });
+    if (path === "/api/settings/shift") {
+      if (method === "PATCH") {
+        const body = JSON.parse(request.postData() || "{}") as { enabled: boolean };
+        currentShiftSettings = { enabled: body.enabled };
+      }
+      return json(route, currentShiftSettings);
+    }
     if (path === "/api/settings/whatsapp/status") return json(route, { status: "CONNECTED", raw: { me: { id: "628123456789@c.us", pushName: "E2E WA" } } });
     if (path === "/api/settings/whatsapp/qr") return json(route, { value: "" });
     if (path === "/api/settings/whatsapp/pair-code") {
