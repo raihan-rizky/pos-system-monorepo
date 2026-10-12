@@ -136,6 +136,43 @@ describe("POS pricing across unrelated renders", () => {
     expect(render().customer).toBeUndefined();
   });
 
+  it("reopens the desktop cart when a product is clicked", () => {
+    render().cart.onClose();
+    const closed = render();
+    expect(closed.cart).toBeUndefined();
+
+    closed.grid.onAddToCart(harness.catalog[0]);
+
+    expect(render().cart).toBeDefined();
+    expect(harness.cart.addItem).toHaveBeenCalledOnce();
+  });
+
+  it("opens the mobile cart when a product is added", () => {
+    render().grid.onAddToCart(harness.catalog[0]);
+    // Close the desktop copy to inspect the independently rendered mobile cart.
+    render().cart.onClose();
+
+    const mobile = render();
+    expect(mobile.cart).toBeDefined();
+    mobile.cart.onClose();
+    expect(render().cart).toBeUndefined();
+  });
+
+  it("keeps the empty-stock confirmation above the mobile cart until confirmed", () => {
+    render().grid.onAddToCart({ ...harness.catalog[0], stock: 0 });
+    expect(harness.cart.addItem).not.toHaveBeenCalled();
+    harness.stateCursor = 0;
+    harness.memoCursor = 0;
+    const tree = POSClientPage({ initialData: { products: null, categories: [], shiftEnabled: false } });
+    expect(findProps(tree, element => element.props.title === "Stok Kosong")).toBeDefined();
+    expect(findProps(tree, element => element.props.className === "lg:hidden fixed inset-0 z-[200] flex flex-col justify-end")).toBeUndefined();
+
+    findProps(tree, element => element.type === "button" && element.props.children === "Tambahkan").onClick();
+    expect(harness.cart.addItem).toHaveBeenCalledOnce();
+    render().cart.onClose();
+    expect(render().cart).toBeDefined();
+  });
+
   it("refreshes customer prices from payment and retains the selection on reopen", () => {
     const before = render();
     before.cart.onCheckout();

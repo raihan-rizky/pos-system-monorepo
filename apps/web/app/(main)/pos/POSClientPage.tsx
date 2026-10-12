@@ -284,16 +284,22 @@ export default function POSClientPage({
   );
 
   const addCartItem = cart.addItem;
+  const openProductCart = useCallback(() => {
+    setIsDesktopCartOpen(true);
+    setIsCartOpen(true);
+  }, []);
   const addProductToCart = useCallback(
     (product: Product, variantId?: string) => {
       const cartItemInput = mapProductToCartItem(product, variantId);
       addCartItem(cartItemInput);
+      openProductCart();
     },
-    [addCartItem],
+    [addCartItem, openProductCart],
   );
 
   const handleProductClick = useCallback(
     (product: Product, variantId?: string) => {
+      openProductCart();
       const targetVariantId = variantId || product.defaultVariant?.id || product.id;
       const variant = product.variants?.find((v) => v.id === targetVariantId);
       const stock = variant ? variant.stock : product.stock;
@@ -305,7 +311,7 @@ export default function POSClientPage({
       }
       addProductToCart(product, variantId);
     },
-    [addProductToCart, role],
+    [addProductToCart, openProductCart, role],
   );
 
   const handleAddPrintingService = useCallback(
@@ -908,7 +914,7 @@ export default function POSClientPage({
 
 
       {/* Mobile Cart Modal */}
-      {isCartOpen && (
+      {isCartOpen && !pendingEmptyStockProduct && (
         <div className="lg:hidden fixed inset-0 z-[200] flex flex-col justify-end">
           <div
             className="absolute inset-0 bg-black/50 animate-fade-in"

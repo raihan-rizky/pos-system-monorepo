@@ -151,17 +151,24 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
         />
       </div>
 
-      {/* Category badge */}
-      <div
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold mb-2 ${isEditMode ? "pr-16" : ""
-          }`}
-        style={{
-          backgroundColor: `${product.category.color}15`,
-          color: product.category.color || "#64748b",
-        }}
-      >
-        <CategoryIcon value={product.category.icon} className="h-3 w-3" />
-        <span>{product.category.name}</span>
+      {/* Category and selected unit */}
+      <div className="flex flex-wrap items-center gap-1 mb-2">
+        <div
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${isEditMode ? "pr-16" : ""}`}
+          style={{
+            backgroundColor: `${product.category.color}15`,
+            color: product.category.color || "#64748b",
+          }}
+        >
+          <CategoryIcon value={product.category.icon} className="h-3 w-3" />
+          <span>{product.category.name}</span>
+        </div>
+        <span
+          aria-label="Satuan terpilih"
+          className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 text-[10px] font-semibold text-surface-600"
+        >
+          {selectedVariant.unit}
+        </span>
       </div>
 
       {/* Product name */}

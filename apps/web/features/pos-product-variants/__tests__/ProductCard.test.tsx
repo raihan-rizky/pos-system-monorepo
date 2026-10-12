@@ -116,6 +116,22 @@ describe('ProductCard', () => {
     expect(html).toContain('dus');
   });
 
+  it('shows the selected unit badge immediately after the category badge', () => {
+    const html = renderToStaticMarkup(
+      <ProductCard product={mockProduct} onAddToCart={vi.fn()} />
+    );
+
+    expect(html).toMatch(/<span>Beverage<\/span><\/div><span[^>]*aria-label="Satuan terpilih"[^>]*>dus<\/span>/);
+  });
+
+  it('uses the product unit badge when the product has no variants', () => {
+    const html = renderToStaticMarkup(
+      <ProductCard product={{ ...mockProduct, variants: undefined, defaultVariant: undefined, unit: 'lembar' }} onAddToCart={vi.fn()} />
+    );
+
+    expect(html).toMatch(/aria-label="Satuan terpilih"[^>]*>lembar<\/span>/);
+  });
+
   it('renders category name', () => {
     const onAddToCart = vi.fn();
     const html = renderToStaticMarkup(
