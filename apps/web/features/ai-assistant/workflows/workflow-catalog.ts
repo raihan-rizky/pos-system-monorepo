@@ -108,7 +108,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "product", action: "update" }],
     steps: [
       { title: "Tambah aturan", description: "Sebagai Owner, buka Produk > Harga Khusus lalu klik Tambah aturan. Pengaturan terbuka dalam satu formulir." },
-      { title: "Pilih kategori dan satuan", description: "Pilih kategori, lalu satuan dari daftar kategori tersebut. Untuk diskon tanpa batas satuan, pilih Semua satuan. Rumus modal memerlukan satuan tertentu. Aturan Rim hanya berlaku saat Rim dipilih." },
+      { title: "Pilih kategori dan satuan", description: "Pilih kategori, lalu pilih Semua satuan agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Pilih satuan tertentu untuk membatasi aturan; aturan Rim hanya berlaku saat Rim dipilih." },
       { title: "Pilih pelanggan", description: "Centang satu atau beberapa tipe pelanggan, misalnya Umum dan Agen. Semua pelanggan berlaku untuk seluruh tipe dan dipilih sendiri." },
       { title: "Pilih perhitungan harga", description: "Pilih Diskon rupiah, Diskon persen, Modal + rupiah, atau Modal + persen, lalu isi nilainya. Modal berasal dari satuan terkecil tanpa perkalian konversi: Rp700/pcs + Rp4.000 untuk Rim menjadi Rp4.700/rim; tambahan 10% menjadi Rp770/rim." },
       { title: "Periksa contoh dan simpan", description: "Periksa contoh harga. Pengaturan tambahan menyediakan merek, tambah merek, dan status aktif. Klik Simpan aturan. Nonaktifkan menghentikan penerapan aturan tanpa menghapusnya; aktifkan kembali lewat Ubah. Rumus mengikuti modal satuan terkecil terbaru; jika sumber modal belum tersedia, harga member atau normal tetap dipakai." },

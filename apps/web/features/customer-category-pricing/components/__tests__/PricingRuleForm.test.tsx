@@ -7,6 +7,8 @@ const queryState = vi.hoisted(() => ({
   unitsPending: false,
   unitsError: false,
   previewPending: false,
+  units: ["pcs", "rim"],
+  previewRequests: [] as unknown[][],
   savedRules: [] as Array<{ categoryId: string; unit: string }>,
 }));
 
@@ -37,13 +39,15 @@ vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
     mutateAsync: vi.fn(),
   }),
   usePricingUnitOptions: () => ({
-    data: queryState.unitsPending || queryState.unitsError ? undefined : ["pcs", "rim"],
+    data: queryState.unitsPending || queryState.unitsError ? undefined : queryState.units,
     isPending: queryState.unitsPending,
     isFetching: queryState.unitsPending,
     isError: queryState.unitsError,
     refetch: vi.fn(),
   }),
-  usePricingScopeOptions: () => queryState.previewPending ? ({
+  usePricingScopeOptions: (...args: unknown[]) => {
+    queryState.previewRequests.push(args);
+    return queryState.previewPending ? ({
     data: undefined,
     isPending: true,
     isFetching: true,
@@ -66,7 +70,8 @@ vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
     isPending: false,
     isFetching: false,
     isError: false,
-  }),
+  });
+  },
 }));
 const initialRule = {
   id: "r",
@@ -85,6 +90,8 @@ describe("Harga Khusus editor", () => {
     queryState.unitsPending = false;
     queryState.unitsError = false;
     queryState.previewPending = false;
+    queryState.units = ["pcs", "rim"];
+    queryState.previewRequests = [];
     queryState.savedRules = [];
   });
   it("starts with a compact rule list and an add action, without the permanent editor", () => {
@@ -142,11 +149,27 @@ describe("Harga Khusus editor", () => {
     expect(html).toContain('value="rim"');
     expect(html).toContain("Memuat contoh produk");
   });
-  it("shows a loading state instead of an apparently empty unit picker", () => {
+  it("keeps all units selectable while individual units are loading", () => {
     queryState.unitsPending = true;
     const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, unit: "" }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
     expect(html).toContain("Memuat satuan");
-    expect(html).toMatch(/id="pricing-unit"[^>]*disabled=""/);
+    expect(html).toContain('value="" selected="">Semua satuan</option>');
+    expect(html).not.toMatch(/id="pricing-unit"[^>]*disabled=""/);
+  });
+  it.each(["COST_PLUS_FLAT", "COST_PLUS_PERCENT"])("shows and previews all units for %s", (mode) => {
+    const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, mode, unit: null }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
+    expect(html).toContain('value="" selected="">Semua satuan</option>');
+    expect(html).toContain("Aturan berlaku pada semua satuan dalam kategori ini, termasuk satuan yang ditambahkan nanti.");
+    expect(html).not.toContain("Pilih satuan untuk melihat contoh harga.");
+    expect(html).toContain("/rim");
+    expect(queryState.previewRequests.at(-1)).toEqual(["paper", null, null, { enabled: true }]);
+  });
+  it("keeps all units selectable when the category has no unit options", () => {
+    queryState.units = [];
+    const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, unit: null }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
+    expect(html).toContain('value="" selected="">Semua satuan</option>');
+    expect(html).not.toMatch(/id="pricing-unit"[^>]*disabled=""/);
+    expect(html).toContain("Belum ada satuan yang tersedia untuk kategori ini.");
   });
   it("offers a unit-specific retry when loading fails", () => {
     queryState.unitsError = true;

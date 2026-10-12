@@ -12,6 +12,17 @@ const formula = {
 } as unknown as CategoryPricingRule;
 
 describe("smallest-unit cost formulas", () => {
+  it.each(["pcs", "rim", "box"])("applies an all-unit formula to %s without conversion", (unit) => {
+    const priced = pricing.priceProductForCustomerType({ ...product, unit }, "UMUM", [{ ...formula, unit: null }]);
+    expect(priced.unitPrice).toBe(4700);
+    expect(priced.appliedPricing?.unit).toBeNull();
+  });
+  it("prefers a specific unit rule over an all-unit formula for the same customers and brand", () => {
+    const allUnits = { ...formula, id: "all-units", unit: null, value: 1000 };
+    expect(pricing.priceProductForCustomerType(product, "UMUM", [allUnits, formula]).appliedPricing?.ruleId).toBe("formula");
+    expect(pricing.priceProductForCustomerType({ ...product, unit: "box" }, "UMUM", [allUnits, formula]).appliedPricing?.ruleId).toBe("all-units");
+    expect(pricing.priceProductForCustomerType({ ...product, categoryId: "other" }, "UMUM", [allUnits]).appliedPricing).toBeNull();
+  });
   it("adds 4000 directly to modal 700 for rim, so two rim cost 9400", () => {
     const priced = pricing.priceProductForCustomerType(product, "UMUM", [formula]);
     expect(priced.unitPrice).toBe(4700);

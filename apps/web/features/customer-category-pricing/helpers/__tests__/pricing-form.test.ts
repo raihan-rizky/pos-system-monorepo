@@ -29,7 +29,7 @@ describe("friendly pricing form", () => {
     expect(toggleCustomerTarget(["UMUM", "AGEN"], "ALL")).toEqual(["ALL"]);
     expect(toggleCustomerTarget(["UMUM"], "UMUM")).toEqual([]);
   });
-  it("requires category, customers, target unit and finite amount", () => {
+  it("requires category, customers and finite amount", () => {
     expect(
       validatePricingForm({
         ...form,
@@ -40,7 +40,6 @@ describe("friendly pricing form", () => {
       }),
     ).toMatchObject({
       categoryId: expect.any(String),
-      unit: expect.any(String),
       customerTypes: expect.any(String),
       value: expect.any(String),
     });
@@ -53,6 +52,14 @@ describe("friendly pricing form", () => {
     expect(
       validatePricingForm({ ...form, mode: "COST_PLUS_PERCENT", value: "101" }),
     ).toEqual({});
+  });
+  it.each(["COST_PLUS_FLAT", "COST_PLUS_PERCENT"] as const)("accepts all units for %s", (mode) => {
+    expect(validatePricingForm({ ...form, mode, unit: "" })).toEqual({});
+  });
+  it.each(["pcs", "rim", "box"])("previews an all-unit formula for %s", (unit) => {
+    const product = { id: `paper-${unit}`, name: "Kertas", unit, price: 5000, baseCostPrice: 700, baseCostUnit: "pcs", brandId: null };
+    expect(previewPricingForm({ ...form, unit: "" }, product)).toEqual({ price: 4700, missingBaseCost: false });
+    expect(previewPricingForm({ ...form, unit: "", mode: "COST_PLUS_PERCENT", value: "10" }, product)).toEqual({ price: 770, missingBaseCost: false });
   });
   it("previews base-unit modal directly in target unit, without conversion", () => {
     expect(

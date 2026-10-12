@@ -46,11 +46,12 @@ describe("pricing rule updates", () => {
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: { not: "rule" }, storeId: "store", categoryId: "cat", unit: "rim", brandId: null }) }));
   });
-  it("validates merged formula fields for a partial unit update", async () => {
-    mocks.findFirst.mockResolvedValue({ ...existing, mode: "COST_PLUS_FLAT", value: 4000 });
-    const response = await PATCH(request({ unit: " " }), params);
-    expect(response.status).toBe(422);
-    expect(mocks.update).not.toHaveBeenCalled();
+  it.each(["COST_PLUS_FLAT", "COST_PLUS_PERCENT"])("switches %s to all units with a partial update", async (mode) => {
+    mocks.findFirst.mockResolvedValue({ ...existing, mode, value: 4000 });
+    const response = await PATCH(request({ unit: null }), params);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ unit: null, mode, value: 4000 });
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ unit: null }) }));
   });
   it("locks before disabling a rule so concurrent edits remain ordered", async () => {
     const response = await DELETE(request({}), params);

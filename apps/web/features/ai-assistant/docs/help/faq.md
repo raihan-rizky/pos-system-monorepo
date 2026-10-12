@@ -26,7 +26,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 **A:** Owner dapat membuat satu aturan untuk satu atau beberapa tipe pelanggan:
 
 1. Buka **Produk > Harga Khusus**, lalu klik **Tambah aturan**.
-2. Pilih **Kategori** dan **Satuan** dari daftar. Untuk diskon yang tidak dibatasi satuan, pilih **Semua satuan**. Rumus modal memerlukan satuan tertentu. Aturan untuk Rim berlaku saat satuan Rim dipilih; satuan lain mengikuti aturannya masing-masing.
+2. Pilih **Kategori**, lalu pilih **Semua satuan** agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Pilih satuan tertentu jika aturan hanya berlaku untuk satuan itu; aturan untuk Rim berlaku saat satuan Rim dipilih.
 3. Centang tipe pelanggan yang diinginkan, misalnya **Umum dan Agen**. **Semua pelanggan** berlaku untuk keempat tipe dan dipilih sendiri.
 4. Pilih cara menghitung harga: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, atau **Modal + persen**, lalu isi nilainya.
 5. Periksa **Contoh harga**. Buka **Pengaturan tambahan** jika ingin memilih merek, menambah merek, atau mengubah status aktif. Klik **Simpan aturan** setelah sesuai.

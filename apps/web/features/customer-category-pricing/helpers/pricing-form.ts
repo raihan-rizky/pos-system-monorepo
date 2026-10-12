@@ -85,8 +85,6 @@ export function validatePricingForm(form: PricingFormState): PricingFormErrors {
   if (!form.categoryId) errors.categoryId = "Pilih kategori terlebih dahulu.";
   if (!form.customerTypes.length)
     errors.customerTypes = "Pilih setidaknya satu tipe pelanggan.";
-  if (form.mode.startsWith("COST_PLUS") && !form.unit.trim())
-    errors.unit = "Pilih satuan untuk rumus modal.";
   const value = Number(form.value);
   if (!form.value.trim() || !Number.isFinite(value) || value < 0)
     errors.value = "Isi nominal atau persentase yang valid, minimal 0.";

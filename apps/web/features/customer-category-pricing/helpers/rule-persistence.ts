@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Prisma } from "@pos/db";
-import { isPricingCustomerType, isPricingMode, normalizePricingUnit, type CustomerType, type PricingCustomerType } from "./pricing-rules";
+import { isPricingCustomerType, isPricingMode, type CustomerType, type PricingCustomerType } from "./pricing-rules";
 
 const target = z.string().refine(isPricingCustomerType, "Tipe pelanggan tidak valid");
 const fields = {
@@ -31,7 +31,6 @@ export const pricingRuleSchema = z.object(fields).superRefine((input, ctx) => {
   if (!input.customerType && !input.customerTypes) ctx.addIssue({ code: "custom", path: ["customerTypes"], message: "Pilih minimal satu tipe pelanggan" });
   if ((input.mode === "FLAT_DISCOUNT" || input.mode === "PERCENT_DISCOUNT") && input.value <= 0) ctx.addIssue({ code: "custom", path: ["value"], message: "Diskon harus lebih dari 0" });
   if (input.mode === "PERCENT_DISCOUNT" && input.value > 100) ctx.addIssue({ code: "custom", path: ["value"], message: "Diskon maksimal 100%" });
-  if (input.mode.startsWith("COST_PLUS_") && !normalizePricingUnit(input.unit)) ctx.addIssue({ code: "custom", path: ["unit"], message: "Pilih satuan untuk rumus modal" });
 });
 
 export const pricingRulePatchSchema = z.object(fields).partial().superRefine((input, ctx) => {

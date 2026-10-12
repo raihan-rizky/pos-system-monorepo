@@ -35,7 +35,7 @@ Pak Teladan dapat mencari produk aktif berdasarkan nama, SKU, atau barcode serta
 
 ## Harga Khusus dan pratinjau pelanggan
 
-Owner membuka tab **Harga Khusus**, lalu memilih **Tambah aturan**. Formulir memuat kategori, pilihan satuan, tipe pelanggan, dan cara menghitung harga. Satu aturan dapat berlaku untuk beberapa tipe sekaligus, misalnya **Umum dan Agen**; **Semua pelanggan** dipilih sendiri. Pilihan satuan mengikuti kategori. Rumus modal memerlukan satuan tertentu; diskon dapat memakai Semua satuan. Aturan untuk Rim hanya berlaku saat satuan Rim dipilih.
+Owner membuka tab **Harga Khusus**, lalu memilih **Tambah aturan**. Formulir memuat kategori, pilihan satuan, tipe pelanggan, dan cara menghitung harga. Satu aturan dapat berlaku untuk beberapa tipe sekaligus, misalnya **Umum dan Agen**; **Semua pelanggan** dipilih sendiri. Pilihan satuan mengikuti kategori. Pilih **Semua satuan** agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Pilih satuan tertentu untuk membatasi aturan; aturan untuk Rim hanya berlaku saat satuan Rim dipilih.
 
 Empat cara menghitung harga tersedia: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, dan **Modal + persen**. Periksa contoh harga sebelum **Simpan aturan**. Pengaturan merek, tambah merek, dan status aktif tersedia di **Pengaturan tambahan**.
 

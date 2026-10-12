@@ -42,6 +42,15 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("/api/customer-category-pricing-rules", () => {
+  it.each(["COST_PLUS_FLAT", "COST_PLUS_PERCENT"])("creates %s for all category units", async (mode) => {
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST",
+      body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["UMUM"], unit: null, mode, value: 10 }),
+    }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ unit: null, mode });
+    expect(ruleCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ unit: null, categoryId: "cat-1" }) }));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     transactionMock.mockImplementation(async (callback) => callback(testDb));
@@ -133,7 +142,6 @@ describe("/api/customer-category-pricing-rules", () => {
     { customerTypes: ["ALL", "AGEN"] },
     { customerTypes: [] },
     { customerTypes: ["UMUM"], customerType: "AGEN" },
-    { customerTypes: ["AGEN"], unit: null },
     { customerTypes: ["AGEN"], value: -1 },
     { customerTypes: ["AGEN"], value: "Infinity" },
   ])("rejects invalid formula input %j", async (invalid) => {

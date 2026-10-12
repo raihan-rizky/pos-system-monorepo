@@ -67,7 +67,7 @@ export function PricingRuleForm({
     form.categoryId,
     form.unit || null,
     form.brandId || null,
-    { enabled: Boolean(form.unit) || !isFormula },
+    { enabled: Boolean(form.categoryId) },
   );
   const categories = categoriesQuery.data ?? [];
   const brands = brandsQuery.data ?? [];
@@ -247,13 +247,13 @@ export function PricingRuleForm({
               htmlFor="pricing-unit"
               className="text-sm font-semibold text-slate-700"
             >
-              Satuan {isFormula && <span className="text-red-600">*</span>}
+              Satuan
             </label>
             <select
               id="pricing-unit"
               name="unit"
               value={form.unit}
-              disabled={!form.categoryId || !units.length}
+              disabled={!form.categoryId}
               aria-busy={Boolean(form.categoryId && unitsQuery.isPending)}
               aria-invalid={Boolean(errors.unit)}
               aria-describedby={
@@ -262,11 +262,7 @@ export function PricingRuleForm({
               className={controlClass}
               onChange={(event) => change("unit", event.target.value)}
             >
-              <option value="">
-                {isFormula && form.categoryId && unitsQuery.isPending && !units.length
-                  ? "Memuat satuan…"
-                  : isFormula ? "Pilih satuan" : "Semua satuan"}
-              </option>
+              <option value="">Semua satuan</option>
               {units.map((unit) => (
                 <option key={unit} value={unit}>
                   {unit}
@@ -291,7 +287,9 @@ export function PricingRuleForm({
               </p>
             )}
             <p id="pricing-unit-help" className="mt-1 text-xs text-slate-500">
-              Aturan berlaku pada satuan yang dipilih.
+              {form.unit
+                ? "Aturan berlaku pada satuan yang dipilih."
+                : "Aturan berlaku pada semua satuan dalam kategori ini, termasuk satuan yang ditambahkan nanti."}
             </p>
           </div>
         </div>
@@ -499,8 +497,6 @@ export function PricingRuleForm({
           <p className="mt-2 text-sm text-slate-600">
             Pilih kategori untuk melihat contoh harga.
           </p>
-        ) : isFormula && !form.unit ? (
-          <p className="mt-2 text-sm text-slate-600">Pilih satuan untuk melihat contoh harga.</p>
         ) : scopeQuery.isPending || scopeQuery.isFetching ? (
           <p className="mt-2 text-sm text-slate-600">Memuat contoh produk…</p>
         ) : scopeQuery.isError ? (
