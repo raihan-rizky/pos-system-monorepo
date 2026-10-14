@@ -270,12 +270,17 @@ try {
     true,
   );
   assert.deepEqual(errors, []);
-  for (const scenario of ["dirty", "pristine", "direct", "invalid-margin"]) {
+  for (const scenario of ["dirty", "pristine", "direct", "invalid-margin", "pending-refresh", "failed-refresh", "failed-reopen"]) {
     if (process.argv[2] && process.argv[2] !== scenario) continue;
     const nextPage = await browser.newPage();
     const current = structuredClone(detail);
     let conversionRequests = 0;
     let stockPayload;
+    const refreshGuard = scenario === "pending-refresh" || scenario === "failed-refresh" || scenario === "failed-reopen";
+    let failDetail = scenario === "failed-refresh" || scenario === "failed-reopen";
+    let holdReopen = false, releaseReopen, observeReopen;
+    const reopenDetail = new Promise((resolve) => { releaseReopen = resolve; });
+    const reopenRequested = new Promise((resolve) => { observeReopen = resolve; });
     let releaseDetail;
     const detailRefresh = new Promise((resolve) => { releaseDetail = resolve; });
     await nextPage.route("http://localhost:3004/**", async (route) => {
@@ -297,7 +302,12 @@ try {
         stockPayload = request.postDataJSON();
         return route.fulfill({ json: {} });
       }
-      if (scenario === "direct" && conversionRequests) await detailRefresh;
+      if ((scenario === "direct" || refreshGuard) && conversionRequests) await detailRefresh;
+      if (holdReopen) {
+        observeReopen();
+        await reopenDetail;
+      }
+      if (conversionRequests && failDetail) return route.fulfill({ status: 500, json: { message: "Refresh gagal" } });
       return route.fulfill({ json: current });
     });
     await nextPage.goto("http://localhost:3004/fixture");
@@ -316,15 +326,75 @@ try {
       await price.getByLabel("Harga jual", { exact: true }).fill("-1");
       assert.equal(await price.getByText(/^Margin Rp/).count(), 0, "negative price must not display margin");
     } else {
-      if (scenario === "dirty") {
+      if (scenario === "dirty" || refreshGuard) {
         await nextPage.getByRole("button", { name: "Tetapkan stok akhir", exact: true }).click();
         await nextPage.getByLabel("Jumlah akhir").fill("80");
+      }
+      if (refreshGuard) {
+        await nextPage.getByRole("tab", { name: "Harga", exact: true }).click();
+        await nextPage.getByRole("group", { name: "Harga pack" }).getByLabel("Harga jual", { exact: true }).fill("9900");
       }
       await nextPage.getByRole("tab", { name: "Satuan", exact: true }).click();
       if (scenario === "direct") await nextPage.getByLabel("Jumlah setara", { exact: true }).fill("20");
       else await nextPage.getByLabel("Satuan acuan", { exact: true }).selectOption("pack");
       await nextPage.getByRole("button", { name: "Simpan konversi satuan", exact: true }).click();
       await nextPage.getByText("Konversi satuan tersimpan", { exact: true }).waitFor();
+      if (refreshGuard) {
+        await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).click();
+        const saveStock = nextPage.getByRole("button", { name: "Simpan stok akhir", exact: true });
+        assert.equal(await saveStock.isDisabled(), true, "stock save must stay blocked until authoritative conversion detail arrives");
+        await saveStock.evaluate((el) => el.click());
+        assert.equal(stockPayload, undefined, "pending refresh must not submit stale BASE stock");
+        await nextPage.getByText("Memuat data satuan terbaru...").waitFor();
+        releaseDetail();
+        if (failDetail) {
+          await nextPage.getByText("Konversi tersimpan, tetapi data satuan terbaru belum berhasil dimuat.", { exact: false }).waitFor();
+          assert.equal(await saveStock.isDisabled(), true, "failed refresh must keep stale unit actions blocked");
+          await saveStock.evaluate((el) => el.click());
+          assert.equal(stockPayload, undefined);
+          await nextPage.getByRole("tab", { name: "Satuan", exact: true }).click();
+          const saveConversion = nextPage.getByRole("button", { name: "Simpan konversi satuan", exact: true });
+          assert.equal(await saveConversion.isDisabled(), true, "failed refresh must block another conversion");
+          await nextPage.getByRole("tab", { name: "Tambah satuan", exact: true }).click();
+          const addUnit = nextPage.getByRole("button", { name: "Tambah satuan", exact: true });
+          assert.equal(await addUnit.isDisabled(), true, "failed refresh must block unit addition");
+          await nextPage.getByRole("tab", { name: "Harga", exact: true }).click();
+          const price = nextPage.getByRole("group", { name: "Harga pack" });
+          assert.equal(await price.getByLabel("Harga jual", { exact: true }).inputValue(), "9900");
+          assert.equal(await price.getByLabel("Harga jual", { exact: true }).isEnabled(), true);
+          assert.equal(await price.getByRole("button", { name: "Simpan harga pack", exact: true }).isEnabled(), true);
+          failDetail = false;
+          if (scenario === "failed-reopen") {
+            await nextPage.getByRole("button", { name: "Tutup", exact: true }).click();
+            await nextPage.getByRole("button", { name: "Buang perubahan", exact: true }).click();
+            holdReopen = true;
+            await nextPage.getByRole("button", { name: "Buka grup", exact: true }).click();
+            assert.equal(await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).count(), 0, "reopening after failed conversion refresh must not expose stale unit actions");
+            assert.equal(stockPayload, undefined);
+            await reopenRequested;
+            releaseReopen();
+            await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).waitFor();
+            await nextPage.getByRole("button", { name: "Tetapkan stok akhir", exact: true }).click();
+            assert.equal(await nextPage.getByLabel("Jumlah akhir").inputValue(), "12");
+            assert.equal(conversionRequests, 1);
+            await nextPage.close();
+            console.log(`PASS conversion regression ${scenario}`);
+            continue;
+          }
+          await nextPage.getByRole("button", { name: "Coba muat ulang satuan", exact: true }).click();
+          await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).click();
+        }
+        await nextPage.getByText("1 pcs = 0,1 pack", { exact: false }).waitFor();
+        assert.equal(await nextPage.getByLabel("Jumlah akhir").inputValue(), "8");
+        await saveStock.click();
+        await nextPage.getByText("Stok akhir tersimpan", { exact: true }).waitFor();
+        assert.equal(stockPayload.sharedStock, 8);
+        assert.equal(stockPayload.stockInput.mode, "BASE");
+        assert.equal(conversionRequests, 1, "refresh retry must not repeat the conversion mutation");
+        await nextPage.close();
+        console.log(`PASS conversion regression ${scenario}`);
+        continue;
+      }
       if (scenario === "direct") {
         assert.equal(await nextPage.getByRole("button", { name: "Simpan konversi satuan", exact: true }).isDisabled(), true, "acknowledged conversion must not resubmit during refetch");
         releaseDetail();

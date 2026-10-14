@@ -44,6 +44,7 @@ export interface StockGroupWorkspaceContentProps {
   stockVariantProductId: string;
   note: string;
   isSaving: boolean;
+  unitActionsBlocked?: boolean;
   savingMessage?: string | null;
   successMessage?: string | null;
   onClose: () => void;
@@ -225,13 +226,14 @@ export function StockGroupWorkspaceContent(
         {activeTab === "summary" && (
           <SummaryPanel
             {...props}
+            isSaving={props.isSaving || !!props.unitActionsBlocked}
             editorOpen={stockEditorOpen}
             onOpenEditor={() => setStockEditorOpen(true)}
           />
         )}
-        {activeTab === "unitManagement" && <ConversionPanel {...props} />}
+        {activeTab === "unitManagement" && <ConversionPanel {...props} isSaving={props.isSaving || !!props.unitActionsBlocked} />}
         {activeTab === "pricing" && <PricingPanel {...props} />}
-        {activeTab === "newVariant" && <AdditionPanel {...props} />}
+        {activeTab === "newVariant" && <AdditionPanel {...props} isSaving={props.isSaving || !!props.unitActionsBlocked} />}
         {activeTab === "history" && (
           <StockGroupHistory groupId={props.detail.id} />
         )}
@@ -386,14 +388,21 @@ function StockGroupWorkspaceDataFetcher({
     NonNullable<StockGroupWorkspaceContentProps["statuses"]>
   >({});
   const [saving, setSaving] = useState<string | null>(null),
+    [unitRefresh, setUnitRefresh] = useState<"pending" | "failed" | "ready" | null>(null),
     [conflict, setConflict] = useState(false),
     [decision, setDecision] = useState<"close" | "reload" | null>(null);
   const saveLock = useRef(false),
+    unitRefreshRequired = useRef(false),
     confirmation = useRef<HTMLDialogElement>(null);
   const stockMut = useUpdateSharedStock(stockGroupId),
     conversionMut = useUpdateConversionRate(stockGroupId),
     priceMut = useUpdateVariantPrice(stockGroupId),
     addMut = useAddVariant(stockGroupId);
+  useEffect(() => () => {
+    if (unitRefreshRequired.current) {
+      queryClient.removeQueries({ queryKey: stockGroupDetailKey(stockGroupId), exact: true });
+    }
+  }, [queryClient, stockGroupId]);
   const stockMultiplier =
     stockInputMode === "BASE"
       ? 1
@@ -426,7 +435,13 @@ function StockGroupWorkspaceDataFetcher({
         `Grup stok ${detail.displayName}`,
       );
     const previous = detailContext.current;
-    if (previous === detail) return;
+    if (previous === detail) {
+      if (unitRefresh === "ready") {
+        unitRefreshRequired.current = false;
+        setUnitRefresh(null);
+      }
+      return;
+    }
     detailContext.current = detail;
     const stockContextChanged = previous.baseUnit !== detail.baseUnit ||
       previous.baseStock !== detail.baseStock ||
@@ -453,7 +468,11 @@ function StockGroupWorkspaceDataFetcher({
       ...current,
       prices: { ...defaults, ...current.prices },
     }));
-  }, [detail, dialog, sharedStock, snapshots.stock, stockInputMode, stockVariantProductId]);
+    if (unitRefresh === "ready") {
+      unitRefreshRequired.current = false;
+      setUnitRefresh(null);
+    }
+  }, [detail, dialog, sharedStock, snapshots.stock, stockInputMode, stockVariantProductId, unitRefresh]);
   useEffect(() => {
     closeRequest.current = () => {
       if (!saveLock.current) {
@@ -473,14 +492,16 @@ function StockGroupWorkspaceDataFetcher({
     mutate: () => Promise<unknown>,
     acknowledge: () => void,
   ) {
-    if (saveLock.current || conflict) return;
+    if (saveLock.current || conflict || (unitRefreshRequired.current && reason !== "variant-price")) return;
     saveLock.current = true;
     setSaving(section);
     setStatuses((current) => ({ ...current, [section]: {} }));
     try {
       await mutate();
+      if (reason === "conversion-rate") unitRefreshRequired.current = true;
       acknowledge();
       onSaved(reason);
+      if (reason === "conversion-rate") await refreshUnits();
     } catch (error) {
       const message =
         error instanceof Error
@@ -492,6 +513,20 @@ function StockGroupWorkspaceDataFetcher({
     } finally {
       saveLock.current = false;
       setSaving(null);
+    }
+  }
+  async function refreshUnits() {
+    setUnitRefresh("pending");
+    try {
+      await queryClient.fetchQuery({
+        queryKey: stockGroupDetailKey(stockGroupId),
+        queryFn: () => fetchStockGroupDetail(stockGroupId),
+        staleTime: 0,
+        retry: false,
+      });
+      setUnitRefresh("ready");
+    } catch {
+      setUnitRefresh("failed");
     }
   }
   function success(section: string, message: string) {
@@ -635,6 +670,18 @@ function StockGroupWorkspaceDataFetcher({
   }
   return (
     <div className="flex max-h-[90dvh] min-h-0 flex-col">
+      {unitRefresh && (
+        <div role={unitRefresh === "failed" ? "alert" : "status"} className="space-y-2 bg-amber-50 p-4 text-sm text-amber-900">
+          {unitRefresh === "failed" ? (
+            <>
+              <p>Konversi tersimpan, tetapi data satuan terbaru belum berhasil dimuat. Draft Anda tetap disimpan. Aksi stok dan satuan menunggu data terbaru.</p>
+              <button type="button" className="min-h-11 rounded-xl border border-amber-500 px-4 font-semibold" onClick={() => void refreshUnits()}>
+                Coba muat ulang satuan
+              </button>
+            </>
+          ) : <p>Memuat data satuan terbaru...</p>}
+        </div>
+      )}
       {conflict && (
         <div
           role="alert"
@@ -669,6 +716,7 @@ function StockGroupWorkspaceDataFetcher({
         stockVariantProductId={stockVariantProductId}
         note={note}
         isSaving={!!saving || conflict}
+        unitActionsBlocked={unitRefresh !== null}
         savingMessage={saving ? "Menyimpan perubahan..." : null}
         onClose={() => closeRequest.current()}
         onSharedStockChange={setSharedStock}
