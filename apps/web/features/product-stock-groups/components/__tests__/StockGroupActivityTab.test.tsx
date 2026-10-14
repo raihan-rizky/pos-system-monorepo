@@ -30,10 +30,10 @@ describe("StockGroupActivityList", () => {
       />,
     );
 
-    expect(html).toContain("Varian Ditambahkan");
+    expect(html).toContain("Satuan ditambahkan");
     expect(html).toContain("HVS A4");
     expect(html).toContain("HVS-A4-DUS - dus");
     expect(html).toContain("Tambah dus");
-    expect(html).toContain("Buka Stok Unit");
+    expect(html).toContain("Buka grup stok");
   });
 });

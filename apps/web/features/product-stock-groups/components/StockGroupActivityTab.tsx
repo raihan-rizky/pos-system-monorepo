@@ -14,6 +14,7 @@ import {
   fetchStockGroupActivities,
   type StockGroupActivity,
 } from "@/features/product-stock-groups/api/stock-group-activities";
+import { stockGroupActivityLabel } from "./StockGroupHistory";
 
 const intFmt = new Intl.NumberFormat("id-ID");
 
@@ -27,15 +28,7 @@ interface StockGroupActivityListProps {
 }
 
 function activityLabel(type: string): string {
-  const labels: Record<string, string> = {
-    VARIANT_ADDED: "Varian Ditambahkan",
-    PAIRED_VARIANTS_CREATED: "Varian Unit Dibuat",
-    CONVERSION_RATE_CHANGED: "Unit Management Diubah",
-    GROUP_CREATED: "Grup Dibuat",
-    SHARED_STOCK_CHANGED: "Shared Stock Diubah",
-    REVIEW_CLEARED: "Review Diselesaikan",
-  };
-  return labels[type] ?? type.replace(/_/g, " ");
+  return stockGroupActivityLabel(type);
 }
 
 function formatDateTime(value: string): string {
@@ -61,7 +54,7 @@ export function StockGroupActivityList({
           Belum ada aktivitas grup
         </p>
         <p className="mt-1 text-xs font-semibold text-slate-500">
-          Aktivitas non-conversion akan muncul di sini.
+          Aktivitas grup stok yang tercatat akan muncul di sini.
         </p>
       </div>
     );
@@ -80,7 +73,7 @@ export function StockGroupActivityList({
             className="grid w-full grid-cols-1 gap-3 border-b border-slate-100 px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 md:grid-cols-[180px_1fr_180px]"
           >
             <div>
-              <p className="text-xs font-black uppercase text-slate-400">
+              <p className="text-xs font-black text-slate-700">
                 {activityLabel(activity.type)}
               </p>
               <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -104,10 +97,10 @@ export function StockGroupActivityList({
             </div>
             <div className="text-left md:text-right">
               <p className="text-xs font-bold text-slate-500">
-                {activity.person ?? activity.createdBy ?? "Sistem"}
+                {activity.person ?? activity.createdBy ?? "Pelaku belum tercatat"}
               </p>
               <p className="mt-1 text-xs font-black text-sky-700">
-                Buka Stok Unit
+                Buka grup stok
               </p>
             </div>
           </button>
@@ -127,6 +120,7 @@ export default function StockGroupActivityTab({
   > | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const limit = 20;
 
   const trimmedSearch = useMemo(() => search.trim(), [search]);
@@ -155,7 +149,7 @@ export default function StockGroupActivityTab({
     return () => {
       cancelled = true;
     };
-  }, [page, trimmedSearch]);
+  }, [page, trimmedSearch, retry]);
 
   const pagination = data?.pagination;
   const activities = data?.data ?? [];
@@ -189,8 +183,9 @@ export default function StockGroupActivityTab({
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-          {error}
+        <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <p>{error}</p>
+          <button type="button" className="mt-3 min-h-11 rounded-xl border border-red-300 px-4" onClick={() => setRetry(current => current + 1)}>Coba lagi</button>
         </div>
       )}
       {isLoading ? (
@@ -198,7 +193,7 @@ export default function StockGroupActivityTab({
           <Clock className="h-4 w-4" />
           Memuat aktivitas grup...
         </div>
-      ) : (
+      ) : !error && (
         <StockGroupActivityList
           activities={activities}
           onOpenStockGroup={onOpenStockGroup}
