@@ -16,8 +16,10 @@ import {
 import {
   additionResult,
   conversionResult,
+  conversionHasChanges,
   parseNumber,
   priceValid,
+  quantitiesEqual,
   type PriceDraft,
 } from "../workspace-drafts";
 import {
@@ -61,6 +63,7 @@ export interface StockGroupWorkspaceContentProps {
     toQuantity: string;
     mode: "KEEP_SHARED_STOCK" | "PRESERVE_SOURCE_STOCK";
     directMultipliers: Record<string, string>;
+    directMultipliersEdited?: boolean;
   };
   onConversionDraftChange?: (
     draft: StockGroupWorkspaceContentProps["conversionDraft"],
@@ -311,6 +314,8 @@ export function StockGroupWorkspaceModal(props: ModalProps) {
   );
 }
 const serialize = (value: unknown) => JSON.stringify(value);
+const conversionSnapshot = (draft: NonNullable<StockGroupWorkspaceContentProps["conversionDraft"]>) =>
+  serialize({ ...draft, editMode: undefined, directMultipliersEdited: undefined });
 function priceDefaults(detail: StockGroupDetail) {
   return Object.fromEntries(
     detail.variants.map((v) => [
@@ -353,6 +358,7 @@ function StockGroupWorkspaceDataFetcher({
   dialog: React.RefObject<HTMLDialogElement | null>;
 }) {
   const { data: detail } = useSuspenseStockGroupDetail(stockGroupId);
+  const detailContext = useRef(detail);
   const queryClient = useQueryClient();
   const [sharedStock, setSharedStock] = useState(String(detail.baseStock)),
     [stockInputMode, setStockInputMode] = useState<StockInputMode>("BASE"),
@@ -372,7 +378,7 @@ function StockGroupWorkspaceDataFetcher({
   );
   const [snapshots, setSnapshots] = useState(() => ({
     stock: detail.baseStock,
-    conversion: serialize(buildUnitManagementDraft(detail)),
+    conversion: conversionSnapshot(buildUnitManagementDraft(detail)),
     prices: priceDefaults(detail),
     addition: serialize(additionDefaults(detail)),
   }));
@@ -397,8 +403,9 @@ function StockGroupWorkspaceDataFetcher({
     parseNumber(sharedStock) === null
       ? null
       : Number(sharedStock) * stockMultiplier;
-  const stockChanged = stockBase !== snapshots.stock;
-  const conversionChanged = serialize(conversionDraft) !== snapshots.conversion;
+  const stockChanged = stockBase === null || !quantitiesEqual(stockBase, snapshots.stock);
+  const conversionDirty = conversionSnapshot(conversionDraft) !== snapshots.conversion;
+  const conversionChanged = conversionDirty && conversionHasChanges(detail, conversionDraft);
   const priceChanged = Object.fromEntries(
     Object.entries(priceDrafts).map(([id, draft]) => [
       id,
@@ -408,7 +415,7 @@ function StockGroupWorkspaceDataFetcher({
   const dirty =
     stockChanged ||
     !!note.trim() ||
-    conversionChanged ||
+    conversionDirty ||
     Object.values(priceChanged).some(Boolean) ||
     serialize(newVariantDraft) !== snapshots.addition;
 
@@ -418,6 +425,27 @@ function StockGroupWorkspaceDataFetcher({
         "aria-label",
         `Grup stok ${detail.displayName}`,
       );
+    const previous = detailContext.current;
+    if (previous === detail) return;
+    detailContext.current = detail;
+    const stockContextChanged = previous.baseUnit !== detail.baseUnit ||
+      previous.baseStock !== detail.baseStock ||
+      previous.variants.some((v) => v.unitMultiplierToBase !== detail.variants.find((next) => next.id === v.id)?.unitMultiplierToBase);
+    if (stockContextChanged) {
+      const oldMultiplier = stockInputMode === "BASE" ? 1 : previous.variants.find((v) => v.id === stockVariantProductId)?.unitMultiplierToBase ?? NaN;
+      const amount = parseNumber(sharedStock);
+      const oldBaseAmount = amount === null ? null : amount * oldMultiplier;
+      const newBaseInOldUnits = previous.variants.find((v) => v.unit.trim().toLowerCase() === detail.baseUnit.trim().toLowerCase())?.unitMultiplierToBase ?? NaN;
+      const selected = detail.variants.find((v) => v.id === stockVariantProductId);
+      const nextMode = stockInputMode === "VARIANT" && selected && selected.unit.trim().toLowerCase() !== detail.baseUnit.trim().toLowerCase() ? "VARIANT" : "BASE";
+      const nextMultiplier = nextMode === "BASE" ? 1 : selected!.unitMultiplierToBase;
+      const nextBaseAmount = oldBaseAmount !== null && quantitiesEqual(oldBaseAmount, snapshots.stock)
+        ? detail.baseStock
+        : oldBaseAmount === null ? null : oldBaseAmount / newBaseInOldUnits;
+      if (nextBaseAmount !== null) setSharedStock(Number.isFinite(nextBaseAmount / nextMultiplier) ? String(nextBaseAmount / nextMultiplier) : "");
+      setStockInputMode(nextMode);
+      setSnapshots((current) => ({ ...current, stock: detail.baseStock }));
+    }
     // A newly added unit receives defaults; existing drafts survive detail refreshes.
     const defaults = priceDefaults(detail);
     setPriceDrafts((current) => ({ ...defaults, ...current }));
@@ -425,7 +453,7 @@ function StockGroupWorkspaceDataFetcher({
       ...current,
       prices: { ...defaults, ...current.prices },
     }));
-  }, [detail, dialog]);
+  }, [detail, dialog, sharedStock, snapshots.stock, stockInputMode, stockVariantProductId]);
   useEffect(() => {
     closeRequest.current = () => {
       if (!saveLock.current) {
@@ -500,13 +528,18 @@ function StockGroupWorkspaceDataFetcher({
   function saveConversion() {
     const result = conversionResult(detail, conversionDraft);
     if (!canUpdateProducts || !conversionChanged || !result.payload) return;
-    const submitted = serialize(conversionDraft);
+    const submitted = {
+      ...conversionDraft,
+      directMultipliers: Object.fromEntries(result.resolved!.variants.map((v) => [v.id, String(v.unitMultiplierToBase)])),
+      directMultipliersEdited: false,
+    };
     void save(
       "conversion",
       "conversion-rate",
       () => conversionMut.mutateAsync(result.payload!),
       () => {
-        setSnapshots((current) => ({ ...current, conversion: submitted }));
+        setConversionDraft(submitted);
+        setSnapshots((current) => ({ ...current, conversion: conversionSnapshot(submitted) }));
         success("conversion", "Konversi satuan tersimpan");
       },
     );
@@ -568,6 +601,7 @@ function StockGroupWorkspaceDataFetcher({
     setSaving("reload");
     try {
       const next = await fetchStockGroupDetail(stockGroupId);
+      detailContext.current = next;
       queryClient.setQueryData(stockGroupDetailKey(stockGroupId), next);
       const prices = priceDefaults(next),
         conversion = buildUnitManagementDraft(next),
@@ -582,7 +616,7 @@ function StockGroupWorkspaceDataFetcher({
       setSnapshots({
         stock: next.baseStock,
         prices,
-        conversion: serialize(conversion),
+        conversion: conversionSnapshot(conversion),
         addition: serialize(addition),
       });
       setStatuses({});

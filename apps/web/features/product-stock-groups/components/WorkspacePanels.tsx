@@ -5,6 +5,7 @@ import { buildUnitManagementDraft } from "./StockGroupWorkspace";
 import {
   additionResult,
   conversionResult,
+  conversionHasChanges,
   parseNumber,
   priceValid,
   stockInUnit,
@@ -356,8 +357,7 @@ export function ConversionPanel(props: StockGroupWorkspaceContentProps) {
   const base = props.detail.variants.find((v) => v.id === draft.baseProductId);
   const changed =
     props.conversionChanged ??
-    JSON.stringify(draft) !==
-      JSON.stringify(buildUnitManagementDraft(props.detail));
+    conversionHasChanges(props.detail, draft);
   return (
     <section className="space-y-5">
       <div>
@@ -443,7 +443,12 @@ export function ConversionPanel(props: StockGroupWorkspaceContentProps) {
         open={draft.editMode === "DIRECT"}
         onToggle={(event) => {
           const next = event.currentTarget.open ? "DIRECT" : "PAIR";
-          if (next !== draft.editMode && !disabled) update({ editMode: next });
+          if (next !== draft.editMode && !disabled) update({
+            editMode: next,
+            ...(next === "DIRECT" && !draft.directMultipliersEdited && result.resolved
+              ? { directMultipliers: Object.fromEntries(result.resolved.variants.map((v) => [v.id, String(v.unitMultiplierToBase)])) }
+              : {}),
+          });
         }}
       >
         <summary className="min-h-11 cursor-pointer text-sm font-semibold">
@@ -465,6 +470,7 @@ export function ConversionPanel(props: StockGroupWorkspaceContentProps) {
               disabled={disabled || v.id === draft.baseProductId}
               onChange={(value) =>
                 update({
+                  directMultipliersEdited: true,
                   directMultipliers: {
                     ...draft.directMultipliers,
                     [v.id]: value,
@@ -576,7 +582,8 @@ export function PricingPanel(props: StockGroupWorkspaceContentProps) {
         };
         const price = parseNumber(draft.price),
           cost = parseNumber(draft.costPrice),
-          amount = price !== null && cost !== null ? price - cost : null;
+          valid = priceValid(draft),
+          amount = valid && price !== null && cost !== null ? price - cost : null;
         const update = (next: Partial<PriceDraft>) =>
           props.onPriceDraftChange?.(v.id, { ...draft, ...next });
         const changed =
@@ -595,7 +602,9 @@ export function PricingPanel(props: StockGroupWorkspaceContentProps) {
               {v.unit} • {v.sku}
             </legend>
             <p className="text-sm text-slate-700">
-              {amount === null
+              {!valid
+                ? "Periksa harga jual dan HPP sebelum menghitung margin."
+                : amount === null
                 ? "HPP belum diisi; margin belum dapat dihitung."
                 : `Margin ${money(amount)} (${price === 0 ? "0" : ((amount / price!) * 100).toFixed(1)}%)`}
             </p>

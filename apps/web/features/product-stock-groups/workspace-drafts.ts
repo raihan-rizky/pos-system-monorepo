@@ -129,6 +129,17 @@ export function conversionResult(
     };
   }
 }
+export function quantitiesEqual(left: number, right: number) {
+  return Math.abs(left - right) <= 1e-9 * Math.max(1, Math.abs(left), Math.abs(right));
+}
+export function conversionHasChanges(detail: StockGroupDetail, draft: ConversionDraft) {
+  const { resolved } = conversionResult(detail, draft);
+  if (!resolved) return true;
+  const base = detail.variants.find((v) => v.unit.trim().toLowerCase() === detail.baseUnit.trim().toLowerCase());
+  return resolved.baseProductId !== base?.id ||
+    !quantitiesEqual(resolved.nextBaseStock, detail.baseStock) ||
+    resolved.variants.some((v) => !quantitiesEqual(v.unitMultiplierToBase, detail.variants.find((current) => current.id === v.id)?.unitMultiplierToBase ?? NaN));
+}
 export function additionResult(
   detail: StockGroupDetail,
   draft?: AdditionDraft,

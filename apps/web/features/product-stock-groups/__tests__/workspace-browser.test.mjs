@@ -270,6 +270,94 @@ try {
     true,
   );
   assert.deepEqual(errors, []);
+  for (const scenario of ["dirty", "pristine", "direct", "invalid-margin"]) {
+    if (process.argv[2] && process.argv[2] !== scenario) continue;
+    const nextPage = await browser.newPage();
+    const current = structuredClone(detail);
+    let conversionRequests = 0;
+    let stockPayload;
+    let releaseDetail;
+    const detailRefresh = new Promise((resolve) => { releaseDetail = resolve; });
+    await nextPage.route("http://localhost:3004/**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.pathname === "/fixture") return route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><div id="root"></div></body></html>' });
+      if (request.method() === "PATCH" && url.pathname.endsWith("/conversion")) {
+        conversionRequests++;
+        const payload = request.postDataJSON();
+        if (payload.baseProductId === "pack") {
+          current.baseUnit = "pack";
+          current.baseStock = 12;
+          for (const v of current.variants) v.unitMultiplierToBase /= 10;
+        } else current.variants.find((v) => v.id === "pack").unitMultiplierToBase = 20;
+        for (const v of current.variants) v.stock = current.baseStock / v.unitMultiplierToBase;
+        return route.fulfill({ json: {} });
+      }
+      if (request.method() === "PATCH" && url.pathname === "/api/product-stock-groups/group-1") {
+        stockPayload = request.postDataJSON();
+        return route.fulfill({ json: {} });
+      }
+      if (scenario === "direct" && conversionRequests) await detailRefresh;
+      return route.fulfill({ json: current });
+    });
+    await nextPage.goto("http://localhost:3004/fixture");
+    await nextPage.addStyleTag({ content: bundle.css });
+    await nextPage.addScriptTag({ content: bundle.script });
+    await nextPage.getByRole("button", { name: "Buka grup" }).click();
+    await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).waitFor();
+    if (scenario === "invalid-margin") {
+      await nextPage.getByRole("tab", { name: "Harga", exact: true }).click();
+      const price = nextPage.getByRole("group", { name: "Harga pcs" });
+      await price.getByLabel("HPP (opsional)", { exact: true }).fill("-5");
+      assert.equal(await price.getByText(/^Margin Rp/).count(), 0, "negative HPP must not display profit");
+      assert.equal(await price.getByText(/HPP belum diisi/).count(), 0);
+      await price.getByText("Periksa harga jual dan HPP sebelum menghitung margin.").waitFor();
+      await price.getByLabel("HPP (opsional)", { exact: true }).fill("5");
+      await price.getByLabel("Harga jual", { exact: true }).fill("-1");
+      assert.equal(await price.getByText(/^Margin Rp/).count(), 0, "negative price must not display margin");
+    } else {
+      if (scenario === "dirty") {
+        await nextPage.getByRole("button", { name: "Tetapkan stok akhir", exact: true }).click();
+        await nextPage.getByLabel("Jumlah akhir").fill("80");
+      }
+      await nextPage.getByRole("tab", { name: "Satuan", exact: true }).click();
+      if (scenario === "direct") await nextPage.getByLabel("Jumlah setara", { exact: true }).fill("20");
+      else await nextPage.getByLabel("Satuan acuan", { exact: true }).selectOption("pack");
+      await nextPage.getByRole("button", { name: "Simpan konversi satuan", exact: true }).click();
+      await nextPage.getByText("Konversi satuan tersimpan", { exact: true }).waitFor();
+      if (scenario === "direct") {
+        assert.equal(await nextPage.getByRole("button", { name: "Simpan konversi satuan", exact: true }).isDisabled(), true, "acknowledged conversion must not resubmit during refetch");
+        releaseDetail();
+      }
+      await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).click();
+      await nextPage.getByText(scenario === "direct" ? "1 pack = 20 pcs" : "1 pcs = 0,1 pack", { exact: false }).waitFor();
+      if (scenario === "direct") {
+        await nextPage.getByRole("tab", { name: "Satuan", exact: true }).click();
+        await nextPage.getByText("Pengaturan lanjutan", { exact: true }).click();
+        const multiplier = nextPage.getByLabel("1 pack = jumlah pcs", { exact: true });
+        assert.equal(await multiplier.inputValue(), "20", "advanced draft must use saved pair conversion");
+        assert.equal(await nextPage.getByRole("button", { name: "Simpan konversi satuan", exact: true }).isDisabled(), true, "opening disclosure must not enable an unchanged save");
+        assert.equal(conversionRequests, 1);
+        await multiplier.fill("22");
+        await nextPage.getByText("Pengaturan lanjutan", { exact: true }).click();
+        await nextPage.getByText("Pengaturan lanjutan", { exact: true }).click();
+        assert.equal(await multiplier.inputValue(), "22", "user-entered direct draft must survive disclosure toggles");
+      } else {
+        if (scenario === "pristine") await nextPage.getByRole("button", { name: "Tetapkan stok akhir", exact: true }).click();
+        assert.equal(await nextPage.getByLabel("Jumlah akhir").inputValue(), scenario === "dirty" ? "8" : "12", `${scenario} stock must follow the refreshed unit context`);
+        const saveStock = nextPage.getByRole("button", { name: "Simpan stok akhir", exact: true });
+        assert.equal(await saveStock.isDisabled(), scenario === "pristine");
+        if (scenario === "dirty") {
+          await saveStock.click();
+          await nextPage.getByText("Stok akhir tersimpan", { exact: true }).waitFor();
+          assert.equal(stockPayload.sharedStock, 8);
+          assert.equal(stockPayload.stockInput.mode, "BASE");
+        }
+      }
+    }
+    await nextPage.close();
+    console.log(`PASS conversion regression ${scenario}`);
+  }
   console.log(
     "PASS workspace actual React interaction, independent drafts, keyboard, stock unit, conflict, history and mobile/desktop",
   );
