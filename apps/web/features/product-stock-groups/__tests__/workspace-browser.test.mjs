@@ -49,7 +49,7 @@ const detail = {
 };
 const bundle = await bundleReactHarness(
   `import React,{useState} from 'react'; import {createRoot} from 'react-dom/client'; import {QueryClient,QueryClientProvider} from '@tanstack/react-query'; import {StockGroupWorkspaceModal} from './features/product-stock-groups/components/StockGroupWorkspace';
-const client=new QueryClient({defaultOptions:{queries:{retry:false}}}); function Harness(){const[open,setOpen]=useState(false);return <QueryClientProvider client={client}><button onClick={()=>setOpen(true)}>Buka grup</button>{open&&<StockGroupWorkspaceModal stockGroupId="group-1" canUpdateStock canUpdateProducts canCreateProducts onClose={()=>setOpen(false)} onSaved={()=>{window.saved++}}/>}</QueryClientProvider>}window.saved=0;createRoot(document.getElementById('root')).render(<Harness/>);`,
+const params=new URLSearchParams(location.search);const client=new QueryClient({defaultOptions:{queries:{retry:params.has('initial-failure')?2:false,retryDelay:10}}}); function Harness(){const[open,setOpen]=useState(false);return <QueryClientProvider client={client}><button onClick={()=>setOpen(true)}>Buka grup</button>{open&&<StockGroupWorkspaceModal stockGroupId="group-1" canUpdateStock canUpdateProducts canCreateProducts canRequestStockChange={!params.has('no-inventory-access')} onClose={()=>setOpen(false)} onSaved={()=>{window.saved++}}/>}</QueryClientProvider>}window.saved=0;createRoot(document.getElementById('root')).render(<Harness/>);`,
   [
     "features/product-stock-groups/components/StockGroupWorkspace.tsx",
     "features/product-stock-groups/components/WorkspacePanels.tsx",
@@ -58,6 +58,58 @@ const client=new QueryClient({defaultOptions:{queries:{retry:false}}}); function
 );
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
+  for (const scenario of ["initial-failure", "inventory", "no-inventory-access"]) {
+    if (process.argv[2] && process.argv[2] !== scenario) continue;
+    const nextPage = await browser.newPage();
+    let detailRequests = 0;
+    let failInitial = scenario === "initial-failure";
+    await nextPage.route("http://localhost:3004/**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === "/fixture" || url.pathname === "/inventory") {
+        return route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><div id="root"></div></body></html>' });
+      }
+      detailRequests++;
+      return route.fulfill({ status: failInitial ? 500 : 200, json: failInitial ? { message: "Gangguan sementara" } : detail });
+    });
+    await nextPage.goto(`http://localhost:3004/fixture?${scenario}`);
+    await nextPage.addStyleTag({ content: bundle.css });
+    await nextPage.addScriptTag({ content: bundle.script });
+    await nextPage.getByRole("button", { name: "Buka grup" }).click();
+    if (scenario === "initial-failure") {
+      await nextPage.getByRole("alert").filter({ hasText: "Gagal memuat grup stok" }).waitFor();
+      assert.equal(detailRequests, 3, "initial GET must exhaust the configured two retries");
+      failInitial = false;
+      await nextPage.getByRole("button", { name: "Coba lagi", exact: true }).click();
+      await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).waitFor({ timeout: 5000 });
+      assert.equal(detailRequests, 4, "Coba lagi must issue a new GET after query retries are exhausted");
+      await nextPage.getByRole("heading", { name: "Kertas", exact: true }).waitFor();
+    } else {
+      await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).waitFor();
+      const handoff = nextPage.getByRole("link", { name: "Ajukan perubahan stok di Inventori", exact: true });
+      if (scenario === "no-inventory-access") {
+        assert.equal(await handoff.count(), 0, "handoff must require Inventory access");
+      } else {
+        await handoff.waitFor({ timeout: 5000 });
+        assert.equal(await handoff.getAttribute("href"), "/inventory");
+        await nextPage.getByRole("button", { name: "Tetapkan stok akhir", exact: true }).click();
+        await nextPage.getByLabel("Jumlah akhir").fill("80");
+        await handoff.click();
+        await nextPage.getByRole("button", { name: "Lanjutkan mengedit" }).click();
+        assert.equal(new URL(nextPage.url()).pathname, "/fixture", "cancel must keep the workspace open");
+        assert.equal(await nextPage.getByLabel("Jumlah akhir").inputValue(), "80", "cancel must preserve the draft");
+        await handoff.click();
+        await nextPage.getByRole("button", { name: "Buang perubahan dan buka Inventori", exact: true }).click();
+        await nextPage.waitForURL("**/inventory");
+        await nextPage.goto("http://localhost:3004/fixture?inventory");
+        await nextPage.addScriptTag({ content: bundle.script });
+        await nextPage.getByRole("button", { name: "Buka grup" }).click();
+        await handoff.click();
+        await nextPage.waitForURL("**/inventory");
+      }
+    }
+    console.log(`PASS ${scenario}: actual workspace interaction`);
+    await nextPage.close();
+  }
   const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));

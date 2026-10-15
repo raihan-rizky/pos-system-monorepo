@@ -205,7 +205,7 @@ function StatCard({
 export default function ProductsClientPage() {
   const [pricingCustomerType, setPricingCustomerType] = useState<CustomerType>("UMUM");
   const { data: categoryPricingRules = [] } = useCustomerCategoryPricingRules({ activeOnly: true });
-  const { canPerform, role } = useRole();
+  const { canPerform, canAccess, role } = useRole();
   const canCreateProducts = shouldShowAction("product", "create", canPerform);
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
   const canUpdateInventory = shouldShowUpdateAction("inventory", canPerform);
@@ -1126,6 +1126,7 @@ export default function ProductsClientPage() {
             stockGroupId={stockGroupId}
             onClose={() => setStockGroupId(null)}
             canUpdateStock={canUpdateInventory}
+            canRequestStockChange={canUpdateInventory && canAccess("/inventory")}
             canUpdateProducts={canUpdateProducts}
             canCreateProducts={canCreateProducts}
             onSaved={() => {

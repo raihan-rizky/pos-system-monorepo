@@ -1,7 +1,7 @@
 "use client";
 
 import React, { Suspense, useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { QueryErrorResetBoundary, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "react-error-boundary";
 import type { StockGroupDetail, StockInputMode } from "../api/stock-group-api";
 import { fetchStockGroupDetail, StockGroupMutationError } from "../api/stock-group-api";
@@ -39,6 +39,8 @@ export interface StockGroupWorkspaceContentProps {
   canUpdateStock: boolean;
   canUpdateProducts?: boolean;
   canCreateProducts?: boolean;
+  canRequestStockChange?: boolean;
+  onInventoryNavigate?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   sharedStock: string;
   stockInputMode: StockInputMode;
   stockVariantProductId: string;
@@ -248,6 +250,7 @@ interface ModalProps {
   canUpdateStock: boolean;
   canUpdateProducts?: boolean;
   canCreateProducts?: boolean;
+  canRequestStockChange?: boolean;
   onSaved: (reason?: StockGroupSaveReason) => void;
 }
 export function StockGroupWorkspaceModal(props: ModalProps) {
@@ -275,43 +278,48 @@ export function StockGroupWorkspaceModal(props: ModalProps) {
       }}
       className="m-auto max-h-[94dvh] w-[calc(100%_-_1rem)] max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-xl backdrop:bg-slate-950/50"
     >
-      <ErrorBoundary
-        fallbackRender={({ resetErrorBoundary }) => (
-          <div className="space-y-4 p-5">
-            <p role="alert" className="text-red-800">
-              Gagal memuat grup stok. Silakan coba lagi.
-            </p>
-            <button
-              type="button"
-              className="min-h-11 rounded-xl border px-4"
-              onClick={resetErrorBoundary}
+      <QueryErrorResetBoundary>
+        {({ reset }) => (
+          <ErrorBoundary
+            onReset={reset}
+            fallbackRender={({ resetErrorBoundary }) => (
+              <div className="space-y-4 p-5">
+                <p role="alert" className="text-red-800">
+                  Gagal memuat grup stok. Silakan coba lagi.
+                </p>
+                <button
+                  type="button"
+                  className="min-h-11 rounded-xl border px-4"
+                  onClick={resetErrorBoundary}
+                >
+                  Coba lagi
+                </button>
+                <button
+                  type="button"
+                  className="min-h-11 rounded-xl border px-4"
+                  onClick={props.onClose}
+                >
+                  Tutup
+                </button>
+              </div>
+            )}
+          >
+            <Suspense
+              fallback={
+                <div role="status" className="p-5 text-sm text-slate-700">
+                  Memuat grup stok...
+                </div>
+              }
             >
-              Coba lagi
-            </button>
-            <button
-              type="button"
-              className="min-h-11 rounded-xl border px-4"
-              onClick={props.onClose}
-            >
-              Tutup
-            </button>
-          </div>
+              <StockGroupWorkspaceDataFetcher
+                {...props}
+                closeRequest={closeRequest}
+                dialog={dialog}
+              />
+            </Suspense>
+          </ErrorBoundary>
         )}
-      >
-        <Suspense
-          fallback={
-            <div role="status" className="p-5 text-sm text-slate-700">
-              Memuat grup stok...
-            </div>
-          }
-        >
-          <StockGroupWorkspaceDataFetcher
-            {...props}
-            closeRequest={closeRequest}
-            dialog={dialog}
-          />
-        </Suspense>
-      </ErrorBoundary>
+      </QueryErrorResetBoundary>
     </dialog>
   );
 }
@@ -352,6 +360,7 @@ function StockGroupWorkspaceDataFetcher({
   canUpdateStock,
   canUpdateProducts = false,
   canCreateProducts = false,
+  canRequestStockChange = false,
   onSaved,
   closeRequest,
   dialog,
@@ -390,7 +399,7 @@ function StockGroupWorkspaceDataFetcher({
   const [saving, setSaving] = useState<string | null>(null),
     [unitRefresh, setUnitRefresh] = useState<"pending" | "failed" | "ready" | null>(null),
     [conflict, setConflict] = useState(false),
-    [decision, setDecision] = useState<"close" | "reload" | null>(null);
+    [decision, setDecision] = useState<"close" | "reload" | "inventory" | null>(null);
   const saveLock = useRef(false),
     unitRefreshRequired = useRef(false),
     confirmation = useRef<HTMLDialogElement>(null);
@@ -711,6 +720,13 @@ function StockGroupWorkspaceDataFetcher({
         canUpdateStock={canUpdateStock}
         canUpdateProducts={canUpdateProducts}
         canCreateProducts={canCreateProducts}
+        canRequestStockChange={canRequestStockChange}
+        onInventoryNavigate={(event) => {
+          if (saveLock.current || dirty) {
+            event.preventDefault();
+            if (!saveLock.current) setDecision("inventory");
+          }
+        }}
         sharedStock={sharedStock}
         stockInputMode={stockInputMode}
         stockVariantProductId={stockVariantProductId}
@@ -767,7 +783,9 @@ function StockGroupWorkspaceDataFetcher({
         <p className="mt-2 text-sm text-slate-700">
           {decision === "reload"
             ? "Data terbaru akan menggantikan draft yang belum disimpan."
-            : "Lanjutkan mengedit atau buang perubahan sebelum menutup."}
+            : decision === "inventory"
+              ? "Lanjutkan mengedit atau buang perubahan sebelum membuka Inventori."
+              : "Lanjutkan mengedit atau buang perubahan sebelum menutup."}
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <button
@@ -783,12 +801,15 @@ function StockGroupWorkspaceDataFetcher({
             className="min-h-11 rounded-xl bg-blue-700 px-4 font-semibold text-white"
             onClick={() => {
               if (decision === "reload") void reload();
+              else if (decision === "inventory") window.location.assign("/inventory");
               else onClose();
             }}
           >
             {decision === "reload"
               ? "Buang draft dan muat ulang"
-              : "Buang perubahan"}
+              : decision === "inventory"
+                ? "Buang perubahan dan buka Inventori"
+                : "Buang perubahan"}
           </button>
         </div>
       </dialog>

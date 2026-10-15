@@ -113,6 +113,7 @@ expect(inventoryHtml).toContain("persetujuan");
 
 ## Status pelaksanaan 15 Oktober 2026
 
+- Perbaikan review akhir selesai: retry kegagalan detail awal mereset boundary TanStack dan React; tautan pengajuan ke `/inventory` memakai izin update serta akses halaman dan konfirmasi draft sebelum keluar. RED browser mencakup GET yang menghabiskan retry lalu dipulihkan dan tautan yang belum tersedia. GREEN: fixture workspace lengkap, tujuh regresi konversi lama, 72 tes fitur, direct web tsc, dan ESLint (nol error, lima peringatan console fixture). Scoped re-review serta suite menyeluruh akhir masih menunggu controller.
 - Task 1 selesai pada `c9eb015` dan review disetujui.
 - Task 2 selesai pada `c9b158e`, diperbaiki melalui `5963f83` dan `bfef143`; review menyatakan temuan penting telah ditangani. 72 tes fitur serta fixture browser workspace lulus sebelum Task 3.
 - Task 3 implementasi selesai: izin entry, penjelasan Inventori, Bantuan tiga role, katalog workflow, dan regresi formatter konversi kecil. RED tercatat sebelum implementasi. Browser pembuatan/penggabungan, 93 tes terarah di luar HelpContent dan 23 tes HelpContent terbaru, type-check, dan ESLint lulus; katalog terbaru diuji ulang 18/18 lulus. Dua tes rendering visual luas melewati timeout saat suite lain berjalan. Review controller dan suite menyeluruh masih diproses; lihat laporan task dan `grup-stok-ui-ux-implementation-2026-10-15.md`.

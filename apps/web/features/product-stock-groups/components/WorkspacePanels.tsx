@@ -342,6 +342,15 @@ export function SummaryPanel(
             Untuk menambah atau mengurangi stok melalui pengajuan, gunakan
             Inventori dan proses persetujuan yang tersedia.
           </p>
+          {props.canRequestStockChange && (
+            <a
+              href="/inventory"
+              onClick={props.onInventoryNavigate}
+              className="inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-blue-700 focus-visible:outline-blue-600"
+            >
+              Ajukan perubahan stok di Inventori
+            </a>
+          )}
         </div>
       )}
     </section>

@@ -166,6 +166,8 @@ Tidak menjalankan `pnpm build`. Pengguna mengelola lifecycle dev server sesuai A
 
 ## Catatan pemeriksaan spesifikasi
 
+Status perbaikan review 15 Oktober 2026: aksi **Coba lagi** telah diuji setelah kegagalan awal GET menghabiskan retry, lalu berhasil memuat workspace saat server pulih. Tautan **Ajukan perubahan stok di Inventori** memakai `/inventory`, izin update dan akses halaman yang tersedia, serta keputusan buang draft sebelum keluar. Fixture browser dan 72 tes fitur lulus bersama direct web tsc dan ESLint (nol error). Pernyataan ini mencakup pemeriksaan terarah; scoped re-review dan hasil suite menyeluruh akhir tetap dicatat oleh controller.
+
 Spesifikasi telah diperiksa terhadap keputusan pengguna, kontrak API sumber, dan cakupan. Tidak ada perubahan kode aplikasi pada tahap desain. Daftar kriteria penerimaan mengikat rencana implementasi, bukan klaim hasil pengujian yang sudah lulus.
 
 Headroom MCP tidak tersedia pada eksplorasi awal; pembacaan dibatasi per bagian. Tool tersedia kembali saat penulisan spesifikasi dan statistik sesi dipanggil. GitNexus context menemukan workspace; pencarian konsep mengalami degradasi karena FTS tidak tersedia. Analisis dampak mutakhir diperlukan sebelum implementasi.

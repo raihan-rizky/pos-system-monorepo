@@ -20,6 +20,10 @@ Formatter preview memakai ketelitian adaptif untuk angka kecil bukan nol. Kasus 
 
 ## Verifikasi dan review
 
+Perbaikan review akhir 15 Oktober: **Coba lagi** pada kegagalan awal detail kini mereset boundary query TanStack bersama boundary React. Regresi browser menghabiskan dua retry GET (tiga permintaan gagal), memulihkan respons server, lalu memastikan klik mengirim GET keempat dan membuka workspace asli. Tautan **Ajukan perubahan stok di Inventori** menuju `/inventory`, hanya diteruskan bagi izin update inventori dan akses halaman tersebut. Draft yang belum disimpan meminta keputusan sebelum navigasi; **Lanjutkan mengedit** mempertahankan input, sedangkan **Buang perubahan dan buka Inventori** melanjutkan navigasi.
+
+Kedua regresi browser gagal sebelum perbaikan pada titik yang diharapkan (workspace tidak muncul setelah retry, tautan Inventori belum ada). Setelah perbaikan, fixture workspace lengkap lulus, termasuk izin tautan, navigasi bersih, pembatalan dan konfirmasi draft, tujuh regresi konversi sebelumnya, riwayat, keyboard, serta pemeriksaan mobile/desktop. Sebanyak 72 tes fitur di 12 berkas lulus; direct web TypeScript lulus dan ESLint untuk empat berkas berubah menghasilkan nol error serta lima peringatan console fixture. Ini adalah hasil pemeriksaan terarah; scoped re-review dan suite menyeluruh akhir tetap dimiliki controller, tanpa klaim kelulusan suite tersebut.
+
 - Task 1: commit `c9eb015`, review disetujui.
 - Task 2: `c9b158e`, perbaikan `5963f83` dan `bfef143`; review menemukan semua temuan penting telah ditangani. Sebelum Task 3, 72 tes fitur dan fixture browser workspace lulus, termasuk guard selama refresh, retry, dan pembukaan ulang setelah gagal.
 - Task 3 RED: lima kegagalan pada pemeriksaan izin, katalog, Bantuan OWNER/ADMIN, dan penjelasan Inventori, dengan 38 tes lain lulus. Browser asli mereproduksi konversi kecil yang dibulatkan ke nol. RED tambahan role INVENTORY: satu gagal, 22 lulus sebelum panduannya diselaraskan.
