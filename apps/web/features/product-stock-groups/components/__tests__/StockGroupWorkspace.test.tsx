@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import {
   buildUnitManagementDraft,
@@ -157,22 +158,24 @@ describe("StockGroupWorkspaceContent", () => {
       />,
     );
     const history = renderToStaticMarkup(
-      <StockGroupWorkspaceContent
-        detail={detail}
-        canUpdateStock={true}
-        sharedStock="10"
-        stockInputMode="BASE"
-        stockVariantProductId="rim"
-        note=""
-        isSaving={false}
-        activeTab="history"
-        onClose={() => undefined}
-        onSharedStockChange={() => undefined}
-        onStockInputModeChange={() => undefined}
-        onStockVariantProductIdChange={() => undefined}
-        onNoteChange={() => undefined}
-        onSaveSharedStock={() => undefined}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <StockGroupWorkspaceContent
+          detail={detail}
+          canUpdateStock={true}
+          sharedStock="10"
+          stockInputMode="BASE"
+          stockVariantProductId="rim"
+          note=""
+          isSaving={false}
+          activeTab="history"
+          onClose={() => undefined}
+          onSharedStockChange={() => undefined}
+          onStockInputModeChange={() => undefined}
+          onStockVariantProductIdChange={() => undefined}
+          onNoteChange={() => undefined}
+          onSaveSharedStock={() => undefined}
+        />
+      </QueryClientProvider>,
     );
     const saving = renderToStaticMarkup(
       <StockGroupWorkspaceContent
@@ -206,20 +209,21 @@ describe("StockGroupWorkspaceContent", () => {
     );
 
     expect(summary).toContain("Ringkasan");
-    expect(summary).toContain("Unit Management");
-    expect(summary).toContain("Harga &amp; Margin");
-    expect(summary).toContain("Tambah Varian");
-    expect(summary).toContain("Riwayat Aktivitas");
-    expect(summary).toContain("Konversi Saat Ini");
+    expect(summary).toContain("persediaan yang sama");
+    expect(summary).toContain("Tetapkan stok akhir");
+    expect(summary).toContain("Tambah satuan");
+    expect(summary).toContain("Riwayat");
+    expect(summary).toContain("Konversi satuan");
     expect(summary).toContain("1 dus = 5 rim");
-    expect(unitManagement).toContain("Unit terkecil/base");
-    expect(unitManagement).toContain("Pair conversion");
-    expect(unitManagement).toContain("Stok setelah simpan");
+    expect(unitManagement).toContain("Satuan acuan");
+    expect(unitManagement).toContain("Pengaturan lanjutan");
+    expect(unitManagement).toContain("Stok sesudah");
     expect(pricing).toContain("Margin");
-    expect(addVariant).toContain("Tambahkan varian baru");
-    expect(addVariant).toContain("Unit sudah ada");
-    expect(history).toContain("Riwayat Aktivitas Grup");
+    expect(addVariant).toContain("Tambah satuan");
+    expect(addVariant).toContain("Stok dari grup");
+    expect(addVariant).toContain("Satuan sudah ada");
+    expect(history).toContain("Riwayat grup");
     expect(saving).toContain("Menambahkan varian baru...");
-    expect(saving).toContain("Menambahkan varian...");
+    expect(saving).toContain("Tambah satuan");
   });
 });

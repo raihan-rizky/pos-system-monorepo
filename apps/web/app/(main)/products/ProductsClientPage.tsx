@@ -205,7 +205,7 @@ function StatCard({
 export default function ProductsClientPage() {
   const [pricingCustomerType, setPricingCustomerType] = useState<CustomerType>("UMUM");
   const { data: categoryPricingRules = [] } = useCustomerCategoryPricingRules({ activeOnly: true });
-  const { canPerform, role } = useRole();
+  const { canPerform, canAccess, role } = useRole();
   const canCreateProducts = shouldShowAction("product", "create", canPerform);
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
   const canUpdateInventory = shouldShowUpdateAction("inventory", canPerform);
@@ -1126,6 +1126,9 @@ export default function ProductsClientPage() {
             stockGroupId={stockGroupId}
             onClose={() => setStockGroupId(null)}
             canUpdateStock={canUpdateInventory}
+            canRequestStockChange={canUpdateInventory && canAccess("/inventory")}
+            canUpdateProducts={canUpdateProducts}
+            canCreateProducts={canCreateProducts}
             onSaved={() => {
               productsQuery.refetch();
               statsQuery.refetch();
@@ -1190,12 +1193,12 @@ export default function ProductsClientPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {canUpdateProducts && selectedProductIds.size >= 2 && (
+              {canUpdateProducts && canUpdateInventory && selectedProductIds.size >= 2 && (
                 <button
                   onClick={() => setIsBulkStockGroupOpen(true)}
                   className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white"
                 >
-                  Grup Stok
+                  Buat atau gabungkan grup stok
                 </button>
               )}
               <button

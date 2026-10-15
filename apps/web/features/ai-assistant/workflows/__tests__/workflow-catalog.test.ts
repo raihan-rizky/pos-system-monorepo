@@ -4,6 +4,20 @@ import { readFileSync } from "node:fs";
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
+  it("guides stock-group creation and direct updates separately from inventory approval", () => {
+    const group = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 5)!;
+    const instructions = group.steps.map(step => `${step.title} ${step.description}`).join(" ");
+    expect(group.requiredCapabilities).toEqual(expect.arrayContaining([
+      { resource: "product", action: "update" },
+      { resource: "inventory", action: "update" },
+    ]));
+    for (const label of ["Buat atau gabungkan grup stok", "Tujuan grup", "Satuan dan stok", "Tinjau dan simpan", "Tetapkan stok akhir", "langsung", "persetujuan", "HPP belum diisi", "Tambah satuan", "Riwayat"]) {
+      expect(instructions).toContain(label);
+    }
+    expect(instructions).toContain("tidak dijumlahkan");
+    expect(instructions).toContain("satuan acuan grup tujuan tetap");
+    expect(instructions).not.toContain("menu import");
+  });
   it("guides one approval from Daftar Belanja and keeps the old purchase route within it", () => {
     const shopping = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19);
     const purchase = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 38);

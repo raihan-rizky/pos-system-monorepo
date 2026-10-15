@@ -3,6 +3,18 @@ import { describe, expect, it } from 'vitest';
 import HelpContent, { HELP_ROLE_CONTENT } from '../components/HelpContent';
 
 describe('HelpContent', () => {
+  it.each(['OWNER', 'ADMIN', 'INVENTORY'])('guides the current stock-group stages and permissions for %s', (role) => {
+    const guide = HELP_ROLE_CONTENT[role].find(item => item.id === `${role.toLowerCase()}-stock-group`)!;
+    const text = guide.steps.map(step => `${step.title} ${step.description}`).join(' ');
+    for (const label of ['Buat atau gabungkan grup stok', 'Tujuan grup', 'Satuan dan stok', 'Tinjau dan simpan', 'Tetapkan stok akhir', 'langsung', 'persetujuan', 'HPP belum diisi', 'Tambah satuan', 'Riwayat', 'product.update', 'inventory.update']) {
+      expect(text).toContain(label);
+    }
+    expect(text).toContain('tidak dijumlahkan');
+    expect(text).toContain('satuan acuan grup tujuan tetap');
+    expect(text).not.toContain('Atur Grup Stok');
+    expect(guide.steps[0].visual?.target).toBe('products-table');
+    expect(guide.steps[5].visual?.page).toBe('inventory');
+  });
   it.each(['OWNER', 'ADMIN'])('explains the product unit filter for %s', (role) => {
     const descriptions = HELP_ROLE_CONTENT[role].flatMap(guide => guide.steps.map(step => step.description)).join(' ');
     expect(descriptions).toContain("pilih 'Satuan'");
@@ -138,11 +150,11 @@ describe('HelpContent', () => {
     );
 
     expect(html).toContain('Update Stok');
-    expect(html).toContain('Banyak Produk (Bulk)');
+    expect(html).toContain('Banyak Produk (Massal)');
     expect(html).toContain('Cari produk');
     expect(html).toContain('Stok Bersama');
     expect(html).toContain('Stok Produk Ini');
-    expect(html).toContain('Pilih satu produk saja per grup stok');
+    expect(html).toContain('pilih satu produk saja per grup stok');
   });
 
   it('documents the bulk product price and HPP mapping safeguard', () => {

@@ -276,7 +276,10 @@ export const StockGroupBulkPanel: React.FC<StockGroupBulkPanelProps> = ({
             Update Stok Massal
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Cari produk, pilih mode stok, lalu ajukan perubahan untuk direview owner.
+            Cari produk, pilih mode stok, lalu ajukan perubahan untuk persetujuan owner.
+            Stok Bersama memakai persediaan fisik yang sama untuk semua satuan dalam grup.
+            Stok Produk Ini hanya membuat log produk tersebut dan tidak mengubah stok grup.
+            Pengajuan di sini menunggu persetujuan, termasuk Set stok akhir.
           </p>
         </div>
         {isPreviewing && (

@@ -2,7 +2,7 @@
 
 Tanggal: 13 Oktober 2026 (Asia/Jakarta)
 
-Status: rancangan percakapan disetujui; spesifikasi tertulis siap ditinjau pengguna sebelum rencana implementasi.
+Status per 15 Oktober 2026: spesifikasi dan rencana disetujui; Task 1 dan Task 2 selesai beserta perbaikan hasil review. Implementasi Task 3 dan perbaikan review selesai. Review akhir dan scoped re-review disetujui; suite final lulus dengan 2.580 tes, 10 dilewati, exit 0. Lihat `grup-stok-ui-ux-implementation-2026-10-15.md` untuk hasil dan batas verifikasi.
 
 ## Tujuan dan keputusan yang disepakati
 
@@ -55,6 +55,8 @@ Jika grup tujuan gagal dimuat, tampilkan error dan Coba lagi; jangan mengartikan
 Saat sumber stok atau tujuan berubah, hitung ulang konversi dan preview dari pilihan terbaru. Jangan mempertahankan angka yang kini memiliki arti satuan berbeda tanpa memperbaruinya. Konflik satuan ditampilkan pada anggota terkait, termasuk anggota grup tujuan.
 
 Untuk grup yang sudah ada, tinjauan menggunakan anggota lama dan produk terpilih, dengan aturan penyelesaian konversi yang sama seperti server. Bila konversi belum dapat menghubungkan semua anggota secara valid, blokir simpan dan jelaskan hubungan satuan yang belum lengkap. Jangan menampilkan perkiraan stok yang seolah sudah pasti.
+
+Penyesuaian implementasi sesuai kontrak endpoint: saat bergabung ke grup yang ada, sumber stok dikunci pada anggota aktif dengan satuan acuan grup dan pengali 1. Satuan acuan grup tujuan tetap. Jika anggota acuan yang valid tidak tersedia, tinjauan diblokir dan pengguna diminta memeriksa acuan terlebih dahulu. Pemilihan sumber bebas hanya berlaku pada grup baru; ini mencegah preview berbeda dari normalisasi server tanpa mengubah aturan bisnis.
 
 Peringatan perubahan stok muncul hanya bila preview menunjukkan perubahan. Produk yang sebelumnya ada dalam grup lain diberi keterangan perpindahan yang sesuai data. Keputusan terakhir tetap divalidasi server untuk menangani perubahan bersamaan.
 
@@ -163,6 +165,8 @@ Jalankan tes fitur terkait, lint, dan type-check yang sesuai. Uji interaksi desk
 Tidak menjalankan `pnpm build`. Pengguna mengelola lifecycle dev server sesuai AGENTS.md. Gunakan server dev yang tersedia untuk verifikasi UI; bila belum tersedia, nyatakan bahwa verifikasi browser belum selesai tanpa mengklaim UI telah teruji.
 
 ## Catatan pemeriksaan spesifikasi
+
+Status perbaikan review 15 Oktober 2026: aksi **Coba lagi** telah diuji setelah kegagalan awal GET menghabiskan retry, lalu berhasil memuat workspace saat server pulih. Tautan **Ajukan perubahan stok di Inventori** memakai `/inventory`, izin update dan akses halaman yang tersedia, serta keputusan buang draft sebelum keluar. Fixture browser dan 72 tes fitur lulus bersama direct web tsc dan ESLint (nol error). Pernyataan ini mencakup pemeriksaan terarah; scoped re-review dan hasil suite menyeluruh akhir tetap dicatat oleh controller.
 
 Spesifikasi telah diperiksa terhadap keputusan pengguna, kontrak API sumber, dan cakupan. Tidak ada perubahan kode aplikasi pada tahap desain. Daftar kriteria penerimaan mengikat rencana implementasi, bukan klaim hasil pengujian yang sudah lulus.
 
