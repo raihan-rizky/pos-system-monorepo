@@ -286,7 +286,6 @@ export default function POSClientPage({
   const addCartItem = cart.addItem;
   const openProductCart = useCallback(() => {
     setIsDesktopCartOpen(true);
-    setIsCartOpen(true);
   }, []);
   const addProductToCart = useCallback(
     (product: Product, variantId?: string) => {

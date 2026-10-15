@@ -50,11 +50,14 @@ export function groupProductsByNameAndCategory(
     if (variants.length === 0) continue;
 
     const defaultVariant = selectDefaultVariant(variants);
+    const description = defaultVariant.description?.trim()
+      ? defaultVariant.description
+      : variants.find((variant) => variant.description?.trim())?.description ?? null;
 
     merged.push({
       ...variants[0], // Copy base product info from first variant
       id: defaultVariant.id, // Use default variant ID as group ID
-      description: defaultVariant.description,
+      description,
       sku: defaultVariant.sku,
       price: defaultVariant.price,
       costPrice: defaultVariant.costPrice,
@@ -77,7 +80,7 @@ export function groupProductsByNameAndCategory(
       },
       variants: variants.map((v) => ({
         id: v.id,
-        description: v.description,
+        description,
         unit: v.unit,
         price: v.price,
         costPrice: v.costPrice,

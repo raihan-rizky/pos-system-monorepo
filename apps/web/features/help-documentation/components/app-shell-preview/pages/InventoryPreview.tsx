@@ -45,7 +45,7 @@ export function InventoryPreview(ctx: PreviewContext) {
         <PreviewHeader eyebrow="Manajemen Inventaris" title="Inventaris" subtitle="Pusat kendali stok, tugas gudang, transaksi, dan verifikasi harian." icon={Package} tone="violet" />
 
         <GuideTarget ctx={ctx} target="inventory-day-session" className="mt-5 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <div><p className="text-sm font-black text-emerald-950">Sesi Gudang Hari Ini</p><p className="mt-1 text-xs text-emerald-700">Check in 08:02 · Check out belum dilakukan</p></div><span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">Sedang aktif</span>
+          <div><p className="text-sm font-black text-emerald-950">Check Out Inventaris</p><p className="mt-1 text-xs text-emerald-700">Kerjakan tugas harian, lalu periksa ringkasan sebelum menutup hari.</p></div><span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">Belum ditutup</span>
         </GuideTarget>
 
         <GuideTarget ctx={ctx} target="inventory-tabs" className="mt-5 flex gap-2 rounded-2xl bg-slate-100 p-1.5" data-help-active-tab={view.tab}>

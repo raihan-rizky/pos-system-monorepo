@@ -56,6 +56,7 @@ import {
 } from "@/features/invoice-date/helpers/history-invoice-date-display";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { displayTransactionNote } from "./helpers/transaction-note";
+import { PaymentTermsBadge } from "@/features/customer-debt/components/PaymentTermsBadge";
 import { useCategories } from "@/hooks/useProducts";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { Button } from "@pos/ui";
@@ -572,7 +573,17 @@ function InvoiceDateEditModal({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, tx }: { status: string; tx: Transaction }) {
+  if (tx.paymentMethod === "TEMPO" && (status === "COMPLETED" || status === "DP")) {
+    return (
+      <PaymentTermsBadge
+        status={status}
+        paymentMethod={tx.paymentMethod}
+        total={Number(tx.total)}
+        amountPaid={Number(tx.amountPaid)}
+      />
+    );
+  }
   if (status === "DRAFT") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
@@ -1487,7 +1498,7 @@ export default function HistoryClientPage() {
                               </div>
                             </td>
                             <td className="py-3.5 px-4">
-                              <StatusBadge status={isPending ? "PENDING_APPROVAL" : tx.status} />
+                              <StatusBadge tx={tx} status={isPending ? "PENDING_APPROVAL" : tx.status} />
                             </td>
                             <td
                               className="py-3.5 px-4 text-right"
@@ -1660,7 +1671,7 @@ export default function HistoryClientPage() {
                               </p>
                             )}
                           </div>
-                          <StatusBadge status={isPending ? "PENDING_APPROVAL" : tx.status} />
+                          <StatusBadge tx={tx} status={isPending ? "PENDING_APPROVAL" : tx.status} />
                         </div>
 
                         <div className="flex flex-col gap-1 mb-4">

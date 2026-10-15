@@ -204,17 +204,14 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 8. Klik **Setujui dan Catat Pembelian** sekali. Daftar dan Pembelian Barang langsung disetujui, lalu satu **Pengeluaran kategori Bahan** dibuat. Stok baru berubah setelah Penerimaan Barang disetujui.
 9. Pemegang izin `supplier.goods_purchase.reject:update` dapat menolak seluruh daftar dengan alasan. Penolakan tidak membuat Pembelian Barang atau Pengeluaran.
 
-### Q28: Bagaimana cara melakukan Check In dan Check Out (Day Session) bagi Staf Gudang?
-**A:** Staf gudang wajib mengelola operasional harian melalui alur sesi (Day Session):
-1. **Buka Sesi (Check In):** Buka halaman **Inventaris** (`/inventory`). Di awal hari kerja, halaman ini akan meminta Anda melakukan **Check In (Morning Check)**. Anda perlu mengisi formulir Morning Check yang mencakup:
-   - Meninjau risiko stok menipis/habis.
-   - Mengisi jumlah fisik dari **Bahan Produksi Utama** (Key Production Materials) yang terhitung di gudang.
-   - Mencentang daftar kepatuhan area kerja & keselamatan (**Workspace & Safety**).
-   Setelah formulir lengkap, geser tombol konfirmasi untuk masuk kerja. Tab **Tugas** akan terbuka setelah Check In selesai.
-2. **Tutup Sesi (Check Out):** Di akhir hari kerja, buka kembali ringkasan sesi di halaman **Inventaris**, lalu klik **Check Out**.
-   - Sistem akan memvalidasi apakah semua Tugas Harian (seperti penyesuaian stok atau verifikasi log) sudah selesai.
-   - Pada hari Sabtu, Anda juga diwajibkan mengunggah berkas **Proof Kebersihan** (Tugas Mingguan) sebelum bisa menutup sesi.
-   - Check Out akan mencatat ringkasan (snapshot) pekerjaan hari tersebut ke dalam riwayat. Riwayat sesi dapat dipantau di tab **Riwayat > Riwayat Tugas Harian** (sub-tab **Check Out**).
+### Q28: Bagaimana cara melakukan Check Out bagi staf gudang?
+**A:** Tugas inventaris langsung tersedia sesuai izin akun. Di akhir hari, gunakan Check Out untuk menyimpan ringkasan pekerjaan:
+1. Buka **Inventaris > Tugas** dan kerjakan tugas harian serta mingguan.
+2. Klik **Check Out** pada panel penutupan hari di halaman Inventaris.
+3. Periksa ringkasan pergerakan stok, status dokumen, dan tugas wajib. Selesaikan tugas wajib atau isi alasan pengecualian per kategori yang belum selesai.
+4. Pada hari Sabtu (Asia/Jakarta), **Proof Kebersihan** termasuk tugas wajib; isi alasan pengecualian bila belum selesai.
+5. Klik **Tutup Hari**. Sesi untuk toko dan tanggal bisnis tersebut otomatis dibuat atau diperbarui setelah validasi berhasil.
+6. Buka **Riwayat > Riwayat Tugas Harian** untuk membaca snapshot Check Out.
 
 ### Q29: Bagaimana cara melakukan marking pada Surat Jalan (Delivery Order)?
 **A:** Alur marking menggantikan verifikasi Surat Jalan untuk pencatatan internal gudang:

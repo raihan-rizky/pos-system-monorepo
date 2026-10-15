@@ -435,6 +435,13 @@ export async function PUT(
         },
       });
 
+      if (validatedData.description !== undefined) {
+        await tx.product.updateMany({
+          where: { storeId, stockGroupId: group.id },
+          data: { description: validatedData.description },
+        });
+      }
+
       const priceLogEntries = buildProductPriceLogEntries({
         productId: updated.id,
         storeId,

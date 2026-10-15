@@ -71,6 +71,29 @@ describe("inventory day session service", () => {
     expect(dbReadTracker.maxActiveReads).toBeLessThanOrEqual(3);
   });
 
+  it("evaluates all operational tasks without loading a morning check", async () => {
+    dbMock.inventoryDaySession.findUnique.mockResolvedValue(null);
+    dbMock.inventoryTask.findUnique.mockResolvedValue({ status: "PENDING" });
+    dbMock.inventoryLog.count.mockResolvedValue(1);
+    dbMock.inventoryTaskChecklistItem.count.mockResolvedValue(1);
+    dbMock.suratJalan.count.mockResolvedValue(1);
+    const completion = await buildInventoryDayCompletion("store-main", "2026-07-04", new Date("2026-07-04T03:00:00Z"));
+    expect(completion.tasks.map((task) => task.id)).toEqual([
+      "daily-matching", "out-log-verification", "damaged-reports", "manual-checklist", "surat-jalan-marking", "weekly-proof",
+    ]);
+    expect(completion.tasks.every((task) => task.required && !task.completed)).toBe(true);
+    expect(completion.blockers).toHaveLength(6);
+    expect(dbMock.inventoryDaySession.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("keeps weekly proof optional outside Saturday and recognizes completed operational tasks", async () => {
+    dbMock.inventoryTask.findUnique.mockImplementation(async ({ where }) => ({ status: where.storeId_type_periodKey.type === "DAILY_STOCK_MATCHING" ? "SUBMITTED" : "PENDING" }));
+    const completion = await buildInventoryDayCompletion("store-main", "2026-07-03", new Date("2026-07-03T03:00:00Z"));
+    expect(completion.blockers).toEqual([]);
+    expect(completion.tasks.find((task) => task.id === "weekly-proof")).toMatchObject({ required: false, completed: false });
+    expect(completion.tasks.filter((task) => task.required).every((task) => task.completed)).toBe(true);
+  });
+
   it("limits checkout snapshot database reads to the Prisma pool size", async () => {
     await buildInventoryCheckOutSnapshot({
       storeId: "store-main",

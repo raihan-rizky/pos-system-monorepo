@@ -200,7 +200,6 @@ export async function buildInventoryDayCompletion(
   const weekKey = jakartaWeekKey(now);
   const isSaturday = isJakartaSaturday(now);
   const [
-    session,
     dailyMatching,
     unverifiedOutLogs,
     damagedReportsPending,
@@ -208,7 +207,6 @@ export async function buildInventoryDayCompletion(
     unmarkedSuratJalan,
     weeklyProof,
   ] = await runWithConcurrencyLimit(PRISMA_READ_CONCURRENCY_LIMIT, [
-    () => loadInventoryDaySession(storeId, dateKey),
     () => db.inventoryTask.findUnique({
       where: {
         storeId_type_periodKey: {
@@ -254,12 +252,6 @@ export async function buildInventoryDayCompletion(
   ] as const);
 
   const tasks = [
-    {
-      id: "morning-check",
-      label: "Morning Check selesai",
-      completed: session?.status === "CHECKED_IN" || session?.status === "CHECKED_OUT",
-      required: true,
-    },
     {
       id: "daily-matching",
       label: "Matching stok harian tersubmit",

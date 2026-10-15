@@ -18,6 +18,18 @@ describe("FAQ workflow catalog", () => {
     expect(instructions).toContain("satuan acuan grup tujuan tetap");
     expect(instructions).not.toContain("menu import");
   });
+  it("guides inventory work directly to tasks and check-out without check-in", () => {
+    const daySession = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 28);
+    expect(daySession?.id).toBe("faq-q28-inventory-day-session");
+    expect(daySession?.title).toBe("Bagaimana cara melakukan Check Out bagi staf gudang?");
+    expect(JSON.stringify(daySession?.steps)).toContain("Tugas");
+    expect(JSON.stringify(daySession?.steps)).toContain("alasan pengecualian");
+    expect(JSON.stringify(daySession?.steps)).toContain("Riwayat Tugas Harian");
+    for (const workflow of FAQ_WORKFLOWS.filter((entry) => entry.route === "/inventory")) {
+      expect(JSON.stringify(workflow.steps)).not.toMatch(/check\s*in|morning check/i);
+    }
+  });
+
   it("guides one approval from Daftar Belanja and keeps the old purchase route within it", () => {
     const shopping = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19);
     const purchase = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 38);

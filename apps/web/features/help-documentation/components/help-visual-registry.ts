@@ -172,7 +172,7 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
           { key: "inventory-tabs", label: "Tab Ringkasan / Riwayat" },
           { key: "inventory-input-menu", label: "Input / Transaksi" },
           { key: "inventory-update-stock", label: "Update Stok" },
-          { key: "inventory-day-session", label: "Check In / Check Out" },
+          { key: "inventory-day-session", label: "Check Out" },
           { key: "inventory-tasks", label: "Tugas Harian" },
         ],
       },

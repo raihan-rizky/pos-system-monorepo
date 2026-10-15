@@ -1,28 +1,27 @@
-# Inventory Check In / Check Out
+# Inventory Check Out
 
-## Understanding
+Updated: 2026-10-14
 
-- Inventory Check In / Check Out is a per-store, per-day workflow for stationary and printing operations.
-- Before check-in is completed, the `Tugas` tab is blocked with a check-in prompt.
-- Morning Check includes stock-risk review, counted key production materials, and Workspace & Safety checks.
-- Key production materials use a hybrid model: auto-suggest from printing raw-material usage, with owner/admin pinning as a later extension.
-- Check-out requires daily work completion. Weekly proof is optional except on Saturday in Asia/Jakarta business time.
-- Check-out records a day/shift summary and `Riwayat Tugas Harian` shows daily session history with internal **Check In** and **Check Out** tabs.
-- **Riwayat Check-Out** uses expandable rows to summarize what happened that day from the stored checkout snapshot.
+## Workflow
 
-## Assumptions
+- Inventory staff can access daily and weekly tasks directly, using existing permissions.
+- The inventory page no longer displays Check In, Morning Check, task locks, or a Check In history tab.
+- Check Out closes one operational day per store, using the Asia/Jakarta business date.
+- Required tasks must be complete or have a non-empty exception note for each unfinished category. Weekly cleaning proof is required on Saturdays and optional on other days.
+- A successful check-out creates or updates the store-day session with the operator, closure time, and operational snapshot. Failed validation writes no session data.
+- No check-in identity, timestamp, or Morning Check snapshot is fabricated for new sessions.
 
-- Other inventory tabs remain accessible before check-in.
-- The first implementation ships with default Workspace & Safety items and product suggestions from existing data.
-- The session snapshot is sufficient for audit/history even if product stock changes later.
-- Check-out history should read stored `checkOutSnapshot` data instead of recomputing old days from current task/stock state.
-- Owner/admin customization of safety items and pinned materials can be added later without changing the store-day session model.
+## History and compatibility
 
-## Decision Log
+- Riwayat Tugas Harian displays check-out records directly, with expandable summaries from stored checkOutSnapshot data.
+- Existing check-in fields and snapshots remain stored. Older CHECKED_IN and NOT_CHECKED_IN sessions can use the new check-out flow.
+- Legacy Morning Check details can still be read from older check-out snapshots.
+- The old check-in API remains available for compatibility; the inventory page no longer calls it.
+- No database migration or stock mutation is required.
 
-- Store/day session model was chosen over per-user sessions because the user wants one operational inventory day per store.
-- `Tugas` is the only blocked area to avoid stopping urgent stock or approval work.
-- Morning Check stores counted material entries and acknowledgement snapshots instead of mutating stock automatically.
-- Saturday weekly proof is treated as required for check-out; other days keep it visible but optional.
-- The UI includes an animated progress bar during Morning Check.
-- Check-out history stays inside `Riwayat Tugas Harian` as an internal tab beside Check In history to avoid adding another top-level inventory tab.
+## Validation
+
+- Workspace tests cover direct access without a loaded session and an unlocked daily command center.
+- Panel tests cover check-out without a prior session, closed days, loading, and fetch errors.
+- Route and service tests cover validation before upsert, task-specific exceptions, historical snapshots, remaining daily tasks, and Saturday proof rules.
+- Help and workflow tests ensure instructions guide users directly to tasks and check-out.

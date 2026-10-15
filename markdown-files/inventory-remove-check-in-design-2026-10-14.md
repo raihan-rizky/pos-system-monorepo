@@ -1,7 +1,7 @@
 # Penghapusan Check In Inventaris
 
 Tanggal: 2026-10-14
-Status: Pilihan rancangan 1 disetujui; spesifikasi tertulis menunggu tinjauan pengguna sebelum implementasi.
+Status: Pilihan 1 dan spesifikasi tertulis disetujui; implementasi selesai. Hasil validasi tersedia pada inventory-remove-check-in-2026-10-14.md.
 
 ## Tujuan dan cakupan
 
@@ -56,6 +56,6 @@ Hapus fitur Check In dari halaman Inventaris. Pengguna dengan izin inventaris da
 
 ## Tinjauan spesifikasi
 
-Rancangan mengikuti pilihan 1 yang disetujui: check-in dihapus dari alur halaman, tugas langsung tersedia, check-out dipertahankan, dan data historis disimpan. Tidak ada penambahan fitur atau perubahan stok. Implementasi belum dimulai dan belum ada pengujian yang dijalankan.
+Rancangan mengikuti pilihan 1 yang disetujui: check-in dihapus dari alur halaman, tugas langsung tersedia, check-out dipertahankan, dan data historis disimpan. Implementasi telah selesai dengan regresi UI, layanan, API, dan panduan yang lulus. Tidak ada penambahan fitur atau perubahan stok.
 
 Pemeriksaan antislop diusulkan selama implementasi, mengikuti tampilan komponen yang sudah ada tanpa perancangan ulang halaman.

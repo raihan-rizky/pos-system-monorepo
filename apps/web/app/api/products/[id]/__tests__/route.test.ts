@@ -176,6 +176,10 @@ describe("PUT /api/products/[id]", () => {
       where: { id: "product-1" }, data: expect.objectContaining({ description }),
     }));
     expect((await response.json()).description).toBe(description);
+    expect(productUpdateManyMock).toHaveBeenCalledWith({
+      where: { storeId: "store-main", stockGroupId: "stock-group-1" },
+      data: { description },
+    });
   });
 
   it("writes price and HPP change logs with the manual note", async () => {

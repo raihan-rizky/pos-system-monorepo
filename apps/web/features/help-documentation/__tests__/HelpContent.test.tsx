@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import HelpContent, { HELP_ROLE_CONTENT } from '../components/HelpContent';
+import { HELP_VISUAL_PAGE_CONFIG } from '../components/help-visual-registry';
 
 describe('HelpContent', () => {
   it.each(['OWNER', 'ADMIN', 'INVENTORY'])('guides the current stock-group stages and permissions for %s', (role) => {
@@ -15,6 +16,18 @@ describe('HelpContent', () => {
     expect(guide.steps[0].visual?.target).toBe('products-table');
     expect(guide.steps[5].visual?.page).toBe('inventory');
   });
+  it('labels the inventory closing panel as Check Out in visual guides', () => {
+    const target = HELP_VISUAL_PAGE_CONFIG.inventory.groups.flatMap(group => group.targets).find(entry => entry.key === 'inventory-day-session');
+    expect(target?.label).toBe('Check Out');
+  });
+  it('guides inventory staff to tasks and check-out without check-in', () => {
+    const content = JSON.stringify(HELP_ROLE_CONTENT.INVENTORY);
+    expect(content).not.toMatch(/check\s*in|morning check/i);
+    expect(content).toContain('langsung');
+    expect(content).toContain('Check Out');
+    expect(content).toContain('alasan pengecualian');
+  });
+
   it.each(['OWNER', 'ADMIN'])('explains the product unit filter for %s', (role) => {
     const descriptions = HELP_ROLE_CONTENT[role].flatMap(guide => guide.steps.map(step => step.description)).join(' ');
     expect(descriptions).toContain("pilih 'Satuan'");

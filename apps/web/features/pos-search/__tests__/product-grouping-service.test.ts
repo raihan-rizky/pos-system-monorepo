@@ -3,13 +3,22 @@ import type { Product } from '@/hooks/useProducts';
 import { groupProductsByNameAndCategory, selectDefaultVariant } from '../services/product-grouping-service';
 
 describe('ProductGroupingService', () => {
-  it('preserves the default description and each variant description independently', () => {
+  it('shares the product description across every unit', () => {
     const [group] = groupProductsByNameAndCategory([
       { id: 'pcs', name: 'Kertas', unit: 'pcs', stock: 1, description: 'Satu lembar', category: { id: 'paper' } },
       { id: 'rim', name: 'Kertas', unit: 'rim', stock: 20, description: 'Isi 500 lembar', category: { id: 'paper' } },
     ] as unknown as Product[]);
     expect(group.description).toBe('Isi 500 lembar');
-    expect(group.variants.map((variant) => variant.description)).toEqual(['Satu lembar', 'Isi 500 lembar']);
+    expect(group.variants.map((variant) => variant.description)).toEqual(['Isi 500 lembar', 'Isi 500 lembar']);
+  });
+
+  it('uses an existing description when the default unit has none', () => {
+    const [group] = groupProductsByNameAndCategory([
+      { id: 'dus', name: 'Acco', stock: 1, description: 'Acco plastik Joyko', category: { id: 'atk' } },
+      { id: 'pak', name: 'Acco', stock: 20, description: '  ', category: { id: 'atk' } },
+    ] as unknown as Product[]);
+    expect(group.description).toBe('Acco plastik Joyko');
+    expect(group.variants.every(v => v.description === group.description)).toBe(true);
   });
 
   it('keeps the base modal of each variant and the chosen default independently', () => {

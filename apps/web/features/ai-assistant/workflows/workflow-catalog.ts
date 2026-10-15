@@ -162,7 +162,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Pastikan shift aktif", description: "Buka shift kasir terlebih dahulu sebelum memproses transaksi." },
       { title: "Atur panel Kasir bila perlu", description: "Klik Ringkas panel atau Buka panel untuk mengatur ruang produk. Tarik pegangan bawah untuk mengubah tinggi panel, atau fokus ke pegangan lalu gunakan panah atas/bawah, Home, dan End. Klik Ukuran awal untuk mengembalikan tinggi otomatis. Pencarian dan filter tetap tersimpan selama panel diringkas." },
-      { title: "Pilih item dan satuan", description: "Cari produk atau layanan, pilih varian jika ada, lalu masukkan ke keranjang. Badge satuan terpilih di kanan badge kategori mengikuti varian yang dipilih. Satuan kecil tampil di kiri dan satuan besar di kanan. Saat kartu produk diklik atau produk ditambahkan, panel keranjang otomatis terbuka, termasuk setelah ditutup. Di ponsel, konfirmasi stok kosong diselesaikan terlebih dahulu sebelum keranjang ditampilkan." },
+      { title: "Pilih item dan satuan", description: "Cari produk atau layanan, pilih varian jika ada, lalu masukkan ke keranjang. Badge satuan terpilih di kanan badge kategori mengikuti varian yang dipilih. Satuan kecil tampil di kiri dan satuan besar di kanan. Di PC, saat kartu produk diklik atau produk ditambahkan, panel keranjang otomatis terbuka, termasuk setelah ditutup. Di ponsel, keranjang tidak terbuka otomatis; ketuk tombol Keranjang untuk membukanya. Konfirmasi stok kosong tetap diperlukan sebelum produk ditambahkan." },
       { title: "Edit cepat bila diperlukan", description: "Jika memiliki permission edit produk, aktifkan Edit Cepat di header keranjang. Ikon produk mengubah Nama/Kategori/Merek seluruh varian; ikon harga mengubah harga master varian atau Harga Khusus yang hanya berlaku untuk transaksi ini." },
       { title: "Periksa keranjang", description: "Pilih satuan langsung pada baris keranjang. Angka kuantitas tetap dan harga mengikuti satuan baru. Ketik jumlah bulat lebih dari nol atau gunakan tombol plus/minus, lalu klik Bayar." },
       { title: "Isi pembayaran", description: "Di modal Pembayaran, pilih pelanggan agar harga dan total mengikuti tipe pelanggan serta satuan yang dipilih. Pilih sales bila perlu, metode pembayaran, status Lunas, DP, atau Tempo/Tagihan, dan tipe transaksi. Tempo memerlukan pelanggan dan dicatat sebagai piutang dengan badge khusus. Tanggal default mengikuti waktu server dalam WIB; Owner/Admin dapat mengubahnya bila perlu." },
@@ -345,7 +345,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "clipboard-list",
     requiredCapabilities: [{ resource: "inventory", action: "update" }],
     steps: [
-      { title: "Buka tab Tugas", description: "Di halaman Inventaris, buka tab Tugas. Check In mungkin diperlukan lebih dulu." },
+      { title: "Buka tab Tugas", description: "Di halaman Inventaris, langsung buka tab Tugas untuk melihat pekerjaan harian dan mingguan." },
       { title: "Pilih tugas mingguan", description: "Temukan tugas seperti Proof Kebersihan Gudang." },
       { title: "Pilih gambar bukti", description: "Klik tugas atau tombol aksi, lalu unggah foto ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul sebagai fallback." },
       { title: "Submit tugas", description: "Cek pratinjau gambar, lalu klik Submit Proof agar tugas tercatat selesai." },
@@ -526,18 +526,18 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
   workflow({
     faqNumber: 28,
     slug: "inventory-day-session",
-    title: "Bagaimana cara melakukan Check In dan Check Out bagi staf gudang?",
-    aliases: ["check in inventaris", "check out inventaris", "day session gudang", "morning check"],
+    title: "Bagaimana cara melakukan Check Out bagi staf gudang?",
+    aliases: ["check out inventaris", "day session gudang", "tutup hari inventaris"],
     route: "/inventory",
     actionLabel: "Buka Inventaris",
     iconKey: "calendar-check",
     requiredCapabilities: [{ resource: "inventory", action: "update" }],
     steps: [
       { title: "Buka Inventaris", description: "Masuk ke halaman Inventaris pada awal hari kerja." },
-      { title: "Selesaikan Check In", description: "Isi Morning Check: risiko stok, hitung bahan produksi utama, dan checklist area kerja serta keselamatan." },
-      { title: "Kerjakan tugas harian", description: "Setelah Check In selesai, tab Tugas terbuka untuk pekerjaan harian inventaris." },
+      { title: "Kerjakan tugas harian", description: "Langsung buka tab Tugas untuk mengerjakan tugas harian dan mingguan inventaris." },
       { title: "Mulai Check Out", description: "Di akhir hari, buka ringkasan sesi dan klik Check Out." },
-      { title: "Penuhi syarat penutupan", description: "Pastikan tugas harian selesai. Pada Sabtu, pilih gambar bukti Proof Kebersihan untuk diunggah ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul." },
+      { title: "Penuhi syarat penutupan", description: "Periksa tugas wajib dan isi alasan pengecualian untuk kategori yang belum selesai. Pada Sabtu, Proof Kebersihan termasuk tugas wajib. Klik Tutup Hari untuk menyimpan ringkasan penutupan." },
+      { title: "Lihat riwayat penutupan", description: "Buka Riwayat > Riwayat Tugas Harian untuk membaca ringkasan Check Out yang tersimpan." },
     ],
   }),
   workflow({
@@ -598,7 +598,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { resource: "inventory.out_log.verify", action: "update" },
     ],
     steps: [
-      { title: "Verifikasi Log OUT Belum Diverifikasi", description: "Setelah Check In, buka tab Tugas lalu Tugas Harian dan klik Log OUT Belum Diverifikasi. Verifikasi ini mengecek kebenaran catatan Log OUT, bukan matching stok fisik." },
+      { title: "Verifikasi Log OUT Belum Diverifikasi", description: "Buka tab Tugas lalu Tugas Harian dan klik Log OUT Belum Diverifikasi. Verifikasi ini mengecek kebenaran catatan Log OUT, bukan matching stok fisik." },
       { title: "Beri keputusan Log OUT", description: "Klik Setujui jika catatan sudah benar. Klik Perlu Koreksi jika produk, qty, alasan, atau catatan perlu diperbaiki; baris berubah warna dan badge menjadi Perlu Koreksi." },
       { title: "Ajukan koreksi bila perlu", description: "Pada baris Perlu Koreksi, gunakan tombol Koreksi untuk mengisi data yang benar. Koreksi menunggu approval maker-checker sebelum baris siap dicek ulang dan disetujui." },
       { title: "Matching Stok Harian", description: "Pukul 15:00-20:00 WIB, buka Matching Stok Harian. Klik input Stok Gudang per baris; indikator hijau berarti sesuai, merah berarti selisih, dan kuning berarti belum valid. Baris selisih wajib memakai catatan sebelum Submit Matching." },

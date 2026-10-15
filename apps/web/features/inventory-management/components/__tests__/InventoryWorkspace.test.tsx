@@ -545,7 +545,7 @@ describe("InventoryWorkspace", () => {
     expect(html).not.toContain("Status Tugas Operasional");
   });
 
-  it("blocks the daily task work queue until inventory check in", () => {
+  it("opens daily tasks while the checkout preview is unavailable", () => {
     const html = renderToStaticMarkup(
       <InventoryWorkspace
         initialSummary={{
@@ -570,10 +570,10 @@ describe("InventoryWorkspace", () => {
       />,
     );
 
-    expect(html).toContain("Check In / Check Out");
+    expect(html).not.toContain("Check In");
     expect(html).toContain("Memuat status inventaris");
-    expect(html).not.toContain("Checklist Manual Harian");
-    expect(html).not.toContain("Tambah tugas");
+    expect(html).toContain("Checklist Manual Harian");
+    expect(html).toContain("Tambah tugas");
   });
 
   it("lets OWNER view the task workspace without checking in", () => {
@@ -665,7 +665,7 @@ describe("InventoryWorkspace", () => {
     expect(html).toContain("overflow-x-hidden");
   });
 
-  it("blocks and blurs the daily command center when the session is loaded but not checked in", () => {
+  it("keeps the daily command center accessible without a session", () => {
     const mockPreview = {
       dateKey: "2026-06-29",
       session: null,
@@ -688,8 +688,8 @@ describe("InventoryWorkspace", () => {
       />,
     );
 
-    expect(html).toContain("blur-[4px]");
-    expect(html).toContain("Check in terlebih dahulu sebelum menyelesaikan tugas harian.");
+    expect(html).not.toContain("blur-[4px]");
+    expect(html).not.toContain("Check In");
   });
 
   it("keeps pemakaian internal recap without the old internal stock-out review panel", () => {

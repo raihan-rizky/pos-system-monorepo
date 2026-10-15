@@ -16,16 +16,16 @@ Status stok yang dipakai sistem:
 Tab utama di halaman Inventaris adalah:
 
 - **Ringkasan**: tugas urgent, status operasional (sesi harian), ringkasan stok, dan antrean/riwayat Surat Jalan.
-- **Tugas**: Tugas Harian dan Tugas Mingguan. **Catatan:** Anda wajib melakukan **Check In** terlebih dahulu pada panel sesi harian agar tab Tugas tidak terkunci/buram.
+- **Tugas**: Tugas Harian dan Tugas Mingguan langsung tersedia sesuai izin akun.
 - **Transaksi**: Penerimaan Barang, Pemakaian Internal, Surat Jalan, serta Bulk & Grup Stok.
-- **Riwayat**: Log Stok, Rekap Stok, Laporan Barang Rusak, Riwayat Tugas Harian (yang berisi sub-tab **Check In** dan **Check Out**), dan Riwayat Tugas Mingguan.
+- **Riwayat**: Log Stok, Rekap Stok, Laporan Barang Rusak, Riwayat Tugas Harian (ringkasan Check Out), dan Riwayat Tugas Mingguan.
 
 Pada layar HP, sub-tab **Riwayat** dapat digeser horizontal agar semua pilihan tetap bisa dijangkau. **Log Stok** ditampilkan sebagai kartu ringkas di mobile, sedangkan tabel lengkap tetap dipakai di layar tablet/desktop.
 
 Menu **Input / Transaksi** menyediakan **Cocokkan Stok (Harian)**, **Proof Kebersihan (Mingguan)**, **Laporkan Barang Rusak**, **Penerimaan Barang**, dan **Stock Out Internal**.
 
 ### Verifikasi Log OUT
-Verifikasi Log OUT adalah pengecekan kebenaran catatan barang keluar, bukan matching stok fisik. Buka **Tugas > Tugas Harian > Log OUT Belum Diverifikasi** setelah Check In.
+Verifikasi Log OUT adalah pengecekan kebenaran catatan barang keluar, bukan matching stok fisik. Langsung buka **Tugas > Tugas Harian > Log OUT Belum Diverifikasi**.
 
 - Klik **Setujui** jika produk, qty, alasan, dan catatan sudah benar. Badge baris menjadi **Sesuai**.
 - Klik **Perlu Koreksi** jika ada data yang salah. Badge dan warna baris menjadi **Perlu Koreksi**, lalu tombol **Koreksi** tersedia di antrean verifikasi.
@@ -42,11 +42,11 @@ Saat modal dibuka, klik input **Stok Gudang** pada setiap baris yang dicek. Sist
 - **Selisih**: stok gudang berbeda dari ekspektasi, sehingga catatan wajib diisi.
 - **Belum valid**: input stok gudang kosong/tidak valid dan tombol **Submit Matching** diblokir.
 
-### Alur Sesi Harian (Check In & Check Out)
-Staf gudang mengelola operasional harian melalui sesi:
-1. **Check In (Morning Check):** Dilakukan di awal hari kerja sebelum mengakses tab Tugas. Terdiri dari peninjauan risiko stok, perhitungan bahan produksi utama, dan checklist pemeriksaan area kerja & keselamatan (Workspace & Safety).
-2. **Check Out:** Dilakukan di akhir hari kerja untuk menutup sesi operasional gudang. Check Out merekam ringkasan hari tersebut ke dalam snapshot database dan hanya bisa diselesaikan jika seluruh tugas harian telah rampung.
-3. **Weekly Proof:** Bukti mingguan (seperti foto kebersihan) bersifat opsional di hari biasa, namun wajib diselesaikan untuk Check Out pada hari Sabtu (zona waktu Asia/Jakarta).
+### Penutupan Hari (Check Out)
+1. **Kerjakan tugas:** Langsung buka tab Tugas untuk mengerjakan pekerjaan harian dan mingguan sesuai izin akun.
+2. **Check Out:** Di akhir hari, klik Check Out dan periksa ringkasan. Selesaikan tugas wajib atau isi alasan pengecualian per kategori yang belum selesai, lalu klik Tutup Hari. Sesi penutupan otomatis disimpan untuk toko dan tanggal bisnis Asia/Jakarta.
+3. **Weekly Proof:** Bukti mingguan bersifat opsional di hari biasa dan menjadi tugas wajib pada hari Sabtu. Jika belum selesai, isi alasan pengecualian sebelum menutup hari.
+4. **Riwayat:** Buka Riwayat > Riwayat Tugas Harian untuk membaca snapshot Check Out. Data pembukaan hari yang pernah tersimpan tetap dipertahankan.
 
 ### Penerimaan Barang dari Pembelian Barang
 
@@ -85,7 +85,7 @@ Prosedur operasional berikut dapat dibaca selengkapnya di [FAQ](file:///d:/main_
 - **Melaporkan Barang Rusak:** Lihat cara input dan penyerahan barang rusak di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q14-bagaimana-cara-melaporkan-barang-yang-rusak-hilang-atau-menyusut-di-gudang).
 - **Menyelesaikan Tugas Mingguan:** Lihat cara unggah berkas kebersihan mingguan di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q15-bagaimana-cara-menyelesaikan-tugas-operasional-mingguan-seperti-proof-kebersihan).
 - **Mengajukan Penerimaan Barang:** Lihat cara mencatat inbound stock baru dari supplier di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q16-bagaimana-cara-mengajukan-penerimaan-barang-inbound-receipt-dari-supplier).
-- **Melakukan Check In & Check Out:** Lihat alur lengkap day session di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q27-bagaimana-cara-melakukan-check-in-dan-check-out-day-session-bagi-staf-gudang).
+- **Melakukan Check Out:** Lihat panduan penutupan hari di [FAQ](faq.md#q28-bagaimana-cara-melakukan-check-out-bagi-staf-gudang).
 - **Marking Surat Jalan:** Lihat cara menandai status Surat Jalan di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q28-bagaimana-cara-melakukan-marking-pada-surat-jalan-delivery-order).
 
 ## Kemampuan Pak Teladan

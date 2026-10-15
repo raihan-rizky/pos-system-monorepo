@@ -189,8 +189,6 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
   const [checklistItems, setChecklistItems] = React.useState<TaskChecklistItem[]>([]);
   const [checklistError, setChecklistError] = React.useState<string | null>(null);
   const [editingChecklistId, setEditingChecklistId] = React.useState<string | null>(null);
-  const [daySessionPreview, setDaySessionPreview] =
-    React.useState<InventoryDaySessionPreview | null>(initialDaySessionPreview ?? null);
 
   React.useEffect(() => {
     const deepLink = resolveInventoryDeepLink(
@@ -209,12 +207,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       ? initialSummary.period.dateKey
       : initialSummary.period.weekKey;
   const canManageChecklist = canPerform("inventory", "delete");
-  const isDayCheckedIn =
-    daySessionPreview?.session?.status === "CHECKED_IN" ||
-    daySessionPreview?.session?.status === "CHECKED_OUT";
-  const isDaySessionLoaded = daySessionPreview !== null;
   const isOwner = role === "OWNER";
-  const canViewTasks = isOwner || (isDaySessionLoaded && isDayCheckedIn);
   const dailyMatchingWindowStatus = React.useMemo(() => {
     const status = getDailyMatchingWindowStatus(matchingWindowNow);
     if (isOwner) {
@@ -972,7 +965,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
       {activeTab === "Ringkasan" && (
         <>
       <div className="mx-auto w-full max-w-[96rem] px-4 pt-4 md:px-6 md:pt-6">
-        <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
+        <InventoryDaySessionPanel initialPreview={initialDaySessionPreview} />
       </div>
 
       {/* Main Dashboard Grid */}
@@ -987,7 +980,7 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             Fokus pekerjaan inventaris untuk {initialSummary.period.dateKey}.
           </p>
 
-          <div className={`mt-6 space-y-4 ${isDaySessionLoaded && !isDayCheckedIn ? "filter blur-[4px] pointer-events-none select-none" : ""}`}>
+          <div className="mt-6 space-y-4">
             {/* Daily Matching */}
             <button 
               type="button"
@@ -1231,17 +1224,6 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
             </button>
           </div>
 
-          {isDaySessionLoaded && !isDayCheckedIn && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/75 backdrop-blur-[1px] p-6 text-center">
-              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 max-w-sm shadow-lg animate-in fade-in zoom-in-95 duration-200">
-                <AlertTriangle className="h-10 w-10 text-amber-600 mx-auto mb-3" />
-                <h3 className="text-base font-bold text-amber-950">Check In Diperlukan</h3>
-                <p className="mt-2 text-xs font-medium text-amber-800 leading-relaxed">
-                  Check in terlebih dahulu sebelum menyelesaikan tugas harian.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Quick info panel / shortcuts */}
@@ -1572,25 +1554,10 @@ export const InventoryWorkspace: React.FC<InventoryWorkspaceProps> = ({
               </div>
             }
           >
-            {activeTab === "Tugas" && !canViewTasks && (
-              <div className="space-y-4">
-                <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
-                {isDaySessionLoaded && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm">
-                    <h2 className="text-base font-bold text-amber-950">
-                      Check in diperlukan sebelum membuka Tugas.
-                    </h2>
-                    <p className="mt-2 text-sm text-amber-800">
-                      Selesaikan Morning Check untuk membuka tugas harian inventaris.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
 
-            {activeTab === "Tugas" && canViewTasks && (
+            {activeTab === "Tugas" && (
               <div className="space-y-4">
-                <InventoryDaySessionPanel onPreviewChange={setDaySessionPreview} />
+                <InventoryDaySessionPanel initialPreview={initialDaySessionPreview} />
                 <div className="flex w-full max-w-full gap-2 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-max">
                   {TUGAS_TABS.map((tab) => (
                     <button

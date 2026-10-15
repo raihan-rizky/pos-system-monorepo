@@ -5,18 +5,23 @@ import type { Product } from '@/hooks/useProducts';
 import type { CategoryPricingRule } from '@/features/customer-category-pricing/helpers/pricing-rules';
 
 describe('ProductCard', () => {
-  it('renders a two-line description trigger for the active variant', () => {
+  it('renders the shared product description instead of a unit description', () => {
     const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, description: 'Deskripsi grup', variants: mockProduct.variants?.map(v => ({ ...v, description: v.id === '1' ? 'Isi dua belas botol' : 'Satu botol' })) }} onAddToCart={vi.fn()} />);
-    expect(html).toContain('Isi dua belas botol');
-    expect(html).not.toContain('Deskripsi grup');
+    expect(html).not.toContain('Isi dua belas botol');
+    expect(html).toContain('Deskripsi grup');
     expect(html).toContain('line-clamp-2');
     expect(html).toContain('aria-label="Deskripsi produk"');
   });
 
-  it('hides the description trigger when the active variant has no description', () => {
-    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, description: 'Deskripsi varian lain', variants: mockProduct.variants?.map(v => ({ ...v, description: null })) }} onAddToCart={vi.fn()} />);
+  it.each([0, 1])('keeps the shared description when unit %s has no description', (unitIndex) => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, defaultVariant: mockProduct.variants![unitIndex], description: 'Deskripsi varian lain', variants: mockProduct.variants?.map(v => ({ ...v, description: null })) }} onAddToCart={vi.fn()} />);
+    expect(html).toContain('aria-label="Deskripsi produk"');
+    expect(html).toContain('Deskripsi varian lain');
+  });
+
+  it('hides the description when the shared product description is blank', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, description: '  ' }} onAddToCart={vi.fn()} />);
     expect(html).not.toContain('aria-label="Deskripsi produk"');
-    expect(html).not.toContain('Deskripsi varian lain');
   });
 
   it('shows the description for an ungrouped product', () => {

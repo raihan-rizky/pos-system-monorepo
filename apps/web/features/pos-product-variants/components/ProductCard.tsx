@@ -72,8 +72,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   const hasSpecialDinasPrice = isSpecialCategoryPricing(dinasPrice.appliedPricing);
   const hargaAgen = hasSpecialAgenPrice ? agenPrice.unitPrice : ("hargaAgen" in selectedVariant ? selectedVariant.hargaAgen : product.hargaAgen);
   const hargaDinas = hasSpecialDinasPrice ? dinasPrice.unitPrice : ("hargaDinas" in selectedVariant ? selectedVariant.hargaDinas : product.hargaDinas);
-  const descriptionVariant = product.variants?.find((variant) => variant.id === selectedVariant.id);
-  const description = descriptionVariant ? descriptionVariant.description : product.description;
+  const description = product.description;
   const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules);
   const selectedPrice = priceVariant(selectedVariant.id);
   const hasSpecialPrice = isSpecialCategoryPricing(selectedPrice.appliedPricing);

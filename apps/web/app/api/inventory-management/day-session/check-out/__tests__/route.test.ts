@@ -3,7 +3,7 @@ import { POST } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
-const updateMock = vi.hoisted(() => vi.fn());
+const upsertMock = vi.hoisted(() => vi.fn());
 const loadInventoryDaySessionMock = vi.hoisted(() => vi.fn());
 const buildInventoryDayCompletionMock = vi.hoisted(() => vi.fn());
 const loadStockRiskItemsMock = vi.hoisted(() => vi.fn());
@@ -17,7 +17,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 vi.mock("@pos/db", () => ({
   db: {
     inventoryDaySession: {
-      update: updateMock,
+      upsert: upsertMock,
     },
   },
   Prisma: {},
@@ -40,7 +40,6 @@ function post(body: unknown = {}) {
 }
 
 const completeTasks = [
-  { id: "morning-check", label: "Morning Check selesai", completed: true, required: true },
   { id: "daily-matching", label: "Matching stok harian tersubmit", completed: true, required: true },
   { id: "weekly-proof", label: "Proof kebersihan mingguan", completed: false, required: false },
 ];
@@ -111,7 +110,7 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
         morningCheckSnapshot: { materialCounts: [] },
       }),
     );
-    updateMock.mockResolvedValue({
+    upsertMock.mockResolvedValue({
       id: "session-1",
       status: "CHECKED_OUT",
       checkOutByName: "Inventory Staff",
@@ -124,9 +123,10 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
 
     expect(response.status).toBe(200);
     expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "update");
-    expect(updateMock).toHaveBeenCalledWith({
-      where: { id: "session-1" },
-      data: expect.objectContaining({
+    expect(upsertMock).toHaveBeenCalledWith({
+      where: { storeId_periodKey: { storeId: "store-main", periodKey: expect.any(String) } },
+      create: expect.objectContaining({ storeId: "store-main", periodKey: expect.any(String), status: "CHECKED_OUT" }),
+      update: expect.objectContaining({
         status: "CHECKED_OUT",
         checkOutById: "inventory-1",
         checkOutByName: "Inventory Staff",
@@ -152,13 +152,24 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     expect(body.data.status).toBe("CHECKED_OUT");
   });
 
-  it("rejects check-out when the inventory day has not been checked in", async () => {
-    loadInventoryDaySessionMock.mockResolvedValue(null);
-
+  it.each([null, { id: "session-1", status: "NOT_CHECKED_IN" }])("checks out without prior check-in (%s)", async (session) => {
+    loadInventoryDaySessionMock.mockResolvedValue(session);
     const response = await post();
+    expect(response.status).toBe(200);
+    expect(buildInventoryCheckOutSnapshotMock).toHaveBeenCalledWith(expect.objectContaining({ morningCheckSnapshot: null }));
+    const write = upsertMock.mock.calls[0][0];
+    expect(write.create).toMatchObject({ storeId: "store-main", status: "CHECKED_OUT" });
+    for (const data of [write.create, write.update]) {
+      expect(data).not.toHaveProperty("checkedInAt");
+      expect(data).not.toHaveProperty("checkInById");
+      expect(data).not.toHaveProperty("morningCheckSnapshot");
+    }
+  });
 
-    expect(response.status).toBe(409);
-    expect(updateMock).not.toHaveBeenCalled();
+  it("allows repeated closure of an existing checked-out session", async () => {
+    loadInventoryDaySessionMock.mockResolvedValue({ id: "session-1", status: "CHECKED_OUT", morningCheckSnapshot: null });
+    expect((await post()).status).toBe(200);
+    expect(upsertMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects check-out while required daily task blockers remain without guided exception notes", async () => {
@@ -178,7 +189,7 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     expect(response.status).toBe(409);
     expect(body.blockers).toEqual(["Matching stok harian tersubmit"]);
     expect(body.missingExceptionTaskIds).toEqual(["daily-matching"]);
-    expect(updateMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 
   it("allows check-out with unresolved required blockers when each blocker has a guided exception note", async () => {
@@ -200,9 +211,9 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(updateMock).toHaveBeenCalledWith(
+    expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
+        update: expect.objectContaining({
           checkOutSnapshot: expect.objectContaining({
             exceptionNotes: {
               "daily-matching": "Matching fisik dilanjutkan besok karena toko sudah tutup.",
@@ -232,9 +243,9 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(updateMock).toHaveBeenCalledWith(
+    expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
+        update: expect.objectContaining({
           checkOutSnapshot: expect.objectContaining({
             exceptionNotes: {
               "daily-matching": "Besok",
@@ -245,7 +256,8 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     );
   });
 
-  it("returns task-specific blockers instead of generic validation for blank exception notes", async () => {
+  it.each([null, { id: "session-1", status: "NOT_CHECKED_IN" }, { id: "session-1", status: "CHECKED_IN" }])("returns task-specific blockers for blank exception notes (%s)", async (session) => {
+    loadInventoryDaySessionMock.mockResolvedValue(session);
     buildInventoryDayCompletionMock.mockResolvedValue({
       dateKey: "2026-06-28",
       weekKey: "2026-W26",
@@ -266,7 +278,7 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     expect(response.status).toBe(409);
     expect(body.blockers).toEqual(["Matching stok harian tersubmit"]);
     expect(body.missingExceptionTaskIds).toEqual(["daily-matching"]);
-    expect(updateMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 
   it("treats Saturday weekly proof as a required blocker when incomplete", async () => {
@@ -286,7 +298,7 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     expect(response.status).toBe(409);
     expect(body.completion.isSaturday).toBe(true);
     expect(body.blockers).toContain("Proof kebersihan mingguan");
-    expect(updateMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 
   it("rejects users without a store scope", async () => {
@@ -301,6 +313,6 @@ describe("POST /api/inventory-management/day-session/check-out", () => {
     const response = await post();
 
     expect(response.status).toBe(403);
-    expect(updateMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 });
