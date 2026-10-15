@@ -38,7 +38,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "owner-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],
   "owner-special-pricing": [["products", "products-special-price-tab"], ...same("products", "products-special-price-tab", 3), ["pos", "pos-products"]],
   "owner-import-products": same("products", "products-import", 5),
-  "owner-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["products", "products-stock-group-tab"]],
+  "owner-stock-group": [["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"]],
   "owner-database-reset": [["settings", "settings-sidebar"], ["settings", "settings-primary"], ["settings", "settings-review-save"], ["settings", "settings-review-save"], ["settings", "settings-review-save"]],
   "owner-shift-settings": [["settings", "settings-sidebar"], ["settings", "settings-primary"], ["settings", "settings-primary"], ["settings", "settings-sidebar"]],
 
@@ -55,7 +55,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "admin-change-stock-individual": [["products", "products-primary"], ["products", "products-table"], ["products", "products-edit-action"], ["products", "products-stock-field"], ["products", "products-edit-action"]],
   "admin-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],
   "admin-import-products": same("products", "products-import", 5),
-  "admin-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["products", "products-stock-group-tab"]],
+  "admin-stock-group": [["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"]],
 
   "cashier-shift": [["shift", "shift-primary"], ["shift", "shift-open"], ["shift", "shift-close"]],
   "cashier-shift-settings": [["pos", "pos-primary"], ["pos", "pos-payment-modal"], ["pos", "pos-primary"]],
@@ -87,7 +87,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "inventory-production": [["production", "production-primary"], ["production", "production-status-column"], ["production", "production-whatsapp"], ["production", "production-kanban"]],
   "inventory-bulk-stock-import": same("products", "products-import", 4),
   "inventory-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],
-  "inventory-stock-group": [["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"], ["inventory", "inventory-update-stock"]],
+  "inventory-stock-group": [["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"]],
 
   "ai-assistant-system-help": [["assistant", "assistant-button"], ["assistant", "assistant-input"], ["assistant", "assistant-workflow-stepper"], ["assistant", "assistant-status"]],
   "ai-assistant-product-price": [["assistant", "assistant-input"], ["assistant", "assistant-status"], ["assistant", "assistant-answer"]],

@@ -43,7 +43,11 @@ const fieldClass =
 const buttonClass =
   "min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 disabled:opacity-50";
 const number = (value: number) =>
-  new Intl.NumberFormat("id-ID", { maximumFractionDigits: 4 }).format(value);
+  new Intl.NumberFormat("id-ID", {
+    ...(value !== 0 && Math.abs(value) < 0.0001
+      ? { maximumSignificantDigits: 4 }
+      : { maximumFractionDigits: 4 }),
+  }).format(value);
 
 function CreationDialog({
   products: selectedProducts,

@@ -45,6 +45,9 @@ describe("StockGroupBulkPanel", () => {
     expect(html).toContain("Cari produk");
     expect(html).toContain("Stok Bersama");
     expect(html).toContain("Stok Produk Ini");
+    expect(html).toContain("persetujuan");
+    expect(html).toContain("persediaan fisik yang sama");
+    expect(html).toContain("tidak mengubah stok grup");
     expect(html).not.toContain("Pilih grup stok");
   });
 });

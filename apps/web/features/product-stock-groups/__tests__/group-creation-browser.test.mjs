@@ -58,8 +58,8 @@ try {
     emptyGroups = false,
     delayGroups = false,
     failProductReload = true,
-    refreshedProducts = products,
-    attempts = [];
+    refreshedProducts = products;
+  const attempts = [];
   await page.route("http://localhost:3004/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/fixture")
@@ -138,6 +138,14 @@ try {
   );
   await page.getByLabel("Sumber stok", { exact: true }).selectOption("pcs");
   assert.equal(await quantity.inputValue(), "12");
+  await quantity.fill("100000");
+  await page.getByLabel("Sumber stok", { exact: true }).selectOption("dus");
+  await next.click();
+  assert.equal(await page.getByText("1 pcs = 0,00001 dus", { exact: true }).count(), 1,
+    "nonzero conversion must never round to zero in review");
+  await page.getByRole("button", { name: "Kembali", exact: true }).click();
+  await page.getByLabel("Sumber stok", { exact: true }).selectOption("pcs");
+  await quantity.fill("12");
   await page.getByRole("button", { name: "Kembali", exact: true }).click();
   assert.equal(
     await page.getByLabel("Nama grup", { exact: true }).inputValue(),
