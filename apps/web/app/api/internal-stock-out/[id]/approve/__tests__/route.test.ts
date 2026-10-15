@@ -47,7 +47,7 @@ describe("POST /api/internal-stock-out/[id]/approve", () => {
 
   it("requires inventory.approve permission", async () => {
     await POST(new Request("http://localhost/api/internal-stock-out/request-1/approve"), {
-      params: { id: "request-1" },
+      params: Promise.resolve({ id: "request-1" }),
     });
 
     expect(requirePermissionMock).toHaveBeenCalledWith("inventory.approve", "update");
@@ -56,12 +56,14 @@ describe("POST /api/internal-stock-out/[id]/approve", () => {
   it("approves PENDING request and reduces stock", async () => {
     const response = await POST(
       new Request("http://localhost/api/internal-stock-out/request-1/approve"),
-      { params: { id: "request-1" } },
+      { params: Promise.resolve({ id: "request-1" }) },
     );
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(approveInternalStockOutRequestMock).toHaveBeenCalled();
+    expect(approveInternalStockOutRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: "request-1" }),
+    );
     expect(body.data).toEqual({ id: "request-1", status: "APPROVED" });
   });
 });

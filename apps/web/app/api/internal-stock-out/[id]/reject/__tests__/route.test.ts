@@ -51,7 +51,7 @@ describe("POST /api/internal-stock-out/[id]/reject", () => {
         method: "POST",
         body: JSON.stringify({ rejectionReason: "Stock tidak cukup" }),
       }),
-      { params: { id: "request-1" } },
+      { params: Promise.resolve({ id: "request-1" }) },
     );
 
     expect(requirePermissionMock).toHaveBeenCalledWith("inventory.approve", "update");
@@ -63,12 +63,14 @@ describe("POST /api/internal-stock-out/[id]/reject", () => {
         method: "POST",
         body: JSON.stringify({ rejectionReason: "Stock tidak cukup" }),
       }),
-      { params: { id: "request-1" } },
+      { params: Promise.resolve({ id: "request-1" }) },
     );
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(rejectInternalStockOutRequestMock).toHaveBeenCalled();
+    expect(rejectInternalStockOutRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: "request-1", rejectionReason: "Stock tidak cukup" }),
+    );
     expect(body.data).toEqual({ id: "request-1", status: "REJECTED" });
   });
 
@@ -78,7 +80,7 @@ describe("POST /api/internal-stock-out/[id]/reject", () => {
         method: "POST",
         body: JSON.stringify({}),
       }),
-      { params: { id: "request-1" } },
+      { params: Promise.resolve({ id: "request-1" }) },
     );
 
     expect(response.status).toBe(422);

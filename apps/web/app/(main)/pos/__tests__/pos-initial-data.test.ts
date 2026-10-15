@@ -121,7 +121,7 @@ describe("loadPOSInitialData", () => {
     expect(matchesSearchTokens(sheetVariant, parseSearchQuery("890222"))).toBe(true);
   });
 
-  it.each(["Kertas A4 isi 500 lembar", null])("preserves saved descriptions (%s) in the initial catalog and each variant", async (description) => {
+  it.each(["Kertas A4 isi 500 lembar", null])("shares the saved description (%s) across the initial catalog and each variant", async (description) => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("E2E_AUTH_BYPASS", "0");
     mocks.requirePermission.mockResolvedValue({ storeId: "store-main" });
@@ -141,8 +141,9 @@ describe("loadPOSInitialData", () => {
 
     const result = await loadPOSInitialData();
     const group = result.products?.data[0];
-    expect(group?.description).toBe(description);
-    expect(group?.variants?.map((variant) => variant.description)).toEqual([description, "Satu lembar"]);
+    const sharedDescription = description ?? "Satu lembar";
+    expect(group?.description).toBe(sharedDescription);
+    expect(group?.variants?.map((variant) => variant.description)).toEqual([sharedDescription, sharedDescription]);
   });
 
   it("loads smallest-unit modal outside the first page and groups initial variants like the API", async () => {

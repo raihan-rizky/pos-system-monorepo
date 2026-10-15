@@ -962,7 +962,9 @@ describe("AssistantService", () => {
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(body).toContain('"id":"faq-q28-inventory-day-session"');
-    expect(body).toContain("Check In");
+    expect(body).toContain("Check Out");
+    expect(body).toContain("Kerjakan tugas harian");
+    expect(body).not.toContain("Check In");
     expect(body).not.toContain("Jawaban inventori umum tidak boleh dipakai.");
   });
 });

@@ -10,15 +10,16 @@ import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await requirePermission("inventory.approve", "update");
+    const { id } = await params;
 
     const data = await approveInternalStockOutRequest({
       repository: new InternalStockOutRepository(),
       user: user as InventoryManagementUser & { name?: string | null },
-      requestId: params.id,
+      requestId: id,
     });
 
     return NextResponse.json({ data });
