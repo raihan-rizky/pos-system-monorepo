@@ -7,6 +7,10 @@ import { formatRupiah } from "@/lib/utils";
 import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 import type { ProductCartItem } from "@/hooks/useCart";
 import type { DraftCreateInput } from "@/features/transactions-draft";
+import { DraftNumberField } from "@/features/transactions-draft/components/DraftNumberField";
+import { useServerClock } from "@/features/invoice-date/hooks/useServerClock";
+import { useInvoiceDateInputs } from "@/features/invoice-date/hooks/useInvoiceDateInputs";
+import { toJakartaInputParts } from "@/features/invoice-date/helpers/server-clock";
 import {
   buildNotaPenawaranDraftInput,
   canViewQuotationHpp,
@@ -62,6 +66,18 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
   const [printDivision, setPrintDivision] = useState("");
   const [lines, setLines] = useState<QuoteEditorLine[]>(() => toEditorLines(items));
   const [localError, setLocalError] = useState<string | null>(null);
+  const [draftNumber, setDraftNumber] = useState<string | null>(null);
+  const [invoiceDateReason, setInvoiceDateReason] = useState("");
+  const serverClock = useServerClock(open);
+  const { invoiceDate, invoiceTime, setInvoiceDate, setInvoiceTime } = useInvoiceDateInputs(open, serverClock.now, serverClock.isLoading);
+  const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
+  const needsReason = invoiceDate && invoiceDate !== toJakartaInputParts(serverClock.now ?? new Date()).date;
+
+  useEffect(() => {
+    if (open) return;
+    setDraftNumber(null);
+    setInvoiceDateReason("");
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -99,6 +115,12 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
         division: printDivision,
         lines,
       });
+      input.draftNumber = draftNumber?.trim() || undefined;
+      if (canChangeInvoiceDate) {
+        input.invoiceDate = invoiceDate || undefined;
+        input.invoiceTime = invoiceTime || null;
+        input.invoiceDateReason = invoiceDateReason.trim() || null;
+      }
       await onSubmit(input, printDivision.trim());
     } catch (submitError) {
       setLocalError(
@@ -107,7 +129,7 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
           : "Gagal membuat nota penawaran",
       );
     }
-  }, [kepadaYth, lines, onSubmit, printDivision]);
+  }, [kepadaYth, lines, onSubmit, printDivision, draftNumber, canChangeInvoiceDate, invoiceDate, invoiceTime, invoiceDateReason]);
 
   const visibleError = localError || error;
 
@@ -159,6 +181,25 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
             />
           </div>
         </div>
+
+        <DraftNumberField open={open} date={canChangeInvoiceDate ? invoiceDate : undefined} value={draftNumber} onChange={setDraftNumber} disabled={isSaving} />
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="nota-invoice-date" className="mb-1 block text-sm font-semibold text-surface-700">Tanggal Nota (WIB)</label>
+            <input type="date" id="nota-invoice-date" value={invoiceDate} readOnly={!canChangeInvoiceDate} onChange={(event) => setInvoiceDate(event.target.value)} disabled={isSaving} className="w-full rounded-xl border border-surface-200 px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label htmlFor="nota-invoice-time" className="mb-1 block text-sm font-semibold text-surface-700">Jam Nota (WIB)</label>
+            <input type="time" id="nota-invoice-time" value={invoiceTime} readOnly={!canChangeInvoiceDate} onChange={(event) => setInvoiceTime(event.target.value)} disabled={isSaving} className="w-full rounded-xl border border-surface-200 px-3 py-2.5 text-sm" />
+          </div>
+        </div>
+        {canChangeInvoiceDate && needsReason && (
+          <div>
+            <label htmlFor="nota-invoice-reason" className="mb-1 block text-sm font-semibold text-surface-700">Alasan perubahan tanggal</label>
+            <textarea id="nota-invoice-reason" value={invoiceDateReason} onChange={(event) => setInvoiceDateReason(event.target.value)} disabled={isSaving} rows={2} className="w-full rounded-xl border border-surface-200 px-3 py-2.5 text-sm" />
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-xl border border-surface-200">
           <div className="grid grid-cols-[minmax(0,1.5fr)_90px_120px_180px] gap-3 bg-surface-50 px-4 py-2 text-xs font-bold uppercase text-surface-500">

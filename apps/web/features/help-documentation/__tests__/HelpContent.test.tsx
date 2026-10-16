@@ -4,6 +4,12 @@ import HelpContent, { HELP_ROLE_CONTENT } from '../components/HelpContent';
 import { HELP_VISUAL_PAGE_CONFIG } from '../components/help-visual-registry';
 
 describe('HelpContent', () => {
+  it('explains editable draft numbers and prefilled WIB dates', () => {
+    const text = JSON.stringify(HELP_ROLE_CONTENT);
+    expect(text).toContain('Gunakan otomatis');
+    expect(text).toContain('langsung terisi');
+    expect(text).toContain('No. Faktur');
+  });
   it.each(['OWNER', 'ADMIN', 'INVENTORY'])('guides the current stock-group stages and permissions for %s', (role) => {
     const guide = HELP_ROLE_CONTENT[role].find(item => item.id === `${role.toLowerCase()}-stock-group`)!;
     const text = guide.steps.map(step => `${step.title} ${step.description}`).join(' ');

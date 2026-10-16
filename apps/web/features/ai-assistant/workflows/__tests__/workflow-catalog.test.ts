@@ -4,6 +4,13 @@ import { readFileSync } from "node:fs";
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
+  it("explains custom draft numbers and prefilled WIB inputs in the POS workflow", () => {
+    const pos = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 6)!;
+    const text = JSON.stringify(pos.steps);
+    expect(text).toContain("No. Faktur");
+    expect(text).toContain("Gunakan otomatis");
+    expect(text).toContain("langsung terisi");
+  });
   it("guides stock-group creation and direct updates separately from inventory approval", () => {
     const group = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 5)!;
     const instructions = group.steps.map(step => `${step.title} ${step.description}`).join(" ");

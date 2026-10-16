@@ -38,3 +38,27 @@ export function formatDraftNumberForDisplay(value: string | null | undefined): s
 
   return `${sequence.padStart(3, "0")}/PNW-TLD/${day}/${romanMonth}/${year}`;
 }
+
+export function normalizeDraftNumberInput(value: string): string {
+  const trimmed = value.trim();
+  const rawMatch = PNW_DRAFT_PATTERN.exec(trimmed);
+  if (rawMatch) {
+    const [, year, month, day, sequence] = rawMatch;
+    return `PNW-TLD-${year}${month}${day}-${sequence.padStart(3, "0")}`;
+  }
+  const match = /^(\d+)\/PNW-TLD\/(\d{2})\/([IVX]+)\/(\d{4})$/.exec(trimmed);
+  if (!match) return trimmed;
+  const [, sequence, day, romanMonth, year] = match;
+  const monthIndex = ROMAN_MONTHS.findIndex(month => month === romanMonth);
+  if (monthIndex === -1) return trimmed;
+  const month = String(monthIndex + 1).padStart(2, "0");
+  return `PNW-TLD-${year}${month}${day}-${sequence.padStart(3, "0")}`;
+}
+
+export function nextDraftSequence(numbers: Array<string | null>): number {
+  return numbers.reduce((highest, number) => {
+    const match = number ? PNW_DRAFT_PATTERN.exec(number) : null;
+    const sequence = match ? Number(match[4]) : 0;
+    return Number.isSafeInteger(sequence) ? Math.max(highest, sequence) : highest;
+  }, 0) + 1;
+}

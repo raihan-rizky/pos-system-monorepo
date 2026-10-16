@@ -556,6 +556,7 @@ export default function POSClientPage({
   };
 
   const handleSaveDraft = async (data: {
+    draftNumber?: string | null;
     discount: number;
     note: string;
     customerName: string;
@@ -572,6 +573,7 @@ export default function POSClientPage({
     setDraftError(null);
     try {
       const draft = await createDraft.mutateAsync({
+        draftNumber: data.draftNumber,
         items: data.items
           .filter((item): item is ProductCartItem => item.lineType === "PRODUCT")
           .map((item) => ({

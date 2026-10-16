@@ -12,6 +12,7 @@ export type DraftItemInput = {
 };
 
 export type DraftCreateInput = {
+  draftNumber?: string | null;
   items: DraftItemInput[];
   discount: number;
   note?: string | null;

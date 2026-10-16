@@ -7,7 +7,7 @@ const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
-const transactionCountMock = vi.hoisted(() => vi.fn());
+const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
 const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
@@ -44,7 +44,7 @@ vi.mock("@pos/db", () => ({
     product: { findMany: productFindManyMock },
     categoryCustomerPricingRule: { findMany: pricingRuleFindManyMock },
     transaction: {
-      count: transactionCountMock,
+      findMany: transactionFindManyMock,
       create: transactionCreateMock,
     },
     productPriceLog: { createMany: productPriceLogCreateManyMock },
@@ -88,7 +88,7 @@ describe("POST /api/transactions/draft", () => {
       },
     ]);
     pricingRuleFindManyMock.mockResolvedValue([]);
-    transactionCountMock.mockResolvedValue(0);
+    transactionFindManyMock.mockResolvedValue([]);
     dbTransactionMock.mockImplementation(async (callback: any) =>
       callback({
         transaction: {
@@ -119,6 +119,154 @@ describe("POST /api/transactions/draft", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("stores a trimmed custom draft number", async () => {
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }], draftNumber: "  CUSTOM/001  " }),
+    }));
+    expect(res.status).toBe(201);
+    expect((await res.json()).draftNumber).toBe("CUSTOM/001");
+  });
+
+  it("uses automatic numbering for a blank custom number", async () => {
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }], draftNumber: "   " }),
+    }));
+    expect(res.status).toBe(201);
+    expect((await res.json()).draftNumber).toBe("PNW-TLD-20260602-001");
+  });
+
+  it("normalizes pasted display numbers so the database can detect duplicates", async () => {
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }], draftNumber: "001/PNW-TLD/02/VI/2026" }),
+    }));
+    expect(res.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.draftNumber).toBe("PNW-TLD-20260602-001");
+  });
+
+  it("rejects a pasted display number already used by an automatic draft", async () => {
+    transactionCreateMock.mockImplementation(async ({ data }: any) => {
+      if (data.draftNumber === "PNW-TLD-20260602-001") throw { code: "P2002", meta: { target: ["draftNumber"] } };
+      return { id: "draft-1", ...data };
+    });
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }], draftNumber: "001/PNW-TLD/02/VI/2026" }),
+    }));
+    expect(res.status).toBe(409);
+    expect(transactionCreateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a custom number longer than 100 characters", async () => {
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }], draftNumber: "A".repeat(101) }),
+    }));
+    expect(res.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a short raw PNW suffix that prints like an existing automatic number", async () => {
+    transactionCreateMock.mockImplementation(async ({ data }: any) => {
+      if (data.draftNumber === "PNW-TLD-20260602-001") throw { code: "P2002", meta: { target: ["draftNumber"] } };
+      return { id: "draft-1", ...data };
+    });
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }], draftNumber: "PNW-TLD-20260602-1" }),
+    }));
+    expect(res.status).toBe(409);
+  });
+
+  it("returns a helpful conflict without retrying a duplicate manual number", async () => {
+    transactionCreateMock.mockRejectedValueOnce({ code: "P2002", meta: { target: ["draftNumber"] } });
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }], draftNumber: "CUSTOM/001" }),
+    }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).message).toContain("sudah digunakan");
+    expect(transactionCreateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries an automatic number collision", async () => {
+    transactionCreateMock.mockRejectedValueOnce({ code: "P2002", meta: { target: ["draftNumber"] } });
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }] }),
+    }));
+    expect(res.status).toBe(201);
+    expect((await res.json()).draftNumber).toBe("PNW-TLD-20260602-002");
+    expect(transactionCreateMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("starts automatic numbering after the largest manual sequence", async () => {
+    transactionFindManyMock.mockResolvedValue(Array.from({ length: 14 }, (_, index) => ({ draftNumber: `PNW-TLD-20260602-${String(index + 7).padStart(3, "0")}` })));
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1 }] }),
+    }));
+    expect(res.status).toBe(201);
+    expect((await res.json()).draftNumber).toBe("PNW-TLD-20260602-021");
+  });
+
+  it("previews a free number after sparse manual sequences", async () => {
+    transactionFindManyMock.mockResolvedValue(Array.from({ length: 14 }, (_, index) => ({ draftNumber: `PNW-TLD-20260602-${String(index + 7).padStart(3, "0")}` })));
+    const { GET } = await import("../route");
+    const res = await GET(new Request("http://localhost/api/transactions/draft"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).draftNumber).toBe("PNW-TLD-20260602-021");
+  });
+
+  it("previews the automatic number without creating a transaction", async () => {
+    transactionFindManyMock.mockResolvedValue([{ draftNumber: "PNW-TLD-20260602-007" }]);
+    const route = await import("../route") as Record<string, any>;
+    expect(route.GET).toBeTypeOf("function");
+    const res = await route.GET(new Request("http://localhost/api/transactions/draft"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ draftNumber: "PNW-TLD-20260602-008" });
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+    expect(transactionFindManyMock).toHaveBeenCalledWith({ where: { storeId: "store-main", draftNumber: { startsWith: "PNW-TLD-20260602-" } }, select: { draftNumber: true } });
+  });
+
+  it("previews a selected invoice date for an admin", async () => {
+    requireRoleMock.mockResolvedValue({ id: "admin-1", role: "ADMIN", storeId: "store-main" });
+    const route = await import("../route") as Record<string, any>;
+    expect(route.GET).toBeTypeOf("function");
+    const res = await route.GET(new Request("http://localhost/api/transactions/draft?date=2026-06-01"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).draftNumber).toBe("PNW-TLD-20260601-001");
+  });
+
+  it("rejects an invalid preview date", async () => {
+    const route = await import("../route") as Record<string, any>;
+    expect(route.GET).toBeTypeOf("function");
+    const res = await route.GET(new Request("http://localhost/api/transactions/draft?date=2026-02-30"));
+    expect(res.status).toBe(422);
+    expect(transactionFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("checks draft create permission before previewing a number", async () => {
+    canRolePerformActionMock.mockReturnValue(false);
+    handleAuthErrorMock.mockImplementation((err: any) => new Response(JSON.stringify({ message: err.message }), { status: err.statusCode }));
+    const route = await import("../route") as Record<string, any>;
+    expect(route.GET).toBeTypeOf("function");
+    const res = await route.GET(new Request("http://localhost/api/transactions/draft"));
+    expect(res.status).toBe(403);
+    expect(transactionFindManyMock).not.toHaveBeenCalled();
   });
 
   it("creates a DRAFT row with PNW draftNumber, null invoiceNumber, no stock decrement", async () => {
@@ -260,7 +408,7 @@ describe("POST /api/transactions/draft", () => {
       storeId: "store-main",
       name: "Owner One",
     });
-    transactionCountMock.mockResolvedValue(4);
+    transactionFindManyMock.mockResolvedValue([{ draftNumber: "PNW-TLD-20260701-004" }]);
     const { POST } = await import("../route");
     const res = await POST(
       new Request("http://localhost/api/transactions/draft", {
@@ -284,11 +432,12 @@ describe("POST /api/transactions/draft", () => {
       "2026-07-01T07:05:00.000Z",
     );
     expect(createArgs.data.draftNumber).toBe("PNW-TLD-20260701-005");
-    expect(transactionCountMock).toHaveBeenCalledWith({
+    expect(transactionFindManyMock).toHaveBeenCalledWith({
       where: {
         storeId: "store-main",
         draftNumber: { startsWith: "PNW-TLD-20260701-" },
       },
+      select: { draftNumber: true },
     });
   });
 

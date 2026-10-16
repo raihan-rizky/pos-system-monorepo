@@ -29,6 +29,9 @@ import {
 import { formatInvoiceWib } from "@/features/invoice-date/helpers/server-clock";
 import type { ServerClockSource } from "@/features/invoice-date/helpers/server-clock";
 import { useServerClock } from "@/features/invoice-date/hooks/useServerClock";
+import { useInvoiceDateInputs } from "@/features/invoice-date/hooks/useInvoiceDateInputs";
+import { toJakartaInputParts } from "@/features/invoice-date/helpers/server-clock";
+import { DraftNumberField } from "@/features/transactions-draft/components/DraftNumberField";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
@@ -61,6 +64,7 @@ interface PaymentModalProps {
     payments?: { method: string; amount: number }[];
   }) => void;
   onSaveDraft?: (data: {
+    draftNumber?: string | null;
     discount: number;
     note: string;
     customerName: string;
@@ -164,10 +168,10 @@ export function PaymentModal({
     return items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size);
   });
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState("");
-  const [invoiceTime, setInvoiceTime] = useState("");
+  const [draftNumber, setDraftNumber] = useState<string | null>(null);
   const [invoiceDateReason, setInvoiceDateReason] = useState("");
   const serverClock = useServerClock(open);
+  const { invoiceDate, invoiceTime, setInvoiceDate, setInvoiceTime } = useInvoiceDateInputs(open, serverClock.now, serverClock.isLoading);
   
   const { role } = useRole();
   const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
@@ -203,8 +207,7 @@ export function PaymentModal({
       setCustomerSelection({ kind: "general" });
       setManualPrices({});
       setCustomerError(null);
-      setInvoiceDate("");
-      setInvoiceTime("");
+      setDraftNumber(null);
       setInvoiceDateReason("");
       setIsTempo(false);
     } else {
@@ -307,6 +310,7 @@ export function PaymentModal({
       : {};
 
     onSaveDraft({
+      draftNumber: draftNumber?.trim() || undefined,
       discount,
       note,
       customerName: customer.customerName,
@@ -573,26 +577,32 @@ export function PaymentModal({
           </span>
         </div>
 
+        {onSaveDraft && (
+          <DraftNumberField open={open} date={canChangeInvoiceDate ? invoiceDate : undefined} value={draftNumber} onChange={setDraftNumber} disabled={isProcessing || isSavingDraft} />
+        )}
+
         {canChangeInvoiceDate && (
           <section className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium text-surface-700 mb-1.5 block">
+                <label htmlFor="payment-invoice-date" className="text-sm font-medium text-surface-700 mb-1.5 block">
                   Tanggal Invoice (Opsional)
                 </label>
                 <input
                   type="date"
+                  id="payment-invoice-date"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
                   className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-surface-700 mb-1.5 block">
+                <label htmlFor="payment-invoice-time" className="text-sm font-medium text-surface-700 mb-1.5 block">
                   Jam Invoice (Opsional)
                 </label>
                 <input
                   type="time"
+                  id="payment-invoice-time"
                   value={invoiceTime}
                   onChange={(e) => setInvoiceTime(e.target.value)}
                   className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
@@ -602,7 +612,7 @@ export function PaymentModal({
             <p className="text-xs text-surface-500">
               Jika jam dikosongkan, sistem memakai jam checkout saat invoice dibuat.
             </p>
-            {(invoiceDate || invoiceTime) && (
+            {invoiceDate && invoiceDate !== toJakartaInputParts(serverClock.now ?? new Date()).date && (
               <div>
                 <label className="text-sm font-medium text-surface-700 mb-1.5 block">
                   Alasan perubahan tanggal

@@ -18,7 +18,7 @@ import {
   requiresInvoiceDateReason,
   resolveInvoiceDateTime,
 } from "@/features/invoice-date/helpers/invoice-date-core";
-import { buildDraftNumber } from "@/features/transactions-draft/helpers/draft-number";
+import { buildDraftNumber, nextDraftSequence, normalizeDraftNumberInput } from "@/features/transactions-draft/helpers/draft-number";
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
@@ -51,6 +51,7 @@ const createDraftSchema = z.object({
   salespersonId: z.string().optional().nullable(),
   isJobOrder: z.boolean().optional().default(false),
   estimatedDoneAt: z.string().optional().nullable(),
+  draftNumber: z.string().trim().max(100, "No. Faktur maksimal 100 karakter.").transform(normalizeDraftNumberInput).optional().nullable(),
   invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   invoiceTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
   invoiceDateReason: z.string().optional().nullable(),
@@ -61,6 +62,38 @@ const createDraftSchema = z.object({
 });
 
 const MAX_ATTEMPTS = 5;
+
+export async function GET(request: Request) {
+  try {
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const permissions = await getGlobalRolePermissions();
+    if (!canRolePerformAction(user.role as Role, "transaction.draft", "create", permissions)) {
+      throw new AuthError(403, "Insufficient permissions");
+    }
+    const selectedDate = new URL(request.url).searchParams.get("date");
+    if (selectedDate && (
+      !/^\d{4}-\d{2}-\d{2}$/.test(selectedDate) ||
+      Number.isNaN(Date.parse(`${selectedDate}T00:00:00+07:00`)) ||
+      jakartaDateKey(new Date(`${selectedDate}T00:00:00+07:00`)) !== selectedDate
+    )) {
+      return NextResponse.json({ message: "Tanggal nota tidak valid." }, { status: 422 });
+    }
+    const now = await getInvoiceNow();
+    const dateStr = selectedDate && (user.role === "OWNER" || user.role === "ADMIN")
+      ? selectedDate.replace(/-/g, "")
+      : compactJakartaDateKey(now);
+    const numbers = await db.transaction.findMany({
+      where: { storeId: user.storeId || "store-main", draftNumber: { startsWith: `PNW-TLD-${dateStr}-` } },
+      select: { draftNumber: true },
+    });
+    return NextResponse.json({ draftNumber: buildDraftNumber(dateStr, nextDraftSequence(numbers.map(row => row.draftNumber))) });
+  } catch (error) {
+    const authErr = handleAuthError(error);
+    if (authErr) return authErr;
+    log.error("Failed to preview draft number:", error);
+    return NextResponse.json({ message: "Nomor otomatis belum dapat dimuat." }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -98,6 +131,7 @@ export async function POST(request: Request) {
       salespersonId,
       isJobOrder,
       estimatedDoneAt,
+      draftNumber: customDraftNumber,
       invoiceDate,
       invoiceTime,
       invoiceDateReason,
@@ -141,7 +175,7 @@ export async function POST(request: Request) {
 
     const dateStr = compactJakartaDateKey(resolvedInvoiceDate);
 
-    const [customerCheck, salespersonCheck, products, draftCount, rawPricingRules] =
+    const [customerCheck, salespersonCheck, products, draftNumbers, rawPricingRules] =
       await Promise.all([
         customerId
           ? db.customer.findFirst({
@@ -175,11 +209,12 @@ export async function POST(request: Request) {
             brand: { select: { name: true } },
           },
         }),
-        db.transaction.count({
+        db.transaction.findMany({
           where: {
             storeId,
             draftNumber: { startsWith: `PNW-TLD-${dateStr}-` },
           },
+          select: { draftNumber: true },
         }),
         db.categoryCustomerPricingRule.findMany({
           where: { storeId, isActive: true },
@@ -296,9 +331,9 @@ export async function POST(request: Request) {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         draft = await db.$transaction(async (tx: Prisma.TransactionClient) => {
-          const draftNumber = buildDraftNumber(
+          const draftNumber = customDraftNumber || buildDraftNumber(
             dateStr,
-            draftCount + 1 + attempt,
+            nextDraftSequence(draftNumbers.map(row => row.draftNumber)) + attempt,
           );
 
           const created = await tx.transaction.create({
@@ -392,6 +427,12 @@ export async function POST(request: Request) {
         });
         break;
       } catch (err) {
+        if ((err as { code?: string })?.code === "P2002" && customDraftNumber) {
+          return NextResponse.json(
+            { message: "No. Faktur sudah digunakan. Ganti nomor atau klik Gunakan otomatis." },
+            { status: 409 },
+          );
+        }
         if (
           (err as { code?: string })?.code === "P2002" &&
           attempt < MAX_ATTEMPTS - 1

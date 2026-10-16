@@ -62,6 +62,18 @@ vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({
 }));
 
 describe("PaymentModal custom invoice date", () => {
+  it("prefills the date and time inputs with the synchronized WIB time", () => {
+    roleMock = "OWNER";
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[]} subtotal={0} onConfirm={vi.fn()} onSaveDraft={vi.fn()} />);
+    expect(html).toMatch(/type="date"[^>]*value="2026-10-06"/);
+    expect(html).toMatch(/type="time"[^>]*value="03:24"/);
+  });
+
+  it("offers an editable draft number and a return to automatic numbering", () => {
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[]} subtotal={0} onConfirm={vi.fn()} onSaveDraft={vi.fn()} />);
+    expect(html).toContain("No. Faktur");
+    expect(html).toContain("Gunakan otomatis");
+  });
   beforeEach(() => {
     useServerClockMock.mockReturnValue({
       now: new Date("2026-10-05T20:24:41.000Z"),
