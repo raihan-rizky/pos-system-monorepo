@@ -543,7 +543,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "cashier-pos",
       title: "Memproses Penjualan (POS)",
-      description: "Layar utama kasir untuk melayani pembeli. Kamu bisa cari barang, pasang diskon, dan cetak struk pembayaran dengan cepat.",
+      description: "Layar utama kasir untuk melayani pembeli. Kamu bisa cari barang, pasang diskon, dan cetak struk pembayaran dengan cepat. Pada nota biasa, isi Pajak (%) dari jumlah setelah diskon; nota mencetak persentasenya. Pada Cetak Nota Penawaran, isi PPN (%). DPP Nilai Lain dihitung 11/12 jumlah setelah diskon, lalu PPN dihitung dari DPP dan dicetak sebagai nominal rupiah. Tarif menerima 0–100% dengan maksimal dua desimal. Klik Simpan Pajak atau langsung cetak; pajak disimpan sebelum mencetak dan memperbarui total serta sisa tagihan.",
       icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka POS Kasir", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Operasi', lalu klik menu 'Kasir' (POS - ikon kalkulator). Klik Ringkas panel untuk menyembunyikan status shift, pencarian, dan filter; klik Buka panel untuk menampilkannya kembali. Tarik pegangan di bawah panel untuk mengubah tingginya. Anda juga bisa fokus ke pegangan lalu memakai panah atas/bawah, Home, atau End. Klik Ukuran awal untuk mengembalikan tinggi otomatis. Pencarian dan filter tetap tersimpan saat panel diringkas.", icon: <ShoppingCart className="w-8 h-8" /> },
@@ -667,7 +667,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Buka Riwayat Transaksi", description: "Buka menu samping (sidebar) sebelah kiri, pilih kategori 'Operasi', dan klik menu 'Riwayat'.", icon: <History className="w-8 h-8" /> },
         { title: "Pilih Transaksi", description: "Cari dan klik transaksi yang ingin Anda cetak invoice-nya pada tabel.", icon: <Search className="w-8 h-8" /> },
-        { title: "Cetak Invoice", description: "Pada rincian transaksi di sebelah kanan, klik ikon printer atau tombol 'Cetak Invoice' di sudut kanan atas panel.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Cetak Invoice", description: "Pada rincian transaksi, klik ikon printer atau tombol Cetak Invoice. Nota biasa menampilkan Pajak sebagai persen. Pada Cetak Nota Penawaran, PPN (%) dihitung dari DPP Nilai Lain (11/12 jumlah setelah diskon), lalu DPP dan PPN dicetak sebagai nominal rupiah. Pengguna dengan izin edit transaksi/draft dapat mengisi 0–100% dengan maksimal dua desimal. Simpan Pajak atau cetak untuk menyimpan perubahan ke total dan sisa tagihan. Metode pajak penawaran dipertahankan saat dilanjutkan ke pembayaran. Jika penyimpanan gagal, input tetap tersimpan di layar; coba lagi atau buka kembali nota bila transaksi berubah.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
     {

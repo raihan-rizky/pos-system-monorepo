@@ -21,7 +21,12 @@ export type FinancialReportTransaction = {
     amount: NullableNumber;
     createdAt: Date;
   }>;
-  debtPaymentLogs?: Array<{ id: string }>;
+  debtPaymentLogs?: Array<{
+    id: string;
+    amount?: NullableNumber;
+    paymentMethod?: string;
+    createdAt?: Date;
+  }>;
   items: Array<{
     productId?: string | null;
     productName: string;
@@ -457,12 +462,32 @@ export function buildFinancialReport({
   }
 
   const revenueIds = new Set(confirmedTransactions.map((transaction) => transaction.id));
+  const allocatedDebtIds = new Set<string>();
   for (const transaction of collectionTransactions ?? confirmedTransactions) {
     if (!CONFIRMED_STATUSES.has(transaction.status)) continue;
     const ledger = transaction.payments ?? [];
+    const debtLogs = transaction.debtPaymentLogs ?? [];
+    const debtLedger = debtLogs.flatMap((payment) => payment.amount != null && payment.paymentMethod && payment.createdAt
+      ? [{ method: payment.paymentMethod, amount: toNumber(payment.amount), createdAt: payment.createdAt }]
+      : []);
+    const completeDebtLedger = debtLogs.length > 0 && debtLedger.length === debtLogs.length;
+    if (completeDebtLedger) allocatedDebtIds.add(transaction.id);
     const legacy = ledger.length === 0 && !(transaction.debtPaymentLogs?.length) && transaction.paymentMethod !== "TEMPO";
-    const payments = legacy ? [{ method: transaction.paymentMethod, amount: Math.min(toNumber(transaction.total), toNumber(transaction.amountPaid)), createdAt: transaction.createdAt }]
+    let payments = legacy ? [{ method: transaction.paymentMethod, amount: Math.min(toNumber(transaction.total), toNumber(transaction.amountPaid)), createdAt: transaction.createdAt }]
       : netInitialPayments(ledger, transaction);
+    if (completeDebtLedger) {
+      // Initial change was already returned before later settlements arrived.
+      // Reduce initial receipts first, then settlements if refunds exceed them;
+      // cash-first allocation stays within each group before date filtering.
+      const retained = Math.max(0, Math.min(toNumber(transaction.total), toNumber(transaction.amountPaid) - toNumber(transaction.change)));
+      const debtTotal = debtLedger.reduce((sum, payment) => sum + (payment.method === "TEMPO" ? 0 : payment.amount), 0);
+      const initialLimit = Math.max(0, retained - debtTotal);
+      const debtLimit = Math.min(debtTotal, retained);
+      payments = [
+        ...netInitialPayments(ledger, { total: initialLimit, amountPaid: initialLimit }),
+        ...netInitialPayments(debtLedger, { total: debtLimit, amountPaid: debtLimit }),
+      ];
+    }
     let received = 0;
     for (const payment of payments) {
       if (payment.method === "TEMPO" || payment.amount <= 0 || dateKey(payment.createdAt) < dateFrom || dateKey(payment.createdAt) > dateTo) continue;
@@ -478,6 +503,7 @@ export function buildFinancialReport({
 
   for (const payment of debtPayments) {
     if (
+      allocatedDebtIds.has(payment.transactionId) ||
       payment.paymentMethod === "TEMPO" ||
       dateKey(payment.createdAt) < dateFrom ||
       dateKey(payment.createdAt) > dateTo

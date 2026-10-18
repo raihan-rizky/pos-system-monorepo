@@ -30,6 +30,114 @@ describe("buildFinancialReportRange", () => {
 });
 
 describe("buildFinancialReport", () => {
+  describe.each([
+    { label: "transfer", initialTransfer: 150000, initialCash: 0 },
+    { label: "split cash and transfer", initialTransfer: 140000, initialCash: 10000 },
+  ])("historical $label receipt with a later cash settlement", ({ initialTransfer, initialCash }) => {
+    it.each([
+      ["2026-10-06", "2026-10-07", 110000, 100000, 10000],
+      ["2026-10-06", "2026-10-06", 100000, 100000, 0],
+      ["2026-10-07", "2026-10-07", 10000, 0, 10000],
+    ])("keeps already-returned initial change separate from settlement cash for %s through %s", (dateFrom, dateTo, collected, transfer, cash) => {
+      const report = buildFinancialReport({
+        dateFrom, dateTo, shifts: [], transactions: [],
+        collectionTransactions: [{
+          id: "tx-later-cash", createdAt: new Date("2026-10-06T03:00:00Z"), status: "COMPLETED",
+          paymentMethod: "TRANSFER", total: 110000, amountPaid: 110000, change: 0,
+          // Rp50.000 was already returned on the original Rp100.000 receipt.
+          payments: [
+            { method: "TRANSFER", amount: initialTransfer, createdAt: new Date("2026-10-06T03:00:00Z") },
+            { method: "CASH", amount: initialCash, createdAt: new Date("2026-10-06T03:00:00Z") },
+          ],
+          debtPaymentLogs: [{ id: "later-cash", amount: 10000, paymentMethod: "CASH", createdAt: new Date("2026-10-07T03:00:00Z") }],
+        }],
+        debtPayments: [{ transactionId: "tx-later-cash", amount: 10000, paymentMethod: "CASH", createdAt: new Date("2026-10-07T03:00:00Z") }],
+      });
+      expect(report.summary.collected).toBe(collected);
+      expect(report.paymentMethods.find(row => row.method === "TRANSFER")?.collected ?? 0).toBe(transfer);
+      expect(report.paymentMethods.find(row => row.method === "CASH")?.collected ?? 0).toBe(cash);
+    });
+  });
+
+  it.each([
+    ["2026-10-06", "2026-10-07", 110000, 100000, 10000],
+    ["2026-10-06", "2026-10-06", 100000, 100000, 0],
+    ["2026-10-07", "2026-10-07", 10000, 0, 10000],
+  ])("separates initial cash and later tax debt for %s through %s", (dateFrom, dateTo, collected, cash, transfer) => {
+    const report = buildFinancialReport({
+      dateFrom, dateTo, shifts: [], transactions: [],
+      collectionTransactions: [{
+        id: "tx-tax-debt", createdAt: new Date("2026-10-06T03:00:00Z"), status: "COMPLETED",
+        paymentMethod: "CASH", total: 110000, amountPaid: 110000, change: 0, salesName: "Ari",
+        payments: [{ method: "CASH", amount: 150000, createdAt: new Date("2026-10-06T03:00:00Z") }],
+        // The original receipt returned Rp50.000. A tax edit normalized its
+        // header, then a transfer on the next day settled the new Rp10.000 debt.
+        debtPaymentLogs: [{ id: "tax-settlement", amount: 10000, paymentMethod: "TRANSFER", createdAt: new Date("2026-10-07T03:00:00Z") }],
+      }],
+      debtPayments: [{
+        transactionId: "tx-tax-debt", paymentMethod: "TRANSFER", amount: 10000,
+        createdAt: new Date("2026-10-07T03:00:00Z"), transaction: { salesName: "Ari" },
+      }].filter(payment => payment.createdAt.toISOString().slice(0, 10) >= dateFrom && payment.createdAt.toISOString().slice(0, 10) <= dateTo),
+    });
+    expect(report.summary.collected).toBe(collected);
+    expect(report.paymentMethods.find(row => row.method === "CASH")?.collected ?? 0).toBe(cash);
+    expect(report.paymentMethods.find(row => row.method === "TRANSFER")?.collected ?? 0).toBe(transfer);
+    expect(report.salespersons).toEqual([
+      { name: "Ari", transactionCount: 0, revenue: 0, collected, grossProfit: 0 },
+    ]);
+  });
+
+  it("subtracts returned change before separating settled debt from initial collections", () => {
+    const report = buildFinancialReport({
+      dateFrom: "2026-10-06", dateTo: "2026-10-07", shifts: [], transactions: [],
+      collectionTransactions: [{
+        id: "tx-tax-refund", createdAt: new Date("2026-10-06T03:00:00Z"), status: "COMPLETED",
+        paymentMethod: "CASH", total: 105000, amountPaid: 110000, change: 5000,
+        payments: [{ method: "CASH", amount: 150000, createdAt: new Date("2026-10-06T03:00:00Z") }],
+        debtPaymentLogs: [{ id: "tax-settlement", amount: 10000, paymentMethod: "TRANSFER", createdAt: new Date("2026-10-07T03:00:00Z") }],
+      }],
+      debtPayments: [{ transactionId: "tx-tax-refund", paymentMethod: "TRANSFER", amount: 10000, createdAt: new Date("2026-10-07T03:00:00Z") }],
+    });
+    expect(report.summary.collected).toBe(105000);
+    expect(report.paymentMethods).toEqual([
+      { method: "CASH", transactionCount: 1, revenue: 0, collected: 95000 },
+      { method: "TRANSFER", transactionCount: 1, revenue: 0, collected: 10000 },
+    ]);
+  });
+
+  it("keeps legacy ID-only debt logs compatible with initial payment allocation", () => {
+    const report = buildFinancialReport({
+      dateFrom: "2026-10-06", dateTo: "2026-10-06", shifts: [], transactions: [],
+      collectionTransactions: [{
+        id: "tx-legacy", createdAt: new Date("2026-10-06T03:00:00Z"), status: "COMPLETED",
+        paymentMethod: "CASH", total: 100000, amountPaid: 150000, change: 50000,
+        payments: [{ method: "CASH", amount: 150000, createdAt: new Date("2026-10-06T03:00:00Z") }],
+        debtPaymentLogs: [{ id: "legacy-log" }],
+      }],
+    });
+    expect(report.summary.collected).toBe(100000);
+  });
+
+  it.each([
+    ["2026-10-06", "2026-10-07", 100000, 0, 100000],
+    ["2026-10-06", "2026-10-06", 0, 0, 0],
+    ["2026-10-07", "2026-10-07", 100000, 0, 100000],
+  ])("reduces initial receipts before settlements when tax refunds exceed initial cash for %s through %s", (dateFrom, dateTo, collected, cash, transfer) => {
+    const report = buildFinancialReport({
+      dateFrom, dateTo, shifts: [], transactions: [],
+      collectionTransactions: [{
+        id: "tx-large-refund", createdAt: new Date("2026-10-06T03:00:00Z"), status: "COMPLETED",
+        paymentMethod: "CASH", total: 100000, amountPaid: 200000, change: 100000,
+        payments: [{ method: "CASH", amount: 50000, createdAt: new Date("2026-10-06T03:00:00Z") }],
+        debtPaymentLogs: [{ id: "large-settlement", amount: 150000, paymentMethod: "TRANSFER", createdAt: new Date("2026-10-07T03:00:00Z") }],
+      }],
+      debtPayments: [{ transactionId: "tx-large-refund", paymentMethod: "TRANSFER", amount: 150000, createdAt: new Date("2026-10-07T03:00:00Z") }],
+    });
+    expect(report.summary.collected).toBe(collected);
+    expect(report.paymentMethods.find(row => row.method === "CASH")?.collected ?? 0).toBe(cash);
+    expect(report.paymentMethods.find(row => row.method === "TRANSFER")?.collected ?? 0).toBe(transfer);
+  });
+
   it("subtracts change from cash before allocating split initial collections", () => {
     const report = buildFinancialReport({ dateFrom: "2026-10-06", dateTo: "2026-10-06", shifts: [], transactions: [{
       id: "tx-change", invoiceNumber: "INV-1", createdAt: new Date("2026-10-06T03:00:00Z"), status: "COMPLETED",

@@ -15,6 +15,9 @@ import {
   getReceiptPrintStatus,
 } from "@/lib/receipt-payment-lines";
 import "./receipt-print.css";
+import { useReceiptTax } from "@/features/transaction-tax/hooks/useReceiptTax";
+import { TaxField } from "@/features/transaction-tax/components/TaxField";
+import { formatTaxRate, getTransactionTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 
 /** Default page height in px (165mm ≈ 623px at 96dpi). */
 const DEFAULT_PAGE_H_PX = 623;
@@ -48,9 +51,11 @@ interface ReceiptModalProps {
 export function ReceiptModal({
   open,
   onClose,
-  transaction,
+  transaction: initialTransaction,
   draftPrintDivision,
 }: ReceiptModalProps) {
+  const tax = useReceiptTax(initialTransaction, open && initialTransaction.status !== "DRAFT");
+  const transaction = tax.transaction;
   const { data: storeSettings } = useStoreSettings();
   const [showPrintModal, setShowPrintModal] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -135,6 +140,7 @@ export function ReceiptModal({
   return (
     <Modal open={open} onClose={onClose} title={modalTitle} size="5xl">
       <div className="space-y-6">
+        <TaxField tax={tax} />
         {/* ── Fix #1 & #2: print CSS is now a static import ─────── */}
         <div className="w-full overflow-x-auto pb-4">
           <div
@@ -350,6 +356,10 @@ export function ReceiptModal({
               >
 
                 <div className="flex flex-col items-end">
+                  <div className="flex w-[350px] py-1">
+                    <div className="flex-1 text-right pr-4">Pajak</div>
+                    <div className="w-[180px] text-center">{formatTaxRate(getTransactionTaxRate(transaction))}</div>
+                  </div>
                   <div className="flex w-[350px]">
                     <div
                       className={`flex-1 flex items-center justify-end font-bold pr-4 py-2 ${isCancelled ? "line-through opacity-50" : ""}`}
@@ -514,7 +524,10 @@ export function ReceiptModal({
               <Button
                 variant="accent"
                 size="lg"
-                onClick={() => setShowPrintModal(true)}
+                disabled={!tax.ready || tax.saving || tax.invalid}
+                onClick={async () => {
+                  try { await tax.ensureSaved(); setShowPrintModal(true); } catch { /* Field shows the save error. */ }
+                }}
                 className="flex-1"
               >
                 Cetak Invoice

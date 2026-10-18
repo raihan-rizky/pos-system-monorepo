@@ -38,6 +38,9 @@ export interface DraftPdfData {
   items: DraftPdfItem[];
   grandTotal: number;
   grandTotalFormatted: string;
+  netAmountFormatted: string;
+  dppFormatted: string;
+  taxFormatted: string;
   terbilangText: string;
   note: string | null;
   signerName: string;
@@ -81,6 +84,7 @@ export function buildDraftPdfData(
     "";
 
   const grandTotal = Number(transaction.total);
+  const netAmount = Math.max(0, Number(transaction.subtotal ?? grandTotal - Number(transaction.tax ?? 0)) - Number(transaction.discount ?? 0));
 
   const pdfItems: DraftPdfItem[] = items.map((item, index) => ({
     no: index + 1,
@@ -105,6 +109,9 @@ export function buildDraftPdfData(
     items: pdfItems,
     grandTotal,
     grandTotalFormatted: grandTotal.toLocaleString("id-ID"),
+    netAmountFormatted: netAmount.toLocaleString("id-ID"),
+    dppFormatted: Math.round(netAmount * 11 / 12).toLocaleString("id-ID"),
+    taxFormatted: Number(transaction.tax ?? 0).toLocaleString("id-ID"),
     terbilangText: terbilang(grandTotal),
     note: cleanNote || null,
     signerName: "Indra Gunawan",

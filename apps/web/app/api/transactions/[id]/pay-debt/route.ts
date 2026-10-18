@@ -198,6 +198,7 @@ export async function POST(
           storeId,
           status: fresh.status,
           amountPaid: fresh.amountPaid,
+          total: fresh.total,
           ...(fresh.status === "COMPLETED" ? { paymentMethod: "TEMPO" } : {}),
         },
         data: {

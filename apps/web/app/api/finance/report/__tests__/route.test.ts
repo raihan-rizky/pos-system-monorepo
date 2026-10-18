@@ -74,6 +74,7 @@ describe("GET /api/finance/report", () => {
     transactionFindManyMock.mockResolvedValueOnce([]).mockResolvedValueOnce([{
       id: "backdated", status: "COMPLETED", createdAt: new Date("2026-05-20T03:00:00Z"), total: 100, amountPaid: 150, change: 50, paymentMethod: "CASH",
       payments: [{ method: "CASH", amount: 150, createdAt: new Date("2026-05-20T03:00:00Z") }],
+      debtPaymentLogs: [],
     }]);
     const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-05-20&dateTo=2026-05-20"));
     expect(response.status).toBe(200);

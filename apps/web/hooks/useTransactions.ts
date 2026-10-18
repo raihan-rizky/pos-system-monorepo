@@ -19,6 +19,8 @@ export interface Transaction {
   subtotal: number;
   discount: number;
   tax: number;
+  taxRate?: number | null;
+  taxMethod?: "STANDARD" | "DPP_NILAI_LAIN";
   total: number;
   paymentMethod: string;
   amountPaid: number;

@@ -1,3 +1,5 @@
+import { netInitialPayments } from "@/features/customer-debt/helpers/net-initial-payments";
+
 export interface ReceiptPaymentSource {
   total?: number | string | null;
   amountPaid?: number | string | null;
@@ -99,7 +101,6 @@ export function buildReceiptPaymentLines(
   if (!transaction) return [];
 
   const amountPaid = toNumber(transaction.amountPaid);
-  const total = toNumber(transaction.total);
   const initialPayments = getInitialPayments(transaction);
   const debtPaymentLines = (transaction.debtPaymentLogs ?? [])
     .map((payment) => ({
@@ -121,10 +122,13 @@ export function buildReceiptPaymentLines(
   );
 
   const initialLimit = hasDebtPayments
-    ? Math.max(0, Math.min(total || amountPaid, amountPaid) - debtPaymentTotal)
-    : initialTotal;
+    ? Math.max(0, amountPaid - debtPaymentTotal)
+    : Math.min(initialTotal, amountPaid);
 
-  const initialLines = takePaymentAmounts(initialPayments, initialLimit).map(
+  const retainedPayments = netInitialPayments(initialPayments.map(payment => ({
+    ...payment, method: payment.label === "TUNAI" ? "CASH" : payment.label,
+  })), { total: initialLimit, amountPaid: initialLimit });
+  const initialLines = takePaymentAmounts(retainedPayments, initialLimit).map(
     (payment) => ({
       label: payment.label,
       amount: payment.amount,

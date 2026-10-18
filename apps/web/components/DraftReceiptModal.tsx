@@ -12,6 +12,8 @@ import { decodeDivisionFromNote } from "@/features/nota-penawaran/helpers/divisi
 import { DraftNumberField } from "@/features/transactions-draft/components/DraftNumberField";
 import { useRole } from "@/components/providers/RoleProvider";
 import "./draft-receipt-print.css";
+import { useReceiptTax } from "@/features/transaction-tax/hooks/useReceiptTax";
+import { TaxField } from "@/features/transaction-tax/components/TaxField";
 
 interface DraftReceiptModalProps {
   open: boolean;
@@ -30,9 +32,11 @@ interface DraftReceiptModalProps {
 export function DraftReceiptModal({
   open,
   onClose,
-  transaction,
+  transaction: initialTransaction,
   initialDivision = "",
 }: DraftReceiptModalProps) {
+  const tax = useReceiptTax(initialTransaction, open);
+  const transaction = tax.transaction;
   const { data: storeSettings } = useStoreSettings();
   const queryClient = useQueryClient();
   const { canPerform } = useRole();
@@ -90,6 +94,7 @@ export function DraftReceiptModal({
     setIsSavingNumber(true);
     setNumberError(null);
     try {
+      await tax.ensureSaved();
       if (canEditNumber && numberInput !== undefined) {
         const response = await fetch(`/api/transactions/${transaction.id}/draft-number`, {
           method: "PATCH",
@@ -122,6 +127,8 @@ export function DraftReceiptModal({
   const storePhone = storeSettings?.phone || "0254 393022";
 
   const grandTotal = Number(transaction.total);
+  const netAmount = Math.max(0, Number(transaction.subtotal ?? grandTotal - Number(transaction.tax ?? 0)) - Number(transaction.discount ?? 0));
+  const dpp = Math.round(netAmount * 11 / 12);
 
   const formatIndonesianDate = (dateStr: string): string => {
     const date = new Date(dateStr);
@@ -198,6 +205,7 @@ export function DraftReceiptModal({
             hint={canEditNumber ? "Nomor disimpan ke transaksi sebelum dicetak. Klik Gunakan otomatis untuk memakai nomor sistem." : "Nomor mengikuti transaksi tersimpan. Anda tidak memiliki izin mengubah nomor faktur."}
           />
           {numberError && <p role="alert" className="text-sm text-red-700">{numberError}</p>}
+          <TaxField tax={tax} quotation />
         </div>
 
         {/* ═══ A4 PREVIEW ═══ */}
@@ -323,9 +331,19 @@ export function DraftReceiptModal({
                     }}
                   >
                     Rp{" "}
-                    {grandTotal.toLocaleString("id-ID")}
+                    {netAmount.toLocaleString("id-ID")}
                   </td>
                 </tr>
+                {[
+                  ["DPP Nilai Lain", dpp],
+                  ["PPN", Number(transaction.tax ?? 0)],
+                  ["Total", grandTotal],
+                ].map(([label, amount]) => (
+                  <tr className="total-row" key={label}>
+                    <td colSpan={5} style={{ textAlign: "left", fontWeight: "bold", fontSize: 12, padding: "6px 8px" }}>{label}</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold", fontSize: 12, padding: "6px 8px", width: 110 }}>Rp {Number(amount).toLocaleString("id-ID")}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
 
@@ -398,7 +416,7 @@ export function DraftReceiptModal({
             size="lg"
             onClick={handlePrint}
             loading={isSavingNumber}
-            disabled={isLoadingNumber || !numberReady}
+            disabled={isLoadingNumber || !numberReady || !tax.ready || tax.saving || tax.invalid}
             className="flex-1"
           >
             Cetak Nota Penawaran

@@ -552,6 +552,10 @@ export function InvoicePdfDocument({
 
         {/* ── Totals (mt-auto, right-aligned) ─────────────────── */}
         <View style={s.totalsWrap}>
+          <View style={s.totalRow}>
+            <View style={s.totalLabel}><Text>Pajak</Text></View>
+            <Text style={s.totalValueBox}>{data.taxRateFormatted}</Text>
+          </View>
           {/* GRAND TOTAL */}
           <View style={s.totalRow}>
             <View style={[

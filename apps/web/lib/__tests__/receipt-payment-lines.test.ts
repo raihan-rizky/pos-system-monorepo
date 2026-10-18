@@ -2,6 +2,21 @@ import { describe, expect, it } from "vitest";
 import { buildReceiptPaymentLines } from "../receipt-payment-lines";
 
 describe("buildReceiptPaymentLines", () => {
+  it("preserves gross receipts when lower tax returns change after debt repayment", () => {
+    const lines = buildReceiptPaymentLines({ total: 100000, amountPaid: 110000, status: "COMPLETED", paymentMethod: "CASH",
+      payments: [{ method: "CASH", amount: 50000 }],
+      debtPaymentLogs: [{ paymentMethod: "TRANSFER", amount: 60000 }],
+    });
+    expect(lines.map(line => line.amount)).toEqual([50000, 60000]);
+  });
+  it("excludes cash already returned before adding tax while preserving transfer amounts", () => {
+    expect(buildReceiptPaymentLines({ total: 99000, amountPaid: 90000, status: "DP", paymentMethod: "CASH",
+      payments: [{ method: "CASH", amount: 20000 }, { method: "TRANSFER", amount: 80000 }],
+    })).toEqual([
+      { label: "TUNAI", amount: 10000, amountFormatted: "10.000", subLabel: "DP" },
+      { label: "TRANSFER", amount: 80000, amountFormatted: "80.000", subLabel: "DP" },
+    ]);
+  });
   it("does not duplicate a fully paid debt invoice when amountPaid already includes debt logs", () => {
     const lines = buildReceiptPaymentLines({
       total: 32000,

@@ -5,6 +5,16 @@ import {
 } from "../approval-quote";
 
 describe("buildApprovalFingerprint", () => {
+  it("recalculates saved DPP tax when approval changes the quantity", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, tax: 11, taxRate: 12, taxMethod: "DPP_NILAI_LAIN" } as never);
+    const quote = await buildApprovalQuote(client as never, {
+      storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ productId: "paper", quantity: 2 }],
+    });
+    expect(quote).toMatchObject({ subtotal: 200, tax: 22, total: 222 });
+  });
   it("is stable for equivalent objects regardless of key insertion order", () => {
     const first = {
       customerId: "customer-1",
