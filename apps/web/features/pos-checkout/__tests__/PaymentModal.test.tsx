@@ -62,6 +62,13 @@ vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({
 }));
 
 describe("PaymentModal custom invoice date", () => {
+  it("offers a labelled percentage tax input before the payment total", () => {
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[]} subtotal={0} onConfirm={vi.fn()} />);
+    expect(html).toContain("Pajak (%)");
+    const input = html.match(/<input\b[^>]*name="taxRate"[^>]*>/)?.[0] ?? "";
+    for (const attribute of ['min="0"', 'max="100"', 'step="0.01"']) expect(input).toContain(attribute);
+    expect(html.indexOf('name="taxRate"')).toBeLessThan(html.indexOf("<span>Total</span>"));
+  });
   it("prefills the date and time inputs with the synchronized WIB time", () => {
     roleMock = "OWNER";
     const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[]} subtotal={0} onConfirm={vi.fn()} onSaveDraft={vi.fn()} />);

@@ -67,6 +67,11 @@ function request(transactions: unknown[]) {
 }
 
 describe("POST /api/offline-sync/transactions", () => {
+  it("preserves the checkout tax when syncing a current offline sale", async () => {
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), taxRate: 12.5, discount: 200, originalTotal: 2025, amountPaid: 2025 })]));
+    expect(response.status).toBe(200);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 2000, discount: 200, taxRate: 12.5, taxMethod: "STANDARD", tax: 225, total: 2025, status: "COMPLETED" });
+  });
   it("records customer contribution atomically for a completed offline sale", async () => {
     customerFindFirstMock.mockResolvedValue({ id: "c1", type: "UMUM" });
     applyProductStockDeltasMock.mockResolvedValue([]);

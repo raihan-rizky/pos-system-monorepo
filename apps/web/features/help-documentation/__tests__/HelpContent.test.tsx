@@ -277,7 +277,7 @@ describe('HelpContent', () => {
 
     expect(html).toContain('foto produk');
     expect(html).toContain('Cloudflare R2');
-    expect(html).toContain('bukan lagi Supabase Storage');
+    expect(html).toContain('Foto yang diunggah disimpan di Cloudflare R2');
   });
 
   it('documents the owner-only selective database reset safety flow', () => {

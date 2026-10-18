@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "receipt-tax-checkout", date: "2026-10-18", revision: 1,
+    highlight: { title: "Pajak saat pembayaran", summary: "Isi pajak sebelum bayar; persentasenya tampil di bagian atas nota." },
+    title: "Isi pajak langsung saat pembayaran.",
+    summary: "Pajak nota biasa kini bisa diisi di modal Pembayaran dan langsung memperbarui total serta sisa tagihan. Persentase pajak tampil di bagian atas nota dan PDF.",
+    kind: "improvement", area: "Kasir & Nota", href: "/pos", visual: "tax",
+    screenshot: { src: "/images/changelog/pajak-pembayaran.png", alt: "Field Pajak persen pada modal Pembayaran dengan contoh tarif 12,5 persen dan penjelasan pajak setelah diskon" },
+    steps: [
+      { title: "Buka Pembayaran", detail: "Pilih barang di Kasir, lalu klik Bayar." },
+      { title: "Isi Pajak (%)", detail: "Masukkan tarif 0–100 dengan maksimal dua desimal dan periksa total." },
+      { title: "Bayar dan cetak", detail: "Konfirmasi pembayaran; tarif tersimpan dan tampil di bagian atas nota." },
+    ],
+  },
+  {
     id: "visual-changelog", date: "2026-10-18", revision: 1,
     highlight: { title: "Catatan Perubahan", summary: "Pembaruan dan panduan fitur." },
     title: "Kenali perubahan, sekali lihat.",

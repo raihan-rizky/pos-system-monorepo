@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useId } from "react";
+import { calculateTransactionTax, formatTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins, FileClock, PackageCheck, PanelsTopLeft, RotateCcw, Clock3 } from "lucide-react";
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
@@ -48,6 +49,7 @@ interface PaymentModalProps {
     paymentMethod: string;
     amountPaid: number;
     discount: number;
+    taxRate: number;
     note: string;
     customerName: string;
     customerId: string | null;
@@ -136,6 +138,8 @@ export function PaymentModal({
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>(["CASH"]);
   const [discountMode, setDiscountMode] = useState<"RP" | "PERCENT">("RP");
   const [discountInput, setDiscountInput] = useState(0);
+  const [taxRateText, setTaxRateText] = useState("0");
+  const taxInputId = useId();
   const [amountsPaid, setAmountsPaid] = useState<Record<string, number>>({});
   const amountPaid = selectedPaymentMethods.reduce((sum, method) => sum + (amountsPaid[method] || 0), 0);
   
@@ -207,6 +211,7 @@ export function PaymentModal({
       setCustomerError(null);
       setInvoiceDateReason("");
       setIsTempo(false);
+      setTaxRateText("0");
     } else {
       // auto-set isJobOrder if opening with items that have material/size
       setIsJobOrder(items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size));
@@ -224,7 +229,10 @@ export function PaymentModal({
       : Math.max(discountInput, 0);
   const discount = Math.min(rawDiscount, pricedSubtotal);
   const isClamped = rawDiscount > pricedSubtotal;
-  const total = pricedSubtotal - discount;
+  const taxRate = Number(taxRateText);
+  const invalidTax = taxRateText.trim() === "" || !Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100 ||
+    Math.abs(taxRate * 100 - Math.round(taxRate * 100)) > 1e-8;
+  const { tax, total } = calculateTransactionTax({ subtotal: pricedSubtotal, discount, taxRate: invalidTax ? 0 : taxRate, taxMethod: "STANDARD" });
   const change = amountPaid - total;
   const remaining = total - amountPaid;
 
@@ -239,7 +247,7 @@ export function PaymentModal({
   const hasCheckoutCustomer =
     customerSelection.kind === "existing" ||
     (customerSelection.kind === "new" && Boolean(customerSelection.name.trim()));
-  const canPay = canSubmitPayment({
+  const canPay = !invalidTax && canSubmitPayment({
     mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
     amountPaid,
     total,
@@ -263,6 +271,7 @@ export function PaymentModal({
   };
 
   const handleConfirm = async () => {
+    if (!canPay || isProcessing || createCustomer.isPending) return;
     const selectedSales = salespersons.find(s => s.id === salespersonId);
     const customer = await resolveCustomerForSubmit();
     if (!customer) return;
@@ -281,6 +290,7 @@ export function PaymentModal({
         amountsPaid,
       }),
       discount,
+      taxRate,
       note,
       customerName: customer.customerName,
       customerId: customer.customerId,
@@ -843,6 +853,16 @@ export function PaymentModal({
           )}
         </div>
 
+        <div>
+          <label htmlFor={taxInputId} className="mb-1.5 block text-sm font-medium text-surface-700">Pajak (%)</label>
+          <input id={taxInputId} name="taxRate" type="number" inputMode="decimal" min="0" max="100" step="0.01" required
+            value={taxRateText} onChange={event => setTaxRateText(event.target.value)} disabled={isProcessing || isSavingDraft}
+            aria-invalid={invalidTax} aria-describedby={`${taxInputId}-hint${invalidTax ? ` ${taxInputId}-error` : ""}`}
+            className="w-full rounded-xl border border-surface-200 bg-white px-4 py-2.5 text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          <p id={`${taxInputId}-hint`} className="mt-1.5 text-xs text-surface-500">Pajak nota biasa dihitung setelah diskon. PPN faktur sementara diatur saat cetak nota penawaran.</p>
+          {invalidTax && <p id={`${taxInputId}-error`} role="alert" className="mt-1 text-sm text-red-700">Isi persentase pajak 0–100 dengan maksimal dua angka desimal.</p>}
+        </div>
+
         {/* Totals */}
         <div className={`rounded-xl p-4 text-white ${isDP ? 'bg-gradient-to-r from-amber-500 to-amber-600' : isTempo ? 'bg-gradient-to-r from-sky-700 to-sky-800' : 'bg-gradient-to-r from-brand-600 to-brand-700'}`}>
           <div className="flex justify-between text-sm opacity-80">
@@ -862,6 +882,10 @@ export function PaymentModal({
               <span>-{formatRupiah(discount)}</span>
             </div>
           )}
+          <div className="mt-1 flex justify-between text-sm opacity-80">
+            <span>Pajak ({formatTaxRate(invalidTax ? 0 : taxRate)})</span>
+            <span>{formatRupiah(tax)}</span>
+          </div>
           <div className="flex justify-between text-xl font-extrabold mt-2 pt-2 border-t border-white/20">
             <span>Total</span>
             <span>{formatRupiah(total)}</span>

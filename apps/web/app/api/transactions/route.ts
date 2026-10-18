@@ -1,4 +1,5 @@
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
+import { calculateTransactionTax } from "@/features/transaction-tax/helpers/tax-calculation";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
 import { NextResponse } from "next/server";
 import { after } from "next/server";
@@ -90,6 +91,7 @@ const transactionItemSchema = z.union([
 ]);
 
 const createTransactionSchema = z.object({
+  taxRate: z.number().min(0).max(100).multipleOf(0.01).optional().default(0),
   items: z.array(transactionItemSchema).min(1, "Cart is empty"),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER", "TEMPO"]).optional().default("CASH"),
   amountPaid: z.number().min(0),
@@ -465,6 +467,7 @@ export async function POST(request: Request) {
       paymentMethod,
       amountPaid,
       discount,
+      taxRate,
       note,
       customerName,
       customerId,
@@ -783,7 +786,7 @@ export async function POST(request: Request) {
       (sum, item) => sum + item.price * item.quantity,
       0
     );
-    const total = Math.max(0, subtotal - discount);
+    const { tax, total } = calculateTransactionTax({ subtotal, discount, taxRate, taxMethod: "STANDARD" });
 
     const isDP = paymentStatus === "DP";
     const autoApproveTransaction = canRolePerformAction(
@@ -850,7 +853,9 @@ export async function POST(request: Request) {
               customerId: customerId || null,
               subtotal,
               discount,
-              tax: 0,
+              tax,
+              taxRate,
+              taxMethod: "STANDARD",
               total,
               paymentMethod: primaryPaymentMethod,
               amountPaid: amountPaidComputed,

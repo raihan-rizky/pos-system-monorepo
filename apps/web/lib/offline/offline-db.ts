@@ -17,6 +17,7 @@ export type OfflineTransactionPayload = {
   paymentMethod: OfflinePaymentMethod;
   amountPaid: number;
   discount: number;
+  taxRate?: number;
   note?: string | null;
   customerName?: string | null;
   customerId?: string | null;

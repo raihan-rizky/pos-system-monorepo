@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useDeferredValue } from "react";
 import dynamic from "next/dynamic";
+import { calculateTransactionTax } from "@/features/transaction-tax/helpers/tax-calculation";
 import { AlertTriangle, Check, CircleMinus, Clock, Search, ShoppingCart, X } from "lucide-react";
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
@@ -444,6 +445,7 @@ export default function POSClientPage({
     paymentMethod: string;
     amountPaid: number;
     discount: number;
+    taxRate: number;
     note: string;
     customerName: string;
     customerId: string | null;
@@ -504,6 +506,7 @@ export default function POSClientPage({
             paymentMethod: data.paymentMethod as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER",
             amountPaid: data.amountPaid,
             discount: data.discount,
+            taxRate: data.taxRate,
             note: data.note,
             customerName: data.customerName,
             customerId: data.customerId,
@@ -516,13 +519,15 @@ export default function POSClientPage({
               (sum, item) => sum + item.price * item.quantity,
               0,
             ),
-            originalTotal: Math.max(
-              0,
-              offlinePricedItems.reduce(
+            originalTotal: calculateTransactionTax({
+              subtotal: offlinePricedItems.reduce(
                 (sum, item) => sum + item.price * item.quantity,
                 0,
-              ) - data.discount,
-            ),
+              ),
+              discount: data.discount,
+              taxRate: data.taxRate,
+              taxMethod: "STANDARD",
+            }).total,
             timeSource: isTrustedServerClockSource(offlineClock.source)
               ? "SERVER_ESTIMATE"
               : "DEVICE_UNVERIFIED",

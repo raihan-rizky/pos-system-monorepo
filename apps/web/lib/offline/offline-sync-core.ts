@@ -3,12 +3,14 @@ import {
   calculateStockAdjustment,
   isExpiredOfflineTransaction,
 } from "./offline-core";
+import { calculateTransactionTax } from "../../features/transaction-tax/helpers/tax-calculation";
 
 export type OfflineSyncPayload = {
   clientMutationId: string;
   createdAt: string;
   items: OfflineCartItem[];
   discount: number;
+  taxRate?: number;
   originalTotal: number;
 };
 
@@ -18,6 +20,7 @@ export type OfflineSyncDecision = {
   reason: "UNCHANGED" | "ADJUSTED_TOTAL_CHANGED" | "EXPIRED" | "NO_ITEMS_AVAILABLE";
   items: OfflineCartItem[];
   subtotal: number;
+  tax: number;
   total: number;
   removedItems: ReturnType<typeof calculateStockAdjustment>["removedItems"];
 };
@@ -41,6 +44,7 @@ export function buildOfflineSyncDecision(
       reason: "NO_ITEMS_AVAILABLE",
       items: [],
       subtotal: 0,
+      tax: 0,
       total: 0,
       removedItems: adjustment.removedItems,
     };
@@ -50,7 +54,7 @@ export function buildOfflineSyncDecision(
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
-  const total = Math.max(0, subtotal - payload.discount);
+  const { tax, total } = calculateTransactionTax({ subtotal, discount: payload.discount, taxRate: payload.taxRate ?? 0, taxMethod: "STANDARD" });
   const expired = isExpiredOfflineTransaction(payload.createdAt, context.now);
   const totalChanged = total !== payload.originalTotal || adjustment.totalChanged;
 
@@ -61,6 +65,7 @@ export function buildOfflineSyncDecision(
       reason: "EXPIRED",
       items: adjustment.items,
       subtotal,
+      tax,
       total,
       removedItems: adjustment.removedItems,
     };
@@ -73,6 +78,7 @@ export function buildOfflineSyncDecision(
       reason: "ADJUSTED_TOTAL_CHANGED",
       items: adjustment.items,
       subtotal,
+      tax,
       total,
       removedItems: adjustment.removedItems,
     };
@@ -84,6 +90,7 @@ export function buildOfflineSyncDecision(
     reason: "UNCHANGED",
     items: adjustment.items,
     subtotal,
+    tax,
     total,
     removedItems: adjustment.removedItems,
   };

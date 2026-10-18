@@ -75,6 +75,41 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
+  it.each([
+    { rate: 12, discount: 100, tax: 108, total: 1008 },
+    { rate: 12.5, discount: 0, tax: 125, total: 1125 },
+    { rate: 0, discount: 0, tax: 0, total: 1000 },
+    { rate: 100, discount: 0, tax: 1000, total: 2000 },
+  ])("calculates and persists checkout tax $rate from server prices after discount", async ({ rate, discount, tax, total }) => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      taxRate: rate, tax: 999999, discount, amountPaid: total + 100, paymentMethod: "CASH",
+      items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1, price: 1 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 1000, taxRate: rate, taxMethod: "STANDARD", tax, total, change: 100 });
+  });
+
+  it.each([-1, 100.01, 1.001, "12"])("rejects invalid checkout tax %s before writing", async taxRate => {
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({ taxRate, amountPaid: 5000, items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }] }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("requires full payment including the checkout tax", async () => {
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({ taxRate: 12, amountPaid: 1000, items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }] }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["DP", "TEMPO"])("includes checkout tax in customer debt for %s", async mode => {
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "UMUM" });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({ taxRate: 12, customerId: "c1", amountPaid: 500, payments: [{ method: "CASH", amount: 500 }], paymentMethod: mode === "TEMPO" ? "TEMPO" : "CASH", paymentStatus: mode === "DP" ? "DP" : "COMPLETED", items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }] }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ tax: 120, total: 1120, change: 0 });
+    expect(customerUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ totalDebt: { increment: 620 } }) }));
+  });
   it("persists the synchronized Internet date instead of a drifting device clock", async () => {
     invoiceNowMock.mockResolvedValue(new Date("2030-01-02T20:00:00Z"));
     applyProductStockDeltasMock.mockResolvedValue([]);

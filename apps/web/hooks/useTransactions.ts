@@ -127,6 +127,7 @@ interface CreateTransactionInput {
   paymentMethod: string;
   amountPaid: number;
   discount?: number;
+  taxRate?: number;
   note?: string;
   customerName?: string;
   customerId?: string | null;

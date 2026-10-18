@@ -246,6 +246,11 @@ export function ReceiptModal({
                     </span>
                   </div>
                   <div className="flex">
+                    <span className="w-24">Pajak</span>
+                    <span className="mr-4">:</span>
+                    <span>{formatTaxRate(getTransactionTaxRate(transaction))}</span>
+                  </div>
+                  <div className="flex">
                     <span className="w-24">Pembayaran</span>
                     <span className="mr-4">:</span>
                     <span>
@@ -356,10 +361,6 @@ export function ReceiptModal({
               >
 
                 <div className="flex flex-col items-end">
-                  <div className="flex w-[350px] py-1">
-                    <div className="flex-1 text-right pr-4">Pajak</div>
-                    <div className="w-[180px] text-center">{formatTaxRate(getTransactionTaxRate(transaction))}</div>
-                  </div>
                   <div className="flex w-[350px]">
                     <div
                       className={`flex-1 flex items-center justify-end font-bold pr-4 py-2 ${isCancelled ? "line-through opacity-50" : ""}`}

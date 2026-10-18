@@ -5,9 +5,11 @@ import { ReceiptModal } from "@/components/ReceiptModal";
 import { DraftReceiptModal } from "@/components/DraftReceiptModal";
 import { buildInvoicePdfData } from "@/features/invoice-pdf/helpers/invoice-pdf-data";
 import { buildDraftPdfData } from "@/features/invoice-pdf/helpers/draft-pdf-data";
+import { InvoicePdfDocument } from "@/features/invoice-pdf/components/InvoicePdfDocument";
 import type { Transaction } from "@/hooks/useTransactions";
 
 vi.mock("@/hooks/useSettings", () => ({ useStoreSettings: () => ({ data: null }) }));
+vi.mock("@react-pdf/renderer", () => ({ StyleSheet: { create: (styles: unknown) => styles }, Document: "document", Page: "page", View: "view", Text: "text", Image: "image" }));
 vi.mock("@tanstack/react-query", async importOriginal => ({ ...await importOriginal<object>(), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canPerform: () => true }) }));
 vi.mock("@/features/surat-jalan/components/SuratJalanBundleButton", () => ({ SuratJalanBundleButton: () => null }));
@@ -17,12 +19,22 @@ const store = { name: "Toko", address: "Cilegon", phone: "123" };
 const transaction = { id: "tx-1", subtotal: 706000, discount: 0, tax: 77660, total: 783660, taxRate: 12, taxMethod: "DPP_NILAI_LAIN", status: "DRAFT", amountPaid: 0, change: 0, paymentMethod: "CASH", items: [], createdAt: "2026-10-18T03:00:00Z" } as unknown as Transaction;
 
 describe("tax receipt output", () => {
+  it("places the regular PDF tax percentage in the header before the item table", () => {
+    const data = buildInvoicePdfData({ ...transaction, status: "COMPLETED", taxRate: 12 } as Transaction, store);
+    const text = (node: React.ReactNode): string => React.Children.toArray(node).map(child => React.isValidElement<{ children?: React.ReactNode }>(child) ? text(child.props.children) : String(child)).join(" ");
+    const content = text(InvoicePdfDocument({ data, paperSize: { w: 215.9, h: 139.7 } }));
+    expect(content.indexOf("Pajak")).toBeLessThan(content.indexOf("Nama Barang"));
+    expect(content.match(/Pajak/g)).toHaveLength(1);
+  });
   it("prints regular tax as a percentage", () => {
     const regular = { ...transaction, status: "COMPLETED", taxMethod: "STANDARD", tax: 84720, total: 790720, amountPaid: 790720 } as Transaction;
     const html = renderToStaticMarkup(<ReceiptModal open onClose={vi.fn()} transaction={regular} />);
     expect(html).toContain("Pajak");
     expect(html).toContain("12%");
     expect(html).not.toContain("84.720");
+    const printed = html.slice(html.indexOf('id="print-receipt"'));
+    expect(printed.indexOf("Pajak")).toBeLessThan(printed.indexOf("Nama Barang"));
+    expect(printed.match(/Pajak/g)).toHaveLength(1);
     expect(buildInvoicePdfData(regular, store)).toMatchObject({ taxRateFormatted: "12%" });
   });
   it("prints DPP and PPN as rupiah and uses the final total in words", () => {
