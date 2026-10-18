@@ -22,10 +22,29 @@ describe("PaymentTermsBadge", () => {
       />,
     );
 
-    expect(unpaid).toContain("Tempo/Tagihan");
+    expect(unpaid.replace(/<[^>]+>/g, "")).toBe("Tempo");
     expect(unpaid).toContain("Belum lunas");
-    expect(paid).toContain("Tempo/Tagihan");
-    expect(paid).toContain("Lunas");
+    expect(paid.replace(/<[^>]+>/g, "")).toBe("Lunas");
+    expect(paid).toContain("text-emerald-700");
+    expect(unpaid).toContain("text-amber-800");
+    expect(unpaid).toContain("whitespace-nowrap");
+  });
+
+  it("describes the remaining balance without adding visible badge text", () => {
+    const markup = renderToStaticMarkup(
+      <PaymentTermsBadge
+        status="COMPLETED"
+        paymentMethod="TEMPO"
+        total={100_000}
+        amountPaid={50_000}
+      />,
+    );
+
+    expect(markup.replace(/<[^>]+>/g, "")).toBe("Tempo");
+    expect(markup).toMatch(/title="[^"]*Sisa tagihan: Rp\s*50\.000/);
+    expect(markup).toMatch(/aria-description="[^"]*Sisa tagihan: Rp\s*50\.000/);
+    expect(markup).toContain('aria-label="TEMPO/TAGIHAN, Belum lunas"');
+    expect(markup).toContain('aria-hidden="true"');
   });
 
   it("keeps the existing DP badge and hides itself for a regular sale", () => {

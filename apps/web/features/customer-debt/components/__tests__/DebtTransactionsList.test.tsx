@@ -48,7 +48,7 @@ describe("DebtTransactionsList", () => {
   it("shows Tempo debt, paid amount, and remaining balance in the list", () => {
     const markup = renderToStaticMarkup(<DebtTransactionsList />);
 
-    expect(markup).toContain("Tempo/Tagihan");
+    expect(markup).toContain(">Tempo</span>");
     expect(markup).toContain("Belum lunas");
     expect(markup).toContain("Sisa");
     expect(markup).toContain("Dibayar");

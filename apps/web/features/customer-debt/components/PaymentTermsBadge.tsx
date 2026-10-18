@@ -1,6 +1,8 @@
 "use client";
 
 import { getPaymentPresentation } from "../helpers/payment-presentation";
+import { Check, Clock3 } from "lucide-react";
+import { formatRupiah } from "@/lib/utils";
 
 interface PaymentTermsBadgeProps {
   status: string;
@@ -30,23 +32,29 @@ export function PaymentTermsBadge({
     : isTempo
       ? "Belum lunas"
       : null;
+  const description = isTempo
+    ? presentation.settled
+      ? "Pembayaran tempo sudah lunas."
+      : `Sisa tagihan: ${formatRupiah(presentation.remaining)}`
+    : undefined;
+  const Icon = presentation.settled ? Check : Clock3;
 
   return (
     <span
       role="status"
       aria-label={stateLabel ? `${presentation.badge}, ${stateLabel}` : presentation.badge}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold tracking-wide ${
+      aria-description={description}
+      title={description}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold leading-4 ${
         isTempo
-          ? "border-amber-200 bg-amber-50 text-amber-800"
+          ? presentation.settled
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border-amber-200 bg-amber-50 text-amber-800"
           : "border-sky-200 bg-sky-50 text-sky-800"
       }`}
     >
-      <span>{isTempo ? "Tempo/Tagihan" : "DP"}</span>
-      {stateLabel && (
-        <span className="rounded-full bg-white/70 px-1.5 py-0.5 font-semibold">
-          {stateLabel}
-        </span>
-      )}
+      {isTempo && <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />}
+      <span>{isTempo ? (presentation.settled ? "Lunas" : "Tempo") : "DP"}</span>
     </span>
   );
 }
