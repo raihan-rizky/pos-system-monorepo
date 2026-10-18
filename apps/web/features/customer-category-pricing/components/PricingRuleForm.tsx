@@ -49,6 +49,7 @@ export function PricingRuleForm({
     brandId: initialRule?.brandId ?? "",
     mode: initialRule?.mode ?? "COST_PLUS_FLAT",
     value: initialRule ? String(initialRule.value) : "",
+    discountPercent: initialRule?.discountPercent != null ? String(initialRule.discountPercent) : "",
     isActive: initialRule?.isActive ?? true,
   }));
   const [errors, setErrors] = useState<PricingFormErrors>({});
@@ -62,7 +63,8 @@ export function PricingRuleForm({
   const rulesQuery = useCustomerCategoryPricingRules();
   const unitsQuery = usePricingUnitOptions(form.categoryId);
   const method = getPricingMethod(form.mode);
-  const isFormula = form.mode.startsWith("COST_PLUS");
+  const isUnitFormula = form.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT";
+  const isFormula = form.mode.startsWith("COST_PLUS") || isUnitFormula;
   const scopeQuery = usePricingScopeOptions(
     form.categoryId,
     form.unit || null,
@@ -139,6 +141,7 @@ export function PricingRuleForm({
         brandId: form.brandId || null,
         mode: form.mode,
         value: Number(form.value),
+        ...(isUnitFormula ? { discountPercent: Number(form.discountPercent) } : {}),
         isActive: form.isActive,
       });
     } catch (error) {
@@ -386,8 +389,15 @@ export function PricingRuleForm({
             onChange={(event) => change("value", event.target.value)}
           />
           {inlineError("value")}
+          {isUnitFormula && <div className="mt-4">
+            <label htmlFor="pricing-discountPercent" className="text-sm font-semibold text-slate-700">Potongan setelah tambahan (%) <span className="text-red-600">*</span></label>
+            <input id="pricing-discountPercent" name="discountPercent" type="number" inputMode="decimal" min="0" max="100" step="0.01" value={form.discountPercent ?? ""} className={controlClass} aria-invalid={Boolean(errors.discountPercent)} aria-describedby={errors.discountPercent ? "pricing-discountPercent-error" : "pricing-value-help"} onChange={(event) => change("discountPercent", event.target.value)} />
+            {inlineError("discountPercent")}
+          </div>}
           <p id="pricing-value-help" className="mt-1 text-xs text-slate-500">
-            {isFormula
+            {isUnitFormula
+              ? "Modal unit dipilih × (1 + tambahan/100) × (1 − potongan/100). Contoh: Rp12.000 +10% lalu −5% = Rp12.540."
+              : isFormula
               ? "Modal memakai unit terkecil, tanpa dikalikan isi satuan. Contoh: Rp700/pcs + Rp4.000 = Rp4.700/rim."
               : "Diskon dihitung dari harga normal produk."}
           </p>
@@ -533,10 +543,12 @@ export function PricingRuleForm({
                   </div>
                   <p className="mt-1 text-xs text-slate-600">
                     {preview.missingBaseCost
-                      ? "Modal unit terkecil belum tersedia. Harga normal atau member akan digunakan."
+                      ? isUnitFormula ? "Modal unit dipilih belum tersedia. Harga normal atau member akan digunakan." : "Modal unit terkecil belum tersedia. Harga normal atau member akan digunakan."
                       : invalid
                         ? "Lengkapi aturan untuk melihat hasil perhitungan."
-                        : isFormula
+                        : isUnitFormula
+                          ? `Modal ${formatRupiah(product.costPrice ?? 0)}/${product.unit}`
+                          : isFormula
                           ? `Modal ${formatRupiah(product.baseCostPrice ?? 0)}/${product.baseCostUnit}`
                           : `Harga normal ${formatRupiah(product.price)}/${product.unit}`}
                   </p>

@@ -66,6 +66,7 @@ try {
     await page.getByLabel('Nama Produk', { exact: true }).fill('Kertas');
     await page.getByLabel('SKU / Kode Barang', { exact: true }).fill(`KERTAS-${unit.toUpperCase()}`);
     await page.getByLabel('Harga Jual (IDR)', { exact: true }).fill(price);
+    await page.getByLabel('Harga Modal (HPP)', { exact: true }).fill(unit === 'dus' ? '12000' : '1000');
     await page.getByLabel('Unit', { exact: true }).fill(unit);
     await page.getByLabel('Stok Saat Ini', { exact: true }).fill(stock);
   }
@@ -90,14 +91,16 @@ try {
   assert.equal(await rows.nth(0).getByLabel('Isi dalam 1 unit tambahan').evaluate(el=>el===document.activeElement), true);
   await rows.nth(0).getByLabel('Nama unit').fill('dus');
   await rows.nth(0).getByLabel('Isi dalam 1 dus').fill('12');
-  assert.equal(await rows.nth(0).getByLabel('Harga jual', { exact: true }).inputValue(), '24000');
+  assert.equal(await rows.nth(0).getByLabel('Harga modal', { exact: true }).inputValue(), '12000');
+  assert.equal(await rows.nth(0).getByLabel('Harga jual', { exact: true }).inputValue(), '16200');
   assert.equal(await page.getByText('Unit kecil', { exact: true }).count(), 2);
   assert.equal(await rows.nth(0).getByText('Unit besar', { exact: true }).count(), 1);
-  await rows.nth(0).getByLabel('Harga jual', { exact: true }).fill('0');
   await rows.nth(0).locator('summary').focus(); await page.keyboard.press('Enter');
+  await rows.nth(0).screenshot({ path: path.join(artifacts, 'additional-unit-modal.png') });
+  await rows.nth(0).getByLabel('Harga jual', { exact: true }).fill('0');
   await rows.nth(0).getByLabel('SKU unit', { exact: true }).fill('CUSTOM-DUS');
   await rows.nth(0).getByLabel('Barcode (opsional)').fill('HARNESS-DUS');
-  await rows.nth(0).getByLabel('HPP (opsional)').fill('1500');
+  await rows.nth(0).getByLabel('Harga modal', { exact: true }).fill('1500');
   await page.getByLabel('Harga Jual (IDR)', { exact: true }).fill('3000');
   await rows.nth(0).getByLabel('Isi dalam 1 dus').fill('10');
   assert.equal(await rows.nth(0).getByLabel('Harga jual', { exact: true }).inputValue(), '0');
@@ -128,7 +131,8 @@ try {
   const payload = await page.evaluate(() => window.saved);
   assert.equal(payload.stock, 24); assert.equal(payload.additionalUnitVariants.length, 2);
   assert.deepEqual(payload.additionalUnitVariants[0], { unit:'dus', sku:'CUSTOM-DUS', relativeQuantity:10, price:0, barcode:'HARNESS-DUS', costPrice:1500 });
-  assert.equal(payload.additionalUnitVariants[1].price, 18000);
+  assert.equal(payload.additionalUnitVariants[1].price, 8100);
+  assert.equal(payload.additionalUnitVariants[1].costPrice, 6000);
   console.log('PASS: several units, badge sizes, suggested price, keyboard disclosure, manual zero/SKU preservation.');
 
   await reset(); await fillPrimary('dus', '24000', '2'); await add.click();
@@ -136,7 +140,7 @@ try {
   await rows.nth(0).getByLabel('Nama unit').fill('pcs');
   await rows.nth(0).getByLabel('Ukuran dibanding dus').selectOption('smaller');
   await rows.nth(0).getByLabel('Isi dalam 1 dus').fill('12');
-  assert.equal(await rows.nth(0).getByLabel('Harga jual', { exact: true }).inputValue(), '2000');
+  assert.equal(await rows.nth(0).getByLabel('Harga jual', { exact: true }).inputValue(), '1350');
   assert.ok(await page.locator('[data-unit-stock-summary]').innerText().then(value => value.includes('2 dus') && value.includes('24 pcs')));
   assert.equal(await rows.nth(0).getByText('Unit kecil', { exact:true }).count(), 1);
   await page.setViewportSize({ width:390, height:844 });
@@ -179,13 +183,10 @@ try {
   rows = page.locator('fieldset');
   await rows.nth(0).getByLabel('Nama unit').fill('dus');
   await rows.nth(0).getByLabel('Isi dalam 1 dus').fill('12');
-  await rows.nth(0).locator('summary').click();
-  await rows.nth(0).getByLabel('HPP (opsional)').fill('-1');
-  await rows.nth(0).locator('summary').click();
-  await save.click();
-  assert.equal(await page.getByRole('alert').innerText(), 'HPP harus berupa angka 0 atau lebih.');
-  assert.equal(await rows.nth(0).locator('details').getAttribute('open'), '');
-  assert.equal(await rows.nth(0).getByLabel('HPP (opsional)').evaluate(el=>el===document.activeElement), true);
+  await rows.nth(0).getByLabel('Harga modal', { exact: true }).fill('-1');
+  await page.locator('form').evaluate(form => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  assert.equal(await page.getByRole('alert').innerText(), 'Harga modal harus berupa angka 0 atau lebih.');
+  assert.equal(await rows.nth(0).getByLabel('Harga modal', { exact: true }).evaluate(el=>el===document.activeElement), true);
   assert.equal(await page.evaluate(() => window.attempts.length), 0);
   await reset(); await fillPrimary(); await add.click();
   rows = page.locator('fieldset');
@@ -199,5 +200,5 @@ try {
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => window.closeCount), 2);
   assert.deepEqual(errors, []);
-  console.log('PASS: duplicate-unit validation, focus, server-error retention, retry, rapid-submit guard, removal, hidden HPP errors and equal-size units.');
+  console.log('PASS: duplicate-unit validation, focus, server-error retention, retry, rapid-submit guard, removal, modal errors and equal-size units.');
 } finally { await browser.close(); }

@@ -6,6 +6,7 @@ import type { ProductCartItem } from "@/hooks/useCart";
 
 let roleMock = "OWNER";
 const useServerClockMock = vi.hoisted(() => vi.fn());
+const pricingRulesMock = vi.hoisted(() => vi.fn<() => unknown[]>(() => []));
 
 vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({
   useServerClock: useServerClockMock,
@@ -50,7 +51,7 @@ vi.mock("@/hooks/useSalespersons", () => ({
 }));
 
 vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
-  useCustomerCategoryPricingRules: () => ({ data: [], isError: false }),
+  useCustomerCategoryPricingRules: () => ({ data: pricingRulesMock(), isError: false }),
 }));
 
 vi.mock("@/features/pos-checkout/hooks/useCartCatalogPrices", () => ({
@@ -82,6 +83,7 @@ describe("PaymentModal custom invoice date", () => {
     expect(html).not.toContain("Gunakan otomatis");
   });
   beforeEach(() => {
+    pricingRulesMock.mockReturnValue([]);
     useServerClockMock.mockReturnValue({
       now: new Date("2026-10-05T20:24:41.000Z"),
       source: "TIMEAPI_IO",
@@ -166,6 +168,26 @@ describe("PaymentModal custom invoice date", () => {
 
     expect(html).toContain("Harga khusus transaksi");
     expect(html).toContain("Hanya berlaku untuk transaksi ini");
+  });
+
+  it("shows both sequential percentages in the applied pricing label", () => {
+    pricingRulesMock.mockReturnValue([{
+      id: "rule-sequential", categoryId: "cat-paper", customerType: "UMUM",
+      unit: "Rim", brandId: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT",
+      value: 10, discountPercent: 5, isActive: true,
+      category: { id: "cat-paper", name: "Kertas" },
+    }]);
+    const item: ProductCartItem = {
+      cartLineId: "PRODUCT:paper-rim", lineType: "PRODUCT", productId: "paper-rim",
+      name: "Kertas A4", price: 16200, catalogPrice: 16200, costPrice: 12000,
+      hargaAgen: null, hargaDinas: null, quantity: 1, unit: "Rim", stock: 20,
+      categoryId: "cat-paper", categoryName: "Kertas", appliedPricing: null,
+    };
+    const html = renderToStaticMarkup(
+      <PaymentModal open onClose={vi.fn()} items={[item]} subtotal={16200} onConfirm={vi.fn()} />,
+    );
+    expect(html).toContain("UMUM Modal unit + 10% lalu − 5%");
+    expect(html).not.toContain("lalu − 0%");
   });
 
   it("shows optional invoice date and time controls for owners", () => {

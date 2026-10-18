@@ -61,18 +61,21 @@ export function ProductUnitFields({ primary, rows, onChange, errors, disabled }:
             </select>
           </div>
           <Input id={`${row.id}-quantity`} label={row.direction === "larger" ? `Isi dalam 1 ${row.unit || "unit tambahan"}` : `Isi dalam 1 ${primary.unit || "unit utama"}`} type="number" min="1" step="any" placeholder="Contoh: 12" className="placeholder:text-surface-500" value={row.quantity} {...accessibility} onChange={(event) => update({ quantity: event.target.value })} />
-          <Input id={`${row.id}-price`} label="Harga jual" type="number" min="0" step="any" value={values.price} {...accessibility} onChange={(event) => update({ price: event.target.value, priceEdited: true })} />
+          <Input id={`${row.id}-cost`} label="Harga modal" type="number" min="0" step="0.01" inputMode="decimal" value={values.costPrice} {...accessibility} onChange={(event) => update({ costPrice: event.target.value })} />
         </div>
         <p className="mt-3 text-sm text-surface-700">{row.direction === "larger"
           ? `1 ${row.unit || "unit tambahan"} = ${row.quantity || "…"} ${primary.unit || "unit utama"}`
           : `1 ${primary.unit || "unit utama"} = ${row.quantity || "…"} ${row.unit || "unit tambahan"}`}</p>
-        {!row.priceEdited && <p className="mt-1 text-xs text-surface-600">Harga mengikuti konversi. Bisa diubah sesuai kebutuhan.</p>}
+        <p className="mt-1 text-xs text-surface-600">Modal mengikuti konversi unit utama. Bisa diubah sesuai harga pembelian.</p>
         <details className="mt-2" data-unit-details>
-          <summary className="flex min-h-11 cursor-pointer items-center text-sm text-surface-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">Detail tambahan (SKU, barcode, HPP)</summary>
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm text-surface-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">Detail tambahan (SKU, barcode, harga jual)</summary>
           <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input id={`${row.id}-sku`} label="SKU unit" value={values.sku} {...accessibility} onChange={(event) => update({ sku: event.target.value, skuEdited: true })} />
             <Input id={`${row.id}-barcode`} label="Barcode (opsional)" value={row.barcode} onChange={(event) => update({ barcode: event.target.value })} />
-            <Input id={`${row.id}-cost`} label="HPP (opsional)" type="number" step="any" value={row.costPrice} {...accessibility} onChange={(event) => update({ costPrice: event.target.value })} />
+            <div>
+              <Input id={`${row.id}-price`} label="Harga jual" type="number" min="0" step="any" inputMode="decimal" value={values.price} {...accessibility} onChange={(event) => update({ price: event.target.value, priceEdited: true })} />
+              <p className="mt-1 text-xs text-surface-600">Harga awal = modal unit ini + 35%. Bisa diubah sesuai kebutuhan.</p>
+            </div>
           </div>
         </details>
         {errors[row.id] && <p id={errorId} role="alert" className="mt-2 text-sm text-red-700">{errors[row.id]}</p>}

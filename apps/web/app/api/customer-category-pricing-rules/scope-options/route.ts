@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const units = [...new Set([...productUnits, ...savedUnits].map((row) => normalizePricingUnit(row.unit)).filter((value): value is string => value !== null))].sort();
     if (view === "units") return Response.json({ data: { units, products: [] } });
     const baseCosts = await loadProductBaseCosts(db, products);
-    return Response.json({ data: { units, products: products.map((product) => ({ id: product.id, name: product.name, unit: product.unit, price: Number(product.price), brandId: product.brandId, ...baseCosts.get(product.id) })) } });
+    return Response.json({ data: { units, products: products.map((product) => ({ id: product.id, name: product.name, unit: product.unit, price: Number(product.price), costPrice: product.costPrice == null ? null : Number(product.costPrice), brandId: product.brandId, ...baseCosts.get(product.id) })) } });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

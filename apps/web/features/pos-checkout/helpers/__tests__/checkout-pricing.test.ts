@@ -51,6 +51,16 @@ const allPaperRimBrandRule: CustomerCategoryPricingRule = {
 };
 
 describe("priceCartItemsForCheckout", () => {
+  it("keeps both percentages when repricing the cart and its unit options", () => {
+    const [priced] = priceCartItemsForCheckout({
+      items: [{ ...paperRim, unitOptions: [{ ...paperRim }] }], customerType: "UMUM",
+      pricingRules: [{ ...allPaperRimBrandRule, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5 }], manualPrices: {}, role: "CASHIER",
+    });
+    expect(priced.price).toBe(7315);
+    if (priced.lineType !== "PRODUCT") throw new Error("Expected product");
+    expect(priced.unitOptions?.[0].price).toBe(7315);
+    expect(priced.appliedPricing).toMatchObject({ discountPercent: 5 });
+  });
   it("keeps rule metadata when a submitted manual price is not allowed", () => {
     const [priced] = priceCartItemsForCheckout({ items: [paperRim], customerType: "UMUM", pricingRules: [allPaperRimBrandRule], manualPrices: { [paperRim.cartLineId]: 6000 }, role: "SALES" });
     if (priced.lineType !== "PRODUCT") throw new Error("Expected product");

@@ -4,7 +4,7 @@ import {
   normalizeProductUnitGroup, relativeUnitQuantity, resolveUnitVariantValues,
 } from "../product-unit-variants";
 
-const primary = { unit: "pcs", sku: "KERTAS-PCS", price: "2000", stock: "24" };
+const primary = { unit: "pcs", sku: "KERTAS-PCS", price: "2000", costPrice: "1000", stock: "24" };
 const box = { ...createUnitVariantDraft("box"), unit: "dus", quantity: "12" };
 
 describe("product unit conversions", () => {
@@ -43,14 +43,14 @@ describe("product unit conversions", () => {
   it("preserves custom price and SKU after the original price and SKU change", () => {
     const edited = { ...box, priceEdited: true, price: "22000", skuEdited: true, sku: "MANUAL" };
     expect(resolveUnitVariantValues({ ...primary, price: "3000", sku: "OTHER-PCS" }, edited))
-      .toEqual({ price: "22000", sku: "MANUAL" });
+      .toEqual({ price: "22000", costPrice: "12000", sku: "MANUAL" });
     expect(resolveUnitVariantValues({ ...primary, price: "3000" }, box))
-      .toEqual({ price: "36000", sku: "KERTAS-DUS" });
+      .toEqual({ price: "16200", costPrice: "12000", sku: "KERTAS-DUS" });
   });
 
   it("rounds suggested prices to the nearest rupiah", () => {
-    expect(resolveUnitVariantValues({ ...primary, price: "1000" }, { ...box, quantity: "3", direction: "smaller" }).price)
-      .toBe("333");
+    expect(resolveUnitVariantValues({ ...primary, costPrice: "1000" }, { ...box, quantity: "3", direction: "smaller" }).price)
+      .toBe("450");
   });
 
   it("rejects a manually blank price and duplicate custom SKU", () => {

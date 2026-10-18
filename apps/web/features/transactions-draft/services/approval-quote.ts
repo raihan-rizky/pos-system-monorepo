@@ -51,6 +51,7 @@ export interface ApprovalQuotedItem {
     categoryName: string | null;
     mode: CategoryCustomerPricingMode;
     value: number;
+    discountPercent?: number;
     unit: string | null;
     brandId: string | null;
     brandName: string | null;
@@ -246,8 +247,10 @@ export async function buildApprovalQuote(
     categoryId: rule.categoryId,
     categoryName: rule.category.name,
     customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
+    customerTypes: rule.customerTypes,
     mode: rule.mode,
     value: Number(rule.value),
+    discountPercent: Number(rule.discountPercent ?? 0),
     isActive: rule.isActive,
     unit: rule.unit,
     brandId: rule.brandId,
@@ -274,6 +277,7 @@ export async function buildApprovalQuote(
           categoryId: product.categoryId,
           categoryName: product.category.name,
           price: regular,
+          costPrice: product.costPrice == null ? null : Number(product.costPrice),
           hargaAgen: product.hargaAgen == null ? null : Number(product.hargaAgen),
           hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
           unit: product.unit,
@@ -322,6 +326,7 @@ export async function buildApprovalQuote(
               categoryName: appliedPricing.categoryName,
               mode: appliedPricing.mode,
               value: appliedPricing.value,
+              discountPercent: appliedPricing.discountPercent,
               unit: appliedPricing.unit ?? null,
               brandId: appliedPricing.brandId ?? null,
               brandName: appliedPricing.brandName ?? null,

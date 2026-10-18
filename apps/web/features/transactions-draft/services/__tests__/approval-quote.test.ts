@@ -5,6 +5,11 @@ import {
 } from "../approval-quote";
 
 describe("buildApprovalFingerprint", () => {
+  it("quotes sequential modal pricing with both percentages from the current unit", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM", rules: [{ id: "sequential", categoryId: "paper-category", category: { name: "Paper" }, customerType: null, customerTypes: [], unit: "rim", brandId: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5, isActive: true }] });
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true, items: [{ productId: "paper", quantity: 2 }] });
+    expect(quote.items[0]).toMatchObject({ appliedUnitPrice: 41.8, subtotal: 83.6, appliedPricing: { value: 10, discountPercent: 5 } });
+  });
   it("recalculates saved DPP tax when approval changes the quantity", async () => {
     const client = makeQuoteClient({ customerType: "UMUM" });
     const current = await client.transaction.findFirst();

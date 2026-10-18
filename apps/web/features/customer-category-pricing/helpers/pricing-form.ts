@@ -13,6 +13,12 @@ export const CUSTOMER_TARGET_LABELS: Record<PricingCustomerType, string> = {
 };
 export const PRICING_METHODS = [
   {
+    mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT",
+    label: "Modal unit + persen − persen",
+    valueLabel: "Tambahan (%)",
+    description: "Modal unit dipilih ditambah persen, lalu dipotong persen.",
+  },
+  {
     mode: "COST_PLUS_FLAT",
     label: "Modal + rupiah",
     valueLabel: "Tambahan (Rp)",
@@ -50,16 +56,18 @@ export interface PricingFormState {
   brandId: string;
   mode: CategoryCustomerPricingMode;
   value: string;
+  discountPercent?: string;
   isActive: boolean;
 }
 export type PricingFormErrors = Partial<
-  Record<"categoryId" | "unit" | "customerTypes" | "value", string>
+  Record<"categoryId" | "unit" | "customerTypes" | "value" | "discountPercent", string>
 >;
 export interface PricingPreviewProduct {
   id: string;
   name: string;
   unit: string;
   price: number;
+  costPrice?: number | null;
   baseCostPrice: number | null;
   baseCostUnit: string | null;
   brandId: string | null;
@@ -88,10 +96,15 @@ export function validatePricingForm(form: PricingFormState): PricingFormErrors {
   const value = Number(form.value);
   if (!form.value.trim() || !Number.isFinite(value) || value < 0)
     errors.value = "Isi nominal atau persentase yang valid, minimal 0.";
-  else if (!form.mode.startsWith("COST_PLUS") && value <= 0)
+  else if ((form.mode === "FLAT_DISCOUNT" || form.mode === "PERCENT_DISCOUNT") && value <= 0)
     errors.value = "Diskon harus lebih dari 0.";
   else if (form.mode === "PERCENT_DISCOUNT" && value > 100)
     errors.value = "Diskon maksimal 100%.";
+  if (form.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT") {
+    const discount = Number(form.discountPercent);
+    if (!form.discountPercent?.trim() || !Number.isFinite(discount) || discount < 0 || discount > 100)
+      errors.discountPercent = "Isi potongan dari 0 sampai 100%.";
+  }
   return errors;
 }
 
@@ -99,7 +112,9 @@ export function previewPricingForm(
   form: PricingFormState,
   product: PricingPreviewProduct,
 ) {
-  const missingBaseCost =
+  const missingBaseCost = form.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT"
+    ? product.costPrice == null || !Number.isFinite(product.costPrice) || product.costPrice < 0
+    :
     form.mode.startsWith("COST_PLUS") &&
     (product.baseCostPrice == null ||
       !Number.isFinite(product.baseCostPrice) ||
@@ -120,6 +135,7 @@ export function previewPricingForm(
         customerTypes: [...form.customerTypes],
         mode: form.mode,
         value: Number(form.value),
+        ...(form.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? { discountPercent: Number(form.discountPercent) } : {}),
         unit: form.unit || null,
         brandId: form.brandId || null,
         isActive: true,
@@ -132,10 +148,12 @@ export function previewPricingForm(
 export function pricingFormRuleLabel(
   mode: CategoryCustomerPricingMode,
   value: number,
+  discountPercent?: number,
 ) {
   const formatted = new Intl.NumberFormat("id-ID", {
     maximumFractionDigits: 2,
   }).format(value);
+  if (mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT") return `Modal unit + ${formatted}% lalu − ${new Intl.NumberFormat("id-ID").format(discountPercent ?? 0)}%`;
   if (mode === "COST_PLUS_FLAT") return `Modal + Rp${formatted}`;
   if (mode === "COST_PLUS_PERCENT") return `Modal + ${formatted}%`;
   if (mode === "FLAT_DISCOUNT") return `Diskon Rp${formatted}`;

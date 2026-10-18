@@ -11,6 +11,7 @@ const fields = {
   brandId: z.string().nullable().optional(),
   mode: z.string().refine(isPricingMode, "Cara hitung harga tidak valid"),
   value: z.coerce.number().finite("Nilai harus berupa angka yang valid").nonnegative("Nilai tidak boleh negatif"),
+  discountPercent: z.number().finite().min(0, "Potongan minimal 0%").max(100, "Potongan maksimal 100%").optional(),
   isActive: z.boolean().optional(),
 };
 
@@ -31,6 +32,7 @@ export const pricingRuleSchema = z.object(fields).superRefine((input, ctx) => {
   if (!input.customerType && !input.customerTypes) ctx.addIssue({ code: "custom", path: ["customerTypes"], message: "Pilih minimal satu tipe pelanggan" });
   if ((input.mode === "FLAT_DISCOUNT" || input.mode === "PERCENT_DISCOUNT") && input.value <= 0) ctx.addIssue({ code: "custom", path: ["value"], message: "Diskon harus lebih dari 0" });
   if (input.mode === "PERCENT_DISCOUNT" && input.value > 100) ctx.addIssue({ code: "custom", path: ["value"], message: "Diskon maksimal 100%" });
+  if (input.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" && input.discountPercent == null) ctx.addIssue({ code: "custom", path: ["discountPercent"], message: "Isi persentase potongan" });
 });
 
 export const pricingRulePatchSchema = z.object(fields).partial().superRefine((input, ctx) => {
@@ -44,9 +46,9 @@ export function readCustomerTargets(rule: StoredTargets): PricingCustomerType[] 
   return [rule.customerType ?? "ALL"];
 }
 
-export function serializePricingRule<T extends StoredTargets & { value: unknown }>(rule: T) {
+export function serializePricingRule<T extends StoredTargets & { value: unknown; discountPercent?: unknown }>(rule: T) {
   const customerTypes = readCustomerTargets(rule);
-  return { ...rule, customerTypes, customerType: customerTypes.length === 1 ? customerTypes[0] : "ALL", value: Number(rule.value) };
+  return { ...rule, customerTypes, customerType: customerTypes.length === 1 ? customerTypes[0] : "ALL", value: Number(rule.value), ...(rule.discountPercent != null ? { discountPercent: Number(rule.discountPercent) } : {}) };
 }
 
 export function storedCustomerTargets(input: { customerType?: string; customerTypes?: string[] }) {

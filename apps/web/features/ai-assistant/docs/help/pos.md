@@ -19,6 +19,8 @@ Aturan **Modal + rupiah** atau **Modal + persen** memakai modal satuan terkecil 
 
 Harga manual untuk transaksi tetap berlaku sampai override dihapus. Penandanya adalah **Hanya berlaku untuk transaksi ini**, tanpa badge aturan otomatis. Rumus harga tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
 
+Aturan **Modal unit + persen − persen** memakai modal satuan yang dipilih. Rumusnya `modal × (1 + tambahan/100) × (1 − potongan/100)`: modal Rp12.000/dus +10% lalu −5% menghasilkan Rp12.540/dus. Potongan dihitung setelah tambahan, dan harga memakai modal unit terbaru. Jika modal unit belum tersedia, harga member atau normal digunakan.
+
 ## Edit Cepat di keranjang
 
 - Pengguna dengan permission **edit produk** dapat mengaktifkan ikon **Edit Cepat** pada header keranjang.

@@ -45,6 +45,7 @@ export interface ProductCartItem {
     brandName?: string | null;
     mode: CategoryCustomerPricingMode;
     value: number;
+    discountPercent?: number;
     originalUnitPrice: number;
     appliedUnitPrice: number;
   } | null;

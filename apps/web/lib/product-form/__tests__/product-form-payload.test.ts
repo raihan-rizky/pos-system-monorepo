@@ -33,20 +33,20 @@ describe("buildProductFormPayload", () => {
 
   it("optionally creates a larger unit with a suggested independent price", () => {
     const payload = buildProductFormPayload({
-      ...formData, unit: "pcs", sku: "KERTAS-PCS", price: "2000",
+      ...formData, unit: "pcs", sku: "KERTAS-PCS", price: "2000", costPrice: "1000",
       additionalUnits: [addedUnit],
     }, "create");
     expect(payload).toMatchObject({ additionalUnitVariants: [{
-      unit: "dus", sku: "KERTAS-DUS", relativeQuantity: 12, price: 24000,
+      unit: "dus", sku: "KERTAS-DUS", relativeQuantity: 12, costPrice: 12000, price: 16200,
     }] });
   });
 
   it("can start with the larger unit and add a smaller selling unit", () => {
     expect(buildProductFormPayload({
-      ...formData, unit: "dus", sku: "KERTAS-DUS", price: "24000",
+      ...formData, unit: "dus", sku: "KERTAS-DUS", price: "24000", costPrice: "12000",
       additionalUnits: [{ ...addedUnit, unit: "pcs", direction: "smaller" as const }],
     }, "create")).toMatchObject({ additionalUnitVariants: [{
-      unit: "pcs", sku: "KERTAS-PCS", relativeQuantity: 1 / 12, price: 2000,
+      unit: "pcs", sku: "KERTAS-PCS", relativeQuantity: 1 / 12, costPrice: 1000, price: 1350,
     }] });
   });
 

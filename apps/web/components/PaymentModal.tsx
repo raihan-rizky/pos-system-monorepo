@@ -515,6 +515,7 @@ export function PaymentModal({
                       customerType: item.appliedPricing.customerType,
                       mode: item.appliedPricing.mode,
                       value: item.appliedPricing.value,
+                      discountPercent: item.appliedPricing.discountPercent,
                     })}
                   </span>
                   <span>

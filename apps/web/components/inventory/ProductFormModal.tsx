@@ -170,11 +170,11 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     const firstInvalid = Object.keys(errors)[0];
     if (firstInvalid) {
       const row = document.getElementById(firstInvalid);
-      if (/SKU|HPP/.test(errors[firstInvalid])) {
+      if (/SKU|harga jual/.test(errors[firstInvalid])) {
         const details = row?.querySelector("details");
         if (details) details.open = true;
       }
-      const field = /SKU/.test(errors[firstInvalid]) ? "sku" : /HPP/.test(errors[firstInvalid]) ? "cost" : /konversi/.test(errors[firstInvalid]) ? "quantity" : /harga/.test(errors[firstInvalid]) ? "price" : "unit";
+      const field = /SKU/.test(errors[firstInvalid]) ? "sku" : /modal/.test(errors[firstInvalid]) ? "cost" : /konversi/.test(errors[firstInvalid]) ? "quantity" : /harga/.test(errors[firstInvalid]) ? "price" : "unit";
       document.getElementById(`${firstInvalid}-${field}`)?.focus();
       return;
     }

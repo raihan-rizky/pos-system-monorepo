@@ -111,7 +111,7 @@ export async function POST(request: Request) {
         return apiError(overlapMessage, 409, { code: "Conflict" });
       }
       const created = await tx.categoryCustomerPricingRule.create({
-        data: { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, brandId, mode: data.mode, value: data.value, isActive, createdBy: user.id, updatedBy: user.id },
+        data: { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, brandId, mode: data.mode, value: data.value, discountPercent: data.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? data.discountPercent : 0, isActive, createdBy: user.id, updatedBy: user.id },
         include: pricingRuleInclude,
       });
       return NextResponse.json(serializePricingRule(created), { status: 201 });

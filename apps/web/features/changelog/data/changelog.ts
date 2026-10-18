@@ -16,6 +16,19 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "additional-unit-modal-sequential-pricing", date: "2026-10-18", revision: 1,
+    highlight: { title: "Modal dan harga unit tambahan", summary: "Modal mengikuti konversi, harga jual awal ditambah 35% dan bisa diubah." },
+    title: "Atur modal dan harga setiap satuan.",
+    summary: "Unit tambahan memakai modal hasil konversi dengan harga jual awal modal +35% yang bisa Anda ubah. Harga Khusus juga mendukung modal unit dipilih + persen lalu − persen.",
+    kind: "feature", area: "Produk & Harga Khusus", href: "/products", visual: "units",
+    screenshot: { src: "/images/changelog/modal-unit-tambahan.png", alt: "Form unit tambahan dus dengan modal hasil konversi Rp12.000 dan harga jual awal Rp16.200 di Detail tambahan" },
+    steps: [
+      { title: "Tambahkan satuan", detail: "Saat tambah produk, isi unit tambahan dan konversinya, lalu periksa Harga modal." },
+      { title: "Periksa harga jual", detail: "Buka Detail tambahan untuk mengubah harga jual awal modal +35%." },
+      { title: "Atur Harga Khusus", detail: "Pilih Modal unit + persen − persen, isi tambahan dan potongan, lalu periksa pratinjau dan simpan." },
+    ],
+  },
+  {
     id: "visual-changelog", date: "2026-10-18", revision: 1,
     highlight: { title: "Catatan Perubahan", summary: "Pembaruan dan panduan fitur." },
     title: "Kenali perubahan, sekali lihat.",

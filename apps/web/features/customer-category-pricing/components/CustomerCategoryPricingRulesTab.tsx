@@ -150,7 +150,7 @@ export function CustomerCategoryPricingRulesTab() {
                     {rule.brand?.name ? ` · ${rule.brand.name}` : ""}
                   </p>
                   <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {pricingFormRuleLabel(rule.mode, rule.value)}
+                    {pricingFormRuleLabel(rule.mode, rule.value, rule.discountPercent)}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

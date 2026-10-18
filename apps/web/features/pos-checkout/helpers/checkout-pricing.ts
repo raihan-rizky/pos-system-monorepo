@@ -19,6 +19,7 @@ export function mapCheckoutPricingRule(
     customerTypes: rule.customerTypes,
     mode: rule.mode,
     value: Number(rule.value),
+    discountPercent: rule.discountPercent,
     isActive: rule.isActive,
     unit: rule.unit,
     brandId: rule.brandId,
@@ -45,6 +46,7 @@ export function priceCartItemsForCheckout(input: {
         categoryId: item.categoryId,
         categoryName: item.categoryName,
         price: item.catalogPrice ?? item.price,
+        costPrice: item.costPrice,
         hargaDinas: item.hargaDinas,
         hargaAgen: item.hargaAgen,
         unit: item.unit,
@@ -80,6 +82,7 @@ export function priceCartItemsForCheckout(input: {
         const optionPrice = priceProductForCustomerType({
           categoryId: option.categoryId, categoryName: option.categoryName,
           price: option.catalogPrice, unit: option.unit,
+          costPrice: option.costPrice,
           brandId: option.brandId, brandName: option.brandName,
           hargaAgen: option.hargaAgen, hargaDinas: option.hargaDinas,
           baseCostPrice: option.baseCostPrice, baseCostUnit: option.baseCostUnit,

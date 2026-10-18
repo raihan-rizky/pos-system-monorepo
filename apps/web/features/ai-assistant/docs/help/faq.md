@@ -28,11 +28,11 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 1. Buka **Produk > Harga Khusus**, lalu klik **Tambah aturan**.
 2. Pilih **Kategori**, lalu pilih **Semua satuan** agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Pilih satuan tertentu jika aturan hanya berlaku untuk satuan itu; aturan untuk Rim berlaku saat satuan Rim dipilih.
 3. Centang tipe pelanggan yang diinginkan, misalnya **Umum dan Agen**. **Semua pelanggan** berlaku untuk keempat tipe dan dipilih sendiri.
-4. Pilih cara menghitung harga: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, atau **Modal + persen**, lalu isi nilainya.
+4. Pilih cara menghitung harga: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, **Modal + persen**, atau **Modal unit + persen − persen**. Untuk rumus terakhir, isi tambahan dan potongan: modal Rp12.000/dus +10% lalu −5% menghasilkan Rp12.540/dus.
 5. Periksa **Contoh harga**. Buka **Pengaturan tambahan** jika ingin memilih merek, menambah merek, atau mengubah status aktif. Klik **Simpan aturan** setelah sesuai.
 6. Di tab Produk, gunakan **Harga untuk: Umum/Agen/Industri/Pemerintah** untuk melihat harga yang berlaku; pilihan awalnya **Umum**. Di POS, harga mengikuti pelanggan dan satuan yang dipilih.
 
-**Cara membaca modal:** rumus menggunakan modal satuan terkecil secara langsung, tanpa mengalikannya dengan isi kemasan. Modal **Rp700/pcs + Rp4.000** dengan aturan satuan **Rim** menghasilkan **Rp4.700/rim**; dua rim berjumlah **Rp9.400**. **Modal + 10%** menghasilkan **Rp770/rim**. Jika modal pcs berubah menjadi Rp800, harga dengan tambahan Rp4.000 menjadi Rp4.800/rim. Perubahan modal Rim sendiri tidak mengganti sumber modal pcs untuk rumus ini.
+**Cara membaca modal:** **Modal unit + persen − persen** memakai modal unit yang dipilih dan memotong hasil setelah tambahan persen. **Modal + rupiah** dan **Modal + persen** memakai modal satuan terkecil secara langsung, tanpa mengalikannya dengan isi kemasan. Modal **Rp700/pcs + Rp4.000** dengan aturan satuan **Rim** menghasilkan **Rp4.700/rim**; dua rim berjumlah **Rp9.400**. **Modal + 10%** menghasilkan **Rp770/rim**. Jika modal pcs berubah menjadi Rp800, harga dengan tambahan Rp4.000 menjadi Rp4.800/rim.
 
 Harga yang benar-benar memakai aturan diberi **warna hijau** dan badge **Harga Khusus**, termasuk saat hasilnya sama dengan harga normal. Urutan harga otomatis adalah **Harga Khusus yang dapat diterapkan → Harga Agen/Dinas yang sesuai → harga normal**. Jika sumber modal satuan terkecil belum tersedia atau tidak valid, rumus tidak diterapkan dan harga member/normal digunakan. Kasir tidak memilih prioritas harga saat pembayaran.
 

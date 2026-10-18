@@ -16,6 +16,7 @@ export interface CustomerCategoryPricingRule {
   brandId: string | null;
   mode: CategoryCustomerPricingMode;
   value: number;
+  discountPercent?: number;
   isActive: boolean;
   createdBy: string | null;
   updatedBy: string | null;
@@ -42,6 +43,7 @@ export interface CustomerCategoryPricingRuleInput {
   brandId?: string | null;
   mode: CategoryCustomerPricingMode;
   value: number;
+  discountPercent?: number;
   isActive?: boolean;
 }
 
@@ -168,7 +170,7 @@ export function useDeleteCustomerCategoryPricingRule() {
 
 export interface PricingScopeOptions {
   units: string[];
-  products: Array<{ id: string; name: string; unit: string; price: number; brandId: string | null; baseCostPrice: number | null; baseCostUnit: string | null }>;
+  products: Array<{ id: string; name: string; unit: string; price: number; costPrice?: number | null; brandId: string | null; baseCostPrice: number | null; baseCostUnit: string | null }>;
 }
 
 async function fetchPricingScopeOptions(

@@ -61,6 +61,7 @@ vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
           name: "Kertas A4",
           unit: "rim",
           price: 5000,
+          costPrice: 5400,
           baseCostPrice: 700,
           baseCostUnit: "pcs",
           brandId: null,
@@ -86,6 +87,12 @@ const initialRule = {
 } as any;
 
 describe("Harga Khusus editor", () => {
+  it("restores both percentages and previews using the selected unit modal", () => {
+    const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5 }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
+    expect(html).toContain('name="discountPercent"');
+    expect(html).toContain('value="5"');
+    expect(html).toContain("5.643");
+  });
   beforeEach(() => {
     queryState.unitsPending = false;
     queryState.unitsError = false;
@@ -100,7 +107,7 @@ describe("Harga Khusus editor", () => {
     expect(html).not.toContain("<table");
     expect(html).not.toContain('type="number"');
   });
-  it("shows grouped native customer checkboxes and four visible pricing methods", () => {
+  it("shows grouped native customer checkboxes and five visible pricing methods", () => {
     const html = renderToStaticMarkup(
       <PricingRuleForm
         initialRule={initialRule}
@@ -110,7 +117,7 @@ describe("Harga Khusus editor", () => {
       />,
     );
     expect(html).toContain("<fieldset");
-    expect(html.match(/type="radio"/g)).toHaveLength(4);
+    expect(html.match(/type="radio"/g)).toHaveLength(5);
     expect(html.match(/type="checkbox"/g)).toHaveLength(6);
     expect(html).toContain("Modal + rupiah");
     expect(html).toContain("Modal + persen");

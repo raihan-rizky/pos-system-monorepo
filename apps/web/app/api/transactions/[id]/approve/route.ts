@@ -330,6 +330,7 @@ export async function POST(
                 pricingCategoryName: line.appliedPricing?.categoryName ?? null,
                 pricingMode: line.appliedPricing?.mode ?? null,
                 pricingValue: line.appliedPricing?.value ?? null,
+                pricingDiscountPercent: line.appliedPricing?.discountPercent ?? null,
                 pricingUnit: line.appliedPricing?.unit ?? null,
                 pricingBrandId: line.appliedPricing?.brandId ?? null,
                 pricingBrandName: line.appliedPricing?.brandName ?? null,

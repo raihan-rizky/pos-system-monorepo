@@ -234,6 +234,7 @@ async function syncOne(
     brandName: rule.brand?.name ?? null,
     mode: rule.mode,
     value: Number(rule.value),
+    discountPercent: Number(rule.discountPercent ?? 0),
     isActive: rule.isActive,
     updatedAt: rule.updatedAt,
   })) satisfies CategoryPricingRule[];
@@ -250,6 +251,7 @@ async function syncOne(
         categoryId: product.categoryId,
         categoryName: product.category?.name ?? null,
         price: Number(product.price),
+        costPrice: product.costPrice == null ? null : Number(product.costPrice),
         ...baseCosts.get(product.id),
         hargaDinas:
           product.hargaDinas == null ? null : Number(product.hargaDinas),
@@ -456,6 +458,7 @@ async function createSyncedTransaction({
                   pricingCategoryName: appliedPricing?.categoryName ?? null,
                   pricingMode: appliedPricing?.mode ?? null,
                   pricingValue: appliedPricing?.value ?? null,
+                  pricingDiscountPercent: appliedPricing?.discountPercent ?? null,
                   pricingUnit: appliedPricing?.unit ?? null,
                   pricingBrandId: appliedPricing?.brandId ?? null,
                   pricingBrandName: appliedPricing?.brandName ?? null,

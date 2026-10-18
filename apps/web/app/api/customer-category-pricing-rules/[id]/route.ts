@@ -89,6 +89,9 @@ export async function PATCH(
         brandId: data.brandId !== undefined ? data.brandId || null : existing.brandId,
         mode: data.mode ?? existing.mode,
         value: data.value ?? Number(existing.value),
+        discountPercent: (data.mode ?? existing.mode) === "UNIT_COST_PLUS_PERCENT_DISCOUNT"
+          ? data.discountPercent ?? (existing.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? Number(existing.discountPercent) : undefined)
+          : 0,
         isActive: data.isActive ?? existing.isActive,
       };
       const validation = pricingRuleSchema.safeParse({ ...next, customerType: undefined, customerTypes: next.customerTypes.length ? next.customerTypes : ["ALL"] });

@@ -3,7 +3,7 @@ export type CustomerType = (typeof CUSTOMER_TYPES)[number];
 export const PRICING_CUSTOMER_TYPES = ["ALL", ...CUSTOMER_TYPES] as const;
 export type PricingCustomerType = (typeof PRICING_CUSTOMER_TYPES)[number];
 
-export const PRICING_MODES = ["FLAT_DISCOUNT", "PERCENT_DISCOUNT", "COST_PLUS_FLAT", "COST_PLUS_PERCENT"] as const;
+export const PRICING_MODES = ["FLAT_DISCOUNT", "PERCENT_DISCOUNT", "COST_PLUS_FLAT", "COST_PLUS_PERCENT", "UNIT_COST_PLUS_PERCENT_DISCOUNT"] as const;
 export type CategoryCustomerPricingMode = (typeof PRICING_MODES)[number];
 export const PRICING_PREFERENCES = ["SPECIAL", "MEMBER"] as const;
 export type PricingPreference = (typeof PRICING_PREFERENCES)[number];
@@ -16,6 +16,7 @@ export interface CategoryPricingRule {
   customerTypes?: PricingCustomerType[];
   mode: CategoryCustomerPricingMode;
   value: number;
+  discountPercent?: number;
   isActive: boolean;
   unit?: string | null;
   brandId?: string | null;
@@ -27,6 +28,7 @@ export interface PriceableProduct {
   categoryId: string;
   categoryName?: string | null;
   price: number;
+  costPrice?: number | null;
   baseCostPrice?: number | null;
   baseCostUnit?: string | null;
   hargaDinas?: number | null;
@@ -46,6 +48,7 @@ export interface AppliedCategoryPricing {
   brandName?: string | null;
   mode: CategoryCustomerPricingMode;
   value: number;
+  discountPercent?: number;
   originalUnitPrice: number;
   appliedUnitPrice: number;
 }
@@ -197,12 +200,19 @@ export function applyCategoryPricingRule(
     return { unitPrice: originalUnitPrice, appliedPricing: null };
   }
 
+  const selectedUnitFormula = rule.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT";
+  if (selectedUnitFormula && (
+    product.costPrice == null || !Number.isFinite(product.costPrice) || product.costPrice < 0 ||
+    rule.discountPercent == null || !Number.isFinite(rule.discountPercent) || rule.discountPercent < 0 || rule.discountPercent > 100
+  )) return { unitPrice: originalUnitPrice, appliedPricing: null };
   const costFormula = rule.mode === "COST_PLUS_FLAT" || rule.mode === "COST_PLUS_PERCENT";
   if (costFormula && (product.baseCostPrice == null || !Number.isFinite(product.baseCostPrice) || product.baseCostPrice < 0 || !normalizePricingUnit(product.baseCostUnit))) {
     return { unitPrice: originalUnitPrice, appliedPricing: null };
   }
   const baseCost = product.baseCostPrice ?? 0;
-  const computedPrice = rule.mode === "COST_PLUS_FLAT"
+  const computedPrice = selectedUnitFormula
+    ? product.costPrice! * (1 + rule.value / 100) * (1 - rule.discountPercent! / 100)
+    : rule.mode === "COST_PLUS_FLAT"
     ? baseCost + rule.value
     : rule.mode === "COST_PLUS_PERCENT"
       ? baseCost * (1 + rule.value / 100)
@@ -211,7 +221,7 @@ export function applyCategoryPricingRule(
         : originalUnitPrice * (1 - rule.value / 100);
   const appliedUnitPrice = roundCurrency(computedPrice);
 
-  if (!Number.isFinite(appliedUnitPrice) || appliedUnitPrice <= 0) {
+  if (!Number.isFinite(appliedUnitPrice) || (!selectedUnitFormula && appliedUnitPrice <= 0)) {
     return { unitPrice: originalUnitPrice, appliedPricing: null };
   }
 
@@ -227,6 +237,7 @@ export function applyCategoryPricingRule(
       brandName: rule.brandName ?? product.brandName ?? null,
       mode: rule.mode,
       value: roundCurrency(rule.value),
+      ...(selectedUnitFormula ? { discountPercent: rule.discountPercent } : {}),
       originalUnitPrice,
       appliedUnitPrice,
     },
@@ -416,12 +427,16 @@ export function formatPricingRuleLabel(input: {
   customerType: PricingCustomerType;
   mode: CategoryCustomerPricingMode;
   value: number;
+  discountPercent?: number;
 }) {
   if (input.ruleId === "harga-dinas") {
     return "Harga Dinas";
   }
   if (input.ruleId === "harga-agen") {
     return "Harga Agen";
+  }
+  if (input.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT") {
+    return `${input.customerType} Modal unit + ${input.value}% lalu − ${input.discountPercent ?? 0}%`;
   }
   if (input.mode === "COST_PLUS_FLAT") {
     return `${input.customerType} Modal + Rp ${input.value.toLocaleString("id-ID")}`;

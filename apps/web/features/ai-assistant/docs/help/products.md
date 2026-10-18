@@ -19,7 +19,7 @@ Langkah operasional detail dapat dilihat langsung di [FAQ](file:///d:/main_proje
 
 Tambahan unit bersifat opsional. Klik **Tambah unit lain (opsional)**, isi nama unit, pilih apakah lebih besar atau lebih kecil dari unit utama, lalu isi konversi seperti **1 dus = 12 pcs**. Badge **Unit kecil** (hijau) dan **Unit besar** (ungu) mengikuti konversi, bukan nama unit. Bila ukurannya sama, badge menjadi **Unit setara**.
 
-Harga jual disarankan dari harga unit utama dan konversi; harga yang diubah manual tetap dipertahankan, termasuk Rp0. SKU disarankan otomatis dan bisa diubah di **Detail tambahan**, bersama barcode dan HPP opsional. Masukkan stok awal sekali dalam unit utama. Semua unit otomatis menjadi satu grup stok saat disimpan. Nama unit dan SKU harus berbeda. Jika penyimpanan gagal, isian tetap tersedia untuk diperbaiki dan dicoba lagi.
+**Harga modal** mengikuti konversi modal unit utama dan bisa diubah sesuai pembelian. Contoh: Rp1.000/pcs × 12 = Rp12.000/dus. **Harga jual** tersedia di **Detail tambahan**, dengan nilai awal modal unit tambahan +35% (Rp16.200/dus pada contoh ini). Harga jual yang diubah manual tetap dipertahankan, termasuk Rp0. SKU disarankan otomatis dan bisa diubah di Detail tambahan bersama barcode. Masukkan stok awal sekali dalam unit utama. Semua unit otomatis menjadi satu grup stok saat disimpan. Nama unit dan SKU harus berbeda. Jika penyimpanan gagal, isian tetap tersedia untuk diperbaiki dan dicoba lagi.
 
 ## Deskripsi produk
 
@@ -37,10 +37,10 @@ Pak Teladan dapat mencari produk aktif berdasarkan nama, SKU, atau barcode serta
 
 Owner membuka tab **Harga Khusus**, lalu memilih **Tambah aturan**. Formulir memuat kategori, pilihan satuan, tipe pelanggan, dan cara menghitung harga. Satu aturan dapat berlaku untuk beberapa tipe sekaligus, misalnya **Umum dan Agen**; **Semua pelanggan** dipilih sendiri. Pilihan satuan mengikuti kategori. Pilih **Semua satuan** agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Pilih satuan tertentu untuk membatasi aturan; aturan untuk Rim hanya berlaku saat satuan Rim dipilih.
 
-Empat cara menghitung harga tersedia: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, dan **Modal + persen**. Periksa contoh harga sebelum **Simpan aturan**. Pengaturan merek, tambah merek, dan status aktif tersedia di **Pengaturan tambahan**.
+Lima cara menghitung harga tersedia: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, **Modal + persen**, dan **Modal unit + persen − persen**. Pilihan terakhir memakai modal unit yang dipilih: Rp12.000/dus +10% lalu −5% = Rp12.540/dus. Isi tambahan dan potongan secara terpisah, lalu periksa pratinjau sebelum **Simpan aturan**. Pengaturan merek, tambah merek, dan status aktif tersedia di **Pengaturan tambahan**.
 
 **Nonaktifkan** menghentikan penerapan aturan. Aturan tetap tersimpan dan bisa diaktifkan kembali melalui **Ubah → Pengaturan tambahan → Aturan aktif**.
 
-Rumus modal menggunakan nilai modal satuan terkecil dari grup produk yang sama di toko yang sama, tanpa perkalian isi kemasan. Contoh: modal **Rp700/pcs + Rp4.000** untuk **Rim** menghasilkan **Rp4.700/rim**. Tambahan **10%** menghasilkan **Rp770/rim**. Rumus mengikuti modal satuan terkecil terbaru. Jika sumber modal tidak tersedia atau tidak valid, harga Agen/Dinas yang sesuai atau harga normal tetap digunakan.
+Rumus **Modal + rupiah** dan **Modal + persen** menggunakan nilai modal satuan terkecil dari grup produk yang sama di toko yang sama, tanpa perkalian isi kemasan. Contoh: modal **Rp700/pcs + Rp4.000** untuk **Rim** menghasilkan **Rp4.700/rim**. Tambahan **10%** menghasilkan **Rp770/rim**. Rumus dua persentase mengikuti modal unit yang dipilih. Jika sumber modal tidak tersedia atau tidak valid, harga Agen/Dinas yang sesuai atau harga normal tetap digunakan.
 
 Di tab **Produk**, pilih **Harga untuk: Umum/Agen/Industri/Pemerintah**; pilihan awalnya **Umum**. Harga hasil aturan ditandai **hijau** dan badge **Harga Khusus**. Harga Agen/Dinas biasa dan harga manual transaksi tidak memakai badge aturan otomatis. Aturan berlaku dinamis di Produk dan POS, tanpa mengubah modal akuntansi atau transaksi lama.

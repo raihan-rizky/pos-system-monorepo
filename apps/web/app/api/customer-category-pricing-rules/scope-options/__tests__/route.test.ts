@@ -20,7 +20,7 @@ describe("pricing scope options", () => {
   it("returns complete normalized units including saved units and scoped preview products", async () => {
     const response = await GET(new Request("http://localhost/api/customer-category-pricing-rules/scope-options?categoryId=cat&unit=rim&brandId=brand"));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ data: { units: ["pak", "pcs", "rim"], products: [{ id: "rim", name: "Kertas", unit: "Rim", price: 50000, brandId: "brand", baseCostPrice: 45000, baseCostUnit: "rim" }] } });
+    expect(await response.json()).toEqual({ data: { units: ["pak", "pcs", "rim"], products: [{ id: "rim", name: "Kertas", unit: "Rim", price: 50000, costPrice: 45000, brandId: "brand", baseCostPrice: 45000, baseCostUnit: "rim" }] } });
     expect(mocks.products).toHaveBeenCalledWith(expect.objectContaining({ where: { storeId: "store", categoryId: "cat", isActive: true }, distinct: ["unit"] }));
     expect(mocks.products).toHaveBeenCalledWith(expect.objectContaining({ where: { storeId: "store", categoryId: "cat", isActive: true, unit: { equals: "rim", mode: "insensitive" }, brandId: "brand" }, take: 3 }));
     expect(mocks.role).toHaveBeenCalledWith("OWNER");

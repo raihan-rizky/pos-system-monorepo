@@ -42,6 +42,14 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("/api/customer-category-pricing-rules", () => {
+  it("persists both percentages of the selected-unit modal formula", async () => {
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["ALL"], unit: "dus", mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5 }),
+    }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ value: 10, discountPercent: 5 });
+    expect(ruleCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ discountPercent: 5 }) }));
+  });
   it.each(["COST_PLUS_FLAT", "COST_PLUS_PERCENT"])("creates %s for all category units", async (mode) => {
     const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
       method: "POST",

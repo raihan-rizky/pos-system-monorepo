@@ -28,6 +28,7 @@ export interface UnitPrimaryValues {
   sku: string;
   price: string;
   stock: string;
+  costPrice?: string;
 }
 
 export interface NormalizedUnitGroup {
@@ -63,8 +64,13 @@ export function generateUnitVariantSku(primarySku: string, unit: string): string
 }
 
 export function resolveUnitVariantValues(primary: UnitPrimaryValues, row: UnitVariantDraft) {
+  const convertedCost = Number(primary.costPrice) * relativeUnitQuantity(row.direction, row.quantity);
+  const costPrice = row.costPrice.trim() ? row.costPrice
+    : primary.costPrice?.trim() && Number.isFinite(convertedCost) && convertedCost >= 0
+      ? String(Math.round(convertedCost * 100) / 100) : "";
   return {
-    price: row.priceEdited ? row.price : suggestUnitPrice(primary.price, relativeUnitQuantity(row.direction, row.quantity)),
+    costPrice,
+    price: row.priceEdited ? row.price : suggestUnitPrice(costPrice, 1.35),
     sku: row.skuEdited ? row.sku : generateUnitVariantSku(primary.sku, row.unit),
   };
 }
@@ -84,12 +90,12 @@ export function validateUnitDrafts(primary: UnitPrimaryValues, rows: UnitVariant
     if (!unit) message = "Isi nama unit tambahan.";
     else if (units.has(unit)) message = "Nama unit sudah digunakan. Pilih unit yang berbeda.";
     else if (!Number.isFinite(ratio) || ratio <= 0) message = "Isi konversi dengan angka 1 atau lebih.";
+    else if (values.costPrice.trim() && (!Number.isFinite(Number(values.costPrice)) || Number(values.costPrice) < 0))
+      message = "Harga modal harus berupa angka 0 atau lebih.";
     else if (!values.price.trim() || !Number.isFinite(Number(values.price)) || Number(values.price) < 0)
       message = "Isi harga jual dengan angka 0 atau lebih.";
     else if (!sku) message = "Isi SKU unit tambahan di Detail tambahan.";
     else if (skus.has(sku)) message = "SKU sudah digunakan. Ubah SKU di Detail tambahan.";
-    else if (row.costPrice.trim() && (!Number.isFinite(Number(row.costPrice)) || Number(row.costPrice) < 0))
-      message = "HPP harus berupa angka 0 atau lebih.";
     if (message) errors[row.id] = message;
     units.add(unit);
     skus.add(sku);
@@ -107,7 +113,7 @@ export function buildAdditionalUnitInputs(primary: UnitPrimaryValues, rows: Unit
       relativeQuantity: relativeUnitQuantity(row.direction, row.quantity),
       price: Number(values.price),
       ...(row.barcode.trim() ? { barcode: row.barcode.trim() } : {}),
-      ...(row.costPrice.trim() ? { costPrice: Number(row.costPrice) } : {}),
+      ...(values.costPrice.trim() ? { costPrice: Number(values.costPrice) } : {}),
     };
   });
 }

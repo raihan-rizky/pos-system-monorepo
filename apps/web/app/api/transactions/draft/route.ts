@@ -265,6 +265,7 @@ export async function POST(request: Request) {
       brandName: rule.brand?.name ?? null,
       mode: rule.mode,
       value: Number(rule.value),
+      discountPercent: Number(rule.discountPercent ?? 0),
       isActive: rule.isActive,
       updatedAt: rule.updatedAt,
     })) satisfies CategoryPricingRule[];
@@ -277,6 +278,7 @@ export async function POST(request: Request) {
           categoryId: product.categoryId,
           categoryName: product.category.name,
           price: Number(product.price),
+          costPrice: product.costPrice == null ? null : Number(product.costPrice),
           ...baseCosts.get(product.id),
           hargaDinas:
             product.hargaDinas == null ? null : Number(product.hargaDinas),
@@ -379,6 +381,7 @@ export async function POST(request: Request) {
                   pricingCategoryName: item.appliedPricing?.categoryName ?? null,
                   pricingMode: item.appliedPricing?.mode ?? null,
                   pricingValue: item.appliedPricing?.value ?? null,
+                  pricingDiscountPercent: item.appliedPricing?.discountPercent ?? null,
                   pricingUnit: item.appliedPricing?.unit ?? null,
                   pricingBrandId: item.appliedPricing?.brandId ?? null,
                   pricingBrandName: item.appliedPricing?.brandName ?? null,

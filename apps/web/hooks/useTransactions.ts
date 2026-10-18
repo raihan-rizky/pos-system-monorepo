@@ -73,8 +73,9 @@ export interface Transaction {
     pricingCustomerType?: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH" | null;
     pricingCategoryId?: string | null;
     pricingCategoryName?: string | null;
-    pricingMode?: "FLAT_DISCOUNT" | "PERCENT_DISCOUNT" | null;
+    pricingMode?: import("@/features/customer-category-pricing/helpers/pricing-rules").CategoryCustomerPricingMode | null;
     pricingValue?: number | null;
+    pricingDiscountPercent?: number | null;
     originalUnitPrice?: number | null;
     appliedUnitPrice?: number | null;
     subtotal: number;

@@ -29,6 +29,34 @@ describe("pricing rule updates", () => {
     expect(mocks.lock).toHaveBeenCalledTimes(1);
     expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(mocks.findFirst.mock.invocationCallOrder[0]);
   });
+  it("edits only the second percentage while preserving modal markup and scope", async () => {
+    mocks.findFirst.mockResolvedValue({ ...existing, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5 });
+    const response = await PATCH(request({ discountPercent: 20 }), params);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 20, unit: "rim", customerTypes: ["AGEN"] });
+  });
+  it("preserves a stored second percentage when changing only markup", async () => {
+    mocks.findFirst.mockResolvedValue({ ...existing, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: "5.5" });
+    const response = await PATCH(request({ value: 35 }), params);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ value: 35, discountPercent: 5.5 });
+  });
+  it("clears the second percentage when switching back to an existing formula", async () => {
+    mocks.findFirst.mockResolvedValue({ ...existing, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5 });
+    const response = await PATCH(request({ mode: "COST_PLUS_PERCENT" }), params);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ mode: "COST_PLUS_PERCENT", value: 10, discountPercent: 0 });
+  });
+  it("requires the second percentage when switching to the sequential formula", async () => {
+    const response = await PATCH(request({ mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10 }), params);
+    expect(response.status).toBe(422);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+  it.each([-1, 101, null, "5"])("rejects an invalid second percentage %j without saving", async (discountPercent) => {
+    const response = await PATCH(request({ mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent }), params);
+    expect(response.status).toBe(422);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
   it.each(["PATCH", "DELETE"])("gives %s enough time for a remote database transaction", async (method) => {
     mocks.transaction.mockImplementation((callback, options) => {
       if (!options || options.timeout < 15000) throw new Error("Transaction expired after Prisma's default 5000ms");

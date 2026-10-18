@@ -110,6 +110,13 @@ describe("POST /api/transactions negative stock", () => {
     expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ tax: 120, total: 1120, change: 0 });
     expect(customerUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ totalDebt: { increment: 620 } }) }));
   });
+  it("calculates sequential unit modal pricing on the server and snapshots both percentages", async () => {
+    pricingRuleFindManyMock.mockResolvedValue([{ id: "sequential", categoryId: "cat1", category: { name: "Produk" }, customerType: null, customerTypes: [], unit: null, brandId: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5, isActive: true }]);
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({ paymentMethod: "CASH", amountPaid: 20000, paymentStatus: "COMPLETED", items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }] }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 522.5, pricingValue: 10, pricingDiscountPercent: 5 });
+  });
   it("persists the synchronized Internet date instead of a drifting device clock", async () => {
     invoiceNowMock.mockResolvedValue(new Date("2030-01-02T20:00:00Z"));
     applyProductStockDeltasMock.mockResolvedValue([]);

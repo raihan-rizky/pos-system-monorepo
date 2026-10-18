@@ -20,6 +20,7 @@ export function priceCatalogVariantForCustomer(
     categoryId: product.category.id,
     categoryName: product.category.name,
     price: Number(selected.price),
+    costPrice: selected.costPrice == null ? null : Number(selected.costPrice),
     unit: selected.unit,
     brandId: selected.brandId,
     brandName: selected.brand?.name,
