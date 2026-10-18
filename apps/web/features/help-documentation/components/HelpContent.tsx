@@ -1039,7 +1039,7 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
           <History className="h-7 w-7 shrink-0 text-brand-700" aria-hidden="true" />
           <div>
             <h2 className="text-sm font-bold">Catatan Perubahan</h2>
-            <p className="mt-1 text-sm">Buka Lainnya → Catatan Perubahan untuk melihat gambar fitur dan alur singkat. Sorotan 7 hari menampilkan pembaruan terbaru berdasarkan WIB.</p>
+            <p className="mt-1 text-sm">Buka Lainnya → Catatan Perubahan untuk melihat gambar fitur dan alur singkat. Popup Sorotan 7 hari merangkum semua pembaruan dalam satu daftar ringkas.</p>
           </div>
         </Link>
       )}

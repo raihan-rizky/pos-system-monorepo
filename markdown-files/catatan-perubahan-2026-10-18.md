@@ -7,15 +7,15 @@ Tanggal: 18 Oktober 2026 (WIB)
 - **Lainnya → Catatan Perubahan** membuka `/changelog`, tersedia untuk seluruh peran secara default dan tercakup dalam pengaturan RBAC.
 - Riwayat memuat semua entri yang sudah terbit, terbaru di atas. Filter **7 hari terakhir** memakai hari ini dan enam hari kalender sebelumnya di Asia/Jakarta; tanggal mendatang disembunyikan.
 - Popup **Apa yang baru** muncul setelah 1,5 detik ketika ada entri terbaru yang belum dilihat. Popup menunggu dialog lain selesai, dan tidak otomatis muncul di halaman arsip.
-- Satu pembaruan ditampilkan per langkah popup, dengan panah sebelumnya/berikutnya, tautan arsip, dan tombol **Sudah lihat**.
-- Setiap pembaruan memiliki gambar dominan, judul singkat, ringkasan manfaat, dan tiga langkah visual. Screenshot dapat diperbesar. Jika gambar gagal dimuat, ilustrasi berlabel menggantikannya.
+- Popup menampilkan semua pembaruan sebagai daftar ringkas: ikon kecil, nama fitur, dan satu kalimat manfaat. Baris dapat membuka fitur sesuai izin akses. Tombol **Sudah lihat** dan tautan arsip tetap terlihat ketika daftar digulir pada layar pendek.
+- Di halaman arsip, setiap pembaruan memiliki gambar dominan, judul singkat, ringkasan manfaat, dan tiga langkah visual. Screenshot dapat diperbesar. Jika gambar gagal dimuat, ilustrasi berlabel menggantikannya.
 - Tautan ke fitur hanya ditampilkan jika pengguna mempunyai izin halaman tujuan. Catatan perubahan sendiri tidak memberikan izin menjalankan fitur tersebut.
 
 ## Alur penggunaan
 
 **Lainnya → Catatan Perubahan → Lihat screenshot/ilustrasi → Ikuti tiga langkah → Buka fitur**
 
-**Masuk aplikasi → Ada pembaruan belum dilihat → Apa yang baru → Panah berikutnya → Sudah lihat**
+**Masuk aplikasi → Apa yang baru → Lihat semua pembaruan sekaligus → Sudah lihat / Buka fitur**
 
 ## Pemeliharaan manual
 
@@ -23,6 +23,7 @@ Sumber tunggal: `apps/web/features/changelog/data/changelog.ts`.
 
 1. Tambahkan entri untuk setiap fitur besar, peningkatan substansial, atau perbaikan besar dalam pekerjaan yang sama.
 2. Isi `id` unik, `revision`, tanggal rilis asli `YYYY-MM-DD` berdasarkan WIB, `kind`, `area`, judul, ringkasan maksimal dua kalimat, rute tujuan, jenis ilustrasi, dan tepat tiga langkah.
+   Isi juga `highlight.title` maksimal 40 karakter dan `highlight.summary` satu kalimat maksimal 85 karakter. Gunakan nama fitur yang langsung menjelaskan perubahan.
 3. Bila tersedia, simpan screenshot nyata yang dipotong sesuai bagian fitur di `apps/web/public/images/changelog/`, lalu isi `screenshot.src` dan alt text. Hindari data pelanggan, HPP, ringkasan keuangan, dan kredensial.
 4. Verifikasi manfaat dan langkah terhadap implementasi. Jangan mengubah tanggal entri lama agar terus muncul; arsip tidak dihapus setelah tujuh hari.
 5. Naikkan `revision` hanya jika pengumuman memang perlu ditampilkan kembali. Perbarui Bantuan dan katalog workflow AI Assistant bila alurnya berubah.
@@ -52,7 +53,7 @@ Screenshot awal `pos-unit-stock.webp` diambil dari halaman Kasir yang berjalan, 
 - Browser: `pnpm --filter @pos/web exec playwright test --config features/changelog/browser/playwright.config.ts`.
 - Server Next.js dan folder `.next` tidak digunakan oleh harness browser ini.
 
-Hasil akhir: 73 tes unit/regresi pada lima file lulus; 11 tes Catatan Perubahan dijalankan ulang setelah penyempurnaan tampilan popup dan tetap lulus. Empat tes browser lulus, termasuk tombol navigasi yang terlihat pada ponsel, zoom bertingkat, pemulihan fokus, status per akun, dan fallback penyimpanan. Type-check aplikasi web, ESLint fitur, serta `git diff --check` lulus. GitNexus melaporkan risiko rendah dan nol proses terdampak untuk perubahan terindeks; laporan juga mencakup pekerjaan kategori dari sesi lain.
+Verifikasi revisi popup ringkas: 66 tes unit/regresi pada empat file lulus. Empat tes browser mencakup daftar seluruh sorotan, zoom screenshot di arsip, pemulihan fokus, status per akun, fallback penyimpanan, dan footer yang tetap terlihat pada viewport 375×812, 320×700, serta layar pendek 375×480. Type-check aplikasi web, ESLint fitur, dan `git diff --check` lulus. Analisis GitNexus untuk Bantuan dan katalog workflow berisiko rendah; komponen changelog belum ada dalam indeks sehingga pemanggilnya diperiksa langsung.
 
 Headroom dipanggil pada awal/akhir sesi dan untuk kompresi keluaran. Proxy Headroom lokal dilaporkan tidak dapat dihubungi; keluaran dibatasi selama pemeriksaan.
 

@@ -74,7 +74,7 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-10-18T03:00:00Z"));
 });
 
-test("archive, weekly filter, carousel, image zoom, keyboard focus, and mobile layout", async ({ page }) => {
+test("archive, compact weekly list, image zoom, keyboard focus, and mobile layout", async ({ page }) => {
   await page.goto(baseURL);
   await expect(page.getByRole("heading", { name: "Catatan Perubahan", exact: true })).toBeVisible();
   await expect(page.locator("article")).toHaveCount(6);
@@ -84,14 +84,21 @@ test("archive, weekly filter, carousel, image zoom, keyboard focus, and mobile l
   const dialog = page.getByRole("dialog", { name: "Apa yang baru" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Tutup", exact: true })).toBeFocused();
-  await dialog.getByRole("button", { name: "Pembaruan berikutnya" }).click();
-  await expect(dialog.getByRole("heading", { name: "Pajak nota ikut tersimpan." })).toBeVisible();
-  await dialog.getByRole("button", { name: "Pembaruan berikutnya" }).click();
-  await dialog.getByRole("button", { name: "Pembaruan berikutnya" }).click();
-  await dialog.getByRole("button", { name: /Perbesar gambar/ }).click();
-  await expect(page.getByRole("dialog", { name: "Stok lebih jelas di setiap satuan." })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("list", { name: "Pembaruan 7 hari terakhir" }).getByRole("listitem")).toHaveCount(6);
+  await expect(dialog.getByText("Pajak nota tersimpan", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Pengelolaan grup stok", { exact: true })).toBeVisible();
+  await expect(dialog.locator("time")).toHaveCount(6);
+  await expect(dialog.locator('time[datetime="2026-10-18"]').first()).toHaveText("18 Okt");
+  await expect(dialog.locator('time[datetime="2026-10-14"]')).toHaveAttribute("title", "14 Oktober 2026");
+  await expect(dialog.getByRole("button", { name: "Pembaruan berikutnya" })).toHaveCount(0);
+  await expect(dialog.getByRole("link", { name: /Stok per satuan/ })).toHaveAttribute("href", "/pos");
+  await expect(dialog.getByRole("button", { name: "Sudah lihat" })).toBeInViewport();
+  const screenshotDir = process.env.CHANGELOG_SCREENSHOT_DIR;
+  if (screenshotDir) {
+    await mkdir(screenshotDir, { recursive: true });
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path: path.join(screenshotDir, "changelog-desktop-popup.png") });
+  }
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
@@ -103,9 +110,7 @@ test("archive, weekly filter, carousel, image zoom, keyboard focus, and mobile l
   await page.keyboard.press("Escape");
   await expect(imageDialog).not.toBeVisible();
   await page.locator("h1").click();
-  const screenshotDir = process.env.CHANGELOG_SCREENSHOT_DIR;
   if (screenshotDir) {
-    await mkdir(screenshotDir, { recursive: true });
     await page.screenshot({ path: path.join(screenshotDir, "changelog-desktop.png"), fullPage: true });
   }
   await page.setViewportSize({ width: 375, height: 812 });
@@ -114,11 +119,25 @@ test("archive, weekly filter, carousel, image zoom, keyboard focus, and mobile l
   await page.getByRole("button", { name: "Sorotan 7 hari" }).click();
   await expect(dialog).toBeVisible();
   expect(await dialog.evaluate(el => el.getBoundingClientRect().right <= innerWidth && el.getBoundingClientRect().left >= 0)).toBe(true);
-  await expect(dialog.getByRole("button", { name: "Pembaruan berikutnya" })).toBeInViewport();
-  if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, "changelog-mobile-popup.png") });
+  await expect(dialog.getByRole("button", { name: "Sudah lihat" })).toBeInViewport();
+  await expect(dialog.getByText("Pengelolaan grup stok", { exact: true })).toBeInViewport();
+  if (screenshotDir) {
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path: path.join(screenshotDir, "changelog-mobile-popup.png") });
+  }
   await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 320, height: 700 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "Sorotan 7 hari" }).click();
+  await expect(dialog.getByRole("button", { name: "Sudah lihat" })).toBeInViewport();
+  await expect(dialog.getByRole("button", { name: "Tutup", exact: true })).toBeInViewport();
+  await page.setViewportSize({ width: 375, height: 480 });
+  await expect(dialog.getByRole("button", { name: "Sudah lihat" })).toBeInViewport();
+  await dialog.getByText("Pengelolaan grup stok", { exact: true }).scrollIntoViewIfNeeded();
+  await expect(dialog.getByText("Pengelolaan grup stok", { exact: true })).toBeInViewport();
+  await expect(dialog.getByRole("button", { name: "Sudah lihat" })).toBeInViewport();
+  await dialog.getByRole("button", { name: "Sudah lihat" }).click();
+  await expect(dialog).not.toBeVisible();
 });
 
 test("automatically opens once, persists dismissal per user, and supports a second user", async ({ page }) => {
@@ -154,8 +173,8 @@ test("survives denied storage and hides links to features the role cannot access
   await page.goto(`${baseURL}?popup=1`);
   const dialog = page.getByRole("dialog", { name: "Apa yang baru" });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Pembaruan berikutnya" }).click();
-  await expect(dialog.getByRole("link", { name: "Buka fitur" })).toHaveCount(0);
+  await expect(dialog.getByRole("link").filter({ hasNotText: /Catatan Perubahan|Lihat semua catatan/ })).toHaveCount(0);
+  await expect(dialog.getByText("Pajak nota tersimpan", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Sudah lihat" }).click();
   await expect(dialog).not.toBeVisible();
   await page.getByRole("button", { name: "Sorotan 7 hari" }).click();

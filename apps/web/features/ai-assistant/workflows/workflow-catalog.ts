@@ -790,7 +790,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Catatan Perubahan", description: "Buka Lainnya → Catatan Perubahan untuk melihat riwayat pembaruan, terbaru di atas." },
       { title: "Lihat gambar dan alur", description: "Perbesar screenshot bila tersedia, lalu ikuti tiga langkah singkat. Ilustrasi fitur diberi label; tautan Buka fitur mengikuti izin akses Anda." },
-      { title: "Cek sorotan mingguan", description: "Pilih 7 hari terakhir atau Sorotan 7 hari untuk pembaruan hari ini dan enam hari sebelumnya berdasarkan WIB. Popup muncul untuk pembaruan yang belum dilihat; tutup dengan Sudah lihat atau Escape." },
+      { title: "Cek sorotan mingguan", description: "Pilih Sorotan 7 hari untuk melihat semua pembaruan terbaru dalam satu daftar ringkas. Setiap baris berisi nama fitur dan satu kalimat manfaat; klik baris untuk membuka fitur sesuai izin akses. Lihat semua catatan membuka gambar dan alur lengkap. Popup otomatis menampilkan pembaruan belum dilihat dari hari ini dan enam hari sebelumnya berdasarkan WIB; tutup dengan Sudah lihat atau Escape." },
     ],
   }),
 ];

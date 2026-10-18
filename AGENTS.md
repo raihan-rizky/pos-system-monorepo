@@ -76,6 +76,7 @@ If you add or update dependencies remember to:
 - The **Apa yang baru** popup shows today and the preceding six WIB calendar days. **Lainnya → Catatan Perubahan** retains all published history; do not delete old entries when they leave the seven-day window. Future-dated entries remain hidden until their date.
 - Prioritize visuals: use a real, cropped screenshot of the changed feature where available, stored in `apps/web/public/images/changelog/` with descriptive Indonesian alt text. Exclude customer data, credentials, financial summaries, and other sensitive details. Otherwise select an accurate, clearly labelled illustration through `visual`.
 - Keep each entry concise: a short Indonesian title, at most two sentences of benefit-oriented copy, the relevant feature route, and exactly three short steps describing the actual usage flow. Verify claims against the implemented feature.
+- Include `highlight.title` (at most 40 characters) and `highlight.summary` (one direct sentence, at most 85 characters) for the weekly popup. Use concrete feature names and benefits. Keep the popup as a compact list of all recent updates; screenshots and usage flows belong in the full archive.
 - Update the Bantuan link/content and AI Assistant workflow catalog when the usage flow changes. Verify WIB date boundaries, unread/dismissal behavior, screenshot availability, keyboard access, and mobile layout when changing the changelog mechanism.
 
 ## Skill Selection Priority

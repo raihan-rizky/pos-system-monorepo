@@ -5,6 +5,7 @@ import type { ChangeEntry } from "../types";
 import { CHANGELOG } from "../data/changelog";
 import { ChangeCard } from "../components/ChangeCard";
 import { ChangelogFeed } from "../components/ChangelogFeed";
+import { WhatsNewDialog } from "../components/WhatsNewDialog";
 import { APP_SHELL_NAV_GROUPS } from "@/components/app-shell/app-shell-navigation";
 import { ALL_ROLES, buildDefaultRolePermissions, canRoleAccessPage } from "@/features/rbac/helpers/rbac-core";
 import { RBAC_PERMISSION_MODULES } from "@/features/rbac/helpers/rbac-settings-ui";
@@ -13,6 +14,7 @@ import { FAQ_WORKFLOWS } from "@/features/ai-assistant/workflows/workflow-catalo
 
 const entry = (id: string, date: string, revision = 1): ChangeEntry => ({
   id, date, revision, title: `Pembaruan ${id}`, summary: "Lebih mudah dipakai.",
+  highlight: { title: `Inti ${id}`, summary: "Manfaatnya langsung terlihat." },
   kind: "improvement", area: "Kasir", href: "/pos", visual: "units",
   steps: [{ title: "Pilih produk", detail: "Buka Kasir" }, { title: "Cek satuan", detail: "Lihat konversi" }, { title: "Lanjutkan", detail: "Masukkan jumlah" }],
 });
@@ -65,6 +67,41 @@ describe("manual changelog", () => {
     expect(html).toContain("Perbesar gambar");
     expect(html).toContain('aria-label="Alur penggunaan"');
     expect(html).toContain('href="/pos"');
+  });
+
+  it("shows every weekly highlight together with direct copy and no carousel or tutorial", () => {
+    const html = renderToStaticMarkup(<WhatsNewDialog entries={[entry("satu", "2026-10-18"), entry("dua", "2026-10-17")]} onClose={() => {}} canAccess={() => true} />);
+    expect(html).toContain("Inti satu");
+    expect(html).toContain("Inti dua");
+    expect(html).toContain("Manfaatnya langsung terlihat.");
+    expect(html).not.toContain("Pembaruan berikutnya");
+    expect(html).not.toContain("Alur penggunaan");
+    expect(html).not.toContain("Ilustrasi fitur");
+    expect(html).toContain("Sudah lihat");
+  });
+
+  it("keeps popup highlights readable without exposing restricted feature links", () => {
+    const html = renderToStaticMarkup(<WhatsNewDialog entries={[entry("terbatas", "2026-10-18")]} onClose={() => {}} canAccess={() => false} />);
+    expect(html).toContain("Inti terbatas");
+    expect(html).not.toContain('href="/pos"');
+    expect(html).toContain('href="/changelog"');
+  });
+
+  it("shows a compact release-date badge with the full date available", () => {
+    const html = renderToStaticMarkup(<WhatsNewDialog entries={[entry("awal", "2026-01-01"), entry("akhir", "2025-12-31")]} onClose={() => {}} canAccess={() => true} />);
+    expect(html).toContain('dateTime="2026-01-01"');
+    expect(html).toContain('title="1 Januari 2026"');
+    expect(html).toContain('>1 Jan</time>');
+    expect(html).toContain('dateTime="2025-12-31"');
+    expect(html).toContain('>31 Des</time>');
+  });
+
+  it("keeps manually written popup titles and summaries short", () => {
+    for (const change of CHANGELOG) {
+      expect(change.highlight).toEqual({ title: expect.any(String), summary: expect.any(String) });
+      expect(change.highlight.title.length).toBeLessThanOrEqual(40);
+      expect(change.highlight.summary.length).toBeLessThanOrEqual(85);
+    }
   });
 
   it("hides feature links when the role lacks access while keeping the explanation visible", () => {

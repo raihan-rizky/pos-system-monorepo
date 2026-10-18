@@ -319,7 +319,7 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 
 1. **Lihat pembaruannya.** Riwayat lengkap tersusun dari yang terbaru. Pilih **7 hari terakhir** untuk hari ini dan enam hari sebelumnya berdasarkan WIB.
 2. **Kenali tampilannya.** Perbesar screenshot jika tersedia, atau lihat gambar berlabel **Ilustrasi fitur**. Ikuti tiga langkah di bawah setiap catatan. Tombol **Buka fitur** mengikuti izin akses Anda.
-3. **Cek sorotan.** Klik **Sorotan 7 hari** untuk membuka kembali popup **Apa yang baru**. Gunakan panah untuk berpindah pembaruan, lalu **Sudah lihat**, **Tutup**, atau **Escape** untuk menutupnya. Popup otomatis hanya muncul untuk pembaruan yang belum dilihat pada akun dan browser tersebut.
+3. **Cek sorotan.** Klik **Sorotan 7 hari** untuk membuka popup **Apa yang baru**. Semua pembaruan tampil dalam satu daftar ringkas: nama fitur dan satu kalimat manfaat. Klik baris untuk membuka fitur sesuai izin akses, atau **Lihat semua catatan** untuk gambar dan alur lengkap. Tutup dengan **Sudah lihat**, **Tutup**, atau **Escape**. Popup otomatis hanya muncul untuk pembaruan yang belum dilihat pada akun dan browser tersebut.
 
 ### Q38: Bagaimana cara mengajukan dan memutuskan Pembelian Barang?
 **A:** Pembelian Barang baru dibuat otomatis saat Daftar Belanja disetujui. Untuk menyelesaikan Pembelian Barang lama:

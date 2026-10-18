@@ -9,6 +9,8 @@ export interface ChangeEntry {
   revision: number;
   title: string;
   summary: string;
+  /** Direct copy for the weekly popup: title up to 40 characters, summary up to 85. */
+  highlight: { title: string; summary: string };
   kind: ChangeKind;
   area: string;
   href: string;
