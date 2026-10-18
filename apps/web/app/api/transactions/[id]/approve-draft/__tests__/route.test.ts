@@ -78,6 +78,9 @@ const draftRow = {
   invoiceDate: new Date("2026-05-20T03:00:00.000Z"),
   storeId: "store-main",
   status: "DRAFT" as const,
+  tax: 0,
+  taxRate: null,
+  taxMethod: "STANDARD",
   total: 100000,
   customerId: "customer-1",
   cashierId: "cashier-1",
@@ -89,6 +92,25 @@ const draftRow = {
 };
 
 describe("POST /api/transactions/[id]/approve-draft", () => {
+  it("persists the DPP basis when approving a legacy quote without editing its tax", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft-1/approve-draft", {
+      method: "POST", body: JSON.stringify({ paymentMethod: "CASH", amountPaid: 100000 }),
+    }), { params: Promise.resolve({ id: "draft-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ taxMethod: "DPP_NILAI_LAIN" }),
+    }));
+  });
+  it("rejects approval if tax changed after the quote was checked", async () => {
+    transactionUpdateManyMock.mockImplementation(async ({ where }) => ({ count: where.tax === 0 && where.total === 100000 && where.taxRate === null ? 0 : 1 }));
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft-1/approve-draft", {
+      method: "POST", body: JSON.stringify({ paymentMethod: "CASH", amountPaid: 100000 }),
+    }), { params: Promise.resolve({ id: "draft-1" }) });
+    expect(response.status).toBe(409);
+    expect(transactionPaymentCreateManyMock).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     afterMock.mockImplementation((cb: () => void | Promise<void>) => cb());

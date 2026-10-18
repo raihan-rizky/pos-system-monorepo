@@ -292,11 +292,21 @@ export function DraftPdfDocument({
         <View style={styles.totalRow}>
           <Text style={styles.totalLabelCell}>J U M L A H</Text>
           <Text style={styles.totalValueCell}>
-            Rp {data.grandTotalFormatted}
+            Rp {data.netAmountFormatted}
           </Text>
         </View>
 
         {/* ── Terbilang ────────────────────────────────────────── */}
+        {[
+          ["DPP Nilai Lain", data.dppFormatted],
+          ["PPN", data.taxFormatted],
+          ["Total", data.grandTotalFormatted],
+        ].map(([label, amount]) => (
+          <View style={styles.totalRow} key={label}>
+            <Text style={styles.totalLabelCell}>{label}</Text>
+            <Text style={styles.totalValueCell}>Rp {amount}</Text>
+          </View>
+        ))}
         <View style={styles.terbilangBox}>
           <Text>
             Terbilang :{" "}

@@ -24,6 +24,7 @@ import {
   type ApprovalQuote,
 } from "@/features/transactions-draft/services/approval-quote";
 import { buildTransactionStockJournal } from "@/features/transactions-stock/helpers/transaction-stock-journal";
+import { getTransactionTaxMethod } from "@/features/transaction-tax/helpers/tax-calculation";
 import {
   applyProductStockDeltas,
   StockMutationError,
@@ -282,7 +283,7 @@ export async function POST(
             ).padStart(4, "0")}`;
 
             const updateResult = await tx.transaction.updateMany({
-              where: { id, storeId, status: "DRAFT" },
+              where: { id, storeId, status: "DRAFT", total: draft.total, tax: draft.tax, taxRate: draft.taxRate, taxMethod: draft.taxMethod },
               data: {
                 status: newStatus,
                 invoiceNumber,
@@ -296,6 +297,7 @@ export async function POST(
                 subtotal: quoteForApproval.subtotal,
                 discount: quoteForApproval.discount,
                 tax: quoteForApproval.tax,
+                taxMethod: getTransactionTaxMethod(draft),
                 total: quoteForApproval.total,
               },
             });

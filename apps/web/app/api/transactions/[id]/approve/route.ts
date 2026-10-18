@@ -260,6 +260,10 @@ export async function POST(
         where: {
           id,
           storeId,
+          total: transaction.total,
+          tax: transaction.tax,
+          taxRate: transaction.taxRate,
+          taxMethod: transaction.taxMethod,
           ...(transaction.status === "PENDING_APPROVAL"
             ? { status: "PENDING_APPROVAL" as const }
             : { requestedById: { not: null }, cashierId: null }),

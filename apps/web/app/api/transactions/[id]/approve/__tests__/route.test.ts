@@ -69,6 +69,16 @@ vi.mock("@/features/rbac/helpers/rbac-server", () => ({
 }));
 
 describe("POST /api/transactions/[id]/approve", () => {
+  it("rejects approval if tax changed after reading the payment total", async () => {
+    transactionFindFirstMock.mockResolvedValue({ id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL", total: 50000,
+      tax: 0, taxRate: null, taxMethod: "STANDARD", amountPaid: 50000, change: 0, paymentMethod: "CASH", customerId: null, items: [], payments: [] });
+    transactionUpdateManyMock.mockImplementation(async ({ where }) => ({ count: where.tax === 0 && where.total === 50000 && where.taxRate === null ? 0 : 1 }));
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({ paymentMethod: "CASH", amountPaid: 50000 }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(409);
+    expect(paymentCreateManyMock).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     buildApprovalQuoteMock.mockReset();
@@ -180,7 +190,7 @@ describe("POST /api/transactions/[id]/approve", () => {
 
     expect(response.status).toBe(200);
     expect(transactionUpdateManyMock).toHaveBeenCalledWith({
-      where: { id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL" },
+      where: expect.objectContaining({ id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL", total: 50000 }),
       data: expect.objectContaining({
         status: "COMPLETED",
         cashierId: "cashier-1",
@@ -301,7 +311,7 @@ describe("POST /api/transactions/[id]/approve", () => {
 
     expect(response.status).toBe(200);
     expect(transactionUpdateManyMock).toHaveBeenCalledWith({
-      where: { id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL" },
+      where: expect.objectContaining({ id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL", total: 50000 }),
       data: expect.objectContaining({
         status: "COMPLETED",
         amountPaid: 60000,
@@ -321,7 +331,7 @@ describe("POST /api/transactions/[id]/approve", () => {
 
     expect(response.status).toBe(200);
     expect(transactionUpdateManyMock).toHaveBeenCalledWith({
-      where: { id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL" },
+      where: expect.objectContaining({ id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL", total: 50000 }),
       data: expect.objectContaining({
         status: "COMPLETED",
         paymentMethod: "TEMPO",
@@ -366,7 +376,7 @@ describe("POST /api/transactions/[id]/approve", () => {
 
     expect(response.status).toBe(200);
     expect(transactionUpdateManyMock).toHaveBeenCalledWith({
-      where: { id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL" },
+      where: expect.objectContaining({ id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL", total: 50000 }),
       data: expect.objectContaining({
         status: "COMPLETED",
         paymentMethod: "TEMPO",
@@ -402,12 +412,13 @@ describe("POST /api/transactions/[id]/approve", () => {
 
     expect(response.status).toBe(200);
     expect(transactionUpdateManyMock).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         id: "tx-1",
         storeId: "store-main",
         requestedById: { not: null },
         cashierId: null,
-      },
+        total: 50000,
+      }),
       data: expect.objectContaining({
         status: "COMPLETED",
         cashierId: "cashier-1",

@@ -5,7 +5,7 @@ import { DraftReceiptModal } from "@/components/DraftReceiptModal";
 import type { Transaction } from "@/hooks/useTransactions";
 
 vi.mock("@/hooks/useSettings", () => ({ useStoreSettings: () => ({ data: null }) }));
-vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock("@tanstack/react-query", async importOriginal => ({ ...await importOriginal<object>(), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canPerform: () => true }) }));
 vi.mock("@pos/ui", () => ({
   Modal: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

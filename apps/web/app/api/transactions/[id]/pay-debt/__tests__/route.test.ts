@@ -88,7 +88,7 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     expect(lockCustomerMock.mock.invocationCallOrder[0]).toBeLessThan(transactionUpdateManyMock.mock.invocationCallOrder[0]);
     expect(transactionUpdateManyMock).toHaveBeenCalledTimes(1);
     const txArgs = transactionUpdateManyMock.mock.calls[0][0];
-    expect(txArgs.where).toMatchObject({ id: "tx-dp-1", storeId: "store-main", status: "DP" });
+    expect(txArgs.where).toMatchObject({ id: "tx-dp-1", storeId: "store-main", status: "DP", total: 200000 });
     expect(txArgs.data).toMatchObject({ amountPaid: 100000, status: "DP" });
 
     expect(customerUpdateManyMock).toHaveBeenCalledTimes(1);

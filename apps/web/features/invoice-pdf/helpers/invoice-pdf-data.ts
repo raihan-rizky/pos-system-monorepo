@@ -7,6 +7,7 @@
  */
 
 import type { Transaction } from "@/hooks/useTransactions";
+import { formatTaxRate, getTransactionTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import {
   buildReceiptPaymentLines,
@@ -48,6 +49,7 @@ export interface InvoicePdfTotals {
 }
 
 export interface InvoicePdfData {
+  taxRateFormatted: string;
   storeName: string;
   storeAddress: string;
   storePhone: string;
@@ -193,6 +195,7 @@ export function buildInvoicePdfData(
 
   return {
     storeName: storeSettings.name,
+    taxRateFormatted: formatTaxRate(getTransactionTaxRate(transaction)),
     storeAddress: storeSettings.address,
     storePhone: storeSettings.phone,
     invoiceNumber,

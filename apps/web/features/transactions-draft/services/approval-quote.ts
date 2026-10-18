@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@pos/db";
+import { calculateTransactionTax, getTransactionTaxMethod } from "@/features/transaction-tax/helpers/tax-calculation";
 import {
   priceProductForCustomerType,
   resolveCustomPricedLine,
@@ -137,6 +138,8 @@ export async function buildApprovalQuote(
       customer: { select: { type: true } },
       discount: true,
       tax: true,
+      taxRate: true,
+      taxMethod: true,
       items: { select: { id: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true } },
     },
   });
@@ -367,7 +370,9 @@ export async function buildApprovalQuote(
     quotedItems.reduce((sum, line) => sum + line.subtotal, 0),
   );
   const discount = roundMoney(Number(transaction.discount));
-  const tax = roundMoney(Number(transaction.tax));
+  const tax = transaction.taxRate == null
+    ? roundMoney(Number(transaction.tax))
+    : calculateTransactionTax({ subtotal, discount, taxRate: Number(transaction.taxRate), taxMethod: getTransactionTaxMethod(transaction) }).tax;
   const total = roundMoney(Math.max(0, subtotal - discount + tax));
   const fingerprint = buildApprovalFingerprint({
     transactionId: transaction.id,
@@ -389,6 +394,8 @@ export async function buildApprovalQuote(
     subtotal,
     discount,
     tax,
+    taxRate: transaction.taxRate == null ? null : Number(transaction.taxRate),
+    taxMethod: transaction.taxMethod ?? "STANDARD",
     total,
   });
 

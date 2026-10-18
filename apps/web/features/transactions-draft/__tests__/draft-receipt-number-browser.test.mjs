@@ -48,6 +48,10 @@ try {
     const url = new URL(route.request().url());
     if (url.pathname === "/fixture") return route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><div id="root"></div></body></html>' });
     if (url.pathname === "/api/settings/store") return route.fulfill({ json: { name: "Toko Teladan" } });
+    if (url.pathname === "/api/transactions/draft-1/tax") return route.fulfill({ json: {
+      transaction: { id: "draft-1", subtotal: 10000, discount: 0, tax: 0, taxRate: null, taxMethod: "STANDARD", total: 10000, amountPaid: 0, change: 0, status: "DRAFT", paymentMethod: "CASH" },
+      snapshot: { total: 10000, tax: 0, taxRate: null, taxMethod: "STANDARD", amountPaid: 0, change: 0, status: "DRAFT" },
+    } });
     if (url.pathname === "/api/transactions/draft-1/draft-number") {
       if (route.request().method() === "PATCH") {
         writes++;

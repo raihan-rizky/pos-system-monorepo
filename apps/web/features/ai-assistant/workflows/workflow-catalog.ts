@@ -213,7 +213,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     faqNumber: 9,
     slug: "print-invoice",
     title: "Bagaimana cara mencetak invoice atau struk transaksi?",
-    aliases: ["cetak invoice", "cetak struk", "print invoice", "struk transaksi"],
+    aliases: ["cetak invoice", "cetak struk", "print invoice", "struk transaksi", "pajak nota", "PPN penawaran", "DPP Nilai Lain"],
     route: "/history",
     actionLabel: "Buka Riwayat",
     iconKey: "printer",
@@ -221,7 +221,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Pilih jalur cetak", description: "Cetak dari POS setelah pembayaran selesai, atau dari Riwayat untuk transaksi lama." },
       { title: "Buka transaksi", description: "Di Riwayat, cari dan klik baris transaksi yang ingin dicetak." },
-      { title: "Gunakan tombol cetak", description: "Pada panel detail, klik ikon printer atau tombol Cetak Invoice/Struk." },
+      { title: "Gunakan tombol cetak", description: "Pada panel detail, klik ikon printer atau tombol Cetak Invoice/Struk. Pada nota biasa, isi Pajak (%) dari jumlah setelah diskon; nota mencetak persentasenya. Pada Cetak Nota Penawaran, isi PPN (%): DPP Nilai Lain adalah 11/12 jumlah setelah diskon, lalu PPN dihitung dari DPP sebelum pembulatan dan dicetak sebagai nominal rupiah. Isi 0–100% dengan maksimal dua desimal. Klik Simpan Pajak atau langsung cetak; perubahan disimpan sebelum mencetak dan memengaruhi total, sisa tagihan, serta laporan. Mengubah pajak memerlukan izin edit transaksi/draft. Metode pajak penawaran dipertahankan saat dilanjutkan ke pembayaran. Jika penyimpanan gagal, periksa pesan dan coba lagi; jika transaksi berubah, tutup lalu buka kembali nota." },
     ],
   }),
   workflow({
