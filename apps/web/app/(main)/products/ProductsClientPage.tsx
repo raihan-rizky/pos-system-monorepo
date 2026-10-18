@@ -60,6 +60,13 @@ import { priceCatalogProductForCustomer } from "@/features/customer-category-pri
 import { CUSTOMER_TYPES, isSpecialCategoryPricing, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 
+const CategoryManagementTab = lazy(() =>
+  import("@/features/product-categories/components/CategoryManagementTab").then(module => ({ default: module.CategoryManagementTab })),
+);
+const MoveProductsDialog = lazy(() =>
+  import("@/features/product-categories/components/MoveProductsDialog").then(module => ({ default: module.MoveProductsDialog })),
+);
+
 const ProductPriceLogsTab = lazy(
   () => import("@/app/(main)/products/ProductPriceLogsTab"),
 );
@@ -121,12 +128,14 @@ const SupplierCodeImportDrawer = lazy(() =>
 
 type PageTab =
   | "products"
+  | "categories"
   | "prices"
   | "special-prices"
   | "group-activity";
 
 const PRODUCT_TABS: PageTab[] = [
   "products",
+  "categories",
   "prices",
   "special-prices",
   "group-activity",
@@ -210,7 +219,7 @@ export default function ProductsClientPage() {
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
   const canUpdateInventory = shouldShowUpdateAction("inventory", canPerform);
   const canDeleteProducts = shouldShowDeleteAction("product", canPerform);
-  const canSelectProducts = canUpdateInventory || canDeleteProducts;
+  const canSelectProducts = canUpdateProducts || canUpdateInventory || canDeleteProducts;
   const canViewPriceHistory = role === "OWNER" || role === "ADMIN";
   const canManageSpecialPrices = role === "OWNER";
   const canChangePrice = canViewPriceHistory;
@@ -219,6 +228,8 @@ export default function ProductsClientPage() {
   const bulkDeleteProductsMutation = useBulkDeleteProducts();
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isMoveProductsOpen, setIsMoveProductsOpen] = useState(false);
+  const [categoryActionMessage, setCategoryActionMessage] = useState("");
   const [bulkDeleteResult, setBulkDeleteResult] =
     useState<BulkDeleteProductsResult | null>(null);
   const [search, setSearch] = useState("");
@@ -713,6 +724,11 @@ export default function ProductsClientPage() {
               label: "Produk",
               icon: <Package className="w-4 h-4" />,
             },
+            {
+              id: "categories" as PageTab,
+              label: "Kategori",
+              icon: <LayoutGrid className="w-4 h-4" />,
+            },
             ...(canViewPriceHistory
               ? [
                   {
@@ -757,6 +773,10 @@ export default function ProductsClientPage() {
           ))}
         </HorizontalScroll>
 
+        {categoryActionMessage && (
+          <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{categoryActionMessage}</p>
+        )}
+
         {/* -- Tab Content -- */}
         {activeTab !== "products" ? (
           <div className="bg-white/70 backdrop-blur-2xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[32px] overflow-hidden p-5 md:p-6">
@@ -767,6 +787,14 @@ export default function ProductsClientPage() {
                 </div>
               }
             >
+              {activeTab === "categories" && (
+                <CategoryManagementTab
+                  canCreate={canCreateProducts}
+                  canUpdate={canUpdateProducts}
+                  canDelete={canDeleteProducts}
+                  onDeleted={(ids) => { if (ids.includes(categoryId)) setCategoryId(""); }}
+                />
+              )}
               {activeTab === "group-activity" && (
                 <StockGroupActivityTab onOpenStockGroup={openStockGroup} />
               )}
@@ -1178,7 +1206,7 @@ export default function ProductsClientPage() {
       {selectedProductIds.size > 0 &&
         activeTab === "products" &&
         canSelectProducts && (
-          <div className="fixed bottom-5 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xl">
+          <div className="fixed bottom-5 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-5xl -translate-x-1/2 flex-col items-stretch justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xl sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
                 <Boxes className="h-5 w-5" />
@@ -1188,11 +1216,19 @@ export default function ProductsClientPage() {
                   {selectedProductIds.size} dipilih
                 </p>
                 <p className="text-xs text-slate-500">
-                  Terapkan aksi stok atau hapus dalam satu batch.
+                  Pilih tindakan untuk produk yang dipilih.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {canUpdateProducts && (
+                <button
+                  onClick={() => setIsMoveProductsOpen(true)}
+                  className="min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-800"
+                >
+                  Pindahkan Kategori
+                </button>
+              )}
               {canUpdateProducts && canUpdateInventory && selectedProductIds.size >= 2 && (
                 <button
                   onClick={() => setIsBulkStockGroupOpen(true)}
@@ -1201,12 +1237,14 @@ export default function ProductsClientPage() {
                   Buat atau gabungkan grup stok
                 </button>
               )}
-              <button
-                onClick={() => setIsBulkStockOpen(true)}
-                className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white"
-              >
-                Stok Massal
-              </button>
+              {canUpdateInventory && (
+                <button
+                  onClick={() => setIsBulkStockOpen(true)}
+                  className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white"
+                >
+                  Stok Massal
+                </button>
+              )}
               {canDeleteProducts && (
                 <button
                   onClick={requestBulkDelete}
@@ -1226,6 +1264,17 @@ export default function ProductsClientPage() {
           </div>
         )}
       <Suspense fallback={null}>
+        {isMoveProductsOpen && canUpdateProducts && (
+          <MoveProductsDialog
+            productIds={Array.from(selectedProductIds)}
+            onClose={() => setIsMoveProductsOpen(false)}
+            onMoved={(message) => {
+              setIsMoveProductsOpen(false);
+              clearSelection();
+              setCategoryActionMessage(message);
+            }}
+          />
+        )}
         {isImportOpen && canCreateProducts && (
           <ProductImportDrawer
             open={isImportOpen}
@@ -1252,7 +1301,7 @@ export default function ProductsClientPage() {
             onClose={() => setIsImportProgressOpen(false)}
           />
         )}
-        {isBulkStockOpen && (
+        {isBulkStockOpen && canUpdateInventory && (
           <BulkStockDrawer
             open={isBulkStockOpen}
             onClose={() => {

@@ -70,6 +70,20 @@ const ROLE_DESCRIPTIONS: Record<string, { desc: string; resps: string[] }> = {
   }
 };
 
+const CATEGORY_HELP = {
+  manage: "Buka tab Kategori di halaman Produk. Pilih Tambah kategori untuk mengisi beberapa baris nama, ikon, warna, urutan, dan kelompok penjualan sekaligus. Pilih kategori lalu klik Ubah kategori untuk mengubah detail per baris. Seluruh baris disimpan bersama; jika ada kesalahan, perbaiki baris tersebut lalu simpan kembali. Tambah memerlukan product.create, sedangkan edit memerlukan product.update. Kategori merupakan data bersama seluruh toko.",
+  move: "Di daftar Produk, centang produk yang ingin dipindahkan lalu pilih Pindahkan Kategori. Periksa kategori asal dan kategori tujuan, jumlah produk yang dipindahkan, serta produk yang sudah berada di tujuan. Aksi memerlukan product.update dan mengikuti lingkup toko. Harga pelanggan dan pengelompokan penjualan dapat berubah mengikuti aturan kategori tujuan; stok, satuan, dan harga dasar tidak diubah.",
+  remove: "Di tab Kategori, pilih kategori lalu Hapus kategori. Tentukan kategori tujuan untuk setiap kategori asal yang masih berisi produk; kategori kosong tidak memerlukan tujuan dan tujuan tidak boleh ikut dihapus. Tinjau hitungan produk aktif/nonaktif dan aturan harga aktif/nonaktif di seluruh toko beserta rincian toko, kelompok pelanggan, satuan, merek, mode dan nilai aturan. Aturan harga kategori asal ikut dihapus, tidak disalin ke tujuan, dan tidak dapat dipulihkan melalui fitur ini. Penghapusan memerlukan product.delete dan product.update. Hanya Owner dapat menghapus kategori yang memiliki aturan harga atau memindahkan produk lintas toko; Admin dapat menghapus kategori tanpa aturan harga dengan seluruh produk dalam lingkup tokonya.",
+  confirm: "Perhatikan bahwa harga pelanggan dan pengelompokan penjualan dapat berubah. Centang Saya memahami dampak pemindahan produk dan penghapusan aturan harga ini, lalu ketik HAPUS N KATEGORI dengan N sesuai jumlah kategori terpilih, termasuk HAPUS 1 KATEGORI untuk satu kategori. Klik Pindahkan Produk dan Hapus Kategori, atau Hapus Kategori bila tidak ada produk. Jika dampak berubah, muat ulang pratinjau dan konfirmasi kembali sebelum melanjutkan. Produk dipindah, aturan asal dihapus, lalu kategori dihapus bersama; jika gagal, seluruh perubahan dibatalkan. Setelah berhasil, periksa jumlah aktual kategori terhapus, produk dipindah, dan aturan terhapus.",
+};
+
+const CATEGORY_HELP_STEPS: Step[] = [
+  { title: "Tambah atau ubah kategori", description: CATEGORY_HELP.manage, icon: <Tag className="w-8 h-8" /> },
+  { title: "Pindahkan produk terpilih", description: CATEGORY_HELP.move, icon: <Package className="w-8 h-8" /> },
+  { title: "Tinjau dampak penghapusan", description: CATEGORY_HELP.remove, icon: <AlertTriangle className="w-8 h-8" /> },
+  { title: "Konfirmasi lalu periksa hasil", description: CATEGORY_HELP.confirm, icon: <ShieldCheck className="w-8 h-8" /> },
+];
+
 const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
   OWNER: [
     {
@@ -248,6 +262,13 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "owner-categories",
+      title: "Mengelola Kategori dan Memindahkan Produk",
+      description: "Tambah atau ubah kategori sekaligus, pindahkan produk pilihan, dan tinjau dampak penghapusan kategori terhadap seluruh toko serta harga pelanggan.",
+      icon: <Tag className="w-5 h-5 text-brand-600" />,
+      steps: CATEGORY_HELP_STEPS,
+    },
+    {
       id: "owner-change-price",
       title: "Mengubah Harga Produk & HPP",
       description: "Ubah harga jual produk, harga modal (HPP), Harga Dinas, dan Harga Agen dengan gampang lewat form edit di menu ini.",
@@ -352,6 +373,13 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Tab Info Toko", description: "Pada halaman pengaturan, klik tab menu 'Info Toko' di sebelah kiri. Isikan data Nama Toko, Alamat, dan Nomor WhatsApp aktif toko pada kolom form yang disediakan.", icon: <FileText className="w-8 h-8" /> },
         { title: "Simpan Perubahan", description: "Setelah data terisi dengan benar, klik tombol 'Simpan Perubahan' berwarna biru di sudut kanan bawah halaman.", icon: <Settings className="w-8 h-8" /> },
       ]
+    },
+    {
+      id: "admin-categories",
+      title: "Mengelola Kategori dan Memindahkan Produk",
+      description: "Kelola kategori sesuai izin. Penghapusan yang melibatkan aturan harga atau pemindahan produk lintas toko perlu dilakukan oleh Owner.",
+      icon: <Tag className="w-5 h-5 text-brand-600" />,
+      steps: CATEGORY_HELP_STEPS,
     },
     {
       id: "admin-products",

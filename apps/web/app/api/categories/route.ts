@@ -20,7 +20,7 @@ export async function GET() {
     });
 
     const res = apiCollection(categories);
-    res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
+    res.headers.set("Cache-Control", "no-store");
     return res;
   } catch (error) {
     const authErr = handleAuthError(error);

@@ -6,6 +6,8 @@ const same = (page: HelpVisualPage, target: string, count: number): AuditedHelpS
   Array.from({ length: count }, () => [page, target] as const);
 
 export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepTarget[]> = {
+  "owner-categories": [["products", "products-primary"], ["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"]],
+  "admin-categories": [["products", "products-primary"], ["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"]],
   "owner-rbac": [
     ["settings", "settings-sidebar"], ["settings", "settings-rbac-tab"],
     ["settings", "settings-rbac-summary"], ["settings", "settings-rbac-matrix"],

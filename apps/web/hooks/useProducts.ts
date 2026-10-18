@@ -216,24 +216,30 @@ export async function fetchProducts(
   return response;
 }
 
-async function fetchCategories(): Promise<Category[]> {
-  const res = await fetch("/api/categories");
+async function fetchCategories(signal?: AbortSignal): Promise<Category[]> {
+  signal?.throwIfAborted();
+  const res = await fetch("/api/categories", { cache: "no-store", signal });
+  signal?.throwIfAborted();
   if (!res.ok) {
     const { getCachedCatalogCategories } = await import("@/lib/offline/offline-db");
+    signal?.throwIfAborted();
     const cached = await getCachedCatalogCategories<Category>();
+    signal?.throwIfAborted();
     if (cached.length > 0) return cached;
     throw new Error("Failed to fetch categories");
   }
   const json = (await res.json()) as { data: Category[] };
   const { cacheCatalogCategories } = await import("@/lib/offline/offline-db");
+  signal?.throwIfAborted();
   await cacheCatalogCategories(json.data);
+  signal?.throwIfAborted();
   return json.data;
 }
 
 export function useCategories(initialData?: Category[]) {
   return useQuery({
     queryKey: ["categories"],
-    queryFn: fetchCategories,
+    queryFn: ({ signal }) => fetchCategories(signal),
     initialData,
   });
 }
