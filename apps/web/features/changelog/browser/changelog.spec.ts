@@ -3,6 +3,9 @@ import { createRequire } from "node:module";
 import { mkdir, readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
+import { authenticate } from "../../../e2e/fixtures/app";
+import { CHANGELOG } from "../data/changelog";
+import { changeKey } from "../helpers/changelog";
 
 const appRoot = process.cwd();
 let server: Server;
@@ -152,6 +155,20 @@ test("automatically opens once, persists dismissal per user, and supports a seco
   await expect(dialog).not.toBeVisible({ timeout: 2500 });
   await page.evaluate(() => { Object.assign(window, { __testUser: "owner-2" }); window.dispatchEvent(new Event("test-user")); });
   await expect(dialog).toBeVisible();
+});
+
+test("the shared E2E account starts with release notes seen so other workflows remain interactive", async ({ page }) => {
+  await authenticate(page);
+  await page.addInitScript(() => { Object.assign(window, { __testUser: "e2e-user" }); });
+  await page.clock.install({ time: new Date("2026-10-18T03:00:00Z") });
+  await page.goto(`${baseURL}?popup=1`);
+  await expect(page.getByRole("heading", { name: "Catatan Perubahan", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("pos:changelog:seen:e2e-user") ?? "[]"))).toEqual(CHANGELOG.map(changeKey));
+  await page.clock.runFor(2500);
+  await expect(page.getByRole("dialog", { name: "Apa yang baru" })).toHaveCount(0);
+  await page.getByRole("button", { name: "7 hari terakhir", exact: true }).click();
+  await expect(page.getByRole("button", { name: "7 hari terakhir", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await page.evaluate(() => localStorage.getItem("pos:changelog:seen:owner-1"))).toBeNull();
 });
 
 test("keeps expired entries in archive and shows the weekly empty state after WIB rollover", async ({ page }) => {

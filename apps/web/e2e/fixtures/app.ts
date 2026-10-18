@@ -1,4 +1,6 @@
 import { test as base, expect, type Page, type Route } from "@playwright/test";
+import { CHANGELOG } from "../../features/changelog/data/changelog";
+import { changeKey, seenStorageKey } from "../../features/changelog/helpers/changelog";
 import {
   activeShift,
   categories,
@@ -27,11 +29,16 @@ async function emptyOk(route: Route) {
 }
 
 export async function authenticate(page: Page, role: Role = "OWNER") {
+  const userId = "e2e-user";
   await page.context().addCookies([
     { name: "x-pos-role", value: role, domain: "localhost", path: "/" },
-    { name: "x-pos-user-id", value: "e2e-user", domain: "localhost", path: "/" },
+    { name: "x-pos-user-id", value: userId, domain: "localhost", path: "/" },
     { name: "x-pos-user-name", value: "E2E%20Owner", domain: "localhost", path: "/" },
   ]);
+  // Shared workflow scenarios use a returning user who has already read release notes.
+  await page.addInitScript(({ storageKey, seen }) => {
+    localStorage.setItem(storageKey, JSON.stringify(seen));
+  }, { storageKey: seenStorageKey(userId), seen: CHANGELOG.map(changeKey) });
 }
 
 export async function mockApis(page: Page) {
