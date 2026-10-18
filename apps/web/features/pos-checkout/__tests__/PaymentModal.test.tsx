@@ -69,10 +69,10 @@ describe("PaymentModal custom invoice date", () => {
     expect(html).toMatch(/type="time"[^>]*value="03:24"/);
   });
 
-  it("offers an editable draft number and a return to automatic numbering", () => {
+  it("leaves draft numbering to the quotation print modal", () => {
     const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[]} subtotal={0} onConfirm={vi.fn()} onSaveDraft={vi.fn()} />);
-    expect(html).toContain("No. Faktur");
-    expect(html).toContain("Gunakan otomatis");
+    expect(html).not.toContain("No. Faktur");
+    expect(html).not.toContain("Gunakan otomatis");
   });
   beforeEach(() => {
     useServerClockMock.mockReturnValue({

@@ -31,7 +31,6 @@ import type { ServerClockSource } from "@/features/invoice-date/helpers/server-c
 import { useServerClock } from "@/features/invoice-date/hooks/useServerClock";
 import { useInvoiceDateInputs } from "@/features/invoice-date/hooks/useInvoiceDateInputs";
 import { toJakartaInputParts } from "@/features/invoice-date/helpers/server-clock";
-import { DraftNumberField } from "@/features/transactions-draft/components/DraftNumberField";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
@@ -168,7 +167,6 @@ export function PaymentModal({
     return items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size);
   });
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
-  const [draftNumber, setDraftNumber] = useState<string | null>(null);
   const [invoiceDateReason, setInvoiceDateReason] = useState("");
   const serverClock = useServerClock(open);
   const { invoiceDate, invoiceTime, setInvoiceDate, setInvoiceTime } = useInvoiceDateInputs(open, serverClock.now, serverClock.isLoading);
@@ -207,7 +205,6 @@ export function PaymentModal({
       setCustomerSelection({ kind: "general" });
       setManualPrices({});
       setCustomerError(null);
-      setDraftNumber(null);
       setInvoiceDateReason("");
       setIsTempo(false);
     } else {
@@ -310,7 +307,6 @@ export function PaymentModal({
       : {};
 
     onSaveDraft({
-      draftNumber: draftNumber?.trim() || undefined,
       discount,
       note,
       customerName: customer.customerName,
@@ -576,10 +572,6 @@ export function PaymentModal({
               : "Memuat waktu server…"}
           </span>
         </div>
-
-        {onSaveDraft && (
-          <DraftNumberField open={open} date={canChangeInvoiceDate ? invoiceDate : undefined} value={draftNumber} onChange={setDraftNumber} disabled={isProcessing || isSavingDraft} />
-        )}
 
         {canChangeInvoiceDate && (
           <section className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 space-y-3">

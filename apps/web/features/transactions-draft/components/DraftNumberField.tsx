@@ -9,15 +9,17 @@ type DraftNumberFieldProps = {
   value: string | null;
   onChange: (value: string | null) => void;
   disabled?: boolean;
+  automaticNumber?: string;
+  hint?: string;
 };
 
-export function DraftNumberField({ open, date, value, onChange, disabled }: DraftNumberFieldProps) {
+export function DraftNumberField({ open, date, value, onChange, disabled, automaticNumber, hint }: DraftNumberFieldProps) {
   const id = useId();
   const [preview, setPreview] = useState("");
   const [previewError, setPreviewError] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || automaticNumber !== undefined) return;
     const controller = new AbortController();
     setPreview("");
     setPreviewError(false);
@@ -33,7 +35,7 @@ export function DraftNumberField({ open, date, value, onChange, disabled }: Draf
       })
       .catch(() => { if (!controller.signal.aborted) setPreviewError(true); });
     return () => controller.abort();
-  }, [open, date]);
+  }, [open, date, automaticNumber]);
 
   return (
     <div className="space-y-1.5">
@@ -43,7 +45,7 @@ export function DraftNumberField({ open, date, value, onChange, disabled }: Draf
           id={id}
           name="draftNumber"
           type="text"
-          value={value ?? preview}
+          value={value ?? automaticNumber ?? preview}
           onChange={(event) => onChange(event.target.value || null)}
           maxLength={100}
           disabled={disabled}
@@ -56,9 +58,9 @@ export function DraftNumberField({ open, date, value, onChange, disabled }: Draf
         </button>
       </div>
       <p id={`${id}-hint`} className="text-xs text-surface-500" aria-live="polite">
-        {value !== null ? "Nomor custom akan dipakai pada faktur sementara." : previewError
+        {hint ?? (value !== null ? "Nomor custom akan dipakai pada faktur sementara." : previewError
           ? "Nomor otomatis belum dapat ditampilkan. Nomor tetap dibuat saat disimpan."
-          : "Nomor otomatis mengikuti urutan saat disimpan. Ubah kolom ini untuk memakai nomor custom."}
+          : "Nomor otomatis mengikuti urutan saat disimpan. Ubah kolom ini untuk memakai nomor custom.")}
       </p>
     </div>
   );

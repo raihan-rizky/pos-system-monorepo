@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { flushSync } from "react-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Modal, Button } from "@pos/ui";
 import { terbilang } from "@/lib/terbilang";
 import type { Transaction } from "@/hooks/useTransactions";
 import { useStoreSettings } from "@/hooks/useSettings";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { decodeDivisionFromNote } from "@/features/nota-penawaran/helpers/division-note";
+import { DraftNumberField } from "@/features/transactions-draft/components/DraftNumberField";
+import { useRole } from "@/components/providers/RoleProvider";
 import "./draft-receipt-print.css";
 
 interface DraftReceiptModalProps {
@@ -30,6 +34,41 @@ export function DraftReceiptModal({
   initialDivision = "",
 }: DraftReceiptModalProps) {
   const { data: storeSettings } = useStoreSettings();
+  const queryClient = useQueryClient();
+  const { canPerform } = useRole();
+  const canEditNumber = canPerform("transaction.draft", "update");
+  const [savedNumber, setSavedNumber] = useState(transaction.draftNumber ?? "");
+  const [numberInput, setNumberInput] = useState<string | null | undefined>();
+  const [automaticNumber, setAutomaticNumber] = useState("");
+  const [isLoadingNumber, setIsLoadingNumber] = useState(true);
+  const [numberReady, setNumberReady] = useState(false);
+  const [isSavingNumber, setIsSavingNumber] = useState(false);
+  const [numberError, setNumberError] = useState<string | null>(null);
+  const printing = useRef(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    setSavedNumber(transaction.draftNumber ?? "");
+    setNumberInput(undefined);
+    setNumberError(null);
+    setIsLoadingNumber(true);
+    setNumberReady(false);
+    void fetch(`/api/transactions/${transaction.id}/draft-number`, { signal: controller.signal, cache: "no-store" })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Nomor faktur belum dapat dimuat.");
+        if (controller.signal.aborted) return;
+        setSavedNumber(data.draftNumber ?? "");
+        setAutomaticNumber(formatDraftNumberForDisplay(data.automaticNumber));
+        setNumberReady(true);
+      })
+      .catch(error => {
+        if (!controller.signal.aborted) setNumberError(error instanceof Error ? error.message : "Nomor faktur belum dapat dimuat.");
+      })
+      .finally(() => { if (!controller.signal.aborted) setIsLoadingNumber(false); });
+    return () => controller.abort();
+  }, [open, transaction.id, transaction.draftNumber]);
 
   // ── Extract division from the note field if not provided as prop ──
   const { division: decodedDivision, cleanNote } = useMemo(
@@ -45,8 +84,35 @@ export function DraftReceiptModal({
     initialDivision || decodedDivision
   );
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (printing.current) return;
+    printing.current = true;
+    setIsSavingNumber(true);
+    setNumberError(null);
+    try {
+      if (canEditNumber && numberInput !== undefined) {
+        const response = await fetch(`/api/transactions/${transaction.id}/draft-number`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draftNumber: numberInput === null ? null : numberInput.trim() }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Nomor faktur gagal disimpan.");
+        flushSync(() => {
+          setSavedNumber(data.draftNumber);
+          setNumberInput(undefined);
+        });
+        void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        void queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+        void queryClient.invalidateQueries({ queryKey: ["transaction", transaction.id] });
+      }
+      window.print();
+    } catch (error) {
+      setNumberError(error instanceof Error ? error.message : "Nomor faktur gagal disimpan.");
+    } finally {
+      printing.current = false;
+      setIsSavingNumber(false);
+    }
   };
 
   const items = transaction?.items || [];
@@ -68,7 +134,7 @@ export function DraftReceiptModal({
   };
 
   const docNumber =
-    formatDraftNumberForDisplay(transaction?.draftNumber) ||
+    (numberInput === null ? automaticNumber : formatDraftNumberForDisplay(numberInput ?? savedNumber)) ||
     transaction?.invoiceNumber ||
     "";
   return (
@@ -123,6 +189,15 @@ export function DraftReceiptModal({
               />
             </div>
           </div>
+          <DraftNumberField
+            open={open}
+            value={numberInput === undefined ? formatDraftNumberForDisplay(savedNumber) : numberInput}
+            automaticNumber={automaticNumber}
+            onChange={value => { setNumberInput(value); setNumberError(null); }}
+            disabled={!canEditNumber || !numberReady || isSavingNumber}
+            hint={canEditNumber ? "Nomor disimpan ke transaksi sebelum dicetak. Klik Gunakan otomatis untuk memakai nomor sistem." : "Nomor mengikuti transaksi tersimpan. Anda tidak memiliki izin mengubah nomor faktur."}
+          />
+          {numberError && <p role="alert" className="text-sm text-red-700">{numberError}</p>}
         </div>
 
         {/* ═══ A4 PREVIEW ═══ */}
@@ -313,6 +388,7 @@ export function DraftReceiptModal({
             variant="secondary"
             size="lg"
             onClick={onClose}
+            disabled={isSavingNumber}
             className="flex-1"
           >
             Tutup
@@ -321,6 +397,8 @@ export function DraftReceiptModal({
             variant="accent"
             size="lg"
             onClick={handlePrint}
+            loading={isSavingNumber}
+            disabled={isLoadingNumber || !numberReady}
             className="flex-1"
           >
             Cetak Nota Penawaran

@@ -10,6 +10,8 @@ describe("FAQ workflow catalog", () => {
     expect(text).toContain("No. Faktur");
     expect(text).toContain("Gunakan otomatis");
     expect(text).toContain("langsung terisi");
+    expect(text).toContain("modal Cetak Nota Penawaran");
+    expect(text).toContain("disimpan ke transaksi sebelum dicetak");
   });
   it("guides stock-group creation and direct updates separately from inventory approval", () => {
     const group = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 5)!;

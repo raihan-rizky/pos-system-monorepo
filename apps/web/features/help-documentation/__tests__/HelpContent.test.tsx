@@ -9,6 +9,8 @@ describe('HelpContent', () => {
     expect(text).toContain('Gunakan otomatis');
     expect(text).toContain('langsung terisi');
     expect(text).toContain('No. Faktur');
+    expect(text).toContain('modal Cetak Nota Penawaran');
+    expect(text).toContain('disimpan ke transaksi sebelum dicetak');
   });
   it.each(['OWNER', 'ADMIN', 'INVENTORY'])('guides the current stock-group stages and permissions for %s', (role) => {
     const guide = HELP_ROLE_CONTENT[role].find(item => item.id === `${role.toLowerCase()}-stock-group`)!;
