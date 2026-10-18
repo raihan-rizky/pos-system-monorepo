@@ -39,7 +39,7 @@ describe("Product catalog details", () => {
     expect(html).toContain("line-clamp-2");
     expect(html).toContain('aria-label="Satuan tersedia"');
     expect(html).toContain("flex-wrap");
-    for (const unit of ["pcs", "pak", "dus"]) expect(html).toContain(`>${unit}</span>`);
+    for (const label of ["0 pcs", "0 pak", "12 dus"]) expect(html).toContain(`>${label}</span>`);
   });
   it("renders details in both desktop table and mobile list without description for empty text", () => {
     const html = renderToStaticMarkup(<ProductTable products={[product]} isLoading={false} onEdit={vi.fn()} canUpdateProduct={false} />);

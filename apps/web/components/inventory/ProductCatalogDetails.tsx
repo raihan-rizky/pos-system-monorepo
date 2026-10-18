@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import type { Product } from "@/hooks/useProducts";
 import { ProductDescriptionTooltip } from "@/features/pos-product-variants/components/ProductDescriptionTooltip";
+import { formatCompoundStock } from "@/features/product-stock-groups/stock-display";
 
 type UnitProduct = { unit: string; variants?: { unit: string }[] };
 
@@ -25,8 +26,25 @@ export function getProductUnitBadges(product: UnitProduct) {
   });
 }
 
-export function ProductCatalogDetails({ product }: { product: Pick<Product, "description" | "unit" | "variants"> }) {
-  const badges = getProductUnitBadges(product);
+export function ProductCatalogDetails({ product }: { product: Pick<Product, "description" | "unit" | "variants" | "stock" | "unitMultiplierToBase" | "stockGroup"> }) {
+  const badges = getProductUnitBadges(product).map(badge => {
+    const variant = product.variants?.find(item => item.unit.trim().toLowerCase() === badge.unit);
+    const isProductUnit = product.unit.trim().toLowerCase() === badge.unit;
+    const multiplier = variant?.unitMultiplierToBase ?? (isProductUnit ? product.unitMultiplierToBase : undefined);
+    const stockGroup = variant?.stockGroup ?? product.stockGroup;
+    const stockLabel = formatCompoundStock({
+      stock: variant ? variant.stock : product.stock,
+      unit: badge.unit,
+      unitMultiplierToBase: multiplier,
+      stockGroup,
+    });
+    const baseUnit = stockGroup?.baseUnit?.trim();
+    const conversionLabel = baseUnit && baseUnit.toLowerCase() !== badge.unit &&
+      typeof multiplier === "number" && Number.isFinite(multiplier) && multiplier > 0
+      ? `1 ${badge.unit} = ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 20 }).format(multiplier)} ${baseUnit}`
+      : undefined;
+    return { ...badge, stockLabel, conversionLabel };
+  });
   return (
     <div className="mt-1.5 min-w-0 space-y-1.5">
       <ProductDescriptionTooltip description={product.description} />
@@ -36,10 +54,15 @@ export function ProductCatalogDetails({ product }: { product: Pick<Product, "des
             <span key={badge.unit}
               className="max-w-full break-words rounded-md border px-2 py-0.5 text-[11px] font-semibold text-slate-900 supports-[color:contrast-color(red)]:[color:contrast-color(var(--unit-badge-bg))]"
               style={{ backgroundColor: badge.backgroundColor, borderColor: badge.borderColor, "--unit-badge-bg": badge.backgroundColor } as CSSProperties}
-            >{badge.unit}</span>
+            >{badge.stockLabel}</span>
           ))}
         </div>
       )}
+      {badges.map(badge => badge.conversionLabel && (
+        <p key={badge.unit} aria-label="Konversi satuan" className="break-words text-[11px] text-slate-600">
+          {badge.conversionLabel}
+        </p>
+      ))}
     </div>
   );
 }
