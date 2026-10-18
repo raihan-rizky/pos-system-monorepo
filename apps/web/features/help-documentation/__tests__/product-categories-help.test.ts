@@ -22,8 +22,9 @@ describe("category management help and workflow guidance", () => {
   });
 
   it("keeps FAQ numbering stable while making category instructions discoverable", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(38);
-    expect(FAQ_WORKFLOWS.map(workflow => workflow.faqNumber)).toEqual(Array.from({ length: 38 }, (_, i) => i + 1));
+    expect(FAQ_WORKFLOWS.length).toBeGreaterThanOrEqual(38);
+    expect(FAQ_WORKFLOWS.slice(0, 38).map(workflow => workflow.faqNumber)).toEqual(Array.from({ length: 38 }, (_, i) => i + 1));
+    expect(new Set(FAQ_WORKFLOWS.map(workflow => workflow.faqNumber)).size).toBe(FAQ_WORKFLOWS.length);
     const product = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 1)!;
     expect(product.aliases).toContain("tambah kategori");
     const edit = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 2)!;

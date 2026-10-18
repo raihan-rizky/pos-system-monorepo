@@ -50,6 +50,18 @@ describe("category management UI", () => {
     expect(html).toContain("Nama kategori 2");
     expect(html).toContain("Kelompok penjualan 2");
   });
+  it("offers compact searchable bulk editing with visual pickers and a separate save footer", () => {
+    const categories = Array.from({ length: 27 }, (_, index) => ({ ...category, id: `category-${index}`, name: `Kategori ${index}` }));
+    const html = renderToStaticMarkup(<QueryClientProvider client={new QueryClient()}><CategoryEditor categories={categories} onClose={() => {}} onSaved={() => {}} /></QueryClientProvider>);
+    expect(html).toContain('role="table"');
+    expect(html).toContain('placeholder="Cari kategori di daftar ini..."');
+    expect(html).toContain('aria-label="Ikon 27"');
+    expect(html).toContain('aria-label="Warna 27"');
+    expect(html).toContain('Pengaturan tambahan 27');
+    expect(html).toContain('data-category-footer="true"');
+    expect(html).toContain('Belum ada perubahan');
+    expect(html).not.toContain('>file-text</option>');
+  });
   it("selects only visible categories while preserving explicit hidden selection", () => {
     expect([...selectVisibleCategories(new Set(["hidden"]), ["a", "b"], true)]).toEqual(["hidden", "a", "b"]);
     expect([...selectVisibleCategories(new Set(["hidden", "a", "b"]), ["a", "b"], false)]).toEqual(["hidden"]);

@@ -69,6 +69,36 @@ describe("category batches", () => {
     expect(fixture.state.category[0]).toMatchObject({ name: "Baru", color: "#123456" });
     expect(fixture.state.category[1]).toMatchObject({ name: "Tujuan", order: 3 });
   });
+  it("creates categories with visual catalog icons and preserves the selected IDs", async () => {
+    const result = await executeCategoryAction({ action: "create", categories: [
+      { name: "Kopi", icon: "coffee" },
+      { name: "Belanja", icon: "shopping-bag" },
+    ] }, owner) as any;
+    expect(result.categories.map((row: any) => row.icon)).toEqual(["coffee", "shopping-bag"]);
+  });
+  it("replaces an existing icon with a visual catalog icon", async () => {
+    await executeCategoryAction({ action: "update", categories: [{ id: "old", icon: "coffee" }] }, owner);
+    expect(fixture.state.category[0].icon).toBe("coffee");
+  });
+  it.each(["not-an-icon", "__proto__", "constructor", "toString"])("rejects unknown icon %s before saving any row", async icon => {
+    for (const input of [
+      { action: "create", categories: [{ name: "Baru", icon: "package" }, { name: "Tidak valid", icon }] },
+      { action: "update", categories: [{ id: "old", name: "Berubah" }, { id: "next", icon }] },
+    ]) {
+      await expect(executeCategoryAction(input, owner)).rejects.toMatchObject({ status: 422, errors: { "categories.1.icon": expect.any(Array) } });
+      expect(fixture.state.category.map(row => row.name)).toEqual(["Lama", "Tujuan"]);
+    }
+  });
+  it("clears icon and color explicitly while preserving omitted appearance fields", async () => {
+    Object.assign(fixture.state.category[0], { icon: "package", color: "#123456" });
+    Object.assign(fixture.state.category[1], { icon: "printer", color: "#abcdef" });
+    await executeCategoryAction({ action: "update", categories: [
+      { id: "old", icon: null, color: null },
+      { id: "next", name: "Tujuan baru" },
+    ] }, owner);
+    expect(fixture.state.category[0]).toMatchObject({ icon: null, color: null });
+    expect(fixture.state.category[1]).toMatchObject({ icon: "printer", color: "#abcdef" });
+  });
   it("rejects duplicate IDs, empty patches, and missing edited categories", async () => {
     for (const categories of [[{ id: "old", name: "A" }, { id: "old", name: "B" }], [{ id: "old" }], [{ id: "missing", name: "A" }]]) {
       await expect(executeCategoryAction({ action: "update", categories }, owner)).rejects.toMatchObject({ status: expect.any(Number) });

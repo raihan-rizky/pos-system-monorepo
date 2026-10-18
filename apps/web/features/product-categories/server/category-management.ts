@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db, type Prisma } from "@pos/db";
 import { z } from "zod";
+import { isCategoryIconName } from "@/lib/category-icon-catalog";
 import type { CategoryActionResult, DeletePreview, MovePreview, PricingRuleImpact } from "../types";
 
 type Actor = { id: string; role: string; storeId: string | null };
@@ -10,7 +11,7 @@ const id = z.string().trim().min(1).max(200);
 const ids = (max: number) => z.array(id).min(1, "Pilih minimal satu item").max(max, `Maksimal ${max} item sekaligus`).refine(value => new Set(value).size === value.length, "Item tidak boleh dipilih dua kali");
 const categoryFields = {
   name: z.string().trim().min(1, "Nama kategori wajib diisi").max(150, "Nama kategori maksimal 150 karakter"),
-  icon: z.enum(["disc", "droplets", "file-text", "id-card", "image", "package", "pen-tool", "printer", "settings", "stamp"]).nullable(),
+  icon: z.string().refine(isCategoryIconName, "Pilih ikon kategori yang tersedia").nullable(),
   color: z.string().regex(/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i, "Gunakan warna heksadesimal, misalnya #2563eb").nullable(),
   order: z.number().int("Urutan harus bilangan bulat").min(0, "Urutan tidak boleh negatif").max(2_147_483_647),
   salesGroup: z.enum(["ATK", "PAPER", "CARTRIDGE", "INK", "OTHER"]),
