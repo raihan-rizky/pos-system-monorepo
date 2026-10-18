@@ -198,6 +198,14 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     sensitivity: "normal",
   },
   {
+    id: "changelog",
+    label: "Catatan Perubahan",
+    description: "Pembaruan aplikasi, gambar fitur, dan alur penggunaan.",
+    pageTargets: ["/changelog"],
+    resourceTargets: [],
+    sensitivity: "normal",
+  },
+  {
     id: "inventory",
     label: "Inventory",
     description: "Workspace stok dan aktivitas gudang.",

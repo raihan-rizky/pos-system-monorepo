@@ -6,6 +6,7 @@ import {
   CircleDollarSign,
   Grid2X2,
   HelpCircle,
+  History,
   MessageCircle,
   Package,
   PanelsTopLeft,
@@ -95,6 +96,7 @@ export const APP_SHELL_NAV_GROUPS: AppShellNavGroup[] = [
       { href: "/shift", id: "shift", label: "Shift Kasir", icon: BriefcaseBusiness },
       { href: "/settings", id: "settings", label: "Pengaturan", icon: Settings },
       { href: "/help", id: "help", label: "Bantuan", icon: HelpCircle },
+      { href: "/changelog", id: "changelog", label: "Catatan Perubahan", icon: History },
     ],
   },
 ];

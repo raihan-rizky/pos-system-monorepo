@@ -1,6 +1,7 @@
 import React, { Suspense } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { DeferredAssistantWidget } from "@/features/ai-assistant/components/DeferredAssistantWidget";
+import { WhatsNewPopup } from "@/features/changelog/components/WhatsNewPopup";
 import MainLoading from "./loading";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -11,6 +12,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <Suspense fallback={<MainLoading />}>{children}</Suspense>
       </div>
       <DeferredAssistantWidget />
+      <WhatsNewPopup />
     </div>
   );
 }

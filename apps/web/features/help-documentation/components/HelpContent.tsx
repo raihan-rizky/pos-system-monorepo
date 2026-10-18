@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   ChevronDown,
@@ -1033,6 +1034,15 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
 
   return (
     <div className="space-y-4">
+      {!searchQuery && (
+        <Link href="/changelog" prefetch={false} className="flex items-center gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-5 text-brand-900 transition-colors hover:bg-brand-100">
+          <History className="h-7 w-7 shrink-0 text-brand-700" aria-hidden="true" />
+          <div>
+            <h2 className="text-sm font-bold">Catatan Perubahan</h2>
+            <p className="mt-1 text-sm">Buka Lainnya → Catatan Perubahan untuk melihat gambar fitur dan alur singkat. Sorotan 7 hari menampilkan pembaruan terbaru berdasarkan WIB.</p>
+          </div>
+        </Link>
+      )}
       {!searchQuery && ROLE_DESCRIPTIONS[targetRole] && (
         <div className="bg-brand-50 border border-brand-100 rounded-2xl p-5 mb-2">
           <p className="text-brand-800 font-medium mb-3">{ROLE_DESCRIPTIONS[targetRole].desc}</p>

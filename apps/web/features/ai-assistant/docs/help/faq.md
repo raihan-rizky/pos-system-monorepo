@@ -313,6 +313,14 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 5. Tombol Pak Teladan memakai unread count yang sama. Saat dibuka, Pak Teladan memberi heads-up dan menampilkan hingga tiga shortcut notifikasi terbaru.
 6. Inbox tetap tersimpan di server walaupun izin browser push tidak aktif. Browser push dan suara hanya menjadi channel tambahan sesuai pengaturan perangkat.
 
+### Q39: Bagaimana cara melihat Catatan Perubahan aplikasi?
+
+**A:** Buka **Lainnya → Catatan Perubahan**.
+
+1. **Lihat pembaruannya.** Riwayat lengkap tersusun dari yang terbaru. Pilih **7 hari terakhir** untuk hari ini dan enam hari sebelumnya berdasarkan WIB.
+2. **Kenali tampilannya.** Perbesar screenshot jika tersedia, atau lihat gambar berlabel **Ilustrasi fitur**. Ikuti tiga langkah di bawah setiap catatan. Tombol **Buka fitur** mengikuti izin akses Anda.
+3. **Cek sorotan.** Klik **Sorotan 7 hari** untuk membuka kembali popup **Apa yang baru**. Gunakan panah untuk berpindah pembaruan, lalu **Sudah lihat**, **Tutup**, atau **Escape** untuk menutupnya. Popup otomatis hanya muncul untuk pembaruan yang belum dilihat pada akun dan browser tersebut.
+
 ### Q38: Bagaimana cara mengajukan dan memutuskan Pembelian Barang?
 **A:** Pembelian Barang baru dibuat otomatis saat Daftar Belanja disetujui. Untuk menyelesaikan Pembelian Barang lama:
 1. Buka **Supplier > Daftar Belanja**. Pada kartu daftar lama yang sudah disetujui tanpa pembelian, klik **Lengkapi Pembelian Lama**.

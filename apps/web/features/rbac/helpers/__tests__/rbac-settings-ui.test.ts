@@ -73,12 +73,12 @@ describe("RBAC settings UI helpers", () => {
 
     expect(summaries.map((summary) => summary.role)).toEqual([...EDITABLE_ROLES]);
     expect(summaries.find((summary) => summary.role === "ADMIN")).toMatchObject({
-      enabledPages: 15,
+      enabledPages: 16,
       warningCount: 0,
       customizationCount: 0,
     });
     expect(summaries.find((summary) => summary.role === "INVENTORY")).toMatchObject({
-      enabledPages: 2,
+      enabledPages: 3,
       warningCount: 0,
       customizationCount: 0,
     });

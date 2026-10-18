@@ -778,6 +778,21 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Terima dan pantau barang", description: "Pada pembelian APPROVED atau BARANG DITERIMA SEBAGIAN, klik Barang Sudah Diterima? untuk membuka modal penerimaan dengan PB terpilih. Gunakan Lihat Riwayat Penerimaan Barang untuk membuka riwayat terfilter. Status berubah menjadi BARANG DITERIMA SEBAGIAN atau BARANG DITERIMA; klik baris untuk melihat perbandingan dipesan, diterima, pending, dan sisa." },
     ],
   }),
+  workflow({
+    faqNumber: 39,
+    slug: "changelog",
+    title: "Bagaimana cara melihat Catatan Perubahan aplikasi?",
+    aliases: ["apa yang baru", "catatan perubahan", "update minggu ini", "pembaruan fitur"],
+    route: "/changelog",
+    actionLabel: "Buka Catatan Perubahan",
+    iconKey: "history",
+    requiredCapabilities: [],
+    steps: [
+      { title: "Buka Catatan Perubahan", description: "Buka Lainnya → Catatan Perubahan untuk melihat riwayat pembaruan, terbaru di atas." },
+      { title: "Lihat gambar dan alur", description: "Perbesar screenshot bila tersedia, lalu ikuti tiga langkah singkat. Ilustrasi fitur diberi label; tautan Buka fitur mengikuti izin akses Anda." },
+      { title: "Cek sorotan mingguan", description: "Pilih 7 hari terakhir atau Sorotan 7 hari untuk pembaruan hari ini dan enam hari sebelumnya berdasarkan WIB. Popup muncul untuk pembaruan yang belum dilihat; tutup dengan Sudah lihat atau Escape." },
+    ],
+  }),
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {

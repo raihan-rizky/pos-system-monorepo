@@ -69,6 +69,21 @@ If you add or update dependencies remember to:
 - **Always update the Bantuan (Help) page content** in [HelpContent.tsx](file:///d:/main_project/pos-system-monorepo/apps/web/features/help-documentation/components/HelpContent.tsx) whenever a new feature is added, ensuring the user-facing help documentation is always kept in sync.
 - **Always update the AI Assistant workflow catalog** in [workflow-catalog.ts](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/workflows/workflow-catalog.ts) whenever a guided workflow is added or modified, keeping the AI assistant's procedural knowledge in sync.
 
+## Catatan Perubahan (Manual Release Notes)
+
+- Every major feature, substantial improvement, or major bug fix MUST update `apps/web/features/changelog/data/changelog.ts` in the same change, before the work is considered complete.
+- Record the actual release date as `YYYY-MM-DD` in **Asia/Jakarta (WIB)**, a stable unique `id`, and a `revision`. Never move an old date forward to keep an announcement visible. Increment `revision` only when an announcement needs to be shown again.
+- The **Apa yang baru** popup shows today and the preceding six WIB calendar days. **Lainnya → Catatan Perubahan** retains all published history; do not delete old entries when they leave the seven-day window. Future-dated entries remain hidden until their date.
+- Prioritize visuals: use a real, cropped screenshot of the changed feature where available, stored in `apps/web/public/images/changelog/` with descriptive Indonesian alt text. Exclude customer data, credentials, financial summaries, and other sensitive details. Otherwise select an accurate, clearly labelled illustration through `visual`.
+- Keep each entry concise: a short Indonesian title, at most two sentences of benefit-oriented copy, the relevant feature route, and exactly three short steps describing the actual usage flow. Verify claims against the implemented feature.
+- Update the Bantuan link/content and AI Assistant workflow catalog when the usage flow changes. Verify WIB date boundaries, unread/dismissal behavior, screenshot availability, keyboard access, and mobile layout when changing the changelog mechanism.
+
+## Skill Selection Priority
+
+- **Always prioritize applicable skills from the Superpowers plugin (`superpowers:*`) when using skills.**
+- When Superpowers and another source provide skills for the same task, use the Superpowers version first, including `superpowers:test-driven-development` and `superpowers:systematic-debugging` for the workflows required above.
+- Use skills from other sources when no applicable Superpowers skill is available or when they provide complementary guidance.
+
 ## Mandatory Headroom MCP Usage
 
 Every development and testing session must use Headroom MCP: call

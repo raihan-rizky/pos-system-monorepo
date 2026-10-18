@@ -51,6 +51,7 @@ export const PAGE_TARGETS = [
   "/settings",
   "/keuangan",
   "/help",
+  "/changelog",
   "/inventory",
 ] as const;
 
@@ -107,6 +108,7 @@ const LEGACY_PAGE_ACCESS: Record<string, Role[]> = {
   "/settings": ["OWNER", "ADMIN"],
   "/keuangan": ["OWNER", "ADMIN", "CASHIER"],
   "/help": ["OWNER", "ADMIN", "CASHIER", "SALES"],
+  "/changelog": ["OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY"],
   "/inventory": ["OWNER", "ADMIN", "INVENTORY"],
 };
 
