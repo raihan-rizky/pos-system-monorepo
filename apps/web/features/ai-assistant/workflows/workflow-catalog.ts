@@ -782,7 +782,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     faqNumber: 39,
     slug: "changelog",
     title: "Bagaimana cara melihat Catatan Perubahan aplikasi?",
-    aliases: ["apa yang baru", "catatan perubahan", "update minggu ini", "pembaruan fitur"],
+    aliases: ["apa yang baru di aplikasi", "catatan perubahan", "update minggu ini", "pembaruan fitur"],
     route: "/changelog",
     actionLabel: "Buka Catatan Perubahan",
     iconKey: "history",

@@ -6,6 +6,22 @@ import { matchAssistantWorkflow } from "../assistant-workflow-matcher";
 describe("assistant workflow matcher", () => {
   const permissions = buildDefaultRolePermissions();
 
+  it("does not route an unresolved product question to the changelog", () => {
+    expect(matchAssistantWorkflow({
+      message: "cara memakai fitur toko untuk input barang baru yang belum ada",
+      role: "ADMIN",
+      permissions,
+    })).toEqual({ kind: "none" });
+  });
+
+  it("matches the short whats-new question to the changelog", () => {
+    expect(matchAssistantWorkflow({
+      message: "apa yang baru",
+      role: "ADMIN",
+      permissions,
+    })).toMatchObject({ kind: "matched", workflow: { route: "/changelog" } });
+  });
+
   it("matches a canonical FAQ question to a permitted workflow", () => {
     const result = matchAssistantWorkflow({
       message: "Bagaimana cara menambahkan produk baru ke katalog toko?",
