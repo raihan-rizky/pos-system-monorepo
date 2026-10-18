@@ -66,6 +66,25 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   }, [product, selectedVariantId]);
 
   const catalogVariant = product.variants?.find(v => v.id === selectedVariant.id);
+  const selectedStockGroup = catalogVariant?.stockGroup ?? product.stockGroup;
+  const selectedMultiplier = catalogVariant?.unitMultiplierToBase ?? (
+    selectedVariant.unit.trim().toLowerCase() === product.unit.trim().toLowerCase()
+      ? product.unitMultiplierToBase
+      : undefined
+  );
+  const selectedStockLabel = formatCompoundStock({
+    stock: selectedVariant.stock,
+    unit: selectedVariant.unit,
+    unitMultiplierToBase: selectedMultiplier,
+    stockGroup: selectedStockGroup,
+  });
+  const baseUnit = selectedStockGroup?.baseUnit?.trim();
+  const conversionLabel = baseUnit &&
+    baseUnit.toLowerCase() !== selectedVariant.unit.trim().toLowerCase() &&
+    typeof selectedMultiplier === "number" &&
+    Number.isFinite(selectedMultiplier) && selectedMultiplier > 0
+    ? `1 ${selectedVariant.unit} = ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 20 }).format(selectedMultiplier)} ${baseUnit}`
+    : undefined;
   const agenPrice = priceCatalogVariantForCustomer(product, catalogVariant, "AGEN", categoryPricingRules);
   const dinasPrice = priceCatalogVariantForCustomer(product, catalogVariant, "PEMERINTAH", categoryPricingRules);
   const hasSpecialAgenPrice = isSpecialCategoryPricing(agenPrice.appliedPricing);
@@ -151,23 +170,30 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
       </div>
 
       {/* Category and selected unit */}
-      <div className="flex flex-wrap items-center gap-1 mb-2">
-        <div
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${isEditMode ? "pr-16" : ""}`}
-          style={{
-            backgroundColor: `${product.category.color}15`,
-            color: product.category.color || "#64748b",
-          }}
-        >
-          <CategoryIcon value={product.category.icon} className="h-3 w-3" />
-          <span>{product.category.name}</span>
+      <div className="w-full mb-2">
+        <div className="flex flex-wrap items-center gap-1">
+          <div
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${isEditMode ? "pr-16" : ""}`}
+            style={{
+              backgroundColor: `${product.category.color}15`,
+              color: product.category.color || "#64748b",
+            }}
+          >
+            <CategoryIcon value={product.category.icon} className="h-3 w-3" />
+            <span>{product.category.name}</span>
+          </div>
+          <span
+            aria-label="Satuan terpilih"
+            className="inline-flex max-w-full items-center break-words px-2 py-0.5 rounded-full bg-surface-100 text-[10px] font-semibold text-surface-600"
+          >
+            {selectedStockLabel}
+          </span>
         </div>
-        <span
-          aria-label="Satuan terpilih"
-          className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 text-[10px] font-semibold text-surface-600"
-        >
-          {selectedVariant.unit}
-        </span>
+        {conversionLabel && (
+          <p aria-label="Konversi satuan" className="mt-1 break-words text-[10px] text-surface-500">
+            {conversionLabel}
+          </p>
+        )}
       </div>
 
       {/* Product name */}
@@ -239,12 +265,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               {isOutOfStock ? (
                 "Habis"
               ) : (
-                `Stok: ${formatCompoundStock({
-                  stock: selectedVariant.stock,
-                  unit: selectedVariant.unit,
-                  unitMultiplierToBase: (selectedVariant as any).unitMultiplierToBase ?? product.unitMultiplierToBase,
-                  stockGroup: product.stockGroup,
-                })}`
+                `Stok: ${selectedStockLabel}`
               )}
               <StockWarningBadge
                 stock={selectedVariant.stock}

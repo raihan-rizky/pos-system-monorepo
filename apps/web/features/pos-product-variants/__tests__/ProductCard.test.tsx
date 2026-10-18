@@ -126,7 +126,7 @@ describe('ProductCard', () => {
       <ProductCard product={mockProduct} onAddToCart={vi.fn()} />
     );
 
-    expect(html).toMatch(/<span>Beverage<\/span><\/div><span[^>]*aria-label="Satuan terpilih"[^>]*>dus<\/span>/);
+    expect(html).toMatch(/<span>Beverage<\/span><\/div><span[^>]*aria-label="Satuan terpilih"[^>]*>10 dus<\/span>/);
   });
 
   it('uses the product unit badge when the product has no variants', () => {
@@ -134,7 +134,76 @@ describe('ProductCard', () => {
       <ProductCard product={{ ...mockProduct, variants: undefined, defaultVariant: undefined, unit: 'lembar' }} onAddToCart={vi.fn()} />
     );
 
-    expect(html).toMatch(/aria-label="Satuan terpilih"[^>]*>lembar<\/span>/);
+    expect(html).toMatch(/aria-label="Satuan terpilih"[^>]*>10 lembar<\/span>/);
+  });
+
+  it.each([
+    [32, '32 dus'],
+    [32.5, '32 dus 6 pcs'],
+    [0, '0 dus'],
+    [-2, '-2 dus'],
+  ])('shows selected stock %s in the unit badge', (stock, label) => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct,
+      unitMultiplierToBase: 12,
+      stockGroup: { id: 'group', displayName: 'Coffee', baseUnit: 'pcs', baseStock: Number(stock) * 12 },
+      variants: mockProduct.variants?.map(v => ({ ...v, stock: Number(stock), unitMultiplierToBase: 12 })),
+    }} onAddToCart={vi.fn()} />);
+
+    expect(html.match(/aria-label="Satuan terpilih"[^>]*>([^<]*)<\/span>/)?.[1]).toBe(label);
+    expect(html.match(/aria-label="Konversi satuan"[^>]*>([^<]*)<\/p>/)?.[1]).toBe('1 dus = 12 pcs');
+  });
+
+  it.each([undefined, 0, -12, Number.NaN, Number.POSITIVE_INFINITY])('hides an unavailable or invalid conversion factor %s', (factor) => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct,
+      stockGroup: { id: 'group', displayName: 'Coffee', baseUnit: 'pcs', baseStock: 120 },
+      variants: mockProduct.variants?.map(v => ({ ...v, unitMultiplierToBase: factor })),
+    }} onAddToCart={vi.fn()} />);
+
+    expect(html).not.toContain('aria-label="Konversi satuan"');
+  });
+
+  it('hides conversion when the base unit is unavailable', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct,
+      unitMultiplierToBase: 12,
+      variants: mockProduct.variants?.map(v => ({ ...v, unitMultiplierToBase: 12 })),
+    }} onAddToCart={vi.fn()} />);
+
+    expect(html).not.toContain('aria-label="Konversi satuan"');
+  });
+
+  it('does not borrow the root multiplier for a different selected unit', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct,
+      unit: 'pack', unitMultiplierToBase: 6,
+      stockGroup: { id: 'group', displayName: 'Coffee', baseUnit: 'pcs', baseStock: 120 },
+    }} onAddToCart={vi.fn()} />);
+
+    expect(html).not.toContain('aria-label="Konversi satuan"');
+  });
+
+  it.each([[2.5, '2,5'], [1, '1']])('formats a valid conversion factor %s in Indonesian', (factor, label) => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct,
+      stockGroup: { id: 'group', displayName: 'Coffee', baseUnit: 'pcs', baseStock: 25 },
+      variants: mockProduct.variants?.map(v => ({ ...v, unitMultiplierToBase: Number(factor) })),
+    }} onAddToCart={vi.fn()} />);
+
+    expect(html.match(/aria-label="Konversi satuan"[^>]*>([^<]*)<\/p>/)?.[1]).toBe(`1 dus = ${label} pcs`);
+  });
+
+  it('hides conversion when selected and base units are the same', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct,
+      stockGroup: { id: 'group', displayName: 'Coffee', baseUnit: 'dus', baseStock: 10 },
+      variants: mockProduct.variants?.map(v => ({ ...v, unitMultiplierToBase: 1 })),
+    }} onAddToCart={vi.fn()} />);
+    expect(html).not.toContain('aria-label="Konversi satuan"');
+  });
+
+  it('uses product conversion metadata when there are no catalog variants', () => {
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct,
+      variants: undefined, stock: 32.5, defaultVariant: undefined, unitMultiplierToBase: 12,
+      stockGroup: { id: 'group', displayName: 'Coffee', baseUnit: 'pcs', baseStock: 390 },
+    }} onAddToCart={vi.fn()} />);
+    expect(html.match(/aria-label="Satuan terpilih"[^>]*>([^<]*)<\/span>/)?.[1]).toBe('32 dus 6 pcs');
+    expect(html.match(/aria-label="Konversi satuan"[^>]*>([^<]*)<\/p>/)?.[1]).toBe('1 dus = 12 pcs');
   });
 
   it('renders category name', () => {

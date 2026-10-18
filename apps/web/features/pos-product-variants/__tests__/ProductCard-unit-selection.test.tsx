@@ -34,29 +34,35 @@ describe("ProductCard selected unit", () => {
 
   it.each([2, 3])("updates the badge and added variant after choosing among %i units", (count) => {
     const variants = [
-      { id: "dus", unit: "dus", price: 12000, stock: 10, sku: "DUS" },
-      { id: "pcs", unit: "pcs", price: 1000, stock: 120, sku: "PCS" },
-      { id: "pack", unit: "pack", price: 6000, stock: 20, sku: "PACK" },
-    ].slice(0, count);
-    const product = {
-      id: "paper", name: "Kertas", price: 12000, stock: 10, unit: "dus", sku: "DUS",
+      { id: "dus", unit: "dus", price: 12000, stock: 32.5, sku: "DUS", unitMultiplierToBase: 12 },
+      { id: "pcs", unit: "pcs", price: 1000, stock: 390, sku: "PCS", unitMultiplierToBase: 1 },
+      { id: "pack", unit: "pack", price: 6000, stock: 65, sku: "PACK", unitMultiplierToBase: 6 },
+    ].slice(0, count).map(variant => ({ ...variant, costPrice: null, hargaDinas: null, hargaAgen: null }));
+    const product: Product = {
+      id: "paper", name: "Kertas", price: 12000, stock: 32.5, unit: "dus", sku: "DUS",
+      costPrice: null, hargaDinas: null, hargaAgen: null, minStock: 5,
+      size: null, material: null, imageUrl: null, isActive: true,
       category: { id: "atk", name: "ATK", icon: null, color: "#1976d2" },
+      unitMultiplierToBase: 12,
+      stockGroup: { id: "stock-group", displayName: "Kertas", baseUnit: "pcs", baseStock: 390 },
       defaultVariant: variants[0], variants,
-    } as Product;
+    };
     const onAddToCart = vi.fn();
     const render = () => (ProductCard as unknown as { type: (props: { product: Product; onAddToCart: typeof onAddToCart }) => React.ReactNode }).type({ product, onAddToCart });
     const before = render();
-    expect(findElement(before, element => element.props["aria-label"] === "Satuan terpilih")?.props.children).toBe("dus");
+    expect(findElement(before, element => element.props["aria-label"] === "Satuan terpilih")?.props.children).toBe("32 dus 6 pcs");
+    expect(findElement(before, element => element.props["aria-label"] === "Konversi satuan")?.props.children).toBe("1 dus = 12 pcs");
 
     if (count === 2) {
       findElement(before, element => element.type === "button" && element.key === "pcs")!.props.onClick();
     } else {
-      findElement(before, element => element.type === VariantSelector)!.props.onChange("pcs");
+      findElement(before, element => element.type === VariantSelector)!.props.onChange("pack");
     }
 
     const after = render();
-    expect(findElement(after, element => element.props["aria-label"] === "Satuan terpilih")?.props.children).toBe("pcs");
+    expect(findElement(after, element => element.props["aria-label"] === "Satuan terpilih")?.props.children).toBe(count === 2 ? "390 pcs" : "65 pack");
+    expect(findElement(after, element => element.props["aria-label"] === "Konversi satuan")?.props.children).toBe(count === 2 ? undefined : "1 pack = 6 pcs");
     findElement(after, element => element.type === "div" && typeof element.props.onClick === "function")!.props.onClick();
-    expect(onAddToCart).toHaveBeenCalledWith(product, "pcs");
+    expect(onAddToCart).toHaveBeenCalledWith(product, count === 2 ? "pcs" : "pack");
   });
 });
