@@ -186,7 +186,7 @@ describe("PaymentModal custom invoice date", () => {
     const html = renderToStaticMarkup(
       <PaymentModal open onClose={vi.fn()} items={[item]} subtotal={16200} onConfirm={vi.fn()} />,
     );
-    expect(html).toContain("UMUM Modal unit + 10% lalu − 5%");
+    expect(html).toContain("UMUM HPP masing-masing satuan + 10% lalu − 5%");
     expect(html).not.toContain("lalu − 0%");
   });
 
