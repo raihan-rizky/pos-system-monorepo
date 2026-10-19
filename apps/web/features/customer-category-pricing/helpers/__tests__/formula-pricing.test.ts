@@ -83,7 +83,8 @@ describe("special price source and labels", () => {
     expect(pricing.isSpecialCategoryPricing?.(null)).toBe(false);
   });
   it("labels formulas clearly", () => {
-    expect(pricing.formatPricingRuleLabel(formula)).toContain("Modal + Rp 4.000");
-    expect(pricing.formatPricingRuleLabel({ ...formula, mode: "COST_PLUS_PERCENT", value: 10 } as CategoryPricingRule)).toContain("Modal + 10%");
+    expect(pricing.formatPricingRuleLabel(formula)).toContain("HPP satuan terkecil + Rp 4.000");
+    expect(pricing.formatPricingRuleLabel({ ...formula, mode: "COST_PLUS_PERCENT", value: 10 } as CategoryPricingRule)).toContain("HPP satuan terkecil + 10%");
+    expect(pricing.formatPricingRuleLabel({ ...formula, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 35, discountPercent: 0 })).toContain("HPP masing-masing satuan + 35% lalu − 0%");
   });
 });

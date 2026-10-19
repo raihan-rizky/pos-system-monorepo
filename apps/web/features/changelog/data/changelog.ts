@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "special-pricing-hpp-margin-preview", date: "2026-10-19", revision: 1,
+    highlight: { title: "Cek margin Harga Khusus", summary: "Lihat HPP tiap satuan dan peringatan harga di bawah modal sebelum menyimpan." },
+    title: "Sumber HPP dan margin lebih jelas.",
+    summary: "Metode Harga Khusus menjelaskan sumber HPP yang dipakai. Pratinjau menampilkan HPP, laba, dan margin tiap contoh satuan, serta menandai harga di bawah HPP dengan warna merah.",
+    kind: "improvement", area: "Produk & Harga Khusus", href: "/products?tab=special-prices", visual: "units",
+    screenshot: { src: "/images/changelog/pratinjau-harga-khusus-hpp.png", alt: "Pratinjau Harga Khusus dengan data contoh Dus dan Pak, HPP tiap satuan, laba, margin, serta peringatan merah saat harga Pak di bawah HPP" },
+    steps: [
+      { title: "Buka Harga Khusus", detail: "Sebagai Owner, buka Produk > Harga Khusus, lalu tambah atau ubah aturan." },
+      { title: "Pilih sumber HPP", detail: "Gunakan HPP masing-masing satuan untuk tambahan per kemasan; isi potongan 0% jika hanya memakai tambahan." },
+      { title: "Periksa margin", detail: "Tinjau HPP, laba, margin, dan peringatan di contoh satuan sebelum menyimpan; periksa aturan yang lebih spesifik." },
+    ],
+  },
+  {
     id: "receipt-tax-checkout", date: "2026-10-18", revision: 1,
     highlight: { title: "Pajak saat pembayaran", summary: "Isi pajak sebelum bayar; persentasenya tampil di bagian atas nota." },
     title: "Isi pajak langsung saat pembayaran.",

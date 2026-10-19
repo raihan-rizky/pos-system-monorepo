@@ -10,7 +10,7 @@ import {
   type CustomerCategoryPricingRule,
   type CustomerCategoryPricingRuleInput,
 } from "@/hooks/useCustomerCategoryPricingRules";
-import { PRICING_CUSTOMER_TYPES, normalizePricingUnit } from "../helpers/pricing-rules";
+import { PRICING_CUSTOMER_TYPES, normalizePricingUnit, calculateCustomPriceMargin } from "../helpers/pricing-rules";
 import {
   CUSTOMER_TARGET_LABELS,
   PRICING_METHODS,
@@ -396,11 +396,12 @@ export function PricingRuleForm({
           </div>}
           <p id="pricing-value-help" className="mt-1 text-xs text-slate-500">
             {isUnitFormula
-              ? "Modal unit dipilih × (1 + tambahan/100) × (1 − potongan/100). Contoh: Rp12.000 +10% lalu −5% = Rp12.540."
+              ? "HPP masing-masing satuan × (1 + tambahan/100) × (1 − potongan/100). Contoh: Rp12.000 +10% lalu −5% = Rp12.540. Untuk tambahan saja, isi potongan 0%."
               : isFormula
-              ? "Modal memakai unit terkecil, tanpa dikalikan isi satuan. Contoh: Rp700/pcs + Rp4.000 = Rp4.700/rim."
+              ? "HPP memakai satuan terkecil, tanpa dikalikan isi satuan. Contoh: Rp700/pcs + Rp4.000 = Rp4.700/rim. Untuk mengikuti HPP tiap kemasan, pilih HPP masing-masing satuan + persen − persen."
               : "Diskon dihitung dari harga normal produk."}
           </p>
+          {isFormula && <p className="mt-1 text-xs text-slate-600">Persentase tambahan dihitung dari HPP; tambahan 35% menghasilkan margin 25,93% jika potongan 0%.</p>}
         </div>
       </fieldset>
       <details className="rounded-xl border border-slate-200 p-3">
@@ -503,6 +504,7 @@ export function PricingRuleForm({
         className="rounded-xl bg-slate-50 p-4"
       >
         <h3 className="text-sm font-bold text-slate-900">Pratinjau harga</h3>
+        <p className="mt-1 text-xs text-slate-600">Contoh hasil aturan ini. HPP, laba, dan margin mengikuti satuan jual masing-masing. Aturan yang lebih spesifik dapat diprioritaskan saat transaksi.</p>
         {!form.categoryId ? (
           <p className="mt-2 text-sm text-slate-600">
             Pilih kategori untuk melihat contoh harga.
@@ -529,14 +531,21 @@ export function PricingRuleForm({
             {products.slice(0, 3).map((product) => {
               const preview = previewPricingForm(form, product);
               const invalid = Object.keys(validatePricingForm(form)).length > 0;
+              const showResult = !preview.missingBaseCost && !invalid;
+              const margin = calculateCustomPriceMargin({
+                costPrice: product.costPrice != null && Number.isFinite(product.costPrice) && product.costPrice >= 0 ? product.costPrice : null,
+                catalogPrice: product.price,
+                customPrice: preview.price,
+              });
               return (
                 <li key={product.id} className="py-2 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium text-slate-900">
+                    <span className="min-w-0 break-words font-medium text-slate-900">
                       {product.name}
                     </span>
-                    {!preview.missingBaseCost && !invalid && (
-                      <span className="font-bold text-emerald-800">
+                    {showResult && (
+                      <span className={`font-bold ${margin.isBelowCost ? "text-red-700" : "text-emerald-800"}`}>
+                        <span className="sr-only">Harga aturan </span>
                         {formatRupiah(preview.price)}/{product.unit}
                       </span>
                     )}
@@ -552,6 +561,25 @@ export function PricingRuleForm({
                           ? `Modal ${formatRupiah(product.baseCostPrice ?? 0)}/${product.baseCostUnit}`
                           : `Harga normal ${formatRupiah(product.price)}/${product.unit}`}
                   </p>
+                  {showResult && (margin.hasCostPrice ? (
+                    <>
+                      <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <div>
+                          <dt className="text-xs text-slate-600">HPP satuan ({product.unit})</dt>
+                          <dd className="font-medium tabular-nums text-slate-900">{formatRupiah(product.costPrice!)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-slate-600">Laba</dt>
+                          <dd className={`font-semibold tabular-nums ${margin.isBelowCost ? "text-red-700" : "text-emerald-800"}`}>{formatRupiah(margin.customProfit!)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-slate-600">Margin</dt>
+                          <dd className={`font-semibold tabular-nums ${margin.isBelowCost ? "text-red-700" : "text-emerald-800"}`}>{preview.price > 0 ? `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(margin.customMarginPercent!)}%` : "—"}</dd>
+                        </div>
+                      </dl>
+                      {margin.isBelowCost && <p className="mt-2 text-xs font-semibold text-red-700">Harga di bawah HPP satuan. Periksa sumber HPP dan rumus sebelum menyimpan.</p>}
+                    </>
+                  ) : <p className="mt-2 text-xs text-slate-600">HPP satuan belum tersedia; laba dan margin belum dapat dihitung.</p>)}
                 </li>
               );
             })}

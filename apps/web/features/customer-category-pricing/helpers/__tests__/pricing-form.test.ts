@@ -4,6 +4,7 @@ import {
   toggleCustomerTarget,
   validatePricingForm,
   previewPricingForm,
+  pricingFormRuleLabel,
 } from "../pricing-form";
 
 const form = {
@@ -18,10 +19,17 @@ const form = {
 
 describe("friendly pricing form", () => {
   it("exposes clear labels for both formulas", () => {
-    expect(getPricingMethod("COST_PLUS_FLAT").label).toBe("Modal + rupiah");
+    expect(getPricingMethod("COST_PLUS_FLAT").label).toBe("HPP satuan terkecil + rupiah");
+    expect(getPricingMethod("COST_PLUS_PERCENT").label).toBe("HPP satuan terkecil + persen");
+    expect(getPricingMethod("UNIT_COST_PLUS_PERCENT_DISCOUNT").label).toBe("HPP masing-masing satuan + persen − persen");
     expect(getPricingMethod("COST_PLUS_PERCENT").valueLabel).toBe(
       "Tambahan (%)",
     );
+  });
+  it("keeps the cost basis visible in saved rule labels", () => {
+    expect(pricingFormRuleLabel("COST_PLUS_PERCENT", 35)).toBe("HPP satuan terkecil + 35%");
+    expect(pricingFormRuleLabel("COST_PLUS_FLAT", 4000)).toBe("HPP satuan terkecil + Rp4.000");
+    expect(pricingFormRuleLabel("UNIT_COST_PLUS_PERCENT_DISCOUNT", 35, 0)).toBe("HPP masing-masing satuan + 35% lalu − 0%");
   });
   it("allows multiple customer targets and keeps ALL exclusive", () => {
     expect(toggleCustomerTarget(["ALL"], "UMUM")).toEqual(["UMUM"]);

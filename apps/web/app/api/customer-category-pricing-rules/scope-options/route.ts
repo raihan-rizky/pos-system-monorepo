@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       view === "preview" ? [] : db.categoryCustomerPricingRule.findMany({ where: { storeId, categoryId }, select: { unit: true } }),
       view === "units" ? [] : db.product.findMany({
         where: { ...where, ...(unit ? { unit: { equals: unit, mode: "insensitive" as const } } : {}), ...(brandId ? { brandId } : {}) },
+        ...(unit ? {} : { distinct: ["unit" as const] }),
         take: 3, orderBy: [{ name: "asc" }, { id: "asc" }],
         select: { id: true, name: true, storeId: true, unit: true, price: true, costPrice: true, brandId: true, stockGroupId: true, stockGroup: { select: { baseUnit: true, storeId: true } } },
       }),

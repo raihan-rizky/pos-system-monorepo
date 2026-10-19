@@ -54,4 +54,9 @@ describe("pricing scope options", () => {
     expect(response.status).toBe(422);
     expect(mocks.products).not.toHaveBeenCalled();
   });
+  it("samples different units when previewing an all-unit rule", async () => {
+    const response = await GET(new Request("http://localhost/api/customer-category-pricing-rules/scope-options?categoryId=cat&view=preview"));
+    expect(response.status).toBe(200);
+    expect(mocks.products).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ id: true, costPrice: true }), distinct: ["unit"], take: 3 }));
+  });
 });

@@ -1490,13 +1490,14 @@ function ProductGrid({
                   {fmt(p.displayPrice ?? p.price)}
                 </p>
                 {isSpecialCategoryPricing(p.appliedPricing) && <SpecialPriceBadge />}
-                {canChangePrice && p.costPrice !== null && (
+                {canChangePrice && p.costPrice != null && (
                   <>
                     <p className="text-[10px] font-bold text-slate-500 mt-0.5">
                       HPP: {fmt(p.costPrice)}
                     </p>
-                    <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                    <p className={`text-[10px] font-bold mt-0.5 ${effectivePrice < p.costPrice ? "text-red-700" : "text-emerald-600"}`}>
                       Margin: {fmt(effectivePrice - p.costPrice)} {effectivePrice > 0 ? `(${((effectivePrice - p.costPrice) / effectivePrice * 100).toFixed(1)}%)` : ""}
+                      {effectivePrice < p.costPrice && <span className="block">Di bawah HPP</span>}
                     </p>
                   </>
                 )}

@@ -146,13 +146,14 @@ export default function ProductTable({
                       <span className={isSpecialCategoryPricing(product.appliedPricing) ? "text-emerald-800" : undefined}>{new Intl.NumberFormat("id-ID").format(product.displayPrice ?? product.price)}</span>
                     </p>
                     {isSpecialCategoryPricing(product.appliedPricing) && <SpecialPriceBadge />}
-                    {canChangePrice && product.costPrice && (
+                    {canChangePrice && product.costPrice != null && (
                       <>
                         <p className="text-[11px] text-surface-400 mt-0.5 tabular-nums">
                           HPP: {new Intl.NumberFormat("id-ID").format(product.costPrice)}
                         </p>
-                        <p className="text-[11px] text-emerald-600 font-medium mt-0.5 tabular-nums">
+                        <p className={`text-[11px] font-medium mt-0.5 tabular-nums ${effectivePrice < product.costPrice ? "text-red-700" : "text-emerald-600"}`}>
                           Margin: {new Intl.NumberFormat("id-ID").format(effectivePrice - product.costPrice)} {effectivePrice > 0 ? `(${((effectivePrice - product.costPrice) / effectivePrice * 100).toFixed(1)}%)` : ""}
+                          {effectivePrice < product.costPrice && <span className="block">Di bawah HPP</span>}
                         </p>
                       </>
                     )}
@@ -373,13 +374,14 @@ export default function ProductTable({
                     <span className={isSpecialCategoryPricing(product.appliedPricing) ? "text-emerald-800" : undefined}>{new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.displayPrice ?? product.price)}</span>
                   </p>
                   {isSpecialCategoryPricing(product.appliedPricing) && <SpecialPriceBadge />}
-                  {canChangePrice && product.costPrice && (
+                  {canChangePrice && product.costPrice != null && (
                     <>
                       <p className="text-[10px] font-bold text-slate-500 mt-1">
                         HPP: {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.costPrice)}
                       </p>
-                      <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                      <p className={`text-[10px] font-bold mt-0.5 ${effectivePrice < product.costPrice ? "text-red-700" : "text-emerald-600"}`}>
                         Margin: {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(effectivePrice - product.costPrice)} {effectivePrice > 0 ? `(${((effectivePrice - product.costPrice) / effectivePrice * 100).toFixed(1)}%)` : ""}
+                        {effectivePrice < product.costPrice && <span className="block">Di bawah HPP</span>}
                       </p>
                     </>
                   )}

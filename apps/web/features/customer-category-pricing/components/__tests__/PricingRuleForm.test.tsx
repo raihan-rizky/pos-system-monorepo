@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PricingRuleForm } from "../PricingRuleForm";
 import { CustomerCategoryPricingRulesTab } from "../CustomerCategoryPricingRulesTab";
+import type { PricingPreviewProduct } from "../../helpers/pricing-form";
 
 const queryState = vi.hoisted(() => ({
   unitsPending: false,
@@ -10,6 +11,7 @@ const queryState = vi.hoisted(() => ({
   units: ["pcs", "rim"],
   previewRequests: [] as unknown[][],
   savedRules: [] as Array<{ categoryId: string; unit: string }>,
+  previewProducts: null as PricingPreviewProduct[] | null,
 }));
 
 vi.mock("@/hooks/useProducts", () => ({
@@ -55,7 +57,7 @@ vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
   }) : ({
     data: {
       units: ["pcs", "rim"],
-      products: [
+      products: queryState.previewProducts ?? [
         {
           id: "p",
           name: "Kertas A4",
@@ -100,6 +102,7 @@ describe("Harga Khusus editor", () => {
     queryState.units = ["pcs", "rim"];
     queryState.previewRequests = [];
     queryState.savedRules = [];
+    queryState.previewProducts = null;
   });
   it("starts with a compact rule list and an add action, without the permanent editor", () => {
     const html = renderToStaticMarkup(<CustomerCategoryPricingRulesTab />);
@@ -119,8 +122,8 @@ describe("Harga Khusus editor", () => {
     expect(html).toContain("<fieldset");
     expect(html.match(/type="radio"/g)).toHaveLength(5);
     expect(html.match(/type="checkbox"/g)).toHaveLength(6);
-    expect(html).toContain("Modal + rupiah");
-    expect(html).toContain("Modal + persen");
+    expect(html).toContain("HPP satuan terkecil + rupiah");
+    expect(html).toContain("HPP masing-masing satuan + persen");
     expect(html).toContain("Pengaturan tambahan");
   });
   it("explains base modal and renders the formula result in its selected unit", () => {
@@ -191,5 +194,40 @@ describe("Harga Khusus editor", () => {
     expect(html).toContain('value="dus"');
     expect(html).not.toContain('value="kg"');
     expect(html).not.toMatch(/id="pricing-unit"[^>]*disabled=""/);
+  });
+  it("compares selling-unit HPP, profit and margin across units and flags losses", () => {
+    queryState.previewProducts = [
+      { id: "dus", name: "Contoh Dus", unit: "dus", price: 12000, costPrice: 7600, baseCostPrice: 7600, baseCostUnit: "dus", brandId: null },
+      { id: "pak", name: "Contoh Pak", unit: "pak", price: 108000, costPrice: 76000, baseCostPrice: 7600, baseCostUnit: "dus", brandId: null },
+    ];
+    const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, unit: null, mode: "COST_PLUS_PERCENT", value: 35 }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
+    expect(html).toContain("HPP satuan");
+    expect(html).toContain("Harga aturan");
+    expect(html).toContain("Laba");
+    expect(html).toContain("Margin");
+    expect(html).toContain("76.000");
+    expect(html).toMatch(/-Rp\s65\.740/);
+    expect(html).toContain("-640,74%");
+    expect(html).toContain("Harga di bawah HPP satuan");
+    expect(html).toMatch(/class="[^"]*text-red-700[^"]*"[^>]*>[^<]*Harga di bawah HPP satuan/);
+  });
+  it("previews a 35 percent markup using each unit's own cost", () => {
+    queryState.previewProducts = [
+      { id: "pak", name: "Contoh Pak", unit: "pak", price: 108000, costPrice: 76000, baseCostPrice: 7600, baseCostUnit: "dus", brandId: null },
+    ];
+    const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, unit: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 35, discountPercent: 0 }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
+    expect(html).toContain("102.600");
+    expect(html).toContain("26.600");
+    expect(html).toContain("25,93%");
+    expect(html).toContain("tambahan 35% menghasilkan margin 25,93%");
+    expect(html).not.toContain("Harga di bawah HPP satuan");
+  });
+  it("explains missing HPP without inventing a profit or margin", () => {
+    queryState.previewProducts = [{ id: "p", name: "Tanpa HPP", unit: "pcs", price: 10000, costPrice: null, baseCostPrice: null, baseCostUnit: null, brandId: null }];
+    const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, unit: null, mode: "PERCENT_DISCOUNT", value: 15 }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
+    expect(html).toContain("8.500");
+    expect(html).toContain("HPP satuan belum tersedia; laba dan margin belum dapat dihitung.");
+    expect(html).not.toContain("Harga di bawah HPP satuan");
+    expect(html).not.toContain("NaN");
   });
 });

@@ -14,21 +14,21 @@ export const CUSTOMER_TARGET_LABELS: Record<PricingCustomerType, string> = {
 export const PRICING_METHODS = [
   {
     mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT",
-    label: "Modal unit + persen − persen",
+    label: "HPP masing-masing satuan + persen − persen",
     valueLabel: "Tambahan (%)",
-    description: "Modal unit dipilih ditambah persen, lalu dipotong persen.",
+    description: "HPP tiap satuan ditambah persen, lalu dipotong persen. Isi potongan 0% untuk tambahan saja.",
   },
   {
     mode: "COST_PLUS_FLAT",
-    label: "Modal + rupiah",
+    label: "HPP satuan terkecil + rupiah",
     valueLabel: "Tambahan (Rp)",
-    description: "Modal unit terkecil ditambah nominal ini.",
+    description: "HPP satuan terkecil ditambah nominal ini, tanpa konversi isi kemasan.",
   },
   {
     mode: "COST_PLUS_PERCENT",
-    label: "Modal + persen",
+    label: "HPP satuan terkecil + persen",
     valueLabel: "Tambahan (%)",
-    description: "Modal unit terkecil ditambah persentase ini.",
+    description: "HPP satuan terkecil ditambah persentase ini, tanpa konversi isi kemasan.",
   },
   {
     mode: "FLAT_DISCOUNT",
@@ -153,9 +153,9 @@ export function pricingFormRuleLabel(
   const formatted = new Intl.NumberFormat("id-ID", {
     maximumFractionDigits: 2,
   }).format(value);
-  if (mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT") return `Modal unit + ${formatted}% lalu − ${new Intl.NumberFormat("id-ID").format(discountPercent ?? 0)}%`;
-  if (mode === "COST_PLUS_FLAT") return `Modal + Rp${formatted}`;
-  if (mode === "COST_PLUS_PERCENT") return `Modal + ${formatted}%`;
+  if (mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT") return `HPP masing-masing satuan + ${formatted}% lalu − ${new Intl.NumberFormat("id-ID").format(discountPercent ?? 0)}%`;
+  if (mode === "COST_PLUS_FLAT") return `HPP satuan terkecil + Rp${formatted}`;
+  if (mode === "COST_PLUS_PERCENT") return `HPP satuan terkecil + ${formatted}%`;
   if (mode === "FLAT_DISCOUNT") return `Diskon Rp${formatted}`;
   return `Diskon ${formatted}%`;
 }

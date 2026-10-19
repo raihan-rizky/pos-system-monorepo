@@ -11,5 +11,21 @@ describe("catalog effective price display", () => {
     expect(html).toContain("Harga Khusus");
     expect(html).toContain("-4.300");
     expect(html).toContain("text-emerald-800");
+    const margins = [...html.matchAll(/<p class="([^"]*)">\s*Margin: ([\s\S]*?)<\/p>/g)];
+    expect(margins).toHaveLength(2);
+    for (const [, classes, text] of margins) {
+      expect(classes).toContain("text-red-700");
+      expect(text).toContain("Di bawah HPP");
+    }
+  });
+  it("shows zero-cost margins to authorized users and hides costs from others", () => {
+    const product = { id: "pcs", name: "Contoh", sku: "PCS", unit: "pcs", stock: 5, minStock: 1, price: 10000, costPrice: 0, category: { id: "paper", name: "Kertas", icon: null, color: null } } as Product;
+    const props = { products: [product], isLoading: false, onEdit: () => {}, canUpdateProduct: false };
+    const html = renderToStaticMarkup(<ProductTable {...props} canChangePrice />);
+    expect(html).toContain("100.0%");
+    expect(html).not.toContain("Di bawah HPP");
+    const restricted = renderToStaticMarkup(<ProductTable {...props} canChangePrice={false} />);
+    expect(restricted).not.toContain("HPP:");
+    expect(restricted).not.toContain("Margin:");
   });
 });

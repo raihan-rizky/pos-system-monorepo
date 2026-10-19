@@ -436,13 +436,13 @@ export function formatPricingRuleLabel(input: {
     return "Harga Agen";
   }
   if (input.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT") {
-    return `${input.customerType} Modal unit + ${input.value}% lalu − ${input.discountPercent ?? 0}%`;
+    return `${input.customerType} HPP masing-masing satuan + ${input.value}% lalu − ${input.discountPercent ?? 0}%`;
   }
   if (input.mode === "COST_PLUS_FLAT") {
-    return `${input.customerType} Modal + Rp ${input.value.toLocaleString("id-ID")}`;
+    return `${input.customerType} HPP satuan terkecil + Rp ${input.value.toLocaleString("id-ID")}`;
   }
   if (input.mode === "COST_PLUS_PERCENT") {
-    return `${input.customerType} Modal + ${input.value}%`;
+    return `${input.customerType} HPP satuan terkecil + ${input.value}%`;
   }
   if (input.mode === "FLAT_DISCOUNT") {
     return `${input.customerType} diskon Rp ${input.value.toLocaleString("id-ID")}`;
