@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@pos/db";
+import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { calculateTransactionTax, getTransactionTaxMethod } from "@/features/transaction-tax/helpers/tax-calculation";
 import {
   priceProductForCustomerType,
@@ -43,6 +44,7 @@ export interface ApprovalQuotedItem {
   government: number | null;
   special: number | null;
   appliedUnitPrice: number;
+  discount: number;
   subtotal: number;
   appliedPricing: {
     ruleId: string;
@@ -141,7 +143,7 @@ export async function buildApprovalQuote(
       tax: true,
       taxRate: true,
       taxMethod: true,
-      items: { select: { id: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true } },
+      items: { select: { id: true, productId: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true, discount: true } },
     },
   });
   if (!transaction) throw new Error("APPROVAL_TRANSACTION_NOT_FOUND");
@@ -150,19 +152,54 @@ export async function buildApprovalQuote(
   }
 
   const sourceIds = new Set<string>();
+  for (const line of normalizedItems) {
+    if (!line.sourceItemId) continue;
+    if (sourceIds.has(line.sourceItemId)) throw new Error("APPROVAL_DUPLICATE_SOURCE_ITEM");
+    sourceIds.add(line.sourceItemId);
+  }
   normalizedItems = normalizedItems.map((line) => {
+    let source = line.sourceItemId
+      ? transaction.items.find((item) => item.id === line.sourceItemId)
+      : undefined;
     if (line.sourceItemId) {
-      if (sourceIds.has(line.sourceItemId)) throw new Error("APPROVAL_DUPLICATE_SOURCE_ITEM");
-      sourceIds.add(line.sourceItemId);
-      const source = transaction.items.find((item) => item.id === line.sourceItemId);
-      if (!source || source.printingServiceId !== line.printingServiceId) throw new Error("APPROVAL_INVALID_SOURCE_ITEM");
-      return { ...line, serviceNote: line.printingServiceId ? line.serviceNote === undefined ? source.serviceNote : line.serviceNote : null };
+      if (!source || (source.productId ?? null) !== line.productId ||
+          (source.printingServiceId ?? null) !== line.printingServiceId) {
+        throw new Error("APPROVAL_INVALID_SOURCE_ITEM");
+      }
+    } else {
+      const matches = transaction.items.filter((item) =>
+        (item.productId ?? null) === line.productId &&
+        (item.printingServiceId ?? null) === line.printingServiceId &&
+        (!line.printingServiceId || (
+          (item.rawMaterialProductId ?? null) === line.rawMaterialProductId &&
+          (item.size ?? null) === line.size && (item.material ?? null) === line.material &&
+          (line.serviceNote === undefined || item.serviceNote === line.serviceNote)
+        )));
+      const available = matches.filter((item) => !sourceIds.has(item.id));
+      if (matches.length === 0 && transaction.items.some((item) =>
+        (item.productId ?? null) === line.productId &&
+        (item.printingServiceId ?? null) === line.printingServiceId &&
+        Number(item.discount ?? 0) > 0)) {
+        throw new Error("APPROVAL_SOURCE_ITEM_REQUIRED");
+      }
+      if (available.length !== 1 && matches.some((item) => Number(item.discount ?? 0) > 0)) {
+        throw new Error("APPROVAL_SOURCE_ITEM_REQUIRED");
+      }
+      if (available.length > 1 && line.printingServiceId && line.serviceNote === undefined) {
+        throw new Error("APPROVAL_SERVICE_NOTE_REQUIRED");
+      }
+      if (available.length === 1) {
+        source = available[0];
+        sourceIds.add(source.id);
+      }
     }
-    if (!line.printingServiceId || line.serviceNote !== undefined) return { ...line, serviceNote: line.serviceNote ?? null };
-    const matches = transaction.items.filter((item) => item.printingServiceId === line.printingServiceId &&
-      item.rawMaterialProductId === line.rawMaterialProductId && item.size === line.size && item.material === line.material);
-    if (matches.length > 1) throw new Error("APPROVAL_SERVICE_NOTE_REQUIRED");
-    return { ...line, serviceNote: matches[0]?.serviceNote ?? null };
+    return {
+      ...line,
+      sourceItemId: source?.id ?? line.sourceItemId,
+      serviceNote: line.printingServiceId
+        ? line.serviceNote === undefined ? source?.serviceNote ?? null : line.serviceNote
+        : null,
+    };
   });
 
   const productIds = [
@@ -301,6 +338,9 @@ export async function buildApprovalQuote(
           ? appliedPricing.appliedUnitPrice
           : null;
       const appliedUnitPrice = roundMoney(applied.unitPrice);
+      const grossSubtotal = roundMoney(appliedUnitPrice * line.quantity);
+      const source = transaction.items.find((item) => item.id === line.sourceItemId);
+      const discount = roundMoney(Math.min(grossSubtotal, Math.max(0, Number(source?.discount ?? 0))));
 
       return {
         input: line,
@@ -317,7 +357,8 @@ export async function buildApprovalQuote(
         government: product.hargaDinas == null ? null : Number(product.hargaDinas),
         special,
         appliedUnitPrice,
-        subtotal: roundMoney(appliedUnitPrice * line.quantity),
+        discount,
+        subtotal: discountedLineSubtotal(appliedUnitPrice, line.quantity, discount),
         appliedPricing: appliedPricing
           ? {
               ruleId: appliedPricing.ruleId,
@@ -350,6 +391,9 @@ export async function buildApprovalQuote(
         ? Number(rawMaterial.costPrice) * line.rawMaterialQuantity
         : null;
     const appliedUnitPrice = roundMoney(applied.unitPrice);
+    const grossSubtotal = roundMoney(appliedUnitPrice * line.quantity);
+    const source = transaction.items.find((item) => item.id === line.sourceItemId);
+    const discount = roundMoney(Math.min(grossSubtotal, Math.max(0, Number(source?.discount ?? 0))));
 
     return {
       input: line,
@@ -366,7 +410,8 @@ export async function buildApprovalQuote(
       government: null,
       special: null,
       appliedUnitPrice,
-      subtotal: roundMoney(appliedUnitPrice * line.quantity),
+      discount,
+      subtotal: discountedLineSubtotal(appliedUnitPrice, line.quantity, discount),
       appliedPricing: null,
     };
   });

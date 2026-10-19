@@ -75,6 +75,95 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
+  it.each([0.001, 999.999, 1000.01, true, {}, []])("rejects malformed or over-precise item discount %j without changing stock", async discount => {
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 10000, items: [{ productId: "p1", quantity: 1, discount }],
+    }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { discount: 0.01, subtotal: 999.99 },
+    { discount: 999.99, subtotal: 0.01 },
+  ])("persists a valid cent boundary discount $discount", async ({ discount, subtotal }) => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1, discount }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal, total: subtotal,
+      items: { create: [expect.objectContaining({ unitPrice: 1000, discount, subtotal })] },
+    });
+  });
+
+  it("validates the discount against the server price instead of a forged client price", async () => {
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 20000,
+      items: [{ productId: "p1", quantity: 1, price: 999999, discount: 1001 }],
+    }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it("still deducts sold quantities when a full item discount makes payment zero", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 0,
+      items: [{ productId: "p1", quantity: 3, discount: 3000 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ status: "COMPLETED", total: 0 });
+    expect(applyProductStockDeltasMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      items: [expect.objectContaining({ productId: "p1", delta: -3 })],
+    }));
+  });
+
+  it("keeps discounts independent for multiple lines of the same product", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 3000, discount: 100, taxRate: 10,
+      items: [{ productId: "p1", quantity: 1, discount: 100 }, { productId: "p1", quantity: 2, discount: 500 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 2400, discount: 100, tax: 230, total: 2530,
+      items: { create: [expect.objectContaining({ quantity: 1, discount: 100, subtotal: 900 }), expect.objectContaining({ quantity: 2, discount: 500, subtotal: 1500 })] },
+    });
+  });
+
+  it("completes a fully discounted sale with no payment or tax due", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 0, taxRate: 10,
+      items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1, discount: 1000 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 0, tax: 0, total: 0, amountPaid: 0, status: "COMPLETED" });
+  });
+
+  it("deducts each line discount before invoice discount and tax, preserving gross unit prices", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 3000, taxRate: 10, discount: 100,
+      items: [{ lineType: "PRODUCT", productId: "p1", quantity: 3, discount: 500 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      subtotal: 2500, discount: 100, tax: 240, total: 2640,
+      items: { create: [expect.objectContaining({ unitPrice: 1000, quantity: 3, discount: 500, subtotal: 2500 })] },
+    });
+  });
+  it.each([-1, 1001, "100", null])("rejects an invalid line discount %s before saving", async (discount) => {
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 2000,
+      items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1, discount }],
+    }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     { rate: 12, discount: 100, tax: 108, total: 1008 },
     { rate: 12.5, discount: 0, tax: 125, total: 1125 },

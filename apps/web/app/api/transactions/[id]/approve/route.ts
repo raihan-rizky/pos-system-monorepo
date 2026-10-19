@@ -314,7 +314,7 @@ export async function POST(
                 productName: line.name,
                 quantity: line.input.quantity,
                 unitPrice: line.appliedUnitPrice,
-                discount: 0,
+                discount: line.discount,
                 subtotal: line.subtotal,
                 material: line.input.material ?? null,
                 size: line.input.size ?? null,
@@ -501,6 +501,13 @@ export async function POST(
     ) {
       return NextResponse.json(
         { message: "Konversi unit produk perlu direview sebelum stok bisa diproses" },
+        { status: 422 },
+      );
+    }
+
+    if (error instanceof Error && ["APPROVAL_SOURCE_ITEM_REQUIRED", "APPROVAL_INVALID_SOURCE_ITEM", "APPROVAL_DUPLICATE_SOURCE_ITEM"].includes(error.message)) {
+      return NextResponse.json(
+        { message: "Muat ulang rincian transaksi agar diskon setiap barang tetap sesuai." },
         { status: 422 },
       );
     }

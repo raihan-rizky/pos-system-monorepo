@@ -5,6 +5,13 @@ import {
 } from "../payment-submission";
 
 describe("Tempo checkout submission", () => {
+  it("allows a paid zero total after all items are fully discounted, but no debt terms", () => {
+    const input = { amountPaid: 0, total: 0, hasCustomer: false, hasInvalidManualPrice: false };
+    expect(canSubmitPayment({ ...input, mode: "PAID" })).toBe(true);
+    expect(canSubmitPayment({ ...input, mode: "TEMPO", hasCustomer: true })).toBe(false);
+    expect(canSubmitPayment({ ...input, mode: "DP" })).toBe(false);
+    expect(canSubmitPayment({ ...input, mode: "PAID", total: -1 })).toBe(false);
+  });
   it("sends an unpaid Tempo transaction without inventing a cash payment", () => {
     expect(
       buildPaymentSubmission({

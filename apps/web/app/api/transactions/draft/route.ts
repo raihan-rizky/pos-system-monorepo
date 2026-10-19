@@ -1,3 +1,4 @@
+import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
 import { NextResponse } from "next/server";
@@ -38,6 +39,7 @@ const draftItemSchema = z.object({
   price: z.number().min(0),
   transactionPrice: z.number().positive().optional().nullable(),
   quantity: z.number().min(1),
+  discount: z.number().min(0).multipleOf(0.01).optional().default(0),
 });
 
 const createDraftSchema = z.object({
@@ -309,12 +311,13 @@ export async function POST(request: Request) {
         currentPrice: Number(product.price),
         costPrice: product.costPrice ? Number(product.costPrice) : null,
         quantity: item.quantity,
+        discount: item.discount,
         appliedPricing,
       };
     });
 
     const subtotal = serverItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
+      (sum, item) => sum + discountedLineSubtotal(item.price, item.quantity, item.discount),
       0,
     );
     const total = Math.max(0, subtotal - discount);
@@ -373,8 +376,8 @@ export async function POST(request: Request) {
                   quantity: item.quantity,
                   unitPrice: item.price,
                   unitCost: item.costPrice,
-                  discount: 0,
-                  subtotal: item.price * item.quantity,
+                  discount: item.discount,
+                  subtotal: discountedLineSubtotal(item.price, item.quantity, item.discount),
                   pricingRuleId: item.appliedPricing?.ruleId ?? null,
                   pricingCustomerType: item.appliedPricing?.customerType ?? null,
                   pricingCategoryId: item.appliedPricing?.categoryId ?? null,
@@ -417,6 +420,7 @@ export async function POST(request: Request) {
                   rawMaterialUnit: true,
                   quantity: true,
                   unitPrice: true,
+                  discount: true,
                   subtotal: true,
                   product: { select: { unit: true } },
                   printingService: { select: { unit: true } },
@@ -453,6 +457,9 @@ export async function POST(request: Request) {
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+    if (error instanceof Error && error.message === "ITEM_DISCOUNT_INVALID") {
+      return NextResponse.json({ message: "Diskon item harus bernilai positif atau nol dan tidak melebihi total item." }, { status: 422 });
+    }
     log.error("Failed to create draft transaction:", error);
     return NextResponse.json(
       { message: "Failed to create draft" },

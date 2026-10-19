@@ -69,6 +69,7 @@ export interface Transaction {
     rawMaterialUnit?: string | null;
     quantity: number;
     unitPrice: number;
+    discount?: number;
     pricingRuleId?: string | null;
     pricingCustomerType?: "UMUM" | "AGEN" | "INDUSTRI" | "PEMERINTAH" | null;
     pricingCategoryId?: string | null;

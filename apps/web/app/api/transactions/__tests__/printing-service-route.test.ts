@@ -165,6 +165,18 @@ describe("POST /api/transactions printing service items", () => {
     );
   });
 
+  it("persists a discount once per service line while leaving its unit price intact", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      items: [{ lineType: "PRINTING_SERVICE", printingServiceId: "service-1", price: 75000, quantity: 2, discount: 5000, needsMaterial: true, rawMaterialProductId: "material-1", rawMaterialQuantity: 3 }],
+      paymentMethod: "CASH", amountPaid: 200000,
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 145000, total: 145000,
+      items: { create: [expect.objectContaining({ unitPrice: 75000, discount: 5000, subtotal: 145000 })] },
+    });
+  });
+
   it("stores service item snapshots, decrements raw material, and writes internal-use stock log", async () => {
     const { POST } = await import("../route");
     const response = await POST(

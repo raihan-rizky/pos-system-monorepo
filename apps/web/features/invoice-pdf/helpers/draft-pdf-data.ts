@@ -25,6 +25,7 @@ export interface DraftPdfItem {
   unit: string;
   unitPriceFormatted: string;
   subtotalFormatted: string;
+  discountFormatted?: string;
 }
 
 export interface DraftPdfData {
@@ -93,6 +94,7 @@ export function buildDraftPdfData(
     unit: item.product?.unit || item.printingService?.unit || "-",
     unitPriceFormatted: Number(item.unitPrice).toLocaleString("id-ID"),
     subtotalFormatted: Number(item.subtotal).toLocaleString("id-ID"),
+    discountFormatted: Number(item.discount) > 0 ? Number(item.discount).toLocaleString("id-ID") : undefined,
   }));
 
   return {

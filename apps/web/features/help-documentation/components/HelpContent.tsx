@@ -629,13 +629,13 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     },
     {
       id: "cashier-discount",
-      title: "Menerapkan Diskon Manual",
-      description: "Atas izin manajer, kamu bisa kasih diskon manual tambahan langsung di keranjang belanja pembeli.",
+      title: "Menerapkan Diskon Item",
+      description: "Atur diskon tiap item saat pembayaran, atau terapkan nominal/persen yang sama ke beberapa item. Diskon item tercatat di nota dan PDF.",
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Pilih Item di Keranjang", description: "Pada layar kasir 'POS', setelah memasukkan produk ke keranjang, klik langsung pada nama produk di dalam keranjang belanja sebelah kanan.", icon: <Package className="w-8 h-8" /> },
-        { title: "Input Diskon Tambahan", description: "Di modal opsi produk yang terbuka, cari opsi 'Diskon Tambahan'. Pilih tipe diskon ('Rp' atau '%'), ketik angkanya, lalu klik tombol biru 'Terapkan Diskon'.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Selesaikan POS", description: "Periksa apakah nominal total belanjaan di keranjang sudah berkurang, lalu lanjutkan proses pembayaran dengan mengklik tombol hijau 'Bayar'.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Buka Pembayaran", description: "Masukkan barang ke keranjang lalu klik Bayar. Pada daftar item di modal Pembayaran, klik Diskon di sebelah item yang ingin diberi potongan.", icon: <Package className="w-8 h-8" /> },
+        { title: "Atur Diskon Item", description: "Pilih Rp atau %, isi nilai, lalu terapkan. Rp adalah potongan total baris: 3 barang × Rp10.000 dengan diskon Rp5.000 menjadi Rp25.000. Untuk beberapa item, centang baris yang diinginkan lalu klik Diskon ... item terpilih dan Terapkan diskon; nilainya dihitung untuk setiap baris dan menggantikan diskon sebelumnya.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Periksa dan Bayar", description: "Periksa subtotal item dan total pembayaran. Buka Diskon lagi untuk mengubah potongan, atau klik Hapus diskon untuk menghapusnya, lalu selesaikan pembayaran atau simpan draft. Nota biasa, nota penawaran, dan PDF menampilkan Diskon item di bawah nama barang.", icon: <ShoppingCart className="w-8 h-8" /> },
       ]
     },
     {

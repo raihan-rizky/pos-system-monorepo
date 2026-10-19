@@ -54,6 +54,61 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions/draft", () => {
+  it.each([0.001, 50000.01, true, {}])("rejects malformed or over-precise draft discount %j", async discount => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1, discount }],
+    }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("saves a fully discounted draft while keeping its gross unit price", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 2, discount: 100000 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 0, total: 0, status: "DRAFT",
+      items: { create: [expect.objectContaining({ unitPrice: 50000, quantity: 2, discount: 100000, subtotal: 0 })] },
+    });
+  });
+
+  it("keeps separate discounts on repeated products in a draft", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [
+        { productId: "p1", name: "Kertas A4", price: 50000, quantity: 1, discount: 5000 },
+        { productId: "p1", name: "Kertas A4", price: 50000, quantity: 2, discount: 10000 },
+      ], discount: 15000,
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 135000, discount: 15000, total: 120000,
+      items: { create: [expect.objectContaining({ discount: 5000, subtotal: 45000 }), expect.objectContaining({ discount: 10000, subtotal: 90000 })] },
+    });
+  });
+
+  it.each([-1, 50001, "100", null])("rejects invalid draft line discount %s", async discount => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 1, discount }],
+    }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("saves the item discount once for the whole line and keeps the invoice discount separate", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas A4", price: 50000, quantity: 3, discount: 5000 }], discount: 10000,
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      subtotal: 145000, discount: 10000, total: 135000,
+      items: { create: [expect.objectContaining({ unitPrice: 50000, discount: 5000, subtotal: 145000 })] },
+    });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();

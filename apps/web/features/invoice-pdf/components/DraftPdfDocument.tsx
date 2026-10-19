@@ -246,7 +246,7 @@ export function DraftPdfDocument({
                 {item.no}
               </Text>
               <Text style={[styles.tableCell, styles.colItem]}>
-                {item.productName}
+                {item.discountFormatted ? `${item.productName}\nDiskon item Rp${item.discountFormatted}` : item.productName}
               </Text>
               <Text
                 style={[

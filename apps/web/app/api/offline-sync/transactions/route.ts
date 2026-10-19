@@ -1,3 +1,4 @@
+import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
@@ -27,6 +28,7 @@ const offlineItemSchema = z.object({
   material: z.string().optional().nullable(),
   price: z.number().min(0),
   transactionPrice: z.number().positive().optional().nullable(),
+  discount: z.number().finite().min(0).optional().default(0),
   quantity: z.number().min(1),
 });
 
@@ -283,11 +285,12 @@ async function syncOne(
       price,
       transactionPrice: item.transactionPrice,
       quantity: item.quantity,
+      discount: Math.round((Math.min(item.discount, price * item.quantity) + Number.EPSILON) * 100) / 100,
     };
   });
   const stockByProductId = new Map(products.map((product) => [product.id, product.stock]));
 
-  const subtotalFromServer = serverItems.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotalFromServer = serverItems.reduce((sum, item) => sum + discountedLineSubtotal(item.price, item.quantity, item.discount), 0);
   const cappedDiscount = Math.min(offlineTx.discount ?? 0, subtotalFromServer);
 
   const decision = buildOfflineSyncDecision(
@@ -330,6 +333,7 @@ async function syncOne(
   const serverOfflineTx: OfflineTransactionInput = {
     ...offlineTx,
     items: serverItems,
+    discount: decision.discount,
   };
   const finalDecision =
     decision.transactionStatus === "COMPLETED" && offlineTx.amountPaid < decision.total
@@ -412,7 +416,7 @@ async function createSyncedTransaction({
             requestedById: user.role === "SALES" || isPendingApproval ? user.id : null,
             customerId: txData.customerId || null,
             subtotal: decision.subtotal,
-            discount: txData.discount,
+            discount: decision.discount,
             tax: decision.tax,
             taxRate: txData.taxRate,
             taxMethod: "STANDARD",
@@ -450,8 +454,8 @@ async function createSyncedTransaction({
                   material: item.material || null,
                   quantity: item.quantity,
                   unitPrice: item.price,
-                  discount: 0,
-                  subtotal: item.price * item.quantity,
+                  discount: item.discount ?? 0,
+                  subtotal: discountedLineSubtotal(item.price, item.quantity, item.discount),
                   pricingRuleId: appliedPricing?.ruleId ?? null,
                   pricingCustomerType: appliedPricing?.customerType ?? null,
                   pricingCategoryId: appliedPricing?.categoryId ?? null,

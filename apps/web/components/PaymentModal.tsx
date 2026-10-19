@@ -22,6 +22,7 @@ import {
   isRegularPriceFallback,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { applyCartItemDiscounts, discountedLineSubtotal, type ItemDiscountInput } from "@/features/pos-checkout/helpers/item-discount";
 import { priceCartItemsForCheckout } from "@/features/pos-checkout/helpers/checkout-pricing";
 import {
   buildPaymentSubmission,
@@ -159,6 +160,14 @@ export function PaymentModal({
   const [note, setNote] = useState("");
   const [customerSelection, setCustomerSelection] =
     useState<CheckoutCustomerSelection>(initialCustomerSelection ?? { kind: "general" });
+  const [itemDiscounts, setItemDiscounts] = useState<Record<string, ItemDiscountInput>>({});
+  const [selectedDiscountItems, setSelectedDiscountItems] = useState<string[]>([]);
+  const [itemDiscountEditor, setItemDiscountEditor] = useState<{
+    ids: string[];
+    mode: ItemDiscountInput["mode"];
+    value: string;
+  } | null>(null);
+  const itemDiscountInputId = useId();
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   const [customerError, setCustomerError] = useState<string | null>(null);
   const createCustomer = useCreateCustomer();
@@ -186,17 +195,43 @@ export function PaymentModal({
     selectedCustomerType,
   );
   const currentCatalogItems = useCartCatalogPrices(items, open);
-  const pricedItems = priceCartItemsForCheckout({
+  const basePricedItems = priceCartItemsForCheckout({
     items: currentCatalogItems,
     customerType: selectedCustomerType,
     pricingRules: pricingRulesQuery.data ?? [],
     manualPrices,
     role,
   });
+  const pricedItems = applyCartItemDiscounts(basePricedItems, itemDiscounts);
+  const grossSubtotal = pricedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const itemDiscountTotal = pricedItems.reduce((sum, item) => sum + item.discount, 0);
   const pricedSubtotal = pricedItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+    (sum, item) => sum + discountedLineSubtotal(item.price, item.quantity, item.discount),
     0,
   );
+  const editorItems = itemDiscountEditor
+    ? pricedItems.filter(item => itemDiscountEditor.ids.includes(item.cartLineId))
+    : [];
+  const editorValue = Number(itemDiscountEditor?.value);
+  const editorMaximum = itemDiscountEditor?.mode === "PERCENT"
+    ? 100
+    : Math.min(...editorItems.map(item => item.price * item.quantity));
+  const invalidItemDiscount = itemDiscountEditor !== null && (
+    editorItems.length === 0 || itemDiscountEditor.value.trim() === "" ||
+    !Number.isFinite(editorValue) || editorValue < 0 || editorValue > editorMaximum ||
+    Math.abs(editorValue * 100 - Math.round(editorValue * 100)) > 1e-8
+  );
+
+  useEffect(() => {
+    const available = new Set(items.map(item => item.cartLineId));
+    setSelectedDiscountItems(current => current.filter(id => available.has(id)));
+    setItemDiscounts(current => Object.fromEntries(Object.entries(current).filter(([id]) => available.has(id))));
+    setItemDiscountEditor(current => {
+      if (!current) return null;
+      const ids = current.ids.filter(id => available.has(id));
+      return ids.length ? { ...current, ids } : null;
+    });
+  }, [items]);
   const affectedItems = pricedItems.filter(
     (item) =>
       item.lineType === "PRODUCT" &&
@@ -208,6 +243,9 @@ export function PaymentModal({
       // reset on close
       setCustomerSelection({ kind: "general" });
       setManualPrices({});
+      setItemDiscounts({});
+      setSelectedDiscountItems([]);
+      setItemDiscountEditor(null);
       setCustomerError(null);
       setInvoiceDateReason("");
       setIsTempo(false);
@@ -247,7 +285,7 @@ export function PaymentModal({
   const hasCheckoutCustomer =
     customerSelection.kind === "existing" ||
     (customerSelection.kind === "new" && Boolean(customerSelection.name.trim()));
-  const canPay = !invalidTax && canSubmitPayment({
+  const canPay = pricedItems.length > 0 && !invalidTax && !itemDiscountEditor && canSubmitPayment({
     mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
     amountPaid,
     total,
@@ -304,7 +342,7 @@ export function PaymentModal({
   };
 
   const handleSaveDraft = async () => {
-    if (!onSaveDraft) return;
+    if (!onSaveDraft || itemDiscountEditor) return;
     const selectedSales = salespersons.find((s) => s.id === salespersonId);
     const customer = await resolveCustomerForSubmit();
     if (!customer) return;
@@ -332,7 +370,9 @@ export function PaymentModal({
   };
 
   const canSaveDraft =
-    total > 0 &&
+    !itemDiscountEditor &&
+    pricedItems.length > 0 &&
+    total >= 0 &&
     !hasInvalidManualPrice &&
     !isProcessing &&
     !isSavingDraft &&
@@ -366,7 +406,21 @@ export function PaymentModal({
     <Modal open={open} onClose={onClose} title="Pembayaran" size="lg">
       <div className="space-y-5 px-1 py-1">
         {/* Order Summary */}
-        <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[200px] overflow-y-auto">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-surface-700">Ringkasan item</span>
+          {selectedDiscountItems.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={isProcessing || isSavingDraft}
+                onClick={() => setItemDiscountEditor({ ids: [...selectedDiscountItems], mode: "RP", value: "" })}
+                className="min-h-11 rounded-lg bg-brand-50 px-3 text-xs font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-50">
+                Diskon {selectedDiscountItems.length} item terpilih
+              </button>
+              <button type="button" onClick={() => setSelectedDiscountItems([])}
+                className="min-h-11 rounded-lg px-3 text-xs text-surface-600 hover:bg-surface-100">Batal pilih</button>
+            </div>
+          )}
+        </div>
+        <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[280px] overflow-y-auto">
           {pricingRulesQuery.isError && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
               Aturan Harga Khusus gagal dimuat. Harga Agen/Dinas dipakai jika
@@ -380,14 +434,33 @@ export function PaymentModal({
           )}
           {pricedItems.map((item) => (
             <div key={item.cartLineId} className="rounded-lg bg-white/50 p-2 text-sm">
-              <div className="flex justify-between gap-3">
-              <span className="text-surface-600">
-                {item.name} × {item.quantity}
-              </span>
-              <span className={`font-medium ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-surface-900"}`}>
-                {formatRupiah(item.price * item.quantity)}
-              </span>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 text-surface-600">
+                  <input type="checkbox" checked={selectedDiscountItems.includes(item.cartLineId)}
+                    disabled={isProcessing || isSavingDraft}
+                    aria-label={`Pilih ${item.name} untuk diskon`}
+                    onChange={event => setSelectedDiscountItems(current => event.target.checked
+                      ? [...current, item.cartLineId] : current.filter(id => id !== item.cartLineId))}
+                    className="h-4 w-4 shrink-0 accent-brand-600 disabled:opacity-50" />
+                  <span className="break-words">{item.name} &times; {item.quantity}</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className={`font-medium ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-surface-900"}`}>
+                    {formatRupiah(discountedLineSubtotal(item.price, item.quantity, item.discount))}
+                  </span>
+                  <button type="button" aria-label={`Diskon untuk ${item.name}`} disabled={isProcessing || isSavingDraft}
+                    onClick={() => setItemDiscountEditor({ ids: [item.cartLineId], mode: itemDiscounts[item.cartLineId]?.mode ?? "RP", value: String(itemDiscounts[item.cartLineId]?.value ?? item.discount ?? 0) })}
+                    className="min-h-11 rounded-lg px-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50">Diskon</button>
+                </div>
               </div>
+              {item.discount > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-brand-700">
+                  <span>Diskon item -{formatRupiah(item.discount)} dari {formatRupiah(item.price * item.quantity)}</span>
+                  <button type="button" aria-label={`Hapus diskon untuk ${item.name}`} disabled={isProcessing || isSavingDraft}
+                    onClick={() => setItemDiscounts(current => ({ ...current, [item.cartLineId]: { mode: "RP", value: 0 } }))}
+                    className="min-h-11 rounded-lg px-2 font-semibold hover:bg-brand-50 disabled:opacity-50">Hapus diskon</button>
+                </div>
+              )}
               {item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) && <SpecialPriceBadge />}
               {item.lineType === "PRODUCT" && canEditCustomPrices && (
                 <div className="mt-2 space-y-1.5">
@@ -543,6 +616,46 @@ export function PaymentModal({
             </div>
           ))}
         </div>
+
+        {itemDiscountEditor && (
+          <section aria-label="Editor diskon item" className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4">
+            <div>
+              <h3 className="text-sm font-semibold text-surface-900">Diskon {editorItems.length === 1 ? editorItems[0].name : `${editorItems.length} item terpilih`}</h3>
+              <p id={`${itemDiscountInputId}-hint`} className="mt-1 text-xs text-surface-600">Rp memotong total tiap baris; % dihitung dari harga dikali jumlah. Diskon ini mengganti diskon item sebelumnya.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[110px_1fr]">
+              <div className="space-y-1 text-xs font-semibold text-surface-700">
+                <label htmlFor={`${itemDiscountInputId}-mode`}>Jenis diskon item</label>
+                <select id={`${itemDiscountInputId}-mode`} value={itemDiscountEditor.mode} disabled={isProcessing || isSavingDraft}
+                  onChange={event => setItemDiscountEditor(current => current && ({ ...current, mode: event.target.value as ItemDiscountInput["mode"] }))}
+                  className="min-h-11 w-full rounded-lg border border-surface-200 bg-white px-3 text-sm">
+                  <option value="RP">Rp</option><option value="PERCENT">%</option>
+                </select>
+              </div>
+              <div className="min-w-0 space-y-1">
+                <label htmlFor={itemDiscountInputId} className="text-xs font-semibold text-surface-700">Nilai diskon item</label>
+                <input id={itemDiscountInputId} type="number" inputMode="decimal" min="0" max={editorMaximum} step="0.01"
+                  value={itemDiscountEditor.value} disabled={isProcessing || isSavingDraft}
+                  onChange={event => setItemDiscountEditor(current => current && ({ ...current, value: event.target.value }))}
+                  aria-invalid={invalidItemDiscount} aria-describedby={`${itemDiscountInputId}-hint${invalidItemDiscount ? ` ${itemDiscountInputId}-error` : ""}`}
+                  className="min-h-11 w-full rounded-lg border border-surface-200 bg-white px-3 text-sm text-surface-900" />
+              </div>
+            </div>
+            {invalidItemDiscount && <p id={`${itemDiscountInputId}-error`} role="alert" className="text-xs text-red-700">Isi diskon 0 sampai {itemDiscountEditor.mode === "PERCENT" ? "100%" : formatRupiah(editorMaximum)} dengan maksimal dua angka desimal.</p>}
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={invalidItemDiscount || isProcessing || isSavingDraft}
+                onClick={() => {
+                  if (invalidItemDiscount) return;
+                  setItemDiscounts(current => ({ ...current, ...Object.fromEntries(editorItems.map(item => [item.cartLineId, { mode: itemDiscountEditor.mode, value: editorValue }])) }));
+                  setItemDiscountEditor(null);
+                }}
+                className="min-h-11 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">Terapkan diskon</button>
+              <button type="button" onClick={() => setItemDiscountEditor(null)}
+                className="min-h-11 rounded-lg border border-surface-200 bg-white px-4 text-sm font-semibold text-surface-600 hover:bg-surface-50">Batal diskon</button>
+            </div>
+            <p className="text-xs text-surface-600">Terapkan atau batalkan diskon sebelum melanjutkan pembayaran.</p>
+          </section>
+        )}
 
         <CustomerCheckoutSelect
           value={customerSelection}
@@ -868,8 +981,13 @@ export function PaymentModal({
         <div className={`rounded-xl p-4 text-white ${isDP ? 'bg-gradient-to-r from-amber-500 to-amber-600' : isTempo ? 'bg-gradient-to-r from-sky-700 to-sky-800' : 'bg-gradient-to-r from-brand-600 to-brand-700'}`}>
           <div className="flex justify-between text-sm opacity-80">
             <span>Subtotal</span>
-            <span>{formatRupiah(pricedSubtotal)}</span>
+            <span>{formatRupiah(grossSubtotal)}</span>
           </div>
+          {itemDiscountTotal > 0 && (
+            <div className="mt-1 flex justify-between text-sm opacity-80">
+              <span>Diskon item</span><span>-{formatRupiah(itemDiscountTotal)}</span>
+            </div>
+          )}
           {discount > 0 && (
             <div className="flex justify-between text-sm opacity-80 mt-1">
               <span>

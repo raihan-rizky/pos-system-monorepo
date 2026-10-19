@@ -290,7 +290,12 @@ export function DraftReceiptModal({
                 {items.map((item, index) => (
                   <tr key={item.id ?? `item-${index}`}>
                     <td style={{ textAlign: "center" }}>{index + 1}</td>
-                    <td>{item.productName}</td>
+                    <td>
+                      {item.productName}
+                      {Number(item.discount) > 0 && (
+                        <div style={{ fontSize: "0.9em" }}>{`Diskon item Rp${Number(item.discount).toLocaleString("id-ID")}`}</div>
+                      )}
+                    </td>
                     <td style={{ textAlign: "center" }}>{item.quantity}</td>
                     <td style={{ textAlign: "center" }}>
                       {item.product?.unit || item.printingService?.unit || "-"}

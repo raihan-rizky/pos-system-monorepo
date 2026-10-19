@@ -35,7 +35,7 @@ export function canSubmitPayment(input: CanSubmitPaymentInput): boolean {
     !Number.isFinite(input.amountPaid) ||
     input.amountPaid < 0 ||
     !Number.isFinite(input.total) ||
-    input.total <= 0 ||
+    input.total < 0 ||
     input.hasInvalidManualPrice
   ) {
     return false;

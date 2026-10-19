@@ -1,3 +1,5 @@
+import { discountedLineSubtotal } from "../../features/pos-checkout/helpers/item-discount";
+
 export const OFFLINE_QUEUE_LIMIT = 500;
 export const OFFLINE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -14,6 +16,7 @@ export type OfflineCartItem = {
   name: string;
   price: number;
   transactionPrice?: number | null;
+  discount?: number;
   quantity: number;
   size?: string | null;
   material?: string | null;
@@ -69,17 +72,25 @@ export function calculateStockAdjustment(
   availableStockByProductId: Map<string, number>,
 ): StockAdjustmentResult {
   const adjustedItems: OfflineCartItem[] = [];
+  const remainingStockByProductId = new Map(availableStockByProductId);
   const removedItems: RemovedOfflineItem[] = [];
 
   for (const item of items) {
     const availableQuantity = Math.max(
       0,
-      availableStockByProductId.get(item.productId) ?? 0,
+      remainingStockByProductId.get(item.productId) ?? 0,
     );
     const adjustedQuantity = Math.min(item.quantity, availableQuantity);
 
     if (adjustedQuantity > 0) {
-      adjustedItems.push({ ...item, quantity: adjustedQuantity });
+      discountedLineSubtotal(item.price, item.quantity, item.discount);
+      const gross = Math.round((item.price * adjustedQuantity + Number.EPSILON) * 100) / 100;
+      adjustedItems.push({
+        ...item,
+        quantity: adjustedQuantity,
+        ...(item.discount === undefined ? {} : { discount: Math.min(item.discount, gross) }),
+      });
+      remainingStockByProductId.set(item.productId, availableQuantity - adjustedQuantity);
     }
 
     if (adjustedQuantity !== item.quantity) {

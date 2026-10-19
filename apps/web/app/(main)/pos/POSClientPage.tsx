@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useDeferredValue } from "react";
 import dynamic from "next/dynamic";
-import { calculateTransactionTax } from "@/features/transaction-tax/helpers/tax-calculation";
+import { buildDraftCheckoutItems, buildOfflineCheckoutTotals } from "@/features/pos-checkout/helpers/checkout-persistence";
 import { AlertTriangle, Check, CircleMinus, Clock, Search, ShoppingCart, X } from "lucide-react";
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
@@ -515,19 +515,7 @@ export default function POSClientPage({
             paymentStatus: data.paymentStatus,
             isJobOrder: data.isJobOrder,
             estimatedDoneAt: data.estimatedDoneAt,
-            originalSubtotal: offlinePricedItems.reduce(
-              (sum, item) => sum + item.price * item.quantity,
-              0,
-            ),
-            originalTotal: calculateTransactionTax({
-              subtotal: offlinePricedItems.reduce(
-                (sum, item) => sum + item.price * item.quantity,
-                0,
-              ),
-              discount: data.discount,
-              taxRate: data.taxRate,
-              taxMethod: "STANDARD",
-            }).total,
+            ...buildOfflineCheckoutTotals(offlinePricedItems, data.discount, data.taxRate),
             timeSource: isTrustedServerClockSource(offlineClock.source)
               ? "SERVER_ESTIMATE"
               : "DEVICE_UNVERIFIED",
@@ -579,17 +567,7 @@ export default function POSClientPage({
     try {
       const draft = await createDraft.mutateAsync({
         draftNumber: data.draftNumber,
-        items: data.items
-          .filter((item): item is ProductCartItem => item.lineType === "PRODUCT")
-          .map((item) => ({
-            productId: item.productId,
-            name: item.name,
-            size: item.size ?? null,
-            material: item.material ?? null,
-            price: item.price,
-            transactionPrice: item.transactionPrice,
-            quantity: item.quantity,
-          })),
+        items: buildDraftCheckoutItems(data.items),
         discount: data.discount,
         note: data.note,
         customerName: data.customerName,

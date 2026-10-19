@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "item-discount-2026-10-19", date: "2026-10-19", revision: 1,
+    highlight: { title: "Diskon per item saat pembayaran", summary: "Atur diskon Rp atau persen untuk satu atau beberapa item sebelum membayar." },
+    title: "Diskon item langsung di Pembayaran.",
+    summary: "Beri diskon Rp atau persen per item, atau terapkan nilai yang sama ke beberapa item sekaligus. Potongan tersimpan di draft dan transaksi serta tampil pada nota dan PDF.",
+    kind: "feature", area: "Kasir & Pembayaran", href: "/pos", visual: "quotation",
+    screenshot: { src: "/images/changelog/diskon-per-item.png", alt: "Daftar item di modal Pembayaran dengan data contoh, tombol Diskon di kanan baris, pilihan dua item, dan editor diskon persen" },
+    steps: [
+      { title: "Buka diskon item", detail: "Klik Bayar di Kasir, lalu pilih Diskon di sebelah item pada modal Pembayaran." },
+      { title: "Isi potongan", detail: "Pilih Rp atau %, isi nilai, lalu terapkan; pilih beberapa item untuk memberi diskon yang sama pada setiap baris." },
+      { title: "Periksa dan simpan", detail: "Periksa subtotal, ubah atau hapus diskon bila perlu, lalu bayar atau simpan draft; potongan tampil di nota dan PDF." },
+    ],
+  },
+  {
     id: "shopping-request-payment-method", date: "2026-10-19", revision: 1,
     highlight: { title: "Transfer atau Giro untuk belanja", summary: "Catat metode pembayaran dan jatuh tempo giro saat menyetujui Daftar Belanja." },
     title: "Pilih pembayaran saat menyetujui belanja.",

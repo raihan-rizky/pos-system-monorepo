@@ -21,6 +21,8 @@ export interface ProductCartItem {
   baseCostUnit?: string | null;
   hargaDinas?: number | null;
   hargaAgen?: number | null;
+  /** Total monetary discount for this cart line. */
+  discount?: number;
   quantity: number;
   unit: string;
   stock: number;
@@ -83,6 +85,8 @@ export interface PrintingServiceCartItem {
   printingServiceId: string;
   name: string;
   price: number;
+  /** Total monetary discount for this cart line. */
+  discount?: number;
   quantity: number;
   unit: string;
   size?: string;

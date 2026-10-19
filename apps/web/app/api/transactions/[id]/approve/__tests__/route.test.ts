@@ -7,6 +7,7 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionUpdateManyMock = vi.hoisted(() => vi.fn());
+const transactionUpdateMock = vi.hoisted(() => vi.fn());
 const transactionFindUniqueOrThrowMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const productUpdateManyMock = vi.hoisted(() => vi.fn());
@@ -137,6 +138,7 @@ describe("POST /api/transactions/[id]/approve", () => {
       callback({
         transaction: {
           updateMany: transactionUpdateManyMock,
+          update: transactionUpdateMock,
           findUniqueOrThrow: transactionFindUniqueOrThrowMock,
         },
         product: {
@@ -252,6 +254,35 @@ describe("POST /api/transactions/[id]/approve", () => {
     }));
     expect(customerUpdateMock).toHaveBeenCalledTimes(1);
     expect(customerUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(transactionUpdateManyMock.mock.invocationCallOrder[0]);
+  });
+
+  it("persists quoted item discounts and net subtotal when approving edited lines", async () => {
+    const quotedItem = {
+      input: { sourceItemId: "saved-1", productId: "product-1", quantity: 2 },
+      name: "Kertas", unit: "pcs", modal: null, unitCost: null,
+      rawMaterialUnitCost: null, rawMaterialUnit: null,
+      regular: 25000, agent: null, government: null, special: null,
+      appliedUnitPrice: 25000, discount: 5000, subtotal: 45000, appliedPricing: null,
+    };
+    buildApprovalQuoteMock.mockResolvedValue({ items: [quotedItem], subtotal: 45000, discount: 0, tax: 0, total: 45000, fingerprint: "fresh-quote" });
+    transactionUpdateMock.mockResolvedValue({ id: "tx-1", total: 45000, subtotal: 45000, items: [{ discount: 5000, subtotal: 45000 }] });
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({ items: [quotedItem.input], quoteFingerprint: "fresh-quote", amountPaid: 45000 }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ items: { deleteMany: {}, create: [expect.objectContaining({ unitPrice: 25000, discount: 5000, subtotal: 45000 })] } }),
+    }));
+  });
+
+  it("returns a validation response when a saved discounted source is ambiguous", async () => {
+    buildApprovalQuoteMock.mockRejectedValue(new Error("APPROVAL_SOURCE_ITEM_REQUIRED"));
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({ items: [{ productId: "product-1", quantity: 1 }], quoteFingerprint: "fresh-quote" }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ message: "Muat ulang rincian transaksi agar diskon setiap barang tetap sesuai." });
+    expect(transactionUpdateManyMock).not.toHaveBeenCalled();
   });
 
   it("rejects a changed approval quote before changing status or stock", async () => {

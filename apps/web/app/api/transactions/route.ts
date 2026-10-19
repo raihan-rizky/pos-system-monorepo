@@ -1,3 +1,4 @@
+import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { calculateTransactionTax } from "@/features/transaction-tax/helpers/tax-calculation";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
@@ -50,6 +51,7 @@ const productTransactionItemSchema = z.object({
   material: z.string().optional().nullable(),
   price: z.number().min(0).optional(),
   quantity: z.number().int().min(1),
+  discount: z.number().min(0).multipleOf(0.01).optional().default(0),
 });
 
 const printingServiceTransactionItemSchema = z
@@ -62,6 +64,7 @@ const printingServiceTransactionItemSchema = z
     serviceNote: z.string().optional().nullable(),
     price: z.number().min(0),
     quantity: z.number().int().min(1),
+    discount: z.number().min(0).multipleOf(0.01).optional().default(0),
     needsMaterial: z.boolean().optional().default(false),
     rawMaterialProductId: z.string().optional().nullable(),
     rawMaterialQuantity: z.number().positive().optional().nullable(),
@@ -124,6 +127,7 @@ type ServerProductTransactionItem = {
   size: string | null;
   material: string | null;
   price: number;
+  discount: number;
   originalPrice: number;
   costPrice: number | null;
   quantity: number;
@@ -138,6 +142,7 @@ type ServerPrintingServiceTransactionItem = {
   material: string | null;
   serviceNote: string | null;
   price: number;
+  discount: number;
   quantity: number;
   rawMaterialQuantity: number | null;
   rawMaterialUnit: string | null;
@@ -307,6 +312,7 @@ export async function GET(request: Request) {
                 rawMaterialUnit: true,
                 quantity: true,
                 unitPrice: true,
+                discount: true,
                 pricingRuleId: true,
                 pricingCustomerType: true,
                 pricingCategoryId: true,
@@ -730,6 +736,7 @@ export async function POST(request: Request) {
           serviceNote: item.serviceNote ?? null,
           price: item.price,
           quantity: item.quantity,
+          discount: item.discount,
           rawMaterialQuantity: item.rawMaterialQuantity ?? null,
           rawMaterialUnit: rawMaterial?.unit ?? null,
           rawMaterialCostPrice: rawMaterial?.costPrice
@@ -781,12 +788,13 @@ export async function POST(request: Request) {
         })(),
         costPrice: product.costPrice ? Number(product.costPrice) : null,
         quantity: item.quantity,
+        discount: item.discount,
       };
     });
 
     // Calculate totals
     const subtotal = serverItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
+      (sum, item) => sum + discountedLineSubtotal(item.price, item.quantity, item.discount),
       0
     );
     const { tax, total } = calculateTransactionTax({ subtotal, discount, taxRate, taxMethod: "STANDARD" });
@@ -888,8 +896,8 @@ export async function POST(request: Request) {
                           quantity: item.quantity,
                           unitPrice: item.price,
                           unitCost: item.rawMaterialCostPrice,
-                          discount: 0,
-                          subtotal: item.price * item.quantity,
+                          discount: item.discount,
+                          subtotal: discountedLineSubtotal(item.price, item.quantity, item.discount),
                         }
                       : {
                           productId: item.productId,
@@ -904,8 +912,8 @@ export async function POST(request: Request) {
                           quantity: item.quantity,
                           unitPrice: item.price,
                           unitCost: item.costPrice,
-                          discount: 0,
-                          subtotal: item.price * item.quantity,
+                          discount: item.discount,
+                          subtotal: discountedLineSubtotal(item.price, item.quantity, item.discount),
                           pricingRuleId: item.appliedPricing?.ruleId ?? null,
                           pricingCustomerType: item.appliedPricing?.customerType ?? null,
                           pricingCategoryId: item.appliedPricing?.categoryId ?? null,
@@ -947,6 +955,7 @@ export async function POST(request: Request) {
                   rawMaterialUnit: true,
                   quantity: true,
                   unitPrice: true,
+                  discount: true,
                   pricingRuleId: true,
                   pricingCustomerType: true,
                   pricingCategoryId: true,
@@ -1105,6 +1114,9 @@ export async function POST(request: Request) {
       );
     }
 
+    if (error instanceof Error && error.message === "ITEM_DISCOUNT_INVALID") {
+      return NextResponse.json({ message: "Diskon item harus bernilai positif atau nol dan tidak melebihi total item." }, { status: 422 });
+    }
     log.error("Failed to create transaction:", error);
     return NextResponse.json(
       { message: "Failed to create transaction" },

@@ -8,6 +8,7 @@ export type DraftItemInput = {
   material?: string | null;
   price: number;
   transactionPrice?: number | null;
+  discount?: number;
   quantity: number;
 };
 

@@ -66,7 +66,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "cashier-credit": [["customers", "customers-debt-tab"], ["customers", "customers-pay-debt"], ["history", "history-print-button"]],
   "cashier-return": [["history", "history-table"], ["history", "history-action-menu"], ["history", "history-approval-actions"]],
   "cashier-expense": [["pos", "pos-expense-button"], ["finance", "finance-expense-form"], ["finance", "finance-save"]],
-  "cashier-discount": [["pos", "pos-cart"], ["pos", "pos-cart"], ["pos", "pos-payment-modal"]],
+  "cashier-discount": [["pos", "pos-payment-modal"], ["pos", "pos-payment-modal"], ["pos", "pos-payment-modal"]],
   "kasir-alur-kerja": [["shift", "shift-open"], ["pos", "pos-primary"], ["pos", "pos-expense-button"], ["history", "history-filter"], ["history", "history-approval-actions"], ["shift", "shift-close"]],
   "cashier-piutang-tab": [["customers", "customers-debt-tab"], ["customers", "customers-debt-tab"], ["customers", "customers-pay-debt"], ["customers", "customers-pay-debt"]],
   "cashier-upload-bukti": [["history", "history-primary"], ["history", "history-upload-proof"], ["history", "history-upload-proof"], ["history", "history-upload-proof"]],

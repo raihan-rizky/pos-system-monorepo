@@ -485,15 +485,16 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
       government: null,
       special: null,
       appliedUnitPrice: 50000,
-      subtotal: 150000,
+      discount: 15000,
+      subtotal: 135000,
       appliedPricing: null,
     };
     buildApprovalQuoteMock.mockResolvedValue({
       items: [quoteItem],
-      subtotal: 150000,
+      subtotal: 135000,
       discount: 0,
       tax: 0,
-      total: 150000,
+      total: 135000,
       fingerprint: "fresh-quote",
     });
     transactionUpdateMock.mockResolvedValue({
@@ -520,7 +521,7 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
       expect.objectContaining({
         where: { id: "draft-1" },
         data: expect.objectContaining({
-          items: { deleteMany: {}, create: [expect.objectContaining({ productId: "p3" })] },
+          items: { deleteMany: {}, create: [expect.objectContaining({ productId: "p3", unitPrice: 50000, discount: 15000, subtotal: 135000 })] },
         }),
       }),
     );

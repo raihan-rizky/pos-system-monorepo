@@ -203,6 +203,7 @@ function EditModal({
 
   const [cartItems, setCartItems] = useState<CartEditorItem[]>(
     tx.items.map((i) => ({
+      sourceItemId: i.id,
       productId: i.productId || "",
       productName: i.productName,
       quantity: Number(i.quantity),

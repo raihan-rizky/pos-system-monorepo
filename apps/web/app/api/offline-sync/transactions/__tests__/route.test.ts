@@ -67,6 +67,26 @@ function request(transactions: unknown[]) {
 }
 
 describe("POST /api/offline-sync/transactions", () => {
+  it("persists queued item discounts before invoice discount and tax", async () => {
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), items: [{ productId: "product-1", name: "Produk", price: 1000, quantity: 2, discount: 500 }], discount: 200, taxRate: 10, originalSubtotal: 1500, originalTotal: 1430, amountPaid: 1430 })]));
+    expect(response.status).toBe(200);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 1500, discount: 200, tax: 130, total: 1430, status: "COMPLETED", items: { create: [{ unitPrice: 1000, discount: 500, subtotal: 1500 }] } });
+  });
+  it("caps saved discounts after canonical pricing shrinks the offline line", async () => {
+    productFindManyMock.mockResolvedValue([{ id: "product-1", name: "Produk", price: 100, stock: 10 }]);
+    await POST(request([offlineTx({ createdAt: new Date().toISOString(), items: [{ productId: "product-1", name: "Produk", price: 1000, quantity: 2, discount: 500 }], discount: 200, originalSubtotal: 1500, originalTotal: 1300 })]));
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 0, discount: 0, total: 0, status: "PENDING_APPROVAL", items: { create: [{ unitPrice: 100, discount: 200, subtotal: 0 }] } });
+  });
+  it("caps discounts after stock adjustment and retains approval metadata", async () => {
+    productFindManyMock.mockResolvedValue([{ id: "product-1", name: "Produk", price: 1000, stock: 1 }]);
+    await POST(request([offlineTx({ createdAt: new Date().toISOString(), items: [{ productId: "product-1", name: "Produk", price: 1000, quantity: 2, discount: 1500 }], discount: 100, taxRate: 10, originalSubtotal: 500, originalTotal: 440 })]));
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 0, discount: 0, tax: 0, total: 0, status: "PENDING_APPROVAL", items: { create: [{ quantity: 1, discount: 1000, subtotal: 0 }] }, offlineSyncMetadata: { reason: "ADJUSTED_TOTAL_CHANGED", originalTotal: 440, adjustedTotal: 0 } });
+  });
+  it.each([-1, "500", null])("rejects invalid queued item discount %s", async (discount) => {
+    const response = await POST(request([offlineTx({ items: [{ productId: "product-1", name: "Produk", price: 1000, quantity: 2, discount }] })]));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
   it("preserves the checkout tax when syncing a current offline sale", async () => {
     const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), taxRate: 12.5, discount: 200, originalTotal: 2025, amountPaid: 2025 })]));
     expect(response.status).toBe(200);

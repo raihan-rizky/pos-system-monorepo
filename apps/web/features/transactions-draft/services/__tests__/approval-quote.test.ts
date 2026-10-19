@@ -5,6 +5,115 @@ import {
 } from "../approval-quote";
 
 describe("buildApprovalFingerprint", () => {
+  it("preserves a saved line discount through repricing and recalculates tax after both discounts", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM", discount: 5 });
+    const transaction = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...transaction, taxRate: 10, taxMethod: "STANDARD", items: [{ id: "line-1", productId: "paper", printingServiceId: null, discount: 20 }] } as never);
+    const quote = await buildApprovalQuote(client as never, {
+      storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ sourceItemId: "line-1", productId: "paper", quantity: 2 }],
+    });
+    expect(quote).toMatchObject({ subtotal: 180, discount: 5, tax: 18, total: 193 });
+    expect(quote.items[0]).toMatchObject({ appliedUnitPrice: 100, discount: 20, subtotal: 180 });
+  });
+
+  it("preserves an omitted source id for a unique saved product and clamps its discount to the repriced line", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [
+      { id: "line-1", productId: "paper", printingServiceId: null, discount: 150 },
+    ] } as never);
+    const quote = await buildApprovalQuote(client as never, {
+      storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ productId: "paper", quantity: 1 }],
+    });
+    expect(quote.items[0]).toMatchObject({ input: { sourceItemId: "line-1" }, appliedUnitPrice: 100, discount: 100, subtotal: 0 });
+    expect(quote.total).toBe(0);
+  });
+
+  it("requires source ids for ambiguous saved discounted product rows", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [
+      { id: "line-1", productId: "paper", printingServiceId: null, discount: 20 },
+      { id: "line-2", productId: "paper", printingServiceId: null, discount: 5 },
+    ] } as never);
+    await expect(buildApprovalQuote(client as never, {
+      storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ productId: "paper", quantity: 1 }, { productId: "paper", quantity: 1 }],
+    })).rejects.toThrow("APPROVAL_SOURCE_ITEM_REQUIRED");
+  });
+
+  it("reserves explicit source rows before inferring missing ids and never clones their discount", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [
+      { id: "line-1", productId: "paper", printingServiceId: null, discount: 20 },
+      { id: "line-2", productId: "paper", printingServiceId: null, discount: 5 },
+    ] } as never);
+    const quote = await buildApprovalQuote(client as never, {
+      storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ productId: "paper", quantity: 1 }, { sourceItemId: "line-1", productId: "paper", quantity: 1 }],
+    });
+    expect(quote.items.map((line) => line.discount)).toEqual([5, 20]);
+    expect(quote.subtotal).toBe(175);
+  });
+
+  it("does not reuse a saved discounted source for an additional omitted row", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [
+      { id: "line-1", productId: "paper", printingServiceId: null, discount: 20 },
+    ] } as never);
+    await expect(buildApprovalQuote(client as never, {
+      storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ productId: "paper", quantity: 1 }, { productId: "paper", quantity: 1 }],
+    })).rejects.toThrow("APPROVAL_SOURCE_ITEM_REQUIRED");
+  });
+
+  it("rejects attaching a saved discount to a different product", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [
+      { id: "line-1", productId: "another-product", printingServiceId: null, discount: 20 },
+    ] } as never);
+    await expect(buildApprovalQuote(client as never, {
+      storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ sourceItemId: "line-1", productId: "paper", quantity: 1 }],
+    })).rejects.toThrow("APPROVAL_INVALID_SOURCE_ITEM");
+  });
+
+  it("requires the saved service source id when its identifying details are edited", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [
+      { id: "service-line", productId: null, printingServiceId: "print", rawMaterialProductId: "paper", serviceNote: "Depan", size: null, material: null, discount: 20 },
+    ] } as never);
+    client.printingService.findMany.mockResolvedValue([{ id: "print", storeId: "store-1", name: "Cetak", basePrice: 100, unit: "lembar", updatedAt: new Date() }] as never);
+    await expect(buildApprovalQuote(client as never, {
+      storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ printingServiceId: "print", quantity: 1, serviceNote: "Belakang" }],
+    })).rejects.toThrow("APPROVAL_SOURCE_ITEM_REQUIRED");
+  });
+
+  it("preserves saved service discounts without accepting a submitted replacement", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [
+      { id: "service-line", productId: null, printingServiceId: "print", discount: 20 },
+    ] } as never);
+    client.printingService.findMany.mockResolvedValue([{ id: "print", storeId: "store-1", name: "Cetak", basePrice: 100, unit: "lembar", updatedAt: new Date() }] as never);
+    const input = { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ sourceItemId: "service-line", printingServiceId: "print", quantity: 2, discount: 199 }] };
+    const first = await buildApprovalQuote(client as never, input);
+    expect(first.items[0]).toMatchObject({ appliedUnitPrice: 100, discount: 20, subtotal: 180 });
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [
+      { id: "service-line", productId: null, printingServiceId: "print", discount: 10 },
+    ] } as never);
+    const second = await buildApprovalQuote(client as never, input);
+    expect(second.fingerprint).not.toBe(first.fingerprint);
+  });
+
   it("quotes sequential modal pricing with both percentages from the current unit", async () => {
     const client = makeQuoteClient({ customerType: "UMUM", rules: [{ id: "sequential", categoryId: "paper-category", category: { name: "Paper" }, customerType: null, customerTypes: [], unit: "rim", brandId: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5, isActive: true }] });
     const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true, items: [{ productId: "paper", quantity: 2 }] });

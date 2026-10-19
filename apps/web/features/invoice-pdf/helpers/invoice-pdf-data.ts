@@ -30,6 +30,7 @@ export interface InvoicePdfItem {
   unit: string;
   unitPriceFormatted: string;
   subtotalFormatted: string;
+  discountFormatted?: string;
 }
 
 export interface InvoicePdfTotals {
@@ -190,6 +191,7 @@ export function buildInvoicePdfData(
       unit,
       unitPriceFormatted: formatNumber(item.unitPrice),
       subtotalFormatted: formatNumber(item.subtotal),
+      discountFormatted: Number(item.discount) > 0 ? formatNumber(Number(item.discount ?? 0)) : undefined,
     };
   });
 

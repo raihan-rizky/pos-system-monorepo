@@ -5,6 +5,7 @@ import { ReceiptModal } from "@/components/ReceiptModal";
 import { DraftReceiptModal } from "@/components/DraftReceiptModal";
 import { buildInvoicePdfData } from "@/features/invoice-pdf/helpers/invoice-pdf-data";
 import { buildDraftPdfData } from "@/features/invoice-pdf/helpers/draft-pdf-data";
+import { DraftPdfDocument } from "@/features/invoice-pdf/components/DraftPdfDocument";
 import { InvoicePdfDocument } from "@/features/invoice-pdf/components/InvoicePdfDocument";
 import type { Transaction } from "@/hooks/useTransactions";
 
@@ -81,5 +82,45 @@ describe("tax receipt output", () => {
     expect(html).toContain("DPP Nilai Lain");
     expect(html).toContain("647.167");
     expect(buildDraftPdfData(zero, store)).toMatchObject({ taxFormatted: "0", grandTotal: 706000 });
+  });
+});
+
+
+describe("item discount receipt output", () => {
+  const discounted = {
+    ...transaction, subtotal: 25000, discount: 2000, tax: 0, total: 23000,
+    items: [{ id: "line-1", productName: "Kertas", quantity: 3, unitPrice: 10000, discount: 5000, subtotal: 25000 }],
+  } as unknown as Transaction;
+  const plain = {
+    ...discounted, subtotal: 30000, total: 28000,
+    items: [{ ...discounted.items[0], discount: undefined, subtotal: 30000 }],
+  } as Transaction;
+  const documentText = (node: React.ReactNode): string => React.Children.toArray(node).map(child => React.isValidElement<{ children?: React.ReactNode }>(child) ? documentText(child.props.children) : String(child)).join(" ");
+
+  it.each([ReceiptModal, DraftReceiptModal])("shows the line discount with the net subtotal in HTML receipts", Component => {
+    const html = renderToStaticMarkup(<Component open onClose={vi.fn()} transaction={discounted} />);
+    expect(html).toContain("Diskon item Rp5.000");
+    expect(html).toContain("25.000");
+    expect(html).toContain("10.000");
+    const noDiscount = renderToStaticMarkup(<Component open onClose={vi.fn()} transaction={plain} />);
+    expect(noDiscount).not.toContain("Diskon item");
+  });
+
+  it("shows item discounts on invoice PDFs without subtracting them again", () => {
+    const data = buildInvoicePdfData(discounted, store);
+    const content = documentText(InvoicePdfDocument({ data, paperSize: { w: 215.9, h: 139.7 } }));
+    expect(content).toContain("Diskon item Rp5.000");
+    expect(data.items[0]).toMatchObject({ unitPriceFormatted: "10.000", subtotalFormatted: "25.000" });
+    expect(data.totals.grandTotal).toBe(23000);
+    expect(documentText(InvoicePdfDocument({ data: buildInvoicePdfData(plain, store), paperSize: { w: 215.9, h: 139.7 } }))).not.toContain("Diskon item");
+  });
+
+  it("shows item discounts on quotation PDFs while keeping invoice discounts separate", () => {
+    const data = buildDraftPdfData(discounted, store);
+    const content = documentText(DraftPdfDocument({ data }));
+    expect(content).toContain("Diskon item Rp5.000");
+    expect(data.items[0]).toMatchObject({ unitPriceFormatted: "10.000", subtotalFormatted: "25.000" });
+    expect(data.netAmountFormatted).toBe("23.000");
+    expect(documentText(DraftPdfDocument({ data: buildDraftPdfData(plain, store) }))).not.toContain("Diskon item");
   });
 });

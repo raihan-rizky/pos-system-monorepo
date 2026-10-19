@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { db, Prisma } from "@pos/db";
+import { db } from "@pos/db";
+import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
+import { calculateTransactionTax, getTransactionTaxMethod, getTransactionTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { z } from "zod";
 import {
@@ -10,6 +12,7 @@ import {
 const patchItemsSchema = z.object({
   items: z.array(
     z.object({
+      sourceItemId: z.string().min(1).nullable().optional(),
       productId: z.string().nullable().optional().transform(val => val === "" ? null : val),
       productName: z.string(),
       quantity: z.number().positive(),
@@ -55,8 +58,12 @@ export async function PATCH(
       select: {
         id: true,
         status: true,
+        subtotal: true,
         discount: true,
-        items: { select: { productId: true, quantity: true } },
+        tax: true,
+        taxRate: true,
+        taxMethod: true,
+        items: { select: { id: true, productId: true, productName: true, quantity: true, discount: true } },
       },
     });
 
@@ -71,16 +78,47 @@ export async function PATCH(
       );
     }
 
-    // Recompute every line subtotal and the transaction totals from the
-    // server-side price × quantity — never trust the client-supplied subtotal.
-    // Preserve the transaction's original discount.
-    const normalizedItems = items.map((item) => ({
-      ...item,
-      subtotal: item.appliedUnitPrice * item.quantity,
-    }));
+    // Bind discounts to the saved line identity, never to client amounts.
+    // Reserve explicit identities first so an added row cannot claim one before
+    // the original row when several rows use the same product.
+    const sourceIds = new Set<string>();
+    for (const item of items) {
+      if (!item.sourceItemId) continue;
+      const source = existingTx.items.find(old => old.id === item.sourceItemId);
+      if (sourceIds.has(item.sourceItemId) || !source ||
+          (source.productId ?? null) !== (item.productId ?? null) ||
+          (!source.productId && source.productName !== item.productName)) {
+        return NextResponse.json({ message: "Identitas item tidak sesuai. Muat ulang transaksi lalu coba lagi." }, { status: 400 });
+      }
+      sourceIds.add(item.sourceItemId);
+    }
+    const normalizedItems = items.map(item => {
+      let source = item.sourceItemId
+        ? existingTx.items.find(old => old.id === item.sourceItemId)
+        : undefined;
+      if (!item.sourceItemId) {
+        const matches = existingTx.items.filter(old =>
+          (old.productId ?? null) === (item.productId ?? null) &&
+          (old.productId || old.productName === item.productName));
+        const available = matches.filter(old => !sourceIds.has(old.id));
+        if (matches.length === 1 && available.length === 1) {
+          source = available[0];
+          sourceIds.add(source.id);
+        } else if (matches.some(old => Number(old.discount ?? 0) > 0)) {
+          throw new Error("ITEM_DISCOUNT_SOURCE_REQUIRED");
+        }
+      }
+      const gross = discountedLineSubtotal(item.appliedUnitPrice, item.quantity);
+      const discount = Math.min(gross, Math.max(0, Number(source?.discount ?? 0)));
+      return { ...item, discount, subtotal: discountedLineSubtotal(item.appliedUnitPrice, item.quantity, discount) };
+    });
     const subtotal = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
     const discount = Number(existingTx.discount ?? 0);
-    const total = Math.max(0, subtotal - discount);
+    const { tax, total } = calculateTransactionTax({
+      subtotal, discount,
+      taxRate: getTransactionTaxRate(existingTx),
+      taxMethod: getTransactionTaxMethod(existingTx),
+    });
 
     // Build the net stock delta only for sales that already moved stock.
     // delta sign: positive restores stock, negative deducts it. We restore the
@@ -113,6 +151,7 @@ export async function PATCH(
         where: { id },
         data: {
           subtotal,
+          tax,
           total,
           items: {
             deleteMany: {},
@@ -124,6 +163,7 @@ export async function PATCH(
               appliedUnitPrice: item.appliedUnitPrice,
               originalUnitPrice: item.originalUnitPrice,
               subtotal: item.subtotal,
+              discount: item.discount,
             }))
           }
         }
@@ -134,6 +174,10 @@ export async function PATCH(
   } catch (error) {
     const authError = handleAuthError(error);
     if (authError) return authError;
+
+    if (error instanceof Error && error.message === "ITEM_DISCOUNT_SOURCE_REQUIRED") {
+      return NextResponse.json({ message: "Pilih identitas item yang sesuai agar diskon tetap tersimpan. Muat ulang transaksi lalu coba lagi." }, { status: 400 });
+    }
 
     if (
       error instanceof StockMutationError &&

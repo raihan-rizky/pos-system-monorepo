@@ -306,7 +306,12 @@ export function ReceiptModal({
                       {items.map((item, index) => (
                         <tr key={item.id ?? `item-${index}`}>
                           <td className={`border border-black ${cellPad} text-center`}>{index + 1}</td>
-                          <td className={`border border-black ${cellPad}`}>{item.productName}</td>
+                          <td className={`border border-black ${cellPad}`}>
+                            {item.productName}
+                            {Number(item.discount) > 0 && (
+                              <div className="text-[0.9em]">{`Diskon item Rp${Number(item.discount).toLocaleString("id-ID")}`}</div>
+                            )}
+                          </td>
                           {hasSize && (
                             <td className={`border border-black ${cellPad} text-center`}>{formatReceiptSize(item.size) || "-"}</td>
                           )}

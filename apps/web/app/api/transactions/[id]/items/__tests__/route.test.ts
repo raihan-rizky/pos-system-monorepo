@@ -213,4 +213,67 @@ describe("PATCH /api/transactions/[id]/items", () => {
     expect(args.data.subtotal).toBe(2000);
     expect(args.data.total).toBe(1500);
   });
+  it.each(["DRAFT", "COMPLETED"])("preserves stored line discounts on %s metadata edits and ignores injected discounts", async status => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ status, discount: 100, items: [{ id: "saved-1", productId: "p1", productName: "Product 1", quantity: 2, discount: 500 }] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line({ sourceItemId: "saved-1", discount: 1999, subtotal: 1 })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 1500, total: 1400, items: { create: [{ discount: 500, subtotal: 1500 }] } });
+  });
+
+  it("caps a stored discount when the line quantity or price shrinks", async () => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ items: [{ id: "saved-1", productId: "p1", quantity: 2, discount: 1500 }] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line({ sourceItemId: "saved-1", quantity: 1, appliedUnitPrice: 1000 })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 0, total: 0, items: { create: [{ discount: 1000, subtotal: 0 }] } });
+  });
+
+  it("keeps different discounts attached to their source rows when duplicate products reorder", async () => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ items: [{ id: "a", productId: "p1", quantity: 2, discount: 500 }, { id: "b", productId: "p1", quantity: 2, discount: 100 }] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line({ sourceItemId: "b" }), line({ sourceItemId: "a" })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock.mock.calls[0][0].data.items.create).toMatchObject([{ discount: 100, subtotal: 1900 }, { discount: 500, subtotal: 1500 }]);
+  });
+
+  it.each([
+    [line({ sourceItemId: "a" }), line({ sourceItemId: "a" })],
+    [line({ sourceItemId: "not-owned" })],
+    [line({ sourceItemId: "a", productId: "another-product" })],
+    [line(), line()],
+  ])("rejects duplicate, invalid or ambiguous discount sources instead of cloning savings", async (...items) => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ items: [{ id: "a", productId: "p1", quantity: 2, discount: 500 }, { id: "b", productId: "p1", quantity: 2, discount: 100 }] }));
+    const response = await PATCH(makeRequest("tx-1", { items }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(400);
+    expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves a unique legacy row but grants no injected discount to newly added products", async () => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ items: [{ id: "saved-1", productId: "p1", quantity: 2, discount: 500 }] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line(), line({ productId: "p2", discount: 5000 })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock.mock.calls[0][0].data.items.create).toMatchObject([{ discount: 500, subtotal: 1500 }, { discount: 0, subtotal: 2000 }]);
+  });
+
+  it.each([
+    { taxRate: 10, taxMethod: "STANDARD", tax: 140, total: 1540 },
+    { taxRate: null, taxMethod: "STANDARD", tax: 140, total: 1540 },
+    { taxRate: 12, taxMethod: "DPP_NILAI_LAIN", tax: 154, total: 1554 },
+  ])("keeps saved tax and payment state on metadata-only saves ($taxMethod, $taxRate)", async taxFields => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ ...taxFields, subtotal: 1500, discount: 100, amountPaid: 2000, change: 460, items: [{ id: "saved-1", productId: "p1", quantity: 2, discount: 500 }] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line({ sourceItemId: "saved-1" })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    const data = transactionUpdateMock.mock.calls[0][0].data;
+    expect(data).toMatchObject({ subtotal: 1500, tax: taxFields.tax, total: taxFields.total });
+    expect(data).not.toHaveProperty("amountPaid");
+    expect(data).not.toHaveProperty("change");
+    expect(data).not.toHaveProperty("status");
+  });
+
+  it("recomputes saved tax from the new net line subtotal after a quantity edit", async () => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ subtotal: 1500, discount: 100, tax: 140, taxRate: 10, taxMethod: "STANDARD", items: [{ id: "saved-1", productId: "p1", quantity: 2, discount: 500 }] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line({ sourceItemId: "saved-1", quantity: 3 })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 2500, tax: 240, total: 2640 });
+  });
+
 });

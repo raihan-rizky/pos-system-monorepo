@@ -504,7 +504,9 @@ export function InvoicePdfDocument({
               <Text style={[tdStyle, s.colNo, { textAlign: "center" }]}>
                 {item.no}
               </Text>
-              <Text style={[tdStyle, s.colName]}>{item.productName}</Text>
+              <Text style={[tdStyle, s.colName]}>
+                {item.discountFormatted ? `${item.productName}\nDiskon item Rp${item.discountFormatted}` : item.productName}
+              </Text>
               {data.hasSize && (
                 <Text style={[tdStyle, s.colSize, { textAlign: "center" }]}>
                   {item.size}
