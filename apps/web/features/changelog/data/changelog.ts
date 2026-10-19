@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "shopping-request-payment-method", date: "2026-10-19", revision: 1,
+    highlight: { title: "Transfer atau Giro untuk belanja", summary: "Catat metode pembayaran dan jatuh tempo giro saat menyetujui Daftar Belanja." },
+    title: "Pilih pembayaran saat menyetujui belanja.",
+    summary: "Pilih Transfer atau Giro di sebelah total Pengeluaran; Giro wajib disertai Tanggal Jatuh Tempo. Metode tersimpan bersama pembelian dan tampil sebagai badge pada kartu Daftar Belanja.",
+    kind: "feature", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "changelog",
+    screenshot: { src: "/images/changelog/pembayaran-daftar-belanja.png", alt: "Field Metode Pembayaran dipilih Giro dan Tanggal Jatuh Tempo berisi 2 November 2026 pada modal persetujuan Daftar Belanja dengan data contoh" },
+    steps: [
+      { title: "Tinjau daftar", detail: "Buka Supplier > Daftar Belanja, lalu pilih Tinjau & Setujui pada pengajuan baru." },
+      { title: "Pilih pembayaran", detail: "Pilih Transfer atau Giro di sebelah Total Pengeluaran; isi Tanggal Jatuh Tempo jika memakai Giro." },
+      { title: "Setujui pembelian", detail: "Klik Setujui dan Catat Pembelian, lalu lihat badge Transfer atau Giro pada kartu Daftar Belanja." },
+    ],
+  },
+  {
     id: "special-pricing-hpp-margin-preview", date: "2026-10-19", revision: 1,
     highlight: { title: "Cek margin Harga Khusus", summary: "Lihat HPP tiap satuan dan peringatan harga di bawah modal sebelum menyimpan." },
     title: "Sumber HPP dan margin lebih jelas.",

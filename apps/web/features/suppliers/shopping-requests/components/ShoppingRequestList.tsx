@@ -223,6 +223,11 @@ export function ShoppingRequestList({
                           {fulfillment.label}
                         </span>
                       )}
+                      {row.purchase?.status === "APPROVED" && row.purchase.paymentMethod && (
+                        <span aria-label={`Metode pembayaran: ${row.purchase.paymentMethod === "GIRO" ? "Giro" : "Transfer"}`} className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-sky-800">
+                          {row.purchase.paymentMethod === "GIRO" ? "Giro" : "Transfer"}
+                        </span>
+                      )}
                     </div>
                      <p className="mt-1 break-words text-xs leading-relaxed text-slate-500">
                       {row.supplierName ?? "Supplier belum dipilih"} · {row.number} · {new Date(row.createdAt).toLocaleDateString("id-ID")}

@@ -8,6 +8,7 @@ const hooks = vi.hoisted(() => ({
   dependencies: [] as unknown[][],
   effects: [] as (() => void)[], dirty: false, data: null as any,
 }));
+const finalizePayment = vi.hoisted(() => vi.fn().mockResolvedValue({}));
 vi.mock("react", async (original) => ({
   ...await original<typeof import("react")>(),
   useState: (initial: unknown) => {
@@ -34,7 +35,7 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("../../hooks/useShoppingRequests", () => ({
   useShoppingRequest: () => ({ data: hooks.data }),
-  useFinalizeShoppingRequest: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useFinalizeShoppingRequest: () => ({ isPending: false, mutateAsync: finalizePayment }),
   useRejectShoppingRequest: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canPerform: () => true }) }));
@@ -80,8 +81,55 @@ const approve = (tree: ReactElement<any>) => find(tree, (node) => node.props.chi
 
 describe("final approval session", () => {
   beforeEach(() => {
+    finalizePayment.mockClear();
     hooks.values = []; hooks.dependencies = []; hooks.effects = [];
     hooks.data = request("A");
+  });
+
+  it("defaults to transfer and submits without a due date", async () => {
+    const tree = render("A");
+    expect(find(tree, (node) => node.type === "select" && node.props.name === "paymentMethod").props.value).toBe("TRANSFER");
+    expect(() => find(tree, (node) => node.type === "input" && node.props.type === "date")).toThrow();
+    await find(tree, (node) => node.type === "form").props.onSubmit({ preventDefault: vi.fn() });
+    expect(finalizePayment).toHaveBeenCalledWith(expect.objectContaining({
+      input: expect.objectContaining({ paymentMethod: "TRANSFER", paymentDueDate: null }),
+    }));
+  });
+
+  it("requires a due date for giro and includes it in the approval", async () => {
+    let tree = render("A");
+    find(tree, (node) => node.type === "select" && node.props.name === "paymentMethod").props.onChange({ target: { value: "GIRO" } });
+    tree = render("A");
+    expect(approve(tree).props.disabled).toBe(true);
+    await find(tree, (node) => node.type === "form").props.onSubmit({ preventDefault: vi.fn() });
+    expect(finalizePayment).not.toHaveBeenCalled();
+    const date = find(tree, (node) => node.type === "input" && node.props.type === "date");
+    expect(date.props.required).toBe(true);
+    date.props.onChange({ target: { value: "2026-11-02" } });
+    tree = render("A");
+    expect(approve(tree).props.disabled).toBe(false);
+    await find(tree, (node) => node.type === "form").props.onSubmit({ preventDefault: vi.fn() });
+    expect(finalizePayment).toHaveBeenCalledWith(expect.objectContaining({
+      input: expect.objectContaining({ paymentMethod: "GIRO", paymentDueDate: "2026-11-02" }),
+    }));
+  });
+
+  it("clears the giro date when switching to transfer and resets payment on reopening", () => {
+    let tree = render("A");
+    const method = (current: ReactElement<any>) => find(current, (node) => node.type === "select" && node.props.name === "paymentMethod");
+    method(tree).props.onChange({ target: { value: "GIRO" } });
+    tree = render("A");
+    find(tree, (node) => node.type === "input" && node.props.type === "date").props.onChange({ target: { value: "2026-11-02" } });
+    tree = render("A");
+    method(tree).props.onChange({ target: { value: "TRANSFER" } });
+    tree = render("A");
+    method(tree).props.onChange({ target: { value: "GIRO" } });
+    tree = render("A");
+    expect(find(tree, (node) => node.type === "input" && node.props.type === "date").props.value).toBe("");
+    hooks.data = null;
+    render(null);
+    hooks.data = request("A");
+    expect(method(render("A")).props.value).toBe("TRANSFER");
   });
 
   function confirmAndEnterReason() {

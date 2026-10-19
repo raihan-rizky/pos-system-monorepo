@@ -6,6 +6,7 @@ import type { ShoppingRequestActor } from "../types/shopping-request";
 import type { FinalizeShoppingRequestInput } from "../services/finalize-shopping-request";
 import { validateFinalApproval } from "../services/finalize-shopping-request";
 import { FinalApprovalError } from "../services/final-approval-error";
+import { shoppingRequestPaymentSchema } from "../helpers/shopping-request-payment";
 
 export async function finalizeShoppingRequestRecord(
   id: string,
@@ -13,6 +14,8 @@ export async function finalizeShoppingRequestRecord(
   actor: ShoppingRequestActor,
   now = new Date(),
 ): Promise<{ shoppingRequestId: string; goodsPurchaseId: string }> {
+  const payment = shoppingRequestPaymentSchema.safeParse(input);
+  if (!payment.success) throw new FinalApprovalError(payment.error.issues[0].message);
   try {
     return await db.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string }>>`
@@ -145,6 +148,8 @@ export async function finalizeShoppingRequestRecord(
           supplierId: request.supplierId,
           supplierNameSnapshot: request.supplier.name,
           totalAmount: totalAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
+          paymentMethod: payment.data.paymentMethod,
+          paymentDueDate: payment.data.paymentDueDate ? new Date(`${payment.data.paymentDueDate}T00:00:00.000Z`) : null,
           createdById: actor.id,
           createdByName: actor.name,
           items: { create: createItems },

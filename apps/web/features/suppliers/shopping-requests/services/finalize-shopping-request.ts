@@ -1,6 +1,7 @@
 import type { ShoppingRequestActor } from "../types/shopping-request";
 import { finalizeShoppingRequestRecord } from "../repositories/finalize-shopping-request-repository";
 import { FinalApprovalError } from "./final-approval-error";
+import { shoppingRequestPaymentSchema, type ShoppingRequestPaymentInput } from "../helpers/shopping-request-payment";
 export { FinalApprovalError } from "./final-approval-error";
 
 export type FinalApprovalItem = {
@@ -18,7 +19,7 @@ export type FinalApprovalExtraItem = {
   updateMasterHpp: boolean;
 };
 
-export type FinalizeShoppingRequestInput = {
+export type FinalizeShoppingRequestInput = ShoppingRequestPaymentInput & {
   items: FinalApprovalItem[];
   extraItems: FinalApprovalExtraItem[];
   confirmOverRequested?: boolean;
@@ -29,6 +30,8 @@ export function validateFinalApproval(
   products: Array<{ id: string; stockGroupId: string | null; isActive: boolean }>,
   input: FinalizeShoppingRequestInput,
 ): FinalizeShoppingRequestInput {
+  const payment = shoppingRequestPaymentSchema.safeParse(input);
+  if (!payment.success) throw new FinalApprovalError(payment.error.issues[0].message);
   if (input.items.length !== requestItems.length) {
     throw new FinalApprovalError("Semua barang pada daftar belanja harus ditinjau.");
   }

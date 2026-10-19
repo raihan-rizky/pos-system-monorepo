@@ -5,6 +5,7 @@ import { apiError, apiValidationError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { finalizeShoppingRequest, FinalApprovalError } from "@/features/suppliers/shopping-requests/services/finalize-shopping-request";
 import { sendRolePushEvent } from "@/lib/push-events";
+import { shoppingRequestPaymentSchema } from "@/features/suppliers/shopping-requests/helpers/shopping-request-payment";
 
 const log = getLogger("api:suppliers:shopping-requests:finalize");
 const itemSchema = z.object({
@@ -21,14 +22,14 @@ const schema = z.object({
   items: z.array(itemSchema).min(1),
   extraItems: z.array(extraItemSchema).default([]),
   confirmOverRequested: z.boolean().optional(),
-});
+}).and(shoppingRequestPaymentSchema);
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requirePermission("supplier.goods_purchase.approve", "update");
     if (!user.storeId) return apiError("Toko pengguna tidak tersedia", 403);
     const parsed = schema.safeParse(await request.json());
-    if (!parsed.success) return apiValidationError(parsed.error, "Periksa kembali jumlah dan harga beli.");
+    if (!parsed.success) return apiValidationError(parsed.error, "Periksa kembali jumlah, harga beli, dan data pembayaran.");
     const { id } = await params;
     const result = await finalizeShoppingRequest(id, parsed.data, {
       id: user.id, name: user.name, storeId: user.storeId,

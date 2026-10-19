@@ -60,6 +60,18 @@ function elements(node: unknown): ReactElement<any>[] {
 }
 
 describe("status penerimaan di Daftar Belanja", () => {
+  it.each(["GIRO", "TRANSFER"] as const)("shows the recorded %s payment badge on an approved purchase", (paymentMethod) => {
+    listMock.mockReturnValue({ data: { data: [row({ ...purchase("NOT_RECEIVED"), paymentMethod })] } });
+    expect(renderToStaticMarkup(render())).toContain(`aria-label="Metode pembayaran: ${paymentMethod === "GIRO" ? "Giro" : "Transfer"}"`);
+  });
+
+  it.each([null, "PENDING", "REJECTED"] as const)("does not invent a payment badge for legacy or %s purchases", (status) => {
+    listMock.mockReturnValue({ data: { data: [row(status === null
+      ? purchase("NOT_RECEIVED")
+      : { ...purchase("NOT_RECEIVED", status), paymentMethod: "GIRO" })] } });
+    expect(renderToStaticMarkup(render())).not.toContain('aria-label="Metode pembayaran:');
+  });
+
   beforeEach(() => {
     state.values = []; state.index = 0; vi.clearAllMocks();
     listMock.mockReturnValue({ data: { data: [row(purchase("NOT_RECEIVED"))] }, isPending: false });

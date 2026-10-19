@@ -15,6 +15,19 @@ const input = {
 };
 
 describe("validateFinalApproval", () => {
+  it.each([undefined, null, "", "2026-02-30", "2026-13-01", "19/10/2026"])("rejects giro with an invalid due date: %s", (paymentDueDate) => {
+    expect(() => validateFinalApproval(requestItems, products, {
+      ...input, paymentMethod: "GIRO", paymentDueDate,
+    })).toThrow(/jatuh tempo/i);
+  });
+
+  it("accepts giro with a calendar date and transfer without a date", () => {
+    const giro = { ...input, paymentMethod: "GIRO" as const, paymentDueDate: "2026-11-02" };
+    expect(validateFinalApproval(requestItems, products, giro)).toEqual(giro);
+    const transfer = { ...input, paymentMethod: "TRANSFER" as const };
+    expect(validateFinalApproval(requestItems, products, transfer)).toEqual(transfer);
+  });
+
   it("allows a same-group unit change while keeping the quantity number", () => {
     expect(validateFinalApproval(requestItems, products, input)).toEqual(input);
   });

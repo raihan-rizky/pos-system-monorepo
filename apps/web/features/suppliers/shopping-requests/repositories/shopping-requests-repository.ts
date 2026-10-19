@@ -86,7 +86,7 @@ export function listShoppingRequests(
       where: buildShoppingRequestWhere(filters),
       include: {
         supplier: { select: { id: true, name: true } },
-        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true } },
+        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true } },
         _count: { select: { items: true } },
         items: {
           select: {
@@ -105,10 +105,12 @@ export function listShoppingRequests(
         id: row.id,
         purchase: row.goodsPurchases?.[0] ? {
           ...row.goodsPurchases[0],
+          paymentDueDate: row.goodsPurchases[0].paymentDueDate?.toISOString().slice(0, 10) ?? null,
           totalAmount: Number(row.goodsPurchases[0].totalAmount.toString()),
         } : null,
         purchaseHistory: row.goodsPurchases.map((purchase) => ({
           ...purchase,
+          paymentDueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null,
           totalAmount: Number(purchase.totalAmount.toString()),
         })),
         approvalFlowVersion: row.approvalFlowVersion,
@@ -201,7 +203,7 @@ export function findShoppingRequestById(
       where: { id, ...(storeId ? { storeId } : {}) },
       include: {
         supplier: { select: { id: true, name: true } },
-        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true } },
+        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true } },
         items: {
           include: {
             product: { select: { name: true, sku: true, unit: true, imageUrl: true, costPrice: true, conversionNeedsReview: true, unitMultiplierToBase: true, stockGroup: { select: { id: true, displayName: true, baseUnit: true, baseStock: true } } } },
@@ -250,10 +252,12 @@ export function findShoppingRequestById(
         id: row.id,
         purchase: row.goodsPurchases[0] ? {
           ...row.goodsPurchases[0],
+          paymentDueDate: row.goodsPurchases[0].paymentDueDate?.toISOString().slice(0, 10) ?? null,
           totalAmount: Number(row.goodsPurchases[0].totalAmount.toString()),
         } : null,
         purchaseHistory: row.goodsPurchases.map((purchase) => ({
           ...purchase,
+          paymentDueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null,
           totalAmount: Number(purchase.totalAmount.toString()),
         })),
         approvalFlowVersion: row.approvalFlowVersion,

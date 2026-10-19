@@ -17,6 +17,36 @@ import { POST as reject } from "../reject/route";
 const context = { params: Promise.resolve({ id: "request-1" }) };
 
 describe("unified shopping request approval routes", () => {
+  it("passes giro payment details to the approval service", async () => {
+    finalizeShoppingRequest.mockClear();
+    const response = await finalize(new Request("http://localhost/api", {
+      method: "POST", body: JSON.stringify({
+        items: [{ shoppingRequestItemId: "item-1", productId: "product-1", approvedQty: 2, latestUnitPrice: 5000, updateMasterHpp: false }],
+        paymentMethod: "GIRO", paymentDueDate: "2026-11-02",
+      }),
+    }), context);
+    expect(response.status).toBe(200);
+    expect(finalizeShoppingRequest).toHaveBeenCalledWith("request-1", expect.objectContaining({
+      paymentMethod: "GIRO", paymentDueDate: "2026-11-02",
+    }), expect.anything());
+  });
+
+  it.each([
+    { paymentMethod: "GIRO" },
+    { paymentMethod: "GIRO", paymentDueDate: "2026-02-30" },
+    { paymentMethod: "CASH" },
+  ])("rejects invalid payment details before writing: %j", async (payment) => {
+    finalizeShoppingRequest.mockClear();
+    const response = await finalize(new Request("http://localhost/api", {
+      method: "POST", body: JSON.stringify({
+        items: [{ shoppingRequestItemId: "item-1", productId: "product-1", approvedQty: 2, latestUnitPrice: 5000, updateMasterHpp: false }],
+        ...payment,
+      }),
+    }), context);
+    expect(response.status).toBe(422);
+    expect(finalizeShoppingRequest).not.toHaveBeenCalled();
+  });
+
   it("requires purchase approval permission and sends all decisions once", async () => {
     const response = await finalize(new Request("http://localhost/api", {
       method: "POST", body: JSON.stringify({

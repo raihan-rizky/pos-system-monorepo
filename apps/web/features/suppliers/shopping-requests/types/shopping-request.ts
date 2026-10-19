@@ -1,3 +1,5 @@
+import type { ShoppingRequestPaymentMethod } from "../helpers/shopping-request-payment";
+
 export type ShoppingRequestStatus = "REQUESTED" | "APPROVED" | "CANCELLED" | "REJECTED";
 
 export type ShoppingRequestStockMode = "GROUP_STOCK" | "PRODUCT_ONLY";
@@ -28,6 +30,8 @@ export interface ShoppingRequestListItem {
     status: "PENDING" | "APPROVED" | "REJECTED";
     fulfillmentStatus: "NOT_RECEIVED" | "PARTIALLY_RECEIVED" | "RECEIVED";
     totalAmount: number;
+    paymentMethod?: ShoppingRequestPaymentMethod | null;
+    paymentDueDate?: string | null;
   } | null;
   purchaseHistory?: NonNullable<ShoppingRequestListItem["purchase"]>[];
   approvalFlowVersion?: number;

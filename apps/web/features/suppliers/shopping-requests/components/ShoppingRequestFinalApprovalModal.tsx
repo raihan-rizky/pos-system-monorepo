@@ -8,6 +8,7 @@ import { ProductAutocomplete } from "./ProductAutocomplete";
 import { ShoppingRequestUnitSelect, type ShoppingUnitVariant } from "./ShoppingRequestUnitSelect";
 import { useRole } from "@/components/providers/RoleProvider";
 import { ProductStockThumbnail } from "@/features/inventory-management/components/ProductStockThumbnail";
+import { shoppingRequestPaymentSchema, type ShoppingRequestPaymentMethod } from "../helpers/shopping-request-payment";
 
 type DraftLine = {
   key: string;
@@ -39,6 +40,8 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
   const [confirmOverRequested, setConfirmOverRequested] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<ShoppingRequestPaymentMethod>("TRANSFER");
+  const [paymentDueDate, setPaymentDueDate] = useState("");
   const initializedRequestId = useRef<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +95,8 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
     setConfirmOverRequested(false);
     setReason("");
     setError(null);
+    setPaymentMethod("TRANSFER");
+    setPaymentDueDate("");
   }, [requestId]);
 
   useEffect(() => {
@@ -174,7 +179,8 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
   const total = lines.reduce((sum, line) => sum + line.approvedQty * line.latestUnitPrice, 0);
   const canSubmit = initializedRequestId.current === requestId && lines.some((line) => line.approvedQty > 0) &&
     lines.every((line) => Number.isFinite(line.approvedQty) && (line.shoppingRequestItemId ? line.approvedQty >= 0 : line.approvedQty > 0) && Number.isFinite(line.latestUnitPrice) && line.latestUnitPrice >= 0) &&
-    (!hasOverRequested || confirmOverRequested);
+    (!hasOverRequested || confirmOverRequested) && !finalize.isPending && !reject.isPending &&
+    shoppingRequestPaymentSchema.safeParse({ paymentMethod, paymentDueDate }).success;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -198,6 +204,8 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
             updateMasterHpp: line.updateMasterHpp,
           })),
           confirmOverRequested,
+          paymentMethod,
+          paymentDueDate: paymentMethod === "GIRO" ? paymentDueDate : null,
         },
       });
       onClose();
@@ -265,9 +273,27 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
             </label>
             <Button type="button" variant="danger" className="!bg-rose-600 hover:!bg-rose-700 focus:!ring-rose-400" disabled={reason.trim().length < 3 || reject.isPending} onClick={submitRejection}>Tolak Daftar Belanja</Button>
           </details>}
-          <footer className="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-bold text-emerald-800">Total Pengeluaran: {currency.format(total)}</p>
-            <div className="flex gap-2"><Button type="button" variant="secondary" onClick={onClose}>Kembali</Button>{canApprove && <Button type="submit" className="!bg-emerald-600 hover:!bg-emerald-700 focus:!ring-emerald-400" disabled={!canSubmit} loading={finalize.isPending}>Setujui dan Catat Pembelian</Button>}</div>
+          <footer className="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white py-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
+            <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <p className="font-bold text-emerald-800 sm:pb-3">Total Pengeluaran: {currency.format(total)}</p>
+              <label className="text-xs font-bold text-slate-600">Metode Pembayaran
+                <select name="paymentMethod" value={paymentMethod} disabled={!canApprove || finalize.isPending || reject.isPending} onChange={(event) => {
+                  setPaymentMethod(event.target.value as ShoppingRequestPaymentMethod);
+                  setPaymentDueDate("");
+                  setError(null);
+                }} className="mt-1 block h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 disabled:bg-slate-50 sm:w-36">
+                  <option value="TRANSFER">Transfer</option>
+                  <option value="GIRO">Giro</option>
+                </select>
+              </label>
+              {paymentMethod === "GIRO" && <label className="text-xs font-bold text-slate-600">Tanggal Jatuh Tempo
+                <input type="date" name="paymentDueDate" required value={paymentDueDate} disabled={!canApprove || finalize.isPending || reject.isPending} onChange={(event) => {
+                  setPaymentDueDate(event.target.value);
+                  setError(null);
+                }} className="mt-1 block h-12 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 disabled:bg-slate-50 sm:w-44" />
+              </label>}
+            </div>
+            <div className="grid gap-2 sm:flex"><Button type="button" variant="secondary" onClick={onClose}>Kembali</Button>{canApprove && <Button type="submit" className="!bg-emerald-600 hover:!bg-emerald-700 focus:!ring-emerald-400" disabled={!canSubmit} loading={finalize.isPending}>Setujui dan Catat Pembelian</Button>}</div>
           </footer>
         </form>
       )}
