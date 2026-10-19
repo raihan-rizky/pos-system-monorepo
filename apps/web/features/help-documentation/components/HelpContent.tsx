@@ -275,7 +275,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Ubah harga jual produk, harga modal (HPP), Harga Dinas, dan Harga Agen dengan gampang lewat form edit di menu ini.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Tab Produk", description: "Masuk ke menu 'Produk' di sidebar, pastikan Anda berada di tab 'Produk'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Buka Tab Produk", description: "Masuk ke menu 'Produk' di sidebar, pastikan Anda berada di tab 'Produk'. Gunakan Sebelumnya atau Berikutnya di atas maupun bawah daftar untuk berpindah halaman. Setelah menggulir satu layar, tombol Kembali ke atas (panah ke atas) muncul di kanan bawah untuk kembali dengan mulus; gerakannya mengikuti pengaturan perangkat.", icon: <Package className="w-8 h-8" /> },
         { title: "Ubah Harga Langsung", description: "Klik tombol aksi 'Ubah Harga' di kolom paling kanan tabel produk untuk mengubah harga jual secara langsung.", icon: <Settings className="w-8 h-8" /> },
         { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Agen, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
         { title: "Pantau Riwayat", description: "Buka tab 'Riwayat Harga' di bagian atas halaman untuk memantau grafik dan log perubahan harga barang dari waktu ke waktu.", icon: <History className="w-8 h-8" /> },
@@ -484,7 +484,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Ubah harga jual produk, harga modal (HPP), Harga Dinas, dan Harga Agen dengan gampang lewat form edit di menu ini.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Tab Produk", description: "Masuk ke menu 'Produk' di sidebar, pastikan Anda berada di tab 'Produk'.", icon: <Package className="w-8 h-8" /> },
+        { title: "Buka Tab Produk", description: "Masuk ke menu 'Produk' di sidebar, pastikan Anda berada di tab 'Produk'. Gunakan Sebelumnya atau Berikutnya di atas maupun bawah daftar untuk berpindah halaman. Setelah menggulir satu layar, tombol Kembali ke atas (panah ke atas) muncul di kanan bawah untuk kembali dengan mulus; gerakannya mengikuti pengaturan perangkat.", icon: <Package className="w-8 h-8" /> },
         { title: "Ubah Harga Langsung", description: "Klik tombol aksi 'Ubah Harga' di kolom paling kanan tabel produk untuk mengubah harga jual secara langsung.", icon: <Settings className="w-8 h-8" /> },
         { title: "Ubah HPP & Detail", description: "Klik tombol edit (ikon pensil) untuk membuka formulir lengkap. Di sini Anda bisa mengedit Harga Jual dasar, Harga Agen, Harga Dinas, atau Harga Modal/HPP.", icon: <FileText className="w-8 h-8" /> },
         { title: "Pantau Riwayat", description: "Buka tab 'Riwayat Harga' di bagian atas halaman untuk memantau grafik dan log perubahan harga barang dari waktu ke waktu.", icon: <History className="w-8 h-8" /> },

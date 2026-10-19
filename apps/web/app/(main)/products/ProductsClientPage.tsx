@@ -34,6 +34,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ArrowUp,
   ImagePlus,
 } from "lucide-react";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
@@ -212,6 +213,8 @@ function StatCard({
 }
 
 export default function ProductsClientPage() {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
   const [pricingCustomerType, setPricingCustomerType] = useState<CustomerType>("UMUM");
   const { data: categoryPricingRules = [] } = useCustomerCategoryPricingRules({ activeOnly: true });
   const { canPerform, canAccess, role } = useRole();
@@ -251,6 +254,26 @@ export default function ProductsClientPage() {
       setActiveTab(tab as PageTab);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const updateVisibility = () => {
+      setShowScrollToTop(
+        container.clientHeight > 0 && container.scrollTop >= container.clientHeight,
+      );
+    };
+    updateVisibility();
+    container.addEventListener("scroll", updateVisibility, { passive: true });
+    const resizeObserver = new ResizeObserver(updateVisibility);
+    resizeObserver.observe(container);
+
+    return () => {
+      container.removeEventListener("scroll", updateVisibility);
+      resizeObserver.disconnect();
+    };
+  }, [activeTab]);
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -494,7 +517,7 @@ export default function ProductsClientPage() {
     deleteTargetId ? products.find((p) => p.id === deleteTargetId) ?? null : null;
 
   return (
-    <div className="flex-1 overflow-y-auto w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-purple-50/50 min-h-0">
+    <div ref={scrollContainerRef} tabIndex={-1} className="flex-1 overflow-y-auto w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-purple-50/50 min-h-0">
       <div className="max-w-[96rem] mx-auto px-4 sm:px-6 lg:px-4 xl:px-6 pt-8 pb-24 space-y-8">
         {/* -- Header -- */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -1037,6 +1060,18 @@ export default function ProductsClientPage() {
               </HorizontalScroll>
             </div>
 
+            {pagination && pagination.total > 0 && (
+              <ProductsPager
+                ariaLabel="Pagination produk atas"
+                page={currentPage}
+                totalPages={totalPages}
+                total={pagination.total}
+                limit={pagination.limit}
+                isFetching={isPageFetching}
+                onPageChange={setPage}
+              />
+            )}
+
             {/* Content Area */}
             <div className="bg-slate-50/50 min-h-[400px]">
               <div className="flex items-center gap-2 px-5 pt-4">
@@ -1129,6 +1164,27 @@ export default function ProductsClientPage() {
           </div>
         )}
       </div>
+
+      {activeTab === "products" && showScrollToTop && (
+        <button
+          type="button"
+          aria-label="Kembali ke atas"
+          title="Kembali ke atas"
+          onClick={() => {
+            const container = scrollContainerRef.current;
+            container?.scrollTo({
+              top: 0,
+              behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                ? "instant"
+                : "smooth",
+            });
+            container?.focus({ preventScroll: true });
+          }}
+          className="fixed bottom-44 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 md:bottom-24 md:right-8"
+        >
+          <ArrowUp className="h-5 w-5" aria-hidden="true" />
+        </button>
+      )}
 
       <Suspense fallback={null}>
         {isProductModalOpen &&
@@ -1586,6 +1642,7 @@ function ProductGrid({
 }
 
 function ProductsPager({
+  ariaLabel = "Pagination produk bawah",
   page,
   totalPages,
   total,
@@ -1593,6 +1650,7 @@ function ProductsPager({
   isFetching,
   onPageChange,
 }: {
+  ariaLabel?: string;
   page: number;
   totalPages: number;
   total: number;
@@ -1617,7 +1675,7 @@ function ProductsPager({
 
   return (
     <nav
-      aria-label="Pagination produk"
+      aria-label={ariaLabel}
       className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 md:px-6 py-4 border-t border-slate-100/80 bg-white/40"
     >
       <p className="text-xs font-bold text-slate-500" aria-live="polite">

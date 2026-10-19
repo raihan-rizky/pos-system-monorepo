@@ -92,7 +92,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "dollar-sign",
     requiredCapabilities: [{ resource: "product", action: "update" }],
     steps: [
-      { title: "Buka daftar produk", description: "Masuk ke halaman Produk dan temukan produk yang harganya akan diubah." },
+      { title: "Buka daftar produk", description: "Masuk ke halaman Produk dan temukan produk yang harganya akan diubah. Gunakan Sebelumnya atau Berikutnya di atas maupun bawah daftar untuk berpindah halaman. Setelah menggulir satu layar, tombol Kembali ke atas (panah ke atas) muncul di kanan bawah untuk kembali dengan mulus; gerakannya mengikuti pengaturan perangkat." },
       { title: "Pilih Ubah Harga", description: "Gunakan tombol aksi Ubah Harga pada baris produk untuk perubahan cepat yang tercatat di Riwayat Harga." },
       { title: "Isi harga baru", description: "Masukkan nominal harga jual, HPP, Harga Dinas, atau Harga Agen pada modal yang muncul, lalu simpan jika sudah benar." },
       { title: "Gunakan Edit untuk detail penuh", description: "Jika perlu mengubah data produk lain, buka aksi Edit pada baris produk." },
