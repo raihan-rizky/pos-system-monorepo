@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "customer-detail-debt-kpis", date: "2026-10-20", revision: 1,
+    highlight: { title: "KPI piutang di detail pelanggan", summary: "Lihat sisa piutang, nilai yang lunas, dan rata-rata hari pelunasan per periode." },
+    title: "Baca ringkasan piutang lewat kartu KPI.",
+    summary: "Detail pelanggan kini menampilkan Piutang Belum Lunas, Piutang Dilunasi, dan Rata-rata Waktu Pelunasan dalam tiga kartu. Pilih 7, 14, atau 30 hari untuk melihat ringkasan periode yang dibutuhkan.",
+    kind: "improvement", area: "Pelanggan", href: "/customers", visual: "changelog",
+    screenshot: { src: "/images/changelog/kpi-piutang-pelanggan.png", alt: "Tiga kartu KPI dengan data contoh untuk piutang belum lunas, piutang dilunasi, dan rata-rata waktu pelunasan, serta pilihan periode 7, 14, dan 30 hari" },
+    steps: [
+      { title: "Buka detail pelanggan", detail: "Di halaman Pelanggan, buka detail pelanggan yang ingin diperiksa." },
+      { title: "Pilih periode", detail: "Pada Rentang Detail, pilih 7 Hari, 14 Hari, atau 30 Hari." },
+      { title: "Baca tiga kartu", detail: "Periksa sisa piutang yang dibuat pada periode itu, nilai piutang yang lunas, dan rata-rata hari pelunasannya." },
+    ],
+  },
+  {
     id: "printing-receipt-internal-titles", date: "2026-10-20", revision: 1,
     highlight: { title: "Judul untuk membedakan nota", summary: "Beri judul internal pada nota Percetakan agar mudah dikenali dan dicari." },
     title: "Bedakan nota Percetakan dengan judul.",

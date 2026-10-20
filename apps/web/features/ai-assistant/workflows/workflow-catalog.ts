@@ -324,6 +324,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Isi pembayaran", description: "Pilih satu atau beberapa metode pembayaran dan isi nominal untuk masing-masing metode. Invoice Tempo memakai badge tersendiri; cicilan mengurangi sisa tagihan dan dicatat dengan metode yang benar-benar diterima." },
       { title: "Proses pembayaran", description: "Tambahkan catatan bila perlu, lalu klik Proses Pembayaran." },
       { title: "Alternatif dari Riwayat", description: "Untuk transaksi DP atau Tempo, buka detail transaksi di Riwayat dan gunakan tombol Bayar Cicilan. Pembayaran mengurangi sisa tagihan, bukan stok." },
+      { title: "Pantau KPI periode", description: "Buka detail pelanggan, lalu pilih Rentang Detail 7 Hari, 14 Hari, atau 30 Hari. Piutang Belum Lunas adalah sisa piutang transaksi dan manual yang dibuat pada periode terpilih. Piutang Dilunasi adalah nilai piutang yang lunas pada periode itu, termasuk piutang lama; pembayaran sebagian belum dihitung sebagai lunas. Rata-rata Waktu Pelunasan dihitung per piutang yang lunas, dengan Belum ada pelunasan jika kosong dan 0 hari untuk pelunasan hari yang sama. Produk Teratas mengikuti periode yang sama." },
     ],
   }),
   workflow({

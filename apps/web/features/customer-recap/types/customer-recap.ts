@@ -63,6 +63,9 @@ export interface CustomerDetailRecapData {
     avgOrderValue: number;
     debtRemaining: number;
     debtPaidInPeriod: number;
+    debtUnpaidInPeriod: number;
+    debtPaidOffInPeriod: number;
+    averagePaymentDays: number | null;
   };
   trend: {
     granularity: "daily" | "weekly" | "monthly";

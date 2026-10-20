@@ -185,7 +185,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Yuk pantau siapa saja pelanggan yang punya tagihan belum lunas (tempo) biar perputaran uang tokomu tetap sehat.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Daftar Pelanggan", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Pelanggan', lalu klik menu 'Pelanggan' (ikon kontak).", icon: <History className="w-8 h-8" /> },
+        { title: "Buka Pelanggan", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Pelanggan', lalu klik menu 'Pelanggan' (ikon kontak). Buka detail satu pelanggan, lalu pilih Rentang Detail 7 Hari, 14 Hari, atau 30 Hari. Kartu Piutang Belum Lunas menampilkan sisa piutang transaksi dan manual yang dibuat pada periode itu. Piutang Dilunasi menampilkan nilai piutang yang lunas pada periode itu, termasuk piutang lama. Rata-rata Waktu Pelunasan dihitung per piutang yang lunas dengan selisih tanggal WIB; jika belum ada, tampil Belum ada pelunasan. Produk Teratas mengikuti periode yang sama.", icon: <Users className="w-8 h-8" /> },
         { title: "Filter Piutang", description: "Perhatikan kolom Piutang dan badge Tempo pada daftar transaksi. Gunakan filter 'Memiliki Piutang' untuk mencari tagihan yang belum lunas.", icon: <Settings className="w-8 h-8" /> },
         { title: "Cek Rincian Tagihan", description: "Buka tab Piutang untuk melihat invoice DP dan Tempo beserta sisa tagihannya. Catat cicilan atau pelunasan memakai metode pembayaran yang benar-benar diterima.", icon: <FileText className="w-8 h-8" /> },
       ]

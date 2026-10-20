@@ -1,11 +1,9 @@
 "use client";
 
-import React, { lazy, Suspense, useCallback, useMemo, useState } from "react";
-import { PackageOpen } from "lucide-react";
+import React, { useCallback, useMemo, useState } from "react";
+import { CheckCircle, Clock3, PackageOpen, Wallet } from "lucide-react";
 import { useCustomerDetailRecap } from "../hooks/useCustomerRecap";
 import type { CustomerRecapQuery } from "../types/customer-recap";
-
-const RecapTrendChart = lazy(() => import("./RecapTrendChart"));
 
 interface CustomerRecapPanelProps {
   customerId: string;
@@ -68,6 +66,32 @@ export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProp
   const handleRangeChange = useCallback((next: DetailRangePreset) => {
     setDetailRangePreset(next);
   }, []);
+  const { summary } = data;
+  const cards = [
+    {
+      label: "Piutang Belum Lunas",
+      value: formatCurrency(summary.debtUnpaidInPeriod),
+      description: "Sisa piutang dari transaksi dan piutang manual yang dibuat pada periode ini.",
+      icon: Wallet,
+      tone: "border-amber-200 bg-amber-50 text-amber-950",
+    },
+    {
+      label: "Piutang Dilunasi",
+      value: formatCurrency(summary.debtPaidOffInPeriod),
+      description: "Nilai piutang yang lunas pada periode ini, termasuk piutang dari periode sebelumnya.",
+      icon: CheckCircle,
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-950",
+    },
+    {
+      label: "Rata-rata Waktu Pelunasan",
+      value: summary.averagePaymentDays == null
+        ? "Belum ada pelunasan"
+        : `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(summary.averagePaymentDays)} hari`,
+      description: "Rata-rata hari sejak piutang dibuat hingga lunas, untuk pelunasan pada periode ini.",
+      icon: Clock3,
+      tone: "border-slate-200 bg-slate-50 text-slate-950",
+    },
+  ];
 
   return (
     <div className="mt-5 space-y-4 sm:mt-6">
@@ -75,13 +99,14 @@ export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProp
         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
           Rentang Detail
         </p>
-        <div className="grid w-full grid-cols-3 gap-1 rounded-full bg-slate-100 p-1 sm:w-auto">
+        <div role="group" aria-label="Rentang detail" className="grid w-full grid-cols-3 gap-1 rounded-full bg-slate-100 p-1 sm:w-auto">
           {DETAIL_RANGE_OPTIONS.map((option) => {
             const active = detailRangePreset === option.value;
             return (
               <button
                 key={option.value}
                 type="button"
+                aria-pressed={active}
                 onClick={() => handleRangeChange(option.value)}
                 className={`min-w-0 rounded-full px-3 py-2 text-xs font-black transition ${
                   active
@@ -96,13 +121,29 @@ export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProp
         </div>
       </div>
 
-      <Suspense
-        fallback={
-          <div className="h-64 rounded-2xl border border-slate-200 bg-slate-50" />
-        }
-      >
-        <RecapTrendChart trend={data.trend} mode="detail" />
-      </Suspense>
+      <section aria-label="Ringkasan piutang periode" className="space-y-3">
+        <h3 className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+          Ringkasan Piutang
+        </h3>
+        <dl className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+          {cards.map(({ label, value, description, icon: Icon, tone }) => (
+            <div key={label} className={`min-w-0 rounded-2xl border p-4 ${tone}`}>
+              <dt className="flex items-start justify-between gap-2 text-xs font-bold">
+                <span>{label}</span>
+                <Icon aria-hidden="true" className="h-4 w-4 shrink-0 opacity-70" />
+              </dt>
+              <dd className="mt-3">
+                <span className="block break-words text-xl font-black leading-tight tabular-nums">
+                  {value}
+                </span>
+                <span className="mt-2 block text-xs leading-relaxed opacity-80">
+                  {description}
+                </span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex items-center gap-2">

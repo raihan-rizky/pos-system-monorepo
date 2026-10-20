@@ -500,18 +500,40 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
     }
 
     return [{
-      transaction,
-      logs,
+      createdAt: transaction.createdAt,
+      currentRemaining,
       initialDebt,
       closedAt,
     }];
   });
 
+  const periodDebtSummary = debtOrigins.reduce(
+    (summary, origin) => {
+      if (isInPeriod(origin.createdAt, input.dateFrom, input.dateTo)) {
+        summary.debtUnpaidInPeriod += origin.currentRemaining;
+      }
+      if (
+        origin.initialDebt > 0 &&
+        origin.closedAt &&
+        isInPeriod(origin.closedAt, input.dateFrom, input.dateTo)
+      ) {
+        summary.debtPaidOffInPeriod += origin.initialDebt;
+        summary.totalPaymentDays += Math.max(
+          0,
+          (Date.parse(jakartaDateKey(origin.closedAt)) - Date.parse(jakartaDateKey(origin.createdAt))) / 86_400_000,
+        );
+        summary.paidOffCount += 1;
+      }
+      return summary;
+    },
+    { debtUnpaidInPeriod: 0, debtPaidOffInPeriod: 0, totalPaymentDays: 0, paidOffCount: 0 },
+  );
+
   for (const point of detailPoints) {
     point.runningDebtRemaining = debtOrigins.reduce((sum, origin) => {
       if (
         origin.initialDebt <= 0 ||
-        bucketKeyForDate(origin.transaction.createdAt, granularity) !== point.bucketKey
+        bucketKeyForDate(origin.createdAt, granularity) !== point.bucketKey
       ) {
         return sum;
       }
@@ -522,7 +544,7 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
         sum +
         Math.max(
           0,
-          toNumber(origin.transaction.total) - toNumber(origin.transaction.amountPaid),
+          origin.currentRemaining,
         )
       );
     }, 0);
@@ -551,6 +573,11 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
           : 0,
       debtRemaining: Math.max(0, toNumber(input.customer.totalDebt)),
       debtPaidInPeriod,
+      debtUnpaidInPeriod: periodDebtSummary.debtUnpaidInPeriod,
+      debtPaidOffInPeriod: periodDebtSummary.debtPaidOffInPeriod,
+      averagePaymentDays: periodDebtSummary.paidOffCount > 0
+        ? periodDebtSummary.totalPaymentDays / periodDebtSummary.paidOffCount
+        : null,
     },
     trend: {
       granularity,

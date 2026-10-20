@@ -306,6 +306,9 @@ describe("buildCustomerDetailRecap", () => {
       avgOrderValue: 75000,
       debtRemaining: 75000,
       debtPaidInPeriod: 50000,
+      debtUnpaidInPeriod: 160000,
+      debtPaidOffInPeriod: 50000,
+      averagePaymentDays: 2,
     });
     expect(recap.trend.points.map((point) => point.spent)).toEqual([
       215000,
