@@ -1,7 +1,7 @@
 import type { PrintingReceipt, PrintingReceiptLine, PrintingSubcategory } from "./types";
 
 export interface ReceiptBox { x: number; y: number; width: number; height: number }
-export interface ReceiptField extends ReceiptBox { fontSize?: number; align?: "left" | "right" | "center" }
+export interface ReceiptField extends ReceiptBox { fontSize?: number; align?: "left" | "right" | "center"; color?: string }
 export interface PrintingReceiptPayment { total: number; amountPaid: number; status?: string }
 export interface PrintingReceiptLayout {
   width: number; height: number; rowsPerPage: number; artwork: string;
@@ -17,7 +17,7 @@ const SPANDUK_LAYOUT: PrintingReceiptLayout = {
   tableTop: 35.1, rowHeight: 5.55,
   columns: { index: box(21.6, 0, 6.3, 5.55, 9, "center"), name: box(28.5, 0, 108.2, 5.55), material: box(137.1, 0, 7.1, 5.55, 6), quantity: box(144.9, 0, 10.7, 5.55, 8, "center"), price: box(156.5, 0, 22.3, 5.55, 8, "right"), total: box(180, 0, 26.2, 5.55, 8, "right") },
   fields: {
-    number: box(111.7, 17.5, 21.7, 2.5, 6), date: box(168.5, 8.8, 37.4, 4.2),
+    number: box(43, 24.5, 48, 4.3, 9), date: box(168.5, 8.8, 37.4, 4.2),
     customerName: box(164.2, 15.6, 41.8, 4.1), customerPhone: box(165.1, 22.4, 40.9, 4),
     note: box(23.7, 77.2, 65.1, 21.7, 8), completionTime: box(102.7, 91.8, 16.3, 2.8, 7),
     completionDate: box(102.7, 96.7, 16.3, 2.6, 6), receiver: box(120.2, 90, 31.4, 7, 8, "center"),
@@ -99,7 +99,7 @@ export function getPrintingReceiptPageFields(receipt: PrintingReceipt, page: Ret
     ["receiver", "Penerima"], ["setter", "Petugas seting"], ["signatory", "Hormat kami"],
   ];
   for (const [key, label, inputType, multiline] of documentFields) add({ ...layout.fields[key], key, value: receipt.document[key], label, documentField: key, inputType, multiline, whiteBackground: key === "date" || key === "customerName" || key === "customerPhone" });
-  if (receipt.subcategory === "SPANDUK") add({ ...box(99.2, 17.5, 12.2, 2.5, 6), key: "number-label", label: "", value: "No. Nota:" });
+  if (receipt.subcategory === "SPANDUK") add({ ...box(21, 24.5, 22, 4.3, 9), color: "#373396", key: "number-label", label: "", value: "No. Nota:" });
   for (const { line, number, y } of page.lines) {
     if (receipt.subcategory === "SPANDUK") add({ ...layout.columns.index, y, key: `${line.id}-index`, label: `Nomor baris ${number}`, value: String(number) });
     for (const [key, label] of [["name", "Nama item"], ["material", "Bahan"], ["quantity", "Banyaknya"], ["price", "Harga satuan"]] as const) {

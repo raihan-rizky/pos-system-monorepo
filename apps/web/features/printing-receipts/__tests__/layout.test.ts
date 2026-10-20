@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrintingReceiptPages, getPrintingReceiptLayout, getPrintingReceiptTotals, getPrintingReceiptWatermark } from "../layout";
+import { buildPrintingReceiptPages, getPrintingReceiptLayout, getPrintingReceiptPageFields, getPrintingReceiptTotals, getPrintingReceiptWatermark } from "../layout";
 import type { PrintingReceipt, PrintingReceiptLine } from "../types";
 
 const line = (id: number): PrintingReceiptLine => ({
@@ -49,9 +49,24 @@ describe("printing receipt layout", () => {
     const layout = getPrintingReceiptLayout("PRINT");
     expect(layout.numberMask).toMatchObject({ x: 22, y: 40, width: 17, height: 5 });
     expect(buildPrintingReceiptPages(receipt("PRINT", 1))[0].number).toBe("SP-20261020-001");
-    const number = getPrintingReceiptLayout("SPANDUK").fields.number;
-    expect(number.y).toBeGreaterThanOrEqual(17);
-    expect(number.y + number.height).toBeLessThanOrEqual(20.1);
+  });
+  it("places a larger blue No. Nota label and number below the store address on every spanduk page", () => {
+    const record = receipt("SPANDUK", 7);
+    for (const page of buildPrintingReceiptPages(record)) {
+      const fields = getPrintingReceiptPageFields(record, page);
+      const label = fields.find(field => field.key === "number-label")!;
+      const number = fields.find(field => field.key === "number")!;
+      expect(label.value).toBe("No. Nota:");
+      expect(label).toMatchObject({ color: "#373396", fontSize: 9 });
+      expect(label.x).toBeLessThan(25);
+      expect(label.y).toBeGreaterThanOrEqual(24.5);
+      expect(label.x + label.width).toBeLessThanOrEqual(number.x);
+      expect(number.y).toBe(label.y);
+      expect(number.fontSize).toBe(9);
+      expect(number.x + number.width).toBeLessThan(95);
+      expect(number.y + number.height).toBeLessThan(29.5);
+      expect(number.value).toBe(record.number);
+    }
   });
   it("uses latest transaction payments for total, DP and outstanding amount", () => {
     expect(getPrintingReceiptTotals(receipt("SPANDUK", 2))).toEqual({ subtotal: 60_000, total: 60_000, paid: 0, remaining: 60_000 });
