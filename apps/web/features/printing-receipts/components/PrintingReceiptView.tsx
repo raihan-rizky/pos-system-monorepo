@@ -53,7 +53,7 @@ export function PrintingReceiptView({ receipt, transaction, editable = false, on
         {page.fields.map(field => {
           const writable = canEdit && Boolean(field.receiptField || field.documentField || field.lineField);
           const style: CSSProperties = { left: field.x * 4, top: field.y * 4, width: field.width * 4, height: field.height * 4,
-            fontSize: field.fittedFontSize * 4 / 2.83465, color: field.color, textAlign: field.align ?? "left", ...(field.whiteBackground && field.value ? { backgroundColor: "white" } : {}) };
+            fontSize: field.fittedFontSize * 4 / 2.83465, fontWeight: field.bold ? 700 : undefined, color: field.color, textAlign: field.align ?? "left", ...(field.whiteBackground && field.value ? { backgroundColor: "white" } : {}) };
           const shared = { "aria-label": field.label, title: field.label, style, className: "printing-receipt-field", onKeyDown: enterNextField };
           if (writable && field.multiline) return <textarea {...shared} key={field.key} rows={1} value={field.value} onChange={event => changeField(field, event.target.value)} spellCheck={false} />;
           if (writable) return <input {...shared} key={field.key} type={field.inputType ?? "text"} value={field.value} min={field.inputType === "number" ? 0 : undefined}

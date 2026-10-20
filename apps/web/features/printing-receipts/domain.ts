@@ -35,6 +35,7 @@ const lineSchema = z.object({
 });
 
 const documentSchema = z.object({
+  title: text(100).refine(value => !/[\u0000-\u001f\u007f]/.test(value), "Judul nota harus ditulis dalam satu baris.").transform(value => value.trim()).optional(),
   customerName: text(200),
   customerPhone: text(50),
   customerId: text(128).trim().min(1).nullable(),

@@ -57,7 +57,7 @@ describe("printing receipt layout", () => {
       const label = fields.find(field => field.key === "number-label")!;
       const number = fields.find(field => field.key === "number")!;
       expect(label.value).toBe("No. Nota:");
-      expect(label).toMatchObject({ color: "#373396", fontSize: 9 });
+      expect(label).toMatchObject({ color: "#373396", fontSize: 9, bold: true });
       expect(label.x).toBeLessThan(25);
       expect(label.y).toBeGreaterThanOrEqual(24.5);
       expect(label.x + label.width).toBeLessThanOrEqual(number.x);

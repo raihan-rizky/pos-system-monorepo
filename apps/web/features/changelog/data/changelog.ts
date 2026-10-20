@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "printing-receipt-internal-titles", date: "2026-10-20", revision: 1,
+    highlight: { title: "Judul untuk membedakan nota", summary: "Beri judul internal pada nota Percetakan agar mudah dikenali dan dicari." },
+    title: "Bedakan nota Percetakan dengan judul.",
+    summary: "Judul nota awalnya memakai nomor nota dan bisa Anda ganti selama draft. Judul tersimpan otomatis dan bisa dicari, tanpa tampil pada cetakan atau PDF.",
+    kind: "feature", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    screenshot: { src: "/images/changelog/judul-nota-internal.png", alt: "Kartu nota contoh berjudul Banner Promosi Oktober, dengan nomor nota sebagai acuan dan status Draft" },
+    steps: [
+      { title: "Buka nota", detail: "Buka Kasir > Percetakan, pilih jenis nota, lalu buat atau buka draft." },
+      { title: "Sesuaikan judul", detail: "Ubah Judul nota di atas lembar; judul awal memakai nomor nota. Tunggu Tersimpan." },
+      { title: "Temukan kembali", detail: "Lihat judul di kartu daftar atau cari melalui judul, nomor, maupun pelanggan." },
+    ],
+  },
+  {
     id: "printing-receipts-pos", date: "2026-10-20", revision: 1,
     highlight: { title: "Nota langsung di Percetakan", summary: "Isi nota tersimpan per jenis, proses pembayaran atau DP, lalu cari di Riwayat." },
     title: "Isi nota langsung di tab Percetakan.",

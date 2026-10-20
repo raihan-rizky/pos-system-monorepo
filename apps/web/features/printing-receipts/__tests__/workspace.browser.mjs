@@ -89,11 +89,12 @@ try {
       }
       if (url.pathname === "/api/printing-receipts" && method === "GET") {
         const query = (url.searchParams.get("search") ?? "").toLowerCase();
-        const data = [...records.values()].filter(record => record.subcategory === url.searchParams.get("subcategory") && (!query || `${record.number} ${record.document.customerName}`.toLowerCase().includes(query)));
+        const data = [...records.values()].filter(record => record.subcategory === url.searchParams.get("subcategory") && (!query || `${record.document.title ?? ""} ${record.number} ${record.document.customerName}`.toLowerCase().includes(query)));
         return json({ data, pagination: { page: 1, total: data.length, totalPages: 1 } });
       }
       if (url.pathname === "/api/printing-receipts" && method === "POST") {
         const record = { ...makeRecord(`created-${++counter}`, body.subcategory, `SP-UJI-${counter}`), document: blankDocument() };
+        record.document.title = record.number;
         records.set(record.id, record); return json({ data: record }, 201);
       }
       if (url.pathname.startsWith("/api/printing-receipts/")) {
@@ -123,6 +124,25 @@ try {
     const openList = async () => { if (width < 768 && !await page.getByLabel("Cari nota SPANDUK", { exact: true }).isVisible()) await page.getByRole("button", { name: "Daftar nota", exact: true }).click(); };
     const create = page.getByRole("button", { name: "Buat Nota Kosong", exact: true }).first();
     await create.click();
+    const title = page.getByLabel("Judul nota", { exact: true });
+    assert.equal(await title.inputValue(), "SP-UJI-1");
+    assert.equal(await title.getAttribute("maxlength"), "100");
+    await title.fill("Banner Promosi Oktober");
+    await page.getByText("Tersimpan", { exact: true }).waitFor();
+    assert.equal(records.get("created-1").document.title, "Banner Promosi Oktober");
+    await openList();
+    const receiptCard = page.getByRole("button", { name: /Banner Promosi Oktober/ });
+    await receiptCard.waitFor();
+    assert.match(await receiptCard.innerText(), /SP-UJI-1/);
+    if (width === 1280) await receiptCard.screenshot({ path: path.join(output, "judul-nota-internal.png") });
+    await page.getByLabel("Cari nota SPANDUK", { exact: true }).fill("promosi");
+    await page.waitForFunction(() => [...document.querySelectorAll("#printing-receipt-list button[aria-pressed]")].length === 1);
+    await receiptCard.click();
+    assert.equal(await title.inputValue(), "Banner Promosi Oktober");
+    await openList();
+    await page.getByLabel("Cari nota SPANDUK", { exact: true }).fill("");
+    await page.getByRole("button", { name: /SP-LAMA/ }).waitFor();
+    await receiptCard.click();
     await page.getByLabel("Nama item baris 1", { exact: true }).fill("Spanduk Contoh");
     await page.getByLabel("Bahan baris 1", { exact: true }).fill("Flexi");
     await page.getByLabel("Banyaknya baris 1", { exact: true }).fill("2");
@@ -139,6 +159,7 @@ try {
     await page.getByLabel("Nama item baris 1", { exact: true }).fill("Simpan sebelum pindah");
     await page.getByRole("tab", { name: "PRINT", exact: true }).click();
     assert.equal(records.get("created-1").document.lines[0].name, "Simpan sebelum pindah");
+    assert.equal(records.get("created-1").document.title, "Banner Promosi Oktober");
     assert.deepEqual(records.get("created-1").document.lines[0].stockLink, { productId: "flexi", quantity: 4.5, unit: "m²" });
     await page.getByRole("tab", { name: "SPANDUK", exact: true }).click();
     assert.equal(await page.getByLabel("Nama item baris 1", { exact: true }).inputValue(), "Simpan sebelum pindah");
@@ -168,6 +189,8 @@ try {
     assert.equal(checkoutBody.items[0].rawMaterialUnit, "m²");
     await page.getByRole("button", { name: "Tutup modal", exact: true }).click();
     assert.equal(await page.locator(".printing-receipt-sheet input,.printing-receipt-sheet textarea").count(), 0);
+    assert.equal(await title.getAttribute("readonly"), "");
+    assert.equal(await title.inputValue(), "Banner Promosi Oktober");
     await openList();
     await page.getByRole("button", { name: /SP-DIPROSES/ }).click();
     const processed = records.get("sp-processed");

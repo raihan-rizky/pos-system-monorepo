@@ -12,6 +12,15 @@ const receipt = (subcategory: PrintingReceipt["subcategory"]): PrintingReceipt =
 });
 
 describe("printing receipt PDF", () => {
+  it.each(["SPANDUK", "PRINT"] as const)("keeps the internal title out of %s paper and appendix pages", async subcategory => {
+    const record = receipt(subcategory);
+    record.document = { ...record.document, title: "INTERNAL_ONLY_BANNER_OKTOBER" };
+    const asset = subcategory === "SPANDUK" ? "nota-spanduk.png" : "nota-percetakan.png";
+    const artwork = `data:image/png;base64,${readFileSync(resolve("public/images/printing-receipts", asset)).toString("base64")}`;
+    const pdf = await createPrintingReceiptPdf(record, null, artwork);
+    expect(pdf.output()).not.toContain("INTERNAL_ONLY_BANNER_OKTOBER");
+    expect(pdf.output()).toContain(record.number);
+  });
   it("prints saved A5 supplemental details and keeps long titles and void status on every appendix", async () => {
     const record = receipt("PRINT");
     record.number = `PR-${"W".repeat(77)}`;

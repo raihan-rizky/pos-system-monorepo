@@ -211,14 +211,15 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
     </div>}
     <div className="printing-receipt-body" id="printing-receipt-panel" role="tabpanel" aria-label={`Nota ${subcategory}`}>
       <aside className="printing-receipt-list" id="printing-receipt-list" data-open={listOpen} aria-label={`Daftar nota ${subcategory}`}>
-        <Input label={`Cari nota ${subcategory}`} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} icon={<Search size={15} />} placeholder="Nomor atau pelanggan" />
+        <Input label={`Cari nota ${subcategory}`} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} icon={<Search size={15} />} placeholder="Judul, nomor, atau pelanggan" />
         <div className="mt-3 space-y-2">
           {list.isLoading && <p role="status" className="py-5 text-center text-sm text-surface-500">Memuat nota...</p>}
           {list.isError && <div role="alert" className="text-sm text-danger-700">Daftar nota belum dapat dimuat. <button className="underline" onClick={() => void list.refetch()}>Coba lagi</button></div>}
           {!list.isLoading && !list.isError && !list.data?.data.length && <p className="py-5 text-center text-sm text-surface-500">{search ? "Nota tidak ditemukan." : `Belum ada nota ${subcategory}. Buat nota kosong untuk mulai.`}</p>}
           {list.data?.data.map(record => <button type="button" disabled={busy} key={record.id} onClick={() => void selectRecord(record.id)} aria-pressed={receipt?.id === record.id}
             className={`w-full rounded-lg border p-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${receipt?.id === record.id ? "border-brand-300 bg-brand-50" : "border-surface-200 bg-white hover:bg-surface-50"}`}>
-            <span className="block break-all text-sm font-bold text-surface-900">{record.number}</span>
+            <span className="block break-words text-sm font-bold text-surface-900">{record.document.title || record.number}</span>
+            {record.document.title && record.document.title !== record.number && <span className="mt-1 block break-all text-xs text-surface-500">{record.number}</span>}
             <span className="mt-1 block truncate text-xs text-surface-600">{record.document.customerName || "Pelanggan belum diisi"}</span>
             <span className="mt-2 flex justify-between gap-2 text-[11px] text-surface-500"><span className={record.transactionId ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>{record.transactionId ? "Diproses" : "Draft"}</span><time dateTime={record.updatedAt}>{new Date(record.updatedAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</time></span>
           </button>)}
@@ -240,6 +241,11 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
               <button type="button" className="rounded p-1 hover:bg-surface-100 focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="Perbesar nota" onClick={() => setZoom(value => Math.min(1.8, Math.round((value + 0.1) * 10) / 10))}><ZoomIn size={16} /></button>
               {!receipt.transactionId && canDelete && <Button variant="ghost" size="sm" className="text-danger-600" disabled={busy || Boolean(paymentReceipt)} onClick={() => setConfirmAction("delete")}><Trash2 size={14} />Hapus draft</Button>}
             </div>
+          </div>
+          <div className="shrink-0 border-b border-surface-200 bg-white px-3 py-2">
+            <Input label="Judul nota" value={receipt.document.title ?? receipt.number} maxLength={100} readOnly={!editable}
+              onChange={event => editor.update({ ...receipt, document: { ...receipt.document, title: event.target.value } })}
+              hint="Penanda internal untuk membedakan nota. Tidak tampil pada cetakan atau PDF." />
           </div>
           <div className="printing-receipt-viewport flex-1" tabIndex={0} role="region" aria-label="Lembar nota, geser untuk melihat seluruh halaman">
             <PrintingReceiptView receipt={receipt} editable={editable} onChange={editor.update} zoom={zoom} />

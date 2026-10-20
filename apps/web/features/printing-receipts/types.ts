@@ -13,6 +13,8 @@ export interface PrintingReceiptLine {
 }
 
 export interface PrintingReceiptDocument {
+  /** Internal label for the receipt list; never printed on the receipt. */
+  title?: string;
   customerName: string;
   customerPhone: string;
   customerId: string | null;

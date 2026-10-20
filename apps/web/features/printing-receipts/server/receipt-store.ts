@@ -49,9 +49,10 @@ function serializeTransaction(transaction: NonNullable<ReceiptRow["transaction"]
 }
 
 function serializeReceipt(row: ReceiptRow): PrintingReceipt {
+  const document = parsePrintingReceiptDocument(row.document);
   return {
     id: row.id, storeId: row.storeId, subcategory: parsePrintingSubcategory(row.subcategory), number: row.number,
-    revision: row.revision, document: parsePrintingReceiptDocument(row.document), transactionId: row.transactionId,
+    revision: row.revision, document: { ...document, title: document.title || row.number }, transactionId: row.transactionId,
     transaction: row.transaction ? serializeTransaction(row.transaction) : null,
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
   };
@@ -95,6 +96,7 @@ export async function listPrintingReceipts(storeId: string, input: PaginationPar
   const where: Prisma.PrintingReceiptWhereInput = { storeId, subcategory: input.subcategory };
   if (input.search) where.OR = [
     { number: { contains: input.search, mode: "insensitive" } },
+    { document: { path: ["title"], string_contains: input.search, mode: "insensitive" } },
     { document: { path: ["customerName"], string_contains: input.search, mode: "insensitive" } },
     { document: { path: ["customerPhone"], string_contains: input.search } },
   ];
@@ -124,7 +126,7 @@ export async function createPrintingReceipt(storeId: string, createdById: string
           const number = `NT-${prefixes[subcategory]}-${day}-${String(counter.value).padStart(6, "0")}`;
           try { await assertNumberAvailable(tx, number); }
           catch (error) { if (error instanceof PrintingReceiptStorageError && error.status === 409) continue; throw error; }
-          return tx.printingReceipt.create({ data: { storeId, createdById, subcategory, number, document: document as unknown as Prisma.InputJsonObject }, include });
+          return tx.printingReceipt.create({ data: { storeId, createdById, subcategory, number, document: { ...document, title: number } as unknown as Prisma.InputJsonObject }, include });
         }
         throw new PrintingReceiptStorageError(409, "Nomor nota belum dapat dialokasikan. Silakan coba lagi.");
       });
@@ -145,11 +147,14 @@ export async function savePrintingReceipt(storeId: string, id: string, input: { 
       const current = await tx.printingReceipt.findFirst({ where: { id, storeId }, include });
       if (!current) notFound();
       if (current.revision !== input.revision || current.transactionId) conflict();
+      const previousTitle = parsePrintingReceiptDocument(current.document).title || current.number;
+      const title = document.title ?? previousTitle;
+      const savedDocument = { ...document, title: !title || title === current.number ? number : title };
       await assertNumberAvailable(tx, number, id);
       await assertDocumentReferences(tx, storeId, document);
       const updated = await tx.printingReceipt.updateMany({
         where: { id, storeId, revision: input.revision, transactionId: null },
-        data: { number, document: document as unknown as Prisma.InputJsonObject, revision: { increment: 1 } },
+        data: { number, document: savedDocument as unknown as Prisma.InputJsonObject, revision: { increment: 1 } },
       });
       if (!updated.count) conflict();
       const row = await tx.printingReceipt.findFirst({ where: { id, storeId }, include });

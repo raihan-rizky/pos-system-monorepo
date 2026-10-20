@@ -1,7 +1,7 @@
 import type { PrintingReceipt, PrintingReceiptLine, PrintingSubcategory } from "./types";
 
 export interface ReceiptBox { x: number; y: number; width: number; height: number }
-export interface ReceiptField extends ReceiptBox { fontSize?: number; align?: "left" | "right" | "center"; color?: string }
+export interface ReceiptField extends ReceiptBox { fontSize?: number; align?: "left" | "right" | "center"; color?: string; bold?: boolean }
 export interface PrintingReceiptPayment { total: number; amountPaid: number; status?: string }
 export interface PrintingReceiptLayout {
   width: number; height: number; rowsPerPage: number; artwork: string;
@@ -76,7 +76,7 @@ export function getPrintingReceiptWatermark(receipt: PrintingReceipt, transactio
   return status === "PENDING_APPROVAL" ? "MENUNGGU PERSETUJUAN" : status === "VOIDED" ? "DIBATALKAN" : status === "REFUNDED" ? "DIREFUND" : null;
 }
 
-export type ReceiptDocumentTextKey = Exclude<keyof PrintingReceipt["document"], "lines" | "customerId">;
+export type ReceiptDocumentTextKey = Exclude<keyof PrintingReceipt["document"], "lines" | "customerId" | "title">;
 export interface ReceiptSheetField extends ReceiptField {
   key: string; value: string; label: string;
   documentField?: ReceiptDocumentTextKey;
@@ -99,7 +99,7 @@ export function getPrintingReceiptPageFields(receipt: PrintingReceipt, page: Ret
     ["receiver", "Penerima"], ["setter", "Petugas seting"], ["signatory", "Hormat kami"],
   ];
   for (const [key, label, inputType, multiline] of documentFields) add({ ...layout.fields[key], key, value: receipt.document[key], label, documentField: key, inputType, multiline, whiteBackground: key === "date" || key === "customerName" || key === "customerPhone" });
-  if (receipt.subcategory === "SPANDUK") add({ ...box(21, 24.5, 22, 4.3, 9), color: "#373396", key: "number-label", label: "", value: "No. Nota:" });
+  if (receipt.subcategory === "SPANDUK") add({ ...box(21, 24.5, 22, 4.3, 9), color: "#373396", bold: true, key: "number-label", label: "", value: "No. Nota:" });
   for (const { line, number, y } of page.lines) {
     if (receipt.subcategory === "SPANDUK") add({ ...layout.columns.index, y, key: `${line.id}-index`, label: `Nomor baris ${number}`, value: String(number) });
     for (const [key, label] of [["name", "Nama item"], ["material", "Bahan"], ["quantity", "Banyaknya"], ["price", "Harga satuan"]] as const) {

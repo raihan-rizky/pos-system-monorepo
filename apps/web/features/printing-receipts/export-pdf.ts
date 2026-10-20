@@ -24,6 +24,7 @@ function drawField(pdf: jsPDF, field: PrintingReceiptPresentedField) {
     pdf.rect(field.x, field.y, field.width, field.height, "F");
   }
   const fontSize = field.fittedFontSize;
+  pdf.setFont("helvetica", field.bold ? "bold" : "normal");
   pdf.setTextColor(field.color ?? "#242239");
   pdf.setFontSize(fontSize);
   const lines = field.textLines;
