@@ -49,9 +49,9 @@ assert.equal(await page.locator(".printing-receipt-sheet input").count(), 0);
 
 - [x] Jalankan tes terarah, seluruh suite web melalui `pnpm --filter @pos/web test --run`, TypeScript langsung, ESLint berkas terkait, dan diff check. Jangan menjalankan Turbo dengan dependensi build.
 - [x] Minta tinjauan independen atas hasil akhir dan tangani temuan penting.
-- [ ] Fetch origin/main; pisahkan perubahan fitur dari perubahan pengguna. Periksa hasil integrasi terhadap main tanpa menghapus/mengubah pekerjaan pengguna.
-- [ ] Jalankan GitNexus detect_changes sebelum commit, catat cakupan, dan siapkan commit dengan dokumentasi/panduan/changelog terkait.
-- [ ] Catat jumlah tes sebenarnya, hasil pemeriksaan, batas layanan simulasi, branch/commit, serta Headroom stats akhir.
+- [x] Fetch origin/main; pisahkan perubahan fitur dari perubahan pengguna. Periksa hasil integrasi terhadap main tanpa menghapus/mengubah pekerjaan pengguna.
+- [x] Jalankan GitNexus detect_changes sebelum commit, catat cakupan, dan siapkan commit dengan dokumentasi/panduan/changelog terkait.
+- [x] Catat jumlah tes sebenarnya, hasil pemeriksaan, batas layanan simulasi, branch/commit, serta Headroom stats akhir.
 
 ## Cakupan tambahan
 
@@ -98,7 +98,19 @@ Tinjauan independen terakhir: **GO**, tanpa temuan penting tersisa. Seluruh 50 t
 | ESLint berkas kode/tes terkait | 72 berkas, exit 0, tanpa error/warning |
 | Suite web lengkap | 506 berkas lulus, 2 berkas dilewati; 3.599 tes lulus, 10 dilewati; exit 0 |
 | TypeScript web langsung | `pnpm --filter @pos/web type-check`, exit 0 |
+| Whitespace Git | Diff fitur dan integrasi bersih; satu baris kosong berlebih di EOF dirapikan |
 
 Log diagnostik disimpan lokal di `tmp/` dan tidak masuk commit. Bukti RED mencakup nomor baris, respons sesi lama, pajak snapshot, batas total setelah pajak, diskon/pembayaran, serta persetujuan.
 
 Perintah suite lengkap: `pnpm --filter @pos/web test --run --testTimeout=30000 --hookTimeout=60000 --maxWorkers=2 --fileParallelism`. Run selesai dalam 517,51 detik. Sepuluh tes yang dilewati adalah empat tes skill opsional dan enam tes PostgreSQL yang memerlukan opt-in; sesi ini tidak mengaktifkan integrasi database tersebut. Peringatan Browserslist tentang umur dataset tidak mengubah hasil tes dan tidak memicu perubahan dependensi.
+
+## Hasil persiapan main
+
+- Commit fitur: `ab70cb2a34f194ffa24d8590be480a6a2b298bc6`, `feat(pos): add inline printing receipts with regression coverage`.
+- Basis main yang di-fetch terakhir: `8d66cc9ba47ca0d523602876aaded32162d5bb57`. Pohon integrasi menggabungkan commit tersebut tanpa konflik; kedua berkas main yang masuk memang ProductTable dan tes profit, dengan isi yang sudah sama dengan checkout saat tes dijalankan.
+- Integrasi dilakukan melalui pohon dan index Git agar file kerja pengguna tidak ditulis ulang. `main` lokal disiapkan dengan hasil integrasi; branch `codex/percetakan-nota` tetap tersedia. Main remote tidak diubah.
+- Deteksi staged terakhir fitur: **80 berkas teks, 55 simbol, 24 alur, critical**. Peringatan sudah disampaikan dan cakupan ditinjau GO. Perubahan akhir terhadap origin/main hanya 83 berkas yang ada pada manifest fitur/tes/dokumentasi, tanpa perubahan implementasi inventory pengguna atau output/tmp.
+- Isi empat berkas inventory diperiksa dengan SHA-256 dan tetap sama. ProductTable dan tes profit kini diwarisi dari main; ProductUnitFields serta product-unit-browser tetap menjadi perubahan lokal pengguna di luar commit.
+- Hook pre-commit `lint-staged` juga selesai sukses. Headroom stats dipanggil pada awal/akhir tahap; keterbatasan proxy dan larangan ekspor tetap dicatat di atas.
+
+**Status: siap push dari main lokal; belum melakukan push.** Migrasi development sudah diterapkan pada tahap implementasi sebelumnya. Migrasi lingkungan deployment tetap mengikuti prosedur deployment; sesi ini tidak mengubah database produksi.
