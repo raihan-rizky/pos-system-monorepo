@@ -182,12 +182,12 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-piutang",
       title: "Melihat Daftar Piutang",
-      description: "Yuk pantau siapa saja pelanggan yang punya tagihan belum lunas (tempo) biar perputaran uang tokomu tetap sehat.",
+      description: "Pantau piutang transaksi dan manual pelanggan. Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas, agar catatan pembayaran tetap tersimpan.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Pelanggan", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Pelanggan', lalu klik menu 'Pelanggan' (ikon kontak). Buka detail satu pelanggan, lalu pilih Rentang Detail 7 Hari, 14 Hari, atau 30 Hari. Kartu Piutang Belum Lunas menampilkan sisa piutang transaksi dan manual yang dibuat pada periode itu. Piutang Dilunasi menampilkan nilai piutang yang lunas pada periode itu, termasuk piutang lama. Rata-rata Waktu Pelunasan dihitung per piutang yang lunas dengan selisih tanggal WIB; jika belum ada, tampil Belum ada pelunasan. Produk Teratas mengikuti periode yang sama.", icon: <Users className="w-8 h-8" /> },
-        { title: "Filter Piutang", description: "Perhatikan kolom Piutang dan badge Tempo pada daftar transaksi. Gunakan filter 'Memiliki Piutang' untuk mencari tagihan yang belum lunas.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Cek Rincian Tagihan", description: "Buka tab Piutang untuk melihat invoice DP dan Tempo beserta sisa tagihannya. Catat cicilan atau pelunasan memakai metode pembayaran yang benar-benar diterima.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Catat Piutang Manual", description: "Piutang manual mencatat utang lama atau tagihan di luar kasir tanpa menambah penjualan, order, atau mengubah stok. Buka detail pelanggan > Piutang Manual > Tambah Piutang. Isi nominal lebih dari nol, tanggal utang paling lambat hari ini dalam WIB, tanggal jatuh tempo sama atau setelah tanggal utang, dan catatan bila perlu. Klik Simpan Piutang; pelanggan mengikuti profil yang dibuka. Melihat memerlukan customer.read, sedangkan menambah dan membayar memerlukan customer.update.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Cek dan Bayar Tagihan", description: "Tab Piutang menampilkan invoice DP/Tempo serta bagian Piutang Manual. Pada catatan manual, klik Bayar Piutang Manual, isi nominal hingga maksimal sisa piutang, pilih satu metode (Tunai, Debit, Kartu Kredit, QRIS, atau Transfer), lalu Simpan Pembayaran. Riwayat pembayaran menyimpan cicilan dan pelunasan; pilih filter Semua piutang untuk melihat catatan lunas. Pembayaran invoice tetap dapat memakai beberapa metode.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
     {
@@ -408,12 +408,12 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "admin-crm",
       title: "Kelola Data Pelanggan (CRM)",
-      description: "Catat profil pelanggan tokomu untuk pantau riwayat belanja mereka serta cek sisa utang/tempo belanja mereka.",
+      description: "Catat profil dan pantau piutang pelanggan. Pelanggan dengan riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas, agar catatan pembayaran tetap tersimpan.",
       icon: <Users className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Pelanggan", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Pelanggan', lalu klik menu 'Pelanggan' (ikon kontak).", icon: <Users className="w-8 h-8" /> },
         { title: "Input Data Pelanggan", description: "Klik tombol hitam '+ Pelanggan Baru' di kanan atas tabel. Isi form pop-up Nama lengkap, No Handphone, dan Alamat, kemudian klik tombol 'Simpan'.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Lihat Detail Profil", description: "Pada tabel daftar pelanggan, klik nama pelanggan yang dituju. Ini akan membuka halaman profil pelanggan lengkap dengan tab 'Riwayat Transaksi' dan catatan sisa piutang/tempo belanja mereka.", icon: <History className="w-8 h-8" /> },
+        { title: "Kelola Piutang Manual", description: "Buka detail pelanggan > Piutang Manual > Tambah Piutang. Piutang manual untuk utang lama atau tagihan di luar kasir tidak menambah penjualan, order, atau mengubah stok. Isi nominal lebih dari nol, tanggal utang paling lambat hari ini dalam WIB, tanggal jatuh tempo sama atau setelah tanggal utang, dan catatan bila perlu, lalu Simpan Piutang. Pelanggan mengikuti profil yang dibuka. Untuk cicilan atau pelunasan, klik Bayar Piutang Manual dari detail atau tab Piutang, isi nominal maksimal sisa piutang, pilih satu metode, lalu Simpan Pembayaran. Buka Riwayat pembayaran; filter Semua piutang tetap menampilkan catatan lunas. Melihat memerlukan customer.read, sedangkan menambah dan membayar memerlukan customer.update.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {
@@ -655,13 +655,13 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "cashier-piutang-tab",
       title: "Mencatat Pembayaran Piutang (Tab Piutang)",
-      description: "Bantu catat cicilan atau pelunasan sisa utang pembeli langsung dari daftar piutang di menu Pelanggan.",
+      description: "Catat cicilan atau pelunasan dari menu Pelanggan. Pelanggan dengan riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas, agar catatan pembayaran tetap tersimpan.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Halaman Pelanggan", description: "Buka menu samping 'Pelanggan' (di bawah kategori Pelanggan), lalu klik tab 'Piutang' di bagian atas.", icon: <Users className="w-8 h-8" /> },
-        { title: "Cari Invoice Piutang", description: "Cari nomor invoice atau nama pelanggan yang ingin membayar piutang, lalu klik tombol 'Bayar Piutang' di kolom Aksi.", icon: <Search className="w-8 h-8" /> },
-        { title: "Pilih Metode Pembayaran", description: "Pilih satu atau beberapa metode pembayaran sekaligus (Tunai, QRIS, Debit, atau Transfer) dan masukkan nominal uang yang dibayarkan.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Selesaikan Pembayaran", description: "Tambahkan catatan pembayaran jika diperlukan (misal bank pengirim), lalu klik 'Proses Pembayaran' untuk melunasi/mengurangi piutang.", icon: <ShieldCheck className="w-8 h-8" /> },
+        { title: "Buka Halaman Pelanggan", description: "Buka menu Pelanggan, lalu tab Piutang. Piutang manual tampil di bagian Piutang Manual dan detail pelanggan. Melihat memerlukan customer.read, sedangkan menambah dan membayar memerlukan customer.update.", icon: <Users className="w-8 h-8" /> },
+        { title: "Catat atau Pilih Piutang", description: "Untuk utang lama, buka detail pelanggan > Tambah Piutang; pelanggan mengikuti profil yang dibuka. Isi nominal lebih dari nol, tanggal utang paling lambat hari ini dalam WIB, tanggal jatuh tempo sama atau setelah tanggal utang, dan catatan bila perlu, lalu Simpan Piutang. Catatan ini tidak menambah penjualan, order, atau mengubah stok. Untuk membayar, pilih Bayar Piutang pada invoice atau Bayar Piutang Manual pada catatan manual.", icon: <Search className="w-8 h-8" /> },
+        { title: "Pilih Metode Pembayaran", description: "Invoice dapat memakai satu atau beberapa metode pembayaran. Piutang manual memakai satu metode per pembayaran: Tunai, Debit, Kartu Kredit, QRIS, atau Transfer. Isi nominal lebih dari nol, maksimal sisa piutang; pembayaran boleh sebagian atau lunas.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Selesaikan Pembayaran", description: "Tambahkan catatan bila perlu. Invoice memakai Proses Pembayaran; piutang manual memakai Simpan Pembayaran. Buka Riwayat pembayaran untuk memeriksa cicilan dan pelunasan manual; catatan lunas tetap tersedia melalui filter Semua piutang.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
     {

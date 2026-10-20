@@ -57,6 +57,7 @@ import {
   isValidDebtPayment,
 } from "@/features/customer-debt/helpers/debt-payment";
 import { buildCustomerRecapRange } from "@/features/customer-recap/helpers/recap-core";
+import { CustomerReceivablesSection } from "@/features/customer-debt/components/CustomerReceivablesSection";
 import type { CustomerRecapQuery } from "@/features/customer-recap/types/customer-recap";
 
 const CustomerImportDrawer = dynamic(
@@ -304,6 +305,7 @@ type DpTransaction = {
 
 function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
   const dpTransactionsQuery = useCustomerDpTransactions(customer.id);
+  const customerDetailQuery = useCustomerDetail(customer.id);
   const payTransactionDebt = usePayTransactionDebt();
   const [amountByTransaction, setAmountByTransaction] = useState<Record<string, number>>({});
   const [paymentMethod, setPaymentMethod] = useState("CASH");
@@ -312,12 +314,7 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
   const [payingTransactionId, setPayingTransactionId] = useState<string | null>(null);
 
   const dpTransactions = (dpTransactionsQuery.data ?? []) as DpTransaction[];
-  const debt = dpTransactionsQuery.data
-    ? dpTransactions.reduce(
-      (sum, transaction) => sum + getTransactionDebtRemaining(transaction),
-      0,
-    )
-    : Number(customer.totalDebt);
+  const debt = Number(customerDetailQuery.data?.totalDebt ?? customer.totalDebt);
 
   const updateAmount = useCallback((transactionId: string, amount: number) => {
     setAmountByTransaction((current) => ({
@@ -406,10 +403,15 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
                   Total Piutang Tersisa
                 </p>
                 <p className="mt-1 break-words text-3xl font-black tracking-tight sm:text-4xl">
-                  {formatCurrency(debt)}
+                  {new Intl.NumberFormat("id-ID", {
+                    style: "currency",
+                    currency: "IDR",
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                  }).format(debt)}
                 </p>
                 <p className="mt-3 text-sm font-medium text-red-100/90">
-                  Silakan pilih invoice di bawah untuk mencatat pembayaran.
+                  Pilih piutang manual atau invoice di bawah untuk mencatat pembayaran.
                 </p>
               </div>
             </div>
@@ -422,6 +424,12 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
             ) : null}
 
             {/* Payment Method */}
+            <CustomerReceivablesSection
+              customerId={customer.id}
+              customerName={customer.name}
+              canAdd={false}
+            />
+
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <label className="mb-3 block text-sm font-bold text-slate-700">
                 Metode Pembayaran
@@ -618,10 +626,10 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
                     <CheckCircle2 className="h-6 w-6 text-emerald-500" />
                   </div>
                   <p className="mt-3 text-sm font-bold text-slate-900">
-                    Semua Tagihan Lunas
+                    Tidak Ada Invoice Belum Lunas
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    Pelanggan ini tidak memiliki piutang aktif.
+                    Pembayaran piutang manual tersedia di bagian Piutang Manual.
                   </p>
                 </div>
               )}
@@ -1179,6 +1187,15 @@ function CustomerDetailPanel({
           <div className="mt-5 h-80 rounded-3xl border border-slate-200 bg-slate-50 sm:mt-6" />
         }
       >
+        <div className="mt-5 sm:mt-6">
+          <CustomerReceivablesSection
+            key={customerId}
+            customerId={customerId}
+            customerName={displayName}
+            canAdd={canUpdate}
+            canPay={canUpdate}
+          />
+        </div>
         <CustomerRecapPanel customerId={customerId} range={recapRange} />
       </Suspense>
 
@@ -1528,7 +1545,10 @@ export default function CustomersClientPage() {
           </div>
 
           {activeTab === "debt" ? (
-            <DebtTransactionsList />
+            <div className="space-y-5">
+              <CustomerReceivablesSection canAdd={false} canPay={canUpdateCustomers} />
+              <DebtTransactionsList />
+            </div>
           ) : (
             <>
               <div className="flex min-w-0 flex-col gap-3 sm:gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">

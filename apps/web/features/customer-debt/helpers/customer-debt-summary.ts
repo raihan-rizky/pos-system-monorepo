@@ -149,7 +149,16 @@ export async function loadCustomerDebtByActiveDp(
     },
   });
 
-  return summarizeActiveCustomerDebtByCustomer(input.customers, transactions);
+  const debt = summarizeActiveCustomerDebtByCustomer(input.customers, transactions);
+  const receivables = await db.customerReceivable.findMany({
+    where: { storeId: input.storeId, customerId: { in: ids } },
+    select: { customerId: true, amount: true, amountPaid: true },
+  });
+  for (const receivable of receivables) {
+    const remaining = Math.max(0, toNumber(receivable.amount) - toNumber(receivable.amountPaid));
+    debt.set(receivable.customerId, (debt.get(receivable.customerId) ?? 0) + remaining);
+  }
+  return debt;
 }
 
 export function applyComputedCustomerDebt<

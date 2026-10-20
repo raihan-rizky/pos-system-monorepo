@@ -181,13 +181,16 @@ export async function DELETE(
       );
     }
 
-    // Don't delete; instead nullify relation on transactions (soft approach)
-    await db.transaction.updateMany({
-      where: { customerId: customer.id, storeId },
-      data: { customerId: null },
+    const result = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "pos_customers" WHERE "id" = ${customer.id} AND "storeId" = ${storeId} FOR UPDATE`;
+      if (!await tx.customer.findFirst({ where: { id: customer.id, storeId }, select: { id: true } })) return "missing";
+      if (await tx.customerReceivable.count({ where: { customerId: customer.id, storeId } }) > 0) return "history";
+      await tx.transaction.updateMany({ where: { customerId: customer.id, storeId }, data: { customerId: null } });
+      await tx.customer.delete({ where: { id: customer.id } });
+      return "deleted";
     });
-
-    await db.customer.delete({ where: { id: customer.id } });
+    if (result === "missing") return NextResponse.json({ message: "Pelanggan tidak ditemukan." }, { status: 404 });
+    if (result === "history") return NextResponse.json({ message: "Pelanggan memiliki riwayat piutang manual dan belum bisa dihapus. Riwayat disimpan sebagai catatan pembayaran." }, { status: 409 });
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

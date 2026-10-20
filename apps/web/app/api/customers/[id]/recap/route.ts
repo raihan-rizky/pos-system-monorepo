@@ -87,7 +87,7 @@ export async function GET(
     }
 
     const bounds = periodBounds(dateFrom, dateTo);
-    const [transactions, debtPaymentLogs] = await Promise.all([
+    const [transactions, debtPaymentLogs, manualReceivables] = await Promise.all([
       db.transaction.findMany({
         where: {
           storeId,
@@ -139,6 +139,17 @@ export async function GET(
           },
         },
       }),
+      db.customerReceivable.findMany({
+        where: { storeId, customerId: id },
+        select: {
+          id: true,
+          customerId: true,
+          amount: true,
+          amountPaid: true,
+          debtDate: true,
+          payments: { select: { amount: true, createdAt: true } },
+        },
+      }),
     ]);
 
     const data = buildCustomerDetailRecap({
@@ -147,6 +158,7 @@ export async function GET(
       dateTo,
       transactions,
       debtPaymentLogs,
+      manualReceivables,
     });
 
     log.info("customer.detailRecap.loaded", {

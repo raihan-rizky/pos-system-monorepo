@@ -72,6 +72,16 @@ export interface BuildCustomerDetailRecapInput {
   dateTo: string;
   transactions: CustomerRecapTransaction[];
   debtPaymentLogs: CustomerRecapDebtPaymentLog[];
+  manualReceivables?: CustomerRecapManualReceivable[];
+}
+
+export interface CustomerRecapManualReceivable {
+  id: string;
+  customerId: string;
+  amount: NullableNumber;
+  amountPaid: NullableNumber;
+  debtDate: Date;
+  payments: { amount: NullableNumber; createdAt: Date }[];
 }
 
 const CONFIRMED_STATUSES = new Set(["COMPLETED", "DP"]);
@@ -415,7 +425,15 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
     }
   }
 
-  const debtPaidInPeriod = input.debtPaymentLogs.reduce(
+  const manualReceivables = (input.manualReceivables ?? []).filter(
+    (receivable) => receivable.customerId === input.customer.id,
+  );
+  const debtPaidInPeriod = [...input.debtPaymentLogs, ...manualReceivables.flatMap(
+    (receivable) => receivable.payments.map((payment) => ({
+      ...payment,
+      customerId: receivable.customerId,
+    })),
+  )].reduce(
     (sum, log) =>
       log.customerId === input.customer.id &&
       isInPeriod(log.createdAt, input.dateFrom, input.dateTo)
@@ -506,6 +524,37 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
       closedAt,
     }];
   });
+
+  for (const receivable of manualReceivables) {
+    const initialDebt = toNumber(receivable.amount);
+    const initialDebtCents = Math.round(initialDebt * 100);
+    const currentRemaining = Math.max(0, initialDebt - toNumber(receivable.amountPaid));
+    const key = bucketKeyForDate(receivable.debtDate, granularity);
+    const payments = [...receivable.payments].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    );
+    let paidCents = 0;
+    let closedAt: Date | null = null;
+    for (const payment of payments) {
+      paidCents += Math.round(toNumber(payment.amount) * 100);
+      if (initialDebtCents > 0 && paidCents >= initialDebtCents) {
+        closedAt = payment.createdAt;
+        break;
+      }
+    }
+    if (closedAt && isInPeriod(closedAt, input.dateFrom, input.dateTo)) {
+      const days = Math.max(0, Math.round(
+        (closedAt.getTime() - receivable.debtDate.getTime()) / 86_400_000,
+      ));
+      const bucketDays = paymentDaysByBucket.get(key) ?? [];
+      bucketDays.push(days);
+      paymentDaysByBucket.set(key, bucketDays);
+      debtPaidOffByBucket.set(key, (debtPaidOffByBucket.get(key) ?? 0) + initialDebt);
+    } else {
+      debtUnpaidByBucket.set(key, (debtUnpaidByBucket.get(key) ?? 0) + currentRemaining);
+    }
+    debtOrigins.push({ createdAt: receivable.debtDate, currentRemaining, initialDebt, closedAt });
+  }
 
   const periodDebtSummary = debtOrigins.reduce(
     (summary, origin) => {

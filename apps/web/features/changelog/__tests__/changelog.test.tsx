@@ -21,6 +21,13 @@ const entry = (id: string, date: string, revision = 1): ChangeEntry => ({
 const now = new Date("2026-10-18T03:00:00Z");
 
 describe("manual changelog", () => {
+  it("announces manual customer receivables with a concise three-step flow", () => {
+    const manual = CHANGELOG.find(change => change.id === "customer-manual-receivables");
+    expect(manual).toMatchObject({ date: "2026-10-20", revision: 1, href: "/customers", kind: "feature" });
+    expect(manual?.steps).toHaveLength(3);
+    expect(JSON.stringify(manual)).toContain("Tambah Piutang");
+    expect(JSON.stringify(manual)).toContain("Bayar Piutang");
+  });
   it("uses seven WIB calendar days including today and excludes future and invalid dates", () => {
     const changes = [entry("old", "2026-10-11"), entry("boundary", "2026-10-12"), entry("today", "2026-10-18"), entry("future", "2026-10-19"), entry("invalid", "2026-02-30")];
     expect(getRecentChanges(changes, now).map(item => item.id)).toEqual(["today", "boundary"]);

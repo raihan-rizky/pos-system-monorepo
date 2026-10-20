@@ -4,6 +4,14 @@ import HelpContent, { HELP_ROLE_CONTENT } from '../components/HelpContent';
 import { HELP_VISUAL_PAGE_CONFIG } from '../components/help-visual-registry';
 
 describe('HelpContent', () => {
+  it.each(['OWNER', 'ADMIN', 'CASHIER'])('explains manual receivable creation and payment for %s', role => {
+    const text = JSON.stringify(HELP_ROLE_CONTENT[role]);
+    for (const phrase of ['Piutang manual', 'Tambah Piutang', 'tanggal utang', 'jatuh tempo', 'customer.update', 'satu metode', 'Riwayat pembayaran']) expect(text).toContain(phrase);
+    expect(text).toContain('Semua piutang');
+    expect(text).not.toContain('filter Lunas atau Semua');
+    expect(text).toContain('tidak dapat dihapus');
+    expect(text).toContain('termasuk yang sudah lunas');
+  });
   it('explains editable draft numbers and prefilled WIB dates', () => {
     const text = JSON.stringify(HELP_ROLE_CONTENT);
     expect(text).toContain('Gunakan otomatis');

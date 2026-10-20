@@ -164,6 +164,7 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 - **Cara 2: Melalui Halaman Riwayat Transaksi:**
   1. Cari faktur transaksi tempo yang berstatus *Belum Lunas* (DP) di menu **Riwayat**, buka panel detail rincian.
   2. Klik tombol **Bayar Cicilan**, masukkan nominal cicilan yang dibayarkan, lalu klik **Simpan**.
+- **Piutang manual:** Di detail pelanggan atau tab **Piutang**, buka bagian **Piutang Manual**, lalu klik **Bayar Piutang Manual** pada catatan yang dituju. Isi nominal lebih dari nol hingga maksimal sisa piutang dan pilih **satu metode**: Tunai, Debit, Kartu Kredit, QRIS, atau Transfer. Tambahkan catatan bila perlu, klik **Simpan Pembayaran**, lalu buka **Riwayat pembayaran**. Pembayaran boleh sebagian atau lunas; catatan lunas tetap tersedia melalui filter **Semua piutang**. Melihat memerlukan `customer.read`, menambah dan membayar memerlukan `customer.update`.
 
 ---
 
@@ -348,3 +349,14 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 9. Pengajuan, review, approval final, penolakan, dan retry Pembelian Barang **tidak mengubah stok**. Stok baru bertambah ketika Penerimaan Barang terkait selesai disetujui per item.
 10. Pada pembelian APPROVED atau BARANG DITERIMA SEBAGIAN, klik **Barang Sudah Diterima?** untuk membuka modal penerimaan dengan PB langsung terpilih. Klik **Lihat Riwayat Penerimaan Barang** untuk membuka riwayat terfilter.
 11. Setelah penerimaan disetujui, status PB menjadi **BARANG DITERIMA SEBAGIAN** atau **BARANG DITERIMA**. Klik baris PB untuk melihat perbandingan dipesan, diterima, pending, dan sisa. Finalisasi penerimaan menambah stok; pada mode stok bersama, canonical dan semua varian dicatat sebagai satu bundle Log Stok.
+
+---
+
+### Q41: Bagaimana cara mencatat piutang manual pelanggan?
+**A:** Gunakan untuk utang lama atau tagihan di luar kasir tanpa membuat transaksi penjualan, order, atau mengubah stok. Melihat memerlukan `customer.read`; menambah dan membayar memerlukan `customer.update`.
+Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas, agar riwayat piutang dan pembayaran tetap tersimpan.
+1. Buka **Pelanggan** (`/customers`), lalu buka detail pelanggan yang sudah terdaftar.
+2. Di bagian **Piutang Manual**, klik **Tambah Piutang**. Pelanggan mengikuti profil yang dibuka.
+3. Isi **Nominal piutang** lebih dari nol, **Tanggal utang** paling lambat hari ini dalam WIB, dan **Tanggal jatuh tempo** sama dengan atau setelah tanggal utang. Tambahkan **Catatan** bila perlu.
+4. Klik **Simpan Piutang**. Catatan muncul pada detail pelanggan dan bagian **Piutang Manual** di tab **Piutang**.
+5. Untuk cicilan atau pelunasan, klik **Bayar Piutang Manual**, isi nominal hingga maksimal sisa piutang, pilih satu metode, lalu klik **Simpan Pembayaran**. Buka **Riwayat pembayaran** untuk memeriksa pembayaran; catatan lunas tetap tersedia melalui filter **Semua piutang**.

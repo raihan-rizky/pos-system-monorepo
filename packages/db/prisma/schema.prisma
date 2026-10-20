@@ -70,6 +70,7 @@ model Store {
   shifts                       CashierShift[]
   customerCategoryPricingRules CategoryCustomerPricingRule[]
   customers                    Customer[]
+  customerReceivables           CustomerReceivable[]
   debtPaymentLogs              DebtPaymentLog[]
   printingServices             PrintingService[]
   printingReceipts              PrintingReceipt[]
@@ -408,6 +409,7 @@ model Customer {
   store           Store            @relation(fields: [storeId], references: [id])
   debtPaymentLogs DebtPaymentLog[]
   transactions    Transaction[]
+  receivables     CustomerReceivable[]
 
   @@index([storeId])
   @@index([phone])
@@ -420,6 +422,43 @@ model Customer {
   @@index([storeId, phone], map: "pos_customers_store_phone_idx")
   @@index([storeId, type, lastVisitAt(sort: Desc)], map: "pos_customers_store_type_lastVisitAt_desc_idx")
   @@map("pos_customers")
+}
+
+model CustomerReceivable {
+  id               String                      @id @default(cuid())
+  storeId          String
+  customerId       String
+  amount           Decimal                     @db.Decimal(12, 2)
+  amountPaid       Decimal                     @default(0) @db.Decimal(12, 2)
+  debtDate         DateTime                    @db.Date
+  dueDate          DateTime                    @db.Date
+  note             String?
+  createdById      String
+  clientMutationId String                      @unique
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  store            Store                       @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  customer         Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  payments         CustomerReceivablePayment[]
+
+  @@index([storeId, customerId, debtDate])
+  @@index([storeId, dueDate, id])
+  @@map("pos_customer_receivables")
+}
+
+model CustomerReceivablePayment {
+  id               String             @id @default(cuid())
+  receivableId     String
+  amount           Decimal            @db.Decimal(12, 2)
+  method           PaymentMethod
+  note             String?
+  createdById      String
+  clientMutationId String             @unique
+  createdAt        DateTime           @default(now())
+  receivable       CustomerReceivable @relation(fields: [receivableId], references: [id], onDelete: Restrict)
+
+  @@index([receivableId, createdAt])
+  @@map("pos_customer_receivable_payments")
 }
 
 model Supplier {

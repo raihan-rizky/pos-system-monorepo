@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "customer-manual-receivables", date: "2026-10-20", revision: 1,
+    highlight: { title: "Catat piutang manual pelanggan", summary: "Simpan utang lama pelanggan dan catat cicilan atau pelunasannya di Pelanggan." },
+    title: "Catat dan lunasi piutang manual pelanggan.",
+    summary: "Simpan utang lama atau tagihan di luar kasir tanpa menambah penjualan, order, atau mengubah stok. Pantau sisa piutang dan riwayat cicilan hingga lunas di Pelanggan.",
+    kind: "feature", area: "Pelanggan", href: "/customers", visual: "changelog",
+    screenshot: { src: "/images/changelog/piutang-manual-pelanggan.png", alt: "Piutang manual dengan pelanggan contoh, sisa tagihan, jatuh tempo, riwayat pembayaran, dan tombol Bayar Piutang Manual" },
+    steps: [
+      { title: "Buka pelanggan", detail: "Di Pelanggan, buka detail pelanggan lalu klik Tambah Piutang pada bagian Piutang Manual." },
+      { title: "Simpan piutang", detail: "Isi nominal, tanggal utang, jatuh tempo, dan catatan bila perlu, lalu klik Simpan Piutang." },
+      { title: "Catat pembayaran", detail: "Dari detail pelanggan atau tab Piutang, klik Bayar Piutang Manual, isi nominal dan satu metode, lalu Simpan Pembayaran." },
+    ],
+  },
+  {
     id: "customer-detail-debt-kpis", date: "2026-10-20", revision: 1,
     highlight: { title: "KPI piutang di detail pelanggan", summary: "Lihat sisa piutang, nilai yang lunas, dan rata-rata hari pelunasan per periode." },
     title: "Baca ringkasan piutang lewat kartu KPI.",

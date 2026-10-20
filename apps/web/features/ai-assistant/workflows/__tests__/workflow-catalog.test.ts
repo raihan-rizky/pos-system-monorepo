@@ -4,6 +4,22 @@ import { readFileSync } from "node:fs";
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
+  it("guides manual receivables separately from invoice payments", () => {
+    const manual = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 41);
+    expect(manual).toMatchObject({ route: "/customers", requiredCapabilities: [{ resource: "customer", action: "update" }] });
+    const text = JSON.stringify(manual);
+    for (const phrase of ["Piutang manual", "Tambah Piutang", "WIB", "jatuh tempo", "tanpa membuat transaksi", "stok"]) expect(text).toContain(phrase);
+    const payment = JSON.stringify(FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 15));
+    expect(payment).toContain("satu metode");
+    expect(payment).toContain("Riwayat pembayaran");
+    expect(payment).toContain("beberapa metode");
+    expect(payment).toContain("Semua piutang");
+    expect(payment).not.toContain("filter Lunas atau Semua");
+    expect(text).toContain("tidak dapat dihapus");
+    expect(text).toContain("termasuk yang sudah lunas");
+    const faq = readFileSync(new URL("../../docs/help/faq.md", import.meta.url), "utf8");
+    expect(faq).toContain("### Q41: Bagaimana cara mencatat piutang manual pelanggan?");
+  });
   it("directs catalog sales to ATK and printing orders to the receipt workflow", () => {
     const pos = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 6)!;
     const instructions = pos.steps.map(step => `${step.title} ${step.description}`).join(" ");
@@ -76,9 +92,9 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(40);
+    expect(FAQ_WORKFLOWS).toHaveLength(41);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 40 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 41 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);

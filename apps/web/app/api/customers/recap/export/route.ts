@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     }
 
     const bounds = periodBounds(dateFrom, dateTo);
-    const [customers, transactions, debtPaymentLogs] = await Promise.all([
+    const [customers, transactions, debtPaymentLogs, manualReceivables] = await Promise.all([
       db.customer.findMany({
         where: { storeId },
         select: {
@@ -108,6 +108,16 @@ export async function GET(request: Request) {
           createdAt: true,
         },
       }),
+      db.customerReceivable.findMany({
+        where: { storeId, payments: { some: { createdAt: bounds } } },
+        select: {
+          customerId: true,
+          payments: {
+            where: { createdAt: bounds },
+            select: { amount: true, createdAt: true },
+          },
+        },
+      }),
     ]);
 
     const data = buildCustomerRecapExport({
@@ -115,7 +125,12 @@ export async function GET(request: Request) {
       dateTo,
       customers,
       transactions,
-      debtPaymentLogs,
+      debtPaymentLogs: [...debtPaymentLogs, ...manualReceivables.flatMap(
+        (receivable) => receivable.payments.map((payment) => ({
+          ...payment,
+          customerId: receivable.customerId,
+        })),
+      )],
     });
 
     log.info("customer.recap.export.loaded", {

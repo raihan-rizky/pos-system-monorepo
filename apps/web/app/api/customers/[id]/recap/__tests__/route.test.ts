@@ -6,6 +6,7 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogFindManyMock = vi.hoisted(() => vi.fn());
+const customerReceivableFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -17,12 +18,14 @@ vi.mock("@pos/db", () => ({
     customer: { findFirst: customerFindFirstMock },
     transaction: { findMany: transactionFindManyMock },
     debtPaymentLog: { findMany: debtPaymentLogFindManyMock },
+    customerReceivable: { findMany: customerReceivableFindManyMock },
   },
 }));
 
 describe("GET /api/customers/[id]/recap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    customerReceivableFindManyMock.mockResolvedValue([]);
     requirePermissionMock.mockResolvedValue({
       id: "owner-1",
       storeId: "store-main",
@@ -110,4 +113,19 @@ describe("GET /api/customers/[id]/recap", () => {
       }),
     );
   });
+
+  it("includes manual receivables without counting manual payments as purchases", async () => {
+    customerReceivableFindManyMock.mockResolvedValueOnce([{
+      id: "manual-1", customerId: "customer-1", amount: 40000, amountPaid: 10000,
+      debtDate: new Date("2026-05-01T00:00:00Z"),
+      payments: [{ amount: 10000, createdAt: new Date("2026-05-02T00:00:00Z") }],
+    }]);
+    const response = await GET(new Request("http://localhost/api/customers/customer-1/recap?dateFrom=2026-05-01&dateTo=2026-05-02"), { params: Promise.resolve({ id: "customer-1" }) });
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.data.summary).toMatchObject({ debtPaidInPeriod: 35000, totalSpent: 125000, totalOrders: 1 });
+    expect(body.data.trend.points[0]).toMatchObject({ runningDebtRemaining: 30000, debtUnpaidAmount: 30000, dpTransactionCount: 0 });
+    expect(customerReceivableFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store-main", customerId: "customer-1" }) }));
+  });
+
 });
