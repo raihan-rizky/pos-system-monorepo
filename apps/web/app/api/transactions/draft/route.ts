@@ -34,6 +34,7 @@ export const dynamic = "force-dynamic";
 const draftItemSchema = z.object({
   productId: z.string(),
   name: z.string(),
+  documentName: z.string().trim().min(1, "Nama pada nota wajib diisi.").max(300, "Nama pada nota maksimal 300 karakter.").optional().nullable(),
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   price: z.number().min(0),
@@ -305,6 +306,7 @@ export async function POST(request: Request) {
       return {
         productId: product.id,
         name: product.name,
+        documentName: item.documentName ?? null,
         size: product.size ?? item.size ?? null,
         material: product.material ?? item.material ?? null,
         price,
@@ -371,6 +373,7 @@ export async function POST(request: Request) {
                 create: serverItems.map((item) => ({
                   productId: item.productId,
                   productName: item.name,
+                  documentName: item.documentName,
                   size: item.size,
                   material: item.material,
                   quantity: item.quantity,
@@ -413,6 +416,7 @@ export async function POST(request: Request) {
                   printingServiceId: true,
                   rawMaterialProductId: true,
                   productName: true,
+                  documentName: true,
                   size: true,
                   material: true,
                   serviceNote: true,

@@ -54,6 +54,87 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions/draft", () => {
+  it("stores a trimmed document name separately from the server product name", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Client supplied name", documentName: "  Kertas untuk rapat  ", price: 50000, quantity: 2 }],
+    }) }));
+    expect(response.status).toBe(201);
+    const stored = transactionCreateMock.mock.calls[0][0];
+    expect(stored.data).toMatchObject({ subtotal: 100000, total: 100000,
+      items: { create: [expect.objectContaining({ productId: "p1", productName: "Kertas A4", documentName: "Kertas untuk rapat", quantity: 2, unitPrice: 50000 })] },
+    });
+    expect(stored.include.items.select.documentName).toBe(true);
+  });
+
+  it.each([undefined, null])("keeps the original POS name when the document name is %s", async documentName => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas A4", documentName, price: 50000, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ productName: "Kertas A4", documentName: null });
+  });
+
+  it.each(["", "   ", "A".repeat(301), true, 10, {}])("rejects invalid document name %j without creating a draft", async documentName => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas A4", documentName, price: 50000, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["single character", "A", "A"],
+    ["exact maximum", "A".repeat(300), "A".repeat(300)],
+    ["trimmed maximum", ` \t${"A".repeat(300)}\n `, "A".repeat(300)],
+    ["Unicode and supplier punctuation", "Amplop Café / 110 (包)", "Amplop Café / 110 (包)"],
+    ["literal markup", '<b>Amplop & "Putih"</b>', '<b>Amplop & "Putih"</b>'],
+  ])("creates a draft with %s without changing its POS identity", async (_description, documentName, expectedName) => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [{ productId: "p1", name: "Nama dari klien", documentName, price: 47500, transactionPrice: 47500, quantity: 3 }] }),
+    }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock).toHaveBeenCalledTimes(1);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      subtotal: 142500, total: 142500,
+      items: { create: [expect.objectContaining({ productId: "p1", productName: "Kertas A4", documentName: expectedName, quantity: 3, unitPrice: 47500 })] },
+    });
+    expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a later invalid name before creating any part of the draft", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", {
+      method: "POST",
+      body: JSON.stringify({ items: [
+        { productId: "p1", name: "Kertas A4", documentName: "Untuk rapat", price: 50000, quantity: 1 },
+        { productId: "p1", name: "Kertas A4", documentName: "\u00a0\t\n", price: 50000, quantity: 2 },
+      ] }),
+    }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps distinct document names on repeated product lines", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [
+        { productId: "p1", name: "Kertas A4", documentName: "Untuk rapat", price: 50000, quantity: 1 },
+        { productId: "p1", name: "Kertas A4", documentName: "Untuk arsip", price: 50000, quantity: 2 },
+      ],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create).toEqual([
+      expect.objectContaining({ productName: "Kertas A4", documentName: "Untuk rapat", quantity: 1 }),
+      expect.objectContaining({ productName: "Kertas A4", documentName: "Untuk arsip", quantity: 2 }),
+    ]);
+  });
+
   it.each([0.001, 50000.01, true, {}])("rejects malformed or over-precise draft discount %j", async discount => {
     const { POST } = await import("../route");
     const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({

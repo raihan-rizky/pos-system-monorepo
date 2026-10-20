@@ -5,6 +5,8 @@ const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionUpdateMock = vi.hoisted(() => vi.fn());
+const transactionFindLockedMock = vi.hoisted(() => vi.fn());
+const transactionLockMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const applyProductStockDeltasMock = vi.hoisted(() => vi.fn());
 
@@ -81,12 +83,90 @@ describe("PATCH /api/transactions/[id]/items", () => {
     handleAuthErrorMock.mockReturnValue(null);
     transactionFindFirstMock.mockResolvedValue(existingTransaction());
     transactionUpdateMock.mockResolvedValue({ id: "tx-1" });
+    transactionLockMock.mockResolvedValue([{ id: "tx-1" }]);
+    transactionFindLockedMock.mockImplementation(async () => transactionFindFirstMock.mock.results.at(-1)?.value);
     applyProductStockDeltasMock.mockResolvedValue([]);
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
-        transaction: { update: transactionUpdateMock },
+        $queryRaw: transactionLockMock,
+        transaction: { update: transactionUpdateMock, findFirst: transactionFindLockedMock },
       }),
     );
+  });
+
+  it("preserves saved document names when identified source rows are reordered and edited", async () => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ status: "DRAFT", items: [
+      { id: "saved-a", productId: "p1", productName: "Product 1", documentName: "Banner acara", quantity: 2, discount: 0 },
+      { id: "saved-b", productId: "p1", productName: "Product 1", documentName: "Banner informasi", quantity: 2, discount: 0 },
+    ] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [
+      line({ sourceItemId: "saved-b", quantity: 3, documentName: "Nama palsu dari klien" }),
+      line({ sourceItemId: "saved-a" }),
+    ] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionFindFirstMock.mock.calls[0][0].select.items.select.documentName).toBe(true);
+    expect(transactionUpdateMock.mock.calls[0][0].data.items.create).toMatchObject([
+      { productName: "Product 1", documentName: "Banner informasi", quantity: 3 },
+      { productName: "Product 1", documentName: "Banner acara", quantity: 2 },
+    ]);
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores client document names for unchanged unnamed rows and newly added products", async () => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ status: "DRAFT", items: [
+      { id: "saved-a", productId: "p1", productName: "Product 1", documentName: null, quantity: 2, discount: 0 },
+    ] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [
+      line({ sourceItemId: "saved-a", documentName: "Injected old name" }),
+      line({ productId: "p2", productName: "Product 2", documentName: "Injected new name" }),
+    ] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock.mock.calls[0][0].data.items.create).toMatchObject([
+      { productId: "p1", documentName: null }, { productId: "p2", documentName: null },
+    ]);
+  });
+
+  it("preserves the document name of an unambiguous legacy row without a source ID", async () => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ status: "DRAFT", items: [
+      { id: "saved-a", productId: "p1", productName: "Product 1", documentName: "Banner kegiatan", quantity: 2, discount: 0 },
+    ] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line()] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock.mock.calls[0][0].data.items.create).toMatchObject([{ documentName: "Banner kegiatan" }]);
+  });
+
+  it("refreshes document names under the parent lock to preserve a concurrent name save", async () => {
+    const oldItem = { id: "saved-a", productId: "p1", productName: "Product 1", documentName: "Nama sebelum edit", quantity: 2, discount: 0 };
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ status: "DRAFT", items: [oldItem] }));
+    transactionFindLockedMock.mockResolvedValue(existingTransaction({ status: "DRAFT", items: [{ ...oldItem, documentName: "Nama baru yang tersimpan" }] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line({ sourceItemId: "saved-a", quantity: 3 })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(transactionUpdateMock.mock.calls[0][0].data.items.create).toMatchObject([{ documentName: "Nama baru yang tersimpan", quantity: 3 }]);
+    expect(transactionFindLockedMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "tx-1", storeId: "store-main" } }));
+    const [sql, ...parameters] = transactionLockMock.mock.calls[0];
+    expect(sql.join("?")).toMatch(/pos_transactions.*FOR UPDATE/s);
+    expect(parameters).toEqual(["tx-1", "store-main"]);
+    expect(transactionLockMock.mock.invocationCallOrder[0]).toBeLessThan(transactionFindLockedMock.mock.invocationCallOrder[0]);
+  });
+
+  it("rejects item edits when the draft is approved concurrently before acquiring the parent lock", async () => {
+    const item = { id: "saved-a", productId: "p1", productName: "Product 1", documentName: "Nama dokumen", quantity: 2, discount: 0 };
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ status: "DRAFT", items: [item] }));
+    transactionFindLockedMock.mockResolvedValue(existingTransaction({ status: "COMPLETED", items: [item] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line({ sourceItemId: "saved-a" })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(409);
+    expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects replaced source rows instead of silently dropping their document names", async () => {
+    const item = { id: "saved-a", productId: "p1", productName: "Product 1", documentName: "Nama dokumen", quantity: 2, discount: 0 };
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({ status: "DRAFT", items: [item] }));
+    transactionFindLockedMock.mockResolvedValue(existingTransaction({ status: "DRAFT", items: [{ ...item, id: "replacement" }] }));
+    const response = await PATCH(makeRequest("tx-1", { items: [line({ sourceItemId: "saved-a" })] }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(409);
+    expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
   });
 
   it("updates items and recalculates totals for a pending transaction (no stock reconcile)", async () => {

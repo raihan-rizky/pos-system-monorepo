@@ -63,7 +63,7 @@ export async function PATCH(
         tax: true,
         taxRate: true,
         taxMethod: true,
-        items: { select: { id: true, productId: true, productName: true, quantity: true, discount: true } },
+        items: { select: { id: true, productId: true, productName: true, documentName: true, quantity: true, discount: true } },
       },
     });
 
@@ -110,7 +110,7 @@ export async function PATCH(
       }
       const gross = discountedLineSubtotal(item.appliedUnitPrice, item.quantity);
       const discount = Math.min(gross, Math.max(0, Number(source?.discount ?? 0)));
-      return { ...item, discount, subtotal: discountedLineSubtotal(item.appliedUnitPrice, item.quantity, discount) };
+      return { ...item, sourceItemId: source?.id ?? null, discount, subtotal: discountedLineSubtotal(item.appliedUnitPrice, item.quantity, discount) };
     });
     const subtotal = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
     const discount = Number(existingTx.discount ?? 0);
@@ -140,6 +140,24 @@ export async function PATCH(
       .map(([productId, delta]) => ({ productId, delta }));
 
     await db.$transaction(async (tx) => {
+      // Refresh saved names only after locking the parent, so a concurrent
+      // document-name save cannot be overwritten by the earlier item snapshot.
+      await tx.$queryRaw`
+        SELECT "id" FROM "pos_transactions"
+        WHERE "id" = ${id} AND "storeId" = ${storeId}
+        FOR UPDATE
+      `;
+      const current = await tx.transaction.findFirst({
+        where: { id, storeId },
+        select: { status: true, items: { select: { id: true, documentName: true } } },
+      });
+      const previousIds = new Set(existingTx.items.map(item => item.id));
+      if (!current || current.status !== existingTx.status ||
+          current.items.length !== existingTx.items.length ||
+          current.items.some(item => !previousIds.has(item.id))) {
+        throw new Error("TRANSACTION_ITEMS_CHANGED");
+      }
+      const currentNames = new Map(current.items.map(item => [item.id, item.documentName]));
       if (stockDeltaItems.length > 0) {
         await applyProductStockDeltas(tx, {
           storeId,
@@ -158,6 +176,7 @@ export async function PATCH(
             create: normalizedItems.map(item => ({
               productId: item.productId,
               productName: item.productName,
+              documentName: item.sourceItemId ? currentNames.get(item.sourceItemId) ?? null : null,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               appliedUnitPrice: item.appliedUnitPrice,
@@ -175,6 +194,9 @@ export async function PATCH(
     const authError = handleAuthError(error);
     if (authError) return authError;
 
+    if (error instanceof Error && error.message === "TRANSACTION_ITEMS_CHANGED") {
+      return NextResponse.json({ message: "Item atau status transaksi sudah berubah. Muat ulang transaksi lalu coba lagi." }, { status: 409 });
+    }
     if (error instanceof Error && error.message === "ITEM_DISCOUNT_SOURCE_REQUIRED") {
       return NextResponse.json({ message: "Pilih identitas item yang sesuai agar diskon tetap tersimpan. Muat ulang transaksi lalu coba lagi." }, { status: 400 });
     }

@@ -478,6 +478,7 @@ model TransactionItem {
   transactionId        String
   productId            String?
   productName          String
+  documentName         String?
   quantity             Int
   unitPrice            Decimal                      @db.Decimal(12, 2)
   discount             Decimal                      @default(0) @db.Decimal(12, 2)

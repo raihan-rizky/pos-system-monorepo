@@ -40,6 +40,7 @@ function toEditorLines(items: ProductCartItem[]): QuoteEditorLine[] {
     lineType: "PRODUCT",
     productId: item.productId,
     name: item.name,
+    documentName: null,
     price: item.price,
     currentPrice: item.price,
     costPrice: item.costPrice ?? null,
@@ -94,7 +95,7 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
   const handleLineChange = useCallback(
     (
       cartLineId: string,
-      changes: Partial<Pick<QuoteEditorLine, "quantity" | "price">>,
+      changes: Partial<Pick<QuoteEditorLine, "quantity" | "price" | "documentName">>,
     ) => {
       setLines((current) =>
         current.map((line) =>
@@ -201,6 +202,10 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
           </div>
         )}
 
+        <p className="text-sm text-surface-600">
+          Nama pada nota hanya digunakan untuk cetak atau PDF. Nama POS dan produk di keranjang tetap sama.
+        </p>
+
         <div className="overflow-hidden rounded-xl border border-surface-200">
           <div className="grid grid-cols-[minmax(0,1.5fr)_90px_120px_180px] gap-3 bg-surface-50 px-4 py-2 text-xs font-bold uppercase text-surface-500">
             <span>Produk</span>
@@ -215,9 +220,35 @@ export const NotaPenawaranModal: React.FC<NotaPenawaranModalProps> = ({
                 className="grid grid-cols-1 gap-3 px-4 py-3 md:grid-cols-[minmax(0,1.5fr)_90px_120px_180px] md:items-center"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-surface-900">
-                    {line.name}
+                  <label
+                    htmlFor={`nota-document-name-${line.cartLineId}`}
+                    className="mb-1 block text-sm font-semibold text-surface-700"
+                  >
+                    Nama pada nota
+                  </label>
+                  <input
+                    id={`nota-document-name-${line.cartLineId}`}
+                    name={`documentName-${line.cartLineId}`}
+                    type="text"
+                    value={line.documentName ?? line.name}
+                    onChange={(event) => handleLineChange(line.cartLineId, { documentName: event.target.value })}
+                    maxLength={300}
+                    required
+                    aria-describedby={`nota-pos-name-${line.cartLineId}`}
+                    disabled={isSaving}
+                    className="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm text-surface-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  />
+                  <p id={`nota-pos-name-${line.cartLineId}`} className="mt-1 break-words text-xs text-surface-600">
+                    Nama POS: {line.name}
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => handleLineChange(line.cartLineId, { documentName: null })}
+                    disabled={isSaving || line.documentName == null}
+                    className="mt-1 rounded text-xs font-semibold text-brand-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:text-surface-400 disabled:no-underline"
+                  >
+                    Kembalikan nama POS
+                  </button>
                   <p className="mt-0.5 text-xs text-surface-500">
                     Stok: {formatCompoundStock(line)}
                   </p>

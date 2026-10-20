@@ -4,6 +4,7 @@ import type { PricingPreference } from "@/features/customer-category-pricing/hel
 export type DraftItemInput = {
   productId: string;
   name: string;
+  documentName?: string | null;
   size?: string | null;
   material?: string | null;
   price: number;

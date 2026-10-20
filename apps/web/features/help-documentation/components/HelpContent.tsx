@@ -681,11 +681,11 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "sales-draft",
       title: "Membuat Draft Transaksi",
-      description: "Kalau ada pesanan tapi belum dibayar, simpan dulu sebagai Draft biar nanti bisa diproses dan diselesaikan oleh kasir.",
+      description: "Simpan pesanan yang belum dibayar sebagai Draft agar bisa dilanjutkan kasir. Di formulir faktur sementara dan pratinjau Cetak Nota Penawaran, isi Nama pada nota untuk tiap item; Nama POS tetap terlihat sebagai acuan. Nama khusus hanya berlaku pada dokumen ini dan tidak mengubah produk, harga, atau stok POS.",
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka POS", description: "Buka menu samping (sidebar) sebelah kiri, pilih kategori 'Operasi', dan klik menu 'Kasir' (POS).", icon: <ShoppingCart className="w-8 h-8" /> },
-        { title: "Tambah Barang ke Keranjang", description: "Klik pada produk-produk yang dipesan oleh pelanggan di grid produk sebelah kiri agar masuk ke keranjang belanja sebelah kanan.", icon: <Package className="w-8 h-8" /> },
+        { title: "Tambah Barang ke Keranjang", description: "Klik produk yang dipesan agar masuk ke keranjang. Pada formulir faktur sementara atau pratinjau nota penawaran, pengguna dengan izin edit draft dapat mengisi Nama pada nota sepanjang 1–300 karakter; nama tidak boleh kosong. Nama POS hanya untuk acuan. Klik Kembalikan nama POS untuk memakai nama asal. Saat mencetak, nama disimpan lebih dulu; jika gagal, perbaiki kesalahan lalu coba lagi. Buka kembali dokumen untuk memakai nama tersimpan. Pengguna yang hanya memiliki akses baca tetap dapat melihat dan mencetak nama tersimpan; kertas dan PDF hanya memuat Nama pada nota, tanpa acuan POS atau tombol pengeditan.", icon: <Package className="w-8 h-8" /> },
         { title: "Simpan Sebagai Draft", description: "Buka Pembayaran, lengkapi pelanggan dan catatan, lalu pilih Simpan Faktur Sementara. Tanggal dan jam langsung terisi saat form dibuka dalam WIB; Owner/Admin dapat mengubahnya, sedangkan Kasir/Sales memakai waktu otomatis server. Pengaturan No. Faktur ada di modal Cetak Nota Penawaran bersama data penerima. Pengguna dengan izin edit draft dapat mengetik nomor custom atau klik Gunakan otomatis. Nomor disimpan ke transaksi sebelum dicetak dan dipakai saat cetak ulang. Nomor yang sudah digunakan ditolak; perbaiki nomor lalu coba cetak kembali. Sales dapat mencetak nomor tersimpan sesuai izin yang berlaku.", icon: <FileText className="w-8 h-8" /> },
       ]
     },

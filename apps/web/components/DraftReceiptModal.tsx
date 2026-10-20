@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
+import { Pencil, RotateCcw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Modal, Button } from "@pos/ui";
 import { terbilang } from "@/lib/terbilang";
@@ -14,6 +15,7 @@ import { useRole } from "@/components/providers/RoleProvider";
 import "./draft-receipt-print.css";
 import { useReceiptTax } from "@/features/transaction-tax/hooks/useReceiptTax";
 import { TaxField } from "@/features/transaction-tax/components/TaxField";
+import { useDocumentItemNames } from "@/features/transactions-draft/hooks/useDocumentItemNames";
 
 interface DraftReceiptModalProps {
   open: boolean;
@@ -37,6 +39,7 @@ export function DraftReceiptModal({
 }: DraftReceiptModalProps) {
   const tax = useReceiptTax(initialTransaction, open);
   const transaction = tax.transaction;
+  const documentNames = useDocumentItemNames(initialTransaction, open);
   const { data: storeSettings } = useStoreSettings();
   const queryClient = useQueryClient();
   const { canPerform } = useRole();
@@ -49,6 +52,15 @@ export function DraftReceiptModal({
   const [isSavingNumber, setIsSavingNumber] = useState(false);
   const [numberError, setNumberError] = useState<string | null>(null);
   const printing = useRef(false);
+  const printSession = useRef(0);
+  const printItemsKey = JSON.stringify(transaction.items.map(item => item.id).sort());
+
+  useEffect(() => {
+    printSession.current += 1;
+    printing.current = false;
+    setIsSavingNumber(false);
+    return () => { printSession.current += 1; };
+  }, [open, transaction.id, printItemsKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -90,11 +102,15 @@ export function DraftReceiptModal({
 
   const handlePrint = async () => {
     if (printing.current) return;
+    const session = printSession.current;
     printing.current = true;
     setIsSavingNumber(true);
     setNumberError(null);
     try {
+      await documentNames.ensureSaved();
+      if (session !== printSession.current) return;
       await tax.ensureSaved();
+      if (session !== printSession.current) return;
       if (canEditNumber && numberInput !== undefined) {
         const response = await fetch(`/api/transactions/${transaction.id}/draft-number`, {
           method: "PATCH",
@@ -102,6 +118,7 @@ export function DraftReceiptModal({
           body: JSON.stringify({ draftNumber: numberInput === null ? null : numberInput.trim() }),
         });
         const data = await response.json();
+        if (session !== printSession.current) return;
         if (!response.ok) throw new Error(data.message || "Nomor faktur gagal disimpan.");
         flushSync(() => {
           setSavedNumber(data.draftNumber);
@@ -111,12 +128,15 @@ export function DraftReceiptModal({
         void queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
         void queryClient.invalidateQueries({ queryKey: ["transaction", transaction.id] });
       }
-      window.print();
+      if (session === printSession.current) window.print();
     } catch (error) {
+      if (session !== printSession.current) return;
       setNumberError(error instanceof Error ? error.message : "Nomor faktur gagal disimpan.");
     } finally {
-      printing.current = false;
-      setIsSavingNumber(false);
+      if (session === printSession.current) {
+        printing.current = false;
+        setIsSavingNumber(false);
+      }
     }
   };
 
@@ -204,8 +224,10 @@ export function DraftReceiptModal({
             disabled={!canEditNumber || !numberReady || isSavingNumber}
             hint={canEditNumber ? "Nomor disimpan ke transaksi sebelum dicetak. Klik Gunakan otomatis untuk memakai nomor sistem." : "Nomor mengikuti transaksi tersimpan. Anda tidak memiliki izin mengubah nomor faktur."}
           />
-          {numberError && <p role="alert" className="text-sm text-red-700">{numberError}</p>}
+          {numberError && numberError !== documentNames.error && <p role="alert" className="text-sm text-red-700">{numberError}</p>}
           <TaxField tax={tax} quotation />
+          {documentNames.error && <p role="alert" className="text-sm text-red-700">{documentNames.error}</p>}
+          <p className="text-xs text-surface-600">Edit nama pada kolom ITEM. Nama POS menjadi referensi di layar; hanya nama pada nota yang dicetak. Perubahan disimpan saat cetak.</p>
         </div>
 
         {/* ═══ A4 PREVIEW ═══ */}
@@ -291,7 +313,47 @@ export function DraftReceiptModal({
                   <tr key={item.id ?? `item-${index}`}>
                     <td style={{ textAlign: "center" }}>{index + 1}</td>
                     <td>
-                      {item.productName}
+                      <div className="draft-item-screen-only">
+                        <label htmlFor={"draft-item-name-" + item.id} className="draft-item-name-label">
+                          Nama pada nota
+                        </label>
+                        <div className="draft-item-name-editor">
+                        <textarea
+                          ref={element => { if (element) { element.style.height = "0px"; element.style.height = element.scrollHeight + "px"; } }}
+                          id={"draft-item-name-" + item.id}
+                          aria-label={"Nama pada nota item " + (index + 1)}
+                          aria-describedby={"draft-item-pos-" + item.id}
+                          value={documentNames.nameFor(item.id, item.productName)}
+                          onChange={event => { documentNames.setName(item.id, event.target.value); setNumberError(null); }}
+                          onKeyDown={event => {
+                            if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); documentNames.cancelEdit(item.id); setNumberError(null); }
+                            if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+                          }}
+                          readOnly={!documentNames.canEdit}
+                          disabled={!documentNames.ready || isSavingNumber}
+                          aria-invalid={documentNames.invalid || undefined}
+                          maxLength={300}
+                          rows={1}
+                          title={documentNames.canEdit ? "Klik untuk mengubah nama pada nota" : undefined}
+                          className="draft-item-name-input"
+                        />
+                        {documentNames.canEdit && <Pencil size={11} className="draft-item-edit-icon" aria-hidden="true" />}
+                        </div>
+                        <div className="draft-item-reference">
+                        <p id={"draft-item-pos-" + item.id} className="draft-item-pos-name">
+                          Nama POS: {documentNames.originalNameFor(item.id, item.productName)}
+                        </p>
+                        {documentNames.canEdit && documentNames.nameFor(item.id, item.productName) !== documentNames.originalNameFor(item.id, item.productName) && (
+                          <button type="button" title="Kembalikan nama POS" aria-label={"Kembalikan nama POS item " + (index + 1)}
+                            onClick={() => { documentNames.setName(item.id, null); setNumberError(null); }}
+                            disabled={!documentNames.ready || isSavingNumber}
+                            className="draft-item-name-reset">
+                            <RotateCcw size={10} aria-hidden="true" /> Kembalikan
+                          </button>
+                        )}
+                        </div>
+                      </div>
+                      <span className="draft-item-print-name">{documentNames.nameFor(item.id, item.productName).trim()}</span>
                       {Number(item.discount) > 0 && (
                         <div style={{ fontSize: "0.9em" }}>{`Diskon item Rp${Number(item.discount).toLocaleString("id-ID")}`}</div>
                       )}
@@ -421,7 +483,7 @@ export function DraftReceiptModal({
             size="lg"
             onClick={handlePrint}
             loading={isSavingNumber}
-            disabled={isLoadingNumber || !numberReady || !tax.ready || tax.saving || tax.invalid}
+            disabled={isLoadingNumber || !numberReady || !tax.ready || tax.saving || tax.invalid || !documentNames.ready || documentNames.saving || documentNames.invalid}
             className="flex-1"
           >
             Cetak Nota Penawaran

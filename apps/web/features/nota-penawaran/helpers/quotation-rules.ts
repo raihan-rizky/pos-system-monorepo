@@ -8,6 +8,7 @@ export type QuotationProductLine = {
   lineType: "PRODUCT";
   productId: string;
   name: string;
+  documentName?: string | null;
   price: number;
   quantity: number;
   unit: string;
@@ -39,7 +40,7 @@ export function canViewQuotationHpp(role: QuotationRole): boolean {
 
 export function updateQuoteLine(
   line: QuotationProductLine,
-  changes: Partial<Pick<QuotationProductLine, "quantity" | "price">>,
+  changes: Partial<Pick<QuotationProductLine, "quantity" | "price" | "documentName">>,
 ): QuotationProductLine {
   const nextQuantity =
     changes.quantity === undefined
@@ -50,6 +51,7 @@ export function updateQuoteLine(
 
   return {
     ...line,
+    documentName: changes.documentName === undefined ? line.documentName : changes.documentName,
     quantity: nextQuantity,
     price: nextPrice,
   };
@@ -66,6 +68,12 @@ export function buildNotaPenawaranDraftInput(input: {
     throw new Error("Kepada Yth wajib diisi");
   }
 
+  for (const line of input.lines) {
+    if (line.documentName != null && (!line.documentName.trim() || line.documentName.trim().length > 300)) {
+      throw new Error("Nama pada nota wajib diisi dan maksimal 300 karakter.");
+    }
+  }
+
   return {
     customerName,
     customerId: null,
@@ -78,6 +86,7 @@ export function buildNotaPenawaranDraftInput(input: {
     items: input.lines.map((line) => ({
       productId: line.productId,
       name: line.name,
+      documentName: line.documentName?.trim() ?? null,
       size: line.size ?? null,
       material: line.material ?? null,
       price: line.price,

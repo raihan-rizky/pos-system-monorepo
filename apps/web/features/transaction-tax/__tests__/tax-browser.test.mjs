@@ -74,6 +74,7 @@ try {
     const url = new URL(route.request().url());
     if (url.pathname === "/fixture") return route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><div id="root"></div></body></html>' });
     if (url.pathname === "/api/settings/store") return route.fulfill({ json: { name: "Toko Teladan" } });
+    if (url.pathname.endsWith("/document-item-names")) return route.fulfill({ json: { items: [] } });
     if (url.pathname.endsWith("/draft-number")) return route.fulfill({ json: { draftNumber: "PNW-TLD-20261018-001", automaticNumber: "PNW-TLD-20261018-001" } });
     const match = url.pathname.match(/^\/api\/transactions\/([^/]+)\/tax$/);
     if (match) {

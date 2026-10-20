@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "document-item-names", date: "2026-10-20", revision: 1,
+    highlight: { title: "Nama item khusus untuk nota", summary: "Sesuaikan nama item pada nota penawaran tanpa mengubah produk di POS." },
+    title: "Sesuaikan nama item pada nota penawaran.",
+    summary: "Isi Nama pada nota untuk tiap item di nota penawaran atau faktur sementara, dengan Nama POS sebagai acuan. Nama tersimpan pada dokumen dan dipakai kembali saat dicetak ulang.",
+    kind: "feature", area: "Kasir & Nota Penawaran", href: "/history", visual: "quotation",
+    screenshot: { src: "/images/changelog/nama-item-dokumen.png", alt: "Nama pada nota berisi Amplop Putih No. 110 dan Nama POS Amplop 110 PPL sebagai acuan pada nota penawaran" },
+    steps: [
+      { title: "Buka nota penawaran", detail: "Buka faktur sementara dari Riwayat, lalu pilih Cetak Nota Penawaran." },
+      { title: "Isi nama pada nota", detail: "Ubah Nama pada nota tiap item; periksa Nama POS atau klik Kembalikan nama POS bila perlu." },
+      { title: "Cetak nama tersimpan", detail: "Klik Cetak untuk menyimpan nama lebih dulu; kertas dan PDF hanya menampilkan Nama pada nota." },
+    ],
+  },
+  {
     id: "item-discount-2026-10-19", date: "2026-10-19", revision: 1,
     highlight: { title: "Diskon per item saat pembayaran", summary: "Atur diskon Rp atau persen untuk satu atau beberapa item sebelum membayar." },
     title: "Diskon item langsung di Pembayaran.",
