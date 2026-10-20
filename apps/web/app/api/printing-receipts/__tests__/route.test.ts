@@ -155,7 +155,7 @@ describe("printing receipts API", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).revision).toBe(2);
     expect(h.updateMany).toHaveBeenCalledWith({ where: { id: "r1", storeId: "s1", revision: 1, transactionId: null },
-      data: { number: "CUSTOM-1", document, revision: { increment: 1 } } });
+      data: { number: "CUSTOM-1", document: { ...document, title: "CUSTOM-1" }, revision: { increment: 1 } } });
     expect(h.stockUpdate).not.toHaveBeenCalled();
   });
 
