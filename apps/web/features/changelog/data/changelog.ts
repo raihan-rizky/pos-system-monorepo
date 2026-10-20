@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "printing-receipts-pos", date: "2026-10-20", revision: 1,
+    highlight: { title: "Nota langsung di Percetakan", summary: "Isi nota tersimpan per jenis, proses pembayaran atau DP, lalu cari di Riwayat." },
+    title: "Isi nota langsung di tab Percetakan.",
+    summary: "Buat dan isi nota SPANDUK, PERCETAKAN, PLAT, STEMPEL, atau PRINT langsung di lembar nota. Nota tersimpan per jenis, mendukung pembayaran atau DP, serta mudah dicari di Riwayat.",
+    kind: "feature", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    screenshot: { src: "/images/changelog/nota-percetakan.png", alt: "Editor nota SPANDUK dengan data contoh, daftar nota tersimpan, lima subtab Percetakan, serta tombol Cetak PDF dan Bayar DP" },
+    steps: [
+      { title: "Pilih dan buat nota", detail: "Buka Kasir > Percetakan, pilih jenis nota, lalu klik Buat Nota Kosong." },
+      { title: "Isi lembar nota", detail: "Isi item, bahan, banyaknya, dan harga; hubungkan stok bila perlu, lalu tunggu Tersimpan." },
+      { title: "Bayar dan temukan lagi", detail: "Klik Bayar / DP dan cetak; cari kembali di Riwayat lewat Kategori PERCETAKAN dan Subkategori asal nota." },
+    ],
+  },
+  {
     id: "document-item-names", date: "2026-10-20", revision: 1,
     highlight: { title: "Nama item khusus untuk nota", summary: "Sesuaikan nama item pada nota penawaran tanpa mengubah produk di POS." },
     title: "Sesuaikan nama item pada nota penawaran.",

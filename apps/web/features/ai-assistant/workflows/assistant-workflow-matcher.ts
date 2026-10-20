@@ -75,6 +75,7 @@ export function getMissingWorkflowRequirements(
   }
 
   for (const capability of workflow.requiredCapabilities) {
+    if (capability.roles && !capability.roles.includes(role)) continue;
     if (!canRolePerformAction(role, capability.resource, capability.action, permissions)) {
       missing.push(`resource:${capability.resource}.${capability.action}`);
     }

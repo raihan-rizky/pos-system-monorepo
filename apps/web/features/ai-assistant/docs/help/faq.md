@@ -62,7 +62,7 @@ Harga yang dimasukkan manual untuk transaksi tetap memakai penanda **Hanya berla
 ### Q6: Bagaimana alur memproses transaksi penjualan langsung di kasir (POS)?
 **A:** Pastikan shift kasir Anda telah aktif terlebih dahulu, lalu ikuti alur berikut:
 1. Buka sidebar **Operasi > Kasir** (`/pos`).
-2. Pilih tab **Produk** atau **Layanan**. Cari item melalui kolom pencarian di bagian atas atau klik langsung pada gambar produk di grid sebelah kiri.
+2. Pilih tab **ATK** untuk penjualan barang. Cari produk melalui kolom pencarian di bagian atas atau klik gambar produk di grid sebelah kiri. Untuk pesanan cetak, pilih **Percetakan** dan ikuti panduan nota pada **Q40**; pesanan diisi langsung pada lembar nota di subtab asalnya.
 3. Jika ada varian (seperti warna/ukuran), pilih varian yang sesuai di pop-up, lalu masukkan item ke **Keranjang**.
 4. Jika memiliki permission edit produk, gunakan **Edit Cepat** di header keranjang. Ikon produk mengubah Nama/Kategori/Merek seluruh varian, sedangkan ikon harga mengubah harga master atau **Harga Khusus** yang hanya berlaku untuk transaksi ini.
 5. Atur kuantitas atau hapus item di keranjang bila perlu, lalu klik tombol hijau besar **Bayar**.
@@ -79,6 +79,8 @@ Harga yang dimasukkan manual untuk transaksi tetap memakai penanda **Hanya berla
    - **Bayar Instan:** Pilih metode pembayaran dan masukkan jumlah uang yang dibayar pelanggan.
    - **Bayar Nanti (Tempo):** Centang opsi **Bayar Nanti (Tempo)** jika transaksi berupa piutang/pembayaran bertahap (status transaksi akan otomatis menjadi **DP**).
 4. Klik **Setujui** untuk memfinalisasi transaksi. Sistem akan segera mengurangi stok produk yang bersangkutan. Jika memilih **Tolak**, transaksi pending tersebut akan otomatis dibatalkan (VOID).
+
+Untuk **Nota Percetakan**, periksa isi dan pembayaran tersimpan lalu klik **Setujui nota**. Item, nomor, dan tanggal tetap mengikuti nota yang telah diproses; perubahan isian dilakukan saat nota masih draft sebelum **Bayar / DP**.
 
 ### Q8: Bagaimana cara membuat Surat Jalan Pengiriman (Delivery Order) barang ke pelanggan?
 **A:** Surat Jalan digunakan untuk mengirimkan barang pesanan kepada pelanggan secara bertahap atau sekaligus, langsung dari transaksi penjualan yang ada:
@@ -110,6 +112,8 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 4. Pilih tanggal invoice baru. Isi jam invoice hanya jika jamnya juga perlu diganti; jika jam dikosongkan, sistem mempertahankan jam invoice sebelumnya.
 5. Tulis alasan perubahan dengan jelas, lalu simpan. Sistem akan menyesuaikan nomor invoice/draft, mencatat audit trail, dan menampilkan riwayat perubahan di detail transaksi.
 6. Setelah perubahan berhasil, cetak ulang invoice final agar nomor dan tanggal yang diterima pelanggan sudah sesuai.
+
+**Nota Percetakan yang sudah diproses** mempertahankan tanggal, nomor, dan isi nota. Isi tanggal pada draft di tab Percetakan sebelum **Bayar / DP**; pengaturan tanggal invoice umum tidak tersedia untuk nota tersebut.
 
 ### Q11: Bagaimana cara mengunggah foto nota pengeluaran atau struk bukti transaksi pelanggan?
 **A:** Aplikasi mengunggah bukti langsung ke penyimpanan R2:
@@ -320,6 +324,16 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 1. **Lihat pembaruannya.** Riwayat lengkap tersusun dari yang terbaru. Pilih **7 hari terakhir** untuk hari ini dan enam hari sebelumnya berdasarkan WIB.
 2. **Kenali tampilannya.** Perbesar screenshot jika tersedia, atau lihat gambar berlabel **Ilustrasi fitur**. Ikuti tiga langkah di bawah setiap catatan. Tombol **Buka fitur** mengikuti izin akses Anda.
 3. **Cek sorotan.** Klik **Sorotan 7 hari** untuk membuka popup **Apa yang baru**. Semua pembaruan tampil dalam satu daftar ringkas: nama fitur dan satu kalimat manfaat. Klik baris untuk membuka fitur sesuai izin akses, atau **Lihat semua catatan** untuk gambar dan alur lengkap. Tutup dengan **Sudah lihat**, **Tutup**, atau **Escape**. Popup otomatis hanya muncul untuk pembaruan yang belum dilihat pada akun dan browser tersebut.
+
+### Q40: Bagaimana cara membuat dan memproses nota Percetakan?
+
+**A:** Nota Percetakan dikerjakan langsung dari lembar nota di **Kasir > Percetakan**.
+
+1. Pilih subtab **SPANDUK**, **PERCETAKAN**, **PLAT**, **STEMPEL**, atau **PRINT**. Daftar nota mengikuti subtab yang dipilih.
+2. Klik **Buat Nota Kosong**. Nota langsung tersimpan sebagai draft; **No. Nota** terisi otomatis dan boleh diubah selama draft.
+3. Isi pelanggan, nama item atau file, bahan, banyaknya, dan harga langsung di lembar nota. Nama item dan bahan boleh diketik bebas. Buka **Baris dan hubungan stok > Hubungkan stok** bila perlu; **Jumlah pemakaian** adalah total bahan untuk baris tersebut. Tunggu **Tersimpan** sebelum berpindah atau membayar. Jika **Gagal menyimpan**, pilih **Coba simpan lagi**; **Muat ulang versi tersimpan** meminta konfirmasi sebelum mengganti perubahan lokal.
+4. Klik **Bayar / DP**, pilih metode dan pelunasan atau **DP**, lalu gunakan **Cetak / PDF > Cetak** atau **Unduh PDF**. Satu nota menjadi satu transaksi. Stok bahan terkait berkurang ketika transaksi berhasil; draft dan pencetakan draft tidak mengurangi stok. Setelah diproses, isi nota tetap, sedangkan pembayaran lanjutan mengikuti transaksi. Pada ponsel, buka **Daftar nota** untuk daftar tersimpan; gunakan **Perkecil nota** dan **Perbesar nota** untuk mengatur tampilan.
+5. Buka **Riwayat**, pilih **Kategori transaksi: PERCETAKAN** lalu **Subkategori** asal nota, atau cari nomor nota. Penjualan barang berada di **ATK** dengan subkategori dari kategori produk. Mengganti kategori mengosongkan subkategori dan kembali ke halaman pertama; **Semua Kategori** menonaktifkan subkategori. Layanan cetak lama tanpa jenis tercatat tetap berada di PERCETAKAN tanpa subkategori. Buka transaksi untuk mencetak ulang menggunakan template asal.
 
 ### Q38: Bagaimana cara mengajukan dan memutuskan Pembelian Barang?
 **A:** Pembelian Barang baru dibuat otomatis saat Daftar Belanja disetujui. Untuk menyelesaikan Pembelian Barang lama:

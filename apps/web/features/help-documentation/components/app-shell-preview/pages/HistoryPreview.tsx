@@ -27,7 +27,10 @@ export function HistoryPreview(ctx: PreviewContext) {
         <GuideTarget ctx={ctx} target="history-filter" className="space-y-3 border-b border-surface-100 bg-white px-8 py-4">
           <div className="flex gap-3">
             <div className="flex flex-1 items-center gap-3 rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-500"><Search className="h-4 w-4" />Cari invoice, pelanggan, nama produk, atau sales...</div>
-            <div className="w-48 rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm">Semua Kategori</div>
+            <GuideTarget ctx={ctx} target="history-category" className="flex gap-3">
+              <div className="w-40 rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm"><span className="block text-[10px] text-surface-500">Kategori</span>{ctx.activeTarget === "history-category" ? "PERCETAKAN" : "Semua Kategori"}</div>
+              <div className="w-40 rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm"><span className="block text-[10px] text-surface-500">Subkategori</span>{ctx.activeTarget === "history-category" ? "SPANDUK" : "Pilih kategori dahulu"}</div>
+            </GuideTarget>
             <div className="w-44 rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm">Semua Status</div>
           </div>
           <div className="flex items-center gap-3 text-xs font-semibold text-surface-600"><CalendarDays className="h-4 w-4" />Filter cepat <span className="rounded-lg bg-brand-600 px-3 py-2 text-white">Harian</span><span>Mingguan</span><span>Bulanan</span><span className="ml-4 rounded-xl border px-3 py-2">09 Jul 2026</span><span className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700"><Truck className="h-4 w-4" />Surat Jalan saja</span></div>

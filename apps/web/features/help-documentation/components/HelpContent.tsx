@@ -960,10 +960,25 @@ function conciseStepCallout(description: string) {
   return sentence.length > 180 ? `${sentence.slice(0, 177).trim()}...` : sentence;
 }
 
+const PRINTING_RECEIPT_GUIDE: Omit<AccordionItem, "id"> = {
+  title: "Membuat Nota Percetakan",
+  description: "Isi dan simpan nota langsung di tab Percetakan, lalu proses pembayaran atau DP dan temukan kembali melalui Riwayat.",
+  icon: <FileText className="w-5 h-5 text-brand-600" />,
+  steps: [
+    { title: "Pilih jenis nota", description: "Buka Kasir > Percetakan, lalu pilih SPANDUK, PERCETAKAN, PLAT, STEMPEL, atau PRINT. Setiap subtab memiliki daftar nota tersimpan sendiri.", icon: <ShoppingCart className="w-8 h-8" /> },
+    { title: "Buat nota kosong", description: "Klik Buat Nota Kosong. Nota langsung tersimpan di subtab terpilih; No. Nota terisi otomatis dan masih dapat diubah selama draft. Pilih nota dari daftar untuk membukanya kembali.", icon: <FileText className="w-8 h-8" /> },
+    { title: "Isi dan tunggu tersimpan", description: "Isi pelanggan, nama item atau file, bahan, banyaknya, dan harga langsung pada lembar nota. Item dan bahan boleh diketik bebas. Buka Baris dan hubungan stok lalu Hubungkan stok bila perlu; Jumlah pemakaian adalah total bahan untuk baris tersebut. Tunggu Tersimpan sebelum berpindah nota atau membayar. Jika Gagal menyimpan, pilih Coba simpan lagi; Muat ulang versi tersimpan mengganti perubahan lokal setelah konfirmasi.", icon: <Package className="w-8 h-8" /> },
+    { title: "Bayar dan cetak", description: "Klik Bayar / DP untuk nota aktif, lalu pilih metode dan pelunasan atau DP sesuai kebutuhan. Satu nota menjadi satu transaksi. Klik Cetak / PDF lalu Cetak atau Unduh PDF untuk memakai desain asal; stok bahan terkait berkurang saat transaksi berhasil. Setelah diproses, isi nota tetap, sedangkan pembayaran lanjutan mengikuti transaksi. Di ponsel, gunakan Daftar nota untuk membuka daftar serta Perkecil nota atau Perbesar nota untuk mengatur tampilan.", icon: <DollarSign className="w-8 h-8" /> },
+    { title: "Temukan di Riwayat", description: "Buka Riwayat, pilih Kategori transaksi PERCETAKAN lalu pilih Subkategori asal nota. Untuk penjualan ATK, pilih ATK lalu kategori produk pada Subkategori. Mengganti Kategori mengosongkan Subkategori dan kembali ke halaman pertama; Semua Kategori menonaktifkan Subkategori. Cari nomor nota, buka transaksi, lalu cetak ulang memakai template asal. Layanan cetak lama masuk PERCETAKAN tanpa subkategori bila jenisnya belum tercatat.", icon: <History className="w-8 h-8" /> },
+  ],
+};
+
 export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = Object.fromEntries(
   Object.entries(RAW_HELP_ROLE_CONTENT).map(([role, guides]) => [
     role,
-    guides.map((guide) => ({
+    [...guides, ...(["OWNER", "ADMIN", "CASHIER", "SALES"].includes(role)
+      ? [{ ...PRINTING_RECEIPT_GUIDE, id: `${role.toLowerCase()}-printing-receipts` }]
+      : [])].map((guide) => ({
       ...guide,
       steps: guide.steps.map((step, stepIndex) => {
         const audited = AUDITED_HELP_STEP_TARGETS[guide.id]?.[stepIndex];

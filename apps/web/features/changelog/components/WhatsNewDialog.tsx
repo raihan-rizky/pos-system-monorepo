@@ -6,7 +6,7 @@ import type { ChangeEntry } from "../types";
 import { formatChangeDate } from "../helpers/changelog";
 import { ChangeDialog } from "./ChangeDialog";
 
-const icons = { changelog: History, tax: ReceiptText, categories: FolderInput, units: Package, quotation: FileText, "stock-groups": Layers };
+const icons = { changelog: History, tax: ReceiptText, categories: FolderInput, units: Package, quotation: FileText, "stock-groups": Layers, printing: FileText };
 const badgeDate = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
 
 export function WhatsNewDialog({ entries, onClose, canAccess }: {

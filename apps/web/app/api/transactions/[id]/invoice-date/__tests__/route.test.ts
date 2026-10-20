@@ -127,4 +127,16 @@ describe("PATCH /api/transactions/[id]/invoice-date", () => {
       }),
     });
   });
+
+  it("preserves the original number and date of a processed printing receipt", async () => {
+    transactionFindFirstMock.mockResolvedValue({id:"tx-1",storeId:"store-main",status:"COMPLETED",
+      invoiceNumber:"PL-20261020-00001",printingSubcategory:"PLAT",invoiceDate:new Date("2026-10-20T03:00:00Z")});
+    const { PATCH } = await import("../route");
+    const response=await PATCH(new Request("http://localhost/api/transactions/tx-1/invoice-date",{method:"PATCH",body:JSON.stringify({
+      invoiceDate:"2026-10-19",regenerateNumber:true,reason:"Tanggal lain",
+    })}),{params:Promise.resolve({id:"tx-1"})});
+    expect(response.status).toBe(409);
+    expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(activityUpdateManyMock).not.toHaveBeenCalled();
+  });
 });

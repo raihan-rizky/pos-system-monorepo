@@ -55,6 +55,7 @@ import {
   hasInvoiceDateChange,
 } from "@/features/invoice-date/helpers/history-invoice-date-display";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
+import { PRINTING_SUBCATEGORIES, type PrintingSubcategory } from "@/features/printing-receipts/types";
 import { displayTransactionNote } from "./helpers/transaction-note";
 import { PaymentTermsBadge } from "@/features/customer-debt/components/PaymentTermsBadge";
 import { useCategories } from "@/hooks/useProducts";
@@ -90,6 +91,10 @@ const ApproveModal = dynamic(
     import("./components/ApproveModal").then(
       (module) => module.ApproveModal,
     ),
+  { ssr: false },
+);
+const PrintingReceiptApprovalModal = dynamic(
+  () => import("@/features/printing-receipts/components/PrintingReceiptApprovalModal").then((module) => module.PrintingReceiptApprovalModal),
   { ssr: false },
 );
 const ApproveDraftDialog = dynamic(
@@ -986,6 +991,17 @@ function TransactionRowActions({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+function TransactionCategoryLabel({ transaction }: { transaction: Transaction }) {
+  const printing = transaction.transactionCategory === "PERCETAKAN" || transaction.printingReceipt || transaction.items.some((item) => item.printingServiceId);
+  const subcategory = transaction.printingSubcategory ?? transaction.printingReceipt?.subcategory;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 text-[11px] font-semibold text-surface-500">
+      <span>{printing ? `PERCETAKAN${subcategory ? ` · ${subcategory}` : ""}` : "ATK"}</span>
+      {transaction.printingReceipt && <span>· Nota {transaction.printingReceipt.number}</span>}
+    </span>
+  );
+}
+
 export default function HistoryClientPage() {
   const { role, canPerform } = useRole();
   const isSalesRole = role === "SALES";
@@ -1019,6 +1035,8 @@ export default function HistoryClientPage() {
   const [quickDateFilter, setQuickDateFilter] =
     useState<TransactionHistoryQuickDateFilter | "">("");
   const [categoryId, setCategoryId] = useState("");
+  const [transactionCategory, setTransactionCategory] = useState<"" | "ATK" | "PERCETAKAN">("");
+  const [printingSubcategory, setPrintingSubcategory] = useState<"" | PrintingSubcategory>("");
   const [statusFilter, setStatusFilter] = useState("");
   const [suratJalanOnly, setSuratJalanOnly] = useState(false);
   const [page, setPage] = useState(1);
@@ -1062,6 +1080,8 @@ export default function HistoryClientPage() {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     categoryId: categoryId || undefined,
+    transactionCategory: transactionCategory || undefined,
+    printingSubcategory: printingSubcategory || undefined,
     status: statusFilter || undefined,
     suratJalan: suratJalanOnly ? "bundled" : undefined,
     page,
@@ -1084,7 +1104,7 @@ export default function HistoryClientPage() {
     : null;
 
   const hasActiveFilters =
-    debouncedSearch || dateFrom || dateTo || categoryId || statusFilter || suratJalanOnly;
+    debouncedSearch || dateFrom || dateTo || transactionCategory || categoryId || printingSubcategory || statusFilter || suratJalanOnly;
 
   const openTransactionDetail = useCallback((tx: Transaction) => {
     if (isSuratJalanBundle(tx)) {
@@ -1102,6 +1122,8 @@ export default function HistoryClientPage() {
     setDateTo("");
     setQuickDateFilter("");
     setCategoryId("");
+    setTransactionCategory("");
+    setPrintingSubcategory("");
     setStatusFilter("");
     setSuratJalanOnly(false);
     setPage(1);
@@ -1138,9 +1160,9 @@ export default function HistoryClientPage() {
             className={`md:block px-4 md:px-8 py-4 bg-white border-b border-surface-100 space-y-3`}
           >
             {/* Row 1: Search + Category */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
               {/* Search */}
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" aria-hidden="true" />
                 <input
                   id="history-search"
@@ -1156,15 +1178,41 @@ export default function HistoryClientPage() {
               {/* Category Dropdown */}
               <select
                 id="history-category-filter"
-                value={categoryId}
-                onChange={(e) => { setCategoryId(e.target.value); setPage(1); }}
+                aria-label="Kategori transaksi"
+                value={transactionCategory}
+                onChange={(e) => {
+                  setTransactionCategory(e.target.value as "" | "ATK" | "PERCETAKAN");
+                  setCategoryId("");
+                  setPrintingSubcategory("");
+                  setPage(1);
+                }}
                 className="px-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
                     focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all
                     min-w-[180px]"
               >
                 <option value="">Semua Kategori</option>
-                {categories.map((cat: any) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                <option value="ATK">ATK</option>
+                <option value="PERCETAKAN">PERCETAKAN</option>
+              </select>
+
+              <select
+                id="history-subcategory-filter"
+                aria-label="Subkategori transaksi"
+                disabled={!transactionCategory}
+                value={transactionCategory === "ATK" ? categoryId : printingSubcategory}
+                onChange={(e) => {
+                  if (transactionCategory === "ATK") setCategoryId(e.target.value);
+                  if (transactionCategory === "PERCETAKAN") setPrintingSubcategory(e.target.value as "" | PrintingSubcategory);
+                  setPage(1);
+                }}
+                className="min-w-[180px] rounded-xl border border-surface-200 bg-surface-50 px-4 py-2.5 text-sm transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:cursor-not-allowed disabled:text-surface-400"
+              >
+                <option value="">{transactionCategory ? "Semua Subkategori" : "Pilih kategori dahulu"}</option>
+                {transactionCategory === "ATK" && categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+                {transactionCategory === "PERCETAKAN" && PRINTING_SUBCATEGORIES.map((subcategory) => (
+                  <option key={subcategory} value={subcategory}>{subcategory}</option>
                 ))}
               </select>
 
@@ -1405,6 +1453,7 @@ export default function HistoryClientPage() {
                                   <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : isVoided ? "bg-red-50 text-red-400 line-through" : "bg-surface-100 text-surface-700"}`}>
                                     {tx.invoiceNumber ?? tx.draftNumber ?? "—"}
                                   </span>
+                                  <TransactionCategoryLabel transaction={tx} />
                                   {isBundled && (
                                     <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
                                       <Truck className="h-3 w-3" aria-hidden="true" />
@@ -1546,13 +1595,13 @@ export default function HistoryClientPage() {
                                 <TransactionActionMenu
                                   tx={tx}
                                   isSalesRole={isSalesRole}
-                                  canUpdateTransactions={canUpdateTransactions}
-                                  canDeleteTransactions={canDeleteTransactions}
+                                  canUpdateTransactions={canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory}
+                                  canDeleteTransactions={canDeleteTransactions && !tx.printingReceipt && !tx.printingSubcategory}
                                   canApproveTransactions={canApproveTransactions}
                                   canRejectTransactions={canRejectTransactions}
                                   canApproveDrafts={canApproveDrafts}
                                   canVoid={canVoid}
-                                  canChangeInvoiceDate={canChangeInvoiceDate}
+                                  canChangeInvoiceDate={canChangeInvoiceDate && !tx.printingReceipt && !tx.printingSubcategory}
                                   isPending={isPending}
                                   isBundled={isBundled}
                                   onEdit={() => setEditingTransaction(tx)}
@@ -1609,10 +1658,11 @@ export default function HistoryClientPage() {
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <div className="flex items-center gap-2 mb-1.5">
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
                               <span className={`font-mono text-sm font-bold ${isVoided ? "line-through text-surface-400" : "text-brand-700"}`}>
                                 {tx.invoiceNumber ?? (tx.draftNumber ? formatDraftNumberForDisplay(tx.draftNumber) : "—")}
                               </span>
+                              <TransactionCategoryLabel transaction={tx} />
                               {isDraft && <span className="bg-amber-100 text-amber-800 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">Draft</span>}
                               {isBundled && (
                                 <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
@@ -1769,13 +1819,13 @@ export default function HistoryClientPage() {
                             <TransactionActionMenu
                               tx={tx}
                               isSalesRole={isSalesRole}
-                              canUpdateTransactions={canUpdateTransactions}
-                              canDeleteTransactions={canDeleteTransactions}
+                              canUpdateTransactions={canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory}
+                              canDeleteTransactions={canDeleteTransactions && !tx.printingReceipt && !tx.printingSubcategory}
                               canApproveTransactions={canApproveTransactions}
                               canRejectTransactions={canRejectTransactions}
                               canApproveDrafts={canApproveDrafts}
                               canVoid={canVoid}
-                              canChangeInvoiceDate={canChangeInvoiceDate}
+                              canChangeInvoiceDate={canChangeInvoiceDate && !tx.printingReceipt && !tx.printingSubcategory}
                               isPending={isPending}
                               isBundled={isBundled}
                               onEdit={() => setEditingTransaction(tx)}
@@ -1851,14 +1901,14 @@ export default function HistoryClientPage() {
       )}
 
       {/* Edit Modal */}
-      {editingTransaction && canUpdateTransactions && (
+      {editingTransaction && !editingTransaction.printingReceipt && !editingTransaction.printingSubcategory && canUpdateTransactions && (
         <EditModal
           tx={editingTransaction}
           onClose={() => setEditingTransaction(null)}
         />
       )}
 
-      {editingInvoiceDateTransaction && canChangeInvoiceDate && (
+      {editingInvoiceDateTransaction && !editingInvoiceDateTransaction.printingReceipt && !editingInvoiceDateTransaction.printingSubcategory && canChangeInvoiceDate && (
         <InvoiceDateEditModal
           tx={editingInvoiceDateTransaction}
           onClose={() => setEditingInvoiceDateTransaction(null)}
@@ -1866,7 +1916,7 @@ export default function HistoryClientPage() {
       )}
 
       {/* Delete Confirm Modal */}
-      {deletingTransaction && canDeleteTransactions && (
+      {deletingTransaction && !deletingTransaction.printingReceipt && !deletingTransaction.printingSubcategory && canDeleteTransactions && (
         <DeleteConfirmModal
           tx={deletingTransaction}
           onClose={() => setDeletingTransaction(null)}
@@ -1874,13 +1924,19 @@ export default function HistoryClientPage() {
       )}
 
       {/* Approve Modal */}
-      {approvingTransaction && canApproveTransactions && (
+      {approvingTransaction && canApproveTransactions && (approvingTransaction.printingReceipt || approvingTransaction.printingSubcategory) ? (
+        <PrintingReceiptApprovalModal
+          tx={approvingTransaction}
+          onClose={() => setApprovingTransaction(null)}
+          onSuccess={() => setApprovingTransaction(null)}
+        />
+      ) : approvingTransaction && canApproveTransactions ? (
         <ApproveModal
           tx={approvingTransaction}
           onClose={() => setApprovingTransaction(null)}
           onSuccess={() => setApprovingTransaction(null)}
         />
-      )}
+      ) : null}
 
       {/* Note Modal */}
       {noteTransaction && noteModalNote && (

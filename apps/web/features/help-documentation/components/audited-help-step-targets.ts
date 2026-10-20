@@ -6,6 +6,10 @@ const same = (page: HelpVisualPage, target: string, count: number): AuditedHelpS
   Array.from({ length: count }, () => [page, target] as const);
 
 export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepTarget[]> = {
+  "owner-printing-receipts": [["pos", "pos-printing-tabs"], ["pos", "pos-printing-new"], ["pos", "pos-printing-sheet"], ["pos", "pos-printing-checkout"], ["history", "history-category"]],
+  "admin-printing-receipts": [["pos", "pos-printing-tabs"], ["pos", "pos-printing-new"], ["pos", "pos-printing-sheet"], ["pos", "pos-printing-checkout"], ["history", "history-category"]],
+  "cashier-printing-receipts": [["pos", "pos-printing-tabs"], ["pos", "pos-printing-new"], ["pos", "pos-printing-sheet"], ["pos", "pos-printing-checkout"], ["history", "history-category"]],
+  "sales-printing-receipts": [["pos", "pos-printing-tabs"], ["pos", "pos-printing-new"], ["pos", "pos-printing-sheet"], ["pos", "pos-printing-checkout"], ["history", "history-category"]],
   "owner-categories": [["products", "products-primary"], ["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"]],
   "admin-categories": [["products", "products-primary"], ["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"]],
   "owner-rbac": [

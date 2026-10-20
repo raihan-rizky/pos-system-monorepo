@@ -70,6 +70,58 @@ vi.mock("@/features/rbac/helpers/rbac-server", () => ({
 }));
 
 describe("POST /api/transactions/[id]/approve", () => {
+  it.each(["SPANDUK", "PERCETAKAN", "PLAT", "STEMPEL", "PRINT"])(
+    "menolak pembayaran persetujuan %s yang melampaui kapasitas nota",
+    async (printingSubcategory) => {
+      const current = await transactionFindFirstMock();
+      transactionFindFirstMock.mockResolvedValue({ ...current, printingSubcategory, items: [], payments: [] });
+      const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+        method: "POST", body: JSON.stringify({ amountPaid: 10_000_000_000 }),
+      }), { params: Promise.resolve({ id: "tx-1" }) });
+      expect(response.status).toBe(422);
+      expect(dbTransactionMock).not.toHaveBeenCalled();
+      expect(paymentCreateManyMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("menolak rincian pembayaran nota di atas batas meskipun selisihnya kurang dari satu sen", async () => {
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({ ...current, printingSubcategory: "PRINT", items: [], payments: [] });
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({
+        amountPaid: 9_999_999_999.99,
+        payments: [{ method: "CASH", amount: 9_999_999_999.995 }],
+      }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(422);
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("menyetujui pembayaran nota tepat di batas dan menyimpan kembalian yang benar", async () => {
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({ ...current, printingSubcategory: "PLAT", items: [], payments: [] });
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({ amountPaid: 9_999_999_999.99 }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    const data = transactionUpdateManyMock.mock.calls[0][0].data;
+    expect(data.amountPaid).toBe(9_999_999_999.99);
+    expect(data.change).toBeCloseTo(9_999_949_999.99, 2);
+    expect(paymentCreateManyMock).toHaveBeenCalledWith({ data: [{
+      transactionId: "tx-1", method: "TRANSFER", amount: 9_999_999_999.99,
+    }] });
+  });
+
+  it("preserves receipt lines when approving a printing receipt", async () => {
+    transactionFindFirstMock.mockResolvedValue({id:"tx-1",storeId:"store-main",status:"PENDING_APPROVAL",printingSubcategory:"PLAT",
+      total:100000,amountPaid:100000,items:[],payments:[]});
+    const response=await POST(new Request("http://localhost/api/transactions/tx-1/approve",{method:"POST",body:JSON.stringify({
+      items:[{quantity:1,submittedPrice:1}],quoteFingerprint:"forged-quote",amountPaid:1,
+    })}),{params:Promise.resolve({id:"tx-1"})});
+    expect(response.status).toBe(409);
+    expect(buildApprovalQuoteMock).not.toHaveBeenCalled();
+    expect(transactionUpdateManyMock).not.toHaveBeenCalled();
+  });
   it("rejects approval if tax changed after reading the payment total", async () => {
     transactionFindFirstMock.mockResolvedValue({ id: "tx-1", storeId: "store-main", status: "PENDING_APPROVAL", total: 50000,
       tax: 0, taxRate: null, taxMethod: "STANDARD", amountPaid: 50000, change: 0, paymentMethod: "CASH", customerId: null, items: [], payments: [] });
@@ -156,6 +208,90 @@ describe("POST /api/transactions/[id]/approve", () => {
         $queryRaw: queryRawMock,
       }),
     );
+  });
+
+  it("rejects a printing receipt when its saved material unit changes while locking stock", async () => {
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({
+      ...current,
+      printingSubcategory: "PLAT",
+      items: [{
+        productId: null,
+        productName: "Cetak plat",
+        quantity: 1,
+        rawMaterialProductId: "paper-1",
+        rawMaterialQuantity: 3,
+        rawMaterialUnit: "lembar",
+      }],
+    });
+    let materialUnit = "lembar";
+    productFindManyMock.mockImplementation(async ({ where }) =>
+      where.id.in.map((id: string) => ({
+        id, unit: materialUnit, stock: 100, stockGroupId: null,
+        unitMultiplierToBase: 1, conversionNeedsReview: false, stockGroup: null,
+      })),
+    );
+    queryRawMock.mockImplementation(async (_strings: TemplateStringsArray, rowId: string) => {
+      materialUnit = "rim";
+      return [{ id: rowId }];
+    });
+    let commits = 0;
+    const runTransaction = dbTransactionMock.getMockImplementation()!;
+    dbTransactionMock.mockImplementation(async (...args) => {
+      const result = await runTransaction(...args);
+      commits += 1;
+      return result;
+    });
+
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({}),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ message: expect.stringMatching(/satuan.*bahan/i) });
+    expect(queryRawMock).toHaveBeenCalled();
+    expect(commits).toBe(0);
+    expect(paymentDeleteManyMock).not.toHaveBeenCalled();
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: "a matching printing receipt unit", printingSubcategory: "PLAT", currentUnit: "lembar" },
+    { label: "an ordinary catalog transaction with an older unit", printingSubcategory: null, currentUnit: "rim" },
+  ])("approves $label using its saved material quantity", async ({ printingSubcategory, currentUnit }) => {
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({
+      ...current,
+      printingSubcategory,
+      items: [{
+        productId: null, productName: "Cetak plat", quantity: 1,
+        rawMaterialProductId: "paper-1", rawMaterialQuantity: 3, rawMaterialUnit: "lembar",
+      }],
+    });
+    productFindManyMock.mockImplementation(async ({ where }) =>
+      where.id.in.map((id: string) => ({
+        id, unit: currentUnit, stock: 100, stockGroupId: null,
+        unitMultiplierToBase: 1, conversionNeedsReview: false, stockGroup: null,
+      })),
+    );
+
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({}),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+
+    expect(response.status).toBe(200);
+    if (printingSubcategory) {
+      expect(customerUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(transactionUpdateManyMock.mock.invocationCallOrder[0]);
+      expect(transactionUpdateManyMock.mock.invocationCallOrder[0]).toBeLessThan(queryRawMock.mock.invocationCallOrder[0]);
+    }
+    expect(productUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: "paper-1", storeId: "store-main" }),
+      data: { stock: { increment: -3 } },
+    }));
+    expect(inventoryLogCreateManyMock).toHaveBeenCalledWith({ data: [expect.objectContaining({
+      productId: "paper-1", stockBaseDelta: -3,
+    })] });
   });
 
   it("uses the checkout transaction budget and keeps per-item side effects out of the interactive transaction", async () => {

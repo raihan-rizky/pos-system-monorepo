@@ -73,6 +73,13 @@ function line(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PATCH /api/transactions/[id]/items", () => {
+  it("protects finalized printing receipt content from the general item editor", async () => {
+    transactionFindFirstMock.mockResolvedValue(existingTransaction({printingSubcategory:"PLAT"}));
+    const response=await PATCH(makeRequest("tx-1",{items:[line()]}),{params:Promise.resolve({id:"tx-1"})});
+    expect(response.status).toBe(409);
+    expect(transactionUpdateMock).not.toHaveBeenCalled();
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermissionMock.mockResolvedValue({

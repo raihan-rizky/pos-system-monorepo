@@ -17,6 +17,7 @@ import {
 import "./receipt-print.css";
 import { useReceiptTax } from "@/features/transaction-tax/hooks/useReceiptTax";
 import { TaxField } from "@/features/transaction-tax/components/TaxField";
+import { PrintingReceiptTransactionModal } from "@/features/printing-receipts/components/PrintingReceiptTransactionModal";
 import { formatTaxRate, getTransactionTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 
 /** Default page height in px (165mm ≈ 623px at 96dpi). */
@@ -54,7 +55,8 @@ export function ReceiptModal({
   transaction: initialTransaction,
   draftPrintDivision,
 }: ReceiptModalProps) {
-  const tax = useReceiptTax(initialTransaction, open && initialTransaction.status !== "DRAFT");
+  const isPrintingReceipt = Boolean(initialTransaction.printingReceipt || initialTransaction.printingSubcategory);
+  const tax = useReceiptTax(initialTransaction, open && !isPrintingReceipt && initialTransaction.status !== "DRAFT");
   const transaction = tax.transaction;
   const { data: storeSettings } = useStoreSettings();
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -110,6 +112,10 @@ export function ReceiptModal({
       }
     });
   }, [items, open, transaction]);
+
+  if (isPrintingReceipt) {
+    return <PrintingReceiptTransactionModal open={open} onClose={onClose} transaction={initialTransaction} />;
+  }
 
   // ── DRAFT transactions: render the A4 formal invoice directly ──
   if (isDraft) {

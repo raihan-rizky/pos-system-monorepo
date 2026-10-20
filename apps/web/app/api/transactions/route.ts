@@ -1,4 +1,5 @@
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
+import { PRINTING_SUBCATEGORIES } from "@/features/printing-receipts/types";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { calculateTransactionTax } from "@/features/transaction-tax/helpers/tax-calculation";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
@@ -41,6 +42,25 @@ import {
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { assertTempoCustomer } from "@/features/customer-debt/helpers/payment-terms";
+import {
+  getPrintingReceiptCheckoutLines,
+  MAX_PRINTING_RECEIPT_AMOUNT,
+  parsePrintingReceiptDocument,
+  PrintingReceiptValidationError,
+} from "@/features/printing-receipts/domain";
+import {
+  assertPrintingReceiptStockUnits,
+  PrintingReceiptStockChangedError,
+} from "@/features/printing-receipts/server/stock-validation";
+
+class PrintingReceiptCheckoutConflict extends Error {}
+
+const receiptTransactionInclude = {
+  items: { include: { product: { select: { unit: true } }, printingService: { select: { unit: true } } } },
+  salesperson: { select: { name: true } },
+  payments: { select: { amount: true, method: true } },
+  printingReceipt: { select: { id: true, number: true, subcategory: true } },
+} satisfies Prisma.TransactionInclude;
 
 const log = getLogger("api:transactions");
 const productTransactionItemSchema = z.object({
@@ -57,7 +77,7 @@ const productTransactionItemSchema = z.object({
 const printingServiceTransactionItemSchema = z
   .object({
     lineType: z.literal("PRINTING_SERVICE"),
-    printingServiceId: z.string().min(1),
+    printingServiceId: z.string().min(1).nullable(),
     name: z.string().optional(),
     size: z.string().optional().nullable(),
     material: z.string().optional().nullable(),
@@ -68,6 +88,7 @@ const printingServiceTransactionItemSchema = z
     needsMaterial: z.boolean().optional().default(false),
     rawMaterialProductId: z.string().optional().nullable(),
     rawMaterialQuantity: z.number().positive().optional().nullable(),
+    rawMaterialUnit: z.string().optional().nullable(),
   })
   .superRefine((item, ctx) => {
     if (!item.needsMaterial) return;
@@ -135,7 +156,7 @@ type ServerProductTransactionItem = {
 };
 type ServerPrintingServiceTransactionItem = {
   lineType: "PRINTING_SERVICE";
-  printingServiceId: string;
+  printingServiceId: string | null;
   rawMaterialProductId: string | null;
   name: string;
   size: string | null;
@@ -165,6 +186,8 @@ export async function GET(request: Request) {
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const categoryId = searchParams.get("categoryId");
+    const transactionCategory = searchParams.get("transactionCategory");
+    const printingSubcategory = searchParams.get("printingSubcategory");
     const status = searchParams.get("status");
     const salespersonId = searchParams.get("salespersonId");
     const suratJalan = searchParams.get("suratJalan");
@@ -185,6 +208,7 @@ export async function GET(request: Request) {
       andConditions.push({
         OR: [
           { invoiceNumber: { contains: search, mode: "insensitive" } },
+          { printingReceipt: { is: { number: { contains: search, mode: "insensitive" } } } },
           { customerName: { contains: search, mode: "insensitive" } },
           { salesName: { contains: search, mode: "insensitive" } },
           { salesperson: { name: { contains: search, mode: "insensitive" } } },
@@ -208,11 +232,24 @@ export async function GET(request: Request) {
       andConditions.push({ invoiceDate: invoiceDateFilter });
     }
 
-    // Category filter (transactions containing products in this category)
-    if (categoryId) {
+    if (transactionCategory === "ATK") {
       andConditions.push({
-        items: { some: { product: { categoryId } } },
+        OR: [{ transactionCategory: "ATK" }, { transactionCategory: null }],
+        printingReceipt: { is: null },
+        items: { none: { printingServiceId: { not: null } } },
       });
+      if (categoryId) andConditions.push({ items: { some: { product: { categoryId } } } });
+    } else if (transactionCategory === "PERCETAKAN") {
+      andConditions.push({
+        OR: [
+          { transactionCategory: "PERCETAKAN" },
+          { printingReceipt: { isNot: null } },
+          { items: { some: { printingServiceId: { not: null } } } },
+        ],
+      });
+      if (printingSubcategory && PRINTING_SUBCATEGORIES.includes(printingSubcategory as (typeof PRINTING_SUBCATEGORIES)[number])) {
+        andConditions.push({ printingSubcategory });
+      }
     }
 
     // Status filter. The history "Pending" tab also tracks regular invoices
@@ -298,6 +335,7 @@ export async function GET(request: Request) {
           skip,
           take: limit,
           include: {
+            printingReceipt: { select: { id: true, subcategory: true, number: true } },
             items: {
               select: {
                 id: true,
@@ -460,6 +498,53 @@ export async function POST(request: Request) {
 
 
     const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ message: "Data transaksi tidak valid." }, { status: 422 });
+    }
+    let printingReceipt: Awaited<ReturnType<typeof db.printingReceipt.findFirst>> = null;
+    let receiptInvoiceDate: string | null = null;
+    if (body.printingReceiptId !== undefined || body.printingReceiptRevision !== undefined) {
+      const context = z.object({
+        printingReceiptId: z.string().min(1),
+        printingReceiptRevision: z.number().int().nonnegative(),
+      }).safeParse(body);
+      if (!context.success) {
+        return NextResponse.json({ message: "Nota dan versi penyimpanannya wajib dikirim." }, { status: 422 });
+      }
+      printingReceipt = await db.printingReceipt.findFirst({
+        where: { id: context.data.printingReceiptId, storeId },
+      });
+      if (!printingReceipt) {
+        return NextResponse.json({ message: "Nota tidak ditemukan." }, { status: 404 });
+      }
+      // A retry after a lost response returns the original sale, including its
+      // current payment state. It never creates another payment or stock entry.
+      if (printingReceipt.transactionId) {
+        const existing = await db.transaction.findFirst({
+          where: { id: printingReceipt.transactionId, storeId }, include: receiptTransactionInclude,
+        });
+        if (!existing) throw new Error("PRINTING_RECEIPT_TRANSACTION_MISSING");
+        return NextResponse.json(existing);
+      }
+      if (printingReceipt.revision !== context.data.printingReceiptRevision) {
+        throw new PrintingReceiptCheckoutConflict("Nota sudah berubah. Muat ulang sebelum memproses pembayaran.");
+      }
+      const document = parsePrintingReceiptDocument(printingReceipt.document);
+      receiptInvoiceDate = document.date;
+      body.items = getPrintingReceiptCheckoutLines(document).map((line) => ({
+        lineType: "PRINTING_SERVICE", printingServiceId: null,
+        name: line.name, material: line.material, price: line.price, quantity: line.quantity,
+        needsMaterial: Boolean(line.stockLink), rawMaterialProductId: line.stockLink?.productId ?? null,
+        rawMaterialQuantity: line.stockLink?.quantity ?? null, rawMaterialUnit: line.stockLink?.unit ?? null,
+      }));
+      body.customerName = document.customerName;
+      body.customerId = document.customerId;
+      body.isJobOrder = true;
+      body.note = body.note || document.note;
+      if (document.completionDate) {
+        body.estimatedDoneAt = `${document.completionDate}T${document.completionTime || "00:00"}:00+07:00`;
+      }
+    }
     const parsed = createTransactionSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -467,6 +552,10 @@ export async function POST(request: Request) {
         { message: "Validation error", errors: parsed.error.flatten() },
         { status: 422 }
       );
+    }
+
+    if (!printingReceipt && parsed.data.items.some(item => item.lineType === "PRINTING_SERVICE" && item.printingServiceId === null)) {
+      return NextResponse.json({ message: "Item bebas hanya dapat diproses dari nota Percetakan tersimpan." }, { status: 422 });
     }
 
     const {
@@ -522,7 +611,9 @@ export async function POST(request: Request) {
         }
       }
     }
-    const hasCustomInvoiceDate = Boolean(invoiceDate || invoiceTime);
+    const now = await getInvoiceNow();
+    const requestedInvoiceDate = receiptInvoiceDate ?? invoiceDate;
+    const hasCustomInvoiceDate = Boolean(invoiceDate || invoiceTime || (receiptInvoiceDate && receiptInvoiceDate !== jakartaDateKey(now)));
 
     if (hasCustomInvoiceDate && user.role !== "OWNER" && user.role !== "ADMIN") {
       return NextResponse.json(
@@ -531,11 +622,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const now = await getInvoiceNow();
     const resolvedInvoiceDate = hasCustomInvoiceDate
       ? resolveInvoiceDateTime({
           mode: "create",
-          date: invoiceDate ?? jakartaDateKey(now),
+          date: requestedInvoiceDate ?? jakartaDateKey(now),
           time: invoiceTime,
           now,
         })
@@ -587,7 +677,7 @@ export async function POST(request: Request) {
       ]),
     ];
     const uniquePrintingServiceIds = [
-      ...new Set(serviceLineItems.map((item) => item.printingServiceId)),
+      ...new Set(serviceLineItems.map((item) => item.printingServiceId).filter((id): id is string => Boolean(id))),
     ];
 
     // Compute the day window once so the daily-count query can join the
@@ -718,19 +808,22 @@ export async function POST(request: Request) {
 
     const serverItems: ServerTransactionItem[] = items.map((item) => {
       if (item.lineType === "PRINTING_SERVICE") {
-        const service = printingServiceById.get(item.printingServiceId);
-        if (!service) {
+        const service = item.printingServiceId ? printingServiceById.get(item.printingServiceId) : null;
+        if (item.printingServiceId && !service) {
           throw new Error("PRINTING_SERVICE_NOT_FOUND");
         }
         const rawMaterial = item.rawMaterialProductId
           ? productById.get(item.rawMaterialProductId)
           : null;
+        if (printingReceipt && rawMaterial && item.rawMaterialUnit !== rawMaterial.unit) {
+          throw new PrintingReceiptValidationError("Satuan bahan stok sudah berubah. Pilih ulang bahan di nota.");
+        }
 
         return {
           lineType: "PRINTING_SERVICE",
-          printingServiceId: service.id,
+          printingServiceId: service?.id ?? null,
           rawMaterialProductId: rawMaterial?.id ?? null,
-          name: service.name,
+          name: service?.name ?? item.name ?? "",
           size: item.size ?? null,
           material: item.material ?? rawMaterial?.name ?? null,
           serviceNote: item.serviceNote ?? null,
@@ -798,6 +891,9 @@ export async function POST(request: Request) {
       0
     );
     const { tax, total } = calculateTransactionTax({ subtotal, discount, taxRate, taxMethod: "STANDARD" });
+    if (printingReceipt && (!Number.isFinite(total) || total > MAX_PRINTING_RECEIPT_AMOUNT)) {
+      return NextResponse.json({ message: "Total nota setelah pajak melebihi batas nilai transaksi. Sesuaikan harga atau pajak sebelum pembayaran." }, { status: 422 });
+    }
 
     const isDP = paymentStatus === "DP";
     const autoApproveTransaction = canRolePerformAction(
@@ -809,6 +905,12 @@ export async function POST(request: Request) {
     const requiresApproval = !autoApproveTransaction;
 
     const amountPaidComputed = resolvedPayments.reduce((sum, p) => sum + p.amount, 0);
+    if (printingReceipt && (
+      !Number.isFinite(discount) || discount > MAX_PRINTING_RECEIPT_AMOUNT ||
+      !Number.isFinite(amountPaidComputed) || amountPaidComputed > MAX_PRINTING_RECEIPT_AMOUNT
+    )) {
+      return NextResponse.json({ message: "Diskon atau pembayaran melebihi batas nilai nota. Sesuaikan nilainya sebelum pembayaran." }, { status: 422 });
+    }
     if (isTempo && amountPaidComputed >= total) {
       return NextResponse.json(
         { message: "Pembayaran Tempo harus menyisakan saldo tagihan." },
@@ -839,10 +941,29 @@ export async function POST(request: Request) {
     // interactive transaction open for an extra COUNT round-trip.
     const MAX_ATTEMPTS = 5;
     let transaction: any = null;
+    let receiptAlreadyProcessed = false;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         transaction = await db.$transaction(async (tx: TxClient) => {
+          // The revision update locks this receipt before any financial side
+          // effect. Concurrent saves/checkouts serialize on this single row.
+          if (printingReceipt) {
+            const claimed = await tx.printingReceipt.updateMany({
+              where: { id: printingReceipt.id, storeId, revision: printingReceipt.revision, transactionId: null },
+              data: { revision: { increment: 1 } },
+            });
+            if (claimed.count !== 1) {
+              const current = await tx.printingReceipt.findFirst({ where: { id: printingReceipt.id, storeId } });
+              if (current?.transactionId) {
+                const existing = await tx.transaction.findFirst({
+                  where: { id: current.transactionId, storeId }, include: receiptTransactionInclude,
+                });
+                if (existing) { receiptAlreadyProcessed = true; return existing; }
+              }
+              throw new PrintingReceiptCheckoutConflict("Nota sudah diproses atau diubah. Muat ulang untuk melanjutkan.");
+            }
+          }
           // Lock the customer before the invoice and stock rows. Counters must
           // roll back with the sale, so an immediate void can reverse them.
           const customerArgs = !requiresApproval ? buildCustomerUpdateArgs({
@@ -850,13 +971,15 @@ export async function POST(request: Request) {
             total, amountPaid: amountPaidComputed,
           }) : null;
           if (customerArgs) await tx.customer.update(customerArgs);
-          const invoiceNumber = `INV-${dateStr}-${String(
+          const invoiceNumber = printingReceipt?.number ?? `INV-${dateStr}-${String(
             todayCount + 1 + attempt,
           ).padStart(4, "0")}`;
 
           const txn = await tx.transaction.create({
             data: {
               invoiceNumber,
+              transactionCategory: printingReceipt || serviceLineItems.length > 0 ? "PERCETAKAN" : "ATK",
+              printingSubcategory: printingReceipt?.subcategory ?? null,
               invoiceDate: resolvedInvoiceDate,
               storeId,
               cashierId: requiresApproval ? null : user.id,
@@ -984,6 +1107,11 @@ export async function POST(request: Request) {
             },
           });
 
+          if (printingReceipt) {
+            await assertPrintingReceiptStockUnits(tx, { storeId, items: serverItems });
+            await tx.printingReceipt.update({ where: { id: printingReceipt.id }, data: { transactionId: txn.id } });
+          }
+
           // Batched stock decrement: a single UPDATE ... FROM (VALUES ...)
           // round-trip instead of N sequential updateMany calls. The
           // RETURNING clause lets us count matched rows so we can detect
@@ -1059,7 +1187,13 @@ export async function POST(request: Request) {
         // Transaction succeeded â€” break out of retry loop
         break;
       } catch (err: any) {
+        if (err?.code === "P2034" && printingReceipt) {
+          throw new PrintingReceiptCheckoutConflict("Nota sedang diproses pengguna lain. Coba lagi untuk memuat transaksi tersimpan.");
+        }
         // P2002 = unique constraint violation on invoiceNumber â€” retry
+        if (err?.code === "P2002" && printingReceipt) {
+          throw new PrintingReceiptCheckoutConflict("No. Nota sudah digunakan transaksi lain. Ubah nomor nota lalu coba lagi.");
+        }
         if (err?.code === "P2002" && attempt < MAX_ATTEMPTS - 1) {
           log.warn(
             `Invoice number collision on attempt ${attempt + 1}, retryingâ€¦`
@@ -1070,7 +1204,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (requiresApproval) {
+    if (requiresApproval && !receiptAlreadyProcessed) {
       after(async () => {
         try {
           await sendRolePushEvent({
@@ -1092,9 +1226,21 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json(transaction, { status: 201 });
+    return NextResponse.json(printingReceipt ? {
+      ...transaction,
+      printingReceipt: { id: printingReceipt.id, number: printingReceipt.number, subcategory: printingReceipt.subcategory },
+    } : transaction, { status: receiptAlreadyProcessed ? 200 : 201 });
   } catch (error) {    const authErr = handleAuthError(error);
     if (authErr) return authErr;
+    if (error instanceof PrintingReceiptValidationError) {
+      return NextResponse.json({ message: error.message }, { status: 422 });
+    }
+    if (error instanceof PrintingReceiptCheckoutConflict) {
+      return NextResponse.json({ message: error.message }, { status: 409 });
+    }
+    if (error instanceof PrintingReceiptStockChangedError) {
+      return NextResponse.json({ message: error.message }, { status: 409 });
+    }
     if (
       error instanceof StockMutationError &&
       error.message === "INSUFFICIENT_STOCK"

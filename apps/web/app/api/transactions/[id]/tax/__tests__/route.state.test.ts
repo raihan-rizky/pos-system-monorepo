@@ -15,6 +15,7 @@ const invoice = {
   id: "tx-1", storeId: "store-1", customerId: "customer-1" as string | null,
   subtotal: 100000, discount: 0, tax: 0, taxRate: null as number | null, taxMethod: "STANDARD",
   total: 100000, amountPaid: 100000, change: 0, status: "COMPLETED", paymentMethod: "CASH",
+  printingSubcategory: null as string | null,
 };
 type Invoice = typeof invoice;
 type Customer = { id: string; storeId: string; totalDebt: number; totalSpent: number };
@@ -179,6 +180,25 @@ describe("transaction tax HTTP access and validation", () => {
 });
 
 describe("transaction tax atomic state transitions", () => {
+  it.each(["SPANDUK", "PERCETAKAN", "PLAT", "STEMPEL", "PRINT"])("keeps processed %s receipt totals and customer balances immutable", async printingSubcategory => {
+    state.invoice!.printingSubcategory = printingSubcategory;
+    const before = structuredClone(state);
+    expect((await save(11)).status).toBe(409);
+    expect(state).toEqual(before);
+    expect(boundary.transaction).not.toHaveBeenCalled();
+  });
+  it.each(["DP", "PENDING_APPROVAL"])("rejects generic tax editing on a %s printing receipt", async status => {
+    Object.assign(state.invoice!, { printingSubcategory: "PLAT", status, amountPaid: 25000 });
+    const before = structuredClone(state);
+    expect((await save(11)).status).toBe(409);
+    expect(state).toEqual(before);
+  });
+  it("rejects a printing snapshot attached before the locked reread", async () => {
+    atTransactionStart = () => { state.invoice!.printingSubcategory = "PLAT"; };
+    expect((await save(11)).status).toBe(409);
+    expect(state.invoice).toMatchObject({ printingSubcategory: "PLAT", total: 100000, tax: 0 });
+    expect(state.customer).toMatchObject({ totalDebt: 0, totalSpent: 100000 });
+  });
   it.each(["VOIDED", "REFUNDED"])("keeps %s invoice and balances immutable", async status => {
     state.invoice!.status = status;
     const before = structuredClone(state);

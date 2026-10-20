@@ -44,6 +44,7 @@ export async function GET(
     const transaction = await db.transaction.findFirst({
       where: { id, storeId },
       include: {
+        printingReceipt: { select: { id: true, subcategory: true, number: true } },
         cashier: { select: { name: true } },
         salesperson: { select: { name: true } },
         payments: {
@@ -157,6 +158,7 @@ export async function PATCH(
       select: {
         id: true,
         status: true,
+        printingSubcategory: true,
         payments: {
           select: { id: true },
           take: 2,
@@ -169,6 +171,10 @@ export async function PATCH(
         { message: "Transaksi tidak ditemukan" },
         { status: 404 }
       );
+    }
+
+    if (existingTransaction.printingSubcategory && customerName !== undefined) {
+      return NextResponse.json({ message: "Pelanggan pada nota Percetakan yang sudah diproses mengikuti dokumen asli." }, { status: 409 });
     }
 
     // Validate status transition
@@ -342,6 +348,10 @@ export async function DELETE(
     const user = await requirePermission("transaction", "delete");
     const storeId = user.storeId || "store-main";
     ({ id } = await params);
+    const source = await db.transaction.findFirst({ where: { id, storeId }, select: { printingSubcategory: true } });
+    if (source?.printingSubcategory) {
+      return NextResponse.json({ message: "Nota Percetakan disimpan di Riwayat. Gunakan pembatalan atau refund untuk membatalkan transaksi." }, { status: 409 });
+    }
     const outcome = await db.$transaction(
       (tx) => reverseTransaction(tx, {
         storeId,

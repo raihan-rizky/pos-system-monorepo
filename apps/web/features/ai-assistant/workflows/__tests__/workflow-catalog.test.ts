@@ -4,6 +4,22 @@ import { readFileSync } from "node:fs";
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
+  it("directs catalog sales to ATK and printing orders to the receipt workflow", () => {
+    const pos = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 6)!;
+    const instructions = pos.steps.map(step => `${step.title} ${step.description}`).join(" ");
+    expect(instructions).toContain("tab ATK");
+    expect(instructions).toContain("Percetakan");
+    expect(instructions).toContain("Membuat Nota Percetakan");
+    expect(instructions).not.toContain("Cari produk atau layanan");
+  });
+
+  it("keeps processed printing receipts immutable in approval and invoice-date guides", () => {
+    const approval = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 7)!;
+    const invoiceDate = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 10)!;
+    expect(JSON.stringify(approval.steps)).toContain("Nota Percetakan disetujui sesuai isi tersimpan");
+    expect(JSON.stringify(invoiceDate.steps)).toContain("Nota Percetakan yang sudah diproses");
+  });
+
   it("explains custom draft numbers and prefilled WIB inputs in the POS workflow", () => {
     const pos = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 6)!;
     const text = JSON.stringify(pos.steps);
@@ -60,9 +76,9 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(39);
+    expect(FAQ_WORKFLOWS).toHaveLength(40);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 39 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 40 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);

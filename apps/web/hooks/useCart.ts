@@ -82,7 +82,7 @@ export type CartUnitOption = Pick<
 export interface PrintingServiceCartItem {
   cartLineId: string;
   lineType: "PRINTING_SERVICE";
-  printingServiceId: string;
+  printingServiceId: string | null;
   name: string;
   price: number;
   /** Total monetary discount for this cart line. */

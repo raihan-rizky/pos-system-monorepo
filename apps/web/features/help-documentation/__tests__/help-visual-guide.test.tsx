@@ -118,8 +118,8 @@ describe("visual help guides", () => {
     expect(historyHtml).not.toContain("Total Belanja");
     expect(historyHtml).not.toContain("Data Contoh 1");
 
-    expect(posHtml).toContain("Produk");
-    expect(posHtml).toContain("Layanan");
+    expect(posHtml).toContain("ATK");
+    expect(posHtml).toContain("Percetakan");
     expect(posHtml).toContain("Cari produk");
     expect(posHtml).toContain("Keranjang");
     expect(posHtml).not.toContain("Data Contoh 1");
@@ -229,7 +229,7 @@ describe("visual help guides", () => {
           new URL("../../../app/(main)/pos/POSClientPage.tsx", import.meta.url),
           new URL("../../../components/CartSidebar.tsx", import.meta.url),
         ],
-        markers: ["Produk", "Layanan", "Cari produk, SKU, atau barcode...", "Keranjang"],
+        markers: ["ATK", "Percetakan", "Cari produk, SKU, atau barcode...", "Keranjang"],
       },
       {
         page: "products" as const,
@@ -509,8 +509,8 @@ describe("visual help guides", () => {
 
     expect(posHtml).toContain('data-help-actual-page="pos"');
     expect(posHtml).toContain('data-help-fidelity-page="pos"');
-    expect(posHtml).toContain("Produk");
-    expect(posHtml).toContain("Layanan");
+    expect(posHtml).toContain("ATK");
+    expect(posHtml).toContain("Percetakan");
     expect(posHtml).toContain("Cari produk, SKU, atau barcode...");
     expect(posHtml).toContain("Stok tersedia");
     expect(posHtml).toContain("w-[340px]");

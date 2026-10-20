@@ -27,6 +27,11 @@ import {
   applyProductStockDeltas,
   StockMutationError,
 } from "@/features/product-stock-groups/stock-mutations";
+import {
+  assertPrintingReceiptStockUnits,
+  PrintingReceiptStockChangedError,
+} from "@/features/printing-receipts/server/stock-validation";
+import { MAX_PRINTING_RECEIPT_AMOUNT } from "@/features/printing-receipts/domain";
 
 const log = getLogger("api:transactions:id:approve");
 const approveTransactionSchema = z.object({
@@ -96,6 +101,10 @@ export async function POST(
       return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
     }
 
+    if (transaction.printingSubcategory && (parsed.data.items || parsed.data.invoiceDate || parsed.data.invoiceTime)) {
+      return NextResponse.json({ message: "Setujui nota Percetakan sesuai isi dan nomor tersimpan. Perubahan item dan tanggal tersedia sebelum nota diproses." }, { status: 409 });
+    }
+
     const isSalesRequestedInvoice =
       Boolean(transaction.requestedById) && !transaction.cashierId;
     if (
@@ -144,6 +153,9 @@ export async function POST(
     const amountPaid = parsed.data.amountPaid !== undefined 
       ? parsed.data.amountPaid 
       : Number(transaction.amountPaid);
+    if (transaction.printingSubcategory && (!Number.isFinite(amountPaid) || amountPaid > MAX_PRINTING_RECEIPT_AMOUNT)) {
+      return NextResponse.json({ message: "Pembayaran melebihi batas nilai nota. Sesuaikan nilainya sebelum persetujuan." }, { status: 422 });
+    }
     const isPayLater = parsed.data.isPayLater === true;
     const isTempo = paymentMethod === "TEMPO";
     if (isTempo && !transaction.customerId) {
@@ -230,7 +242,11 @@ export async function POST(
     const paymentRows = parsed.data.payments ?? (preserveSavedPayments
       ? savedPayments.map((payment) => ({ method: payment.method, amount: Number(payment.amount) }))
       : finalAmountPaid > 0 ? [{ method: actualMethod, amount: finalAmountPaid }] : []);
-    if (Math.abs(paymentRows.reduce((sum, payment) => sum + payment.amount, 0) - finalAmountPaid) >= 0.01) {
+    const paymentTotal = paymentRows.reduce((sum, payment) => sum + payment.amount, 0);
+    if (transaction.printingSubcategory && (!Number.isFinite(paymentTotal) || paymentTotal > MAX_PRINTING_RECEIPT_AMOUNT)) {
+      return NextResponse.json({ message: "Rincian pembayaran melebihi batas nilai nota. Sesuaikan nilainya sebelum persetujuan." }, { status: 422 });
+    }
+    if (Math.abs(paymentTotal - finalAmountPaid) >= 0.01) {
       return NextResponse.json({ message: "Jumlah metode pembayaran harus sesuai dengan uang yang diterima." }, { status: 422 });
     }
 
@@ -294,6 +310,10 @@ export async function POST(
 
       if (updateResult.count !== 1) {
         throw new Error("TRANSACTION_NOT_PENDING");
+      }
+
+      if (transaction.printingSubcategory) {
+        await assertPrintingReceiptStockUnits(tx, { storeId, items: transaction.items });
       }
 
       await tx.transactionPayment.deleteMany({ where: { transactionId: id } });
@@ -466,6 +486,10 @@ export async function POST(
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof PrintingReceiptStockChangedError) {
+      return NextResponse.json({ message: error.message }, { status: 409 });
+    }
 
     if (error instanceof ApprovalQuoteChangedError) {
       const { items, ...quoteWithoutCost } = error.quote;

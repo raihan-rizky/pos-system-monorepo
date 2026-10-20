@@ -6,6 +6,7 @@ import { PreviewButton, PreviewField, PreviewModal, PreviewPageRoot } from "../P
 import type { PreviewContext } from "../types";
 
 export function PosPreview(ctx: PreviewContext) {
+  if (ctx.activeTarget.startsWith("pos-printing-")) return <PrintingWorkspacePreview ctx={ctx} />;
   const showPayment = ctx.state === "pos-payment";
 
   return (
@@ -15,8 +16,8 @@ export function PosPreview(ctx: PreviewContext) {
           <div className="border-b border-surface-100 bg-white px-6 py-5">
             <div className="flex items-center justify-between">
               <div className="flex rounded-xl bg-surface-100 p-1">
-                <span className="rounded-lg bg-white px-6 py-2.5 text-sm font-black text-surface-950 shadow-sm">Produk</span>
-                <span className="px-6 py-2.5 text-sm font-bold text-surface-500">Layanan</span>
+                <span className="rounded-lg bg-white px-6 py-2.5 text-sm font-black text-surface-950 shadow-sm">ATK</span>
+                <span className="px-6 py-2.5 text-sm font-bold text-surface-500">Percetakan</span>
               </div>
               <PreviewButton ctx={ctx} target="pos-expense-button" tone="light" icon={WalletCards}>Pengeluaran</PreviewButton>
             </div>
@@ -52,6 +53,39 @@ export function PosPreview(ctx: PreviewContext) {
       </GuideTarget>
 
       {showPayment ? <PaymentModal ctx={ctx} /> : null}
+    </PreviewPageRoot>
+  );
+}
+
+function PrintingWorkspacePreview({ ctx }: { ctx: PreviewContext }) {
+  return (
+    <PreviewPageRoot ctx={ctx} className="bg-surface-50">
+      <GuideTarget ctx={ctx} target="pos-primary" className="min-h-[768px]">
+        <div className="border-b border-surface-200 bg-white px-6 py-5">
+          <div className="inline-flex rounded-xl bg-surface-100 p-1"><span className="px-6 py-2.5 text-sm font-bold text-surface-500">ATK</span><span className="rounded-lg bg-white px-6 py-2.5 text-sm font-black text-surface-950 shadow-sm">Percetakan</span></div>
+          <GuideTarget ctx={ctx} target="pos-printing-tabs" className="mt-4 flex gap-2">
+            {["SPANDUK", "PERCETAKAN", "PLAT", "STEMPEL", "PRINT"].map((tab, index) => <span key={tab} className={`rounded-xl px-4 py-2.5 text-xs font-bold ${index === 0 ? "bg-brand-600 text-white" : "border border-surface-200 text-surface-600"}`}>{tab}</span>)}
+          </GuideTarget>
+        </div>
+        <div className="flex min-h-[590px]">
+          <aside className="w-56 shrink-0 space-y-4 border-r border-surface-200 bg-white p-4">
+            <PreviewButton ctx={ctx} target="pos-printing-new" tone="brand" icon={Pencil} className="w-full">Buat Nota Kosong</PreviewButton>
+            <div className="rounded-xl border border-surface-200 px-3 py-2 text-xs text-surface-400">Cari nomor atau pelanggan...</div>
+            <div className="rounded-xl border border-brand-300 bg-brand-50 p-3"><p className="text-xs font-black text-brand-900">SP-20261020-0001</p><p className="mt-2 text-xs text-surface-600">Pelanggan contoh</p><p className="mt-2 text-[10px] text-surface-500">Draft · Baru diperbarui</p></div>
+          </aside>
+          <div className="min-w-0 flex-1 space-y-4 p-5">
+            <div className="flex items-center justify-between gap-4"><div><p className="text-xs text-surface-500">No. Nota</p><h2 className="mt-1 text-base font-black text-surface-900">SP-20261020-0001</h2></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Tersimpan</span></div>
+            <GuideTarget ctx={ctx} target="pos-printing-sheet" className="overflow-hidden rounded-lg border border-surface-200 bg-white shadow-sm">
+              <img src="/images/printing-receipts/nota-spanduk.png" alt="Lembar nota SPANDUK Toko Teladan dengan kolom nama file, bahan, banyak, harga, dan jumlah" className="block h-auto w-full" />
+              <div className="border-t border-surface-100 px-4 py-3 text-xs text-surface-500">Isi langsung di lembar nota · Jumlah dihitung otomatis</div>
+            </GuideTarget>
+            <GuideTarget ctx={ctx} target="pos-printing-checkout" className="flex items-center justify-end gap-3 rounded-xl bg-white p-3">
+              <span className="rounded-xl border border-surface-200 px-5 py-3 text-xs font-bold text-surface-700">Cetak / PDF</span><span className="rounded-xl bg-brand-600 px-5 py-3 text-xs font-bold text-white">Bayar / DP</span>
+            </GuideTarget>
+            <p className="text-[10px] text-surface-500">Data contoh untuk panduan. Nota diproses satu per satu.</p>
+          </div>
+        </div>
+      </GuideTarget>
     </PreviewPageRoot>
   );
 }

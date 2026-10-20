@@ -53,6 +53,25 @@ describe("Riwayat payment status in desktop and mobile views", () => {
     }];
   });
 
+  it("starts with parent categories and an inactive subcategory selection", () => {
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+    expect(html).toMatch(/<select[^>]*aria-label="Kategori transaksi"/);
+    expect(html).toContain('<option value="ATK">ATK</option>');
+    expect(html).toContain('<option value="PERCETAKAN">PERCETAKAN</option>');
+    expect(html).toMatch(/<select[^>]*aria-label="Subkategori transaksi"[^>]*disabled=""/);
+    expect(html).toContain("Pilih kategori dahulu");
+  });
+
+  it("identifies printing notes in both history layouts", () => {
+    Object.assign(history.transactions[0], {
+      transactionCategory: "PERCETAKAN", printingSubcategory: "SPANDUK",
+      printingReceipt: { id: "receipt-1", subcategory: "SPANDUK", number: "SP-001" },
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+    expect(html.match(/PERCETAKAN · SPANDUK/g)).toHaveLength(2);
+    expect(html.match(/Nota SP-001/g)).toHaveLength(2);
+  });
+
   it.each([0, 50_000])("shows Tempo as unpaid when only Rp %i has been paid", (amountPaid) => {
     history.transactions[0].amountPaid = amountPaid;
     const html = renderToStaticMarkup(createElement(HistoryClientPage));

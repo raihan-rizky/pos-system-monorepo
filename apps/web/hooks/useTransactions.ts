@@ -11,9 +11,13 @@ import {
 } from "@/features/transaction-history/helpers/invalidate";
 import { buildTransactionHistorySearchParams } from "@/features/transaction-history/helpers/history-params";
 import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import type { PrintingSubcategory } from "@/features/printing-receipts/types";
 
 export interface Transaction {
   id: string;
+  transactionCategory?: "ATK" | "PERCETAKAN" | null;
+  printingSubcategory?: PrintingSubcategory | null;
+  printingReceipt?: { id: string; subcategory: string; number: string } | null;
   invoiceNumber: string | null;
   draftNumber: string | null;
   subtotal: number;
@@ -118,6 +122,8 @@ export interface TransactionHistoryParams {
   dateFrom?: string;
   dateTo?: string;
   categoryId?: string;
+  transactionCategory?: "ATK" | "PERCETAKAN";
+  printingSubcategory?: PrintingSubcategory;
   status?: string;
   suratJalan?: "bundled";
   page?: number;
@@ -126,6 +132,8 @@ export interface TransactionHistoryParams {
 
 interface CreateTransactionInput {
   items: CartItem[];
+  printingReceiptId?: string;
+  printingReceiptRevision?: number;
   paymentMethod: string;
   amountPaid: number;
   discount?: number;

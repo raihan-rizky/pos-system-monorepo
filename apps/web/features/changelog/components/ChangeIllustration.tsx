@@ -13,6 +13,7 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       quotation: { Icon: FileText, title: "Penawaran sesuai kebutuhan.", detail: "Nomor pilihan Anda · Tanggal WIB" },
       "stock-groups": { Icon: Layers, title: "Satu grup, stok bersama.", detail: "Buat · Tinjau · Simpan" },
       changelog: { Icon: History, title: "Terus berkembang.", detail: "Lihat yang baru, langsung coba." },
+      printing: { Icon: FileText, title: "Nota Percetakan langsung.", detail: "Pilih jenis · Isi nota · Bayar / DP" },
     };
     const preview = previews[visual];
     return <div className="relative flex min-h-36 items-center gap-4 bg-brand-50 px-5 pb-5 pt-9 sm:min-h-44 sm:px-7"><span className="absolute left-5 top-3 text-[11px] font-medium text-brand-800">Ilustrasi fitur</span><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white"><preview.Icon className="h-7 w-7 text-brand-600" aria-hidden="true" /></span><div><p className="text-base font-extrabold leading-tight tracking-tight text-brand-950 sm:text-xl">{preview.title}</p><p className="mt-2 text-xs text-brand-800">{preview.detail}</p></div></div>;
@@ -21,6 +22,17 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
   return (
     <div className="relative flex min-h-64 flex-col justify-center overflow-hidden bg-brand-50 px-5 py-9 sm:min-h-72 sm:px-9">
       <span className="absolute left-5 top-4 text-[11px] font-semibold text-brand-800">Ilustrasi fitur</span>
+      {visual === "printing" && (
+        <div className="mx-auto w-full max-w-lg space-y-4">
+          <div className="flex flex-wrap gap-2">{["SPANDUK", "PERCETAKAN", "PLAT", "STEMPEL", "PRINT"].map((label, index) => <span key={label} className={`rounded-lg px-2.5 py-2 text-[10px] font-bold ${index === 0 ? "bg-brand-600 text-white" : "border border-brand-200 bg-white text-brand-900"}`}>{label}</span>)}</div>
+          <div className={panel}>
+            <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-2"><FileText className={icon} aria-hidden="true" /><span className="text-sm font-bold text-surface-900">Buat Nota Kosong</span></div><span className="text-xs font-semibold text-emerald-700">Tersimpan</span></div>
+            <div className="mt-4 overflow-hidden rounded-lg border border-surface-200 text-xs"><div className="grid grid-cols-3 gap-2 bg-surface-50 px-3 py-2 font-semibold text-surface-500"><span>Nama file / item</span><span>Bahan</span><span>Jumlah</span></div><div className="h-8 border-t border-surface-100" /><div className="h-8 border-t border-surface-100" /></div>
+            <div className="mt-4 flex justify-end"><span className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white">Bayar / DP</span></div>
+          </div>
+          <p className="text-center text-xs text-brand-800">Satu nota, satu transaksi. Temukan lagi di Riwayat.</p>
+        </div>
+      )}
       {visual === "tax" && (
         <div className="mx-auto w-full max-w-xs rounded-t-2xl border border-surface-200 bg-white p-6 shadow-sm">
           <ReceiptText className="mb-5 h-7 w-7 text-brand-600" aria-hidden="true" />

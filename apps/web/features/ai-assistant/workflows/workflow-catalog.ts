@@ -4,6 +4,7 @@ import type { AssistantWorkflowPayload, AssistantWorkflowStepPayload } from "../
 export type AssistantWorkflowRequirement = {
   resource: string;
   action: ResourceAction;
+  roles?: Role[];
 };
 
 export type AssistantWorkflowDefinition = AssistantWorkflowPayload & {
@@ -167,7 +168,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Pastikan shift aktif", description: "Buka shift kasir terlebih dahulu sebelum memproses transaksi." },
       { title: "Atur panel Kasir bila perlu", description: "Klik Ringkas panel atau Buka panel untuk mengatur ruang produk. Tarik pegangan bawah untuk mengubah tinggi panel, atau fokus ke pegangan lalu gunakan panah atas/bawah, Home, dan End. Klik Ukuran awal untuk mengembalikan tinggi otomatis. Pencarian dan filter tetap tersimpan selama panel diringkas." },
-      { title: "Pilih item dan satuan", description: "Cari produk atau layanan, pilih varian jika ada, lalu masukkan ke keranjang. Badge di kanan kategori menampilkan stok satuan terpilih, misalnya 32 dus 6 pcs. Konversi seperti 1 dus = 12 pcs tampil di bawah badge jika datanya tersedia dan satuannya berbeda dari satuan dasar. Stok dan konversi mengikuti varian yang dipilih. Satuan kecil tampil di kiri dan satuan besar di kanan. Di PC, saat kartu produk diklik atau produk ditambahkan, panel keranjang otomatis terbuka, termasuk setelah ditutup. Di ponsel, keranjang tidak terbuka otomatis; ketuk tombol Keranjang untuk membukanya. Konfirmasi stok kosong tetap diperlukan sebelum produk ditambahkan." },
+      { title: "Pilih item dan satuan", description: "Di tab ATK, cari produk, pilih varian jika ada, lalu masukkan ke keranjang. Untuk pesanan Percetakan, ikuti panduan Membuat Nota Percetakan dan isi lembar nota pada subtab asalnya. Badge di kanan kategori menampilkan stok satuan terpilih, misalnya 32 dus 6 pcs. Konversi seperti 1 dus = 12 pcs tampil di bawah badge jika datanya tersedia dan satuannya berbeda dari satuan dasar. Stok dan konversi mengikuti varian yang dipilih. Satuan kecil tampil di kiri dan satuan besar di kanan. Di PC, saat kartu produk diklik atau produk ditambahkan, panel keranjang otomatis terbuka, termasuk setelah ditutup. Di ponsel, keranjang tidak terbuka otomatis; ketuk tombol Keranjang untuk membukanya. Konfirmasi stok kosong tetap diperlukan sebelum produk ditambahkan." },
       { title: "Edit cepat bila diperlukan", description: "Jika memiliki permission edit produk, aktifkan Edit Cepat di header keranjang. Ikon produk mengubah Nama/Kategori/Merek seluruh varian; ikon harga mengubah harga master varian atau Harga Khusus yang hanya berlaku untuk transaksi ini." },
       { title: "Periksa keranjang", description: "Pilih satuan langsung pada baris keranjang. Angka kuantitas tetap dan harga mengikuti satuan baru. Ketik jumlah bulat lebih dari nol atau gunakan tombol plus/minus, lalu klik Bayar." },
       { title: "Atur diskon item", description: "Klik Bayar, lalu klik Diskon di kanan item pada modal Pembayaran. Pilih Rp atau % dan terapkan; Rp memotong total baris, misalnya 3 × Rp10.000 dikurangi Rp5.000 menjadi Rp25.000. Centang beberapa item, klik Diskon ... item terpilih, pilih Rp atau %, lalu klik Terapkan diskon untuk memberi potongan yang sama ke setiap baris terpilih; diskon baru menggantikan yang lama. Buka Diskon lagi untuk mengubahnya atau klik Hapus diskon untuk menghapusnya. Diskon item tersimpan pada draft/transaksi dan tampil di nota serta PDF; diskon transaksi tetap dihitung terpisah." },
@@ -188,7 +189,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Pilih alur approval", description: "Tanpa izin transaction.auto_approve.create, transaksi role masuk Pending. Owner dapat mengaktifkan Auto Approve Transaksi pada Pengaturan > RBAC agar checkout role tersebut langsung final." },
       { title: "Buka Riwayat", description: "Untuk transaksi yang tetap Pending, masuk ke Riwayat Transaksi dan gunakan filter Pending." },
       { title: "Pilih aksi", description: "Klik Setujui atau Tolak pada baris transaksi, atau gunakan menu tiga titik." },
-      { title: "Review barang dan harga", description: "Sebelum persetujuan, Anda dapat menambah/menghapus barang atau mengubah jumlah. Periksa modal, normal, Agen, Dinas, Harga Khusus, dan harga efektif; server menghitung ulang total." },
+      { title: "Review barang dan harga", description: "Pada transaksi ATK, Anda dapat menambah/menghapus barang atau mengubah jumlah sebelum persetujuan. Periksa modal, normal, Agen, Dinas, Harga Khusus, dan harga efektif; server menghitung ulang total. Nota Percetakan disetujui sesuai isi tersimpan; periksa item dan pembayaran, lalu klik Setujui nota." },
       { title: "Isi modal persetujuan", description: "Pilih metode pembayaran atau Tempo/Tagihan. Tempo terpisah dari DP, memerlukan pelanggan, dan dapat dimulai tanpa pembayaran atau dengan cicilan awal yang dicatat menurut metode yang diterima. Catatan layanan dan satuan bahan baku tetap disimpan saat item disetujui. Tanggal invoice default memakai waktu server tersinkron Internet dalam WIB; jika sumber tidak tersedia, sinkronisasi terakhir atau jam server digunakan." },
       { title: "Finalisasi keputusan", description: "Klik Setujui untuk memfinalisasi dan memotong stok satu kali, atau Tolak nota yang masih pending tanpa perubahan stok. Pembatalan atau penghapusan transaksi final mengembalikan stok yang tercatat; izin hapus default Owner dan dapat diatur melalui RBAC." },
     ],
@@ -238,7 +239,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "transaction", action: "update" }],
     steps: [
       { title: "Buka Riwayat", description: "Masuk ke Riwayat Transaksi. Tanggal utama memakai Tanggal Invoice, sedangkan label Dibuat menunjukkan waktu sistem membuat record." },
-      { title: "Pilih transaksi", description: "Cari transaksi yang ingin diperbaiki tanggalnya, lalu buka menu tiga titik pada baris tersebut." },
+      { title: "Pilih transaksi", description: "Cari transaksi yang ingin diperbaiki tanggalnya, lalu buka menu tiga titik pada baris tersebut. Nota Percetakan yang sudah diproses mempertahankan tanggal, nomor, dan isi tersimpan; tanggalnya diisi pada draft sebelum Bayar / DP." },
       { title: "Klik Ubah Tanggal Invoice", description: "Pilih menu Ubah Tanggal Invoice. Fitur ini hanya tersedia untuk Owner/Admin." },
       { title: "Isi perubahan", description: "Pilih tanggal baru, isi jam hanya jika ingin mengganti jam invoice, lalu tulis alasan perubahan. Jika jam kosong, jam invoice sebelumnya dipertahankan." },
       { title: "Simpan dan cetak ulang", description: "Sistem menyesuaikan nomor invoice/draft, mencatat audit trail, dan invoice final harus dicetak ulang setelah perubahan." },
@@ -794,6 +795,27 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka Catatan Perubahan", description: "Buka Lainnya → Catatan Perubahan untuk melihat riwayat pembaruan, terbaru di atas." },
       { title: "Lihat gambar dan alur", description: "Perbesar screenshot bila tersedia, lalu ikuti tiga langkah singkat. Ilustrasi fitur diberi label; tautan Buka fitur mengikuti izin akses Anda." },
       { title: "Cek sorotan mingguan", description: "Pilih Sorotan 7 hari untuk melihat semua pembaruan terbaru dalam satu daftar ringkas. Setiap baris berisi nama fitur dan satu kalimat manfaat; klik baris untuk membuka fitur sesuai izin akses. Lihat semua catatan membuka gambar dan alur lengkap. Popup otomatis menampilkan pembaruan belum dilihat dari hari ini dan enam hari sebelumnya berdasarkan WIB; tutup dengan Sudah lihat atau Escape." },
+    ],
+  }),
+  workflow({
+    faqNumber: 40,
+    slug: "printing-receipts",
+    title: "Bagaimana cara membuat dan memproses nota Percetakan?",
+    aliases: ["buat nota percetakan", "nota spanduk", "nota plat", "nota stempel", "nota print", "nota kosong", "filter riwayat percetakan"],
+    route: "/pos",
+    actionLabel: "Buka Kasir",
+    iconKey: "file-text",
+    allowedRoles: ["OWNER", "ADMIN", "CASHIER", "SALES"],
+    requiredCapabilities: [
+      { resource: "transaction", action: "create", roles: ["OWNER", "ADMIN", "CASHIER"] },
+      { resource: "transaction.request", action: "create", roles: ["SALES"] },
+    ],
+    steps: [
+      { title: "Pilih subtab", description: "Buka Kasir > Percetakan, lalu pilih SPANDUK, PERCETAKAN, PLAT, STEMPEL, atau PRINT. Daftar nota mengikuti subtab terpilih." },
+      { title: "Buat nota", description: "Klik Buat Nota Kosong. No. Nota terisi otomatis dan boleh diubah selama draft. Nota kosong langsung tersimpan dan belum menjadi transaksi penjualan." },
+      { title: "Isi dan simpan", description: "Isi pelanggan, nama item atau file, bahan, banyaknya, dan harga langsung di lembar nota. Item dan bahan boleh diketik bebas. Buka Baris dan hubungan stok > Hubungkan stok hanya bila perlu mengurangi persediaan; Jumlah pemakaian adalah total bahan untuk baris itu. Tunggu Tersimpan sebelum pindah atau membayar. Jika Gagal menyimpan, pilih Coba simpan lagi. Muat ulang versi tersimpan meminta konfirmasi sebelum mengganti perubahan lokal." },
+      { title: "Bayar dan cetak", description: "Klik Bayar / DP untuk nota aktif, lalu pilih metode serta pelunasan atau DP melalui modal Pembayaran. Satu nota menjadi satu transaksi; stok bahan terkait berkurang saat transaksi berhasil. Klik Cetak / PDF lalu Cetak atau Unduh PDF untuk memakai desain asal. Setelah diproses, isi nota tetap dan pembayaran lanjutan mengikuti transaksi. Pada ponsel, buka Daftar nota untuk daftar tersimpan; Perkecil nota dan Perbesar nota mengatur ukuran tampilan." },
+      { title: "Cari dan cetak ulang", description: "Buka Riwayat sesuai izin akses, pilih Kategori transaksi PERCETAKAN lalu Subkategori asal nota, atau cari nomor notanya. Pilih ATK untuk penjualan barang, lalu kategori produknya di Subkategori. Pergantian Kategori mengosongkan Subkategori dan kembali ke halaman pertama; Semua Kategori menonaktifkan Subkategori. Buka transaksi untuk cetak ulang dengan template asal. Layanan cetak lama tanpa jenis tercatat tampil di PERCETAKAN tanpa subkategori." },
     ],
   }),
 ];

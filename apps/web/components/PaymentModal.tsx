@@ -40,6 +40,8 @@ import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatal
 
 
 interface PaymentModalProps {
+  allowItemDiscounts?: boolean;
+  receiptInvoiceDate?: string;
   initialCustomerSelection?: CheckoutCustomerSelection;
   onCustomerSelectionChange?: (selection: CheckoutCustomerSelection) => void;
   open: boolean;
@@ -135,6 +137,8 @@ export function PaymentModal({
   onUpdateTransactionPrice,
   initialCustomerSelection,
   onCustomerSelectionChange,
+  allowItemDiscounts = true,
+  receiptInvoiceDate,
 }: PaymentModalProps) {
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>(["CASH"]);
   const [discountMode, setDiscountMode] = useState<"RP" | "PERCENT">("RP");
@@ -182,7 +186,8 @@ export function PaymentModal({
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
   const [invoiceDateReason, setInvoiceDateReason] = useState("");
   const serverClock = useServerClock(open);
-  const { invoiceDate, invoiceTime, setInvoiceDate, setInvoiceTime } = useInvoiceDateInputs(open, serverClock.now, serverClock.isLoading);
+  const { invoiceDate: selectedInvoiceDate, invoiceTime, setInvoiceDate, setInvoiceTime } = useInvoiceDateInputs(open, serverClock.now, serverClock.isLoading);
+  const invoiceDate = receiptInvoiceDate ?? selectedInvoiceDate;
   
   const { role } = useRole();
   const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
@@ -408,7 +413,7 @@ export function PaymentModal({
         {/* Order Summary */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-semibold text-surface-700">Ringkasan item</span>
-          {selectedDiscountItems.length > 0 && (
+          {allowItemDiscounts && selectedDiscountItems.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={isProcessing || isSavingDraft}
                 onClick={() => setItemDiscountEditor({ ids: [...selectedDiscountItems], mode: "RP", value: "" })}
@@ -436,24 +441,24 @@ export function PaymentModal({
             <div key={item.cartLineId} className="rounded-lg bg-white/50 p-2 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 text-surface-600">
-                  <input type="checkbox" checked={selectedDiscountItems.includes(item.cartLineId)}
+                  {allowItemDiscounts && <input type="checkbox" checked={selectedDiscountItems.includes(item.cartLineId)}
                     disabled={isProcessing || isSavingDraft}
                     aria-label={`Pilih ${item.name} untuk diskon`}
                     onChange={event => setSelectedDiscountItems(current => event.target.checked
                       ? [...current, item.cartLineId] : current.filter(id => id !== item.cartLineId))}
-                    className="h-4 w-4 shrink-0 accent-brand-600 disabled:opacity-50" />
+                    className="h-4 w-4 shrink-0 accent-brand-600 disabled:opacity-50" />}
                   <span className="break-words">{item.name} &times; {item.quantity}</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <span className={`font-medium ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-surface-900"}`}>
                     {formatRupiah(discountedLineSubtotal(item.price, item.quantity, item.discount))}
                   </span>
-                  <button type="button" aria-label={`Diskon untuk ${item.name}`} disabled={isProcessing || isSavingDraft}
+                  {allowItemDiscounts && <button type="button" aria-label={`Diskon untuk ${item.name}`} disabled={isProcessing || isSavingDraft}
                     onClick={() => setItemDiscountEditor({ ids: [item.cartLineId], mode: itemDiscounts[item.cartLineId]?.mode ?? "RP", value: String(itemDiscounts[item.cartLineId]?.value ?? item.discount ?? 0) })}
-                    className="min-h-11 rounded-lg px-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50">Diskon</button>
+                    className="min-h-11 rounded-lg px-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50">Diskon</button>}
                 </div>
               </div>
-              {item.discount > 0 && (
+              {allowItemDiscounts && item.discount > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-brand-700">
                   <span>Diskon item -{formatRupiah(item.discount)} dari {formatRupiah(item.price * item.quantity)}</span>
                   <button type="button" aria-label={`Hapus diskon untuk ${item.name}`} disabled={isProcessing || isSavingDraft}
@@ -617,7 +622,7 @@ export function PaymentModal({
           ))}
         </div>
 
-        {itemDiscountEditor && (
+        {allowItemDiscounts && itemDiscountEditor && (
           <section aria-label="Editor diskon item" className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4">
             <div>
               <h3 className="text-sm font-semibold text-surface-900">Diskon {editorItems.length === 1 ? editorItems[0].name : `${editorItems.length} item terpilih`}</h3>
@@ -702,11 +707,12 @@ export function PaymentModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="payment-invoice-date" className="text-sm font-medium text-surface-700 mb-1.5 block">
-                  Tanggal Invoice (Opsional)
+                  {receiptInvoiceDate ? "Tanggal Nota" : "Tanggal Invoice (Opsional)"}
                 </label>
                 <input
                   type="date"
                   id="payment-invoice-date"
+                  disabled={Boolean(receiptInvoiceDate)}
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
                   className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
@@ -726,6 +732,7 @@ export function PaymentModal({
               </div>
             </div>
             <p className="text-xs text-surface-500">
+              {receiptInvoiceDate ? "Tanggal mengikuti nota. Ubah pada lembar nota sebelum pembayaran. " : ""}
               Jika jam dikosongkan, sistem memakai jam checkout saat invoice dibuat.
             </p>
             {invoiceDate && invoiceDate !== toJakartaInputParts(serverClock.now ?? new Date()).date && (

@@ -32,10 +32,10 @@ const CloseShiftModal = dynamic(
     import("@/components/CloseShiftModal").then((mod) => mod.CloseShiftModal),
   { ssr: false },
 );
-const PrintingServicesTab = dynamic(
+const PrintingReceiptWorkspace = dynamic(
   () =>
-    import("@/features/printing-services/components/PrintingServicesTab").then(
-      (mod) => mod.PrintingServicesTab,
+    import("@/features/printing-receipts/components/PrintingReceiptWorkspace").then(
+      (mod) => mod.PrintingReceiptWorkspace,
     ),
   { ssr: false },
 );
@@ -660,7 +660,7 @@ export default function POSClientPage({
                   : "text-surface-600 hover:text-surface-900"
                   }`}
               >
-                Produk
+                ATK
               </button>
               <button
                 type="button"
@@ -670,7 +670,7 @@ export default function POSClientPage({
                   : "text-surface-600 hover:text-surface-900"
                   }`}
               >
-                Layanan
+                Percetakan
               </button>
             </div>
             <div className="flex-1 min-w-0">
@@ -703,7 +703,7 @@ export default function POSClientPage({
                 </div>
               ) : (
                 <div className="hidden text-sm font-medium text-surface-500 md:block">
-                  Kelola dan tambahkan layanan sesuai kebutuhan
+                  Isi dan simpan nota sesuai subtab
                 </div>
               )}
             </div>
@@ -716,7 +716,7 @@ export default function POSClientPage({
               <button
                 type="button"
                 onClick={toggleDesktopCart}
-                className={`hidden lg:flex relative items-center justify-center p-2 rounded-xl transition-colors ${
+                className={`${activeTab === "products" ? "hidden lg:flex" : "hidden"} relative items-center justify-center p-2 rounded-xl transition-colors ${
                   isDesktopCartOpen
                     ? "bg-brand-50 text-brand-700"
                     : "bg-surface-100 text-surface-600 hover:bg-surface-200"
@@ -826,7 +826,7 @@ export default function POSClientPage({
             </div>
           )}
 
-          {activeTab === "products" ? (
+          {activeTab === "products" && (
             <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-6 py-3 md:py-4">
               <ProductGrid
                 products={visibleProducts}
@@ -836,9 +836,14 @@ export default function POSClientPage({
                 categoryPricingRules={pricingRules}
               />
             </div>
-          ) : (
-            <PrintingServicesTab onAddToCart={handleAddPrintingService} />
           )}
+
+          <div className={activeTab === "services" ? "flex flex-1 min-h-0 min-w-0 overflow-hidden" : "hidden"}>
+            <PrintingReceiptWorkspace
+              canCheckout={!shiftRequired || Boolean(activeShift)}
+              onRequireShift={() => setShiftModalDismissed(false)}
+            />
+          </div>
 
           {activeTab === "products" && pagination && pagination.total > 0 && (
             <Pagination
@@ -852,7 +857,7 @@ export default function POSClientPage({
           )}
         </div>
 
-        {isDesktopCartOpen && (
+        {activeTab === "products" && isDesktopCartOpen && (
           <div className="hidden lg:block w-[340px] flex-shrink-0">
             <CartSidebar
               items={pricedCartItems}
@@ -879,7 +884,7 @@ export default function POSClientPage({
         )}
       </div>
 
-      {!showPayment && cart.totalItems > 0 && (
+      {activeTab === "products" && !showPayment && cart.totalItems > 0 && (
         <button
           type="button"
           onClick={openCart}
@@ -898,7 +903,7 @@ export default function POSClientPage({
 
 
       {/* Mobile Cart Modal */}
-      {isCartOpen && !pendingEmptyStockProduct && (
+      {activeTab === "products" && isCartOpen && !pendingEmptyStockProduct && (
         <div className="lg:hidden fixed inset-0 z-[200] flex flex-col justify-end">
           <div
             className="absolute inset-0 bg-black/50 animate-fade-in"

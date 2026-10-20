@@ -89,6 +89,7 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
         targets: [
           { key: "history-primary", label: "Halaman Riwayat" },
           { key: "history-filter", label: "Filter Status / Tanggal" },
+          { key: "history-category", label: "Kategori / Subkategori" },
           { key: "history-table", label: "Tabel Transaksi" },
           { key: "history-action-menu", label: "Menu Titik Tiga" },
           { key: "history-approval-actions", label: "Setujui / Tolak" },
@@ -120,6 +121,10 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
           { key: "pos-cart", label: "Keranjang" },
           { key: "pos-pay-button", label: "Tombol Bayar" },
           { key: "pos-expense-button", label: "Pengeluaran" },
+          { key: "pos-printing-tabs", label: "Jenis Nota Percetakan" },
+          { key: "pos-printing-new", label: "Buat Nota Kosong" },
+          { key: "pos-printing-sheet", label: "Lembar Nota Percetakan" },
+          { key: "pos-printing-checkout", label: "Pembayaran Nota" },
         ],
       },
       {

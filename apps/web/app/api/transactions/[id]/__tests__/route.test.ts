@@ -152,6 +152,12 @@ describe("GET /api/transactions/[id]", () => {
 });
 
 describe("PATCH /api/transactions/[id]", () => {
+  it("preserves the customer identity on a processed printing receipt", async () => {
+    transactionFindFirstMock.mockResolvedValue({id:"tx-1",status:"COMPLETED",printingSubcategory:"PLAT",payments:[]});
+    const response=await PATCH(new Request("http://localhost/api/transactions/tx-1",{method:"PATCH",body:JSON.stringify({customerName:"Diubah"})}),{params:Promise.resolve({id:"tx-1"})});
+    expect(response.status).toBe(409);
+    expect(transactionUpdateMock).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermissionMock.mockResolvedValue({
@@ -203,6 +209,13 @@ describe("PATCH /api/transactions/[id]", () => {
 });
 
 describe("DELETE /api/transactions/[id]", () => {
+  it("retains processed printing receipts for history and cancels through the normal status flow", async () => {
+    transactionFindFirstMock.mockResolvedValue({id:"tx-1",status:"COMPLETED",printingSubcategory:"PLAT"});
+    const response=await DELETE(new Request("http://localhost/api/transactions/tx-1",{method:"DELETE"}),{params:Promise.resolve({id:"tx-1"})});
+    expect(response.status).toBe(409);
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+    expect(transactionDeleteManyMock).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermissionMock.mockResolvedValue({

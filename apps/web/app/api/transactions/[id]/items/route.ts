@@ -58,6 +58,7 @@ export async function PATCH(
       select: {
         id: true,
         status: true,
+        printingSubcategory: true,
         subtotal: true,
         discount: true,
         tax: true,
@@ -69,6 +70,10 @@ export async function PATCH(
 
     if (!existingTx) {
       return NextResponse.json({ message: "Transaction not found" }, { status: 404 });
+    }
+
+    if (existingTx.printingSubcategory) {
+      return NextResponse.json({ message: "Isi nota Percetakan yang sudah diproses tersimpan sebagai dokumen tetap." }, { status: 409 });
     }
 
     if (!EDITABLE_STATUSES.has(existingTx.status)) {

@@ -6,6 +6,21 @@ import { matchAssistantWorkflow } from "../assistant-workflow-matcher";
 describe("assistant workflow matcher", () => {
   const permissions = buildDefaultRolePermissions();
 
+  it("allows the printing receipt guide for SALES with request create permission", () => {
+    expect(matchAssistantWorkflow({ message: "buat nota percetakan", role: "SALES", permissions }))
+      .toMatchObject({ kind: "matched", workflow: { id: "faq-q40-printing-receipts" } });
+  });
+
+  it.each(["SALES", "CASHIER"] as const)("requires the matching receipt creation permission for %s", role => {
+    const restricted = buildDefaultRolePermissions();
+    const resource = role === "SALES" ? "transaction.request" : "transaction";
+    restricted[role].resources[resource].create = false;
+    const alternate = role === "SALES" ? "transaction" : "transaction.request";
+    restricted[role].resources[alternate].create = true;
+    expect(matchAssistantWorkflow({ message: "buat nota percetakan", role, permissions: restricted }))
+      .toMatchObject({ kind: "denied", missingRequirements: [`resource:${resource}.create`] });
+  });
+
   it("does not route an unresolved product question to the changelog", () => {
     expect(matchAssistantWorkflow({
       message: "cara memakai fitur toko untuk input barang baru yang belum ada",

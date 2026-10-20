@@ -8,7 +8,7 @@ import { getLogger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 const log = getLogger("api:transactions:tax");
 type Context = { params: Promise<{ id: string }> };
-const select = { id: true, storeId: true, customerId: true, subtotal: true, discount: true, tax: true, taxRate: true, taxMethod: true, total: true, amountPaid: true, change: true, status: true, paymentMethod: true } as const;
+const select = { id: true, storeId: true, customerId: true, subtotal: true, discount: true, tax: true, taxRate: true, taxMethod: true, total: true, amountPaid: true, change: true, status: true, paymentMethod: true, printingSubcategory: true } as const;
 type TaxRecord = Prisma.TransactionGetPayload<{ select: typeof select }>;
 type TaxView = Omit<TaxRecord, "tax" | "taxRate" | "total" | "amountPaid" | "change"> & {
   tax: Prisma.Decimal | number; taxRate: Prisma.Decimal | number | null; total: Prisma.Decimal | number;
@@ -60,13 +60,14 @@ export async function PATCH(request: Request, { params }: Context) {
     const initial = await db.transaction.findFirst({ where: { id, storeId }, select });
     if (!initial) return NextResponse.json({ message: "Transaksi tidak ditemukan." }, { status: 404 });
     await requirePermission(initial.status === "DRAFT" ? "transaction.draft" : "transaction", "update");
+    if (initial.printingSubcategory) return NextResponse.json({ message: "Pajak nota Percetakan yang sudah diproses tidak dapat diubah." }, { status: 409 });
     if (initial.status === "VOIDED" || initial.status === "REFUNDED") return NextResponse.json({ message: "Pajak transaksi yang dibatalkan atau direfund tidak dapat diubah." }, { status: 409 });
     const updated = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // Customer -> invoice follows the payment and reversal lock order.
       if (initial.customerId) await tx.$queryRawUnsafe('SELECT "id" FROM "pos_customers" WHERE "id" = $1 AND "storeId" = $2 FOR UPDATE', initial.customerId, storeId);
       await tx.$queryRawUnsafe('SELECT "id" FROM "pos_transactions" WHERE "id" = $1 AND "storeId" = $2 FOR UPDATE', id, storeId);
       const fresh = await tx.transaction.findFirst({ where: { id, storeId }, select });
-      if (!fresh || fresh.customerId !== initial.customerId || fresh.status !== initial.status ||
+      if (!fresh || fresh.printingSubcategory || fresh.customerId !== initial.customerId || fresh.status !== initial.status ||
           Object.entries(parsed.data.expected).some(([key, value]) => snapshot(fresh)[key as keyof ReturnType<typeof snapshot>] !== value)) throw new TaxConflict();
       const taxMethod = getTransactionTaxMethod(fresh);
       const totals = calculateTransactionTax({ subtotal: Number(fresh.subtotal), discount: Number(fresh.discount), taxRate: parsed.data.taxRate, taxMethod });

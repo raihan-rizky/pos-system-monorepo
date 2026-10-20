@@ -84,12 +84,15 @@ export async function PATCH(
           invoiceNumber: true,
           draftNumber: true,
           invoiceDate: true,
+          printingSubcategory: true,
         },
       });
 
       if (!existing) {
         throw new Error("TRANSACTION_NOT_FOUND");
       }
+
+      if (existing.printingSubcategory) throw new Error("PRINTING_RECEIPT_SNAPSHOT");
 
       const newInvoiceDate = resolveInvoiceDateTime({
         mode: "edit",
@@ -196,6 +199,10 @@ export async function PATCH(
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof Error && error.message === "PRINTING_RECEIPT_SNAPSHOT") {
+      return NextResponse.json({ message: "Nomor dan tanggal nota Percetakan yang sudah diproses mengikuti dokumen asli." }, { status: 409 });
+    }
 
     if (error instanceof Error && error.message === "TRANSACTION_NOT_FOUND") {
       return NextResponse.json(
