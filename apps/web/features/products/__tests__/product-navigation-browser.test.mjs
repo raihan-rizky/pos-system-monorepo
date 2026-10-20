@@ -37,6 +37,10 @@ const bundle = await build({
       const products=Array.from({length:40},(_,i)=>({id:'example-'+i,name:'Produk Contoh '+String(i+1).padStart(2,'0'),
         sku:'CONTOH-'+i,unit:'pcs',price:2000,costPrice:1000,stock:20,minStock:1,isActive:true,
         category:{id:'paper',name:'Kertas'},variants:[]}));
+      Object.assign(products[0],{name:'Alas Mouse Pad',price:13500,costPrice:10000});
+      Object.assign(products[1],{price:13500,costPrice:10000,category:{id:'special',name:'Harga khusus'}});
+      Object.assign(products[2],{price:13500,costPrice:0});
+      Object.assign(products[3],{price:8000,costPrice:10000});
       export function useProductsPage(search,category,{page}) {
         const [loaded,setLoaded]=useState(page);
         useEffect(()=>{const id=setTimeout(()=>setLoaded(page),180);return()=>clearTimeout(id)},[page]);
@@ -47,7 +51,7 @@ const bundle = await build({
       export const useProductStats=()=>({data:{totalProducts:120,lowStock:0,negativeStock:0,inventoryValue:240000},refetch:()=>{}});
       export const useDeleteProduct=()=>({reset:()=>{},isPending:false});
       export const useBulkDeleteProducts=useDeleteProduct;
-      export const useCustomerCategoryPricingRules=()=>({data:[]});
+      export const useCustomerCategoryPricingRules=()=>({data:[{id:'special-rule',categoryId:'special',category:{id:'special',name:'Harga khusus'},customerType:'UMUM',mode:'FLAT_DISCOUNT',value:1500,isActive:true}]});
       export const useActiveProductImportJob=()=>({data:null,refetch:async()=>({data:null})});
       export const useProductImportJobStatus=useActiveProductImportJob;
     `,loader:'js',resolveDir:web}));
@@ -64,6 +68,14 @@ try {
   await page.setContent('<html lang="id"><body><main style="display:flex;height:100dvh;overflow:hidden"><div id="root" style="display:flex;flex:1;min-width:0"></div></main></body></html>');
   await page.addStyleTag({content:css.css}); await page.addScriptTag({content:bundle.outputFiles[0].text});
   const pagers=page.getByRole('navigation',{name:/Pagination produk/}); await pagers.first().waitFor();
+  const verifyMarkup=async()=>{
+    for(const pattern of [/^Markup: Rp\s*3\.500 \(35%\)$/,/^Markup: Rp\s*2\.000 \(20%\)$/,/^Markup: Rp\s*13\.500 \(—\)$/,/^Markup: -Rp\s*2\.000 \(-20%\)\s*Di bawah HPP$/]){
+      const matches=page.getByText(pattern).filter({visible:true});
+      assert.equal(await matches.count(),1,'visible markup in the actual product view: '+pattern+' '+JSON.stringify(await matches.evaluateAll(elements=>elements.map(el=>({tag:el.tagName,text:el.textContent,parent:el.parentElement.textContent})))));
+    }
+    assert.equal(await page.getByText(/^Margin:/).filter({visible:true}).count(),0,'product view no longer labels markup as margin');
+  };
+  await verifyMarkup();
   assert.equal(await pagers.count(),2,'pagination available above and below products');
   const top=pagers.first(),bottom=pagers.last();
   assert.equal(await top.evaluate(el=>Boolean(el.compareDocumentPosition(document.querySelector('[aria-label="Satuan tersedia"]'))&Node.DOCUMENT_POSITION_FOLLOWING)),true,'top pagination precedes cards');
@@ -88,6 +100,8 @@ try {
   await page.waitForFunction(()=>document.querySelector('div.overflow-y-auto').scrollTop===0);
   for(const width of [320,390,1280]){
     await page.setViewportSize({width,height:850}); await scroller.evaluate(el=>el.scrollTop=0); await top.scrollIntoViewIfNeeded();
+    await verifyMarkup();
+    await page.getByText('Alas Mouse Pad',{exact:true}).locator('xpath=ancestor::div[contains(@class,"group")][1]').screenshot({path:path.join(artifacts,'markup-card-'+width+'.png')});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no horizontal page overflow at '+width);
     const bounds=await top.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width,'pager fits '+width);
     await top.screenshot({path:path.join(artifacts,'pagination-'+width+'.png')});
@@ -97,7 +111,8 @@ try {
   }
   await scroller.evaluate(el=>el.scrollTop=0);
   await page.getByRole('button',{name:'table',exact:true}).click();
+  await verifyMarkup();
   assert.equal(await pagers.count(),2,'table view keeps both pagers');
   assert.deepEqual(errors,[]);
-  console.log('PASS: both pagers, synchronization, boundaries, internal smooth scroll, reduced motion, keyboard, table and 320/390/1280px layouts.');
+  console.log('PASS: actual grid/table markup (35%, special price, zero HPP, loss), both pagers, synchronization, boundaries, internal smooth scroll, reduced motion, keyboard and 320/390/1280px layouts.');
 } finally {await browser.close();}
