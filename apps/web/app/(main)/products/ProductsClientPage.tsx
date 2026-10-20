@@ -1552,7 +1552,7 @@ function ProductGrid({
                       HPP: {fmt(p.costPrice)}
                     </p>
                     <p className={`text-[10px] font-bold mt-0.5 ${effectivePrice < p.costPrice ? "text-red-700" : "text-emerald-600"}`}>
-                      Margin: {fmt(effectivePrice - p.costPrice)} {effectivePrice > 0 ? `(${((effectivePrice - p.costPrice) / effectivePrice * 100).toFixed(1)}%)` : ""}
+                      Markup: {fmt(effectivePrice - p.costPrice)} ({p.costPrice > 0 ? new Intl.NumberFormat("id-ID", { style: "percent", maximumFractionDigits: 1 }).format((effectivePrice - p.costPrice) / p.costPrice) : "—"})
                       {effectivePrice < p.costPrice && <span className="block">Di bawah HPP</span>}
                     </p>
                   </>
