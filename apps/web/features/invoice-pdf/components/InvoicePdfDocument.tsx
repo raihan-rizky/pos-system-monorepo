@@ -451,6 +451,10 @@ export function InvoicePdfDocument({
                       </React.Fragment>
                     ))
                   : <Text>-</Text>}
+                {" "}
+                <Text style={[s.infoBold, { color: data.status.color }]}>
+                  ({data.status.label})
+                </Text>
               </Text>
             </View>
             {data.paymentTermsLabel && (
@@ -472,13 +476,6 @@ export function InvoicePdfDocument({
                 </Text>
               </View>
             )}
-            <View style={s.infoRow}>
-              <Text style={s.infoLabelRight}>Status</Text>
-              <Text style={s.infoColon}>:</Text>
-              <Text style={[s.infoBold, { color: data.status.color }]}>
-                {data.status.label}
-              </Text>
-            </View>
           </View>
         </View>
 

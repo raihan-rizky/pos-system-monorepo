@@ -270,14 +270,10 @@ export function ReceiptModal({
                           </React.Fragment>
                         ))
                         : "-"}
-                    </span>
-                  </div>
-                  <div className="flex">
-                    <span className="w-24">Status</span>
-                    <span className="mr-4">:</span>
-                    {/* ── Fix #10: inline style, not dynamic Tailwind class ── */}
-                    <span className="font-bold" style={{ color: statusInfo.color }}>
-                      {statusInfo.label}
+                      {" "}
+                      <span className="font-bold" style={{ color: statusInfo.color }}>
+                        ({statusInfo.label})
+                      </span>
                     </span>
                   </div>
                 </div>
