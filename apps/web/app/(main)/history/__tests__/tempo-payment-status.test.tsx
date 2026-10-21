@@ -68,8 +68,62 @@ describe("Riwayat payment status in desktop and mobile views", () => {
       printingReceipt: { id: "receipt-1", subcategory: "SPANDUK", number: "SP-001" },
     });
     const html = renderToStaticMarkup(createElement(HistoryClientPage));
-    expect(html.match(/PERCETAKAN · SPANDUK/g)).toHaveLength(2);
+    expect(html.match(/>Percetakan<\/span>/g)).toHaveLength(2);
+    expect(html.match(/>Spanduk<\/span>/g)).toHaveLength(2);
     expect(html.match(/Nota SP-001/g)).toHaveLength(2);
+  });
+
+  it("places category and subcategory in their own desktop column after the invoice", () => {
+    Object.assign(history.transactions[0], {
+      transactionCategory: "PERCETAKAN", printingSubcategory: "SPANDUK",
+      printingReceipt: { id: "receipt-1", subcategory: "SPANDUK", number: "SP-001" },
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+    const headers = [...html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((match) => match[1]);
+    const body = html.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/)?.[1] ?? "";
+    const cells = [...body.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((match) => match[1]);
+
+    expect(headers.slice(0, 4)).toEqual(["Tanggal", "No. Invoice", "Kategori", "Pelanggan"]);
+    expect(cells).toHaveLength(headers.length);
+    expect(cells[1]).toContain("INV-TEMPO-TEST");
+    expect(cells[1]).toContain("Nota SP-001");
+    expect(cells[1]).not.toMatch(/Percetakan|Spanduk/);
+    expect(cells[2]).toContain("Percetakan");
+    expect(cells[2]).toContain("Spanduk");
+    expect(cells[2]).not.toContain("Nota SP-001");
+    expect(cells[3]).toContain("Pelanggan Tempo");
+  });
+
+  it("omits the repeated printing note number when it matches the invoice in both layouts", () => {
+    Object.assign(history.transactions[0], {
+      invoiceNumber: "NT-SP-20261021-000002",
+      transactionCategory: "PERCETAKAN", printingSubcategory: "SPANDUK",
+      printingReceipt: { id: "receipt-1", subcategory: "SPANDUK", number: "NT-SP-20261021-000002" },
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+
+    expect(html.match(/NT-SP-20261021-000002/g)).toHaveLength(2);
+    expect(html).not.toContain("Nota NT-SP-20261021-000002");
+  });
+
+  it("uses the printing receipt subcategory when the transaction subcategory is missing", () => {
+    Object.assign(history.transactions[0], {
+      printingReceipt: { id: "receipt-1", subcategory: "STEMPEL", number: "ST-001" },
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+
+    expect(html.match(/>Percetakan<\/span>/g)).toHaveLength(2);
+    expect(html.match(/>Stempel<\/span>/g)).toHaveLength(2);
+  });
+
+  it("keeps ATK transactions in the category column without inventing a subcategory", () => {
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+    const body = html.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/)?.[1] ?? "";
+    const cells = [...body.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((match) => match[1]);
+
+    expect(cells[1]).not.toContain("ATK");
+    expect(cells[2]).toContain(">ATK</span>");
+    expect(cells[2]).not.toMatch(/Percetakan|Spanduk|Nota/);
   });
 
   it.each([0, 50_000])("shows Tempo as unpaid when only Rp %i has been paid", (amountPaid) => {

@@ -995,11 +995,24 @@ function TransactionRowActions({
 function TransactionCategoryLabel({ transaction }: { transaction: Transaction }) {
   const printing = transaction.transactionCategory === "PERCETAKAN" || transaction.printingReceipt || transaction.items.some((item) => item.printingServiceId);
   const subcategory = transaction.printingSubcategory ?? transaction.printingReceipt?.subcategory;
+  const subcategoryColors: Record<string, string> = {
+    SPANDUK: "bg-amber-50 text-amber-700 ring-amber-200",
+    PERCETAKAN: "bg-violet-50 text-violet-700 ring-violet-200",
+    PLAT: "bg-slate-100 text-slate-700 ring-slate-200",
+    STEMPEL: "bg-rose-50 text-rose-700 ring-rose-200",
+    PRINT: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+  };
   return (
-    <span className="inline-flex flex-wrap items-center gap-1 text-[11px] font-semibold text-surface-500">
-      <span>{printing ? `PERCETAKAN${subcategory ? ` · ${subcategory}` : ""}` : "ATK"}</span>
-      {transaction.printingReceipt && <span>· Nota {transaction.printingReceipt.number}</span>}
-    </span>
+    <div className="flex flex-col items-start gap-1.5">
+      <span className={`inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${printing ? "bg-brand-50 text-brand-700 ring-brand-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200"}`}>
+        {printing ? "Percetakan" : "ATK"}
+      </span>
+      {printing && subcategory && (
+        <span className={`inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${subcategoryColors[subcategory] ?? "bg-surface-100 text-surface-600 ring-surface-200"}`}>
+          {subcategory.charAt(0).toUpperCase() + subcategory.slice(1).toLowerCase()}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -1385,6 +1398,7 @@ export default function HistoryClientPage() {
                       <tr className="bg-surface-50 border-b border-surface-200">
                         <th className="py-4 px-4 font-semibold text-sm text-surface-600 whitespace-nowrap">Tanggal</th>
                         <th className="py-4 px-4 font-semibold text-sm text-surface-600 whitespace-nowrap">No. Invoice</th>
+                        <th scope="col" className="py-4 px-4 font-semibold text-sm text-surface-600 whitespace-nowrap">Kategori</th>
                         <th className="py-4 px-4 font-semibold text-sm text-surface-600 whitespace-nowrap">Pelanggan</th>
                         <th className="py-4 px-4 font-semibold text-sm text-surface-600 whitespace-nowrap">Sales</th>
                         <th className="py-4 px-4 font-semibold text-sm text-surface-600 whitespace-nowrap">Item</th>
@@ -1451,10 +1465,9 @@ export default function HistoryClientPage() {
                             <td className="py-3.5 px-4">
                               <div className="flex flex-col gap-1.5">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : isVoided ? "bg-red-50 text-red-400 line-through" : "bg-surface-100 text-surface-700"}`}>
+                                  <span className={`inline-flex shrink-0 items-center whitespace-nowrap px-2.5 py-1 rounded-md text-xs font-bold ${tx.status === "DRAFT" ? "bg-amber-50 text-amber-800 font-mono" : isVoided ? "bg-red-50 text-red-400 line-through" : "bg-surface-100 text-surface-700"}`}>
                                     {tx.invoiceNumber ?? tx.draftNumber ?? "—"}
                                   </span>
-                                  <TransactionCategoryLabel transaction={tx} />
                                   {isBundled && (
                                     <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
                                       <Truck className="h-3 w-3" aria-hidden="true" />
@@ -1468,6 +1481,9 @@ export default function HistoryClientPage() {
                                     </span>
                                   )}
                                 </div>
+                                {tx.printingReceipt && tx.printingReceipt.number !== (tx.invoiceNumber ?? tx.draftNumber) && (
+                                  <p className="whitespace-nowrap text-[11px] text-surface-500">Nota {tx.printingReceipt.number}</p>
+                                )}
                                 {tx.buktiTransaksiUrls && tx.buktiTransaksiUrls.length > 0 && (
                                   <div className="flex -space-x-1.5" title={`${tx.buktiTransaksiUrls.length} Bukti Transaksi`}>
                                     {tx.buktiTransaksiUrls.map((url, i) => {
@@ -1497,6 +1513,9 @@ export default function HistoryClientPage() {
                                   </div>
                                 )}
                               </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <TransactionCategoryLabel transaction={tx} />
                             </td>
                             <td className={`py-3.5 px-4 text-sm font-medium ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
                               <div className="max-w-[220px]">
@@ -1660,10 +1679,9 @@ export default function HistoryClientPage() {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                              <span className={`font-mono text-sm font-bold ${isVoided ? "line-through text-surface-400" : "text-brand-700"}`}>
+                              <span className={`whitespace-nowrap font-mono text-sm font-bold ${isVoided ? "line-through text-surface-400" : "text-brand-700"}`}>
                                 {tx.invoiceNumber ?? (tx.draftNumber ? formatDraftNumberForDisplay(tx.draftNumber) : "—")}
                               </span>
-                              <TransactionCategoryLabel transaction={tx} />
                               {isDraft && <span className="bg-amber-100 text-amber-800 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">Draft</span>}
                               {isBundled && (
                                 <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
@@ -1677,6 +1695,12 @@ export default function HistoryClientPage() {
                                   Tanggal diubah
                                 </span>
                               )}
+                            </div>
+                            {tx.printingReceipt && tx.printingReceipt.number !== (tx.invoiceNumber ?? tx.draftNumber) && (
+                              <p className="mb-1.5 whitespace-nowrap text-[11px] text-surface-500">Nota {tx.printingReceipt.number}</p>
+                            )}
+                            <div className="mb-2">
+                              <TransactionCategoryLabel transaction={tx} />
                             </div>
                             {tx.buktiTransaksiUrls && tx.buktiTransaksiUrls.length > 0 && (
                               <div className="flex -space-x-1.5 mb-1">
