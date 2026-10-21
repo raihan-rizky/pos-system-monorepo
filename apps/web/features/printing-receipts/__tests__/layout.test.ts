@@ -13,6 +13,19 @@ const receipt = (subcategory: PrintingReceipt["subcategory"], count: number): Pr
 });
 
 describe("printing receipt layout", () => {
+  it("keeps the spanduk signatory on the Nama line with blank space above for a signature", () => {
+    const record = receipt("SPANDUK", 7);
+    record.document.signatory = "Sakhila";
+    for (const page of buildPrintingReceiptPages(record)) {
+      const signatory = getPrintingReceiptPageFields(record, page).find(field => field.key === "signatory")!;
+      expect(signatory.value).toBe("Sakhila");
+      expect(signatory.y).toBeGreaterThanOrEqual(95.5);
+      expect(signatory.y + signatory.height).toBeLessThanOrEqual(99);
+      // Keep the printed Nama label and WA mark outside the writable name area.
+      expect(signatory.x).toBeGreaterThanOrEqual(174.8);
+      expect(signatory.x + signatory.width).toBeLessThanOrEqual(201);
+    }
+  });
   it.each([
     ["SPANDUK", 0, [0]], ["SPANDUK", 6, [6]], ["SPANDUK", 7, [6, 1]], ["SPANDUK", 12, [6, 6]],
     ["PERCETAKAN", 0, [0]], ["PERCETAKAN", 13, [13]], ["PERCETAKAN", 14, [13, 1]], ["PERCETAKAN", 26, [13, 13]],

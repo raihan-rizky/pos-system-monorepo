@@ -21,7 +21,7 @@ const SPANDUK_LAYOUT: PrintingReceiptLayout = {
     customerName: box(164.2, 15.6, 41.8, 4.1), customerPhone: box(165.1, 22.4, 40.9, 4),
     note: box(23.7, 77.2, 65.1, 21.7, 8), completionTime: box(102.7, 91.8, 16.3, 2.8, 7),
     completionDate: box(102.7, 96.7, 16.3, 2.6, 6), receiver: box(120.2, 90, 31.4, 7, 8, "center"),
-    setter: box(152.8, 90, 15.1, 7, 7, "center"), signatory: box(169.2, 90, 36.3, 7, 8, "center"),
+    setter: box(152.8, 90, 15.1, 7, 7, "center"), signatory: box(175, 95.8, 25, 3.2, 8, "center"),
     total: box(179.8, 68.5, 26.6, 5.1, 9, "right"), paid: box(179.8, 74.1, 26.6, 5.1, 9, "right"), remaining: box(179.8, 79.7, 26.6, 5.1, 9, "right"),
   },
 };
