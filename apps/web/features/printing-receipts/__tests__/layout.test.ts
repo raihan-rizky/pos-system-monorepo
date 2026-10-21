@@ -13,6 +13,22 @@ const receipt = (subcategory: PrintingReceipt["subcategory"], count: number): Pr
 });
 
 describe("printing receipt layout", () => {
+  it("keeps the spanduk receiver on the Nama line with blank space above for a signature", () => {
+    const record = receipt("SPANDUK", 7);
+    record.document.receiver = "test";
+    for (const page of buildPrintingReceiptPages(record)) {
+      const fields = getPrintingReceiptPageFields(record, page);
+      const receiver = fields.find(field => field.key === "receiver")!;
+      const signatory = fields.find(field => field.key === "signatory")!;
+      expect(receiver.value).toBe("test");
+      expect(receiver.y).toBe(signatory.y);
+      expect(receiver.height).toBe(signatory.height);
+      expect(receiver.y).toBeGreaterThanOrEqual(95.5);
+      expect(receiver.y + receiver.height).toBeLessThanOrEqual(99);
+      expect(receiver.x).toBeGreaterThanOrEqual(125);
+      expect(receiver.x + receiver.width).toBeLessThanOrEqual(152);
+    }
+  });
   it("keeps the spanduk signatory on the Nama line with blank space above for a signature", () => {
     const record = receipt("SPANDUK", 7);
     record.document.signatory = "Sakhila";
