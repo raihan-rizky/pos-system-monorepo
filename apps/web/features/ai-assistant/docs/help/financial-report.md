@@ -38,6 +38,22 @@ Sistem akan memunculkan peringatan jika:
 - Ada data lama Daftar Belanja dengan harga modal yang tidak tersedia saat approval. Nilainya dihitung Rp0 sehingga Pengeluaran dan Laba Bersih (Estimasi) dapat lebih rendah dari biaya sebenarnya.
 
 ## Ekspor Laporan Keuangan
+
+### Excel bulanan tujuh sheet
+
+Klik **Ekspor** di halaman Laporan Keuangan. Pilihan awal **Laporan bulanan · Excel 7 sheet** menyediakan pilihan bulan dan tahun, termasuk bulan lampau. Periode menggunakan WIB; bulan berjalan memuat data sampai hari ini dan bulan mendatang belum dapat dipilih.
+
+Klik **Unduh Excel** untuk mendapatkan **LAP KEU**, **BERSIH**, **nama bulan**, **RC nama bulan**, **RP nama bulan**, **PENGELUARAN BELANJA**, dan **PIUTANG & HUTANG**. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan, tetapi biaya gaji yang tercatat tetap masuk pengeluaran.
+
+Isi **modal awal** sendiri di sel kuning **D8** pada LAP KEU. Rumus memperbarui hasil yang bergantung pada modal awal. Persediaan akhir dan hutang pemasok yang belum punya sumber historis lengkap tetap kosong dengan catatan; sel kosong bukan nol. Ringkasan kekayaan menunggu input lengkap.
+
+Penerimaan dan pengeluaran memakai basis kas. Piutang mencakup saldo invoice dan piutang manual pada akhir periode; rincian belanja sudah masuk pengeluaran dan tidak dijumlahkan dua kali. Penerimaan yang belum dikenali kategorinya ditampilkan sebagai **Perlu pemetaan** dan tetap dihitung pada total. Biaya belum lengkap serta keterbatasan riwayat perubahan nominal diberi catatan dalam file.
+
+Jika gagal, dialog menampilkan pesan dan tombol **Coba lagi** tanpa menghapus pilihan periode. Pengunduhan berikutnya dapat dilakukan setelah proses sebelumnya selesai.
+
+### Jurnal transaksi dan ekspor dari chat
+
+Pilih **Jurnal transaksi · Excel / PDF** di dialog untuk format jurnal yang sudah tersedia.
 Laporan keuangan dapat diekspor ke file Excel atau PDF berdasarkan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Jurnal memberi label pada pengeluaran dari Pembelian Barang; data otomatis lama tetap berlabel Daftar Belanja (Legacy). Panduan ekspor selengkapnya dapat dibaca di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q21-bagaimana-cara-mengekspor-data-laporan-keuangan-ke-format-excel-atau-pdf).
 
 Pak Teladan dapat menjalankan ekspor dengan fitur ekspor yang sama. Jika pengguna tidak menyebut periode atau format, default-nya adalah **30 hari terakhir** dan **PDF**. Permintaan seperti "analisis keuangan 30 hari" memeriksa seluruh bagian laporan—ringkasan, metode pembayaran, produk, kategori, sales, shift, loss stok, dan tren—sebelum memberikan temuan dan saran.

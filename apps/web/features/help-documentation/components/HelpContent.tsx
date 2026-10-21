@@ -229,13 +229,14 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-export-reports",
       title: "Ekspor Laporan Keuangan (Excel & PDF)",
-      description: "Kamu bisa download laporan keuangan dan kas toko dalam bentuk file Excel (buat diolah lagi) atau PDF (siap dicetak).",
+      description: "Unduh laporan bulanan Excel 7 sheet atau jurnal transaksi Excel/PDF. Modal awal dapat dilengkapi langsung di Excel.",
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },
         { title: "Buka Menu Ekspor", description: "Di pojok kanan atas halaman, klik tombol 'Ekspor'.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, termasuk revenue per kategori produk, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Pilih Periode Ekspor", description: "Tentukan cakupan waktu ekspor: Harian (hari ini), Mingguan (7 hari terakhir), atau Bulanan (bulan berjalan). Berkas akan otomatis terunduh.", icon: <History className="w-8 h-8" /> },
+        { title: "Pilih bulan dan tahun", description: "Laporan bulanan · Excel 7 sheet menjadi pilihan awal. Pilih bulan dan tahun, lalu periksa rentang WIB dan daftar sheet; bulan berjalan memuat data sampai hari ini.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Unduh dan isi modal awal", description: "Klik Unduh Excel, lalu isi modal awal pada sel kuning D8 di LAP KEU. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan; biaya gaji yang tercatat tetap masuk pengeluaran. Persediaan akhir dan hutang pemasok yang belum tersedia dibiarkan kosong, bukan nol.", icon: <Download className="w-8 h-8" /> },
+        { title: "Ekspor jurnal atau PDF", description: "Pilih Jurnal transaksi · Excel / PDF untuk memakai format dan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Klik Unduh; jika gagal, gunakan Coba lagi dengan pilihan yang sama.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {
@@ -444,14 +445,15 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "admin-export-reports",
       title: "Ekspor Laporan Keuangan (Excel & PDF)",
-      description: "Kamu bisa download laporan keuangan dan kas toko dalam bentuk file Excel (buat diolah lagi) atau PDF (siap dicetak).",
+      description: "Unduh laporan bulanan Excel 7 sheet atau jurnal transaksi Excel/PDF. Modal awal dapat dilengkapi langsung di Excel.",
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },
         { title: "Buka Menu Ekspor", description: "Di pojok kanan atas halaman, klik tombol 'Ekspor'.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Pilih Format", description: "Pilih 'Excel (.xlsx)' jika ingin mengolah kembali angka, termasuk revenue per kategori produk, atau pilih 'PDF' untuk cetak/bagikan dokumen rapi.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih bulan dan tahun", description: "Laporan bulanan · Excel 7 sheet menjadi pilihan awal. Pilih bulan dan tahun, lalu periksa rentang WIB dan daftar sheet; bulan berjalan memuat data sampai hari ini.", icon: <Settings className="w-8 h-8" /> },
         { title: "Periksa KPI Biaya", description: "KPI Pengeluaran menjumlahkan entri manual dan Pembelian Barang. Laba Bersih (Estimasi) adalah Laba Kotor dikurangi seluruh pengeluaran dan bukan laporan laba akrual formal.", icon: <TrendingUp className="w-8 h-8" /> },
-        { title: "Pilih Periode Ekspor", description: "Tentukan cakupan waktu ekspor: Harian (hari ini), Mingguan (7 hari terakhir), atau Bulanan (bulan berjalan). Pengeluaran dari Pembelian Barang dan peringatan harga modal ikut diberi label pada jurnal.", icon: <History className="w-8 h-8" /> },
+        { title: "Unduh dan isi modal awal", description: "Klik Unduh Excel, lalu isi modal awal pada sel kuning D8 di LAP KEU. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan; biaya gaji yang tercatat tetap masuk pengeluaran. Persediaan akhir dan hutang pemasok yang belum tersedia dibiarkan kosong, bukan nol.", icon: <Download className="w-8 h-8" /> },
+        { title: "Ekspor jurnal atau PDF", description: "Pilih Jurnal transaksi · Excel / PDF untuk memakai format dan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Klik Unduh; jika gagal, gunakan Coba lagi dengan pilihan yang sama.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {

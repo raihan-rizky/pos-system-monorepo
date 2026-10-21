@@ -247,14 +247,12 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 ### Q21: Bagaimana cara mengekspor data Laporan Keuangan ke format Excel atau PDF?
 **A:** Anda dapat mengunduh salinan data laporan keuangan ke perangkat Anda:
 1. Di bagian kanan atas halaman Laporan Keuangan, klik tombol **Ekspor**.
-2. Pilih format dokumen:
-   - **Excel (.xlsx):** Format tabel data angka mentah, cocok jika Anda ingin mengolah kembali data laporan.
-   - **PDF:** Format dokumen siap cetak yang rapi dan terstruktur.
-3. Setelah memilih format, tentukan rentang waktu laporan yang ingin diekspor: **Harian** (hari ini), **Mingguan** (7 hari terakhir), **30 hari terakhir**, atau **Bulanan** (bulan berjalan).
-4. Berkas laporan akan otomatis terunduh ke perangkat Anda.
-   *(Pilihan rentang tanggal filter yang sedang aktif di layar visual tidak memengaruhi isi berkas yang diekspor. Berkas yang diunduh akan selalu murni mengikuti cakupan periode yang Anda pilih di dalam menu dropdown Ekspor).*
+2. Untuk template Excel bulanan, pilih **bulan dan tahun**. Berkas berisi tujuh sheet: **LAP KEU**, **BERSIH**, nama bulan, **RC [bulan]**, **RP [bulan]**, **PENGELUARAN BELANJA**, dan **PIUTANG & HUTANG**.
+3. Klik **Unduh Excel**, lalu isi **modal awal** langsung di sel **D8** sheet **LAP KEU**. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan; pengeluaran gaji yang tercatat tetap dihitung. Persediaan akhir dan hutang pemasok dibiarkan kosong karena saldo historisnya belum tersedia.
+4. Untuk ekspor sebelumnya, buka **Jurnal transaksi · Excel / PDF**, pilih format serta periode **Harian**, **Mingguan**, **30 hari terakhir**, atau **Bulanan** (bulan berjalan), lalu unduh.
+   *(Filter tanggal di halaman tidak mengubah berkas ekspor. Isi berkas mengikuti periode yang dipilih dalam dialog Ekspor.)*
 5. Di halaman laporan, KPI **Pengeluaran** mencakup pengeluaran manual dan Pembelian Barang. **Laba Bersih (Estimasi)** adalah Laba Kotor dikurangi seluruh pengeluaran; angka ini bukan laba akrual formal atau bukti pembayaran supplier.
-6. Anda dapat meminta Pak Teladan, misalnya **"ekspor laporan keuangan"**. Jika periode dan format tidak disebutkan, Pak Teladan memakai **30 hari terakhir** dan **PDF**.
+6. Anda dapat meminta Pak Teladan, misalnya **"ekspor laporan keuangan"**, untuk mengunduh jurnal transaksi. Jika periode dan format tidak disebutkan, Pak Teladan memakai **30 hari terakhir** dan **PDF**. Template tujuh sheet diunduh melalui dialog **Ekspor** di halaman Laporan Keuangan.
 7. Untuk permintaan analisis keuangan, Pak Teladan membaca seluruh bagian laporan dalam rentang yang sama: ringkasan, metode pembayaran, produk teratas, kategori, sales, shift, kehilangan stok, dan tren. Saran dibuat dari gabungan metrik tersebut, bukan dari omzet saja.
 8. Ekspor dari chat menampilkan kartu tanpa mengunduh otomatis. Klik **Download PDF/Excel** saat siap; setelah berhasil tombol berubah menjadi **Download ulang** dan Pak Teladan menampilkan saran dari laporan yang sama. OWNER dapat memakai quick prompt **Rekap finansial bulanan**.
 

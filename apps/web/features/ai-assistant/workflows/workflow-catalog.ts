@@ -430,9 +430,10 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Laporan Keuangan", description: "Masuk ke halaman Laporan Keuangan." },
       { title: "Klik Ekspor", description: "Di kanan atas halaman, klik tombol Ekspor." },
-      { title: "Pilih format", description: "Pilih Excel untuk data tabel, termasuk revenue per kategori produk, atau PDF untuk dokumen siap cetak." },
-      { title: "Pilih periode", description: "Tentukan Harian, Mingguan, atau Bulanan. Berkas akan mengikuti periode ekspor yang dipilih." },
-      { title: "Gunakan perintah AI", description: "Minta Pak Teladan mengekspor laporan langsung. Jika periode dan format tidak disebutkan, sistem memakai 30 hari terakhir dan PDF." },
+      { title: "Pilih laporan bulanan", description: "Dialog awal memakai Laporan bulanan · Excel 7 sheet. Pilih bulan dan tahun lalu periksa daftar sheet dan rentang tanggal WIB. Bulan berjalan sampai hari ini; bulan mendatang belum dapat diekspor." },
+      { title: "Unduh dan lengkapi modal awal", description: "Klik Unduh Excel lalu isi modal awal pada sel kuning D8 di LAP KEU. Biaya gaji tercatat tetap masuk pengeluaran, tanpa sheet Gaji atau Pengeluaran Non Teladan. Persediaan akhir dan hutang pemasok yang belum tersedia tetap kosong; jangan dianggap nol." },
+      { title: "Pilih jurnal atau PDF", description: "Untuk ekspor sebelumnya, pilih Jurnal transaksi · Excel / PDF, lalu pilih format dan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Jika unduhan gagal, klik Coba lagi; pilihan tetap tersimpan." },
+      { title: "Gunakan perintah AI", description: "Ekspor dari chat tetap berupa jurnal transaksi. Jika periode dan format tidak disebutkan, sistem memakai 30 hari terakhir dan PDF. Untuk template bulanan tujuh sheet, gunakan dialog Ekspor di halaman Laporan Keuangan." },
       { title: "Unduh file dan baca saran", description: "File muncul sebagai kartu di chat tanpa auto-download. Klik Download PDF/Excel saat siap; setelah berhasil tombol berubah menjadi Download ulang dan saran Pak Teladan dibuat dari angka laporan yang sama." },
       { title: "Minta analisis menyeluruh", description: "Untuk analisis keuangan, Pak Teladan memeriksa seluruh metrik laporan dalam satu periode—ringkasan, metode pembayaran, produk, kategori, sales, shift, kehilangan stok, dan tren—lalu memberi saran." },
       { title: "Pahami KPI biaya", description: "KPI Pengeluaran mencakup pengeluaran manual dan Pembelian Barang. Laba Bersih (Estimasi) adalah Laba Kotor dikurangi seluruh pengeluaran dan bukan laporan laba akrual formal." },
