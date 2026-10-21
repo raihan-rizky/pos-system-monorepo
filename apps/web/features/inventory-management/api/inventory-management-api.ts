@@ -430,6 +430,7 @@ export interface CreateInboundReceiptInput {
 export interface InboundReceiptListLine {
   id: string;
   productId: string;
+  imageUrl?: string | null;
   goodsPurchaseItemId: string | null;
   productNameSnapshot: string | null;
   skuSnapshot: string | null;

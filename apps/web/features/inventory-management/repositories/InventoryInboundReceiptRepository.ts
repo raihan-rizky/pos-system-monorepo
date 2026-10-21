@@ -1126,14 +1126,16 @@ export class InventoryInboundReceiptRepository
         lines: {
           orderBy: { createdAt: "asc" },
           take: 100,
+          include: { product: { select: { imageUrl: true } } },
         },
       },
     });
     return receipts.map(({ goodsPurchase, ...receipt }) => ({
       ...receipt,
       goodsPurchaseNumber: goodsPurchase?.number ?? null,
-      lines: receipt.lines.map((line) => ({
+      lines: receipt.lines.map(({ product, ...line }) => ({
         ...line,
+        imageUrl: product?.imageUrl ?? null,
         costPriceSnapshot:
           line.costPriceSnapshot === null
             ? null

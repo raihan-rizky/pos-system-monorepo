@@ -371,12 +371,13 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "inventory", action: "update" }],
     steps: [
       { title: "Buka Penerimaan Barang", description: "Gunakan akun Gudang atau Owner. Buka Inventaris > Transaksi > Penerimaan Barang atau tab Penerimaan Barang di Supplier." },
-      { title: "Pilih Pembelian Barang", description: "Klik Terima barang, lalu pilih Pembelian Barang APPROVED. Pembelian berstatus BARANG DITERIMA SEBAGIAN dapat dipilih lagi hanya untuk sisa pesanannya." },
+      { title: "Pilih Pembelian Barang", description: "Di riwayat, klik Catat Penerimaan, lalu pilih Pembelian Barang APPROVED. Pembelian berstatus BARANG DITERIMA SEBAGIAN dapat dipilih lagi hanya untuk sisa pesanannya." },
       { title: "Isi jumlah dan harga modal", description: "Periksa jumlah dipesan, qty yang sudah diterima, penerimaan lain yang masih PENDING, dan sisa pesanan. Pembelian Barang harus berstatus disetujui Owner/Admin. Isi jumlah fisik dan harga modal supplier; harga modal produk saat ini menjadi nilai awal. Harga aktual disimpan sebagai snapshot dan tidak mengubah HPP master." },
       { title: "Ajukan ke Owner", description: "Klik Ajukan ke Owner. Pengajuan belum menambah stok. Dokumen dapat diedit memakai inventory.inbound_receipt.edit:update dan tetap PENDING sampai semua produknya diputuskan." },
       { title: "Review per produk", description: "Role dengan inventory.inbound_receipt.approve:update dapat mengubah status Sesuai atau Tidak Sesuai, mengedit qty/catatan, menyetujui, atau menghapus produk. Role dengan inventory.inbound_receipt.reject:update dapat menolak seluruh dokumen dengan alasan wajib." },
       { title: "Finalisasi stok", description: "Setelah semua produk disetujui, dokumen otomatis APPROVED dan stok bertambah atomik. Dalam mode stok bersama, canonical dan seluruh varian ikut berubah serta masuk sebagai satu bundle Log Stok memakai nama supplier." },
       { title: "Pantau dari Supplier", description: "Dari Pembelian Barang APPROVED, tombol Barang Sudah Diterima? membuka form dengan PB terpilih. Tombol Lihat Riwayat Penerimaan Barang membuka riwayat terfilter; klik pembelian yang sudah diterima untuk membandingkan dipesan, diterima, pending, dan sisa." },
+      { title: "Cari dan periksa riwayat", description: "Di Riwayat Penerimaan Barang, gunakan filter Semua, Diajukan, Disetujui, atau Ditolak. Cari nama supplier, produk, SKU, atau nomor PB. Klik Lihat Detail untuk melihat foto produk jika tersedia, Dipesan, Diterima, Kondisi, Persetujuan, dan catatan produk; tanggal mengikuti WIB. Daftar tampil sebagai kartu di HP." },
     ],
   }),
   workflow({

@@ -1,0 +1,119 @@
+.inbound-receipt-panel {
+  container: inbound-receipts / inline-size;
+}
+
+.inbound-receipt-table {
+  table-layout: fixed;
+}
+
+.inbound-receipt-table th:first-child {
+  width: 27%;
+}
+.inbound-receipt-table th:nth-child(2) {
+  width: 16%;
+}
+.inbound-receipt-table th:nth-child(3) {
+  width: 14%;
+}
+.inbound-receipt-table th:nth-child(4) {
+  width: 18%;
+}
+.inbound-receipt-table th:last-child {
+  width: 25%;
+}
+.inbound-receipt-table td {
+  overflow-wrap: anywhere;
+}
+.inbound-receipt-table .inbound-receipt-detail-row > td {
+  border-radius: 0 0 12px 12px;
+}
+.inbound-receipt-mobile-label {
+  display: none;
+}
+.inbound-receipt-line {
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) repeat(
+      2,
+      minmax(0, 1.2fr)
+    );
+}
+.inbound-receipt-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+@container inbound-receipts (max-width: 760px) {
+  .inbound-receipt-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inbound-receipt-search {
+    width: 100%;
+  }
+  .inbound-receipt-filters {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .inbound-receipt-filters button {
+    padding-inline: 4px;
+    font-size: 12px;
+  }
+  .inbound-receipt-table,
+  .inbound-receipt-table tbody {
+    display: block;
+  }
+  .inbound-receipt-table thead {
+    display: none;
+  }
+  .inbound-receipt-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 16px 0;
+  }
+  .inbound-receipt-row > td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+  }
+  .inbound-receipt-supplier,
+  .inbound-receipt-actions {
+    grid-column: 1 / -1;
+  }
+  .inbound-receipt-mobile-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .inbound-receipt-actions > div {
+    justify-content: flex-start;
+  }
+  .inbound-receipt-actions button {
+    min-height: 44px;
+  }
+  .inbound-receipt-detail-row,
+  .inbound-receipt-detail-row > td {
+    display: block;
+  }
+  .inbound-receipt-detail-row > td {
+    padding: 12px;
+  }
+  .inbound-receipt-line {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .inbound-receipt-product {
+    grid-column: 1 / -1;
+  }
+}
+
+@container inbound-receipts (max-width: 400px) {
+  .inbound-receipt-create {
+    width: 100%;
+  }
+  .inbound-receipt-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .inbound-receipt-filters button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}

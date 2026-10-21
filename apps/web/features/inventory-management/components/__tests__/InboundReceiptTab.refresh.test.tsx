@@ -6,6 +6,7 @@ vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
   const hooks = {
     useState: (initial: unknown) => [initial, vi.fn()],
+    useRef: (initial: unknown) => ({ current: initial }),
     useCallback: (callback: (...args: any[]) => unknown) => callback,
     useEffect: (_effect: () => void, dependencies: unknown[]) => {
       effectDependencies.push(dependencies);

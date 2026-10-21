@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "inbound-receipt-readable-history", date: "2026-10-20", revision: 1,
+    highlight: { title: "Riwayat penerimaan lebih jelas", summary: "Cari penerimaan dan bandingkan jumlah dipesan dengan diterima per produk." },
+    title: "Periksa penerimaan barang dengan lebih mudah.",
+    summary: "Cari lewat supplier, produk, SKU, atau nomor PB, lalu baca status dengan lebih jelas. Detail menampilkan foto produk, jumlah dipesan, diterima, kondisi, dan catatan; daftar menyesuaikan layar HP.",
+    kind: "improvement", area: "Supplier & Inventaris", href: "/suppliers", visual: "stock-groups",
+    screenshot: { src: "/images/changelog/riwayat-penerimaan-barang.png", alt: "Riwayat penerimaan dengan data contoh, thumbnail produk, filter status, dan detail jumlah dipesan serta diterima" },
+    steps: [
+      { title: "Buka penerimaan", detail: "Buka Supplier > Penerimaan Barang atau Inventaris > Transaksi > Penerimaan Barang." },
+      { title: "Temukan penerimaan", detail: "Pilih status, lalu cari nama supplier, nama produk, SKU, atau nomor PB." },
+      { title: "Periksa detail", detail: "Klik Lihat Detail untuk membandingkan jumlah dan membaca kondisi, persetujuan, serta catatan produk." },
+    ],
+  },
+  {
     id: "printing-receipt-automatic-rows-columns", date: "2026-10-21", revision: 1,
     highlight: { title: "Atur kolom nota, nama tetap utuh", summary: "Geser batas kolom; nama dan bahan panjang membungkus otomatis di nota dan PDF." },
     title: "Lebar kolom nota bisa diatur, baris mengikuti isi.",
