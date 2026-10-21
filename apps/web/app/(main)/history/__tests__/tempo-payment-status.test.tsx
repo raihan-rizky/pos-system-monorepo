@@ -124,4 +124,47 @@ describe("Riwayat payment status in desktop and mobile views", () => {
     expect(html).not.toContain('aria-label="TEMPO/TAGIHAN');
     expect(html).not.toMatch(/>\s*Lunas\s*<\/span>/);
   });
+
+  it.each(["CASH", "TRANSFER", "QRIS"])(
+    "shows the received DP and outstanding balance for %s in both layouts",
+    (paymentMethod) => {
+      Object.assign(history.transactions[0], {
+        status: "DP", paymentMethod, total: 1_000_000, amountPaid: 300_000,
+      });
+      const html = renderToStaticMarkup(createElement(HistoryClientPage));
+      const summaries = [...html.matchAll(/<dl\b[^>]*aria-label="Rincian pembayaran DP"[^>]*>([\s\S]*?)<\/dl>/g)];
+
+      expect(summaries).toHaveLength(2);
+      for (const [, summary] of summaries) {
+        expect(summary).toMatch(/DP masuk<\/dt>\s*<dd[^>]*>Rp\s*300\.000<\/dd>/);
+        expect(summary).toMatch(/Sisa<\/dt>\s*<dd[^>]*>Rp\s*700\.000<\/dd>/);
+      }
+    },
+  );
+
+  it("uses the total received across payment methods for DP", () => {
+    Object.assign(history.transactions[0], {
+      status: "DP", paymentMethod: "CASH", total: 1_000_000, amountPaid: 450_000,
+      payments: [{ method: "CASH", amount: 150_000 }, { method: "TRANSFER", amount: 300_000 }],
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+
+    expect(html.match(/<dd[^>]*>Rp\s*450\.000<\/dd>/g)).toHaveLength(2);
+    expect(html.match(/<dd[^>]*>Rp\s*550\.000<\/dd>/g)).toHaveLength(2);
+  });
+
+  it.each(["COMPLETED", "VOIDED", "REFUNDED", "DRAFT", "PENDING_APPROVAL"])(
+    "does not label %s transactions as received DP",
+    (status) => {
+      Object.assign(history.transactions[0], { status, paymentMethod: "CASH" });
+      const html = renderToStaticMarkup(createElement(HistoryClientPage));
+      expect(html).not.toContain('aria-label="Rincian pembayaran DP"');
+    },
+  );
+
+  it("does not mislabel Tempo installments as DP", () => {
+    history.transactions[0].status = "DP";
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+    expect(html).not.toContain('aria-label="Rincian pembayaran DP"');
+  });
 });

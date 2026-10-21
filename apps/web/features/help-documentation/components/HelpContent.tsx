@@ -597,7 +597,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "cashier-credit",
       title: "Menerima Pembayaran Cicilan / Piutang",
-      description: "Kalau ada pelanggan yang bayar belanjaan secara tempo/nyicil, catat pembayaran cicilan atau pelunasannya lewat menu ini.",
+      description: "Kalau ada pelanggan yang bayar belanjaan secara tempo/nyicil, catat pembayaran cicilan atau pelunasannya lewat menu ini. Untuk transaksi berstatus DP, Riwayat menampilkan DP masuk dan Sisa di bawah total transaksi, baik di komputer maupun ponsel. DP masuk menunjukkan jumlah pembayaran yang sudah tercatat; Sisa menunjukkan tagihan yang belum dibayar.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Cari Faktur Tempo", description: "Buka menu samping (sidebar) sebelah kiri, masuk ke kategori 'Operasi', klik menu 'Riwayat' (ikon kartu dompet), lalu ketikkan nama pelanggan di kolom pencarian tabel.", icon: <Users className="w-8 h-8" /> },

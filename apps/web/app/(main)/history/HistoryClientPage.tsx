@@ -57,9 +57,10 @@ import {
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { PRINTING_SUBCATEGORIES, type PrintingSubcategory } from "@/features/printing-receipts/types";
 import { displayTransactionNote } from "./helpers/transaction-note";
+import { TransactionTotal } from "./components/TransactionTotal";
 import { PaymentTermsBadge } from "@/features/customer-debt/components/PaymentTermsBadge";
 import { useCategories } from "@/hooks/useProducts";
-import { formatRupiah, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { Button } from "@pos/ui";
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowDeleteAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
@@ -1528,8 +1529,8 @@ export default function HistoryClientPage() {
                                 </div>
                               )}
                             </td>
-                            <td className={`py-3.5 px-4 text-sm font-bold whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-brand-600"}`}>
-                              {formatRupiah(Number(tx.total))}
+                            <td className={`py-3.5 px-4 text-sm font-bold ${isVoided ? "text-surface-400 line-through" : "text-brand-600"}`}>
+                              <TransactionTotal transaction={tx} />
                             </td>
                             <td className="py-3.5 px-4">
                               <div className="flex flex-wrap items-center gap-2">
@@ -1753,7 +1754,7 @@ export default function HistoryClientPage() {
                               </button>
                             </div>
                           )}
-                          <div className="flex justify-between items-center mt-2 pt-2 border-t border-surface-100">
+                          <div className="flex flex-wrap justify-between items-start gap-3 mt-2 pt-2 border-t border-surface-100">
                             <div className="flex flex-wrap items-center gap-2">
                               {tx.payments && tx.payments.length > 0 ? (
                                 tx.payments.map((p, idx) => (
@@ -1768,9 +1769,9 @@ export default function HistoryClientPage() {
                                 </span>
                               )}
                             </div>
-                            <span className={`font-bold text-lg tabular-nums ${isVoided ? "line-through text-surface-400" : "text-brand-600"}`}>
-                              {formatRupiah(Number(tx.total))}
-                            </span>
+                            <div className={`min-w-0 max-w-full font-bold text-lg ${isVoided ? "line-through text-surface-400" : "text-brand-600"}`}>
+                              <TransactionTotal transaction={tx} />
+                            </div>
                           </div>
                         </div>
 
