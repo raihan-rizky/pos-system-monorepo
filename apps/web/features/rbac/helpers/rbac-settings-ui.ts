@@ -87,6 +87,14 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     sensitivity: "critical",
   },
   {
+    id: "processed-printing-receipts",
+    label: "Edit nota percetakan diproses",
+    description: "Mengubah nota yang sudah diproses serta menyesuaikan keuangan, stok bahan, dan piutang. Default hanya Owner; berikan izin Ubah untuk role lain bila diperlukan.",
+    pageTargets: [],
+    resourceTargets: ["printing_receipt.processed"],
+    sensitivity: "critical",
+  },
+  {
     id: "transaction-approval",
     label: "Approval Transaksi",
     description: "Persetujuan, penolakan, dan pembatalan transaksi.",

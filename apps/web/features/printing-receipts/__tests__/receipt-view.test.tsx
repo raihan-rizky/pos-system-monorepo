@@ -10,6 +10,12 @@ const receipt = (processed = false): PrintingReceipt => ({
   document: { customerName: "Toko Contoh", customerPhone: "081234", customerId: null, date: "2026-10-20", note: "Selesai sore", completionDate: "Selasa", completionTime: "16:00", receiver: "Sari", setter: "", signatory: "", lines: Array.from({ length: 7 }, (_, i) => ({ id: String(i), name: `Spanduk ${i + 1}`, material: "Flexi", quantity: 2, price: 15000, stockLink: null })) },
 });
 describe("printing receipt sheet", () => {
+  it("opens processed fields only in an explicitly authorized correction session and preserves the invoice number", () => {
+    const html = renderToStaticMarkup(<PrintingReceiptView receipt={receipt(true)} editable allowProcessedEdit onChange={() => {}} />);
+    expect(html).toMatch(/<input[^>]*aria-label="Harga satuan baris 1"/);
+    expect(html).not.toMatch(/<input[^>]*aria-label="Nomor nota"/);
+    expect(html).toContain("SP-108");
+  });
   it("offers labelled inline fields on both continuation pages and one overall total", () => {
     const html = renderToStaticMarkup(<PrintingReceiptView receipt={receipt()} editable onChange={() => {}} />);
     expect(html.match(/aria-label="Halaman nota /g)).toHaveLength(2);

@@ -113,7 +113,7 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 5. Tulis alasan perubahan dengan jelas, lalu simpan. Sistem akan menyesuaikan nomor invoice/draft, mencatat audit trail, dan menampilkan riwayat perubahan di detail transaksi.
 6. Setelah perubahan berhasil, cetak ulang invoice final agar nomor dan tanggal yang diterima pelanggan sudah sesuai.
 
-**Nota Percetakan yang sudah diproses** mempertahankan tanggal, nomor, dan isi nota. Isi tanggal pada draft di tab Percetakan sebelum **Bayar / DP**; pengaturan tanggal invoice umum tidak tersedia untuk nota tersebut.
+**Nota Percetakan yang sudah diproses** dikoreksi melalui **Edit nota diproses** di **Kasir > Percetakan** dengan izin `printing_receipt.processed:update`; ikuti **Q42**. Isi tanggal pada draft di tab Percetakan sebelum **Bayar / DP**; pengaturan tanggal invoice umum tidak tersedia untuk nota tersebut.
 
 ### Q11: Bagaimana cara mengunggah foto nota pengeluaran atau struk bukti transaksi pelanggan?
 **A:** Aplikasi mengunggah bukti langsung ke penyimpanan R2:
@@ -333,7 +333,7 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 1. Pilih subtab **SPANDUK**, **PERCETAKAN**, **PLAT**, **STEMPEL**, atau **PRINT**. Daftar nota mengikuti subtab yang dipilih.
 2. Klik **Buat Nota Kosong**. Nota langsung tersimpan sebagai draft; **No. Nota** terisi otomatis dan boleh diubah selama draft. **Judul nota** di atas lembar awalnya memakai nomor nota dan bisa diganti selama draft. Judul tersimpan otomatis sebagai penanda internal, tidak tampil pada cetakan/PDF, dan bisa dipakai untuk pencarian daftar bersama nomor atau pelanggan.
 3. Isi pelanggan, nama item atau file, bahan, banyaknya, dan harga langsung di lembar nota. Nama item dan bahan boleh diketik bebas. Buka **Baris dan hubungan stok > Hubungkan stok** bila perlu; **Jumlah pemakaian** adalah total bahan untuk baris tersebut. Tunggu **Tersimpan** sebelum berpindah atau membayar. Jika **Gagal menyimpan**, pilih **Coba simpan lagi**; **Muat ulang versi tersimpan** meminta konfirmasi sebelum mengganti perubahan lokal.
-4. Klik **Bayar / DP**, pilih metode dan pelunasan atau **DP**, lalu gunakan **Cetak / PDF > Cetak** atau **Unduh PDF**. Satu nota menjadi satu transaksi. Stok bahan terkait berkurang ketika transaksi berhasil; draft dan pencetakan draft tidak mengurangi stok. Setelah diproses, isi nota tetap, sedangkan pembayaran lanjutan mengikuti transaksi. Pada ponsel, buka **Daftar nota** untuk daftar tersimpan; gunakan **Perkecil nota** dan **Perbesar nota** untuk mengatur tampilan.
+4. Klik **Bayar / DP**, pilih metode dan pelunasan atau **DP**, lalu gunakan **Cetak / PDF > Cetak** atau **Unduh PDF**. Satu nota menjadi satu transaksi. Stok bahan terkait berkurang ketika transaksi berhasil; draft dan pencetakan draft tidak mengurangi stok. Pembayaran lanjutan mengikuti transaksi. Koreksi nota diproses memerlukan izin `printing_receipt.processed:update`, default hanya Owner dan dapat diberikan ke role lain melalui Hak Akses; ikuti **Q42**. Pada ponsel, buka **Daftar nota** untuk daftar tersimpan; gunakan **Perkecil nota** dan **Perbesar nota** untuk mengatur tampilan.
 5. Buka **Riwayat**, pilih **Kategori transaksi: PERCETAKAN** lalu **Subkategori** asal nota, atau cari nomor nota. Penjualan barang berada di **ATK** dengan subkategori dari kategori produk. Mengganti kategori mengosongkan subkategori dan kembali ke halaman pertama; **Semua Kategori** menonaktifkan subkategori. Layanan cetak lama tanpa jenis tercatat tetap berada di PERCETAKAN tanpa subkategori. Buka transaksi untuk mencetak ulang menggunakan template asal.
 
 ### Q38: Bagaimana cara mengajukan dan memutuskan Pembelian Barang?
@@ -360,3 +360,11 @@ Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yan
 3. Isi **Nominal piutang** lebih dari nol, **Tanggal utang** paling lambat hari ini dalam WIB, dan **Tanggal jatuh tempo** sama dengan atau setelah tanggal utang. Tambahkan **Catatan** bila perlu.
 4. Klik **Simpan Piutang**. Catatan muncul pada detail pelanggan dan bagian **Piutang Manual** di tab **Piutang**.
 5. Untuk cicilan atau pelunasan, klik **Bayar Piutang Manual**, isi nominal hingga maksimal sisa piutang, pilih satu metode, lalu klik **Simpan Pembayaran**. Buka **Riwayat pembayaran** untuk memeriksa pembayaran; catatan lunas tetap tersedia melalui filter **Semua piutang**.
+
+### Q42: Bagaimana cara mengedit nota Percetakan yang sudah diproses?
+**A:** Gunakan koreksi ketika isi nota, harga, tanggal, atau pemakaian bahan perlu diperbaiki. Izin `printing_receipt.processed:update` default hanya untuk Owner; izin dapat diberikan ke role lain melalui **Hak Akses**. Nota dibatalkan atau refund tidak dapat diedit.
+
+1. Buka **Kasir > Percetakan**, pilih subtab asal dan nota tersimpan, lalu klik **Edit nota diproses**. Baca peringatan: nota yang sebelumnya lunas dapat kembali memiliki piutang jika total naik. Centang **Saya memahami dampaknya terhadap transaksi, stok, dan piutang.**, lalu klik **Tetap edit nota** untuk melanjutkan.
+2. Koreksi nama pelanggan, tanggal, catatan, item, harga, atau hubungan bahan. Perubahan **tidak tersimpan otomatis**. Nomor nota dan pelanggan terdaftar tetap; riwayat pembayaran tidak dihapus. Total baru tidak boleh lebih kecil daripada pembayaran bersih yang sudah diterima, yaitu pembayaran setelah dikurangi kembalian. Jika keluar sebelum menyimpan, konfirmasikan pembuangan perubahan.
+3. Klik **Tinjau perubahan**. Bandingkan total, pembayaran, piutang, status, dan pemakaian bahan **sebelum** serta **sesudah**. Kembali ke penyuntingan bila masih perlu diperbaiki.
+4. Klik **Simpan dan perbarui transaksi**. Nota, transaksi, penyesuaian stok bahan beserta jurnalnya, piutang, dan status diperbarui bersama. Nota **menunggu persetujuan** tetap pending; stok dan piutang baru diterapkan setelah disetujui. Jika penyimpanan gagal, periksa pesan lalu tinjau ulang sebelum mencoba lagi.

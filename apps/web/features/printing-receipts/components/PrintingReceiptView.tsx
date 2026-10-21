@@ -10,6 +10,8 @@ export interface PrintingReceiptViewProps {
   receipt: PrintingReceipt;
   transaction?: PrintingReceiptPayment | null;
   editable?: boolean;
+  /** Enabled only inside the confirmed processed-receipt correction dialog. */
+  allowProcessedEdit?: boolean;
   onChange?: (receipt: PrintingReceipt) => void;
   zoom?: number;
 }
@@ -23,16 +25,16 @@ function enterNextField(event: KeyboardEvent<HTMLElement>) {
   if (next) { event.preventDefault(); next.focus(); next.scrollIntoView({ block: "nearest", inline: "nearest" }); }
 }
 
-export function PrintingReceiptView({ receipt, transaction, editable = false, onChange, zoom = 1 }: PrintingReceiptViewProps) {
+export function PrintingReceiptView({ receipt, transaction, editable = false, allowProcessedEdit = false, onChange, zoom = 1 }: PrintingReceiptViewProps) {
   const layout = getPrintingReceiptLayout(receipt.subcategory);
-  const canEdit = editable && !receipt.transactionId && Boolean(onChange);
+  const canEdit = editable && (!receipt.transactionId || allowProcessedEdit) && Boolean(onChange);
   const watermark = getPrintingReceiptWatermark(receipt, transaction);
   const presentation = useMemo(() => buildPrintingReceiptPresentation(receipt, transaction), [receipt, transaction]);
   const changeField = (field: ReceiptSheetField, value: string) => {
     if (!canEdit || !onChange) return;
     if (field.receiptField) return onChange({ ...receipt, number: value });
     if (field.documentField) {
-      const customerChanged = field.documentField === "customerName";
+      const customerChanged = field.documentField === "customerName" && !receipt.transactionId;
       return onChange({ ...receipt, document: { ...receipt.document, [field.documentField]: value, ...(customerChanged ? { customerId: null } : {}) } });
     }
     if (field.lineId && field.lineField) {
@@ -51,7 +53,7 @@ export function PrintingReceiptView({ receipt, transaction, editable = false, on
         <img className="printing-receipt-artwork" src={layout.artwork} alt="" aria-hidden="true" draggable={false} />
         {layout.numberMask && <div aria-hidden="true" className="printing-receipt-number-mask" style={{ left: layout.numberMask.x * 4, top: layout.numberMask.y * 4, width: layout.numberMask.width * 4, height: layout.numberMask.height * 4 }} />}
         {page.fields.map(field => {
-          const writable = canEdit && Boolean(field.receiptField || field.documentField || field.lineField);
+          const writable = canEdit && Boolean((field.receiptField && !receipt.transactionId) || field.documentField || field.lineField);
           const style: CSSProperties = { left: field.x * 4, top: field.y * 4, width: field.width * 4, height: field.height * 4,
             fontSize: field.fittedFontSize * 4 / 2.83465, fontWeight: field.bold ? 700 : undefined, color: field.color, textAlign: field.align ?? "left", ...(field.whiteBackground && field.value ? { backgroundColor: "white" } : {}) };
           const shared = { "aria-label": field.label, title: field.label, style, className: "printing-receipt-field", onKeyDown: enterNextField };

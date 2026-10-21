@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "processed-printing-receipt-edit", date: "2026-10-21", revision: 1,
+    highlight: { title: "Koreksi nota yang sudah diproses", summary: "Tinjau dampak koreksi nota pada transaksi, bahan, dan piutang sebelum menyimpan." },
+    title: "Nota Percetakan yang diproses bisa dikoreksi.",
+    summary: "Owner dan role yang diberi izin dapat mengoreksi nota dengan peringatan serta tinjauan sebelum menyimpan. Transaksi, stok bahan, dan piutang diperbarui bersama; nota lunas dapat kembali memiliki piutang jika total naik.",
+    kind: "feature", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    screenshot: { src: "/images/changelog/edit-nota-diproses.png", alt: "Peringatan Edit nota diproses untuk nota Percetakan dengan data contoh, sebelum memilih Tetap edit nota." },
+    steps: [
+      { title: "Buka koreksi nota", detail: "Di Kasir > Percetakan, pilih nota lalu klik Edit nota diproses. Baca peringatan, centang 'Saya memahami dampaknya terhadap transaksi, stok, dan piutang.', lalu pilih Tetap edit nota." },
+      { title: "Periksa dampaknya", detail: "Koreksi isi nota lalu klik Tinjau perubahan. Bandingkan total, piutang, dan pemakaian bahan sebelum serta sesudah." },
+      { title: "Simpan pembaruan", detail: "Klik Simpan dan perbarui transaksi untuk menerapkan koreksi beserta penyesuaian transaksi, stok bahan, dan piutang." },
+    ],
+  },
+  {
     id: "piutang-dp-umum-payment", date: "2026-10-21", revision: 1,
     highlight: { title: "Pelunasan DP pelanggan Umum", summary: "Bayar sisa DP Umum tanpa harus memilih pelanggan terdaftar." },
     title: "Sisa DP Umum bisa dicicil atau dilunasi.",

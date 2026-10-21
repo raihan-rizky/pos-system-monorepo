@@ -92,9 +92,9 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(41);
+    expect(FAQ_WORKFLOWS).toHaveLength(42);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 41 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 42 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);

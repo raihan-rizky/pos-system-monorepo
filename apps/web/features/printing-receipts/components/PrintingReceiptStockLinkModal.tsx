@@ -10,10 +10,12 @@ import type { PrintingReceiptLine } from "../types";
 
 interface StockChoice { id: string; name: string; unit: string; stock: number }
 
-export function PrintingReceiptStockLinkModal({ line, onClose, onSave }: {
+export function PrintingReceiptStockLinkModal({ line, onClose, onSave, inline = false }: {
   line: PrintingReceiptLine;
   onClose: () => void;
   onSave: (stockLink: PrintingReceiptLine["stockLink"]) => void;
+  /** Keep controls within a native dialog's focus boundary. */
+  inline?: boolean;
 }) {
   const { userId, storeId, authorizationFingerprint } = useRole();
   const [search, setSearch] = useState("");
@@ -42,8 +44,7 @@ export function PrintingReceiptStockLinkModal({ line, onClose, onSave }: {
   const consumption = Number(quantity);
   const valid = Boolean(active) && Number.isFinite(consumption) && consumption > 0;
 
-  return <Modal open onClose={onClose} title={`Hubungkan stok · ${line.name || "Baris nota"}`} size="lg">
-    <div className="space-y-4">
+  const content = <div className="space-y-4">
       <p className="text-sm text-surface-600">Pilih produk atau bahan yang benar-benar dipakai. Stok berkurang setelah nota menjadi transaksi. Jumlah pemakaian adalah total untuk baris ini.</p>
       <Input label="Cari produk atau bahan stok" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} icon={<Search size={16} />} />
       <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-surface-200 p-2" role="group" aria-label="Pilihan bahan stok">
@@ -72,6 +73,8 @@ export function PrintingReceiptStockLinkModal({ line, onClose, onSave }: {
         <Button variant="secondary" onClick={onClose}>Batal</Button>
         <Button disabled={!valid} onClick={() => { if (active && valid) { onSave({ productId: active.id, quantity: consumption, unit: active.unit }); onClose(); } }}>Simpan hubungan</Button>
       </div>
-    </div>
-  </Modal>;
+    </div>;
+  const title = `Hubungkan stok · ${line.name || "Baris nota"}`;
+  return inline ? <section aria-label={title} className="space-y-4 p-4"><h3 className="font-bold text-surface-900">{title}</h3>{content}</section>
+    : <Modal open onClose={onClose} title={title} size="lg">{content}</Modal>;
 }

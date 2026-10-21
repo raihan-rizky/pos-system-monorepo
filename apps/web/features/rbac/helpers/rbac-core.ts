@@ -62,6 +62,7 @@ export const RESOURCE_TARGETS = [
   "transaction.auto_approve",
   "transaction.approve",
   "transaction.draft",
+  "printing_receipt.processed",
   "surat_jalan",
   "surat_jalan.auto_approve",
   "production",
