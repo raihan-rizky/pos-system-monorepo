@@ -25,7 +25,7 @@ const box = (x: number, y: number, width: number, height: number, fontSize = 9, 
 const SPANDUK_LAYOUT: PrintingReceiptLayout = {
   width: 215, height: 110, rowsPerPage: 6, artwork: "/images/printing-receipts/nota-spanduk.png",
   tableTop: 35.1, rowHeight: 5.55,
-  columns: { index: box(21.6, 0, 6.3, 5.55, 9, "center"), name: box(28.5, 0, 108.2, 5.55), material: box(137.1, 0, 7.1, 5.55, 6), quantity: box(144.9, 0, 10.7, 5.55, 8, "center"), price: box(156.5, 0, 22.3, 5.55, 8, "right"), total: box(180, 0, 26.2, 5.55, 8, "right") },
+  columns: { index: box(21.6, 0, 6.3, 5.55, 9, "center"), name: box(28.5, 0, 108.2, 5.55), material: box(137.1, 0, 7.1, 5.55, 8, "center"), quantity: box(144.9, 0, 10.7, 5.55, 8, "center"), price: box(156.5, 0, 22.3, 5.55, 8, "right"), total: box(180, 0, 26.2, 5.55, 8, "right") },
   fields: {
     number: box(43, 24.5, 48, 4.3, 9), date: box(168.5, 8.8, 37.4, 4.2),
     customerName: box(164.2, 15.6, 41.8, 4.1), customerPhone: box(165.1, 22.4, 40.9, 4),
@@ -35,6 +35,9 @@ const SPANDUK_LAYOUT: PrintingReceiptLayout = {
     total: box(179.8, 68.5, 26.6, 5.1, 9, "right"), paid: box(179.8, 74.1, 26.6, 5.1, 9, "right"), remaining: box(179.8, 79.7, 26.6, 5.1, 9, "right"),
   },
 };
+export const RECEIPT_MATERIAL_PADDING_Y = Math.max(RECEIPT_TEXT_PADDING_Y,
+  (SPANDUK_LAYOUT.columns.quantity.height - (SPANDUK_LAYOUT.columns.material.fontSize ?? 8) / 2.83465 * RECEIPT_TEXT_LINE_HEIGHT) / 2);
+
 const A5_LAYOUT: PrintingReceiptLayout = {
   width: 148, height: 210, rowsPerPage: 13, artwork: "/images/printing-receipts/nota-percetakan.png",
   tableTop: 61.3, rowHeight: 7.89,
@@ -154,7 +157,7 @@ export function buildPrintingReceiptPages(receipt: PrintingReceipt, measurementP
   const nameFont = layout.columns.name.fontSize ?? 9;
   const rowHeight = (name: string[], material: string[]) => Math.ceil(Math.max(layout.rowHeight, a5
     ? textHeight(name, nameFont) + textHeight(material, materialFont) + (name.length && material.length ? MATERIAL_GAP : 0)
-    : Math.max(textHeight(name, nameFont), textHeight(material, materialFont))) * 1e8) / 1e8;
+    : Math.max(textHeight(name, nameFont), material.length ? textHeight(material, materialFont) + RECEIPT_MATERIAL_PADDING_Y - RECEIPT_TEXT_PADDING_Y : 0)) * 1e8) / 1e8;
   const pageRows: MeasuredReceiptRow[][] = [[]];
   let used = 0;
   const newPage = () => { pageRows.push([]); used = 0; };

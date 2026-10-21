@@ -76,7 +76,7 @@ describe("per-receipt column widths", () => {
     expect(after.flatMap(page => page.lines.flatMap(row => row.materialLines)).length).toBeLessThan(before.flatMap(page => page.lines.flatMap(row => row.materialLines)).length);
     expect(after.flatMap(page => page.lines.flatMap(row => row.materialLines)).join("")).toBe(narrow.document.lines[0].material);
     expect(wide.document.lines).toEqual(narrow.document.lines);
-    expect(buildPrintingReceiptPresentation(wide).pages[0].fields.find(field => field.lineField === "material")?.fittedFontSize).toBe(6);
+    expect(buildPrintingReceiptPresentation(wide).pages[0].fields.find(field => field.lineField === "material")?.fittedFontSize).toBe(getPrintingReceiptLayout("SPANDUK").columns.quantity.fontSize);
     expect(narrow.document).not.toHaveProperty("columnWidths");
   });
   it("uses a consistent resized header on continuation pages and falls back safely on corrupt stored arrays", () => {

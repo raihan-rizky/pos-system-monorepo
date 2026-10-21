@@ -3,7 +3,7 @@ import { buildPrintingReceiptPages, getPrintingReceiptLayout, getPrintingReceipt
 import type { PrintingReceipt, PrintingReceiptLine } from "../types";
 
 const line = (id: number): PrintingReceiptLine => ({
-  id: String(id), name: `Cetak ${id}`, material: "Flexi", quantity: 2, price: 15_000, stockLink: null,
+  id: String(id), name: `Cetak ${id}`, material: "test", quantity: 2, price: 15_000, stockLink: null,
 });
 const receipt = (subcategory: PrintingReceipt["subcategory"], count: number): PrintingReceipt => ({
   id: "nota-1", storeId: "toko-1", number: "SP-20261020-001", revision: 1, subcategory,

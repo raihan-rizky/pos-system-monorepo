@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
-import { getPrintingReceiptLayout, getPrintingReceiptWatermark, RECEIPT_TEXT_LINE_HEIGHT, RECEIPT_TEXT_PADDING_X, RECEIPT_TEXT_PADDING_Y, type PrintingReceiptPayment, type ReceiptSheetField } from "../layout";
+import { getPrintingReceiptLayout, getPrintingReceiptWatermark, RECEIPT_MATERIAL_PADDING_Y, RECEIPT_TEXT_LINE_HEIGHT, RECEIPT_TEXT_PADDING_X, RECEIPT_TEXT_PADDING_Y, type PrintingReceiptPayment, type ReceiptSheetField } from "../layout";
 import { buildPrintingReceiptPresentation } from "../presentation";
 import type { PrintingReceipt } from "../types";
 import { isPrintingReceiptLineBlank } from "../domain";
@@ -198,6 +198,10 @@ export function PrintingReceiptView({ receipt, transaction, editable = false, al
           const style: CSSProperties = { left: field.x * 4, top: field.y * 4, width: field.width * 4, height: field.height * 4,
             lineHeight: RECEIPT_TEXT_LINE_HEIGHT, ...(field.topAligned ? { padding: `${RECEIPT_TEXT_PADDING_Y * 4}px ${RECEIPT_TEXT_PADDING_X * 4}px` } : {}),
             fontSize: field.fittedFontSize * 4 / 2.83465, fontWeight: field.bold ? 700 : undefined, color: field.color, textAlign: field.align ?? "left", ...(field.whiteBackground && field.value ? { backgroundColor: "white" } : {}) };
+          if (writable && receipt.subcategory === "SPANDUK" && field.lineField === "material") {
+            // Match the quantity input's first-line baseline while allowing material to wrap below it.
+            style.paddingTop = RECEIPT_MATERIAL_PADDING_Y * 4;
+          }
           const shared = { "aria-label": field.label, "data-receipt-field": field.key, "data-top-aligned": field.topAligned || undefined, title: field.label, style, className: "printing-receipt-field", onKeyDown: enterNextField };
           if (writable && field.multiline) return <textarea {...shared} key={field.key} rows={1} value={field.value} onChange={event => changeField(field, event.target.value, event.currentTarget)} spellCheck={false} />;
           if (writable) return <input {...shared} key={field.key} type={field.inputType ?? "text"} value={field.value} min={field.inputType === "number" ? 0 : undefined}
