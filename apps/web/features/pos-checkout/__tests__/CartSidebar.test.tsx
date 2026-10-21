@@ -66,7 +66,7 @@ describe("CartSidebar quick product references", () => {
     expect(html).toContain("Belum diatur");
   });
 
-  it("shows product and price actions when quick edit is enabled", () => {
+  it("shows product and price actions immediately for users with edit permission", () => {
     const html = renderToStaticMarkup(
       <CartSidebar
         items={[productItem]}
@@ -77,16 +77,34 @@ describe("CartSidebar quick product references", () => {
         onClearCart={vi.fn()}
         onCheckout={vi.fn()}
         canQuickEdit
-        quickEditEnabled
-        onToggleQuickEdit={vi.fn()}
         onEditProduct={vi.fn()}
         onEditPrice={vi.fn()}
       />,
     );
 
-    expect(html).toContain('aria-label="Nonaktifkan Edit Cepat"');
+    expect(html).not.toContain("Aktifkan Edit Cepat");
+    expect(html).not.toContain("Nonaktifkan Edit Cepat");
     expect(html).toContain('aria-label="Ubah produk Kertas A4"');
     expect(html).toContain('aria-label="Ubah harga produk Kertas A4"');
+  });
+
+  it("hides product and price actions without edit permission even with callbacks", () => {
+    const html = renderToStaticMarkup(
+      <CartSidebar
+        items={[productItem]}
+        subtotal={20000}
+        totalItems={2}
+        onUpdateQuantity={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onClearCart={vi.fn()}
+        onCheckout={vi.fn()}
+        onEditProduct={vi.fn()}
+        onEditPrice={vi.fn()}
+      />,
+    );
+
+    expect(html).not.toContain('aria-label="Ubah produk Kertas A4"');
+    expect(html).not.toContain('aria-label="Ubah harga produk Kertas A4"');
   });
 
   it("marks an active transaction-only price in the cart", () => {

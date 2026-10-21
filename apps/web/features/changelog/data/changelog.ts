@@ -3,6 +3,32 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "pos-cart-overstock-quantity-warning", date: "2026-10-21", revision: 1,
+    highlight: { title: "Tambah jumlah saat stok kosong", summary: "Naikkan jumlah di keranjang dengan konfirmasi saat stok tidak mencukupi." },
+    title: "Tambah jumlah keranjang meski stok kosong.",
+    summary: "Tombol plus tetap aktif saat stok kosong atau negatif, dan jumlah juga bisa diketik. Popup menampilkan stok serta jumlah tujuan sebelum perubahan diterapkan.",
+    kind: "improvement", area: "Kasir", href: "/pos", visual: "stock-groups",
+    screenshot: { src: "/images/changelog/peringatan-jumlah-keranjang.png", alt: "Popup contoh Jumlah melebihi stok dengan stok tersedia 0 Bh, jumlah tujuan 12 Bh, serta tombol Batal dan Tetap Tambahkan" },
+    steps: [
+      { title: "Naikkan jumlah", detail: "Di keranjang Kasir, klik plus atau ketik jumlah bulat lalu tekan Enter atau keluar dari kolom." },
+      { title: "Periksa peringatan", detail: "Jika kenaikan melebihi stok, periksa nama produk, stok tersedia, dan jumlah tujuan pada popup Jumlah melebihi stok." },
+      { title: "Pilih tindakan", detail: "Klik Tetap Tambahkan untuk menerapkan jumlah, atau Batal untuk mempertahankan jumlah sebelumnya. Stok bisa menjadi negatif saat transaksi diproses." },
+    ],
+  },
+  {
+    id: "pos-cart-direct-edit-actions", date: "2026-10-21", revision: 1,
+    highlight: { title: "Edit langsung di kartu keranjang", summary: "Tombol Edit dan Harga langsung tersedia di kartu keranjang bagi akun berizin." },
+    title: "Edit produk dan harga langsung dari keranjang.",
+    summary: "Tombol Edit dan Harga langsung tampil bagi akun berizin, tanpa mengaktifkan mode lewat header. Kartu memberi ruang penuh untuk informasi produk dan mengelompokkan aksi di bawahnya.",
+    kind: "improvement", area: "Kasir", href: "/pos", visual: "changelog",
+    screenshot: { src: "/images/changelog/aksi-langsung-keranjang.png", alt: "Kartu keranjang berisi produk contoh Alas Mouse Pad, referensi harga, tombol Edit dan Harga, serta pengatur jumlah di bagian bawah" },
+    steps: [
+      { title: "Tambahkan produk", detail: "Buka Kasir dan masukkan produk ke keranjang." },
+      { title: "Pilih Edit atau Harga", detail: "Pada bagian bawah kartu, klik Edit untuk data produk atau Harga untuk harga master dan Harga Khusus. Kedua tombol tersedia bagi akun dengan izin edit produk." },
+      { title: "Simpan perubahan", detail: "Periksa perubahan pada modal yang terbuka, lalu simpan. Kartu keranjang akan mengikuti data terbaru." },
+    ],
+  },
+  {
     id: "customer-manual-receivables", date: "2026-10-20", revision: 1,
     highlight: { title: "Catat piutang manual pelanggan", summary: "Simpan utang lama pelanggan dan catat cicilan atau pelunasannya di Pelanggan." },
     title: "Catat dan lunasi piutang manual pelanggan.",

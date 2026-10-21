@@ -25,7 +25,6 @@ export function CartQuantityInput({
   useEffect(() => {
     if (!focused) {
       setDraft(String(quantity));
-      setError("");
     }
   }, [quantity, focused]);
 
@@ -35,9 +34,12 @@ export function CartQuantityInput({
       setFocused(false);
       return;
     }
-    if (parseCartQuantity(draft) === null) {
+    const parsed = parseCartQuantity(draft);
+    if (parsed === null) {
       setDraft(String(quantity));
       setError("Masukkan jumlah bulat lebih dari nol.");
+    } else if (parsed !== quantity) {
+      onChange(parsed);
     }
     onValidityChange(true);
     setFocused(false);
@@ -64,7 +66,6 @@ export function CartQuantityInput({
           setError("");
           const parsed = parseCartQuantity(raw);
           onValidityChange(parsed !== null);
-          if (parsed !== null) onChange(parsed);
         }}
         onBlur={finishEditing}
         onKeyDown={(event) => {

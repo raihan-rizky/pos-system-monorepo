@@ -15,6 +15,21 @@ import { HELP_VISUAL_PAGE_CONFIG } from "../components/help-visual-registry";
 import { AUDITED_HELP_STEP_TARGETS } from "../components/audited-help-step-targets";
 
 describe("visual help guides", () => {
+  it("shows direct Edit and Harga actions in the POS cart preview", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{ page: "pos", target: "pos-cart", callout: "Gunakan aksi pada kartu." }}
+        stepNumber={1}
+        stepTitle="Periksa keranjang"
+      />,
+    );
+    const visibleText = html.replace(/<[^>]*>/g, "");
+
+    expect(visibleText).toContain("Edit");
+    expect(visibleText).toContain("Harga");
+    expect(html).not.toContain('title="Edit Cepat"');
+  });
+
   it("renders the selected visual target as a read-only fake page", () => {
     const html = renderToStaticMarkup(
       <VisualGuideMockup

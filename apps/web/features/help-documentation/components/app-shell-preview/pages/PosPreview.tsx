@@ -1,5 +1,5 @@
 import React from "react";
-import { Banknote, CalendarDays, Check, DollarSign, Pencil, Search, ShoppingCart, WalletCards } from "lucide-react";
+import { Banknote, CalendarDays, Check, DollarSign, Pencil, Search, ShoppingCart, WalletCards, X } from "lucide-react";
 
 import { GuideTarget } from "../GuideTarget";
 import { PreviewButton, PreviewField, PreviewModal, PreviewPageRoot } from "../PreviewPrimitives";
@@ -44,9 +44,19 @@ export function PosPreview(ctx: PreviewContext) {
         </section>
 
         <GuideTarget ctx={ctx} target="pos-cart" className="flex w-[340px] shrink-0 flex-col border-l border-surface-200 bg-white">
-          <div className="flex items-center justify-between border-b border-surface-100 px-5 py-4"><span className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-brand-600" /><h2 className="text-base font-black">Keranjang</h2></span><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-100 text-brand-700" title="Edit Cepat"><Pencil className="h-4 w-4" /></span></div>
+          <div className="flex items-center justify-between border-b border-surface-100 px-5 py-4"><span className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-brand-600" /><h2 className="text-base font-black">Keranjang</h2></span><span className="text-xs font-medium text-danger-500">Hapus Semua</span></div>
           <div className="flex-1 space-y-3 p-4">
-            {[['Kertas A4 80gsm','2','Rp136.000','Rp68.000','Rp64.000','Rp72.000'],['Tinta Epson Black','1','Rp95.000','Rp95.000','Rp90.000','Belum diatur']].map(([name, qty, total, normal, agen, dinas]) => <div key={name} className="rounded-xl border border-surface-100 p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">{name}</p><span className="flex gap-1 text-brand-700"><Pencil className="h-3.5 w-3.5" /><DollarSign className="h-3.5 w-3.5" /></span></div><div className="mt-2 grid grid-cols-3 gap-1 text-[9px] text-surface-500"><span>Normal<br/><strong>{normal}</strong></span><span>Agen<br/><strong>{agen}</strong></span><span>Dinas<br/><strong>{dinas}</strong></span></div><div className="mt-2 flex justify-between text-xs"><span>Qty {qty}</span><strong>{total}</strong></div></div>)}
+            {[['Kertas A4 80gsm','2','Rp136.000','Rp68.000','Rp64.000','Rp72.000'],['Tinta Epson Black','1','Rp95.000','Rp95.000','Rp90.000','Belum diatur']].map(([name, qty, total, normal, agen, dinas]) => (
+              <div key={name} className="rounded-xl bg-surface-50 p-3">
+                <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">{name}</p><X className="h-3.5 w-3.5 text-surface-500" /></div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-surface-600"><span>Normal<br/>{normal}</span><span>Agen<br/>{agen}</span><span>Dinas<br/>{dinas}</span></div>
+                <p className="mt-1 text-sm font-bold text-brand-600">{total}</p>
+                <div className="mt-2 flex items-center justify-between border-t border-surface-200/70 pt-1 text-xs text-surface-600">
+                  <span className="flex items-center gap-3"><span className="flex items-center gap-1"><Pencil className="h-3.5 w-3.5" />Edit</span><span className="flex items-center gap-1"><DollarSign className="h-3.5 w-3.5" />Harga</span></span>
+                  <span className="flex items-center gap-1"><span className="rounded-lg border border-surface-200 bg-white px-2 py-1">−</span><strong className="rounded-md border border-surface-200 bg-white px-3 py-2">{qty}</strong><span className="rounded-lg border border-surface-200 bg-white px-2 py-1">+</span></span>
+                </div>
+              </div>
+            ))}
           </div>
           <div className="border-t border-surface-100 p-4"><div className="mb-4 flex justify-between text-sm"><span>Total</span><strong className="text-lg">Rp231.000</strong></div><PreviewButton ctx={ctx} target="pos-pay-button" tone="brand" icon={Banknote} className="w-full">Bayar Sekarang</PreviewButton></div>
         </GuideTarget>

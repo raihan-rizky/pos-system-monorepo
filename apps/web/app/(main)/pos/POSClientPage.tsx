@@ -139,7 +139,6 @@ export default function POSClientPage({
   const [pendingEmptyStockVariantId, setPendingEmptyStockVariantId] =
     useState<string | undefined>(undefined);
   const [showNegativeStockCheckoutConfirm, setShowNegativeStockCheckoutConfirm] = useState(false);
-  const [isQuickEditEnabled, setIsQuickEditEnabled] = useState(false);
   const [priceEditItem, setPriceEditItem] = useState<ProductCartItem | null>(null);
   const [productEditItem, setProductEditItem] = useState<ProductCartItem | null>(null);
   const [shiftModalDismissed, setShiftModalDismissed] = useState(false);
@@ -868,8 +867,6 @@ export default function POSClientPage({
               onRemoveItem={cart.removeItem}
               onClearCart={cart.clearCart}
               canQuickEdit={canQuickEdit}
-              quickEditEnabled={isQuickEditEnabled}
-              onToggleQuickEdit={() => setIsQuickEditEnabled((current) => !current)}
               onEditProduct={setProductEditItem}
               onEditPrice={setPriceEditItem}
               onCheckout={
@@ -919,8 +916,6 @@ export default function POSClientPage({
               onRemoveItem={cart.removeItem}
               onClearCart={cart.clearCart}
               canQuickEdit={canQuickEdit}
-              quickEditEnabled={isQuickEditEnabled}
-              onToggleQuickEdit={() => setIsQuickEditEnabled((current) => !current)}
               onEditProduct={setProductEditItem}
               onEditPrice={setPriceEditItem}
               onCheckout={() => {

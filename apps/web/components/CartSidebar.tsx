@@ -8,6 +8,7 @@ import type { CartItem, CartUnitOption, ProductCartItem } from "@/hooks/useCart"
 import type { QuotationCheckoutMode } from "@/features/nota-penawaran/helpers/quotation-rules";
 import { orderUnits } from "@/features/pos-product-variants/helpers/unit-order";
 import { CartQuantityInput } from "@/features/pos-checkout/components/CartQuantityInput";
+import { CartStockWarningDialog } from "@/features/pos-checkout/components/CartStockWarningDialog";
 import styles from "./CartSidebar.module.css";
 import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
@@ -25,8 +26,6 @@ interface CartSidebarProps {
   onClose?: () => void;
   onInternalStockOut?: () => void;
   canQuickEdit?: boolean;
-  quickEditEnabled?: boolean;
-  onToggleQuickEdit?: () => void;
   onEditProduct?: (item: ProductCartItem) => void;
   onEditPrice?: (item: ProductCartItem) => void;
 }
@@ -44,23 +43,34 @@ export function CartSidebar({
   onClose,
   onInternalStockOut,
   canQuickEdit = false,
-  quickEditEnabled = false,
-  onToggleQuickEdit,
   onEditProduct,
   onEditPrice,
 }: CartSidebarProps) {
   const isQuotationMode = checkoutMode === "quotation";
-  const hasProductItems = items.some((item) => item.lineType === "PRODUCT");
   const [invalidQuantityLines, setInvalidQuantityLines] = useState<Set<string>>(
     new Set(),
   );
   const [unitErrors, setUnitErrors] = useState<Record<string, string>>({});
+  const [pendingQuantityChange, setPendingQuantityChange] = useState<{
+    cartLineId: string;
+    quantity: number;
+  } | null>(null);
+  const pendingQuantityItem = items.find((item): item is ProductCartItem =>
+    item.lineType === "PRODUCT" &&
+    item.cartLineId === pendingQuantityChange?.cartLineId &&
+    pendingQuantityChange.quantity > item.quantity &&
+    pendingQuantityChange.quantity > item.stock,
+  );
   const hasInvalidQuantity = items.some((item) =>
     invalidQuantityLines.has(item.cartLineId),
   );
 
   useEffect(() => {
     const activeLineIds = new Set(items.map((item) => item.cartLineId));
+    setPendingQuantityChange((current) => current && items.some((item) =>
+      item.lineType === "PRODUCT" && item.cartLineId === current.cartLineId &&
+      current.quantity > item.quantity && current.quantity > item.stock,
+    ) ? current : null);
     setInvalidQuantityLines((current) => {
       const next = new Set(
         [...current].filter((cartLineId) => activeLineIds.has(cartLineId)),
@@ -76,6 +86,14 @@ export function CartSidebar({
       else next.add(cartLineId);
       return next;
     });
+  };
+
+  const requestQuantityChange = (item: CartItem, quantity: number) => {
+    if (item.lineType === "PRODUCT" && quantity > item.quantity && quantity > item.stock) {
+      setPendingQuantityChange({ cartLineId: item.cartLineId, quantity });
+      return;
+    }
+    onUpdateQuantity(item.cartLineId, quantity);
   };
 
   return (
@@ -101,22 +119,6 @@ export function CartSidebar({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {canQuickEdit && hasProductItems && onToggleQuickEdit && (
-            <button
-              type="button"
-              onClick={onToggleQuickEdit}
-              aria-pressed={quickEditEnabled}
-              aria-label={quickEditEnabled ? "Nonaktifkan Edit Cepat" : "Aktifkan Edit Cepat"}
-              title={quickEditEnabled ? "Nonaktifkan Edit Cepat" : "Aktifkan Edit Cepat"}
-              className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
-                quickEditEnabled
-                  ? "bg-brand-100 text-brand-700"
-                  : "text-surface-400 hover:bg-surface-100 hover:text-surface-700"
-              }`}
-            >
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-            </button>
-          )}
           {items.length > 0 && (
             <button
               onClick={onClearCart}
@@ -141,10 +143,10 @@ export function CartSidebar({
             {items.map((item) => (
               <div
                 key={item.cartLineId}
-                className="flex items-start gap-3 p-3 rounded-xl bg-surface-50 animate-slide-up"
+                className="relative p-3 rounded-xl bg-surface-50 animate-slide-up"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-surface-900 truncate">
+                  <p className="pr-10 text-sm font-semibold text-surface-900 truncate" title={item.name}>
                     {item.name}
                   </p>
                   {(item.size || item.material) && (
@@ -152,7 +154,7 @@ export function CartSidebar({
                       {[item.size, item.material].filter(Boolean).join(" • ")}
                     </p>
                   )}
-                  <p className="text-xs text-surface-400 mt-0.5">
+                  <p className="text-xs text-surface-500 mt-0.5">
                     {formatRupiah(item.price)} /{item.unit}
                   </p>
                   {item.lineType === "PRODUCT" && onChangeUnit && item.stockGroup?.id && (() => {
@@ -212,7 +214,7 @@ export function CartSidebar({
                     </div>
                   )}
                   {item.lineType === "PRODUCT" && (
-                    <dl className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-surface-500">
+                    <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-surface-600">
                       <div>
                         <dt className="font-semibold">Normal</dt>
                         <dd>{formatRupiah(item.catalogPrice)}</dd>
@@ -240,43 +242,46 @@ export function CartSidebar({
                   </p>
                   {item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) && <SpecialPriceBadge />}
                 </div>
-                <div className="flex flex-col items-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onRemoveItem(item.cartLineId)}
+                  aria-label={`Hapus ${item.name} dari keranjang`}
+                  className={`absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 transition-colors hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-surface-200/70 pt-1">
                   <div className="flex items-center gap-1">
-                    {quickEditEnabled && item.lineType === "PRODUCT" && onEditProduct && (
+                    {canQuickEdit && item.lineType === "PRODUCT" && onEditProduct && (
                       <button
                         type="button"
                         onClick={() => onEditProduct(item)}
                         aria-label={`Ubah produk ${item.name}`}
                         title="Ubah produk"
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-surface-200 bg-white text-surface-600 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                        className={`flex h-8 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
                       >
-                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        Edit
                       </button>
                     )}
-                    {quickEditEnabled && item.lineType === "PRODUCT" && onEditPrice && (
+                    {canQuickEdit && item.lineType === "PRODUCT" && onEditPrice && (
                       <button
                         type="button"
                         onClick={() => onEditPrice(item)}
                         aria-label={`Ubah harga produk ${item.name}`}
                         title="Ubah harga produk"
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-surface-200 bg-white text-surface-600 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                        className={`flex h-8 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
                       >
-                        <DollarSign className="h-4 w-4" aria-hidden="true" />
+                        <DollarSign className="h-3.5 w-3.5" aria-hidden="true" />
+                        Harga
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => onRemoveItem(item.cartLineId)}
-                      aria-label={`Hapus ${item.name} dari keranjang`}
-                      className={`relative flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 transition-colors hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
-                    >
-                      <X className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
                   </div>
-                  <div className="flex items-center gap-0.5">
+                  <div className="ml-auto flex items-center gap-0.5">
                     <button
                       type="button"
-                      onClick={() => onUpdateQuantity(item.cartLineId, item.quantity - 1)}
+                      onClick={() => requestQuantityChange(item, item.quantity - 1)}
+                      disabled={Boolean(pendingQuantityItem)}
                       aria-label={`Kurangi jumlah ${item.name}`}
                       className={`h-7 w-7 flex items-center justify-center rounded-lg bg-white border border-surface-200 text-surface-600 hover:bg-surface-100 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
                     >
@@ -286,7 +291,7 @@ export function CartSidebar({
                       name={item.name}
                       quantity={item.quantity}
                       onChange={(quantity) =>
-                        onUpdateQuantity(item.cartLineId, quantity)
+                        requestQuantityChange(item, quantity)
                       }
                       onValidityChange={(valid) =>
                         updateQuantityValidity(item.cartLineId, valid)
@@ -294,8 +299,8 @@ export function CartSidebar({
                     />
                     <button
                       type="button"
-                      onClick={() => onUpdateQuantity(item.cartLineId, item.quantity + 1)}
-                      disabled={item.lineType === "PRODUCT" && item.quantity >= item.stock}
+                      onClick={() => requestQuantityChange(item, item.quantity + 1)}
+                      disabled={Boolean(pendingQuantityItem)}
                       aria-label={`Tambah jumlah ${item.name}`}
                       className={`h-7 w-7 flex items-center justify-center rounded-lg bg-white border border-surface-200 text-surface-600 hover:bg-surface-100 text-sm font-bold transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${styles.touchTarget}`}
                     >
@@ -335,13 +340,24 @@ export function CartSidebar({
               size="lg"
               className="flex-1"
               onClick={onCheckout}
-              disabled={hasInvalidQuantity}
+              disabled={hasInvalidQuantity || Boolean(pendingQuantityItem)}
             >
               {isQuotationMode ? <FileText size={18} /> : <CreditCard size={18} />}
               {isQuotationMode ? "Create Nota Penawaran" : "Bayar"}
             </Button>
           </div>
         </div>
+      )}
+      {pendingQuantityItem && pendingQuantityChange && (
+        <CartStockWarningDialog
+          item={pendingQuantityItem}
+          quantity={pendingQuantityChange.quantity}
+          onCancel={() => setPendingQuantityChange(null)}
+          onConfirm={() => {
+            onUpdateQuantity(pendingQuantityItem.cartLineId, pendingQuantityChange.quantity);
+            setPendingQuantityChange(null);
+          }}
+        />
       )}
     </div>
   );
