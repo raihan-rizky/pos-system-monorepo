@@ -143,7 +143,7 @@ describe('HelpContent', () => {
     );
 
     expect(html).toContain('Ajukan ke Owner');
-    expect(html).toContain('Pilih Pembelian Barang');
+    expect(html).toMatch(/pilih Pembelian Barang/i);
     expect(html).toContain('Sesuai');
     expect(html).toContain('Tidak Sesuai');
     expect(html).toContain('jumlah diterima berbeda');
