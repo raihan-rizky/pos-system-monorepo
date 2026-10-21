@@ -15,7 +15,9 @@ export function buildPrintingReceiptPresentation(receipt: PrintingReceipt, trans
   const pdf = measurementPdf ?? new jsPDF({ unit: "mm", format: [layout.width, layout.height], orientation: layout.width > layout.height ? "landscape" : "portrait" });
   pdf.setFont("helvetica", "normal");
   const overflow = new Map<string, { reference: number; label: string; value: string }>();
-  const pages = buildPrintingReceiptPages(receipt).map(page => ({ ...page, fields: getPrintingReceiptPageFields(receipt, page, transaction).map(field => {
+  const pages = buildPrintingReceiptPages(receipt, pdf).map(page => ({ ...page, fields: getPrintingReceiptPageFields(receipt, page, transaction).map(field => {
+    pdf.setFont("helvetica", "normal");
+    if (field.textLines) return { ...field, textLines: field.textLines, fittedFontSize: field.fontSize ?? 9, displayValue: field.textLines.join("\n") };
     const value = getReceiptFieldDisplayValue(field);
     const width = Math.max(0.1, field.width - 1.4);
     const height = Math.max(1, field.height - 0.35);

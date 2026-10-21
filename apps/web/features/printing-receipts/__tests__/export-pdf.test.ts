@@ -38,7 +38,7 @@ describe("printing receipt PDF", () => {
     expect(output.includes("21/10/2026")).toBe(true);
     expect(output.match(/\(DIBATALKAN\)/g)).toHaveLength(pdf.getNumberOfPages());
   });
-  it("preserves extreme field values in readable appendix pages without overflowing artwork fields", async () => {
+  it("preserves extreme item values on receipt pages and other overflow in readable appendices", async () => {
     const record = receipt("SPANDUK");
     record.document.lines = [{ ...record.document.lines[0], name: `${"Nama cetakan panjang ".repeat(23)}AKHIR_NAMA`, material: `${"Bahan khusus ".repeat(22)}AKHIR_BAHAN` }];
     record.document.note = `${"Catatan pesanan panjang yang harus terbaca. ".repeat(115)}AKHIR_CATATAN`;
@@ -50,9 +50,14 @@ describe("printing receipt PDF", () => {
     expect(presentation.appendixPages.flatMap(page => page.lines).every(line => line.y <= 97)).toBe(true);
     expect(pdf.getNumberOfPages()).toBeGreaterThan(1);
     const output = pdf.output();
+    const printedText = Array.from(output.matchAll(/\(([^()]*)\) Tj/g), match => match[1]).join("");
+    for (const key of ["name", "material"] as const) {
+      const fragments = presentation.pages.flatMap(page => page.fields.filter(field => field.lineId === record.document.lines[0].id && field.lineField === key));
+      expect(fragments.flatMap(field => field.textLines).join("").replace(/\s/g, "")).toBe(record.document.lines[0][key].replace(/\s/g, ""));
+    }
     expect(output.includes("Lampiran nota")).toBe(true);
-    expect(output.includes("AKHIR_NAMA")).toBe(true);
-    expect(output.includes("AKHIR_BAHAN")).toBe(true);
+    expect(printedText.includes("AKHIR_NAMA")).toBe(true);
+    expect(printedText.includes("AKHIR_BAHAN")).toBe(true);
     expect(output.includes("AKHIR_CATATAN")).toBe(true);
     expect(output.includes("[1]")).toBe(true);
   });

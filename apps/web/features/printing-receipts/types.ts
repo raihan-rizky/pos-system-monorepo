@@ -13,6 +13,8 @@ export interface PrintingReceiptLine {
 }
 
 export interface PrintingReceiptDocument {
+  /** Width of each visible table column in millimetres, saved only on this receipt. */
+  columnWidths?: number[];
   /** Internal label for the receipt list; never printed on the receipt. */
   title?: string;
   customerName: string;

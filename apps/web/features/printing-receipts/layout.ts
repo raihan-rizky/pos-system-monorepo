@@ -1,4 +1,14 @@
+import { jsPDF } from "jspdf";
 import type { PrintingReceipt, PrintingReceiptLine, PrintingSubcategory } from "./types";
+import { getReceiptColumnBoundaries, getReceiptColumnWidths, hasValidReceiptColumnWidths } from "./column-layout";
+export { getReceiptColumnWidths, resizeReceiptColumnBoundary } from "./column-layout";
+
+export const RECEIPT_TEXT_LINE_HEIGHT = 1.12;
+export const RECEIPT_TEXT_PADDING_X = 0.75;
+export const RECEIPT_TEXT_PADDING_Y = 0.25;
+const POINTS_PER_MM = 2.83465;
+const MATERIAL_GAP = 0.15;
+const EPSILON = 0.00001;
 
 export interface ReceiptBox { x: number; y: number; width: number; height: number }
 export interface ReceiptField extends ReceiptBox { fontSize?: number; align?: "left" | "right" | "center"; color?: string; bold?: boolean }
@@ -39,8 +49,51 @@ const A5_LAYOUT: PrintingReceiptLayout = {
   },
 };
 
-export function getPrintingReceiptLayout(subcategory: PrintingSubcategory): PrintingReceiptLayout {
-  return subcategory === "SPANDUK" ? SPANDUK_LAYOUT : A5_LAYOUT;
+export function getPrintingReceiptLayout(subcategory: PrintingSubcategory, columnWidths?: readonly number[]): PrintingReceiptLayout {
+  const base = subcategory === "SPANDUK" ? SPANDUK_LAYOUT : A5_LAYOUT;
+  // Existing receipts keep their exact artwork-aligned field positions until adjusted.
+  if (!hasValidReceiptColumnWidths(subcategory, columnWidths)) return { ...base, columns: { ...base.columns } };
+  const widths = getReceiptColumnWidths(subcategory, columnWidths);
+  const xs = getReceiptColumnBoundaries(subcategory, widths);
+  const keys = subcategory === "SPANDUK" ? ["index", "name", "material", "quantity", "price", "total"] as const : ["quantity", "name", "price", "total"] as const;
+  // The small cell inset keeps text clear of the printed rules at every width.
+  const columns = { ...base.columns };
+  keys.forEach((key, index) => { columns[key] = { ...base.columns[key], x: xs[index] + .35, width: widths[index] - .7 }; });
+  if (subcategory !== "SPANDUK") columns.material = { ...columns.name, fontSize: base.columns.material.fontSize };
+  return { ...base, columns };
+}
+
+export interface ReceiptHeaderRule { x1: number; y1: number; x2: number; y2: number }
+export interface ReceiptHeader extends ReceiptBox {
+  columnXs: number[]; redraw: boolean; fill: string; color: string; lineWidth: number;
+  rules: ReceiptHeaderRule[];
+  labels: (ReceiptField & { value: string; textLines: string[] })[];
+}
+
+function buildReceiptHeader(subcategory: PrintingSubcategory, widths?: readonly number[]): ReceiptHeader {
+  const spanduk = subcategory === "SPANDUK";
+  const xs = getReceiptColumnBoundaries(subcategory, widths);
+  const y = spanduk ? 29.5 : 47.3;
+  const bottom = spanduk ? 35.1 : 61.3;
+  const middle = (y + bottom) / 2;
+  const rules: ReceiptHeaderRule[] = xs.map((x, index) => ({ x1: x, x2: x, y1: !spanduk && index === 3 ? middle : y, y2: bottom }));
+  for (const lineY of [y, bottom]) rules.push({ x1: xs[0], x2: xs[xs.length - 1], y1: lineY, y2: lineY });
+  if (!spanduk) rules.push({ x1: xs[2], x2: xs[4], y1: middle, y2: middle });
+  const labels: ReceiptHeader["labels"] = [];
+  const add = (index: number, value: string, top = y, height = bottom - y, span = 1, fontSize = spanduk ? 8 : 11) => {
+    // Keep the narrow Bahan/Banyak headings readable without truncating at their minima.
+    const textLines = spanduk && xs[index + span] - xs[index] < 9 && value === "Bahan" ? ["Ba", "han"]
+      : spanduk && xs[index + span] - xs[index] < 11 && value === "Banyak" ? ["Ba", "nyak"] : [value];
+    labels.push({ ...box(xs[index] + .35, top, xs[index + span] - xs[index] - .7, height, textLines.length > 1 ? 6 : fontSize, "center"), value, textLines, bold: spanduk });
+  };
+  if (spanduk) ["No.", "Nama File", "Bahan", "Banyak", "@Rp.", "Jumlah"].forEach((value, index) => add(index, value));
+  else {
+    add(0, "Byknya", y, bottom - y, 1, 9);
+    add(1, "Nama Barang"); add(2, "Harga", y, middle - y, 2);
+    add(2, "Satuan", middle, bottom - middle); add(3, "Jumlah", middle, bottom - middle);
+  }
+  return { x: xs[0], y, width: xs[xs.length - 1] - xs[0], height: bottom - y, columnXs: xs,
+    redraw: hasValidReceiptColumnWidths(subcategory, widths), fill: spanduk ? "#373396" : "#ffffff", color: spanduk ? "#ffffff" : "#373396", lineWidth: spanduk ? .12 : .35, rules, labels };
 }
 
 export function getPrintingReceiptTotals(receipt: PrintingReceipt, transaction?: PrintingReceiptPayment | null) {
@@ -51,16 +104,121 @@ export function getPrintingReceiptTotals(receipt: PrintingReceipt, transaction?:
   return { subtotal, total, paid, remaining: Math.max(0, total - paid) };
 }
 
-export function buildPrintingReceiptPages(receipt: PrintingReceipt) {
-  const layout = getPrintingReceiptLayout(receipt.subcategory);
-  const pageCount = Math.max(1, Math.ceil(receipt.document.lines.length / layout.rowsPerPage));
-  return Array.from({ length: pageCount }, (_, pageIndex) => ({
-    pageIndex, pageCount, number: receipt.number, showTotals: pageIndex === pageCount - 1,
-    lines: receipt.document.lines.slice(pageIndex * layout.rowsPerPage, (pageIndex + 1) * layout.rowsPerPage).map((line, rowIndex) => ({
-      line, number: pageIndex * layout.rowsPerPage + rowIndex + 1, rowIndex,
-      y: layout.tableTop + rowIndex * layout.rowHeight,
-    })),
-  }));
+export interface MeasuredReceiptRow {
+  line: PrintingReceiptLine; number: number; rowIndex: number; y: number; height: number;
+  nameLines: string[]; materialLines: string[]; continuation: boolean; materialContinuation: boolean;
+}
+
+const textHeight = (lines: string[], fontSize: number) => lines.length ? lines.length * fontSize / POINTS_PER_MM * RECEIPT_TEXT_LINE_HEIGHT + 2 * RECEIPT_TEXT_PADDING_Y : 0;
+
+/** Preserve whitespace and explicit line breaks; jsPDF's default splitter discards spaces. */
+function wrapReceiptText(pdf: jsPDF, value: string, field: ReceiptField, fontSize = field.fontSize ?? 9): string[] {
+  if (!value) return [];
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(fontSize);
+  const width = field.width - 2 * RECEIPT_TEXT_PADDING_X;
+  return value.split(/\r\n|\r|\n/).flatMap(paragraph => {
+    const lines: string[] = [];
+    let remaining = Array.from(paragraph);
+    while (remaining.length) {
+      let low = 1;
+      let high = remaining.length;
+      let fit = 1;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        if (pdf.getTextWidth(remaining.slice(0, middle).join("")) <= width + EPSILON) { fit = middle; low = middle + 1; }
+        else high = middle - 1;
+      }
+      if (fit < remaining.length) {
+        let lastSpace = fit - 1;
+        while (lastSpace >= 0 && !/\s/.test(remaining[lastSpace])) lastSpace--;
+        if (lastSpace >= 0) fit = lastSpace + 1;
+      }
+      lines.push(remaining.slice(0, fit).join(""));
+      remaining = remaining.slice(fit);
+    }
+    return lines.length ? lines : [""];
+  });
+}
+
+function isBlankReceiptLine(line: PrintingReceiptLine) {
+  return !line.name.trim() && !line.material.trim() && line.quantity === null && line.price === null && line.stockLink === null;
+}
+
+export function buildPrintingReceiptPages(receipt: PrintingReceipt, measurementPdf?: jsPDF) {
+  const layout = getPrintingReceiptLayout(receipt.subcategory, receipt.document.columnWidths);
+  const a5 = receipt.subcategory !== "SPANDUK";
+  const pdf = measurementPdf ?? new jsPDF({ unit: "mm", format: [layout.width, layout.height], orientation: a5 ? "portrait" : "landscape" });
+  const capacity = layout.rowHeight * layout.rowsPerPage;
+  const materialFont = a5 ? 7 : layout.columns.material.fontSize ?? 9;
+  const nameFont = layout.columns.name.fontSize ?? 9;
+  const rowHeight = (name: string[], material: string[]) => Math.ceil(Math.max(layout.rowHeight, a5
+    ? textHeight(name, nameFont) + textHeight(material, materialFont) + (name.length && material.length ? MATERIAL_GAP : 0)
+    : Math.max(textHeight(name, nameFont), textHeight(material, materialFont))) * 1e8) / 1e8;
+  const pageRows: MeasuredReceiptRow[][] = [[]];
+  let used = 0;
+  const newPage = () => { pageRows.push([]); used = 0; };
+  const addRow = (line: PrintingReceiptLine, number: number, nameLines: string[], materialLines: string[], continuation: boolean, materialContinuation = false) => {
+    const rows = pageRows[pageRows.length - 1];
+    const height = rowHeight(nameLines, materialLines);
+    rows.push({ line, number, rowIndex: rows.length, y: layout.tableTop + used, height, nameLines, materialLines, continuation, materialContinuation });
+    used += height;
+  };
+  let lastMeaningful = receipt.document.lines.length - 1;
+  while (lastMeaningful >= 0 && isBlankReceiptLine(receipt.document.lines[lastMeaningful])) lastMeaningful--;
+  for (const [index, line] of receipt.document.lines.entries()) {
+    const name = wrapReceiptText(pdf, line.name, layout.columns.name);
+    const material = wrapReceiptText(pdf, line.material, layout.columns.material, materialFont);
+    // Keep both A5 inputs available while editing, even before either value is entered.
+    if (a5 && !name.length) name.push("");
+    if (a5 && !material.length) material.push("");
+    const height = rowHeight(name, material);
+    // Saved trailing blanks are editable spare cells, not a reason to create another sheet.
+    if (index > lastMeaningful && height > capacity - used + EPSILON) break;
+    if (height <= capacity + EPSILON) {
+      if (height > capacity - used + EPSILON) newPage();
+      addRow(line, index + 1, name, material, false);
+      continue;
+    }
+    if (used > EPSILON) newPage();
+    let nameOffset = 0;
+    let materialOffset = 0;
+    let continuation = false;
+    while (nameOffset < name.length || materialOffset < material.length) {
+      const nameFragment: string[] = [];
+      const materialFragment: string[] = [];
+      const materialContinuation = materialOffset > 0 || (!material.length && continuation);
+      while (nameOffset < name.length) {
+        const candidate = [...nameFragment, name[nameOffset]];
+        // A final name fragment needs enough room for its empty material input.
+        const reservedMaterial = a5 && !line.material && nameOffset === name.length - 1 ? material : materialFragment;
+        if (rowHeight(candidate, reservedMaterial) > capacity + EPSILON) break;
+        nameFragment.push(name[nameOffset++]);
+      }
+      // A5 stacks material after the complete name; SPANDUK uses an independent column.
+      if (!a5 || nameOffset === name.length) {
+        while (materialOffset < material.length && rowHeight(nameFragment, [...materialFragment, material[materialOffset]]) <= capacity + EPSILON) materialFragment.push(material[materialOffset++]);
+      }
+      addRow(line, index + 1, nameFragment, materialFragment, continuation, materialContinuation);
+      continuation = true;
+      if (nameOffset < name.length || materialOffset < material.length) newPage();
+    }
+  }
+  return pageRows.map((lines, pageIndex) => {
+    const rows = lines.map(({ y, height }) => ({ y, height }));
+    let y = rows.length ? rows[rows.length - 1].y + rows[rows.length - 1].height : layout.tableTop;
+    const bottom = layout.tableTop + capacity;
+    while (y < bottom - EPSILON) {
+      const height = Math.min(layout.rowHeight, bottom - y);
+      rows.push({ y, height }); y += height;
+    }
+    const columnXs = getReceiptColumnBoundaries(receipt.subcategory, receipt.document.columnWidths);
+    return {
+      pageIndex, pageCount: pageRows.length, number: receipt.number, showTotals: pageIndex === pageRows.length - 1, lines,
+      header: buildReceiptHeader(receipt.subcategory, receipt.document.columnWidths),
+      table: { x: columnXs[0], y: layout.tableTop, width: columnXs[columnXs.length - 1] - columnXs[0], height: capacity, columnXs, lineWidth: a5 ? 0.35 : 0.12, striped: !a5, rows },
+    };
+  });
 }
 
 export function printingLineAmount(line: PrintingReceiptLine): string {
@@ -76,7 +234,7 @@ export function getPrintingReceiptWatermark(receipt: PrintingReceipt, transactio
   return status === "PENDING_APPROVAL" ? "MENUNGGU PERSETUJUAN" : status === "VOIDED" ? "DIBATALKAN" : status === "REFUNDED" ? "DIREFUND" : null;
 }
 
-export type ReceiptDocumentTextKey = Exclude<keyof PrintingReceipt["document"], "lines" | "customerId" | "title">;
+export type ReceiptDocumentTextKey = Exclude<keyof PrintingReceipt["document"], "lines" | "customerId" | "title" | "columnWidths">;
 export interface ReceiptSheetField extends ReceiptField {
   key: string; value: string; label: string;
   documentField?: ReceiptDocumentTextKey;
@@ -86,10 +244,13 @@ export interface ReceiptSheetField extends ReceiptField {
   multiline?: boolean;
   inputType?: "text" | "number" | "date" | "time";
   whiteBackground?: boolean;
+  textLines?: string[];
+  topAligned?: boolean;
+  continuation?: boolean;
 }
 
 export function getPrintingReceiptPageFields(receipt: PrintingReceipt, page: ReturnType<typeof buildPrintingReceiptPages>[number], transaction?: PrintingReceiptPayment | null): ReceiptSheetField[] {
-  const layout = getPrintingReceiptLayout(receipt.subcategory);
+  const layout = getPrintingReceiptLayout(receipt.subcategory, receipt.document.columnWidths);
   const fields: ReceiptSheetField[] = [];
   const add = (field: ReceiptSheetField) => { if (field.width > 0 && field.height > 0) fields.push(field); };
   add({ ...layout.fields.number, key: "number", receiptField: "number", label: "Nomor nota", value: receipt.number });
@@ -100,16 +261,24 @@ export function getPrintingReceiptPageFields(receipt: PrintingReceipt, page: Ret
   ];
   for (const [key, label, inputType, multiline] of documentFields) add({ ...layout.fields[key], key, value: receipt.document[key], label, documentField: key, inputType, multiline, whiteBackground: key === "date" || key === "customerName" || key === "customerPhone" });
   if (receipt.subcategory === "SPANDUK") add({ ...box(21, 24.5, 22, 4.3, 9), color: "#373396", bold: true, key: "number-label", label: "", value: "No. Nota:" });
-  for (const { line, number, y } of page.lines) {
-    if (receipt.subcategory === "SPANDUK") add({ ...layout.columns.index, y, key: `${line.id}-index`, label: `Nomor baris ${number}`, value: String(number) });
+  for (const { line, number, y, height, nameLines, materialLines, continuation, materialContinuation } of page.lines) {
+    const a5 = receipt.subcategory !== "SPANDUK";
+    if (!a5 && !continuation) add({ ...layout.columns.index, y, topAligned: true, key: `${line.id}-index`, label: `Nomor baris ${number}`, value: String(number) });
+    const nameHeight = a5 && materialLines.length ? textHeight(nameLines, layout.columns.name.fontSize ?? 10) : height;
     for (const [key, label] of [["name", "Nama item"], ["material", "Bahan"], ["quantity", "Banyaknya"], ["price", "Harga satuan"]] as const) {
-      const a5 = receipt.subcategory !== "SPANDUK";
+      const isText = key === "name" || key === "material";
+      if (continuation && !isText) continue;
       const column = layout.columns[key];
-      add({ ...column, y: y + (a5 && key === "material" ? 5.05 : 0), height: a5 && key === "name" ? 5 : a5 && key === "material" ? 2.7 : column.height,
-        fontSize: a5 && key === "material" ? 7 : column.fontSize, key: `${line.id}-${key}`, label: `${label} baris ${number}`,
-        lineId: line.id, lineField: key, value: line[key] === null ? "" : String(line[key]), multiline: key === "name" || key === "material", inputType: key === "price" || key === "quantity" ? "number" : "text" });
+      const textLines = key === "name" ? nameLines : materialLines;
+      const fieldContinuation = key === "material" ? materialContinuation : continuation;
+      const materialY = y + nameHeight + (nameLines.length && materialLines.length ? MATERIAL_GAP : 0);
+      add({ ...column, y: a5 && key === "material" ? materialY : y,
+        height: !isText ? column.height : !a5 ? height : key === "name" ? nameHeight : textHeight(materialLines, 7),
+        fontSize: a5 && key === "material" ? 7 : column.fontSize, key: `${line.id}-${key}${fieldContinuation ? `-fragment-${page.pageIndex}` : ""}`, label: `${label} baris ${number}`,
+        lineId: line.id, lineField: key, value: fieldContinuation ? textLines.join("\n") : line[key] === null ? "" : String(line[key]), multiline: isText,
+        topAligned: true, continuation: fieldContinuation, ...(isText ? { textLines } : {}), inputType: key === "price" || key === "quantity" ? "number" : "text" });
     }
-    add({ ...layout.columns.total, y, key: `${line.id}-total`, label: `Jumlah baris ${number}`, value: printingLineAmount(line) });
+    if (!continuation) add({ ...layout.columns.total, y, topAligned: true, key: `${line.id}-total`, label: `Jumlah baris ${number}`, value: printingLineAmount(line) });
   }
   if (page.showTotals) {
     const totals = getPrintingReceiptTotals(receipt, transaction);

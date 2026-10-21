@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "printing-receipt-automatic-rows-columns", date: "2026-10-21", revision: 1,
+    highlight: { title: "Atur kolom nota, nama tetap utuh", summary: "Geser batas kolom; nama dan bahan panjang membungkus otomatis di nota dan PDF." },
+    title: "Lebar kolom nota bisa diatur, baris mengikuti isi.",
+    summary: "Nama dan bahan panjang tampil lengkap dengan tinggi baris otomatis pada kelima jenis nota. Atur lebar kolom sesuai kebutuhan; pengaturan tersimpan per nota dan dipakai juga saat cetak atau unduh PDF.",
+    kind: "improvement", area: "Percetakan", href: "/pos", visual: "printing",
+    screenshot: { src: "/images/changelog/nota-baris-otomatis.png", alt: "Tabel nota SPANDUK dengan data contoh, batas kolom yang dapat digeser, serta bahan panjang yang membungkus di dalam satu baris item" },
+    steps: [
+      { title: "Buka nota untuk diedit", detail: "Masuk ke Kasir > Percetakan, pilih jenis nota, lalu buat atau buka draft." },
+      { title: "Atur kolom dan isi lengkap", detail: "Geser pembatas pada header, lalu isi nama dan bahan lengkap. Tinggi baris menyesuaikan otomatis; tunggu Tersimpan agar lebar tetap sama saat nota dibuka lagi." },
+      { title: "Periksa hasil cetak", detail: "Klik Cetak / PDF, periksa nama, bahan, dan batas kolom, lalu pilih Cetak atau Unduh PDF. Nota panjang berlanjut ke halaman berikutnya." },
+    ],
+  },
+  {
     id: "processed-printing-receipt-edit", date: "2026-10-21", revision: 1,
     highlight: { title: "Koreksi nota yang sudah diproses", summary: "Tinjau dampak koreksi nota pada transaksi, bahan, dan piutang sebelum menyimpan." },
     title: "Nota Percetakan yang diproses bisa dikoreksi.",

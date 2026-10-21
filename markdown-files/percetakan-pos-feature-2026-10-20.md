@@ -2,6 +2,8 @@
 
 Tanggal perubahan: 2026-10-20 (Asia/Jakarta).
 
+Pembaruan baris otomatis dan lebar kolom: 2026-10-21 (Asia/Jakarta).
+
 ## Ringkasan
 
 POS memakai tab ATK dan Percetakan. Percetakan memiliki subtab SPANDUK, PERCETAKAN, PLAT, STEMPEL, dan PRINT, masing-masing dengan daftar nota tersimpan. Satu nota yang diproses menjadi satu transaksi dan dapat ditemukan melalui kategori serta subkategori Riwayat.
@@ -31,12 +33,14 @@ Dokumen ini mengikuti [rancangan yang disetujui](percetakan-pos-design-2026-10-2
 
 | Jenis | Ukuran dan isi |
 | --- | --- |
-| SPANDUK | 215 × 110 mm horizontal; enam baris per halaman; nomor nota, nama file, bahan, banyak, harga, jumlah, DP, sisa, dan janji selesai |
-| PERCETAKAN, PLAT, STEMPEL, PRINT | A5 148 × 210 mm tegak; tiga belas baris per halaman; nomor sebenarnya menggantikan nomor contoh |
+| SPANDUK | 215 × 110 mm horizontal; tinggi baris mengikuti isi; nomor nota, nama file, bahan, banyak, harga, jumlah, DP, sisa, dan janji selesai |
+| PERCETAKAN, PLAT, STEMPEL, PRINT | A5 148 × 210 mm tegak; tinggi baris mengikuti isi; nomor sebenarnya menggantikan nomor contoh |
 
 Artwork mengikuti dua PDF Toko Teladan yang diberikan pengguna. Baris tambahan memakai halaman lanjutan; total keseluruhan ditempatkan di halaman terakhir. Kontrol editor tidak masuk ke hasil cetak. Cetak ulang dibuka dari transaksi dengan template asal dan pembayaran terbaru.
 
-Teks yang melebihi ruang pada artwork diberi penanda rujukan dan ditampilkan lengkap pada lampiran dengan ukuran terbaca. Preview dan PDF memakai pengukuran serta pembagian teks yang sama. Pratinjau ulang nota yang sudah diproses mengambil pembayaran/status terbaru dari server.
+Nama item/file dan bahan membungkus otomatis pada ukuran huruf semula. Satu item memakai satu kotak yang meninggi tanpa garis horizontal di tengah teks; nilai kolom lain sejajar atas dan dicetak sekali. Pada A5, bahan berada di bawah seluruh nama. Ruang baris kosong di akhir draft dipakai sebelum menambah halaman, tanpa menghapus data tersimpan. Teks item yang sangat panjang berlanjut pada halaman nota berikutnya, dengan nomor item tetap dan total hanya di halaman terakhir. Kolom tambahan di luar baris item masih dapat memakai lampiran.
+
+Geser pembatas header untuk mengatur lebar setiap kolom saat nota dapat diedit. Lebar tabel tetap, dengan batas minimum tiap kolom. Pembatas juga bisa difokuskan lewat Tab lalu digeser dengan ArrowLeft/ArrowRight; tahan Shift untuk langkah lebih besar. **Reset lebar kolom** mengembalikan ukuran bawaan. Lebar tersimpan per nota melalui penyimpanan yang sudah ada; pada draft, tunggu **Tersimpan** sebelum berpindah. Pada A5, bahan mengikuti lebar kolom Nama Barang. Preview dan PDF memakai lebar, pembungkusan, serta batas baris yang sama. Lihat [panduan baris otomatis dan lebar kolom](nota-baris-otomatis-2026-10-21.md). Pratinjau ulang nota yang sudah diproses mengambil pembayaran/status terbaru dari server.
 
 ## Filter Riwayat
 

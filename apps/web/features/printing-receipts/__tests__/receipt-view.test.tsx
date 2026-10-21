@@ -10,6 +10,23 @@ const receipt = (processed = false): PrintingReceipt => ({
   document: { customerName: "Toko Contoh", customerPhone: "081234", customerId: null, date: "2026-10-20", note: "Selesai sore", completionDate: "Selasa", completionTime: "16:00", receiver: "Sari", setter: "", signatory: "", lines: Array.from({ length: 7 }, (_, i) => ({ id: String(i), name: `Spanduk ${i + 1}`, material: "Flexi", quantity: 2, price: 15000, stockLink: null })) },
 });
 describe("printing receipt sheet", () => {
+  it.each(["SPANDUK", "PRINT"] as const)("keeps the first omitted blank line editable outside %s paper without creating an empty page", subcategory => {
+    const record = receipt();
+    record.subcategory = subcategory;
+    const count = subcategory === "SPANDUK" ? 6 : 13;
+    record.document.lines = Array.from({ length: count + 2 }, (_, index) => ({ id: String(index), name: index < count ? "Cetak" : "", material: "", quantity: null, price: null, stockLink: null }));
+    const html = renderToStaticMarkup(<PrintingReceiptView receipt={record} editable onChange={() => {}} />);
+    expect(html.match(/aria-label="Halaman nota /g)).toHaveLength(1);
+    expect(html).toContain('data-receipt-next-line="true"');
+    expect(html).toContain(`aria-label="Nama item baris ${count + 1}"`);
+    expect(html).toContain(`data-receipt-field="${count}-name"`);
+    expect(html).toContain(`aria-label="Bahan baris ${count + 1}"`);
+    expect(html).not.toContain(`aria-label="Nama item baris ${count + 2}"`);
+    expect(renderToStaticMarkup(<PrintingReceiptView receipt={record} />)).not.toContain("data-receipt-next-line");
+    record.transactionId = "sale";
+    expect(renderToStaticMarkup(<PrintingReceiptView receipt={record} editable onChange={() => {}} />)).not.toContain("data-receipt-next-line");
+    expect(renderToStaticMarkup(<PrintingReceiptView receipt={record} editable allowProcessedEdit onChange={() => {}} />)).toContain('data-receipt-next-line="true"');
+  });
   it("opens processed fields only in an explicitly authorized correction session and preserves the invoice number", () => {
     const html = renderToStaticMarkup(<PrintingReceiptView receipt={receipt(true)} editable allowProcessedEdit onChange={() => {}} />);
     expect(html).toMatch(/<input[^>]*aria-label="Harga satuan baris 1"/);

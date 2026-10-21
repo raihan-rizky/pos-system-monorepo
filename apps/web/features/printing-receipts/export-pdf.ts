@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { getPrintingReceiptLayout, getPrintingReceiptWatermark, type PrintingReceiptPayment } from "./layout";
+import { getPrintingReceiptLayout, getPrintingReceiptWatermark, RECEIPT_TEXT_LINE_HEIGHT, RECEIPT_TEXT_PADDING_X, RECEIPT_TEXT_PADDING_Y, type PrintingReceiptPayment, type ReceiptHeader } from "./layout";
 import { buildPrintingReceiptPresentation, type PrintingReceiptPresentedField } from "./presentation";
 import type { PrintingReceipt } from "./types";
 
@@ -29,10 +29,25 @@ function drawField(pdf: jsPDF, field: PrintingReceiptPresentedField) {
   pdf.setFontSize(fontSize);
   const lines = field.textLines;
   const align = field.align ?? "left";
-  const x = align === "right" ? field.x + field.width - 0.7 : align === "center" ? field.x + field.width / 2 : field.x + 0.7;
-  const textHeight = lines.length * fontSize / 2.83465 * 1.12;
-  const y = field.y + Math.max(0.4, (field.height - textHeight) / 2) + fontSize / 2.83465 * 0.83;
-  pdf.text(lines, x, y, { align, lineHeightFactor: 1.12 });
+  const x = align === "right" ? field.x + field.width - RECEIPT_TEXT_PADDING_X : align === "center" ? field.x + field.width / 2 : field.x + RECEIPT_TEXT_PADDING_X;
+  const textHeight = lines.length * fontSize / 2.83465 * RECEIPT_TEXT_LINE_HEIGHT;
+  const y = field.y + (field.topAligned ? RECEIPT_TEXT_PADDING_Y : Math.max(0.4, (field.height - textHeight) / 2)) + fontSize / 2.83465 * 0.83;
+  pdf.text(lines, x, y, { align, lineHeightFactor: RECEIPT_TEXT_LINE_HEIGHT });
+}
+
+function drawTable(pdf: jsPDF, table: ReturnType<typeof buildPrintingReceiptPresentation>["pages"][number]["table"]) {
+  pdf.saveGraphicsState();
+  pdf.setFillColor(255, 255, 255);
+  pdf.rect(table.x - .25, table.y - .25, table.width + .5, table.height + .5, "F");
+  if (table.striped) {
+    pdf.setFillColor("#efefef");
+    table.rows.forEach((row, index) => { if (index % 2 === 1) pdf.rect(table.x, row.y, table.width, row.height, "F"); });
+  }
+  pdf.setDrawColor("#373396");
+  pdf.setLineWidth(table.lineWidth);
+  for (const x of table.columnXs) pdf.line(x, table.y, x, table.y + table.height);
+  for (const y of [table.y, ...table.rows.map(row => row.y + row.height)]) pdf.line(table.x, y, table.x + table.width, y);
+  pdf.restoreGraphicsState();
 }
 
 function drawWatermark(pdf: jsPDF, watermark: string | null, width: number, height: number) {
@@ -42,8 +57,31 @@ function drawWatermark(pdf: jsPDF, watermark: string | null, width: number, heig
   pdf.text(watermark, width / 2, height / 2, { align: "center", angle: 22 });
 }
 
+function drawHeader(pdf: jsPDF, header: ReceiptHeader) {
+  if (!header.redraw) return;
+  pdf.saveGraphicsState();
+  pdf.setFillColor("#ffffff");
+  pdf.rect(header.x - .25, header.y - .25, header.width + .5, header.height + .25, "F");
+  pdf.setFillColor(header.fill);
+  pdf.rect(header.x, header.y, header.width, header.height, "F");
+  pdf.setLineWidth(header.lineWidth);
+  header.rules.forEach((rule, index) => {
+    pdf.setDrawColor(header.fill !== "#ffffff" && rule.x1 === rule.x2 && index > 0 && index < header.columnXs.length - 1 ? "#ffffff" : "#373396");
+    pdf.line(rule.x1, rule.y1, rule.x2, rule.y2);
+  });
+  for (const label of header.labels) {
+    const fontSize = label.fontSize ?? 9;
+    pdf.setFont("helvetica", label.bold ? "bold" : "normal");
+    pdf.setFontSize(fontSize);
+    pdf.setTextColor(header.color);
+    const y = label.y + (label.height - label.textLines.length * fontSize / 2.83465 * RECEIPT_TEXT_LINE_HEIGHT) / 2 + fontSize / 2.83465 * .83;
+    pdf.text(label.textLines, label.x + label.width / 2, y, { align: "center", lineHeightFactor: RECEIPT_TEXT_LINE_HEIGHT });
+  }
+  pdf.restoreGraphicsState();
+}
+
 export async function createPrintingReceiptPdf(receipt: PrintingReceipt, transaction?: ReceiptPayment, artworkDataUrl?: string): Promise<jsPDF> {
-  const layout = getPrintingReceiptLayout(receipt.subcategory);
+  const layout = getPrintingReceiptLayout(receipt.subcategory, receipt.document.columnWidths);
   const artwork = artworkDataUrl ?? await loadArtwork(layout.artwork);
   const orientation = layout.width > layout.height ? "landscape" : "portrait";
   const pdf = new jsPDF({ orientation, unit: "mm", format: [layout.width, layout.height], compress: false });
@@ -57,6 +95,8 @@ export async function createPrintingReceiptPdf(receipt: PrintingReceipt, transac
       pdf.setFillColor(255, 255, 255);
       pdf.rect(layout.numberMask.x, layout.numberMask.y, layout.numberMask.width, layout.numberMask.height, "F");
     }
+    drawTable(pdf, page.table);
+    drawHeader(pdf, page.header);
     drawWatermark(pdf, watermark, layout.width, layout.height);
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(36, 34, 57);
