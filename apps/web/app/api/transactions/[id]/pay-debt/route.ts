@@ -120,23 +120,18 @@ export async function POST(
 
     const debtCustomerId = transaction.customerId ?? customerId ?? null;
 
-    if (!debtCustomerId) {
-      return NextResponse.json(
-        { message: "Customer wajib dipilih untuk mencatat pembayaran piutang" },
-        { status: 422 }
-      );
-    }
+    if (debtCustomerId) {
+      const debtCustomer = await db.customer.findFirst({
+        where: { id: debtCustomerId, storeId },
+        select: { id: true },
+      });
 
-    const debtCustomer = await db.customer.findFirst({
-      where: { id: debtCustomerId, storeId },
-      select: { id: true },
-    });
-
-    if (!debtCustomer) {
-      return NextResponse.json(
-        { message: "Customer tidak ditemukan untuk pembayaran piutang" },
-        { status: 404 }
-      );
+      if (!debtCustomer) {
+        return NextResponse.json(
+          { message: "Customer tidak ditemukan untuk pembayaran piutang" },
+          { status: 404 }
+        );
+      }
     }
 
     // Process payment in a transaction.
@@ -151,10 +146,12 @@ export async function POST(
     // with 409 and record nothing.
     const updated = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // Match the customer → invoice lock order used by checkout and void.
-      await tx.$queryRawUnsafe(
-        'SELECT "id" FROM "pos_customers" WHERE "id" = $1 AND "storeId" = $2 FOR UPDATE',
-        debtCustomerId, storeId,
-      );
+      if (debtCustomerId) {
+        await tx.$queryRawUnsafe(
+          'SELECT "id" FROM "pos_customers" WHERE "id" = $1 AND "storeId" = $2 FOR UPDATE',
+          debtCustomerId, storeId,
+        );
+      }
       const fresh = await tx.transaction.findFirst({
         where: { id, storeId },
         select: {
@@ -170,6 +167,7 @@ export async function POST(
 
       if (
         !fresh ||
+        fresh.customerId !== transaction.customerId ||
         !isActiveDebt({
           status: fresh.status,
           paymentMethod: fresh.paymentMethod,
@@ -199,12 +197,13 @@ export async function POST(
           status: fresh.status,
           amountPaid: fresh.amountPaid,
           total: fresh.total,
+          customerId: fresh.customerId,
           ...(fresh.status === "COMPLETED" ? { paymentMethod: "TEMPO" } : {}),
         },
         data: {
           amountPaid: newAmountPaid,
           status: newStatus,
-          ...(fresh.customerId ? {} : { customerId: debtCustomerId }),
+          ...(!fresh.customerId && debtCustomerId ? { customerId: debtCustomerId } : {}),
           // Append the manual note if provided, else keep existing note
           note: note
             ? (fresh.note ? `${fresh.note} | ${note}` : note)
@@ -232,20 +231,20 @@ export async function POST(
         if (guardedCustomer.count !== 1) {
           throw new DebtConflictError();
         }
-
-        if (resolvedPayments.length > 0) {
-          await tx.debtPaymentLog.createMany({
-            data: resolvedPayments.map((p) => ({
-              transactionId: id,
-              customerId: debtCustomerId,
-              storeId,
-              amount: p.amount,
-              paymentMethod: p.method,
-              note: note || null,
-            })),
-          });
-        }
       }
+
+      // Umum invoices have no customer ledger, but every payment must remain
+      // linked to its invoice for debt history and financial collections.
+      await tx.debtPaymentLog.createMany({
+        data: resolvedPayments.map((p) => ({
+          transactionId: id,
+          customerId: debtCustomerId,
+          storeId,
+          amount: p.amount,
+          paymentMethod: p.method,
+          note: note || null,
+        })),
+      });
 
       return {
         id,

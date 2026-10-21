@@ -320,7 +320,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "customer", action: "update" }],
     steps: [
       { title: "Buka tab Piutang", description: "Di halaman Pelanggan, pilih tab Piutang." },
-      { title: "Pilih piutang", description: "Untuk invoice DP atau Tempo, cari invoice lalu klik Bayar Piutang. Untuk Piutang manual, buka bagian Piutang Manual di tab Piutang atau detail pelanggan, lalu klik Bayar Piutang Manual pada catatan yang dituju." },
+      { title: "Pilih piutang", description: "Untuk invoice DP atau Tempo, cari invoice lalu klik Bayar Piutang. Invoice DP Umum tanpa pelanggan terdaftar dapat langsung dicicil atau dilunasi tanpa memilih pelanggan; riwayat pembayaran tetap mengikuti invoice. Untuk Piutang manual, buka bagian Piutang Manual di tab Piutang atau detail pelanggan, lalu klik Bayar Piutang Manual pada catatan yang dituju." },
       { title: "Isi pembayaran", description: "Invoice menerima satu atau beberapa metode pembayaran dengan nominal masing-masing. Piutang manual memakai satu metode per pembayaran: Tunai, Debit, Kartu Kredit, QRIS, atau Transfer. Isi nominal lebih dari nol, maksimal sisa piutang; pembayaran boleh sebagian atau lunas." },
       { title: "Simpan dan cek riwayat", description: "Tambahkan catatan bila perlu. Untuk invoice klik Proses Pembayaran; untuk piutang manual klik Simpan Pembayaran lalu buka Riwayat pembayaran. Catatan manual yang lunas tetap tersimpan dan dapat dilihat melalui filter Semua piutang." },
       { title: "Alternatif dari Riwayat", description: "Untuk transaksi DP atau Tempo, buka detail transaksi di Riwayat dan gunakan tombol Bayar Cicilan. Pembayaran mengurangi sisa tagihan, bukan stok." },

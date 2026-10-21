@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "piutang-dp-umum-payment", date: "2026-10-21", revision: 1,
+    highlight: { title: "Pelunasan DP pelanggan Umum", summary: "Bayar sisa DP Umum tanpa harus memilih pelanggan terdaftar." },
+    title: "Sisa DP Umum bisa dicicil atau dilunasi.",
+    summary: "Pembayaran invoice DP Umum tanpa pelanggan terdaftar kini dapat diproses. Cicilan dan pelunasan tetap tercatat pada invoice serta laporan penerimaan pembayaran.",
+    kind: "fix", area: "Piutang", href: "/customers", visual: "changelog",
+    steps: [
+      { title: "Cari invoice Umum", detail: "Buka Pelanggan, pilih tab Piutang, lalu cari invoice DP Umum yang belum lunas." },
+      { title: "Isi pembayaran", detail: "Klik Bayar Piutang, pilih metode pembayaran, dan isi nominal maksimal sisa tagihan. Invoice Umum tanpa pelanggan terdaftar dapat dibayar langsung." },
+      { title: "Periksa hasil", detail: "Klik Proses Pembayaran. Sisa tagihan berkurang; jika lunas, invoice tetap tersedia pada filter Lunas." },
+    ],
+  },
+  {
     id: "pos-cart-overstock-quantity-warning", date: "2026-10-21", revision: 1,
     highlight: { title: "Tambah jumlah saat stok kosong", summary: "Naikkan jumlah di keranjang dengan konfirmasi saat stok tidak mencukupi." },
     title: "Tambah jumlah keranjang meski stok kosong.",

@@ -264,6 +264,72 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     });
   });
 
+  it.each([
+    { amount: 50000, status: "DP" },
+    { amount: 150000, status: "COMPLETED" },
+  ])("records an Umum DP payment of $amount without requiring a customer", async ({ amount, status }) => {
+    const unlinked = { id: "tx-dp-1", status: "DP", paymentMethod: "CASH", total: 200000, amountPaid: 50000, customerId: null, note: null };
+    transactionFindFirstMock.mockResolvedValue({ ...unlinked });
+    txTransactionFindFirstMock.mockResolvedValue({ ...unlinked });
+
+    const response = await POST(new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+      method: "POST", body: JSON.stringify({ amount, paymentMethod: "TRANSFER" }),
+    }), { params: Promise.resolve({ id: "tx-dp-1" }) });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ transaction: { amountPaid: 50000 + amount, status } });
+    expect(transactionUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ customerId: null, amountPaid: 50000 }),
+      data: expect.objectContaining({ amountPaid: 50000 + amount, status }),
+    }));
+    expect(transactionUpdateManyMock.mock.calls[0][0].data).not.toHaveProperty("customerId");
+    expect(customerFindFirstMock).not.toHaveBeenCalled();
+    expect(lockCustomerMock).not.toHaveBeenCalled();
+    expect(customerUpdateManyMock).not.toHaveBeenCalled();
+    expect(debtPaymentLogCreateManyMock).toHaveBeenCalledWith({ data: [{
+      transactionId: "tx-dp-1", customerId: null, storeId: "store-main", amount, paymentMethod: "TRANSFER", note: null,
+    }] });
+  });
+
+  it("preserves each payment method and note when an Umum invoice is settled", async () => {
+    const unlinked = { id: "tx-dp-1", status: "DP", paymentMethod: "CASH", total: 200000, amountPaid: 50000, customerId: null, note: null };
+    transactionFindFirstMock.mockResolvedValue({ ...unlinked });
+    txTransactionFindFirstMock.mockResolvedValue({ ...unlinked });
+    const response = await POST(new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+      method: "POST", body: JSON.stringify({ amount: 150000, note: "Pelunasan umum", payments: [
+        { method: "CASH", amount: 50000 }, { method: "QRIS", amount: 100000 },
+      ] }),
+    }), { params: Promise.resolve({ id: "tx-dp-1" }) });
+    expect(response.status).toBe(200);
+    expect(debtPaymentLogCreateManyMock).toHaveBeenCalledWith({ data: [
+      { transactionId: "tx-dp-1", customerId: null, storeId: "store-main", amount: 50000, paymentMethod: "CASH", note: "Pelunasan umum" },
+      { transactionId: "tx-dp-1", customerId: null, storeId: "store-main", amount: 100000, paymentMethod: "QRIS", note: "Pelunasan umum" },
+    ] });
+  });
+
+  it("rejects an Umum payment when the invoice was concurrently linked to a customer", async () => {
+    transactionFindFirstMock.mockResolvedValue({ id: "tx-dp-1", status: "DP", total: 200000, amountPaid: 50000, customerId: null, note: null });
+    const response = await POST(new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+      method: "POST", body: JSON.stringify({ amount: 150000 }),
+    }), { params: Promise.resolve({ id: "tx-dp-1" }) });
+    expect(response.status).toBe(409);
+    expect(transactionUpdateManyMock).not.toHaveBeenCalled();
+    expect(debtPaymentLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a concurrent Umum settlement without recording a duplicate payment", async () => {
+    const unlinked = { id: "tx-dp-1", status: "DP", total: 200000, amountPaid: 50000, customerId: null, note: null };
+    transactionFindFirstMock.mockResolvedValue({ ...unlinked });
+    txTransactionFindFirstMock.mockResolvedValue({ ...unlinked });
+    transactionUpdateManyMock.mockResolvedValue({ count: 0 });
+    const response = await POST(new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+      method: "POST", body: JSON.stringify({ amount: 150000 }),
+    }), { params: Promise.resolve({ id: "tx-dp-1" }) });
+    expect(response.status).toBe(409);
+    expect(customerUpdateManyMock).not.toHaveBeenCalled();
+    expect(debtPaymentLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
   it("returns 409 when a concurrent payment already completed the transaction", async () => {
     // In-tx re-read sees the transaction already paid off by a racing request.
     txTransactionFindFirstMock.mockResolvedValueOnce({

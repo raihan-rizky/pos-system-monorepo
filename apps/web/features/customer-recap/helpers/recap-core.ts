@@ -46,7 +46,7 @@ export interface CustomerRecapTransaction {
 
 export interface CustomerRecapDebtPaymentLog {
   transactionId?: string;
-  customerId: string;
+  customerId: string | null;
   amount: NullableNumber;
   createdAt: Date;
   transaction?: {
