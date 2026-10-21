@@ -69,7 +69,7 @@ try {
   await page.addStyleTag({content:css.css}); await page.addScriptTag({content:bundle.outputFiles[0].text});
   const pagers=page.getByRole('navigation',{name:/Pagination produk/}); await pagers.first().waitFor();
   const verifyMarkup=async()=>{
-    for(const pattern of [/^Markup: Rp\s*3\.500 \(35%\)$/,/^Markup: Rp\s*2\.000 \(20%\)$/,/^Markup: Rp\s*13\.500 \(—\)$/,/^Markup: -Rp\s*2\.000 \(-20%\)\s*Di bawah HPP$/]){
+    for(const pattern of [/^MU : Rp\s*3\.500 \(35%\)$/,/^MU : Rp\s*2\.000 \(20%\)$/,/^MU : Rp\s*13\.500 \(—\)$/,/^MU : -Rp\s*2\.000 \(-20%\)\s*Di bawah HPP$/]){
       const matches=page.getByText(pattern).filter({visible:true});
       assert.equal(await matches.count(),1,'visible markup in the actual product view: '+pattern+' '+JSON.stringify(await matches.evaluateAll(elements=>elements.map(el=>({tag:el.tagName,text:el.textContent,parent:el.parentElement.textContent})))));
     }

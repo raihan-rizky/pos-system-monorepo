@@ -152,7 +152,7 @@ export default function ProductTable({
                           HPP: {new Intl.NumberFormat("id-ID").format(product.costPrice)}
                         </p>
                         <p className={`text-[11px] font-medium mt-0.5 tabular-nums ${effectivePrice < product.costPrice ? "text-red-700" : "text-emerald-600"}`}>
-                          Markup: {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(effectivePrice - product.costPrice)} ({product.costPrice > 0 ? new Intl.NumberFormat("id-ID", { style: "percent", maximumFractionDigits: 1 }).format((effectivePrice - product.costPrice) / product.costPrice) : "—"})
+                          MU : {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(effectivePrice - product.costPrice)} ({product.costPrice > 0 ? new Intl.NumberFormat("id-ID", { style: "percent", maximumFractionDigits: 1 }).format((effectivePrice - product.costPrice) / product.costPrice) : "—"})
                           {effectivePrice < product.costPrice && <span className="block">Di bawah HPP</span>}
                         </p>
                       </>
@@ -380,7 +380,7 @@ export default function ProductTable({
                         HPP: {new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.costPrice)}
                       </p>
                       <p className={`text-[10px] font-bold mt-0.5 ${effectivePrice < product.costPrice ? "text-red-700" : "text-emerald-600"}`}>
-                        Markup: {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(effectivePrice - product.costPrice)} ({product.costPrice > 0 ? new Intl.NumberFormat("id-ID", { style: "percent", maximumFractionDigits: 1 }).format((effectivePrice - product.costPrice) / product.costPrice) : "—"})
+                        MU : {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(effectivePrice - product.costPrice)} ({product.costPrice > 0 ? new Intl.NumberFormat("id-ID", { style: "percent", maximumFractionDigits: 1 }).format((effectivePrice - product.costPrice) / product.costPrice) : "—"})
                         {effectivePrice < product.costPrice && <span className="block">Di bawah HPP</span>}
                       </p>
                     </>

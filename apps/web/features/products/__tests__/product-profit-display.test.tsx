@@ -22,24 +22,24 @@ function renderProduct(overrides: Partial<Product> = {}, canChangePrice = true) 
 describe("Inventory gross profit and markup", () => {
   it("shows Rp3.500 profit and 35% markup on cost in both table and cards", () => {
     const { text } = renderProduct();
-    expect(text.match(/Markup: Rp\s*3\.500\s*\(35%\)/g)).toHaveLength(2);
+    expect(text.match(/MU : Rp\s*3\.500\s*\(35%\)/g)).toHaveLength(2);
     expect(text).not.toContain("Margin:");
     expect(text).not.toContain("25,9%");
   });
 
   it("uses the displayed selling price for profit and markup", () => {
     const { text } = renderProduct({ displayPrice: 12000 });
-    expect(text.match(/Markup: Rp\s*2\.000\s*\(20%\)/g)).toHaveLength(2);
+    expect(text.match(/MU : Rp\s*2\.000\s*\(20%\)/g)).toHaveLength(2);
   });
 
   it("formats fractional markup with an Indonesian decimal separator", () => {
     const { text } = renderProduct({ price: 13555 });
-    expect(text.match(/Markup: Rp\s*3\.555\s*\(35,6%\)/g)).toHaveLength(2);
+    expect(text.match(/MU : Rp\s*3\.555\s*\(35,6%\)/g)).toHaveLength(2);
   });
 
   it.each([
-    { price: 8000, profit: /Markup: -Rp\s*2\.000\s*\(-20%\)/g },
-    { price: 0, profit: /Markup: -Rp\s*10\.000\s*\(-100%\)/g },
+    { price: 8000, profit: /MU : -Rp\s*2\.000\s*\(-20%\)/g },
+    { price: 0, profit: /MU : -Rp\s*10\.000\s*\(-100%\)/g },
   ])("keeps the loss warning and negative markup at selling price $price", ({ price, profit }) => {
     const { text, html } = renderProduct({ price });
     expect(text.match(profit)).toHaveLength(2);
@@ -49,23 +49,23 @@ describe("Inventory gross profit and markup", () => {
 
   it("shows zero markup at break-even", () => {
     const { text } = renderProduct({ price: 10000 });
-    expect(text.match(/Markup: Rp\s*0\s*\(0%\)/g)).toHaveLength(2);
+    expect(text.match(/MU : Rp\s*0\s*\(0%\)/g)).toHaveLength(2);
     expect(text).not.toContain("Di bawah HPP");
   });
 
   it("shows profit but no calculable markup when HPP is zero", () => {
     const { text } = renderProduct({ costPrice: 0 });
-    expect(text.match(/Markup: Rp\s*13\.500\s*\(—\)/g)).toHaveLength(2);
+    expect(text.match(/MU : Rp\s*13\.500\s*\(—\)/g)).toHaveLength(2);
     expect(text).not.toMatch(/Infinity|NaN/);
   });
 
   it("hides cost and profit when HPP is missing", () => {
     const { text } = renderProduct({ costPrice: null });
-    expect(text).not.toMatch(/HPP:|Laba kotor:|Markup/);
+    expect(text).not.toMatch(/HPP:|Laba kotor:|MU :/);
   });
 
   it("hides cost and profit without price permission", () => {
     const { text } = renderProduct({}, false);
-    expect(text).not.toMatch(/HPP:|Laba kotor:|Markup/);
+    expect(text).not.toMatch(/HPP:|Laba kotor:|MU :/);
   });
 });

@@ -9,9 +9,9 @@ describe("catalog effective price display", () => {
     const html = renderToStaticMarkup(<ProductTable products={[product]} isLoading={false} onEdit={() => {}} canUpdateProduct={false} canChangePrice />);
     expect(html).toContain("4.700");
     expect(html).toContain("Harga Khusus");
-    expect(html.match(/Markup: -Rp\s*4\.300 \(-47,8%\)/g)).toHaveLength(2);
+    expect(html.match(/MU : -Rp\s*4\.300 \(-47,8%\)/g)).toHaveLength(2);
     expect(html).toContain("text-emerald-800");
-    const markups = [...html.matchAll(/<p class="([^"]*)">\s*Markup: ([\s\S]*?)<\/p>/g)];
+    const markups = [...html.matchAll(/<p class="([^"]*)">\s*MU : ([\s\S]*?)<\/p>/g)];
     expect(markups).toHaveLength(2);
     for (const [, classes, text] of markups) {
       expect(classes).toContain("text-red-700");
@@ -23,11 +23,11 @@ describe("catalog effective price display", () => {
     const product = { id: "pcs", name: "Contoh", sku: "PCS", unit: "pcs", stock: 5, minStock: 1, price: 10000, costPrice: 0, category: { id: "paper", name: "Kertas", icon: null, color: null } } as Product;
     const props = { products: [product], isLoading: false, onEdit: () => {}, canUpdateProduct: false };
     const html = renderToStaticMarkup(<ProductTable {...props} canChangePrice />);
-    expect(html.match(/Markup: Rp\s*10\.000 \(—\)/g)).toHaveLength(2);
+    expect(html.match(/MU : Rp\s*10\.000 \(—\)/g)).toHaveLength(2);
     expect(html).not.toMatch(/Infinity|NaN/);
     expect(html).not.toContain("Di bawah HPP");
     const restricted = renderToStaticMarkup(<ProductTable {...props} canChangePrice={false} />);
     expect(restricted).not.toContain("HPP:");
-    expect(restricted).not.toContain("Markup:");
+    expect(restricted).not.toContain("MU :");
   });
 });
