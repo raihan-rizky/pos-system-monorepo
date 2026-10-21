@@ -131,6 +131,32 @@ try {
     await page.getByText("Tersimpan", { exact: true }).waitFor();
     assert.equal(records.get("created-1").document.title, "Banner Promosi Oktober");
     await openList();
+    const searchField = page.getByLabel("Cari nota SPANDUK", { exact: true });
+    await searchField.fill("Banner");
+    const collapseList = page.getByRole("button", { name: "Ciutkan daftar nota", exact: true });
+    await collapseList.waitFor();
+    assert.equal(await collapseList.getAttribute("aria-expanded"), "true");
+    const editorWidth = await page.locator(".printing-receipt-editor").evaluate(element => element.clientWidth);
+    await collapseList.focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await searchField.isVisible(), false);
+    assert.equal(await title.inputValue(), "Banner Promosi Oktober");
+    if (width >= 768) {
+      assert.ok(await page.locator(".printing-receipt-editor").evaluate(element => element.clientWidth) > editorWidth + 150);
+      const expandList = page.getByRole("button", { name: "Buka daftar nota", exact: true });
+      assert.equal(await expandList.getAttribute("aria-expanded"), "false");
+      assert.equal(await expandList.evaluate(element => document.activeElement === element), true);
+      await page.screenshot({ path: path.join(output, "daftar-nota-diciutkan.png") });
+      await page.keyboard.press("Space");
+    } else {
+      await openList();
+    }
+    assert.equal(await searchField.isVisible(), true);
+    assert.equal(await searchField.inputValue(), "Banner");
+    assert.equal(await title.inputValue(), "Banner Promosi Oktober");
+    assert.equal(await collapseList.getAttribute("aria-expanded"), "true");
+    await page.screenshot({ path: path.join(output, `daftar-nota-terbuka-${width}.png`) });
+    await searchField.fill("");
     const receiptCard = page.getByRole("button", { name: /Banner Promosi Oktober/ });
     await receiptCard.waitFor();
     assert.match(await receiptCard.innerText(), /SP-UJI-1/);

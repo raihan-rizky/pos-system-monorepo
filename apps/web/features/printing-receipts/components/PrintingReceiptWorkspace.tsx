@@ -52,6 +52,7 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
   const debouncedSearch = useDebounce(search.trim(), 300);
   const [page, setPage] = useState(1);
   const [listOpen, setListOpen] = useState(false);
+  const [listCollapsed, setListCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,7 +191,7 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
     </div>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-surface-200 bg-white px-3 py-2">
       <div className="flex items-center gap-2">
-        <Button variant="secondary" size="sm" className="md:hidden" aria-expanded={listOpen} aria-controls="printing-receipt-list" onClick={() => setListOpen(value => !value)}><List size={16} />Daftar nota</Button>
+        <Button variant="secondary" size="sm" className="md:hidden" aria-expanded={listOpen} aria-controls="printing-receipt-list" onClick={() => { setListCollapsed(false); setListOpen(value => !value); }}><List size={16} />Daftar nota</Button>
         <Button size="sm" disabled={!canCreate || busy} onClick={() => void createRecord()}><FilePlus2 size={16} />Buat Nota Kosong</Button>
       </div>
       <div className="flex items-center gap-2">
@@ -209,9 +210,20 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
         <button type="button" className="font-semibold underline" disabled={busy} onClick={() => setConfirmAction("reload")}>Muat ulang versi tersimpan</button>
       </div>}
     </div>}
-    <div className="printing-receipt-body" id="printing-receipt-panel" role="tabpanel" aria-label={`Nota ${subcategory}`}>
-      <aside className="printing-receipt-list" id="printing-receipt-list" data-open={listOpen} aria-label={`Daftar nota ${subcategory}`}>
-        <Input label={`Cari nota ${subcategory}`} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} icon={<Search size={15} />} placeholder="Judul, nomor, atau pelanggan" />
+    <div className="printing-receipt-body" data-list-collapsed={listCollapsed} id="printing-receipt-panel" role="tabpanel" aria-label={`Nota ${subcategory}`}>
+      <aside className="printing-receipt-list" id="printing-receipt-list" data-open={listOpen} data-collapsed={listCollapsed} aria-label={`Daftar nota ${subcategory}`}>
+        <div className="mb-1.5 flex items-center justify-end gap-1">
+          {!listCollapsed && <label htmlFor="printing-receipt-search" className="mr-auto text-sm font-medium text-surface-700">Cari nota {subcategory}</label>}
+          <button type="button" aria-label={listCollapsed ? "Buka daftar nota" : "Ciutkan daftar nota"}
+            title={listCollapsed ? "Buka daftar nota" : "Ciutkan daftar nota"}
+            aria-expanded={!listCollapsed} aria-controls="printing-receipt-list-content"
+            onClick={() => { setListCollapsed(value => !value); setListOpen(false); }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-surface-500 hover:bg-surface-100 hover:text-surface-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">
+            {listCollapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronLeft size={14} aria-hidden="true" />}
+          </button>
+        </div>
+        <div id="printing-receipt-list-content" hidden={listCollapsed}>
+        <Input id="printing-receipt-search" aria-label={`Cari nota ${subcategory}`} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} icon={<Search size={15} />} placeholder="Judul, nomor, atau pelanggan" />
         <div className="mt-3 space-y-2">
           {list.isLoading && <p role="status" className="py-5 text-center text-sm text-surface-500">Memuat nota...</p>}
           {list.isError && <div role="alert" className="text-sm text-danger-700">Daftar nota belum dapat dimuat. <button className="underline" onClick={() => void list.refetch()}>Coba lagi</button></div>}
@@ -229,6 +241,7 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
           <span>{page} / {list.data.pagination.totalPages}</span>
           <Button variant="ghost" size="sm" aria-label="Halaman nota berikutnya" disabled={page >= list.data.pagination.totalPages || list.isFetching} onClick={() => setPage(value => value + 1)}><ChevronRight size={16} /></Button>
         </div>}
+        </div>
       </aside>
       <main className="printing-receipt-editor">
         {receipt ? <>
