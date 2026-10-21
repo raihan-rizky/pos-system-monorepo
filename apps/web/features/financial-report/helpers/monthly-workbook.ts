@@ -2,12 +2,14 @@ import * as XLSX from "xlsx-js-style";
 import type { CellObject, WorkBook, WorkSheet } from "xlsx-js-style";
 import type { ExpenseGroup, IncomeGroup, MonthlyFinancialReport } from "./monthly-report-types";
 import { applyMonthlyPrintLayout } from "./monthly-workbook-print";
+import { MONTHLY_SHEET_THEMES } from "./monthly-workbook-theme";
+import { colorMonthlyWorkbookContent, type PurchaseColorSection } from "./monthly-workbook-content";
 
 const MONTHS = ["JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"];
 const INCOME: IncomeGroup[] = ["CETAK", "PLAT", "STEMPEL", "SPANDUK", "ATK", "PRINT", "UNMAPPED"];
 const EXPENSE: ExpenseGroup[] = ["CETAK_PLAT", "SPANDUK", "ATK", "OTHER", "SALARY"];
 const GROUP_LABELS: Record<ExpenseGroup, string> = { CETAK_PLAT: "Cetak / Plat", SPANDUK: "Spanduk", ATK: "ATK", OTHER: "Lain-lain", SALARY: "Gaji / Mingguan" };
-const COLORS = { ink: "15364A", accent: "0F766E", muted: "64748B", line: "D6E2E7", stripe: "F5F8FA", soft: "EAF3F3", input: "FFF4CF", white: "FFFFFF" };
+const COLORS = { ink: "0F172A", accent: "0079C7", muted: "64748B", line: "E2E8F0", stripe: "F8FAFC", soft: "E0EFFE", input: "FEF3C7", white: "FFFFFF" };
 const MONEY = '#,##0.00;[Red](#,##0.00);"-"';
 const dateSerial = (date: string) => Date.parse(`${date}T00:00:00Z`) / 86_400_000 + 25569;
 const moneySum = (values: number[]) => values.reduce((total, value) => total + Math.round(value * 100), 0) / 100;
@@ -98,6 +100,37 @@ function comment(cell: CellObject, text: string): void {
 
 function sumFormula(sheet: WorkSheet, row: number, column: number, start: number, end: number, cache: number): void {
   put(sheet, row, column, cache, `SUM(${address(start, column)}:${address(end, column)})`);
+}
+
+function insight(sheet: WorkSheet, row: number, columns: number, text: string, formula: string): void {
+  heading(sheet, row, text, columns, COLORS.soft);
+  const cell = sheet[address(row, 1)];
+  cell.f = formula;
+  cell.s.alignment.horizontal = "left";
+  sheet["!rows"]![row - 1] = { hpt: 30 };
+}
+
+function applySheetTheme(sheet: WorkSheet, index: number): void {
+  const theme = MONTHLY_SHEET_THEMES[index];
+  const fills: Record<string, string> = { [COLORS.ink]: theme.primary, [COLORS.accent]: theme.primary, [COLORS.soft]: theme.soft, [COLORS.stripe]: theme.stripe };
+  for (const key of Object.keys(sheet)) {
+    if (key.startsWith("!")) continue;
+    const cell = sheet[key] as CellObject;
+    const fill = cell.s?.fill?.fgColor?.rgb;
+    if (fills[fill]) cell.s.fill = { fgColor: { rgb: fills[fill] } };
+    if (fill === COLORS.soft) cell.s.font = { ...cell.s.font, color: { rgb: theme.primary } };
+  }
+  // Keep the full merged title/note colored, including its empty continuation cells.
+  for (const range of sheet["!merges"] ?? []) {
+    const fill = sheet[XLSX.utils.encode_cell(range.s)]?.s?.fill;
+    if (!fill) continue;
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+        if (cell) cell.s = { ...cell.s, fill };
+      }
+    }
+  }
 }
 
 /** Pure builder: no network, file system, customer fixtures or download side effects. */
@@ -272,6 +305,8 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   tableHeader(purchases, 5, ["No", "Pembayaran", "Tanggal", "Jatuh tempo", "Nilai", "Keterangan"]);
   let purchaseRow = 7;
   const purchasedExpenses = expenses.filter((entry) => entry.purchase);
+  const purchaseTotalCells: string[] = [];
+  const purchaseSections: PurchaseColorSection[] = [];
   const methods = [...new Set(["GIRO", "TRANSFER", ...purchasedExpenses.map((entry) => entry.purchase!.method || "LAINNYA")])];
   for (const method of methods) {
     heading(purchases, purchaseRow, method === "LAINNYA" ? "METODE LAIN / BELUM TERSEDIA" : `VIA ${method}`, 6);
@@ -291,18 +326,34 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
     if (!rows.length) { put(purchases, first, 6, "Belum ada belanja tercatat untuk metode ini."); put(purchases, first, 5, 0); }
     const total = first + Math.max(1, rows.length);
     put(purchases, total, 2, "TOTAL"); sumFormula(purchases, total, 5, first, total - 1, moneySum(rows.map((entry) => entry.amount))); band(purchases, total, 1, 6, COLORS.soft);
+    purchaseTotalCells.push(`E${total}`);
+    purchaseSections.push({ firstRow: first, totalRow: total, method });
     purchaseRow = total + 3;
   }
   heading(purchases, purchaseRow, "Rincian belanja sudah termasuk pengeluaran pada RP. Giro tidak otomatis berarti hutang.", 6, COLORS.soft);
   purchases["!rows"]![purchaseRow - 1] = { hpt: 32 };
   finish(purchases, purchaseRow + 1, 6);
 
+  const currency = (amount: number) => amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const cashStatus = netAmount < 0 ? "Defisit kas" : netAmount > 0 ? "Surplus kas" : "Kas seimbang";
+  insight(overview, 6, 7, `${cashStatus}: Rp ${currency(netAmount)} · Modal awal: isi D8`, 'IF(G29<0,"Defisit kas",IF(G29>0,"Surplus kas","Kas seimbang"))&": Rp "&TEXT(G29,"#,##0.00")&" · Modal awal: isi D8"');
+  insight(net, 6, 10, totalIncome > 0 ? `Sisa kas: ${(netAmount / totalIncome * 100).toFixed(1)}% dari penerimaan · Basis kas` : "Belum ada penerimaan · Persentase sisa kas belum tersedia", 'IF(F24>0,"Sisa kas: "&TEXT(F27/F24,"0.0%")&" dari penerimaan · Basis kas","Belum ada penerimaan · Persentase sisa kas belum tersedia")');
+  insight(daily, 8, 12, `Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)} · Sudah termasuk total pendapatan`, `"Perlu pemetaan: Rp "&TEXT(G${dailyTotal + 2},"#,##0.00")&" · Sudah termasuk total pendapatan"`);
+  insight(rc, 6, 9, `${income.length} penerimaan · Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)}`, `COUNT(A7:A${rcEnd})&" penerimaan · Perlu pemetaan: Rp "&TEXT(H${rcTotal},"#,##0.00")`);
+  insight(rp, 6, 7, `${expenses.length} pengeluaran · Gaji / mingguan: Rp ${currency(expenseTotals.SALARY)}`, `COUNT(A7:A${rpEnd})&" pengeluaran · Gaji / mingguan: Rp "&TEXT(E${rpTotal},"#,##0.00")`);
+  insight(purchases, 6, 6, `Belanja: Rp ${currency(moneySum(purchasedExpenses.map(entry => entry.amount)))} · Sudah termasuk RP`, `"Belanja: Rp "&TEXT(SUM(${purchaseTotalCells.join(",")}),"#,##0.00")&" · Sudah termasuk RP"`);
+  insight(balances, 6, 7, `${report.receivables.length} nota piutang · Hutang belum tersedia`, `COUNT(B7:B${balanceEnd})&" nota piutang · Hutang belum tersedia"`);
+
   const sheets = [overview, net, daily, rc, rp, purchases, balances];
-  sheets.forEach((sheet, index) => XLSX.utils.book_append_sheet(wb, sheet, names[index]));
+  sheets.forEach((sheet, index) => {
+    applySheetTheme(sheet, index);
+    XLSX.utils.book_append_sheet(wb, sheet, names[index]);
+  });
   wb.Workbook = { Names: sheets.flatMap((sheet, index) => [
     { Name: "_xlnm.Print_Area", Sheet: index, Ref: `${quote(names[index])}!$${sheet["!ref"]!.replace(":", ":$").replace(/(\D)(\d)/g, "$1$$$2")}` },
     { Name: "_xlnm.Print_Titles", Sheet: index, Ref: `${quote(names[index])}!$1:$${index === 2 ? 8 : index === 5 ? 5 : 6}` },
   ]) };
+  colorMonthlyWorkbookContent(wb, { dailyTotal, rcEnd, rcTotal, rpEnd, rpTotal, balanceEnd, balanceTotal, debtRow, debtTotal, purchaseSections });
   return wb;
 }
 

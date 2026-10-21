@@ -30,15 +30,15 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     id: "monthly-financial-excel-template", date: "2026-10-21", revision: 1,
-    highlight: { title: "Excel keuangan 7 sheet", summary: "Pilih bulan laporan, unduh tujuh sheet, lalu lengkapi modal awal di Excel." },
+    highlight: { title: "Excel keuangan 7 sheet", summary: "Tujuh sheet berwarna dengan ringkasan kas dan kolom yang bebas digeser." },
     title: "Laporan bulanan dalam satu Excel.",
-    summary: "Pilih bulan dan tahun untuk mengunduh laporan Excel tujuh sheet dengan susunan yang konsisten. Ringkasan, rincian transaksi, belanja, serta piutang/hutang tersedia dalam satu file; modal awal diisi langsung di Excel.",
+    summary: "Isi ketujuh sheet Excel memakai warna tema web untuk kategori, pendapatan, pengeluaran, dan total. Layout tetap konsisten, kolom bebas digeser, dan modal awal diisi langsung di Excel.",
     kind: "feature", area: "Keuangan", href: "/financial-report", visual: "quotation",
     screenshot: { src: "/images/changelog/ekspor-keuangan-bulanan.png", alt: "Dialog ekspor laporan bulanan dengan pilihan bulan dan tahun, daftar tujuh sheet, serta catatan modal awal tanpa data transaksi atau pelanggan" },
     steps: [
       { title: "Buka ekspor", detail: "Masuk ke Laporan Keuangan, klik Ekspor, dan gunakan Laporan bulanan · Excel 7 sheet." },
       { title: "Pilih periode", detail: "Pilih bulan dan tahun, periksa rentang WIB serta daftar sheet, lalu klik Unduh Excel." },
-      { title: "Lengkapi modal awal", detail: "Buka file dan isi sel kuning D8 di LAP KEU. Saldo persediaan akhir dan hutang pemasok yang belum tersedia tetap kosong; jurnal dan PDF ada di pilihan Jurnal transaksi." },
+      { title: "Periksa ringkasan dan modal", detail: "Buka tab berwarna dan baca ringkasan di atas tabel. Kolom bebas digeser; header atas tetap terlihat. Isi modal awal di sel kuning D8 pada LAP KEU; saldo yang belum tersedia tetap kosong." },
     ],
   },
   {

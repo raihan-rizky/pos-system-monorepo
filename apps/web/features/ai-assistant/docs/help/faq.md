@@ -248,6 +248,7 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 **A:** Anda dapat mengunduh salinan data laporan keuangan ke perangkat Anda:
 1. Di bagian kanan atas halaman Laporan Keuangan, klik tombol **Ekspor**.
 2. Untuk template Excel bulanan, pilih **bulan dan tahun**. Berkas berisi tujuh sheet: **LAP KEU**, **BERSIH**, nama bulan, **RC [bulan]**, **RP [bulan]**, **PENGELUARAN BELANJA**, dan **PIUTANG & HUTANG**.
+   Setiap tab memiliki warna dan ringkasan di atas tabel. Kolom kiri tidak dibekukan, sehingga seluruh tabel bebas digeser; header atas tetap terlihat pada sheet rincian.
 3. Klik **Unduh Excel**, lalu isi **modal awal** langsung di sel **D8** sheet **LAP KEU**. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan; pengeluaran gaji yang tercatat tetap dihitung. Persediaan akhir dan hutang pemasok dibiarkan kosong karena saldo historisnya belum tersedia.
 4. Untuk ekspor sebelumnya, buka **Jurnal transaksi · Excel / PDF**, pilih format serta periode **Harian**, **Mingguan**, **30 hari terakhir**, atau **Bulanan** (bulan berjalan), lalu unduh.
    *(Filter tanggal di halaman tidak mengubah berkas ekspor. Isi berkas mengikuti periode yang dipilih dalam dialog Ekspor.)*

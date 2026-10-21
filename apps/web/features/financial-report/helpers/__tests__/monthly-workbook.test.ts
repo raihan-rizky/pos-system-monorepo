@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as XLSX from "xlsx-js-style";
 import { buildMonthlyWorkbook, monthlySheetNames, serializeMonthlyWorkbook } from "../monthly-workbook";
 import type { MonthlyFinancialReport } from "../monthly-report-types";
+import * as contentColors from "../monthly-workbook-content";
+import sharedTheme from "@pos/config/tailwind.config";
+import tailwindColors from "tailwindcss/colors";
 
 function report(): MonthlyFinancialReport {
   return {
@@ -115,7 +118,128 @@ describe("monthly workbook", () => {
   it("provides explicit light backgrounds for empty and numeric report cells", () => {
     const wb = buildMonthlyWorkbook(report());
     expect(wb.Sheets["LAP KEU"].A1.s.fill.fgColor.rgb).toBe("FFFFFF");
-    expect(wb.Sheets.SEPTEMBER.B9.s.fill.fgColor.rgb).toBe("FFFFFF");
+    expect(wb.Sheets.SEPTEMBER.B9.s.fill.fgColor.rgb).toBe("F0F7FF");
+  });
+
+  it("uses the website brand, accent, surfaces and financial status palettes throughout the content", () => {
+    const colors = sharedTheme.theme!.extend!.colors as Record<string, Record<string, string>>;
+    const allowed = new Set([
+      "FFFFFF",
+      ...Object.values(colors).flatMap(scale => Object.values(scale).map(hex => hex.slice(1).toUpperCase())),
+      ...[tailwindColors.emerald, tailwindColors.amber, tailwindColors.red].flatMap(scale => Object.values(scale).map(hex => hex.slice(1).toUpperCase())),
+    ]);
+    const workbook = buildMonthlyWorkbook(report());
+    for (const name of workbook.SheetNames) {
+      for (const [address, cell] of Object.entries(workbook.Sheets[name])) {
+        if (address.startsWith("!")) continue;
+        const rgbValues = JSON.stringify(cell.s).matchAll(/"rgb":"([A-F0-9]{6})"/g);
+        for (const [, rgb] of rgbValues) expect(allowed.has(rgb), `${name}!${address}: #${rgb}`).toBe(true);
+      }
+    }
+    expect(workbook.Sheets["LAP KEU"].A2.s.fill.fgColor.rgb).toBe(colors.brand[700].slice(1).toUpperCase());
+    expect(workbook.Sheets["LAP KEU"].E26.s.fill.fgColor.rgb).toBe(colors.accent[100].slice(1).toUpperCase());
+  });
+
+  it("colors data cells within every sheet by category and financial role", () => {
+    const wb = buildMonthlyWorkbook(report());
+    const probes: Record<string, string[]> = {
+      "LAP KEU": ["D8", "D9", "D13", "D17", "E24", "E26"],
+      BERSIH: ["B13", "C13", "D13", "E13", "J13", "F24", "F25"],
+      SEPTEMBER: ["B9", "C9", "D9", "E9", "F9", "G9", "L9"],
+      "RC SEPTEMBER": ["B7", "C7", "D7", "E7", "F7", "G7", "H7"],
+      "RP SEPTEMBER": ["A7", "D7", "E7", "F7", "G7"],
+      "PENGELUARAN BELANJA": ["B9", "C9", "D9", "E9"],
+      "PIUTANG & HUTANG": ["B7", "C7", "D7", "G7"],
+    };
+    for (const [name, cells] of Object.entries(probes)) {
+      const colors = cells.map(cell => wb.Sheets[name][cell].s.fill.fgColor.rgb);
+      expect(new Set(colors).size, name).toBeGreaterThanOrEqual(4);
+      expect(colors, name).not.toContain("FFFFFF");
+    }
+    const daily = wb.Sheets.SEPTEMBER;
+    expect(daily.B5.s.fill.fgColor.rgb).not.toBe(daily.H5.s.fill.fgColor.rgb);
+    expect(daily.B7.s.fill.fgColor.rgb).not.toBe(daily.C7.s.fill.fgColor.rgb);
+    expect(daily.B9.s.fill.fgColor.rgb).not.toBe(daily.B10.s.fill.fgColor.rgb);
+    expect(daily.B9.s.fill.fgColor.rgb).toBe(wb.Sheets["RC SEPTEMBER"].B7.s.fill.fgColor.rgb);
+    expect(wb.Sheets["RP SEPTEMBER"].E7.s.fill.fgColor.rgb).toBe(daily.L9.s.fill.fgColor.rgb);
+    expect(wb.Sheets["PENGELUARAN BELANJA"].A7.s.fill.fgColor.rgb).not.toBe(wb.Sheets["PENGELUARAN BELANJA"].A13.s.fill.fgColor.rgb);
+    expect(wb.Sheets["PIUTANG & HUTANG"].A12.s.fill.fgColor.rgb).not.toBe(wb.Sheets["PIUTANG & HUTANG"].A1.s.fill.fgColor.rgb);
+    expect(wb.Sheets["LAP KEU"].D8.v).toBe("");
+    expect(wb.Sheets["LAP KEU"].D17.v).toBe("");
+    expect(wb.Sheets.BERSIH.F27.f).toBe("F24-F25");
+  });
+
+  it("changes only styles while preserving every cell, merge, dimension and print definition", () => {
+    const original = contentColors.colorMonthlyWorkbookContent;
+    const withoutStyles = (workbook: XLSX.WorkBook) => JSON.parse(JSON.stringify(workbook, (key, value) => key === "s" && value?.fill ? undefined : value));
+    const spy = vi.spyOn(contentColors, "colorMonthlyWorkbookContent").mockImplementation((workbook, layout) => {
+      const before = withoutStyles(workbook);
+      original(workbook, layout);
+      expect(withoutStyles(workbook)).toEqual(before);
+    });
+    try {
+      buildMonthlyWorkbook(report());
+      const empty = { ...report(), month: 2, from: "2026-02-01", to: "2026-02-28", income: [], expenses: [], receivables: [] };
+      buildMonthlyWorkbook(empty);
+      const extraMethod = report();
+      extraMethod.expenses[2].purchase!.method = "TUNAI";
+      buildMonthlyWorkbook(extraMethod);
+      expect(spy).toHaveBeenCalledTimes(3);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("gives every sheet a distinct readable theme without moving existing tables", () => {
+    const wb = buildMonthlyWorkbook(report());
+    const titles = wb.SheetNames.map(name => wb.Sheets[name].A2.s.fill.fgColor.rgb);
+    expect(new Set(titles).size).toBe(7);
+    for (const name of wb.SheetNames) {
+      const ws = wb.Sheets[name];
+      expect(ws.A2.s.font.color.rgb).toBe("FFFFFF");
+      expect(ws[name === "SEPTEMBER" ? "A8" : "A6"].v).not.toBe("");
+      expect(ws[name === "SEPTEMBER" ? "A8" : "A6"].f).toBeTruthy();
+    }
+    expect(wb.Sheets["RC SEPTEMBER"].A7.v).toBeTypeOf("number");
+    expect(wb.Sheets["RP SEPTEMBER"].F7.v).toBe(30.1);
+    expect(wb.Sheets["PENGELUARAN BELANJA"].A7.v).toBe("VIA GIRO");
+    expect(wb.Sheets["LAP KEU"].D8.v).toBe("");
+    expect(wb.Sheets["LAP KEU"].D8.s.fill.fgColor.rgb).toBe("FEF3C7");
+  });
+
+  it("summarizes actual cash, mapping, salary, purchases and unavailable debt in existing spaces", () => {
+    const wb = buildMonthlyWorkbook(report());
+    expect(wb.Sheets["LAP KEU"].A6.v).toContain("Surplus kas");
+    expect(wb.Sheets.BERSIH.A6.v).toContain("71.4%");
+    expect(wb.Sheets.SEPTEMBER.A8.v).toContain("7.25");
+    expect(wb.Sheets["RC SEPTEMBER"].A6.v).toContain("2 penerimaan");
+    expect(wb.Sheets["RP SEPTEMBER"].A6.v).toContain("40.00");
+    expect(wb.Sheets["PENGELUARAN BELANJA"].A6.v).toContain("15.50");
+    expect(wb.Sheets["PIUTANG & HUTANG"].A6.v).toContain("Hutang belum tersedia");
+    expect(wb.Sheets["PENGELUARAN BELANJA"].A6.f).toContain("E10");
+    const empty = buildMonthlyWorkbook({ ...report(), income: [], expenses: [], receivables: [] });
+    expect(empty.Sheets.BERSIH.A6.v).toContain("Belum ada penerimaan");
+    expect(empty.Sheets["RC SEPTEMBER"].A6.v).toContain("0 penerimaan");
+    expect(empty.Sheets["RP SEPTEMBER"].A6.v).toContain("0 pengeluaran");
+    expect(empty.Sheets["PIUTANG & HUTANG"].A6.v).toContain("0 nota piutang");
+    const deficit = buildMonthlyWorkbook({ ...report(), income: [] });
+    expect(deficit.Sheets["LAP KEU"].A6.v).toContain("Defisit kas");
+    expect(deficit.Sheets.BERSIH.F27.v).toBe(-85.6);
+  });
+
+  it("colors all seven Excel tabs and never freezes a side column", () => {
+    const bytes = serializeMonthlyWorkbook(report());
+    const colors: string[] = [];
+    for (let index = 1; index <= 7; index++) {
+      const xml = archiveText(bytes, `xl/worksheets/sheet${index}.xml`);
+      expect(xml).not.toMatch(/xSplit=|bottomRight|topLeftCell="B/);
+      const color = xml.match(/<tabColor rgb="FF([A-F0-9]{6})"\/>/)?.[1];
+      expect(color).toBeTruthy();
+      colors.push(color!);
+      expect(xml.indexOf("<tabColor")).toBeLessThan(xml.indexOf("<pageSetUpPr"));
+      if (index > 2) expect(xml).toContain('activePane="bottomLeft"');
+    }
+    expect(new Set(colors).size).toBe(7);
   });
 
   it("serializes real XLSX formulas, stable print ranges, frozen headers and auto recalculation", () => {
@@ -127,7 +251,7 @@ describe("monthly workbook", () => {
     expect(wb.Sheets.BERSIH.F27.f).toBe("F24-F25");
     const xml = archiveText(bytes, "xl/worksheets/sheet3.xml");
     expect(xml).toContain('state="frozen"');
-    expect(xml).toContain('topLeftCell="B9"');
+    expect(xml).toContain('topLeftCell="A9"');
     expect(xml).toContain('showGridLines="0"');
     expect(xml).toContain('orientation="landscape"');
     expect(xml).toContain('fitToHeight="0"');

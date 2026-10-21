@@ -110,7 +110,68 @@ hanya menampilkan dialog dengan data contoh.
   seluruh workspace mencakup pekerjaan lain dan melaporkan risiko medium;
   simbol baru belum terdapat pada indeks.
 
+## Penyempurnaan visual workbook — 21 Oktober 2026
+
+- Hapus pembekuan kolom kiri di seluruh sheet. Header atas pada rincian tetap
+  dibekukan, menggunakan pane `bottomLeft` dan sel awal kolom A.
+- Warna tab sesuai warna judul, header, subtotal, catatan, dan arsiran,
+  menggunakan variasi biru brand, jingga accent, serta hijau status dari tema web.
+- Ringkasan memakai baris kosong 6, atau baris 8 pada harian. Tidak ada
+  pergeseran tabel, kolom, anchor rumus, maupun perubahan jumlah sheet.
+- Ringkasan berbasis rumus: surplus/defisit kas, persentase sisa kas dengan
+  penjagaan pembagi nol, penerimaan perlu pemetaan, jumlah penerimaan dan
+  pengeluaran, biaya gaji, total belanja yang sudah masuk RP, serta jumlah
+  nota piutang. Hutang yang belum tersedia tetap dinyatakan belum tersedia.
+- Modal D8 tetap kosong, kuning, dan dapat diisi pengguna. Hasil kas negatif
+  diberi pita merah saat ekspor. Seluruh area gabungan mendapat warna utuh.
+- Tes baru diverifikasi gagal sebelum implementasi (4 gagal, 7 lulus), lalu
+  11 tes workbook lulus. Regresi laporan keuangan dan panduan: **137 tes
+  dalam 12 file lulus**. TypeScript web dan ESLint pada pembuat workbook,
+  tema, serializer, serta tes workbook lulus tanpa diagnostik.
+- Tujuh PNG sintetis diperiksa: seluruh judul, header, catatan, dan ringkasan
+  terbaca. Rumus ringkasan dihitung ulang setelah perubahan penerimaan,
+  termasuk penerimaan nol dan kas defisit. Modal kosong, nol, dan 1.000.000
+  tetap mengikuti penjagaan saldo yang belum tersedia.
+- Runner spreadsheet mencetak PASS dan menyimpan semua pratinjau, kemudian
+  keluar dengan error native Windows `-1073740791` saat penutupan. Hasil
+  render/perhitungan tersedia; tes XLSX dan regresi selesai normal.
+
 ## Catatan lingkungan
+
+## Koreksi pewarnaan isi — 21 Oktober 2026
+
+- Setiap sheet memakai beberapa warna pada isi data, bukan hanya identitas
+  tab dan judul. Kategori usaha memiliki header, sel data berarsir selang-seling,
+  serta subtotal berwarna yang sesuai.
+- Pendapatan dan pengeluaran dipisahkan dengan hijau dan jingga; gaji biru tua,
+  input modal kuning, piutang hijau, hutang merah muda, persediaan biru tua,
+  dan hasil kas positif/negatif hijau/merah. Label dan angka tetap terbaca.
+- Belanja memakai warna metode pembayaran (giro biru tua, transfer biru, metode
+  lain hijau), tanggal biru, jatuh tempo kuning, dan nominal jingga.
+- Helper `monthly-workbook-content.ts` hanya mengubah `cell.s`. Tes membandingkan
+  seluruh workbook sebelum dan sesudah pewarnaan tanpa properti style, termasuk
+  nilai, rumus, format angka, komentar, merges, lebar kolom, tinggi baris, dan
+  definisi cetak. Bulan berisi transaksi, bulan kosong, serta metode belanja
+  tambahan diperiksa. Tidak ada perubahan struktur layout atau pembekuan sisi.
+- TDD: 2 tes gagal karena isi sebelumnya masih putih/satu warna, lalu lulus
+  setelah pewarnaan. Sebanyak 110 tes laporan keuangan lulus. TypeScript lulus.
+- Tujuh pratinjau sintetis diperiksa; perhitungan ulang modal, penerimaan nol,
+  serta defisit kas tetap cocok. Runner render mencetak PASS dan menyimpan PNG,
+  dengan keterbatasan error native Windows saat penutupan seperti sebelumnya.
+
+### Sesuai tema web
+
+- Palet bersumber dari `packages/config/tailwind.config.ts`: brand biru,
+  accent jingga, dan surface netral. Status mengikuti emerald, amber, serta
+  red yang dipakai `KpiCard.tsx`. Header memakai shade lebih gelap dengan
+  teks putih; sel data memakai shade terang dengan teks gelap.
+- Semua warna fill/font/border workbook diverifikasi terhadap token tema web
+  dalam tes. Tidak ada lagi warna ungu, magenta, atau nila di luar palet web.
+- Modal D8 tetap kosong dan kuning (`amber-100`, `FEF3C7`).
+- TDD tema: 3 tes gagal sebelum penyesuaian palet; 14 tes workbook lulus
+  setelah penyesuaian. Tes penjagaan seluruh layout tetap lulus.
+- Pratinjau terbaru dari data sintetis tersedia di
+  `output/monthly-financial-validation/`, dengan tujuh PNG dan workbook contoh.
 
 - Dokumentasi disimpan pada `markdown-files` di checkout aktif karena drive
   `D:\main_project` tidak tersedia.
