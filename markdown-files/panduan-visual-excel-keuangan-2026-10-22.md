@@ -17,9 +17,12 @@ Tanggal rilis: 2026-10-22 (Asia/Jakarta).
   sudah dipakai ekspor. Warna panduan tidak mengubah warna sel laporan.
 - Diagram menjelaskan alur RC/RP → rekap bulan → BERSIH → LAP KEU;
   saldo piutang masuk ke ringkasan harta, bukan penerimaan kas tambahan.
-- Contoh Rp10 juta − Rp7 juta = Rp3 juta diberi label **ILUSTRASI**;
+- Contoh Rp10 juta − Rp7 juta = Rp3 juta diberi label **CONTOH SAJA**;
   angka tersebut bukan data pengguna dan tidak masuk perhitungan laporan.
 - Rumus jumlah harta dan kekayaan bersih dijelaskan sesuai rumus workbook.
+- Bahasa panduan dibuat santai dengan instruksi pendek, misalnya
+  “Cek bulan & tahun” dan “Isi tiga angka ini”; piutang dijelaskan sebagai
+  tagihan pelanggan yang belum dibayar dan persediaan sebagai nilai stok.
 - Panduan membahas kosong versus nol, basis kas, pemetaan penerimaan,
   gaji tercatat, belanja yang sudah termasuk RP, dan giro versus saldo hutang.
 
@@ -62,6 +65,12 @@ nilainya benar-benar nol. Ringkasan harta menunggu isian lengkap.
   dihitung ulang; mengosongkan persediaan kembali mengosongkan hasil terkait.
 - Empat render panduan diperiksa; screenshot Catatan Perubahan hanya
   menampilkan petunjuk tanpa data transaksi, pelanggan, atau ringkasan keuangan.
+- Revisi bahasa: 16 tes workbook dan lint lulus. Perbandingan dengan versi
+  sebelumnya memastikan hanya teks panduan dan tooltip yang berubah; rumus,
+  tautan tujuan, ukuran, warna, dan susunan seluruh sheet tetap sama.
+- Saat render revisi bahasa, seluruh assertion selesai dan empat PNG ditulis,
+  lalu runtime native keluar dengan kode `0xC0000409` saat proses ditutup.
+  Semua PNG telah diperiksa secara visual; ini keterbatasan alat verifikasi.
 - GitNexus tidak dapat berjalan karena Application Control Windows memblokir
   modul native `tree-sitter-cpp`; cakupan diperiksa melalui pemanggil langsung.
 - Headroom stats dipanggil; proxy kompresi tidak tersedia, sehingga output
