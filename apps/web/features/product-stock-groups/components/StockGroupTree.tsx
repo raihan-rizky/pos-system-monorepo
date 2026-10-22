@@ -17,6 +17,8 @@ export function StockGroupTree({
   "isSaving" | "unitActionsBlocked"
 >) {
   const canManage = canUpdateProducts && onActiveTabChange;
+  const conversionPairs = detail.conversionPairs?.filter((pair) =>
+    pair.fromUnit.trim().toLowerCase() !== pair.toUnit.trim().toLowerCase()) ?? [];
   return (
     <figure className={styles.tree} aria-label="Pohon persediaan">
       <figcaption className={styles.caption}>
@@ -63,8 +65,8 @@ export function StockGroupTree({
             <ul className={styles.branches} role="list" aria-label="Satuan dalam grup">
               {detail.variants.map((variant) => {
                 const valid = Number.isFinite(variant.unitMultiplierToBase) && variant.unitMultiplierToBase > 0;
-                const isBase = valid && !variant.conversionNeedsReview && variant.unitMultiplierToBase === 1 &&
-                  variant.unit.trim().toLowerCase() === detail.baseUnit.trim().toLowerCase();
+                const sameUnit = variant.unit.trim().toLowerCase() === detail.baseUnit.trim().toLowerCase();
+                const isBase = valid && !variant.conversionNeedsReview && variant.unitMultiplierToBase === 1 && sameUnit;
                 return (
                   <li key={variant.id} className={styles.branch} aria-label={`Satuan ${variant.unit}`}>
                     <span className={styles.connection} aria-hidden="true" />
@@ -84,11 +86,13 @@ export function StockGroupTree({
                             : "Periksa konversi"}</strong>
                         </div>
                       </div>
-                      <p className={styles.conversion}>
-                        <ArrowRightLeft aria-hidden="true" size={14} />
-                        {valid ? `1 ${variant.unit} = ${quantity.format(variant.unitMultiplierToBase)} ${detail.baseUnit}`
-                          : "Konversi belum valid"}
-                      </p>
+                      {(!sameUnit || !valid) && (
+                        <p className={styles.conversion}>
+                          <ArrowRightLeft aria-hidden="true" size={14} />
+                          {valid ? `1 ${variant.unit} = ${quantity.format(variant.unitMultiplierToBase)} ${detail.baseUnit}`
+                            : "Konversi belum valid"}
+                        </p>
+                      )}
                       <div className={styles.nodeBottom}>
                         <div className={styles.product}>
                           <p>{variant.name}</p>
@@ -124,9 +128,9 @@ export function StockGroupTree({
       <div className={styles.conversionFooter}>
         <div className={styles.pairContext}>
           <h4>Konversi satuan</h4>
-          {!!detail.conversionPairs?.length && (
+          {!!conversionPairs.length && (
             <ul role="list" aria-label="Hubungan konversi tersimpan">
-              {detail.conversionPairs.map((pair) => (
+              {conversionPairs.map((pair) => (
                 <li key={`${pair.fromProductId}-${pair.toProductId}`}>{pair.label}</li>
               ))}
             </ul>
