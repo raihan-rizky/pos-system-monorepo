@@ -31,8 +31,8 @@ function archiveText(bytes: Uint8Array, path: string): string {
 }
 
 describe("monthly workbook", () => {
-  it("uses exactly seven ordered month-specific sheets and rejects invalid months", () => {
-    expect(monthlySheetNames(9)).toEqual(["LAP KEU", "BERSIH", "SEPTEMBER", "RC SEPTEMBER", "RP SEPTEMBER", "PENGELUARAN BELANJA", "PIUTANG & HUTANG"]);
+  it("appends a guide after the seven ordered month-specific reports and rejects invalid months", () => {
+    expect(monthlySheetNames(9)).toEqual(["LAP KEU", "BERSIH", "SEPTEMBER", "RC SEPTEMBER", "RP SEPTEMBER", "PENGELUARAN BELANJA", "PIUTANG & HUTANG", "PANDUAN"]);
     expect(monthlySheetNames(8)[2]).toBe("AGUSTUS");
     expect(() => monthlySheetNames(0)).toThrow();
     expect(() => monthlySheetNames(13)).toThrow();
@@ -192,9 +192,9 @@ describe("monthly workbook", () => {
 
   it("gives every sheet a distinct readable theme without moving existing tables", () => {
     const wb = buildMonthlyWorkbook(report());
-    const titles = wb.SheetNames.map(name => wb.Sheets[name].A2.s.fill.fgColor.rgb);
+    const titles = wb.SheetNames.slice(0, 7).map(name => wb.Sheets[name].A2.s.fill.fgColor.rgb);
     expect(new Set(titles).size).toBe(7);
-    for (const name of wb.SheetNames) {
+    for (const name of wb.SheetNames.slice(0, 7)) {
       const ws = wb.Sheets[name];
       expect(ws.A2.s.font.color.rgb).toBe("FFFFFF");
       expect(ws[name === "SEPTEMBER" ? "A8" : "A6"].v).not.toBe("");
@@ -265,5 +265,42 @@ describe("monthly workbook", () => {
     expect(workbook).toContain('_xlnm.Print_Titles');
     expect(workbook).not.toContain("#REF!");
     expect(archiveText(bytes, "xl/worksheets/sheet5.xml")).not.toContain("<f>HYPERLINK");
+  });
+
+  it("exports guide shortcuts to the actual editable inputs even when the debt section moves", () => {
+    for (const receivables of [[], report().receivables, Array.from({ length: 5 }, (_, i) => ({ ...report().receivables[0], id: `r${i}` }))]) {
+      const wb = XLSX.read(serializeMonthlyWorkbook({ ...report(), receivables }), { type: "array", cellStyles: true });
+      const guide = wb.Sheets.PANDUAN;
+      expect(guide, "Panduan must be included in the downloaded workbook").toBeDefined();
+      const links = Object.entries(guide).filter(([key, cell]) => !key.startsWith("!") && cell.l).map(([, cell]) => cell.l.Target);
+      expect(links).toContain("#'LAP KEU'!D8");
+      expect(links).toContain("#'LAP KEU'!D17");
+      const debtRow = receivables.length === 5 ? 18 : 14;
+      expect(links).toContain(`#'PIUTANG & HUTANG'!D${debtRow}`);
+      for (const target of ["#'LAP KEU'!D8", "#'LAP KEU'!D17", `#'PIUTANG & HUTANG'!D${debtRow}`]) {
+        const [, sheet, cell] = target.match(/^#'(.+)'!(.+)$/)!;
+        expect(wb.Sheets[sheet][cell].f).toBeUndefined();
+        expect(wb.Sheets[sheet][cell].v ?? "").toBe("");
+      }
+    }
+  });
+
+  it("prints a colorful guide with internal links and leaves its side columns unfrozen", () => {
+    const bytes = serializeMonthlyWorkbook(report());
+    const wb = buildMonthlyWorkbook(report());
+    expect(wb.SheetNames.at(-1)).toBe("PANDUAN");
+    const guide = wb.Sheets.PANDUAN;
+    expect(guide).toBeDefined();
+    expect(guide.A2.s.fill.fgColor.rgb).toBe("0160A1");
+    const fills = Object.entries(guide).filter(([key]) => !key.startsWith("!")).map(([, cell]) => cell.s?.fill?.fgColor?.rgb);
+    expect(fills).toEqual(expect.arrayContaining(["FEF3C7", "D1FAE5", "FFEED4", "E0EFFE"]));
+    const xml = archiveText(bytes, "xl/worksheets/sheet8.xml");
+    expect(xml).toContain('orientation="landscape"');
+    expect(xml).not.toMatch(/xSplit=|<pane /);
+    expect(xml).toContain("<hyperlink ");
+    const definitions = archiveText(bytes, "xl/workbook.xml");
+    const reopened = XLSX.read(bytes, { type: "array" });
+    expect(reopened.Workbook?.Names).toContainEqual({ Name: "_xlnm.Print_Area", Sheet: 7, Ref: "'PANDUAN'!$A$1:$L$66" });
+    expect(definitions).not.toContain("#REF!");
   });
 });

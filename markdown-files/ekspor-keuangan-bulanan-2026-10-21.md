@@ -2,10 +2,14 @@
 
 Tanggal rilis: **2026-10-21**, Asia/Jakarta (WIB).
 
+Pembaruan **2026-10-22**: ditambahkan sheet **PANDUAN** berwarna dengan
+diagram, contoh perhitungan, dan tautan isian manual. Lihat
+`panduan-visual-excel-keuangan-2026-10-22.md` untuk rincian pembaruan.
+
 ## Cara menggunakan
 
 1. Buka **Laporan Keuangan**, lalu klik **Ekspor**.
-2. Gunakan **Laporan bulanan · Excel 7 sheet**, pilih bulan dan tahun, lalu
+2. Gunakan **Laporan bulanan · Excel 8 sheet**, pilih bulan dan tahun, lalu
    periksa periode dan daftar sheet.
 3. Klik **Unduh Excel**. Berkas bernama `laporan-keuangan-YYYY-MM.xlsx`.
 4. Buka berkas dan isi modal awal di sel kuning **LAP KEU!D8**. Sel ini kosong
@@ -13,7 +17,7 @@ Tanggal rilis: **2026-10-21**, Asia/Jakarta (WIB).
 
 Pilihan **Jurnal transaksi · Excel / PDF** menyediakan ekspor jurnal sebelumnya
 dengan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Ekspor melalui
-Pak Teladan tetap menghasilkan jurnal; template tujuh sheet tersedia melalui
+Pak Teladan tetap menghasilkan jurnal; template delapan sheet tersedia melalui
 dialog di halaman Laporan Keuangan.
 
 ## Isi workbook
@@ -27,6 +31,7 @@ dialog di halaman Laporan Keuangan.
 | RP [bulan] | Rincian pengeluaran, biaya gaji tercatat, dan kelompok biaya |
 | PENGELUARAN BELANJA | Rincian belanja menurut metode pembayaran sebenarnya |
 | PIUTANG & HUTANG | Piutang pada batas periode dan bagian hutang pemasok |
+| PANDUAN | Diagram alur, contoh perhitungan, dan tautan ke tiga isian manual |
 
 Susunan ringkasan dan kelompok kolom mengikuti contoh Agustus/September 2026
 yang diberikan. Header, warna subtotal, baris berselang, pembekuan panel,

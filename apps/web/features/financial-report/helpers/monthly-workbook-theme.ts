@@ -22,4 +22,5 @@ export const MONTHLY_SHEET_THEMES = [
   { primary: "C24A09", soft: "FFEED4", stripe: "FFF7ED" },
   { primary: "9A3B10", soft: "FED9A8", stripe: "FFF7ED" },
   { primary: "0B446E", soft: "E0EFFE", stripe: "F8FAFC" },
+  { primary: "0160A1", soft: "E0EFFE", stripe: "F0F7FF" },
 ] as const;

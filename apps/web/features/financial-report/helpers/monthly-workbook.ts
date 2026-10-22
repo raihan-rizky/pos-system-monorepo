@@ -4,6 +4,7 @@ import type { ExpenseGroup, IncomeGroup, MonthlyFinancialReport } from "./monthl
 import { applyMonthlyPrintLayout } from "./monthly-workbook-print";
 import { MONTHLY_SHEET_THEMES } from "./monthly-workbook-theme";
 import { colorMonthlyWorkbookContent, type PurchaseColorSection } from "./monthly-workbook-content";
+import { buildMonthlyGuide } from "./monthly-workbook-guide";
 
 const MONTHS = ["JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"];
 const INCOME: IncomeGroup[] = ["CETAK", "PLAT", "STEMPEL", "SPANDUK", "ATK", "PRINT", "UNMAPPED"];
@@ -19,7 +20,7 @@ const address = (row: number, column: number) => XLSX.utils.encode_cell({ r: row
 export function monthlySheetNames(month: number): string[] {
   if (!Number.isInteger(month) || month < 1 || month > 12) throw new Error("Bulan laporan tidak valid.");
   const name = MONTHS[month - 1];
-  return ["LAP KEU", "BERSIH", name, `RC ${name}`, `RP ${name}`, "PENGELUARAN BELANJA", "PIUTANG & HUTANG"];
+  return ["LAP KEU", "BERSIH", name, `RC ${name}`, `RP ${name}`, "PENGELUARAN BELANJA", "PIUTANG & HUTANG", "PANDUAN"];
 }
 
 function put(sheet: WorkSheet, row: number, column: number, value: string | number, formula?: string): CellObject {
@@ -349,11 +350,14 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
     applySheetTheme(sheet, index);
     XLSX.utils.book_append_sheet(wb, sheet, names[index]);
   });
+  colorMonthlyWorkbookContent(wb, { dailyTotal, rcEnd, rcTotal, rpEnd, rpTotal, balanceEnd, balanceTotal, debtRow, debtTotal, purchaseSections });
+  const guide = buildMonthlyGuide({ monthName: month, debtRow, period: `${report.from} s.d. ${report.to}` });
+  XLSX.utils.book_append_sheet(wb, guide, names[7]);
+  sheets.push(guide);
   wb.Workbook = { Names: sheets.flatMap((sheet, index) => [
     { Name: "_xlnm.Print_Area", Sheet: index, Ref: `${quote(names[index])}!$${sheet["!ref"]!.replace(":", ":$").replace(/(\D)(\d)/g, "$1$$$2")}` },
-    { Name: "_xlnm.Print_Titles", Sheet: index, Ref: `${quote(names[index])}!$1:$${index === 2 ? 8 : index === 5 ? 5 : 6}` },
+    { Name: "_xlnm.Print_Titles", Sheet: index, Ref: `${quote(names[index])}!$1:$${index === 7 ? 4 : index === 2 ? 8 : index === 5 ? 5 : 6}` },
   ]) };
-  colorMonthlyWorkbookContent(wb, { dailyTotal, rcEnd, rcTotal, rpEnd, rpTotal, balanceEnd, balanceTotal, debtRow, debtTotal, purchaseSections });
   return wb;
 }
 

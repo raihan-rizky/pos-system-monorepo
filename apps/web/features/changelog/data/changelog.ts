@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "monthly-financial-excel-visual-guide", date: "2026-10-22", revision: 1,
+    highlight: { title: "Panduan visual di Excel keuangan", summary: "Temukan sel isian manual dan pahami alur perhitungan melalui sheet PANDUAN." },
+    title: "Sheet PANDUAN membantu melengkapi Excel keuangan.",
+    summary: "Laporan bulanan kini berisi delapan sheet, termasuk PANDUAN berwarna sesuai tema web. Ikuti alur angka, baca contoh perhitungan, dan klik tautan menuju sel modal awal, persediaan akhir, serta hutang pemasok.",
+    kind: "improvement", area: "Keuangan", href: "/financial-report", visual: "quotation",
+    screenshot: { src: "/images/changelog/panduan-excel-keuangan.png", alt: "Bagian awal sheet PANDUAN berwarna biru, kuning, dan hijau dengan tiga langkah serta tautan isian manual, tanpa data transaksi atau pelanggan" },
+    steps: [
+      { title: "Unduh laporan bulanan", detail: "Buka Laporan Keuangan > Ekspor, pilih Laporan bulanan · Excel 8 sheet, lalu pilih bulan dan tahun dan klik Unduh Excel." },
+      { title: "Buka PANDUAN", detail: "Buka tab terakhir untuk membaca diagram alur angka, contoh perhitungan, serta perbedaan sel kosong dan nol." },
+      { title: "Lengkapi isian manual", detail: "Klik tautan kuning menuju modal awal, persediaan akhir, dan saldo hutang. Isi angka sesuai catatan, periksa hasil otomatis, lalu simpan file." },
+    ],
+  },
+  {
     id: "inbound-receipt-readable-history", date: "2026-10-20", revision: 1,
     highlight: { title: "Riwayat penerimaan lebih jelas", summary: "Cari penerimaan dan bandingkan jumlah dipesan dengan diterima per produk." },
     title: "Periksa penerimaan barang dengan lebih mudah.",

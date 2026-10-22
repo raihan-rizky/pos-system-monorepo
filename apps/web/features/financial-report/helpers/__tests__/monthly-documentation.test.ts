@@ -28,7 +28,7 @@ describe("monthly financial export user guidance", () => {
     expect(exportFaq).toContain("bulan dan tahun");
     expect(exportFaq).toContain("modal awal");
     expect(exportFaq).toContain("Jurnal transaksi");
-    expect(exportFaq).toContain("tujuh sheet");
+    expect(exportFaq).toContain("delapan sheet");
     for (const role of ["OWNER", "ADMIN"]) {
       const guide = HELP_ROLE_CONTENT[role].find(item => item.id === `${role.toLowerCase()}-export-reports`)!;
       const guideText = JSON.stringify(guide.steps);

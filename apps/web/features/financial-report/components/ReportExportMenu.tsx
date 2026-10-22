@@ -41,7 +41,7 @@ export function ReportExportMenu(): ReactNode {
   const monthName = MONTHS[month - 1];
   const sheetMonth = monthName.toLocaleUpperCase("id-ID");
   // Keep the preview independent of the XLSX package; load the builder only on download.
-  const sheets = ["LAP KEU", "BERSIH", sheetMonth, `RC ${sheetMonth}`, `RP ${sheetMonth}`, "PENGELUARAN BELANJA", "PIUTANG & HUTANG"];
+  const sheets = ["LAP KEU", "BERSIH", sheetMonth, `RC ${sheetMonth}`, `RP ${sheetMonth}`, "PENGELUARAN BELANJA", "PIUTANG & HUTANG", "PANDUAN"];
 
   function openDialog() {
     setMode("monthly");
@@ -109,7 +109,7 @@ export function ReportExportMenu(): ReactNode {
               <div>
                 <label htmlFor={`${id}-mode`} className="text-sm font-medium">Jenis laporan</label>
                 <select ref={firstControlRef} id={`${id}-mode`} value={mode} onChange={event => { setMode(event.target.value as "monthly" | "journal"); setError(null); }} className={controlClass}>
-                  <option value="monthly">Laporan bulanan · Excel 7 sheet</option>
+                  <option value="monthly">Laporan bulanan · Excel 8 sheet</option>
                   <option value="journal">Jurnal transaksi · Excel / PDF</option>
                 </select>
               </div>
@@ -131,16 +131,17 @@ export function ReportExportMenu(): ReactNode {
                     <div className="flex items-start gap-2.5">
                       <FileSpreadsheet className="mt-0.5 h-5 w-5 shrink-0 text-brand-700" aria-hidden="true" />
                       <div>
-                        <h3 className="text-sm font-semibold">7 sheet dalam satu Excel</h3>
+                        <h3 className="text-sm font-semibold">{sheets.length} sheet dalam satu Excel</h3>
                         <p className="mt-1 text-sm text-surface-600">{validPeriod ? `1–${endDay} ${monthName} ${year}` : "Pilih bulan dan tahun yang valid"}</p>
                       </div>
                     </div>
-                    <ol aria-label="Tujuh sheet Excel" className="mt-3 grid grid-cols-1 gap-x-4 gap-y-1.5 text-xs text-surface-700 sm:grid-cols-2">
+                    <ol aria-label="Delapan sheet Excel" className="mt-3 grid grid-cols-1 gap-x-4 gap-y-1.5 text-xs text-surface-700 sm:grid-cols-2">
                       {sheets.map((sheet, index) => <li key={sheet} className="flex gap-2"><span className="w-3 shrink-0 tabular-nums text-surface-500">{index + 1}.</span><span>{sheet}</span></li>)}
                     </ol>
                   </section>
                   <div className="space-y-2 text-xs leading-relaxed text-surface-600">
                     <p className="font-medium text-surface-800">Modal awal diisi sendiri di Excel.</p>
+                    <p>Buka PANDUAN untuk alur visual, contoh perhitungan, dan tautan ke sel isian manual.</p>
                     <p>Persediaan akhir dan hutang pemasok belum tersedia dari sistem. Sel terkait dibiarkan kosong.</p>
                     <p>Penerimaan dan pengeluaran memakai basis kas. Data bulan berjalan sampai hari ini (WIB).</p>
                   </div>

@@ -67,7 +67,7 @@ try {
     await page.getByLabel("Tahun", { exact: true }).fill("2026");
     await page.getByLabel("Bulan", { exact: true }).selectOption("9");
     await expect(dialog.getByText("1–30 September 2026", { exact: true })).toBeVisible();
-    assert.equal(await page.getByRole("list", { name: "Tujuh sheet Excel" }).getByRole("listitem").count(), 7);
+    assert.equal(await page.getByRole("list", { name: "Delapan sheet Excel" }).getByRole("listitem").count(), 8);
     await expect(dialog.getByText("Modal awal diisi sendiri di Excel.", { exact: true })).toBeVisible();
     await expect(dialog.getByText(/Persediaan akhir dan hutang pemasok/)).toBeVisible();
     for (let index = 0; index < 14; index++) {
@@ -132,13 +132,12 @@ try {
     assert.equal(await dialog.evaluate(element => element.getBoundingClientRect().height <= innerHeight), true);
     await page.screenshot({ path: path.join(output, `dialog-${width}.png`) });
     if (width === 1200) {
-      await mkdir(path.join(web, "public/images/changelog"), { recursive: true });
-      await dialog.screenshot({ path: path.join(web, "public/images/changelog/ekspor-keuangan-bulanan.png") });
+      await dialog.screenshot({ path: path.join(output, "dialog-export-crop.png") });
     }
     await page.getByRole("button", { name: "Tutup", exact: true }).click();
     await expect(trigger).toBeFocused();
     assert.deepEqual(errors, []);
-    process.stdout.write(`PASS ${width}px: WIB, 7 sheets, keyboard/focus/Escape, busy guard, error/retry/download, all journal/PDF periods, responsive controls\n`);
+    process.stdout.write(`PASS ${width}px: WIB, 8 sheets, keyboard/focus/Escape, busy guard, error/retry/download, all journal/PDF periods, responsive controls\n`);
     await page.close();
   }
 } finally { await browser.close(); }
