@@ -2,6 +2,7 @@
 import { useId, useState } from "react";
 import type { StockGroupWorkspaceContentProps } from "./StockGroupWorkspace";
 import { buildUnitManagementDraft } from "./StockGroupWorkspace";
+import { StockGroupTree } from "./StockGroupTree";
 import {
   additionResult,
   conversionResult,
@@ -152,10 +153,6 @@ export function SummaryPanel(
   const changed = props.stockChanged ?? nextBaseStock !== detail.baseStock;
   return (
     <section className="space-y-6">
-      <p className="text-sm leading-6 text-slate-700">
-        Semua satuan di grup ini memakai persediaan yang sama. Stok tiap satuan
-        adalah hasil konversi, bukan stok tambahan.
-      </p>
       {detail.hasNegativeStock && (
         <p
           role="status"
@@ -173,46 +170,7 @@ export function SummaryPanel(
           Ada satuan duplikat. Periksa produk anggota grup sebelum melanjutkan.
         </p>
       )}
-      <div>
-        <h3 className="font-bold">Konversi satuan</h3>
-        <div className="mt-3 space-y-3">
-          {detail.conversionPairs?.map((pair) => (
-            <p
-              key={`${pair.fromProductId}-${pair.toProductId}`}
-              className="text-sm text-slate-700"
-            >
-              {pair.label}
-            </p>
-          ))}
-          {detail.variants.map((v) => (
-            <div
-              key={v.id}
-              className="flex flex-col gap-2 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="min-w-0">
-                <p className="break-words font-semibold">
-                  {v.name} ({v.unit})
-                </p>
-                <p className="mt-1 break-words text-sm text-slate-700">
-                  {v.sku} • 1 {v.unit} = {quantity(v.unitMultiplierToBase)}{" "}
-                  {detail.baseUnit}
-                </p>
-                {v.conversionNeedsReview && (
-                  <p className="mt-2 text-sm text-amber-900">
-                    Konversi perlu diperiksa di tab Satuan.
-                  </p>
-                )}
-              </div>
-              <div className="shrink-0 sm:text-right">
-                <p className="font-bold tabular-nums">
-                  {quantity(v.stock)} {v.unit}
-                </p>
-                <p className="mt-1 text-sm text-slate-700">{money(v.price)}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <StockGroupTree {...props} />
       {props.canUpdateStock && (
         <div className="space-y-4 border-t border-slate-200 pt-5">
           {!props.editorOpen ? (

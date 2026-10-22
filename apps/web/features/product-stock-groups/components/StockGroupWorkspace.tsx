@@ -228,6 +228,10 @@ export function StockGroupWorkspaceContent(
         {activeTab === "summary" && (
           <SummaryPanel
             {...props}
+            onActiveTabChange={props.onActiveTabChange ? (tab) => {
+              props.onActiveTabChange?.(tab);
+              tabRefs.current[tabs.findIndex((item) => item.id === tab)]?.focus();
+            } : undefined}
             isSaving={props.isSaving || !!props.unitActionsBlocked}
             editorOpen={stockEditorOpen}
             onOpenEditor={() => setStockEditorOpen(true)}

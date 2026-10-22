@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "product-group-stock-tree", date: "2026-10-22", revision: 1,
+    highlight: { title: "Pohon persediaan grup produk", summary: "Lihat hubungan stok bersama, konversi, dan harga satuan dalam satu pohon." },
+    title: "Hubungan satuan lebih jelas lewat Pohon persediaan.",
+    summary: "Ringkasan grup menampilkan stok bersama sebagai akar dengan garis ke setiap satuan. Baca konversi, stok setara, SKU, dan harga jual, lalu buka pengaturan melalui pintasan sesuai izin.",
+    kind: "improvement", area: "Produk", href: "/products", visual: "stock-groups",
+    screenshot: { src: "/images/changelog/pohon-persediaan-produk.png", alt: "Pohon persediaan dengan data contoh Kertas A4: akar stok bersama 2.500 lembar terhubung ke satuan lembar, rim, dan dus beserta konversi serta harga jual" },
+    steps: [
+      { title: "Buka grup produk", detail: "Di halaman Produk atau Aktivitas Grup, buka detail grup lalu pilih Ringkasan." },
+      { title: "Ikuti cabang satuan", detail: "Mulai dari akar Stok bersama, lalu baca konversi, stok setara, SKU, dan harga pada tiap cabang. Semua satuan memakai persediaan yang sama." },
+      { title: "Buka pengaturan", detail: "Pilih Atur konversi, Atur harga, atau Tambah satuan sesuai izin, lalu tinjau dan simpan perubahan di tab tujuan." },
+    ],
+  },
+  {
     id: "monthly-financial-excel-visual-guide", date: "2026-10-22", revision: 1,
     highlight: { title: "Panduan visual di Excel keuangan", summary: "Temukan sel isian manual dan pahami alur perhitungan melalui sheet PANDUAN." },
     title: "Sheet PANDUAN membantu melengkapi Excel keuangan.",
