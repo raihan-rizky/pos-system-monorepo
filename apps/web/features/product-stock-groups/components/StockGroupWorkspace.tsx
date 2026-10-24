@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { QueryErrorResetBoundary, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "react-error-boundary";
 import type { StockGroupDetail, StockInputMode } from "../api/stock-group-api";
@@ -28,6 +28,8 @@ import {
   PricingPanel,
   AdditionPanel,
 } from "./WorkspacePanels";
+import { GroupPricingPanel } from "./GroupPricingPanel";
+import { invalidatePricingQueries } from "../invalidate-pricing-queries";
 import { StockGroupHistory } from "./StockGroupHistory";
 
 export type StockGroupSaveReason =
@@ -35,6 +37,9 @@ export type StockGroupSaveReason =
 type WorkspaceTab =
   "summary" | "unitManagement" | "pricing" | "newVariant" | "history";
 export interface StockGroupWorkspaceContentProps {
+  onPricingApplied?: () => void | Promise<void>;
+  onPricingDirtyChange?: (dirty: boolean) => void;
+  onPricingBusyChange?: (busy: boolean) => void;
   detail: StockGroupDetail;
   canUpdateStock: boolean;
   canUpdateProducts?: boolean;
@@ -76,6 +81,9 @@ export interface StockGroupWorkspaceContentProps {
   onPriceDraftChange?: (productId: string, draft: PriceDraft) => void;
   onSavePrice?: (productId: string) => void;
   newVariantDraft?: {
+    pricingMode?: "AUTO" | "MANUAL";
+    adjustment?: "none" | "discount" | "markup";
+    percent?: string;
     unit: string;
     price: string;
     costPrice: string;
@@ -238,7 +246,7 @@ export function StockGroupWorkspaceContent(
           />
         )}
         {activeTab === "unitManagement" && <ConversionPanel {...props} isSaving={props.isSaving || !!props.unitActionsBlocked} />}
-        {activeTab === "pricing" && <PricingPanel {...props} />}
+        {props.detail.pricing ? <div hidden={activeTab !== "pricing"}><GroupPricingPanel detail={props.detail} canUpdate={!!props.canUpdateProducts && !props.isSaving} onApplied={props.onPricingApplied ?? (() => {})} onDirtyChange={props.onPricingDirtyChange} onBusyChange={props.onPricingBusyChange} /></div> : activeTab === "pricing" && <><p className="mb-3 text-sm text-amber-900">Data harga grup belum tersedia. Muat ulang data sebelum mengubah harga.</p><PricingPanel {...props} canUpdateProducts={false} /></>}
         {activeTab === "newVariant" && <AdditionPanel {...props} isSaving={props.isSaving || !!props.unitActionsBlocked} />}
         {activeTab === "history" && (
           <StockGroupHistory groupId={props.detail.id} />
@@ -249,6 +257,7 @@ export function StockGroupWorkspaceContent(
 }
 
 interface ModalProps {
+  initialTab?: WorkspaceTab;
   stockGroupId: string;
   onClose: () => void;
   canUpdateStock: boolean;
@@ -346,6 +355,9 @@ function additionDefaults(
   detail: StockGroupDetail,
 ): NonNullable<StockGroupWorkspaceContentProps["newVariantDraft"]> {
   return {
+    pricingMode: "AUTO",
+    adjustment: "none",
+    percent: "0",
     unit: "",
     price: "",
     costPrice: "",
@@ -360,6 +372,7 @@ function additionDefaults(
 
 function StockGroupWorkspaceDataFetcher({
   stockGroupId,
+  initialTab = "summary",
   onClose,
   canUpdateStock,
   canUpdateProducts = false,
@@ -381,7 +394,7 @@ function StockGroupWorkspaceDataFetcher({
       detail.variants[0]?.id ?? "",
     ),
     [note, setNote] = useState("");
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>("summary");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab);
   const [conversionDraft, setConversionDraft] = useState(() =>
     buildUnitManagementDraft(detail),
   );
@@ -405,6 +418,7 @@ function StockGroupWorkspaceDataFetcher({
     [conflict, setConflict] = useState(false),
     [decision, setDecision] = useState<"close" | "reload" | "inventory" | null>(null);
   const saveLock = useRef(false),
+    pricingLock = useRef(false),
     unitRefreshRequired = useRef(false),
     confirmation = useRef<HTMLDialogElement>(null);
   const stockMut = useUpdateSharedStock(stockGroupId),
@@ -434,8 +448,14 @@ function StockGroupWorkspaceDataFetcher({
       serialize(draft) !== serialize(snapshots.prices[id]),
     ]),
   );
+  const [pricingDirty, setPricingDirty] = useState(false);
+  const [pricingBusy, setPricingBusy] = useState(false);
+  const handlePricingBusyChange = useCallback((busy: boolean) => {
+    pricingLock.current = busy;
+    setPricingBusy(busy);
+  }, []);
   const dirty =
-    stockChanged ||
+    pricingDirty || stockChanged ||
     !!note.trim() ||
     conversionDirty ||
     Object.values(priceChanged).some(Boolean) ||
@@ -488,7 +508,7 @@ function StockGroupWorkspaceDataFetcher({
   }, [detail, dialog, sharedStock, snapshots.stock, stockInputMode, stockVariantProductId, unitRefresh]);
   useEffect(() => {
     closeRequest.current = () => {
-      if (!saveLock.current) {
+      if (!saveLock.current && !pricingLock.current) {
         if (dirty) setDecision("close");
         else onClose();
       }
@@ -505,7 +525,7 @@ function StockGroupWorkspaceDataFetcher({
     mutate: () => Promise<unknown>,
     acknowledge: () => void,
   ) {
-    if (saveLock.current || conflict || (unitRefreshRequired.current && reason !== "variant-price")) return;
+    if (saveLock.current || pricingLock.current || conflict || (unitRefreshRequired.current && reason !== "variant-price")) return;
     saveLock.current = true;
     setSaving(section);
     setStatuses((current) => ({ ...current, [section]: {} }));
@@ -643,7 +663,7 @@ function StockGroupWorkspaceDataFetcher({
     );
   }
   async function reload() {
-    if (saveLock.current) return;
+    if (saveLock.current || pricingLock.current) return;
     setDecision(null);
     saveLock.current = true;
     setSaving("reload");
@@ -721,21 +741,24 @@ function StockGroupWorkspaceDataFetcher({
       )}
       <StockGroupWorkspaceContent
         detail={detail}
+        onPricingDirtyChange={setPricingDirty}
+        onPricingBusyChange={handlePricingBusyChange}
+        onPricingApplied={async () => { await invalidatePricingQueries(queryClient); onSaved("variant-price"); }}
         canUpdateStock={canUpdateStock}
         canUpdateProducts={canUpdateProducts}
         canCreateProducts={canCreateProducts}
         canRequestStockChange={canRequestStockChange}
         onInventoryNavigate={(event) => {
-          if (saveLock.current || dirty) {
+          if (saveLock.current || pricingLock.current || dirty) {
             event.preventDefault();
-            if (!saveLock.current) setDecision("inventory");
+            if (!saveLock.current && !pricingLock.current) setDecision("inventory");
           }
         }}
         sharedStock={sharedStock}
         stockInputMode={stockInputMode}
         stockVariantProductId={stockVariantProductId}
         note={note}
-        isSaving={!!saving || conflict}
+        isSaving={!!saving || pricingBusy || conflict}
         unitActionsBlocked={unitRefresh !== null}
         savingMessage={saving ? "Menyimpan perubahan..." : null}
         onClose={() => closeRequest.current()}

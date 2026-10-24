@@ -1,3 +1,4 @@
+import { invalidatePricingQueries } from "../invalidate-pricing-queries";
 import {
   useMutation,
   useQuery,
@@ -73,12 +74,7 @@ export function useUpdateConversionRate(groupId: string) {
     mutationFn: (payload: UpdateConversionRatePayload) =>
       updateConversionRate(groupId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: stockGroupHistoryKey(groupId),
-      });
-      queryClient.invalidateQueries({ queryKey: stockGroupDetailKey(groupId) });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["product-stats"] });
+      void invalidatePricingQueries(queryClient);
     },
   });
 }
@@ -94,12 +90,7 @@ export function useUpdateVariantPrice(groupId: string) {
       payload: UpdateVariantPricePayload;
     }) => updateVariantPrice(groupId, productId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: stockGroupHistoryKey(groupId),
-      });
-      queryClient.invalidateQueries({ queryKey: stockGroupDetailKey(groupId) });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["product-stats"] });
+      void invalidatePricingQueries(queryClient);
     },
   });
 }
@@ -109,12 +100,7 @@ export function useAddVariant(groupId: string) {
   return useMutation({
     mutationFn: (payload: AddVariantPayload) => addVariant(groupId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: stockGroupHistoryKey(groupId),
-      });
-      queryClient.invalidateQueries({ queryKey: stockGroupDetailKey(groupId) });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["product-stats"] });
+      void invalidatePricingQueries(queryClient);
     },
   });
 }

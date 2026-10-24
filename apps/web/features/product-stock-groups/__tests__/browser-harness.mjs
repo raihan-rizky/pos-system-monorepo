@@ -25,6 +25,7 @@ export async function bundleReactHarness(entry, styleSources) {
     },
     bundle: true,
     write: false,
+    outdir: "browser-memory",
     platform: "browser",
     format: "iife",
     jsx: "automatic",
@@ -63,5 +64,5 @@ export async function bundleReactHarness(entry, styleSources) {
   ]).process("@tailwind base; @tailwind components; @tailwind utilities;", {
     from: undefined,
   });
-  return { script: bundle.outputFiles[0].text, css: css.css };
+  return { script: bundle.outputFiles.find(file => file.path.endsWith(".js")).text, css: css.css + (bundle.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? "") };
 }

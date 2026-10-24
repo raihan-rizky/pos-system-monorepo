@@ -13,10 +13,12 @@ import {
   type EnsureStockGroupInput,
 } from "@/features/product-stock-groups/product-stock-groups-service";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
-import {
-  lockStockMutationRows,
-  StockMutationConflictError,
-} from "@/features/product-stock-groups/stock-group-lock";
+import { StockMutationConflictError } from "@/features/product-stock-groups/stock-group-lock";
+import { prepareGroupPricingMutation } from "@/features/product-stock-groups/group-pricing-service";
+import { decimalToRatio, roundMoney } from "@/features/product-stock-groups/automatic-pricing";
+import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
+import { expandImportGroupRows, importGroupComponents, type AtomicImportGroup } from "./import-group-pricing";
+import { captureImportPricingMutation, finalizeImportPricingMutation, readImportPricingUndo, type ImportPricingMutation } from "./import-pricing-mutation";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import { getLogger } from "@/lib/logger";
 
@@ -752,6 +754,7 @@ async function processFastPriceAndSkipRows(input: {
   plan: Awaited<ReturnType<typeof loadChunkExecutionPlan>>;
   user: ProductImportActor;
   storeId: string;
+  pricing: ImportPricingMutation;
 }) {
   const startedAt = Date.now();
   const counts: CommitCounts = { ...EMPTY_COUNTS };
@@ -770,6 +773,7 @@ async function processFastPriceAndSkipRows(input: {
     if (row.plannedCommitAction === "skip") {
       counts.skippedRowCount += 1;
       skippedRowCount += 1;
+      batchItems.push({ batchOperationId: input.batchOperationId, sku: row.sku, sourceRowNumber: row.rowNumber, action: "SKIP" });
       continue;
     }
 
@@ -836,6 +840,8 @@ async function processFastPriceAndSkipRows(input: {
     productIds: productSupplierDeleteIds,
     rows: productSupplierCreateRows,
   });
+
+  counts.priceLogCount += await finalizeImportPricingMutation(input.tx, { state: input.pricing, rows: input.rows, batchItems, priceLogs: priceLogEntries, batchOperationId: input.batchOperationId, newGroupIds: [], actor: input.user });
 
   if (priceLogEntries.length > 0) {
     await input.tx.productPriceLog.createMany({ data: priceLogEntries });
@@ -1027,6 +1033,7 @@ async function processResolvedRows(input: {
   user: ProductImportActor;
   storeId: string;
   ensuredImportStockGroups: EnsuredImportStockGroups;
+  pricing: ImportPricingMutation;
 }) {
   const counts: CommitCounts = { ...EMPTY_COUNTS };
   const ensureImportStockGroup = createProductStockGroupEnsurer(input.tx);
@@ -1078,8 +1085,10 @@ async function processResolvedRows(input: {
 
     if (decision === "skip" || commitAction === "skip") {
       counts.skippedRowCount += 1;
+      batchItems.push({ batchOperationId: input.batchOperationId, sku: row.sku, sourceRowNumber: row.rowNumber, action: "SKIP" });
       continue;
     }
+    if ((commitAction === "update" || commitAction === "update-price") && !existing) throw new StockMutationConflictError();
 
     const category = input.plan.categoryByName.get(row.category.toLowerCase());
     if (!category) throw new Error(`CATEGORY_NOT_FOUND:${row.category}`);
@@ -1392,11 +1401,14 @@ async function processResolvedRows(input: {
     rows: productSupplierCreateRows,
   });
 
+  counts.priceLogCount += await finalizeImportPricingMutation(input.tx, { state: input.pricing, rows: input.rows, batchItems, priceLogs: priceLogEntries, batchOperationId: input.batchOperationId, newGroupIds: [...ensuredImportStockGroups.values()].filter(g => g.created).map(g => g.group.id), actor: input.user });
+
   if (inventoryLogsToCreate.length > 0) {
     await input.tx.inventoryLog.createMany({ data: inventoryLogsToCreate });
   }
   if (priceLogEntries.length > 0) {
     await input.tx.productPriceLog.createMany({ data: priceLogEntries });
+    counts.priceLogCount += priceLogEntries.length;
   }
   if (batchItems.length > 0) {
     await input.tx.batchOperationItem.createMany({
@@ -1462,10 +1474,11 @@ export async function startProductImportCommit(input: StartInput, user: ProductI
 export async function commitProductImportChunk(input: ChunkInput, user: ProductImportActor) {
   const storeId = storeIdFor(user);
   const cursor = input.cursor;
-  const endCursor = cursor + input.chunkSize;
+  let atomicGroups: AtomicImportGroup[] = [];
 
   return db.$transaction(
     async (tx) => {
+      await tx.$queryRaw`SELECT id FROM pos_batch_operations WHERE id = ${input.batchOperationId} AND "storeId" = ${storeId} FOR UPDATE`;
       const batch = await tx.batchOperation.findFirst({
         where: { id: input.batchOperationId, storeId, type: "PRODUCT_IMPORT" },
       });
@@ -1475,15 +1488,34 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
         throw new Error("BATCH_ALREADY_COMMITTED");
       }
 
-      const plannedRows = await tx.productImportPlannedRow.findMany({
+      const allPlannedRows = await tx.productImportPlannedRow.findMany({
         where: {
           batchOperationId: batch.id,
-          cursorIndex: { gte: cursor, lt: endCursor },
         },
         orderBy: { cursorIndex: "asc" },
       });
+      const allRows = allPlannedRows.map(p => ({ ...readPlannedRowData(p.rowData), plannedCommitAction: p.commitAction as ProductImportCommitAction }));
+      const allPlan = await loadChunkExecutionPlan(tx, allRows, storeId);
+      const groupIds = uniqueStrings([...allPlan.existingById.values()].map(p => p.stockGroupId));
+      const groupHints = groupIds.length ? await tx.productStockGroup.findMany({ where: { storeId, id: { in: groupIds } } }) : [];
+      const plannedRows = expandImportGroupRows(allPlannedRows.map((p, index) => {
+        const row = allRows[index];
+        const existing = findExistingProductForPlannedRow(row, allPlan);
+        const categoryId = allPlan.categoryByName.get(row.category.toLowerCase())?.id ?? row.category;
+        const keys = row.plannedCommitAction === "skip" ? [] : [
+          `identity:${normalizeStockGroupKey({ ...row, categoryId })}`,
+          ...(existing?.stockGroupId ? [`group:${existing.stockGroupId}`, `identity:${groupHints.find(g => g.id === existing.stockGroupId)?.groupKey}`] : []),
+        ];
+        return { ...p, keys };
+      }), cursor, input.chunkSize);
+      atomicGroups = importGroupComponents(plannedRows).map(group => ({
+        cursor: Math.min(...group.map(r => r.cursorIndex)),
+        rowNumbers: group.filter(r => r.status !== "COMMITTED").map(r => r.sourceRowNumber),
+      })).filter(group => group.rowNumbers.length);
       const rowSlice = plannedRows.map((planned) => ({
         ...readPlannedRowData(planned.rowData),
+        price: Number(roundMoney(decimalToRatio(readPlannedRowData(planned.rowData).price))),
+        costPrice: readPlannedRowData(planned.rowData).costPrice == null ? null : Number(roundMoney(decimalToRatio(readPlannedRowData(planned.rowData).costPrice!))),
         plannedCommitAction: planned.commitAction as ProductImportCommitAction,
       }));
       const rowNumbers = rowSlice.map((row) => row.rowNumber);
@@ -1495,7 +1527,7 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
         select: { sourceRowNumber: true },
       });
       const committedRowNumbers = new Set(
-        committedItems
+        [...plannedRows.filter(p => p.status === "COMMITTED").map(p => ({ sourceRowNumber: p.sourceRowNumber })), ...committedItems]
           .map((item) => item.sourceRowNumber)
           .filter((value): value is number => value != null),
       );
@@ -1509,7 +1541,7 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
       if (!hintedFastPath) {
         ensuredImportStockGroups = await preEnsureImportStockGroups({
           tx,
-          rows: rowSlice,
+          rows: [...rowSlice].sort((a, b) => (a.unitMultiplierToBase ?? 1) - (b.unitMultiplierToBase ?? 1) || a.unit.localeCompare(b.unit) || a.sku.localeCompare(b.sku)),
           skippedSourceRowNumbers: committedRowNumbers,
           plan: planHint,
           storeId,
@@ -1517,38 +1549,37 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
       }
 
       let plan = planHint;
+      let pricing: ImportPricingMutation = { prepared: { storeId, before: new Map() }, products: new Map(), groups: new Map(), undo: readImportPricingUndo(batch.summary) ?? { version: 1, groups: {}, products: {}, inventoryDeltas: {} } };
       const hasMutationRows = rowSlice.some(
         (row) =>
           !committedRowNumbers.has(row.rowNumber) &&
           row.plannedCommitAction !== "skip",
       );
       if (hasMutationRows) {
-        const hintedProducts = Array.from(planHint.existingById.values());
-        const locks = await lockStockMutationRows(tx, {
+        const mutatedProductIds = new Set(rowSlice.filter(r => r.plannedCommitAction !== "skip" && !committedRowNumbers.has(r.rowNumber)).map(r => findExistingProductForPlannedRow(r, planHint)?.id));
+        const hintedProducts = Array.from(planHint.existingById.values()).filter(p => mutatedProductIds.has(p.id));
+        const prepared = await prepareGroupPricingMutation(tx, {
           storeId,
-          stockGroupIds: [
+          groupIds: [
             ...hintedProducts.map((product) => product.stockGroupId ?? ""),
             ...Array.from(
               ensuredImportStockGroups.values(),
               ({ group }) => group.id,
             ),
           ],
-          productIds: hintedProducts.map((product) => product.id),
+          extraProductIds: hintedProducts.map((product) => product.id),
         });
-        if (
-          locks.lockedStockGroupIds.length !== locks.stockGroupIds.length ||
-          locks.lockedProductIds.length !== locks.productIds.length
-        ) {
-          throw new StockMutationConflictError();
-        }
 
         plan = await loadChunkExecutionPlan(tx, rowSlice, storeId);
         assertProductImportMembershipUnchanged(planHint, plan);
+        // A newly connected pending row needs a new plan; never extend group locks after product locks.
+        assertProductImportMembershipUnchanged(allPlan, await loadChunkExecutionPlan(tx, allRows, storeId));
         ensuredImportStockGroups = await reloadEnsuredImportStockGroups(
           tx,
           ensuredImportStockGroups,
           storeId,
         );
+        pricing = await captureImportPricingMutation(tx, prepared, hintedProducts.map(p => p.id), readImportPricingUndo(batch.summary));
       }
 
       const useFastPath = isFastPriceOrSkipChunk({
@@ -1565,6 +1596,7 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
           plan,
           user,
           storeId,
+          pricing,
         })
         : await processResolvedRows({
           tx,
@@ -1576,6 +1608,7 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
           user,
           storeId,
           ensuredImportStockGroups,
+          pricing,
         });
       const processedRowNumbers = rowNumbers.filter((rowNumber) => !committedRowNumbers.has(rowNumber));
       if (processedRowNumbers.length > 0) {
@@ -1589,18 +1622,19 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
       }
       const previousCounts = readCounts(batch.summary);
       const cumulativeCounts = addCounts(previousCounts, chunkCounts);
-      const committedRowCount = await tx.batchOperationItem.count({
-        where: { batchOperationId: batch.id, sourceRowNumber: { not: null } },
+      const committedRowCount = await tx.productImportPlannedRow.count({
+        where: { batchOperationId: batch.id, status: "COMMITTED" },
       });
       const totalRows = await tx.productImportPlannedRow.count({
         where: { batchOperationId: batch.id },
       });
-      const nextCursor = Math.min(endCursor, totalRows);
+      const completedNow = new Set(rowNumbers);
+      const nextCursor = allPlannedRows.find(row => row.status !== "COMMITTED" && !completedNow.has(row.sourceRowNumber))?.cursorIndex ?? totalRows;
 
       await tx.batchOperation.update({
         where: { id: batch.id },
         data: {
-          summary: buildSessionSummary({
+          summary: { ...buildSessionSummary({
             rowCount: totalRows,
             chunkSize: input.chunkSize,
             createMissingCategories: Boolean((batch.summary as Record<string, unknown> | null)?.createMissingCategories),
@@ -1610,13 +1644,14 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
             counts: cumulativeCounts,
             committedRowCount,
             lastCursor: nextCursor,
-          }),
+          }), pricingUndo: pricing.undo as unknown as Prisma.InputJsonValue },
         },
       });
 
       return {
         batchOperationId: batch.id,
         processedRows: rowSlice.length,
+        committedSourceRowNumbers: rowNumbers,
         committedRowCount,
         nextCursor,
         done: nextCursor >= totalRows,
@@ -1626,12 +1661,16 @@ export async function commitProductImportChunk(input: ChunkInput, user: ProductI
       };
     },
     { maxWait: 15000, timeout: 120000 },
-  );
+  ).catch((error: unknown) => {
+    if (error instanceof Error) Object.assign(error, { atomicGroups });
+    throw error;
+  });
 }
 
 export async function finishProductImportCommit(input: FinishInput, user: ProductImportActor) {
   const storeId = storeIdFor(user);
   return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM pos_batch_operations WHERE id = ${input.batchOperationId} AND "storeId" = ${storeId} FOR UPDATE`;
     const batch = await tx.batchOperation.findFirst({
       where: { id: input.batchOperationId, storeId, type: "PRODUCT_IMPORT" },
     });
@@ -1654,7 +1693,7 @@ export async function finishProductImportCommit(input: FinishInput, user: Produc
       where: { id: batch.id },
       data: {
         status: "COMMITTED",
-        summary: buildSessionSummary({
+        summary: { ...buildSessionSummary({
           rowCount: totalRows,
           chunkSize: Number((batch.summary as Record<string, unknown> | null)?.chunkSize ?? PRODUCT_IMPORT_CHUNK_SIZE),
           createMissingCategories: Boolean((batch.summary as Record<string, unknown> | null)?.createMissingCategories),
@@ -1664,7 +1703,7 @@ export async function finishProductImportCommit(input: FinishInput, user: Produc
           counts,
           committedRowCount,
           lastCursor: totalRows,
-        }),
+        }), ...(readImportPricingUndo(batch.summary) ? { pricingUndo: readImportPricingUndo(batch.summary) as unknown as Prisma.InputJsonValue } : {}) },
       },
     });
 

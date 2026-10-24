@@ -7,6 +7,7 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const categoryFindManyMock = vi.hoisted(() => vi.fn());
 const supplierFindManyMock = vi.hoisted(() => vi.fn());
+const groupFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -15,6 +16,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
+    productStockGroup: { findMany: groupFindManyMock },
     product: {
       findMany: productFindManyMock,
     },
@@ -51,6 +53,18 @@ describe("POST /api/products/import/preview", () => {
     ]);
     categoryFindManyMock.mockResolvedValue([{ name: "Jasa" }]);
     supplierFindManyMock.mockResolvedValue([]);
+    groupFindManyMock.mockImplementation(async () => [{ id: "group-1", storeId: "store-main", groupKey: "fotocopy a4|cat-1||", baseUnit: "lembar", pricingConfig: null, products: (await productFindManyMock()).filter((p: any) => p.stockGroupId === "group-1").map((p: any) => ({ ...p, storeId: "store-main", isActive: true, conversionNeedsReview: false, unitMultiplierToBase: p.unitMultiplierToBase ?? 1 })) }]);
+  });
+
+  it("repreviews raw row intent with skip choices through the existing authenticated route", async () => {
+    const response = await POST(new Request("http://localhost/api/products/import/preview", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: [{ rowNumber: 2, name: "Fotocopy A4", sku: "FC-A4", category: "Jasa", unit: "lembar", price: 700, costPrice: null, autoAction: "auto_price_update" }], decisions: { "2": "skip" } }),
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.rows[0]).toMatchObject({ price: 700, costPrice: null, autoAction: "auto_skip" });
+    expect(requirePermissionMock).toHaveBeenCalledWith("product", "create");
   });
 
   it("returns an auto-skip decision for case-insensitive duplicate product names after abbreviation expansion", async () => {

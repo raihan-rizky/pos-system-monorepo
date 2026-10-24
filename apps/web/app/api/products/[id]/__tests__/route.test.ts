@@ -1,3 +1,4 @@
+import { withPricingTransaction } from "../../__tests__/legacy-pricing-transaction";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DELETE, PUT } from "../route";
 
@@ -101,8 +102,9 @@ describe("PUT /api/products/[id]", () => {
       size: null,
       unit: "pcs",
       stock: 10,
-      stockGroupId: null,
-      stockGroup: null,
+      stockGroupId: "stock-group-1",
+      stockGroup: { id: "stock-group-1", storeId: "store-main", groupKey: "banner flexi|cat-1||", baseUnit: "pcs", baseStock: 10 },
+      isActive: true,
       unitMultiplierToBase: 1,
       conversionNeedsReview: false,
       price: "15000.00",
@@ -125,8 +127,8 @@ describe("PUT /api/products/[id]", () => {
       unitMultiplierToBase: 1,
     });
     productPriceLogCreateManyMock.mockResolvedValue({ count: 2 });
-    transactionMock.mockImplementation((callback) =>
-      callback({
+    transactionMock.mockImplementation(async (callback) =>
+      callback(withPricingTransaction({
         $queryRaw: stockRowLockMock,
         product: {
           findFirst: productFindFirstMock,
@@ -142,7 +144,7 @@ describe("PUT /api/products/[id]", () => {
         productPriceLog: {
           createMany: productPriceLogCreateManyMock,
         },
-      }),
+      }, await Promise.all(productFindFirstMock.mock.results.map(result => result.value)))),
     );
   });
 
@@ -306,7 +308,7 @@ describe("PUT /api/products/[id]", () => {
     const response = await PUT(
       new Request("http://localhost/api/products/product-1", {
         method: "PUT",
-        body: JSON.stringify({ price: 17000 }),
+        body: JSON.stringify({ name: "Banner Flexi Baru", price: 17000 }),
       }),
       { params: Promise.resolve({ id: "product-1" }) },
     );
@@ -390,8 +392,8 @@ describe("PUT /api/products/[id]", () => {
     ]);
     categoryFindFirstMock.mockResolvedValue({ id: "cat-office", name: "Kantor" });
     brandFindFirstMock.mockResolvedValue({ id: "brand-joyko" });
-    transactionMock.mockImplementation((callback) =>
-      callback({
+    transactionMock.mockImplementation(async (callback) =>
+      callback(withPricingTransaction({
         $queryRaw: stockRowLockMock,
         product: {
           findMany: productFindManyMock,
@@ -401,7 +403,7 @@ describe("PUT /api/products/[id]", () => {
           findFirst: productStockGroupFindFirstMock,
           update: productStockGroupUpdateMock,
         },
-      }),
+      }, await Promise.all(productFindFirstMock.mock.results.map(result => result.value)))),
     );
 
     const response = await PUT(
@@ -460,8 +462,8 @@ describe("DELETE /api/products/[id]", () => {
     );
     productUpdateMock.mockResolvedValue({ id: "product-1", isActive: false });
     productDeleteMock.mockResolvedValue({ id: "product-1" });
-    transactionMock.mockImplementation((callback) =>
-      callback({
+    transactionMock.mockImplementation(async (callback) =>
+      callback(withPricingTransaction({
         $queryRaw: stockRowLockMock,
         product: {
           findFirst: productFindFirstMock,
@@ -471,7 +473,7 @@ describe("DELETE /api/products/[id]", () => {
         transactionItem: {
           count: transactionItemCountMock,
         },
-      }),
+      }, await Promise.all(productFindFirstMock.mock.results.map(result => result.value)))),
     );
   });
 

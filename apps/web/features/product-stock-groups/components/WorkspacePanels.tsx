@@ -1,4 +1,7 @@
 "use client";
+
+import { adjustmentFactor } from "../pricing-drafts";
+import { decimalToRatio, multiplyRatios, divideRatios, roundMoney } from "../automatic-pricing";
 import { useId, useState } from "react";
 import type { StockGroupWorkspaceContentProps } from "./StockGroupWorkspace";
 import { buildUnitManagementDraft } from "./StockGroupWorkspace";
@@ -636,6 +639,18 @@ export function AdditionPanel(props: StockGroupWorkspaceContentProps) {
   const draft = props.newVariantDraft;
   const result = additionResult(props.detail, draft),
     disabled = props.isSaving || !props.canCreateProducts;
+  const automatic = !!props.detail.pricing && draft?.pricingMode !== "MANUAL";
+  let estimatedPrice = "", estimatedCost = "";
+  try {
+    const source = props.detail.pricing?.members.find(member => member.productId === props.detail.pricing?.config.sourceProductId);
+    const sourceUnit = props.detail.variants.find(member => member.id === source?.productId);
+    const target = props.detail.variants.find(member => member.id === draft?.conversionToProductId);
+    if (source && sourceUnit && target && draft) {
+      const ratio = divideRatios(multiplyRatios(decimalToRatio(draft.conversionToQuantity), decimalToRatio(target.unitMultiplierToBase)), multiplyRatios(decimalToRatio(draft.conversionFromQuantity), decimalToRatio(sourceUnit.unitMultiplierToBase)));
+      estimatedPrice = roundMoney(multiplyRatios(decimalToRatio(source.price), ratio, adjustmentFactor(draft.adjustment ?? "none", draft.percent ?? "0")));
+      estimatedCost = source.costPrice === null ? "" : roundMoney(multiplyRatios(decimalToRatio(source.costPrice), ratio));
+    }
+  } catch { /* The existing validation describes incomplete conversion inputs. */ }
   const update = (next: Partial<NonNullable<typeof draft>>) => {
     if (draft) props.onNewVariantDraftChange?.({ ...draft, ...next });
   };
@@ -648,6 +663,10 @@ export function AdditionPanel(props: StockGroupWorkspaceContentProps) {
           Nama produk dan SKU mengikuti grup.
         </p>
       </div>
+      {props.detail.pricing && <div className="space-y-3">
+        <label className="block text-sm font-semibold">Mode harga satuan baru<select aria-label="Mode harga satuan baru" className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 focus-visible:outline-blue-600" value={draft?.pricingMode ?? "AUTO"} disabled={disabled} onChange={event => update({ pricingMode: event.target.value as "AUTO" | "MANUAL" })}><option value="AUTO">Auto — mengikuti sumber</option><option value="MANUAL">Manual — isi sendiri</option></select></label>
+        {automatic && <><p className="text-sm text-slate-700">Harga dan HPP mengikuti sumber serta konversi. Tanpa penyesuaian memakai faktor 1. Nilai akhir dihitung server saat disimpan.</p><label className="block text-sm">Penyesuaian satuan baru<select aria-label="Penyesuaian satuan baru" className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3" value={draft?.adjustment ?? "none"} disabled={disabled} onChange={e => update({ adjustment: e.target.value as "none" | "discount" | "markup" })}><option value="none">Tanpa penyesuaian</option><option value="discount">Diskon</option><option value="markup">Markup</option></select></label>{draft?.adjustment && draft.adjustment !== "none" && <Field label="Persentase satuan baru" value={draft.percent ?? "0"} disabled={disabled} onChange={percent => update({ percent })} />}</>}
+      </div>}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
           label="Nama satuan"
@@ -661,7 +680,8 @@ export function AdditionPanel(props: StockGroupWorkspaceContentProps) {
         />
         <Field
           label="Harga jual"
-          value={draft?.price ?? ""}
+          value={automatic ? estimatedPrice : draft?.price ?? ""}
+          readOnly={automatic}
           onChange={(value) => update({ price: value })}
           disabled={disabled}
         />
@@ -699,7 +719,8 @@ export function AdditionPanel(props: StockGroupWorkspaceContentProps) {
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <Field
             label="HPP (opsional)"
-            value={draft?.costPrice ?? ""}
+            value={automatic ? estimatedCost : draft?.costPrice ?? ""}
+            readOnly={automatic}
             onChange={(value) => update({ costPrice: value })}
             disabled={disabled}
           />

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildAdditionalUnitInputs, createUnitVariantDraft, resolveUnitVariantValues } from "../product-unit-variants";
 
 const primary = { unit: "pcs", sku: "BARANG-PCS", price: "2000", costPrice: "1000", stock: "24" };
-const box = { ...createUnitVariantDraft("box"), unit: "dus", quantity: "12" };
+const box = { ...createUnitVariantDraft("box"), pricingMode: "MANUAL" as const, unit: "dus", quantity: "12" };
 
 describe("additional unit modal and selling price", () => {
   it("saves converted modal and defaults selling price to modal plus 35 percent", () => {

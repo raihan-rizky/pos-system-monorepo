@@ -1,0 +1,37 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { bundleReactHarness } from "./browser-harness.mjs";
+const require = createRequire(import.meta.url), { chromium } = require("@playwright/test");
+const bundle = await bundleReactHarness(`import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import {ProductUnitFields} from './components/inventory/ProductUnitFields';import {createUnitVariantDraft,buildAdditionalUnitInputs} from './lib/product-form/product-unit-variants';import {AdditionPanel} from './features/product-stock-groups/components/WorkspacePanels';import {additionResult} from './features/product-stock-groups/workspace-drafts';
+const primary={unit:'pcs',sku:'SN-PCS',price:'3000',costPrice:'2000',stock:'120'};const review={price:[],costPrice:[]};const detail={id:'snowman',displayName:'Snowman',baseUnit:'pcs',baseStock:120,hasNegativeStock:false,variants:[{id:'pcs',name:'Snowman',unit:'pcs',sku:'SN-PCS',price:3000,costPrice:2000,stock:120,unitMultiplierToBase:1,conversionNeedsReview:false}],pricing:{initialized:true,config:{sourceProductId:'pcs',revision:1,initializationVersion:1,members:{pcs:{mode:'AUTO',factor:{numerator:'1',denominator:'1'},review}}},members:[{productId:'pcs',price:'3000',costPrice:'2000',review}]}};
+function Harness(){const[rows,setRows]=useState([{...createUnitVariantDraft('pak'),unit:'pak',quantity:'12'}]);const[draft,setDraft]=useState({unit:'dus',price:'',costPrice:'',stock:'0',minStock:'5',conversionFromQuantity:'1',conversionToQuantity:'24',conversionToProductId:'pcs',note:'',pricingMode:'AUTO',adjustment:'none',percent:'0'});return <><form onSubmit={e=>{e.preventDefault();window.unitSaved=buildAdditionalUnitInputs(primary,rows)}}><ProductUnitFields primary={primary} rows={rows} onChange={setRows} errors={{}}/><button type="submit">Simpan unit contoh</button></form><div id="addition"><AdditionPanel detail={detail} canCreateProducts isSaving={false} newVariantDraft={draft} onNewVariantDraftChange={setDraft} onAddVariant={()=>window.addSaved=additionResult(detail,draft).payload}/></div></>};createRoot(document.getElementById('root')).render(<Harness/>);`, ["components/inventory/ProductUnitFields.tsx", "features/product-stock-groups/components/WorkspacePanels.tsx"]);
+const browser = await chromium.launch({ channel: "chrome", headless: true });
+try {
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
+  const errors = []; page.on("pageerror", e => errors.push(e.message));
+  await page.route("http://localhost:3016/**", route => route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><main id="root" style="padding:12px"></main></body></html>' }));
+  await page.goto("http://localhost:3016/fixture"); await page.addStyleTag({ content: bundle.css }); await page.addScriptTag({ content: bundle.script });
+  const row = page.locator("fieldset").first(), mode = row.getByLabel("Mode harga unit 1", { exact: true });
+  await mode.waitFor(); assert.equal(await mode.inputValue(), "AUTO");
+  assert.equal(await row.getByLabel("Harga modal", { exact: true }).inputValue(), "24000");
+  await row.locator("summary").click();
+  const price = row.getByLabel("Harga jual", { exact: true }), cost = row.getByLabel("Harga modal", { exact: true });
+  assert.equal(await price.inputValue(), "36000.00"); assert.equal(await price.getAttribute("readonly"), "");
+  await row.getByLabel("Penyesuaian unit 1", { exact: true }).selectOption("discount"); await row.getByLabel("Persentase unit 1", { exact: true }).fill("10");
+  assert.equal(await price.inputValue(), "32400.00");
+  await page.getByRole("button", { name: "Simpan unit contoh" }).click();
+  let saved = await page.evaluate(() => window.unitSaved[0]); assert.deepEqual(saved.priceFactor, { numerator: "9", denominator: "10" }); assert.equal(saved.price, 0); assert.equal(Object.hasOwn(saved, "costPrice"), false);
+  await mode.selectOption("MANUAL"); await price.fill("33000"); await cost.fill("23000"); await page.getByRole("button", { name: "Simpan unit contoh" }).click();
+  saved = await page.evaluate(() => window.unitSaved[0]); assert.equal(saved.pricingMode, "MANUAL"); assert.equal(saved.price, 33000); assert.equal(saved.costPrice, 23000);
+  await mode.selectOption("AUTO"); assert.equal(await cost.inputValue(), "24000"); assert.equal(await price.inputValue(), "32400.00", "Auto ignores obsolete independent money");
+  const addition = page.locator("#addition");
+  assert.equal(await addition.getByLabel("Harga jual", { exact: true }).inputValue(), "72000.00");
+  await addition.getByRole("button", { name: "Tambah satuan", exact: true }).click();
+  saved = await page.evaluate(() => window.addSaved); assert.equal(saved.pricingMode, "AUTO"); assert.deepEqual(saved.priceFactor, { numerator: "1", denominator: "1" }); assert.equal(saved.price, 0);
+  await addition.getByLabel("Mode harga satuan baru", { exact: true }).selectOption("MANUAL");
+  await addition.getByLabel("Harga jual", { exact: true }).fill("68000"); await addition.locator("summary").click(); await addition.getByLabel("HPP (opsional)", { exact: true }).fill("45000");
+  await addition.getByRole("button", { name: "Tambah satuan", exact: true }).click();
+  saved = await page.evaluate(() => window.addSaved); assert.equal(saved.pricingMode, "MANUAL"); assert.equal(saved.price, 68000); assert.equal(saved.costPrice, 45000);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true); assert.deepEqual(errors, []);
+  process.stdout.write("PASS actual new-unit forms: default Auto1, exact10% adjustment, explicit Manual before create, stale independent money ignored, mobile375" + "\n");
+} finally { await browser.close(); }

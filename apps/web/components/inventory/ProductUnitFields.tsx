@@ -39,9 +39,14 @@ export function ProductUnitFields({ primary, rows, onChange, errors, disabled }:
 
   return <div className="space-y-4">
     {rows.map((row, index) => {
-      const values = resolveUnitVariantValues(primary, row);
+      const sourceRatio = Math.min(1, ...rows.map(value => relativeUnitQuantity(value.direction, value.quantity)));
+      const isSource = relativeUnitQuantity(row.direction, row.quantity) === sourceRatio && sourceRatio < 1;
+      const automatic = row.pricingMode === "AUTO" && !isSource;
+      const values = resolveUnitVariantValues(primary, row, isSource, rows);
       const update = (changes: Partial<UnitVariantDraft>) => onChange(rows.map((item) => item.id === row.id ? { ...item, ...changes } : item));
       const errorId = `${row.id}-error`;
+      const costHintId = `${row.id}-cost-hint`;
+      const missingPrimaryCost = !primary.costPrice?.trim() && !row.costPrice.trim();
       const accessibility = { "aria-invalid": Boolean(errors[row.id]), "aria-describedby": errors[row.id] ? errorId : undefined };
       return <fieldset key={row.id} id={row.id} disabled={disabled} className="min-w-0 rounded-xl border border-surface-200 p-4">
         <legend className="px-1 text-sm font-medium text-surface-700">Unit tambahan {index + 1}</legend>
@@ -61,20 +66,22 @@ export function ProductUnitFields({ primary, rows, onChange, errors, disabled }:
             </select>
           </div>
           <Input id={`${row.id}-quantity`} label={row.direction === "larger" ? `Isi dalam 1 ${row.unit || "unit tambahan"}` : `Isi dalam 1 ${primary.unit || "unit utama"}`} type="number" min="1" step="any" placeholder="Contoh: 12" className="placeholder:text-surface-500" value={row.quantity} {...accessibility} onChange={(event) => update({ quantity: event.target.value })} />
-          <Input id={`${row.id}-cost`} label="Harga modal" type="number" min="0" step="0.01" inputMode="decimal" value={values.costPrice} {...accessibility} onChange={(event) => update({ costPrice: event.target.value })} />
+          {!isSource && <label className="text-sm">Mode harga unit<select aria-label={`Mode harga unit ${index + 1}`} value={row.pricingMode ?? "MANUAL"} onChange={e => update({ pricingMode: e.target.value as "AUTO" | "MANUAL", priceEdited: false })} className="mt-1 min-h-11 w-full rounded-xl border border-surface-200 px-3"><option value="AUTO">Auto — mengikuti sumber</option><option value="MANUAL">Manual — isi sendiri</option></select></label>}
+          <Input id={`${row.id}-cost`} label="Harga modal" type="number" min="0" step="0.01" inputMode="decimal" value={values.costPrice} readOnly={automatic} {...accessibility} aria-describedby={[costHintId, errors[row.id] ? errorId : null].filter(Boolean).join(" ")} onChange={(event) => update({ costPrice: event.target.value, ...(isSource ? { pricingMode: "MANUAL" as const } : {}) })} />
         </div>
         <p className="mt-3 text-sm text-surface-700">{row.direction === "larger"
           ? `1 ${row.unit || "unit tambahan"} = ${row.quantity || "…"} ${primary.unit || "unit utama"}`
           : `1 ${primary.unit || "unit utama"} = ${row.quantity || "…"} ${row.unit || "unit tambahan"}`}</p>
-        <p className="mt-1 text-xs text-surface-600">Modal mengikuti konversi unit utama. Bisa diubah sesuai harga pembelian.</p>
+        <p id={costHintId} aria-live="polite" className="mt-1 text-xs text-surface-600">{isSource ? "Unit terkecil menjadi sumber harga dan HPP. Isi nilai sumber di sini; unit lain mengikuti konversi. Nilai akhir dihitung server saat disimpan." : automatic ? "Auto memakai harga dan HPP sumber sesuai konversi. Pilih Manual untuk mengisi sendiri. Nilai akhir dihitung server saat disimpan." : missingPrimaryCost ? "Harga modal belum bisa dihitung otomatis karena HPP unit utama belum diisi. Isi Harga Modal (HPP) di atas atau masukkan modal unit ini secara manual." : "Mode Manual memakai harga dan HPP yang Anda isi."}</p>
+        {automatic && <div className="mt-2 grid gap-3 sm:grid-cols-2"><label className="text-sm">Penyesuaian unit<select aria-label={`Penyesuaian unit ${index + 1}`} value={row.adjustment ?? "none"} className="mt-1 min-h-11 w-full rounded-xl border border-surface-200 px-3" onChange={e => update({ adjustment: e.target.value as "none" | "discount" | "markup" })}><option value="none">Tanpa penyesuaian</option><option value="discount">Diskon</option><option value="markup">Markup</option></select></label>{row.adjustment && row.adjustment !== "none" && <Input label={`Persentase unit ${index + 1}`} type="number" min="0" step="any" value={row.percent ?? "0"} onChange={e => update({ percent: e.target.value })} />}</div>}
         <details className="mt-2" data-unit-details>
           <summary className="flex min-h-11 cursor-pointer items-center text-sm text-surface-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">Detail tambahan (SKU, barcode, harga jual)</summary>
           <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input id={`${row.id}-sku`} label="SKU unit" value={values.sku} {...accessibility} onChange={(event) => update({ sku: event.target.value, skuEdited: true })} />
             <Input id={`${row.id}-barcode`} label="Barcode (opsional)" value={row.barcode} onChange={(event) => update({ barcode: event.target.value })} />
             <div>
-              <Input id={`${row.id}-price`} label="Harga jual" type="number" min="0" step="any" inputMode="decimal" value={values.price} {...accessibility} onChange={(event) => update({ price: event.target.value, priceEdited: true })} />
-              <p className="mt-1 text-xs text-surface-600">Harga awal = modal unit ini + 35%. Bisa diubah sesuai kebutuhan.</p>
+              <Input id={`${row.id}-price`} label="Harga jual" type="number" min="0" step="any" inputMode="decimal" value={values.price} readOnly={automatic} {...accessibility} onChange={(event) => update({ price: event.target.value, priceEdited: true, ...(isSource ? { pricingMode: "MANUAL" as const } : {}) })} />
+              <p className="mt-1 text-xs text-surface-600">{automatic ? "Harga otomatis = sumber × konversi × faktor penyesuaian." : "Isi harga jual satuan ini."}</p>
             </div>
           </div>
         </details>

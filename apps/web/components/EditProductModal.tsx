@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Modal, Button, Input } from "@pos/ui";
 import { ImageIcon } from "lucide-react";
 import { useUpdateProduct, useCategories, Product } from "@/hooks/useProducts";
+import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
 import type { ProductCartItem } from "@/hooks/useCart";
 
 import { getLogger } from "@/lib/logger";
@@ -19,6 +20,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
   const { data: categories = [] } = useCategories();
   const updateProduct = useUpdateProduct();
 
+  const initializedProduct = useRef<string | null>(null);
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
@@ -35,7 +37,9 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    if (product && open) {
+    if (!open) initializedProduct.current = null;
+    if (product && open && initializedProduct.current !== product.id) {
+      initializedProduct.current = product.id;
       setName(product.name);
       setSku(product.sku);
       setPrice(product.price.toString());
@@ -102,7 +106,6 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
         id: product.id,
         name,
         sku,
-        price: Number(price),
         hargaDinas: parsedHargaDinas,
         hargaAgen: parsedHargaAgen,
         stock: Number(stock),
@@ -181,12 +184,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input
-            label="Harga Jual (Rp) *"
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
+          <ProductPricingAction groupId={product?.stockGroupId ?? product?.stockGroup?.id} disabled={isUploading || updateProduct.isPending} identityChanged={!!product && (name !== product.name || categoryId !== product.category.id || unit !== product.unit || size !== (product.size ?? "") || material !== (product.material ?? ""))} />
           <div className="space-y-1">
             <Input
               label="Harga Dinas (Opsional)"

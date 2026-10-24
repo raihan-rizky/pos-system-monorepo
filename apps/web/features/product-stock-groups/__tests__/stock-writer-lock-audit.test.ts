@@ -40,7 +40,7 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     startMarker: "export async function PUT(",
     endMarker: "export async function DELETE(",
     requiredMarkers: [
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "const currentProduct = await tx.product.findFirst(",
     ],
   },
@@ -49,7 +49,7 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     relativePath: "app/api/products/[id]/route.ts",
     startMarker: "export async function DELETE(",
     requiredMarkers: [
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "const currentProduct = await tx.product.findFirst(",
     ],
   },
@@ -59,7 +59,7 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     startMarker: "export async function POST(",
     endMarker: "export async function DELETE(",
     requiredMarkers: [
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "group = await tx.productStockGroup.findUnique(",
     ],
   },
@@ -69,7 +69,7 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     startMarker: "export async function DELETE(",
     requiredMarkers: [
       "await db.$transaction(",
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "const currentProduct = await tx.product.findFirst(",
     ],
   },
@@ -77,9 +77,10 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     name: "stock-group conversion PATCH",
     relativePath:
       "app/api/product-stock-groups/[id]/conversion/route.ts",
-    startMarker: "export async function PATCH(",
+    startMarker: "async function handleConversion(",
+    endMarker: "export async function POST(",
     requiredMarkers: [
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "const group = await tx.productStockGroup.findFirst(",
     ],
   },
@@ -89,7 +90,7 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
       "app/api/product-stock-groups/[id]/products/route.ts",
     startMarker: "export async function POST(",
     requiredMarkers: [
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "const group = await tx.productStockGroup.findFirst(",
       "const products = await tx.product.findMany(",
     ],
@@ -109,7 +110,7 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
       "app/api/product-stock-groups/[id]/variants/route.ts",
     startMarker: "export async function POST(",
     requiredMarkers: [
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "const group = await tx.productStockGroup.findFirst(",
     ],
   },
@@ -118,7 +119,7 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     relativePath: "app/api/product-stock-groups/route.ts",
     startMarker: "export async function POST(",
     requiredMarkers: [
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "const products = await tx.product.findMany(",
     ],
   },
@@ -152,8 +153,18 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     startMarker: "export async function commitProductImportChunk(",
     endMarker: "export async function finishProductImportCommit(",
     requiredMarkers: [
-      "lockStockMutationRows(",
+      "prepareGroupPricingMutation(",
       "plan = await loadChunkExecutionPlan(",
+    ],
+  },
+  {
+    name: "product import pricing undo",
+    relativePath: "features/product-import/services/import-pricing-undo.ts",
+    startMarker: "export async function undoImportPricing(",
+    requiredMarkers: [
+      "prepareGroupPricingMutation(",
+      "await tx.productStockGroup.findMany(",
+      "await tx.product.findMany(",
     ],
   },
   {
@@ -200,21 +211,21 @@ function productionTypeScriptFiles(directory: string): string[] {
 
 function isSharedStockWriter(source: string) {
   const writesGroupBase =
-    /productStockGroup\.(?:update|updateMany)\s*\(\s*\{[\s\S]{0,1600}?data\s*:\s*\{[\s\S]{0,700}?baseStock/.test(
+    /productStockGroup\.(?:update|updateMany)\s*\(\s*\{[\s\S]{0,1600}?data\s*:\s*\{[^{}]{0,700}?baseStock/.test(
       source,
     ) ||
     /UPDATE\s+pos_product_stock_groups[\s\S]{0,1200}?"baseStock"/i.test(
       source,
     );
   const writesMembershipOrMultiplier =
-    /product\.(?:update|updateMany|create)\s*\(\s*\{[\s\S]{0,1800}?data\s*:\s*\{[\s\S]{0,1000}?(?:stockGroupId|unitMultiplierToBase)/.test(
+    /product\.(?:update|updateMany|create)\s*\(\s*\{(?:(?!\}\s*\))[\s\S]){0,1800}?data\s*:\s*\{[^{}]{0,1000}?(?:stockGroupId|unitMultiplierToBase)/.test(
       source,
     ) ||
     /UPDATE\s+pos_products[\s\S]{0,1800}?"stockGroupId"/i.test(source);
   const deletesProductMembership =
     /(?:db|tx)\.product\.(?:delete|deleteMany)\s*\(/.test(source);
   const changesProductActiveMembership =
-    /(?:db|tx)\.product\.(?:update|updateMany)\s*\(\s*\{[\s\S]{0,1800}?data\s*:\s*\{[\s\S]{0,1000}?isActive\s*:/.test(
+    /(?:db|tx)\.product\.(?:update|updateMany)\s*\(\s*\{(?:(?!\}\s*\))[\s\S]){0,1800}?data\s*:\s*\{[^{}]{0,1000}?isActive\s*:/.test(
       source,
     );
 
@@ -253,8 +264,8 @@ describe("shared-stock writer source audit", () => {
       new Set(writerInventory.map((writer) => writer.relativePath)),
     ).sort();
 
-    expect(writerInventory).toHaveLength(17);
-    expect(new Set(writerInventory.map((writer) => writer.name)).size).toBe(17);
+    expect(writerInventory).toHaveLength(18);
+    expect(new Set(writerInventory.map((writer) => writer.name)).size).toBe(18);
     expect(discovered).toEqual(classifiedPaths);
   });
 

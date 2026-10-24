@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
@@ -8,9 +9,9 @@ import { getLogger } from "@/lib/logger";
 import { resolveConversionEdit } from "@/features/product-stock-groups/bulk-stock-groups";
 import {
   isStockMutationConflict,
-  lockStockMutationRows,
-  StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
+
+import { prepareGroupPricingMutation, synchronizeGroupPricingMutation, GroupPricingError, previewGroupPricingSnapshot, groupPricingVersion } from "@/features/product-stock-groups/group-pricing-service";
 
 const log = getLogger("api:product-stock-groups:conversion");
 
@@ -33,6 +34,8 @@ const updateConversionSchema = z.object({
   conversionPairs: z.array(conversionPairSchema).optional().default([]),
   directMultipliers: z.array(directMultiplierSchema).optional().default([]),
   note: z.string().trim().optional().nullable(),
+  expectedVersion: z.string().optional(),
+  expectedProjection: z.string().optional(),
 }).refine(
   (value) =>
     value.conversionPairs.length > 0 || value.directMultipliers.length > 0,
@@ -42,49 +45,19 @@ const updateConversionSchema = z.object({
   },
 );
 
-export async function PATCH(
+async function handleConversion(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
+  previewOnly: boolean,
 ) {
   try {
-    const user = await requirePermission("product", "update");
+    const user = await requirePermission("product", previewOnly ? "read" : "update");
     const storeId = user.storeId || "store-main";
     const { id } = await params;
     const input = updateConversionSchema.parse(await request.json());
 
     const result = await db.$transaction(async (tx) => {
-      const groupHint = await tx.productStockGroup.findFirst({
-        where: { id, storeId },
-        include: {
-          products: {
-            where: { isActive: true },
-            select: {
-              id: true,
-              stockGroupId: true,
-              unit: true,
-              unitMultiplierToBase: true,
-              conversionNeedsReview: true,
-            },
-          },
-        },
-      });
-      if (!groupHint) throw new Error("GROUP_NOT_FOUND");
-
-      const candidateProductIds = groupHint.products
-        .map((product) => product.id)
-        .sort((left, right) => left.localeCompare(right));
-      const locks = await lockStockMutationRows(tx, {
-        storeId,
-        stockGroupIds: [id],
-        productIds: candidateProductIds,
-      });
-      if (
-        locks.lockedStockGroupIds.length !== 1 ||
-        locks.lockedProductIds.length !== candidateProductIds.length
-      ) {
-        throw new StockMutationConflictError();
-      }
-
+      const prepared = await prepareGroupPricingMutation(tx, { storeId, groupIds: [id] });
       const group = await tx.productStockGroup.findFirst({
         where: { id, storeId },
         include: {
@@ -100,19 +73,10 @@ export async function PATCH(
           },
         },
       });
-      if (!group) throw new StockMutationConflictError();
-
-      const reloadedProductIds = group.products
-        .map((product) => product.id)
-        .sort((left, right) => left.localeCompare(right));
-      if (
-        reloadedProductIds.length !== candidateProductIds.length ||
-        reloadedProductIds.some(
-          (productId, index) => productId !== candidateProductIds[index],
-        ) ||
-        group.products.some((product) => product.stockGroupId !== id)
-      ) {
-        throw new StockMutationConflictError();
+      if (!group) throw new GroupPricingError("Grup satuan tidak ditemukan.", 404);
+      const before = prepared.before.get(id)!;
+      if (!previewOnly && input.expectedVersion !== undefined && input.expectedVersion !== groupPricingVersion(before) + ":" + group.baseStock) {
+        throw new GroupPricingError("Data grup berubah. Muat pratinjau konversi terbaru.", 409);
       }
 
       const currentBaseProduct =
@@ -140,6 +104,25 @@ export async function PATCH(
         conversionPairs: input.conversionPairs,
         directMultipliers: input.directMultipliers,
       });
+
+      const current = { ...before, baseUnit: nextBaseProduct.unit,
+        members: before.members.map(member => {
+          const variant = resolved.variants.find(v => v.id === member.id);
+          return variant ? { ...member, unitMultiplierToBase: variant.unitMultiplierToBase, conversionNeedsReview: false } : member;
+        }),
+      };
+      const pricingPreview = previewGroupPricingSnapshot(before, current);
+      pricingPreview.version += ":" + group.baseStock;
+      pricingPreview.projectionToken = createHash("sha256").update(JSON.stringify({
+        pricing: pricingPreview.projectionToken, baseUnit: nextBaseProduct.unit,
+        nextBaseStock: resolved.nextBaseStock, variants: resolved.variants,
+        mode: input.mode, sourceProductId: input.sourceProductId ?? null,
+      })).digest("hex");
+      if (previewOnly) return { preview: resolved.preview, nextBaseStock: resolved.nextBaseStock, pricing: pricingPreview };
+      if ((input.expectedVersion !== undefined || input.expectedProjection !== undefined) &&
+          (input.expectedVersion !== pricingPreview.version || input.expectedProjection !== pricingPreview.projectionToken)) {
+        throw new GroupPricingError("Data grup berubah. Muat pratinjau konversi terbaru.", 409);
+      }
 
       const updated = await tx.productStockGroup.update({
         where: { id: group.id },
@@ -191,7 +174,8 @@ export async function PATCH(
         },
       });
 
-      return { ...updated, preview: resolved.preview };
+      const [pricing] = await synchronizeGroupPricingMutation(tx, { prepared, actor: user, source: "MANUAL", note: input.note });
+      return { ...updated, pricingConfig: pricing.config, pricing, preview: resolved.preview };
     });
 
     return NextResponse.json(result);
@@ -199,6 +183,7 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) return apiValidationError(error);
+    if (error instanceof GroupPricingError) return apiError(error.message, error.status, { code: error.status === 409 ? "Conflict" : error.status === 404 ? "NotFound" : "ValidationError" });
     if (isStockMutationConflict(error)) {
       return apiError(
         "Data grup stok berubah saat konversi diproses. Silakan coba lagi.",
@@ -235,4 +220,11 @@ export async function PATCH(
       code: "InternalError",
     });
   }
+}
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  return handleConversion(request, context, true);
+}
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  return handleConversion(request, context, false);
 }

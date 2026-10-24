@@ -47,8 +47,16 @@ const detail = {
     },
   ],
 };
+// Persisted pricing snapshot: the two independently edited prices in this suite
+// are explicit Manual followers. Production no longer exposes per-unit saves.
+const review = { price: [], costPrice: [] };
+detail.pricingMembers = detail.variants.map(variant => ({ ...variant, isActive: true }));
+detail.pricing = { initialized: true, config: { sourceProductId: "pcs", revision: 1, initializationVersion: 1,
+  members: Object.fromEntries(detail.variants.map(variant => [variant.id, { mode: variant.id === "pcs" ? "AUTO" : "MANUAL", factor: { numerator: "1", denominator: "1" }, review }])) },
+  members: detail.variants.map(variant => ({ productId: variant.id, price: String(variant.price), costPrice: variant.costPrice === null ? null : String(variant.costPrice), review })),
+};
 const bundle = await bundleReactHarness(
-  `import React,{useState} from 'react'; import {createRoot} from 'react-dom/client'; import {QueryClient,QueryClientProvider} from '@tanstack/react-query'; import {StockGroupWorkspaceModal} from './features/product-stock-groups/components/StockGroupWorkspace';
+  `import React,{useState} from 'react'; import {createRoot} from 'react-dom/client'; import {QueryClient,QueryClientProvider} from '@tanstack/react-query'; import {StockGroupWorkspaceModal} from './features/product-stock-groups/components/StockGroupWorkspace'; import {projectGroupPricing} from './features/product-stock-groups/automatic-pricing'; window.project=projectGroupPricing;
 const params=new URLSearchParams(location.search);const client=new QueryClient({defaultOptions:{queries:{retry:params.has('initial-failure')?2:false,retryDelay:10}}}); function Harness(){const[open,setOpen]=useState(false);return <QueryClientProvider client={client}><button onClick={()=>setOpen(true)}>Buka grup</button>{open&&<StockGroupWorkspaceModal stockGroupId="group-1" canUpdateStock canUpdateProducts canCreateProducts canRequestStockChange={!params.has('no-inventory-access')} onClose={()=>setOpen(false)} onSaved={()=>{window.saved++}}/>}</QueryClientProvider>}window.saved=0;createRoot(document.getElementById('root')).render(<Harness/>);`,
   [
     "features/product-stock-groups/components/StockGroupWorkspace.tsx",
@@ -58,6 +66,54 @@ const params=new URLSearchParams(location.search);const client=new QueryClient({
 );
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
+  for (const owner of ["stock", "conversion"]) {
+    const guardedPage = await browser.newPage();
+    const current = structuredClone(detail);
+    let releaseMutation, observeMutation;
+    const heldMutation = new Promise(resolve => { releaseMutation = resolve; });
+    const mutationSeen = new Promise(resolve => { observeMutation = resolve; });
+    await guardedPage.route("http://localhost:3004/**", async route => {
+      const request = route.request(), url = new URL(request.url());
+      if (url.pathname === "/fixture" || url.pathname === "/inventory") return route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><div id="root"></div></body></html>' });
+      if (request.method() === "PATCH") {
+        observeMutation(); await heldMutation;
+        if (owner === "stock") current.baseStock = 20;
+        else current.variants.find(variant => variant.id === "pack").unitMultiplierToBase = 20;
+        return route.fulfill({ json: {} });
+      }
+      return route.fulfill({ json: current });
+    });
+    await guardedPage.goto("http://localhost:3004/fixture");
+    await guardedPage.addStyleTag({ content: bundle.css }); await guardedPage.addScriptTag({ content: bundle.script });
+    await guardedPage.getByRole("button", { name: "Buka grup", exact: true }).click();
+    if (owner === "stock") {
+      await guardedPage.getByRole("button", { name: "Tetapkan stok akhir", exact: true }).click();
+      await guardedPage.getByLabel("Jumlah akhir").fill("20");
+      await guardedPage.getByRole("button", { name: "Simpan stok akhir", exact: true }).click();
+    } else {
+      await guardedPage.getByRole("tab", { name: "Satuan", exact: true }).click();
+      await guardedPage.getByLabel("Jumlah setara", { exact: true }).fill("20");
+      await guardedPage.getByRole("button", { name: "Simpan konversi satuan", exact: true }).click();
+    }
+    await mutationSeen;
+    await guardedPage.getByText("Menyimpan perubahan...", { exact: true }).waitFor();
+    await guardedPage.getByRole("button", { name: "Tutup", exact: true }).click();
+    assert.equal(await guardedPage.getByRole("button", { name: "Buang perubahan", exact: true }).count(), 0, `${owner}: idle hidden pricing cannot release the pending owner's close guard`);
+    await guardedPage.keyboard.press("Escape");
+    assert.equal(await guardedPage.getByRole("button", { name: "Buang perubahan", exact: true }).count(), 0, `${owner}: Escape cannot discard while saving`);
+    await guardedPage.getByRole("tab", { name: "Ringkasan", exact: true }).click();
+    await guardedPage.getByRole("link", { name: "Ajukan perubahan stok di Inventori", exact: true }).click();
+    assert.equal(new URL(guardedPage.url()).pathname, "/fixture");
+    assert.equal(await guardedPage.getByRole("button", { name: "Buang perubahan dan buka Inventori", exact: true }).count(), 0, `${owner}: pending mutation blocks navigation without offering discard`);
+    releaseMutation();
+    await guardedPage.getByText("Menyimpan perubahan...", { exact: true }).waitFor({ state: "hidden" });
+    if (owner === "conversion") await guardedPage.getByRole("tab", { name: "Satuan", exact: true }).click();
+    await guardedPage.getByText(owner === "stock" ? "Stok akhir tersimpan" : "Konversi satuan tersimpan", { exact: true }).waitFor();
+    await guardedPage.getByRole("button", { name: "Tutup", exact: true }).click();
+    await guardedPage.getByRole("dialog", { name: "Grup stok Kertas", exact: true }).waitFor({ state: "hidden" });
+    await guardedPage.close();
+    process.stdout.write(`PASS ${owner} owns its busy guard through hidden pricing renders; close/Escape/navigation blocked until completion\n`);
+  }
   for (const scenario of ["initial-failure", "inventory", "no-inventory-access"]) {
     if (process.argv[2] && process.argv[2] !== scenario) continue;
     const nextPage = await browser.newPage();
@@ -113,6 +169,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  let detailReads = 0;
   let failPrice = false,
     failHistory = true,
     historyDelay = false,
@@ -167,19 +224,33 @@ try {
     if (request.method() !== "GET") {
       mutations.push({ url: url.pathname, payload: request.postDataJSON() });
       await new Promise((r) => setTimeout(r, 180));
-      if (failPrice)
+      if (failPrice && request.method() === "PATCH")
         return route.fulfill({
           status: 409,
           json: { message: "Data berubah. Muat ulang data." },
         });
       if (url.pathname.endsWith("/pricing")) {
-        const v = detail.variants.find(
-          (v) => v.id === url.pathname.split("/").at(-2),
-        );
-        Object.assign(v, request.postDataJSON());
+        const payload = request.postDataJSON();
+        const input = { groupId: detail.id, storeId: "sample", baseUnit: detail.baseUnit, config: structuredClone(detail.pricing.config),
+          members: detail.pricing.members.map(member => ({ ...detail.pricingMembers.find(meta => meta.id === member.productId), ...member, id: member.productId, groupId: detail.id, storeId: "sample" })) };
+        for (const intent of payload.changes.members ?? []) {
+          const member = input.members.find(item => item.id === intent.productId);
+          if (intent.price !== undefined) member.price = intent.price;
+          if (intent.costPrice !== undefined) member.costPrice = intent.costPrice;
+          if (intent.mode) input.config.members[member.id].mode = intent.mode;
+          if (intent.factor) input.config.members[member.id].factor = intent.factor;
+        }
+        const after = await page.evaluate(input => window.project(input), input);
+        if (request.method() === "POST") return route.fulfill({ json: { before: detail.pricing, after, revision: detail.pricing.config.revision, version: "workspace-v1", projectionToken: JSON.stringify(after) } });
+        assert.equal(payload.expectedVersion, "workspace-v1");
+        assert.equal(payload.expectedProjection, JSON.stringify(after));
+        detail.pricing = after;
+        for (const member of after.members) Object.assign(detail.variants.find(variant => variant.id === member.productId), { price: Number(member.price), costPrice: member.costPrice === null ? null : Number(member.costPrice) });
+        return route.fulfill({ json: after });
       }
       return route.fulfill({ json: {} });
     }
+    detailReads++;
     return route.fulfill({ json: detail });
   });
   await page.goto("http://localhost:3004/fixture");
@@ -210,13 +281,14 @@ try {
   await page.getByLabel("Satuan input").selectOption("dus");
   assert.equal(await page.getByLabel("Jumlah akhir").inputValue(), "2");
   await page.getByRole("tab", { name: "Harga", exact: true }).click();
-  await page.getByText("HPP belum diisi", { exact: false }).waitFor();
-  const pcs = page.getByRole("group", { name: "Harga pcs" }),
-    pack = page.getByRole("group", { name: "Harga pack" });
-  await pcs.getByLabel("Harga jual", { exact: true }).fill("1100");
-  await pack.getByLabel("Harga jual", { exact: true }).fill("9900");
+  const pcsPrice = page.getByLabel("Harga jual pcs", { exact: true }),
+    packPrice = page.getByLabel("Harga jual pack", { exact: true });
+  assert.equal(await page.getByLabel("HPP (opsional) pcs", { exact: true }).inputValue(), "");
+  await pcsPrice.fill("1100");
+  await packPrice.fill("9900");
   await page.getByRole("tab", { name: "Tambah satuan", exact: true }).click();
   await page.getByLabel("Nama satuan").fill("palet");
+  await page.getByLabel("Mode harga satuan baru").selectOption("MANUAL");
   await page.getByLabel("Harga jual", { exact: true }).fill("50000");
   await page.getByLabel("Jumlah satuan setara").fill("2");
   await page.getByLabel("Satuan setara", { exact: true }).selectOption("dus");
@@ -228,11 +300,20 @@ try {
   await page.getByRole("tab", { name: "Satuan", exact: true }).click();
   await page.getByLabel("Jumlah setara", { exact: true }).fill("20");
   await page.getByRole("tab", { name: "Harga", exact: true }).click();
-  await pcs.getByRole("button", { name: "Simpan harga pcs" }).click();
-  await pcs.getByText("Harga pcs tersimpan").waitFor();
+  const preview = page.getByRole("button", { name: "Pratinjau harga", exact: true });
+  const apply = page.getByRole("button", { name: "Terapkan harga grup", exact: true });
+  await preview.click();
+  await page.getByRole("region", { name: "Pratinjau perubahan harga" }).waitFor();
+  await preview.focus(); await page.keyboard.press("Tab");
+  assert.equal(await apply.evaluate(element => element === document.activeElement), true, "apply follows preview in the modal keyboard order");
+  const actionBounds = await apply.boundingBox(), modalBounds = await dialog.boundingBox();
+  assert.ok(actionBounds.y >= modalBounds.y && actionBounds.y + actionBounds.height <= modalBounds.y + modalBounds.height && actionBounds.y + actionBounds.height <= 812, "focused apply remains visible inside mobile modal scrolling");
+  assert.equal(await apply.evaluate(element => document.elementFromPoint(element.getBoundingClientRect().x + 10, element.getBoundingClientRect().y + 10) === element), true, "no sticky or modal element covers the action");
+  await apply.click();
+  await page.getByText("Harga grup berhasil diterapkan.").waitFor();
   assert.equal(
-    await pack.getByLabel("Harga jual", { exact: true }).inputValue(),
-    "9900",
+    Number(await packPrice.inputValue()),
+    9900,
   );
   await page.getByRole("tab", { name: "Ringkasan", exact: true }).click();
   assert.equal(await page.getByLabel("Jumlah akhir").inputValue(), "2");
@@ -251,14 +332,16 @@ try {
   );
   await page.getByRole("tab", { name: "Harga", exact: true }).click();
   failPrice = true;
-  await pack.getByRole("button", { name: "Simpan harga pack" }).click();
-  await pack.getByText("Data berubah. Muat ulang data.").waitFor();
-  await page
-    .getByRole("button", { name: "Muat ulang data", exact: true })
-    .click();
+  const readsBeforeConflict = detailReads;
+  await packPrice.fill("9900");
+  await preview.click(); await page.getByRole("region", { name: "Pratinjau perubahan harga" }).waitFor();
+  await apply.click();
+  await page.getByText("Data grup berubah. Input Anda tetap tersimpan; buat pratinjau baru.").waitFor();
+  assert.ok(detailReads > readsBeforeConflict, "conflict automatically refreshes authoritative data");
+  await page.getByRole("button", { name: "Tutup", exact: true }).click();
   await page.getByRole("button", { name: "Lanjutkan mengedit" }).click();
   assert.equal(
-    await pack.getByLabel("Harga jual", { exact: true }).inputValue(),
+    await packPrice.inputValue(),
     "9900",
   );
   failPrice = false;
@@ -369,14 +452,14 @@ try {
     await nextPage.getByRole("tab", { name: "Ringkasan", exact: true }).waitFor();
     if (scenario === "invalid-margin") {
       await nextPage.getByRole("tab", { name: "Harga", exact: true }).click();
-      const price = nextPage.getByRole("group", { name: "Harga pcs" });
-      await price.getByLabel("HPP (opsional)", { exact: true }).fill("-5");
-      assert.equal(await price.getByText(/^Margin Rp/).count(), 0, "negative HPP must not display profit");
-      assert.equal(await price.getByText(/HPP belum diisi/).count(), 0);
-      await price.getByText("Periksa harga jual dan HPP sebelum menghitung margin.").waitFor();
-      await price.getByLabel("HPP (opsional)", { exact: true }).fill("5");
-      await price.getByLabel("Harga jual", { exact: true }).fill("-1");
-      assert.equal(await price.getByText(/^Margin Rp/).count(), 0, "negative price must not display margin");
+      await nextPage.getByLabel("HPP (opsional) pcs", { exact: true }).fill("-5");
+      assert.equal(await nextPage.getByRole("region", { name: "Pratinjau perubahan harga" }).count(), 0, "invalid HPP must never be presented as projected profit");
+      await nextPage.getByText("Isi HPP dengan angka nol atau lebih.").waitFor();
+      assert.equal(await nextPage.getByRole("button", { name: "Pratinjau harga", exact: true }).isDisabled(), true);
+      await nextPage.getByLabel("HPP (opsional) pcs", { exact: true }).fill("5");
+      await nextPage.getByLabel("Harga jual pcs", { exact: true }).fill("-1");
+      await nextPage.getByText("Isi harga jual dengan angka nol atau lebih.").waitFor();
+      assert.equal(await nextPage.getByRole("region", { name: "Pratinjau perubahan harga" }).count(), 0, "invalid price must never be presented as projected margin");
     } else {
       if (scenario === "dirty" || refreshGuard) {
         await nextPage.getByRole("button", { name: "Tetapkan stok akhir", exact: true }).click();
@@ -384,7 +467,7 @@ try {
       }
       if (refreshGuard) {
         await nextPage.getByRole("tab", { name: "Harga", exact: true }).click();
-        await nextPage.getByRole("group", { name: "Harga pack" }).getByLabel("Harga jual", { exact: true }).fill("9900");
+        await nextPage.getByLabel("Harga jual pack", { exact: true }).fill("9900");
       }
       await nextPage.getByRole("tab", { name: "Satuan", exact: true }).click();
       if (scenario === "direct") await nextPage.getByLabel("Jumlah setara", { exact: true }).fill("20");
@@ -411,10 +494,10 @@ try {
           const addUnit = nextPage.getByRole("button", { name: "Tambah satuan", exact: true });
           assert.equal(await addUnit.isDisabled(), true, "failed refresh must block unit addition");
           await nextPage.getByRole("tab", { name: "Harga", exact: true }).click();
-          const price = nextPage.getByRole("group", { name: "Harga pack" });
-          assert.equal(await price.getByLabel("Harga jual", { exact: true }).inputValue(), "9900");
-          assert.equal(await price.getByLabel("Harga jual", { exact: true }).isEnabled(), true);
-          assert.equal(await price.getByRole("button", { name: "Simpan harga pack", exact: true }).isEnabled(), true);
+          const price = nextPage.getByLabel("Harga jual pack", { exact: true });
+          assert.equal(await price.inputValue(), "9900");
+          assert.equal(await price.isEnabled(), true);
+          assert.equal(await nextPage.getByRole("button", { name: "Pratinjau harga", exact: true }).isEnabled(), true);
           failDetail = false;
           if (scenario === "failed-reopen") {
             await nextPage.getByRole("button", { name: "Tutup", exact: true }).click();

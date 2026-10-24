@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withImportPricingPersistence } from "@/features/product-import/services/__tests__/import-pricing-database";
 
 import { POST } from "../route";
 
@@ -88,7 +89,8 @@ describe("POST /api/products/import/commit/chunk", () => {
       name: "Owner",
       storeId: "store-main",
     });
-    dbTransactionMock.mockImplementation((callback) => callback(txMock));
+    let pricingTx: ReturnType<typeof withImportPricingPersistence> | undefined;
+    dbTransactionMock.mockImplementation((callback) => callback(pricingTx ??= withImportPricingPersistence(txMock)));
     txMock.$queryRaw.mockImplementation(
       async (strings: TemplateStringsArray, rowId?: string) =>
         strings.join(" ").includes("FOR UPDATE") ? [{ id: rowId }] : [],
@@ -288,7 +290,7 @@ describe("POST /api/products/import/commit/chunk", () => {
         skipDuplicates: true,
       }),
     );
-    expect(txMock.productStockGroup.update).not.toHaveBeenCalled();
+    expect(txMock.productStockGroup.update.mock.calls.every(([args]) => args.data.baseStock === undefined)).toBe(true);
     expect(txMock.inventoryLog.create).not.toHaveBeenCalled();
   });
 
@@ -318,7 +320,7 @@ describe("POST /api/products/import/commit/chunk", () => {
       createdAt: new Date("2026-01-01"),
       updatedAt: new Date("2026-01-01"),
       category: { name: "ATK" },
-      stockGroup: { id: "group-1", baseUnit: "Dus", baseStock: 10 },
+      stockGroup: { id: "group-1", baseUnit: "Pak", baseStock: 10 },
     };
     txMock.product.findMany.mockResolvedValue([existingProduct]);
     txMock.productPriceLog.createMany.mockResolvedValue({ count: 2 });
@@ -733,14 +735,14 @@ describe("POST /api/products/import/commit/chunk", () => {
     expect(response.status).toBe(200);
     expect(txMock.batchOperationItem.createMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: [
+        data: expect.arrayContaining([
           expect.objectContaining({
             productId: "prod-ball",
             sku: "A-006",
             sourceRowNumber: 13,
             action: "UPDATE",
           }),
-        ],
+        ]),
       }),
     );
   });
@@ -833,7 +835,7 @@ describe("POST /api/products/import/commit/chunk", () => {
       "\"unitMultiplierToBase\" = COALESCE(v.\"unitMultiplierToBase\", p.\"unitMultiplierToBase\")",
     );
     expect(priceUpdateCall).toContainEqual([5]);
-    expect(txMock.productStockGroup.update).not.toHaveBeenCalled();
+    expect(txMock.productStockGroup.update.mock.calls.every(([args]) => args.data.baseStock === undefined)).toBe(true);
     expect(txMock.inventoryLog.create).not.toHaveBeenCalled();
   });
 
@@ -1002,9 +1004,9 @@ describe("POST /api/products/import/commit/chunk", () => {
     expect(response.status).toBe(200);
     expect(txMock.product.update).not.toHaveBeenCalled();
     expect(txMock.product.create).not.toHaveBeenCalled();
-    expect(txMock.$queryRaw).not.toHaveBeenCalled();
+    expect(txMock.$queryRaw.mock.calls.every(([sql]) => sql.join(" ").includes("FOR UPDATE"))).toBe(true);
     expect(txMock.productPriceLog.createMany).not.toHaveBeenCalled();
     expect(txMock.batchOperationItem.create).not.toHaveBeenCalled();
-    expect(txMock.batchOperationItem.createMany).not.toHaveBeenCalled();
+    expect(txMock.batchOperationItem.createMany).toHaveBeenCalledWith(expect.objectContaining({ data: [expect.objectContaining({ action: "SKIP", sourceRowNumber: 8 })] }));
   });
 });

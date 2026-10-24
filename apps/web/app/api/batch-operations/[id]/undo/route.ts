@@ -12,6 +12,9 @@ import {
   StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
 import { getLogger } from "@/lib/logger";
+import { GroupPricingError } from "@/features/product-stock-groups/group-pricing-service";
+import { readImportPricingUndo } from "@/features/product-import/services/import-pricing-mutation";
+import { undoImportPricing } from "@/features/product-import/services/import-pricing-undo";
 
 const logger = getLogger("api:batch-operations:undo");
 
@@ -100,6 +103,7 @@ export async function POST(
     const storeId = user.storeId || "store-main";
 
     const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM pos_batch_operations WHERE id = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
       const batch = await tx.batchOperation.findFirst({
         where: { id, storeId },
         include: { items: true },
@@ -108,6 +112,10 @@ export async function POST(
       if (!batch) throw new Error("BATCH_NOT_FOUND");
       if (batch.status === "UNDONE") throw new Error("ALREADY_UNDONE");
       if (batch.undoOfBatchId) throw new Error("CANNOT_UNDO_UNDO");
+      if (batch.type === "PRODUCT_IMPORT" && readImportPricingUndo(batch.summary)) {
+        if (batch.status === "PENDING") throw new GroupPricingError("Selesaikan atau batalkan proses impor sebelum membatalkan hasilnya.", 409);
+        return undoImportPricing(tx, { batch, actor: user, storeId });
+      }
 
       const productIds = Array.from(
         new Set(
@@ -133,6 +141,9 @@ export async function POST(
       const hintById = new Map(
         productHints.map((product) => [product.id, product]),
       );
+      if (batch.type === "PRODUCT_IMPORT" && batch.items.some(item => (item.action === "CREATE" || item.action === "UPDATE") && hintById.get(item.productId ?? "")?.stockGroupId)) {
+        throw new GroupPricingError("Impor lama ini tidak memiliki snapshot konfigurasi harga grup. Pembatalan otomatis tidak tersedia; gunakan koreksi produk dengan pratinjau terbaru.", 409);
+      }
       const metadataByProductId = new Map<
         string,
         SharedStockUndoMetadata
@@ -583,6 +594,7 @@ export async function POST(
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+    if (error instanceof GroupPricingError) return NextResponse.json({ message: error.message }, { status: error.status });
     if (error instanceof Error) {
       if (error.message === "BATCH_NOT_FOUND") return NextResponse.json({ message: "Batch operation not found" }, { status: 404 });
       if (error.message === "ALREADY_UNDONE") return NextResponse.json({ message: "Batch operation is already undone" }, { status: 409 });

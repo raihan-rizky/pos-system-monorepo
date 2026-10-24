@@ -19,8 +19,10 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 
 ### Q2: Bagaimana cara mengubah harga jual produk agar tercatat di riwayat?
 **A:** Sistem menyediakan pencatatan riwayat setiap kali harga produk berubah untuk menjaga transparansi:
-1. **Ubah Harga Langsung:** Pada tabel produk (tab **Produk**), klik tombol aksi **Ubah Harga** di kolom paling kanan. Masukkan nominal harga jual baru pada modal yang tampil, lalu klik simpan. Perubahan harga akan tercatat di tab **Riwayat Harga**.
-2. **Edit Detail Produk:** Klik tombol **Edit** (ikon pensil) pada baris produk untuk mengubah detail produk secara penuh, termasuk mengganti harga jual dasar dan nilai Harga Modal/HPP.
+1. Pada tabel **Produk**, buka **Ubah Harga** atau **Edit**, lalu klik **Atur harga grup / Manual**. Periksa **Sumber harga**: harga jual dan HPP sumber menjadi acuan pengikut **Auto**. Sesuaikan diskon/markup harga jual pengikut, atau pilih **Manual** untuk mengisi harga jual dan HPP sendiri.
+2. Klik **Pratinjau harga**, periksa dampak pada semua satuan, lalu **Terapkan harga grup**. Harga grup disimpan terpisah; draft formulir tetap ada. Jika data grup berubah, buat pratinjau baru. Buka **Riwayat Harga** untuk melihat perubahan.
+3. **Harga Agen** dan **Harga Dinas** tetap mandiri per produk. Isi di formulir lalu **Simpan Harga**. Tombol ini tidak menerapkan ulang harga grup.
+4. Di **POS**, aksi **Atur harga grup / Manual** memakai alur pratinjau yang sama. **Harga Khusus** hanya untuk transaksi ini dan tidak menulis master. Perubahan harga grup tidak mengganti harga transaksi yang sudah ada di keranjang.
 
 ### Q3: Bagaimana cara mengatur harga khusus/diskon bagi grup pelanggan (Agen, Industri, Dinas)?
 **A:** Owner dapat membuat satu aturan untuk satu atau beberapa tipe pelanggan:
@@ -49,11 +51,16 @@ Harga yang dimasukkan manual untuk transaksi tetap memakai penanda **Hanya berla
 5. Periksa pratinjau data dan selesaikan import. Status progres dapat dipantau di layar.
 
 ### Q5: Bagaimana cara mengatur Grup Stok (Stock Group)?
-**A:** Grup stok digunakan untuk menggabungkan beberapa varian produk agar berbagi satu stok fisik yang sama:
-1. Buka tab **Aktivitas Grup** di halaman Pusat Produk.
-2. Klik tombol **Atur Grup Stok** (atau buka **Bulk Stock Group** dari menu import) untuk membuat grup stok baru.
-3. Tentukan produk utama, dan tambahkan produk-produk anggota kelompok yang akan berbagi perhitungan stok secara otomatis.
-4. Sistem akan mencatat riwayat pemakaian dan mutasi grup stok tersebut di tab aktivitas.
+**A:** Buka grup dari halaman **Produk** atau **Aktivitas Grup**. Untuk membuat atau menggabungkan grup, pilih produk berbeda satuan, klik **Buat atau gabungkan grup stok**, tentukan sumber stok dan konversi, lalu tinjau sebelum menyimpan. Stok tiap satuan mewakili persediaan yang sama dan tidak dijumlahkan.
+
+Untuk harga otomatis, buka tab **Harga** dengan izin `product.update`:
+1. Pilih **Sumber harga** aktif dan isi harga jual serta HPP sumber. Grup baru dan lama default **Auto**; inisialisasi mempertahankan harga jual lama sebagai faktor eksak.
+2. Atur pengikut **Auto** dengan diskon/markup atau pilih **Manual** untuk uang independen. Diskon jual tidak mengurangi HPP. Kembali ke Auto mempertahankan harga jual lewat faktor dan menghitung HPP dari sumber.
+3. Klik **Pratinjau harga**, periksa harga/HPP/margin sebelum dan sesudah tiap satuan, lalu **Terapkan harga grup**. Mengubah draf membatalkan pratinjau. Jika data berubah, muat ulang dan tinjau lagi. Perbaiki alasan **Perlu ditinjau** pada sumber, konversi, faktor, atau HPP; HPP kosong berbeda dari nol.
+
+Contoh Snowman V5: beli 10 pak dengan 12 pcs/pak berarti stok masuk 120 pcs memakai HPP pcs. HPP pcs Rp2.000 menghasilkan HPP pak Rp24.000. Harga pcs Rp3.000 dan pak lama Rp32.400 membentuk faktor 9/10. Saat harga pcs Rp3.500, harga pak menjadi Rp37.800; HPP pak tetap Rp24.000.
+
+Sumber jual nol dengan faktor valid menghasilkan nol dan mempertahankan faktor; tanpa faktor yang dapat dihitung, harga lama tetap disertai review. Tambah satuan default Auto faktor 1; pilih Manual sebelum menyimpan bila perlu. Satuan terkecil menjadi sumber pada produk baru dengan banyak satuan. Satuan nonaktif tetap terlihat dalam tinjauan. Harga supplier pada dokumen saja tidak mengubah HPP master; penulisan HPP pengikut Auto perlu melalui sumber atau beralih ke Manual.
 
 ---
 

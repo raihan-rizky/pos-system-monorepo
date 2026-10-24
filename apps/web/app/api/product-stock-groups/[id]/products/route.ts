@@ -11,10 +11,12 @@ import {
 } from "@/features/product-stock-groups/bulk-stock-groups";
 import {
   isStockMutationConflict,
-  lockStockMutationRows,
   StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+
+import { initializeGroupPricing } from "@/features/product-stock-groups/automatic-pricing";
+import { GroupPricingError, prepareGroupPricingMutation, synchronizeGroupPricingMutation } from "@/features/product-stock-groups/group-pricing-service";
 
 const log = getLogger("api:product-stock-groups:products");
 
@@ -94,33 +96,7 @@ export async function POST(
         .filter((stockGroupId): stockGroupId is string => Boolean(stockGroupId));
       const targetProductIds =
         targetHint?.products.map((product) => product.id) ?? [];
-      const locks = await lockStockMutationRows(tx, {
-        storeId,
-        stockGroupIds: [id, ...sourceGroupIds],
-        productIds: [...productIds, ...targetProductIds],
-      });
-
-      const requiredGroupIds = Array.from(
-        new Set([
-          ...sourceGroupIds,
-          ...(targetHint ? [targetHint.id] : []),
-        ]),
-      );
-      const requiredProductIds = Array.from(
-        new Set([...productIds, ...targetProductIds]),
-      );
-      if (
-        requiredGroupIds.some(
-          (stockGroupId) =>
-            !locks.lockedStockGroupIds.includes(stockGroupId),
-        ) ||
-        requiredProductIds.some(
-          (productId) => !locks.lockedProductIds.includes(productId),
-        )
-      ) {
-        throw new StockMutationConflictError();
-      }
-
+      const prepared = await prepareGroupPricingMutation(tx, { storeId, groupIds: [id, ...sourceGroupIds], extraProductIds: productIds });
       const group = await tx.productStockGroup.findFirst({
         where: { id, storeId },
         include: {
@@ -137,9 +113,6 @@ export async function POST(
         },
       });
       if (!group) throw new Error("GROUP_NOT_FOUND");
-      if (!locks.lockedStockGroupIds.includes(group.id)) {
-        throw new StockMutationConflictError();
-      }
 
       const products = await tx.product.findMany({
         where: { id: { in: productIds }, storeId, isActive: true },
@@ -149,6 +122,9 @@ export async function POST(
           stock: true,
           stockGroupId: true,
           unitMultiplierToBase: true,
+          price: true,
+          costPrice: true,
+          isActive: true,
           stockGroup: {
             select: {
               id: true,
@@ -234,6 +210,18 @@ export async function POST(
         });
       }
 
+      const targetBefore = prepared.before.get(group.id)!;
+      targetBefore.config = initializeGroupPricing(targetBefore).config;
+      for (const incoming of products.filter(product => product.stockGroupId !== group.id)) {
+        const assignment = resolved.variants.find(variant => variant.id === incoming.id)!;
+        targetBefore.members.push({
+          id: incoming.id, storeId, groupId: group.id, unit: incoming.unit,
+          unitMultiplierToBase: assignment.unitMultiplierToBase, isActive: incoming.isActive,
+          conversionNeedsReview: false, price: incoming.price.toString(), costPrice: incoming.costPrice?.toString() ?? null,
+        });
+      }
+      const pricing = await synchronizeGroupPricingMutation(tx, { prepared, actor: productUser, source: "MANUAL", note: input.note });
+
       await tx.inventoryLog.createMany({
         data: buildSharedStockInventoryLogRows({
           groupDisplayName: group.displayName,
@@ -245,7 +233,7 @@ export async function POST(
         }),
       });
 
-      return { ...updated, conflictWarnings: resolved.conflictWarnings };
+      return { ...updated, pricing: pricing[[...prepared.before.keys()].indexOf(group.id)], pricingConfig: pricing[[...prepared.before.keys()].indexOf(group.id)]?.config, conflictWarnings: resolved.conflictWarnings };
     });
 
     return NextResponse.json(result, { status: 200 });
@@ -253,6 +241,7 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) return apiValidationError(error);
+    if (error instanceof GroupPricingError) return apiError(error.message, error.status);
     if (isStockMutationConflict(error)) {
       return apiError(
         "Data grup stok berubah saat diproses. Silakan coba lagi.",

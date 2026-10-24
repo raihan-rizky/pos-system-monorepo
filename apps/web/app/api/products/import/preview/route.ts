@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { previewImportGroupPricing } from "@/features/product-import/services/import-pricing-preview";
 import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { REQUIRED_IMPORT_COLUMNS } from "@/features/product-import/types";
@@ -6,6 +8,8 @@ import type { ColumnMapping } from "@/features/product-import/types";
 import {
   buildMissingColumnResponse,
   normalizeImportRows,
+  importRowCommitSchema,
+  MAX_PRODUCT_IMPORT_ROWS,
 } from "@/features/product-import/helpers/import-core";
 import { parseImportFile } from "@/features/product-import/helpers/import-file.server";
 import { resolveProductImportAutoDecisions } from "@/features/product-import/helpers/auto-decisions";
@@ -78,6 +82,19 @@ export async function POST(request: Request) {
 
   try {
     const user = await requirePermission("product", "create");
+    if (request.headers.get("content-type")?.includes("application/json")) {
+      const parsed = z.object({
+        rows: z.array(importRowCommitSchema.extend({
+          errors: z.array(z.string()).default([]), warnings: z.array(z.string()).default([]),
+          duplicateInFile: z.boolean().default(false), missingCategory: z.boolean().default(false),
+          pricingPreview: z.object({ price: z.number(), costPrice: z.number().nullable(), errors: z.array(z.string()) }).optional(),
+        })).max(MAX_PRODUCT_IMPORT_ROWS),
+        decisions: z.record(z.string(), z.enum(["create", "update", "skip", "create-variant"])).default({}),
+      }).safeParse(await request.json());
+      if (!parsed.success) return NextResponse.json({ message: "Data pratinjau tidak valid. Periksa kembali file impor." }, { status: 422 });
+      const rows = await previewImportGroupPricing(db, { ...parsed.data, storeId: user.storeId || "store-main" });
+      return NextResponse.json({ rows });
+    }
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -225,7 +242,7 @@ export async function POST(request: Request) {
       );
     }
     await addSupplierCodeWarnings(normalized.rows, normalized.warnings);
-    const rows = applySameUnitPriceConflicts(resolveProductImportAutoDecisions({
+    const resolvedRows = applySameUnitPriceConflicts(resolveProductImportAutoDecisions({
       rows: normalized.rows,
       existingProducts: products.map((product) => ({
         id: product.id,
@@ -243,6 +260,7 @@ export async function POST(request: Request) {
       })),
       existingSkus: new Set(products.map((product) => product.sku)),
     }));
+    const rows = await previewImportGroupPricing(db, { rows: resolvedRows, storeId });
     const resolvedActionCounts = countResolvedActions(rows);
 
     log.info("product.import.preview.rows_resolved", {

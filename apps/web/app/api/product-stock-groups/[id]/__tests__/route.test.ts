@@ -1,3 +1,4 @@
+import { withPricingTransaction } from "../../../products/__tests__/legacy-pricing-transaction";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
@@ -45,6 +46,9 @@ describe("GET /api/product-stock-groups/[id]", () => {
       products: [
         {
           id: "rim-1",
+          storeId: "store-main",
+          stockGroupId: "group-1",
+          isActive: true,
           name: "Kertas A4",
           sku: "A4-RIM",
           unit: "rim",
@@ -80,6 +84,9 @@ describe("GET /api/product-stock-groups/[id]", () => {
       }),
     );
     expect(body.conversionPairs).toEqual([]);
+    expect(body.pricing.config.members["rim-1"].mode).toBe("AUTO");
+    expect(body.pricing.config.members["rim-1"].review.price).toContain("SOURCE_UNAVAILABLE");
+    expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -123,7 +130,7 @@ describe("POST /api/product-stock-groups/[id]/products", () => {
     productUpdateMock.mockResolvedValue({});
     inventoryLogCreateManyMock.mockResolvedValue({ count: 2 });
     dbTransactionMock.mockImplementation((callback) =>
-      callback({
+      callback(withPricingTransaction({
         $queryRaw: groupRowLockMock,
         productStockGroup: {
           findFirst: productStockGroupFindFirstMock,
@@ -131,7 +138,7 @@ describe("POST /api/product-stock-groups/[id]/products", () => {
         },
         product: { findMany: productFindManyMock, update: productUpdateMock },
         inventoryLog: { createMany: inventoryLogCreateManyMock },
-      }),
+      })),
     );
   });
 

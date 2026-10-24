@@ -2,6 +2,7 @@ import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 
 import { getLogger } from "@/lib/logger";
+import type { AtomicImportGroup } from "./import-group-pricing";
 
 import {
   commitProductImportChunk,
@@ -458,8 +459,8 @@ async function markCommittedJobRows(input: {
   jobId: string;
   batchOperationId: string;
   rowNumbers: number[];
-}) {
-  const items = await db.batchOperationItem.findMany({
+}, client: Pick<Prisma.TransactionClient, "batchOperationItem" | "$executeRaw"> = db) {
+  const items = await client.batchOperationItem.findMany({
     where: {
       batchOperationId: input.batchOperationId,
       sourceRowNumber: { in: input.rowNumbers },
@@ -478,10 +479,13 @@ async function markCommittedJobRows(input: {
     itemByRowNumber.get(rowNumber)?.action === "SKIP" ? "SKIPPED" : "SUCCEEDED",
   );
 
-  await db.$executeRaw`
+  await client.$executeRaw`
     UPDATE pos_product_import_job_rows AS r SET
       status = v.status::"ProductImportJobRowStatus",
       "productId" = COALESCE(v."productId", r."productId"),
+      "errorCode" = NULL,
+      "errorMessage" = NULL,
+      "nextAttemptAt" = NULL,
       "finishedAt" = NOW(),
       "updatedAt" = NOW()
     FROM unnest(
@@ -497,46 +501,60 @@ async function markCommittedJobRows(input: {
 async function markFailedJobRows(input: {
   jobId: string;
   batchOperationId: string;
+  storeId: string;
   rows: Array<{ rowNumber: number; attemptCount: number; sku: string | null }>;
   error: unknown;
 }) {
   const classified = classifyError(input.error);
-  const failedRowNumbers: number[] = [];
+  return db.$transaction(async tx => {
+    // A direct chunk may have committed after the worker captured this failure.
+    // Serialize with commit before reading authoritative planned-row status.
+    await tx.$queryRaw`SELECT id FROM pos_batch_operations WHERE id = ${input.batchOperationId} AND "storeId" = ${input.storeId} FOR UPDATE`;
+    const committed = await tx.productImportPlannedRow.findMany({
+      where: { batchOperationId: input.batchOperationId, sourceRowNumber: { in: input.rows.map(row => row.rowNumber) }, status: "COMMITTED" },
+      select: { sourceRowNumber: true },
+    });
+    const committedRowNumbers = new Set(committed.map(row => row.sourceRowNumber));
+    if (committed.length) await markCommittedJobRows({ jobId: input.jobId, batchOperationId: input.batchOperationId, rowNumbers: [...committedRowNumbers] }, tx);
+    const failedRowNumbers: number[] = [];
 
-  for (const row of input.rows) {
-    const currentAttemptCount = row.attemptCount;
-    const shouldRetry = classified.retryable && currentAttemptCount < PRODUCT_IMPORT_JOB_ROW_MAX_ATTEMPTS;
+    for (const row of input.rows) {
+      if (committedRowNumbers.has(row.rowNumber)) continue;
+      const currentAttemptCount = row.attemptCount;
+      const shouldRetry = classified.retryable && currentAttemptCount < PRODUCT_IMPORT_JOB_ROW_MAX_ATTEMPTS;
 
-    await db.productImportJobRow.updateMany({
-      where: { jobId: input.jobId, rowNumber: row.rowNumber },
-      data: {
-        status: shouldRetry ? "PENDING" : "FAILED",
-        nextAttemptAt: shouldRetry ? new Date(Date.now() + currentAttemptCount * 5_000) : null,
+      await tx.productImportJobRow.updateMany({
+        where: { jobId: input.jobId, rowNumber: row.rowNumber },
+        data: {
+          status: shouldRetry ? "PENDING" : "FAILED",
+          nextAttemptAt: shouldRetry ? new Date(Date.now() + currentAttemptCount * 5_000) : null,
+          errorCode: classified.code,
+          errorMessage: classified.message,
+          finishedAt: shouldRetry ? null : new Date(),
+        },
+      });
+      if (!shouldRetry) failedRowNumbers.push(row.rowNumber);
+
+      logger.warn("product.import.job.row.failed", {
+        jobId: input.jobId,
+        rowNumber: row.rowNumber,
+        sku: row.sku,
         errorCode: classified.code,
-        errorMessage: classified.message,
-        finishedAt: shouldRetry ? null : new Date(),
-      },
-    });
-    if (!shouldRetry) failedRowNumbers.push(row.rowNumber);
+        retryable: shouldRetry,
+      });
+    }
 
-    logger.warn("product.import.job.row.failed", {
-      jobId: input.jobId,
-      rowNumber: row.rowNumber,
-      sku: row.sku,
-      errorCode: classified.code,
-      retryable: shouldRetry,
-    });
-  }
-
-  if (failedRowNumbers.length > 0) {
-    await db.productImportPlannedRow.updateMany({
-      where: {
-        batchOperationId: input.batchOperationId,
-        sourceRowNumber: { in: failedRowNumbers },
-      },
-      data: { status: "FAILED" },
-    });
-  }
+    if (failedRowNumbers.length > 0) {
+      await tx.productImportPlannedRow.updateMany({
+        where: {
+          batchOperationId: input.batchOperationId,
+          sourceRowNumber: { in: failedRowNumbers },
+          status: { not: "COMMITTED" },
+        },
+        data: { status: "FAILED" },
+      });
+    }
+  }, { maxWait: 15000, timeout: 120000 });
 }
 
 async function markInfrastructureRetryJobRows(input: {
@@ -594,7 +612,7 @@ async function processJobRowChunk(input: {
   if (rows.length === 0) return false;
 
   try {
-    await commitProductImportChunk(
+    const committed = await commitProductImportChunk(
       {
         batchOperationId: job.batchOperationId,
         cursor: input.cursor,
@@ -605,20 +623,36 @@ async function processJobRowChunk(input: {
     await markCommittedJobRows({
       jobId: job.id,
       batchOperationId: job.batchOperationId,
-      rowNumbers: rows.map((row) => row.rowNumber),
+      rowNumbers: committed.committedSourceRowNumbers ?? rows.map((row) => row.rowNumber),
     });
   } catch (error) {
     const classified = classifyError(error);
+    const atomicGroups = (error as { atomicGroups?: AtomicImportGroup[] })?.atomicGroups;
+    let failedRows = rows;
+    if (atomicGroups?.length === 1 || (classified.retryableInfrastructure && atomicGroups?.length)) {
+      const rowNumbers = atomicGroups!.flatMap(group => group.rowNumbers);
+      const additional = rowNumbers.filter(number => !rows.some(row => row.rowNumber === number));
+      if (additional.length) await db.productImportJobRow.updateMany({
+        where: { jobId: job.id, rowNumber: { in: additional }, status: { in: ["PENDING", "FAILED"] } },
+        data: { status: "RUNNING", attemptCount: { increment: 1 }, startedAt: new Date() },
+      });
+      failedRows = await db.productImportJobRow.findMany({ where: { jobId: job.id, rowNumber: { in: rowNumbers }, status: { in: ["RUNNING", "PENDING", "FAILED"] } } });
+    }
     if (classified.retryableInfrastructure) {
       await markInfrastructureRetryJobRows({
         jobId: job.id,
-        rows,
+        rows: failedRows,
         error,
       });
       return "deferred";
     }
 
-    if (rows.length > 1) {
+    if (atomicGroups?.length === 1) {
+      await markFailedJobRows({ jobId: job.id, batchOperationId: job.batchOperationId, storeId: job.storeId, rows: failedRows, error });
+      return "processed";
+    }
+
+    if (rows.length > 1 || (atomicGroups?.length ?? 0) > 1) {
       await db.productImportJobRow.updateMany({
         where: { jobId: job.id, rowNumber: { in: rows.map((row) => row.rowNumber) } },
         data: {
@@ -628,7 +662,12 @@ async function processJobRowChunk(input: {
           finishedAt: null,
         },
       });
-      for (const row of rows) {
+      // Retry through a row just returned to PENDING. The first expanded peer
+      // can still be FAILED from an earlier attempt and is not eligible alone.
+      const representatives = atomicGroups?.length
+        ? atomicGroups.map(group => rows.find(row => group.rowNumbers.includes(row.rowNumber)) ?? { rowNumber: group.rowNumbers[0] })
+        : rows;
+      for (const row of representatives) {
         const singleRow = await db.productImportJobRow.findFirst({
           where: { jobId: job.id, rowNumber: row.rowNumber, status: "PENDING" },
           select: { cursorIndex: true },
@@ -643,6 +682,7 @@ async function processJobRowChunk(input: {
     await markFailedJobRows({
       jobId: job.id,
       batchOperationId: job.batchOperationId,
+      storeId: job.storeId,
       rows,
       error,
     });

@@ -1,3 +1,4 @@
+import { adjustmentFactor } from "./pricing-drafts";
 import type {
   AddVariantPayload,
   StockGroupDetail,
@@ -171,6 +172,13 @@ export function additionResult(
   const duplicate = detail.variants.some(
     (v) => v.unit.trim().toLowerCase() === draft.unit.trim().toLowerCase(),
   );
+  const automatic = !!detail.pricing && draft.pricingMode !== "MANUAL";
+  if (automatic && !detail.variants.some(member => member.id === detail.pricing?.config.sourceProductId && !member.conversionNeedsReview && member.unitMultiplierToBase > 0)) {
+    return { stock, payload: null, error: "Perbaiki sumber harga di tab Harga sebelum menambah satuan Auto." };
+  }
+  let factor;
+  try { if (automatic) factor = adjustmentFactor(draft.adjustment ?? "none", draft.percent ?? "0"); }
+  catch (cause) { return { stock, payload: null, error: cause instanceof Error ? cause.message : "Periksa penyesuaian harga." }; }
   const min = parseNumber(draft.minStock);
   const error = duplicate
     ? "Satuan sudah ada di grup ini."
@@ -178,7 +186,7 @@ export function additionResult(
       ? "Isi nama satuan baru."
       : stock === null
         ? "Isi jumlah positif dan pilih satuan konversi."
-        : !priceValid(draft)
+        : !automatic && !priceValid(draft)
           ? "Isi harga jual dan HPP opsional dengan angka nol atau lebih."
           : min === null || min < 0
             ? "Isi batas stok minimum dengan angka nol atau lebih."
@@ -190,8 +198,7 @@ export function additionResult(
       ? null
       : {
           unit: draft.unit.trim(),
-          price: Number(draft.price),
-          costPrice: draft.costPrice.trim() ? Number(draft.costPrice) : null,
+          ...(automatic ? { pricingMode: "AUTO" as const, priceFactor: factor, price: 0 } : { pricingMode: "MANUAL" as const, price: Number(draft.price), costPrice: draft.costPrice.trim() ? Number(draft.costPrice) : null }),
           stock: stock!,
           minStock: min!,
           conversionPair: {

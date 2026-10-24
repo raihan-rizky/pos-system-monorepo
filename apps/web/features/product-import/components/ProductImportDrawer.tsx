@@ -91,10 +91,30 @@ export function ProductImportDrawer({
   const [previewRowsOverride, setPreviewRowsOverride] = useState<NormalizedImportRow[] | null>(null);
 
   const previewData = method === "image" ? accumulatedPreviewData : preview.data;
-  const rows: NormalizedImportRow[] = useMemo(
+  const rawRows: NormalizedImportRow[] = useMemo(
     () => previewRowsOverride ?? previewData?.rows ?? [],
     [previewData?.rows, previewRowsOverride],
   );
+  const [pricingResult, setPricingResult] = useState<{ raw: NormalizedImportRow[]; decisions: Record<string, ImportRowDecision>; rows: NormalizedImportRow[]; error?: string } | null>(null);
+  const needsPricingRefresh = Object.keys(decisions).length > 0 || previewRowsOverride !== null;
+  const pricingCurrent = pricingResult?.raw === rawRows && pricingResult.decisions === decisions;
+  const rows = needsPricingRefresh && pricingCurrent ? pricingResult.rows : rawRows;
+  const pricingPending = needsPricingRefresh && !pricingCurrent;
+  useEffect(() => {
+    if (!open || step !== "preview" || !rawRows.length || !needsPricingRefresh) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/api/products/import/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: rawRows, decisions }), signal: controller.signal });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Pratinjau harga belum dapat dihitung.");
+        if (!controller.signal.aborted) setPricingResult({ raw: rawRows, decisions, rows: result.rows.map((row: NormalizedImportRow) => ({ ...row, autoAction: rawRows.find(raw => raw.rowNumber === row.rowNumber)?.autoAction })) });
+      } catch (error) {
+        if (!controller.signal.aborted) setPricingResult({ raw: rawRows, decisions, rows: rawRows, error: error instanceof Error ? error.message : "Pratinjau harga belum dapat dihitung." });
+      }
+    }, 200);
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [open, step, rawRows, decisions, needsPricingRefresh]);
   useEffect(() => {
     setPreviewRowsOverride(null);
   }, [previewData]);
@@ -162,6 +182,7 @@ export function ProductImportDrawer({
   );
   const canCommit =
     rows.length > 0 &&
+    !pricingPending && !(needsPricingRefresh && pricingCurrent && pricingResult.error) &&
     readiness.ok;
   const showCommitProgress = commitStarted && step === "preview";
   const cleanedRowsForExport = useMemo(() => buildCleanedImportRows(rows), [rows]);
@@ -387,7 +408,7 @@ export function ProductImportDrawer({
     });
     try {
       const result = await commit.mutateAsync({
-        rows,
+        rows: rawRows,
         decisions,
         createMissingCategories,
         onProgress: (current, total, job) => {
@@ -604,6 +625,8 @@ export function ProductImportDrawer({
           {/* Step 3: Preview */}
           {step === "preview" && previewData && (
             <div className="space-y-4">
+              {pricingPending && <p role="status" className="text-sm text-slate-600">Menghitung ulang harga sesuai pilihan baris…</p>}
+              {needsPricingRefresh && pricingCurrent && pricingResult.error && <p role="alert" className="text-sm text-red-700">{pricingResult.error} Ubah pilihan atau muat ulang file untuk mencoba lagi.</p>}
               {(previewData.unknownColumns?.length ?? 0) > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   Kolom tidak dikenal diabaikan:{" "}
@@ -1129,10 +1152,10 @@ function ImportPreviewTable({
                     : "-"}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
-                  {row.costPrice != null ? row.costPrice : "-"}
+                  {(row.pricingPreview ? row.pricingPreview.costPrice : row.costPrice) ?? "-"}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">
-                  {row.price}
+                  {row.pricingPreview?.price ?? row.price}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
                   {row.hargaDinas != null ? row.hargaDinas : "-"}

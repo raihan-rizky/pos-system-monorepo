@@ -7,6 +7,8 @@ import type { FinalizeShoppingRequestInput } from "../services/finalize-shopping
 import { validateFinalApproval } from "../services/finalize-shopping-request";
 import { FinalApprovalError } from "../services/final-approval-error";
 import { shoppingRequestPaymentSchema } from "../helpers/shopping-request-payment";
+import { GroupPricingError } from "@/features/product-stock-groups/group-pricing-service";
+import { isStockMutationConflict } from "@/features/product-stock-groups/stock-group-lock";
 
 export async function finalizeShoppingRequestRecord(
   id: string,
@@ -160,6 +162,12 @@ export async function finalizeShoppingRequestRecord(
       return { shoppingRequestId: id, goodsPurchaseId: purchase.id };
     }, { timeout: 15_000 });
   } catch (error) {
+    if (error instanceof GroupPricingError) {
+      throw new FinalApprovalError(error.message, error.status === 409 ? 409 : 422);
+    }
+    if (isStockMutationConflict(error)) {
+      throw new FinalApprovalError("Relasi produk berubah saat diproses. Muat ulang data terbaru lalu coba lagi.", 409);
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       throw new FinalApprovalError("Daftar belanja sudah diproses. Muat ulang data terbaru.", 409);
     }

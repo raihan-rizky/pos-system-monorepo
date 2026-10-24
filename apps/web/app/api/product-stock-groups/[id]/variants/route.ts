@@ -11,10 +11,9 @@ import {
 } from "@/features/product-stock-groups/bulk-stock-groups";
 import {
   isStockMutationConflict,
-  lockStockMutationRows,
-  StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
-import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
+
+import { prepareGroupPricingMutation, synchronizeGroupPricingMutation, GroupPricingError } from "@/features/product-stock-groups/group-pricing-service";
 
 const log = getLogger("api:product-stock-groups:variants");
 
@@ -26,7 +25,9 @@ const conversionPairSchema = z.object({
 
 const createVariantSchema = z.object({
   unit: z.string().trim().min(1),
-  price: z.coerce.number().min(0),
+  price: z.coerce.number().min(0).optional().default(0),
+  pricingMode: z.enum(["AUTO", "MANUAL"]).optional().default("AUTO"),
+  priceFactor: z.object({ numerator: z.string().regex(/^\d+$/), denominator: z.string().regex(/^[1-9]\d*$/) }).optional(),
   costPrice: z.coerce.number().min(0).nullable().optional(),
   stock: z.coerce.number(),
   minStock: z.coerce.number().min(0),
@@ -45,44 +46,7 @@ export async function POST(
     const input = createVariantSchema.parse(await request.json());
 
     const result = await db.$transaction(async (tx) => {
-      const groupHint = await tx.productStockGroup.findFirst({
-        where: { id, storeId },
-        include: {
-          products: {
-            where: { isActive: true },
-            select: {
-              id: true,
-              stockGroupId: true,
-              name: true,
-              sku: true,
-              unit: true,
-              categoryId: true,
-              material: true,
-              size: true,
-              unitMultiplierToBase: true,
-            },
-          },
-        },
-      });
-      if (!groupHint || groupHint.products.length === 0) {
-        throw new Error("GROUP_NOT_FOUND");
-      }
-
-      const candidateProductIds = groupHint.products
-        .map((product) => product.id)
-        .sort((left, right) => left.localeCompare(right));
-      const locks = await lockStockMutationRows(tx, {
-        storeId,
-        stockGroupIds: [id],
-        productIds: candidateProductIds,
-      });
-      if (
-        locks.lockedStockGroupIds.length !== 1 ||
-        locks.lockedProductIds.length !== candidateProductIds.length
-      ) {
-        throw new StockMutationConflictError();
-      }
-
+      const prepared = await prepareGroupPricingMutation(tx, { storeId, groupIds: [id] });
       const group = await tx.productStockGroup.findFirst({
         where: { id, storeId },
         include: {
@@ -102,24 +66,12 @@ export async function POST(
           },
         },
       });
-      if (!group) throw new StockMutationConflictError();
-
-      const reloadedProductIds = group.products
-        .map((product) => product.id)
-        .sort((left, right) => left.localeCompare(right));
-      if (
-        reloadedProductIds.length !== candidateProductIds.length ||
-        reloadedProductIds.some(
-          (productId, index) => productId !== candidateProductIds[index],
-        ) ||
-        group.products.some((product) => product.stockGroupId !== id)
-      ) {
-        throw new StockMutationConflictError();
-      }
+      if (!group) throw new GroupPricingError("Grup satuan tidak ditemukan.", 404);
 
       assertUniqueActiveUnits([...group.products, { unit: input.unit }]);
 
       const source = group.products[0];
+      if (!source) throw new GroupPricingError("Tambahkan produk acuan sebelum menambah satuan.", 422);
       const sku = generateVariantSku({
         sourceSku: source.sku,
         unit: input.unit,
@@ -161,21 +113,12 @@ export async function POST(
         },
       });
 
-      const priceLogEntries = buildProductPriceLogEntries({
-        productId: product.id,
-        storeId,
-        before: null,
-        after: {
-          price: input.price,
-          costPrice: input.costPrice ?? null,
-        },
-        actor: user,
-        source: "MANUAL",
-        note: input.note,
+      const [pricing] = await synchronizeGroupPricingMutation(tx, {
+        prepared, actor: user, source: "MANUAL", note: input.note,
+        changes: { [id]: { members: [{ productId: product.id, mode: input.pricingMode,
+          ...(input.pricingMode === "MANUAL" ? { price: input.price, costPrice: input.costPrice ?? null } : input.priceFactor ? { factor: input.priceFactor } : {}),
+        }] } },
       });
-      if (priceLogEntries.length > 0) {
-        await tx.productPriceLog.createMany({ data: priceLogEntries });
-      }
 
       const txWithActivity = tx as typeof tx & {
         productStockGroupActivity?: {
@@ -201,7 +144,8 @@ export async function POST(
         },
       });
 
-      return product;
+      const projected = pricing.members.find(member => member.productId === product.id)!;
+      return { ...product, price: projected.price, costPrice: projected.costPrice, pricing: pricing.config.members[product.id] };
     });
 
     return NextResponse.json(result, { status: 201 });
@@ -209,6 +153,7 @@ export async function POST(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) return apiValidationError(error);
+    if (error instanceof GroupPricingError) return apiError(error.message, error.status, { code: error.status === 409 ? "Conflict" : error.status === 404 ? "NotFound" : "ValidationError" });
     if (isStockMutationConflict(error)) {
       return apiError(
         "Data grup stok berubah saat varian ditambahkan. Silakan coba lagi.",

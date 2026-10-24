@@ -194,6 +194,7 @@ model ProductStockGroup {
   displayName String
   baseUnit    String                      @default("pcs")
   baseStock   Float                       @default(0)
+  pricingConfig Json?
   createdAt   DateTime                    @default(now())
   updatedAt   DateTime                    @default(now()) @updatedAt
   activities  ProductStockGroupActivity[]

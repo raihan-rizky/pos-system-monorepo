@@ -51,6 +51,8 @@ export interface NormalizedImportRow {
   unit: string;
   unitMultiplierToBase?: number | null;
   costPrice?: number | null;
+  /** Display-only projection. price/costPrice always retain the imported intent. */
+  pricingPreview?: { price: number; costPrice: number | null; errors: string[] };
   hargaDinas?: number | null;
   hargaDinasProvided?: boolean;
   hargaAgen?: number | null;

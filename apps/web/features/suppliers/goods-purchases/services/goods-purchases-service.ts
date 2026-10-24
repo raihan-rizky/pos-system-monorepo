@@ -13,6 +13,8 @@ import {
   removeGoodsPurchaseItemRecord,
   type GoodsPurchaseListFilters,
 } from "../repositories/goods-purchases-repository";
+import { GroupPricingError } from "@/features/product-stock-groups/group-pricing-service";
+import { isStockMutationConflict } from "@/features/product-stock-groups/stock-group-lock";
 import type {
   AddGoodsPurchaseItemInput,
   CreateGoodsPurchaseInput,
@@ -219,6 +221,12 @@ function validateItemInput(input: {
 }
 
 function translateRepositoryError(error: unknown): Error {
+  if (error instanceof GroupPricingError) {
+    return new GoodsPurchaseValidationError(error.message, error.status === 409);
+  }
+  if (isStockMutationConflict(error)) {
+    return new GoodsPurchaseValidationError("Relasi produk berubah saat diproses. Muat ulang data terbaru lalu coba lagi.", true);
+  }
   if (!(error instanceof GoodsPurchaseRepositoryError)) {
     return error instanceof Error ? error : new Error("Terjadi kesalahan");
   }

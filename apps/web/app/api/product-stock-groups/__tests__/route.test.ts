@@ -1,3 +1,4 @@
+import { withPricingTransaction } from "../../products/__tests__/legacy-pricing-transaction";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
@@ -93,8 +94,8 @@ describe("POST /api/product-stock-groups", () => {
     productStockGroupUpdateMock.mockResolvedValue({});
     productUpdateMock.mockResolvedValue({});
     inventoryLogCreateManyMock.mockResolvedValue({ count: 2 });
-    dbTransactionMock.mockImplementation((callback) =>
-      callback({
+    dbTransactionMock.mockImplementation(async (callback) =>
+      callback(withPricingTransaction({
         $queryRaw: stockRowLockMock,
         product: { findMany: productFindManyMock, update: productUpdateMock },
         productStockGroup: {
@@ -102,7 +103,7 @@ describe("POST /api/product-stock-groups", () => {
           update: productStockGroupUpdateMock,
         },
         inventoryLog: { createMany: inventoryLogCreateManyMock },
-      }),
+      })),
     );
   });
 

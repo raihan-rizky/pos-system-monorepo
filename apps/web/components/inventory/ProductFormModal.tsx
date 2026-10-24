@@ -4,7 +4,8 @@ import { Plus, Upload, X, RefreshCw } from "lucide-react";
 import { useCreateProduct, useUpdateProduct, Product } from "@/hooks/useProducts";
 import { useBrands, useCreateBrand } from "@/hooks/useBrands";
 import { buildProductFormPayload } from "@/lib/product-form/product-form-payload";
-import { getProductUnitBadges, validateUnitDrafts, type UnitVariantDraft } from "@/lib/product-form/product-unit-variants";
+import { getProductUnitBadges, newUnitPrimaryPreview, validateUnitDrafts, type UnitVariantDraft } from "@/lib/product-form/product-unit-variants";
+import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
 import { ProductUnitFields, UnitSizeBadge } from "./ProductUnitFields";
 
 interface ProductFormModalProps {
@@ -16,6 +17,7 @@ interface ProductFormModalProps {
 }
 
 export default function ProductFormModal({ isOpen, onClose, productId, categories, initialData }: ProductFormModalProps) {
+  const initializedProduct = useRef<string | null>(null);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const { data: brands = [] } = useBrands();
@@ -84,7 +86,9 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   };
 
   useEffect(() => {
-    if (isOpen && initialData) {
+    if (!isOpen) initializedProduct.current = null;
+    if (isOpen && initialData && initializedProduct.current !== initialData.id) {
+      initializedProduct.current = initialData.id;
       setFormData({
         name: initialData.name,
         description: initialData.description ?? "",
@@ -110,7 +114,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         material: initialData.material || "",
         imageUrl: initialData.imageUrl || "",
       });
-    } else if (isOpen) {
+    } else if (isOpen && !initialData && initializedProduct.current !== "create") {
+      initializedProduct.current = "create";
       setFormData({
         name: "",
         description: "",
@@ -197,7 +202,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   };
 
   const isProcessing = createProduct.isPending || updateProduct.isPending || createBrand.isPending || isUploading;
-  const regularPrice = productId && initialData ? Number(initialData.price) : Number(formData.price || "0");
+  const primaryPricing = productId ? null : newUnitPrimaryPreview(formData, formData.additionalUnits);
+  const regularPrice = productId && initialData ? Number(initialData.price) : Number(primaryPricing?.price ?? formData.price ?? "0");
   const showHargaDinasWarning =
     formData.hargaDinas.trim() !== "" &&
     Number(formData.hargaDinas) < regularPrice;
@@ -289,12 +295,14 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
               </Button>
             </div>
           </div>
+          {productId && initialData && <ProductPricingAction groupId={initialData.stockGroupId ?? initialData.stockGroup?.id} disabled={isProcessing} identityChanged={formData.name !== initialData.name || formData.categoryId !== initialData.category.id || formData.unit !== initialData.unit || formData.unitMultiplierToBase !== String(initialData.unitMultiplierToBase ?? 1) || formData.size !== (initialData.size ?? "") || formData.material !== (initialData.material ?? "")} />}
           {!productId && (
             <Input
               label="Harga Jual (IDR)"
               type="number"
               min="0"
-              value={formData.price}
+              value={primaryPricing?.price ?? formData.price}
+              readOnly={!!primaryPricing}
               onChange={(e) => setFormData({ ...formData, price: e.target.value })}
               required
             />
@@ -338,7 +346,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
               type="number"
               min="0"
               placeholder="Opsional"
-              value={formData.costPrice}
+              value={primaryPricing?.costPrice ?? formData.costPrice}
+              readOnly={!!primaryPricing}
               onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
             />
           )}
@@ -366,6 +375,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
           />
         </div>
 
+        {primaryPricing && <p className="text-sm text-slate-700">Harga dan HPP unit utama mengikuti sumber {primaryPricing.sourceUnit}. Ubah nilai sumber pada unit terkecil di bawah.</p>}
         {!productId && <ProductUnitFields
           primary={formData} rows={formData.additionalUnits} errors={unitErrors} disabled={isProcessing}
           onChange={(additionalUnits) => setFormData((current) => ({ ...current, additionalUnits }))}

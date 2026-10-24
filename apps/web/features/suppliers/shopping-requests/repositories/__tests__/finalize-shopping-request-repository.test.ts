@@ -12,6 +12,8 @@ vi.mock("@/features/suppliers/goods-purchases/repositories/goods-purchases-repos
 }));
 
 import { finalizeShoppingRequestRecord } from "../finalize-shopping-request-repository";
+import { GroupPricingError } from "@/features/product-stock-groups/group-pricing-service";
+import { StockMutationConflictError } from "@/features/product-stock-groups/stock-group-lock";
 
 const actor = { id: "user-1", name: "Admin", storeId: "store-1" };
 const input = {
@@ -100,6 +102,25 @@ describe("finalizeShoppingRequestRecord", () => {
     finalizePurchase.mockRejectedValueOnce(new Error("expense failed"));
 
     await expect(finalizeShoppingRequestRecord("request-1", input, actor)).rejects.toThrow("expense failed");
+  });
+
+  it("returns actionable Auto follower validation from purchase finalization", async () => {
+    const tx = makeTransaction();
+    transaction.mockImplementationOnce((callback: (tx: unknown) => Promise<unknown>) => callback(tx));
+    const message = "HPP satuan Otomatis mengikuti acuan. Ubah HPP acuan atau pilih mode Manual terlebih dahulu.";
+    finalizePurchase.mockRejectedValueOnce(new GroupPricingError(message, 422));
+    await expect(finalizeShoppingRequestRecord("request-1", input, actor)).rejects.toMatchObject({
+      name: "FinalApprovalError", status: 422, message,
+    });
+  });
+
+  it("maps changed product relations to a retryable final-approval conflict", async () => {
+    const tx = makeTransaction();
+    transaction.mockImplementationOnce((callback: (tx: unknown) => Promise<unknown>) => callback(tx));
+    finalizePurchase.mockRejectedValueOnce(new StockMutationConflictError());
+    await expect(finalizeShoppingRequestRecord("request-1", input, actor)).rejects.toMatchObject({
+      name: "FinalApprovalError", status: 409, message: expect.stringMatching(/Muat ulang/),
+    });
   });
 
   it("loads inactive original items for zero-quantity decisions without purchasing them", async () => {

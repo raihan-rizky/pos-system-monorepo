@@ -13,7 +13,7 @@ import {
   type ProductStockStatusFilter,
 } from "@/features/pos-search/pos-stock-filter";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
-import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
+import { buildProductPriceLogEntries, type ProductPriceSnapshot } from "@/lib/product-price-logs/price-log-entries";
 import { withCalculatedStock } from "@/features/product-stock-groups/stock-display";
 import {
   buildStockGroupCreateData,
@@ -22,7 +22,6 @@ import {
 import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
 import {
   isStockMutationConflict,
-  lockStockMutationRows,
   StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
 import { groupProductsByNameAndCategory } from "@/features/pos-search/services/product-grouping-service";
@@ -30,8 +29,15 @@ import { normalizeProductUnitGroup } from "@/lib/product-form/product-unit-varia
 
 import { getLogger } from "@/lib/logger";
 
+import { GroupPricingError, prepareGroupPricingMutation, seedNewGroupPricingMutation, synchronizeGroupPricingMutation, type PreparedGroupPricingMutation } from "@/features/product-stock-groups/group-pricing-service";
+
 const log = getLogger("api:products");
+const creationPricingFields = {
+  pricingMode: z.enum(["AUTO", "MANUAL"]).optional(),
+  priceFactor: z.object({ numerator: z.string().regex(/^\d+$/), denominator: z.string().regex(/^[1-9]\d*$/) }).optional(),
+};
 const productSchema = z.object({
+  ...creationPricingFields,
   name: z.string().min(1, "Name is required"),
   sku: z.string().min(1, "SKU is required"),
   barcode: z.string().optional().nullable(),
@@ -50,6 +56,7 @@ const productSchema = z.object({
   brandId: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   additionalUnitVariants: z.array(z.object({
+    ...creationPricingFields,
     unit: z.string().trim().min(1, "Isi nama unit tambahan."),
     sku: z.string().trim().min(1, "Isi SKU unit tambahan."),
     relativeQuantity: z.coerce.number().finite().positive("Konversi unit harus berupa angka positif."),
@@ -58,6 +65,7 @@ const productSchema = z.object({
     costPrice: z.coerce.number().finite().min(0, "HPP tidak boleh negatif.").optional().nullable(),
   })).optional(),
   smallestUnitVariant: z.object({
+    ...creationPricingFields,
     unit: z.string().trim().min(1),
     sku: z.string().trim().min(1),
     barcode: z.string().optional().nullable(),
@@ -94,6 +102,21 @@ const productSchema = z.object({
     });
   }
 });
+
+function creationPricingIntent(productId: string, input: {
+  pricingMode?: "AUTO" | "MANUAL"; priceFactor?: { numerator: string; denominator: string };
+  price: number; costPrice?: number | null;
+}) {
+  return { productId, mode: input.pricingMode, factor: input.priceFactor,
+    ...(input.pricingMode === "MANUAL" ? { price: input.price, costPrice: input.costPrice ?? null } : {}),
+  };
+}
+
+async function recordCreatedMemberPrices(tx: Prisma.TransactionClient, product: { id: string } & ProductPriceSnapshot, storeId: string, actor: { id?: string | null; name?: string | null }) {
+  const data = buildProductPriceLogEntries({ productId: product.id, storeId, before: null, after: product, actor, source: "MANUAL" })
+    .filter(entry => entry.field === "HARGA_AGEN" || entry.field === "HARGA_DINAS");
+  if (data.length) await tx.productPriceLog.createMany({ data });
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -275,9 +298,9 @@ export async function POST(request: Request) {
     }
 
     const product = await db.$transaction(async (tx) => {
-      const { additionalUnitVariants: _additionalVariants, ...legacyData } = validatedData;
+      const { additionalUnitVariants: _additionalVariants, pricingMode: _pricingMode, priceFactor: _priceFactor, ...legacyData } = validatedData;
       if (validatedData.additionalUnitVariants?.length) {
-        const { additionalUnitVariants, smallestUnitVariant: _legacyVariant, ...primaryData } = validatedData;
+        const { additionalUnitVariants, smallestUnitVariant: _legacyVariant, pricingMode: _primaryMode, priceFactor: _primaryFactor, ...primaryData } = validatedData;
         const normalized = normalizeProductUnitGroup(primaryData.unit, primaryData.stock, additionalUnitVariants);
         const groupKey = normalizeStockGroupKey(primaryData);
         const existingGroup = await tx.productStockGroup.findUnique({
@@ -317,12 +340,12 @@ export async function POST(request: Request) {
             },
           }));
         }
-        const priceLogEntries = products.flatMap((created) => buildProductPriceLogEntries({
-          productId: created.id, storeId, before: null,
-          after: { price: created.price, costPrice: created.costPrice },
-          actor: user, source: "MANUAL",
-        }));
-        if (priceLogEntries.length) await tx.productPriceLog.createMany({ data: priceLogEntries });
+        const prepared: PreparedGroupPricingMutation = { storeId, before: new Map() };
+        await seedNewGroupPricingMutation(tx, { prepared, groupId: group.id, newProductIds: products.map(product => product.id) });
+        await synchronizeGroupPricingMutation(tx, { prepared, actor: user, source: "MANUAL", changes: {
+          [group.id]: { members: [creationPricingIntent(original.id, validatedData), ...additionalUnitVariants.map((variant, index) => creationPricingIntent(products[index + 1].id, variant))] },
+        } });
+        await recordCreatedMemberPrices(tx, original, storeId, user);
         await tx.productStockGroupActivity?.create({
           data: {
             stockGroupId: group.id, type: "PAIRED_VARIANTS_CREATED", productId: original.id,
@@ -332,7 +355,7 @@ export async function POST(request: Request) {
               variants: products.map((created) => ({ id: created.id, unit: created.unit, unitMultiplierToBase: created.unitMultiplierToBase })) },
           },
         });
-        return original;
+        return (await tx.product.findFirst({ where: { id: original.id, storeId }, include: { category: true, brand: true, stockGroup: true } }))!;
       }
       if (validatedData.smallestUnitVariant) {
         const smallest = validatedData.smallestUnitVariant;
@@ -417,35 +440,12 @@ export async function POST(request: Request) {
           },
         });
 
-        const priceLogEntries = [
-          ...buildProductPriceLogEntries({
-            productId: packaging.id,
-            storeId,
-            before: null,
-            after: {
-              price: packaging.price,
-              costPrice: packaging.costPrice,
-            },
-            actor: user,
-            source: "MANUAL",
-          }),
-          ...buildProductPriceLogEntries({
-            productId: smallestProduct.id,
-            storeId,
-            before: null,
-            after: {
-            price: smallestProduct.price,
-            costPrice: smallestProduct.costPrice,
-            },
-            actor: user,
-            source: "MANUAL",
-            note: `Smallest unit variant for ${validatedData.name}`,
-          }),
-        ];
-
-        if (priceLogEntries.length > 0) {
-          await tx.productPriceLog.createMany({ data: priceLogEntries });
-        }
+        const prepared: PreparedGroupPricingMutation = { storeId, before: new Map() };
+        await seedNewGroupPricingMutation(tx, { prepared, groupId: group.id, newProductIds: [packaging.id, smallestProduct.id] });
+        await synchronizeGroupPricingMutation(tx, { prepared, actor: user, source: "MANUAL", changes: {
+          [group.id]: { members: [creationPricingIntent(packaging.id, validatedData), creationPricingIntent(smallestProduct.id, smallest)] },
+        } });
+        await recordCreatedMemberPrices(tx, packaging, storeId, user);
 
         const txWithActivity = tx as typeof tx & {
           productStockGroupActivity?: {
@@ -480,7 +480,7 @@ export async function POST(request: Request) {
           },
         });
 
-        return packaging;
+        return (await tx.product.findFirst({ where: { id: packaging.id, storeId }, include: { category: true, brand: true, stockGroup: true } }))!;
       }
 
       const { multiplier, baseStock } = buildStockGroupCreateData({
@@ -503,23 +503,12 @@ export async function POST(request: Request) {
         },
       });
 
+      const prepared = await prepareGroupPricingMutation(tx, { storeId, groupIds: groupHint ? [groupHint.id] : [] });
       let group = groupHint;
       if (groupHint) {
         const candidateProductIds = groupHint.products
           .map((existing) => existing.id)
           .sort((left, right) => left.localeCompare(right));
-        const locks = await lockStockMutationRows(tx, {
-          storeId,
-          stockGroupIds: [groupHint.id],
-          productIds: candidateProductIds,
-        });
-        if (
-          locks.lockedStockGroupIds.length !== 1 ||
-          locks.lockedProductIds.length !== candidateProductIds.length
-        ) {
-          throw new StockMutationConflictError();
-        }
-
         group = await tx.productStockGroup.findUnique({
           where: { storeId_groupKey: { storeId, groupKey } },
           include: {
@@ -598,23 +587,12 @@ export async function POST(request: Request) {
         },
       });
 
-      const priceLogEntries = buildProductPriceLogEntries({
-        productId: created.id,
-        storeId,
-        before: null,
-        after: {
-          price: created.price,
-          costPrice: created.costPrice,
-        },
-        actor: user,
-        source: "MANUAL",
-      });
-
-      if (priceLogEntries.length > 0) {
-        await tx.productPriceLog.createMany({ data: priceLogEntries });
-      }
-
-      return created;
+      if (groupCreated) await seedNewGroupPricingMutation(tx, { prepared, groupId: group.id, newProductIds: [created.id] });
+      await synchronizeGroupPricingMutation(tx, { prepared, actor: user, source: "MANUAL", changes: {
+        [group.id]: { members: [creationPricingIntent(created.id, validatedData)] },
+      } });
+      await recordCreatedMemberPrices(tx, created, storeId, user);
+      return (await tx.product.findFirst({ where: { id: created.id, storeId }, include: { category: true, brand: true, stockGroup: true } }))!;
     });
 
     return NextResponse.json(withCalculatedStock(product), { status: 201 });
@@ -622,6 +600,7 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
+    if (error instanceof GroupPricingError) return NextResponse.json({ message: error.message }, { status: error.status });
     log.error("Failed to create product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -700,23 +679,7 @@ export async function DELETE(request: Request) {
           });
           if (!productHint) throw new Error("PRODUCT_NOT_FOUND");
 
-          const locks = await lockStockMutationRows(tx, {
-            storeId,
-            stockGroupIds: productHint.stockGroupId
-              ? [productHint.stockGroupId]
-              : [],
-            productIds: [productHint.id],
-          });
-          if (
-            !locks.lockedProductIds.includes(productHint.id) ||
-            (productHint.stockGroupId &&
-              !locks.lockedStockGroupIds.includes(
-                productHint.stockGroupId,
-              ))
-          ) {
-            throw new StockMutationConflictError();
-          }
-
+          const prepared = await prepareGroupPricingMutation(tx, { storeId, groupIds: productHint.stockGroupId ? [productHint.stockGroupId] : [], extraProductIds: [productHint.id] });
           const currentProduct = await tx.product.findFirst({
             where: { id, storeId },
             select: { id: true, stockGroupId: true, isActive: true },
@@ -737,10 +700,12 @@ export async function DELETE(request: Request) {
               where: { id },
               data: { isActive: false },
             });
+            await synchronizeGroupPricingMutation(tx, { prepared, actor: user, source: "MANUAL" });
             return "soft_deleted" as const;
           }
 
           await tx.product.delete({ where: { id } });
+          await synchronizeGroupPricingMutation(tx, { prepared, actor: user, source: "MANUAL" });
           return "hard_deleted" as const;
         });
         results.push({ id, status });

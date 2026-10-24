@@ -1,5 +1,7 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidatePricingQueries } from "@/features/product-stock-groups/invalidate-pricing-queries";
 import React, { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -213,6 +215,7 @@ function StatCard({
 }
 
 export default function ProductsClientPage() {
+  const pricingQueryClient = useQueryClient();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const [pricingCustomerType, setPricingCustomerType] = useState<CustomerType>("UMUM");
@@ -411,9 +414,10 @@ export default function ProductsClientPage() {
     if (job.status !== "COMPLETED" && job.status !== "COMPLETED_WITH_ERRORS") return;
 
     invalidatedImportJobIdRef.current = job.id;
+    void invalidatePricingQueries(pricingQueryClient);
     productsQuery.refetch();
     statsQuery.refetch();
-  }, [observedImportJobQuery.data, productsQuery, statsQuery]);
+  }, [observedImportJobQuery.data, productsQuery, statsQuery, pricingQueryClient]);
 
   const importProgressJob =
     observedImportJobQuery.data ??

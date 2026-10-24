@@ -1,6 +1,12 @@
 import { db, Prisma } from "@pos/db";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import {
+  prepareGroupPricingMutation,
+  synchronizeGroupPricingMutation,
+  type GroupPricingChanges,
+} from "@/features/product-stock-groups/group-pricing-service";
+import { StockMutationConflictError } from "@/features/product-stock-groups/stock-group-lock";
+import {
   hasMasterHppDifference,
   isLargePurchaseUnit,
 } from "../helpers/goods-purchase-core";
@@ -636,23 +642,44 @@ export async function finalizeGoodsPurchaseIfReady(
 
   const hppItems = purchase.items.filter((item) => item.updateMasterHpp);
   if (hppItems.length > 0) {
-    const products = await tx.product.findMany({
+    const productQuery = {
       where: {
         id: { in: hppItems.map((item) => item.productId) },
         storeId: actor.storeId,
       },
       select: {
         id: true,
+        stockGroupId: true,
         price: true,
         costPrice: true,
         hargaAgen: true,
         hargaDinas: true,
       },
+    } satisfies Prisma.ProductFindManyArgs;
+    const hintedProducts = await tx.product.findMany(productQuery);
+    if (hintedProducts.length !== new Set(hppItems.map(item => item.productId)).size) {
+      throw new GoodsPurchaseRepositoryError("PRODUCT_NOT_FOUND");
+    }
+    // The purchase header is already locked. Lock the entire pricing union before
+    // any Product write, and capture legacy factors from the prewrite values.
+    const prepared = await prepareGroupPricingMutation(tx, {
+      storeId: actor.storeId,
+      groupIds: hintedProducts.flatMap(product => product.stockGroupId ? [product.stockGroupId] : []),
+      extraProductIds: hintedProducts.map(product => product.id),
     });
+    const products = await tx.product.findMany(productQuery);
+    const hintedGroups = new Map(hintedProducts.map(product => [product.id, product.stockGroupId]));
+    for (const product of products) {
+      if (product.stockGroupId !== hintedGroups.get(product.id) ||
+        (product.stockGroupId && !prepared.before.get(product.stockGroupId)?.members.some(member => member.id === product.id))) {
+        throw new StockMutationConflictError();
+      }
+    }
     const productsById = new Map(
       products.map((product) => [product.id, product]),
     );
     const logEntries = [];
+    const changes: Record<string, GroupPricingChanges> = {};
 
     for (const item of hppItems) {
       const product = productsById.get(item.productId);
@@ -663,6 +690,13 @@ export async function finalizeGoodsPurchaseIfReady(
         2,
         Prisma.Decimal.ROUND_HALF_UP,
       );
+      if (product.stockGroupId) {
+        const groupChanges = changes[product.stockGroupId] ??= { members: [] };
+        // Keep explicit intents even when HPP is equal: an AUTO follower cannot
+        // independently supply master HPP. The shared service owns validation.
+        groupChanges.members!.push({ productId: product.id, costPrice: latestHpp.toFixed(2) });
+        continue;
+      }
       if (
         !hasMasterHppDifference(
           decimalToNumber(product.costPrice),
@@ -702,6 +736,13 @@ export async function finalizeGoodsPurchaseIfReady(
     if (logEntries.length > 0) {
       await tx.productPriceLog.createMany({ data: logEntries });
     }
+    await synchronizeGroupPricingMutation(tx, {
+      prepared,
+      changes,
+      actor,
+      source: "SYSTEM",
+      note: `Pembelian Barang ${purchase.number}`,
+    });
   }
 
   await tx.expense.deleteMany({

@@ -1,5 +1,7 @@
 "use client";
 
+import { invalidatePricingQueries } from "@/features/product-stock-groups/invalidate-pricing-queries";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnMapping, ImportPreviewResponse, NormalizedImportRow, ImportRowDecision } from "../types";
 
@@ -174,7 +176,7 @@ export function useProductImportCommit() {
   return useMutation({
     mutationFn: commitProductImport,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      void invalidatePricingQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-logs"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });

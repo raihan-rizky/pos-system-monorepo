@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { GroupPricingError } from "@/features/product-stock-groups/group-pricing-service";
 
 import { SAME_UNIT_PRICE_CONFLICT_MESSAGE } from "@/features/product-import/helpers/same-unit-price-conflicts";
 import {
@@ -7,6 +8,7 @@ import {
 } from "@/features/product-import/helpers/price-column-sanity";
 
 export function productImportCommitErrorResponse(error: Error) {
+  if (error instanceof GroupPricingError) return NextResponse.json({ message: error.message }, { status: error.status });
   if (error.message.startsWith(`${PRODUCT_IMPORT_PRICE_COLUMNS_SUSPECTED_SWAPPED}:`)) {
     const [, priceBelowCostRowCount, comparableRowCount] = error.message.split(":");
     return NextResponse.json(

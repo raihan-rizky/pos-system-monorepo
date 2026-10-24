@@ -24,7 +24,7 @@ const bundle = await build({
       root.render(<ProductFormModal key={Math.random()} isOpen onClose={() => window.closeCount++} productId={null} categories={categories} />); };
     window.renderForm();
   `, resolveDir: web, sourcefile: 'product-unit-harness.tsx', loader: 'tsx' },
-  bundle: true, write: false, platform: 'browser', format: 'iife', jsx: 'automatic',
+  bundle: true, write: false, outdir: 'browser-memory', platform: 'browser', format: 'iife', jsx: 'automatic',
   alias: { '@': web, '@pos/ui': path.join(repo, 'packages/ui/src/index.ts') },
   define: { 'process.env.NODE_ENV': '"production"' },
   plugins: [{ name: 'in-memory-product-hooks', setup(builder) {
@@ -58,8 +58,8 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.route('http://localhost:3004/__product-unit-fixture', route => route.fulfill({ contentType:'text/html', body:'<html lang="id"><body><div id="root"></div></body></html>' }));
   await page.goto('http://localhost:3004/__product-unit-fixture');
-  await page.addStyleTag({ content: css.css });
-  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  await page.addStyleTag({ content: css.css + (bundle.outputFiles.find(file => file.path.endsWith('.css'))?.text ?? '') });
+  await page.addScriptTag({ content: bundle.outputFiles.find(file => file.path.endsWith('.js')).text });
   const add = page.getByRole('button', { name: 'Tambah unit lain (opsional)', exact: true });
   const save = page.getByRole('button', { name: 'Simpan Produk', exact: true });
   async function fillPrimary(unit='pcs', price='2000', stock='24') {
@@ -82,15 +82,46 @@ try {
   assert.equal(Object.hasOwn(await page.evaluate(() => window.saved), 'additionalUnitVariants'), false);
   console.log('PASS: optional single-unit save.');
 
+  await reset(); await fillPrimary();
+  const primaryCost = page.getByLabel('Harga Modal (HPP)', { exact: true });
+  await primaryCost.fill('');
+  await add.click();
+  const costRow = page.locator('fieldset').nth(0);
+  await costRow.getByLabel('Nama unit').fill('dus');
+  await costRow.getByLabel('Isi dalam 1 dus').fill('12');
+  await costRow.getByLabel('Mode harga unit 1').selectOption('MANUAL');
+  const unitCost = costRow.getByLabel('Harga modal', { exact: true });
+  const missingCostMessage = 'Harga modal belum bisa dihitung otomatis karena HPP unit utama belum diisi. Isi Harga Modal (HPP) di atas atau masukkan modal unit ini secara manual.';
+  assert.equal(await unitCost.inputValue(), '', 'missing primary HPP does not invent a modal');
+  assert.equal(await costRow.getByText(missingCostMessage, { exact: true }).count(), 1, 'explain why automatic modal is unavailable');
+  assert.ok((await unitCost.getAttribute('aria-describedby'))?.includes(await costRow.getByText(missingCostMessage, { exact: true }).getAttribute('id')), 'modal input references its guidance');
+  await unitCost.fill('15000');
+  assert.equal(await unitCost.inputValue(), '15000', 'manual modal is available without primary HPP');
+  assert.equal(await costRow.getByText(missingCostMessage, { exact: true }).count(), 0, 'manual modal does not show a missing-value prompt');
+  await unitCost.fill('');
+  assert.equal(await costRow.getByText(missingCostMessage, { exact: true }).count(), 1);
+  await primaryCost.fill('1000');
+  assert.equal(await unitCost.inputValue(), '12000', 'entering HPP after conversion populates modal');
+  assert.equal(await costRow.getByText(missingCostMessage, { exact: true }).count(), 0);
+  await primaryCost.fill('0');
+  assert.equal(await unitCost.inputValue(), '0', 'zero primary HPP is filled, not missing');
+  assert.equal(await costRow.getByText(missingCostMessage, { exact: true }).count(), 0);
+  await primaryCost.fill('');
+  await unitCost.fill('0');
+  assert.equal(await unitCost.inputValue(), '0', 'manual zero remains valid without primary HPP');
+  assert.equal(await costRow.getByText(missingCostMessage, { exact: true }).count(), 0);
+  console.log('PASS: missing primary HPP guidance, accessible description, late HPP entry, manual modal and zero costs.');
+
   await reset(); await fillPrimary(); await add.click();
   let rows = page.locator('fieldset');
   assert.equal(await rows.nth(0).getByLabel('Nama unit').evaluate(el => el === document.activeElement), true, 'new unit receives focus');
   await page.keyboard.press('Tab');
-  assert.equal(await rows.nth(0).locator('select').evaluate(el=>el===document.activeElement), true);
+  assert.equal(await rows.nth(0).getByLabel('Ukuran dibanding pcs').evaluate(el=>el===document.activeElement), true);
   await page.keyboard.press('Tab');
   assert.equal(await rows.nth(0).getByLabel('Isi dalam 1 unit tambahan').evaluate(el=>el===document.activeElement), true);
   await rows.nth(0).getByLabel('Nama unit').fill('dus');
   await rows.nth(0).getByLabel('Isi dalam 1 dus').fill('12');
+  await rows.nth(0).getByLabel('Mode harga unit 1').selectOption('MANUAL');
   assert.equal(await rows.nth(0).getByLabel('Harga modal', { exact: true }).inputValue(), '12000');
   assert.equal(await rows.nth(0).getByLabel('Harga jual', { exact: true }).inputValue(), '16200');
   assert.equal(await page.getByText('Unit kecil', { exact: true }).count(), 2);
@@ -108,6 +139,7 @@ try {
   await add.click();
   await rows.nth(1).getByLabel('Nama unit').fill('pak');
   await rows.nth(1).getByLabel('Isi dalam 1 pak').fill('6');
+  await rows.nth(1).getByLabel('Mode harga unit 2').selectOption('MANUAL');
   const summary = await page.locator('[data-unit-stock-summary]').innerText();
   assert.ok(summary.includes('24 pcs') && summary.includes('2,4 dus') && summary.includes('4 pak'), 'preview shows each equivalent unit');
   const contrasts = await page.evaluate(() => {
@@ -130,7 +162,7 @@ try {
   await save.click(); await page.waitForFunction(() => window.closeCount === 1);
   const payload = await page.evaluate(() => window.saved);
   assert.equal(payload.stock, 24); assert.equal(payload.additionalUnitVariants.length, 2);
-  assert.deepEqual(payload.additionalUnitVariants[0], { unit:'dus', sku:'CUSTOM-DUS', relativeQuantity:10, price:0, barcode:'HARNESS-DUS', costPrice:1500 });
+  assert.deepEqual(payload.additionalUnitVariants[0], { unit:'dus', sku:'CUSTOM-DUS', relativeQuantity:10, price:0, barcode:'HARNESS-DUS', costPrice:1500, pricingMode:'MANUAL' });
   assert.equal(payload.additionalUnitVariants[1].price, 8100);
   assert.equal(payload.additionalUnitVariants[1].costPrice, 6000);
   console.log('PASS: several units, badge sizes, suggested price, keyboard disclosure, manual zero/SKU preservation.');
@@ -140,7 +172,7 @@ try {
   await rows.nth(0).getByLabel('Nama unit').fill('pcs');
   await rows.nth(0).getByLabel('Ukuran dibanding dus').selectOption('smaller');
   await rows.nth(0).getByLabel('Isi dalam 1 dus').fill('12');
-  assert.equal(await rows.nth(0).getByLabel('Harga jual', { exact: true }).inputValue(), '1350');
+  assert.equal(await rows.nth(0).getByLabel('Harga jual', { exact: true }).inputValue(), '2000.00', 'smallest unit is the source at the converted selling price');
   assert.ok(await page.locator('[data-unit-stock-summary]').innerText().then(value => value.includes('2 dus') && value.includes('24 pcs')));
   assert.equal(await rows.nth(0).getByText('Unit kecil', { exact:true }).count(), 1);
   await page.setViewportSize({ width:390, height:844 });
@@ -158,6 +190,31 @@ try {
   await save.click(); await page.waitForFunction(() => window.closeCount === 1);
   assert.equal((await page.evaluate(() => window.saved)).additionalUnitVariants[0].relativeQuantity, 1/12);
   console.log('PASS: smaller-unit direction, stock preview, desktop/mobile layout and touch targets.');
+
+  await reset(); await fillPrimary('pak', '12000', '2');
+  await page.getByLabel('Harga Modal (HPP)', { exact: true }).fill('6000');
+  await add.click(); rows = page.locator('fieldset');
+  await rows.nth(0).getByLabel('Nama unit').fill('pcs');
+  await rows.nth(0).getByLabel('Ukuran dibanding pak').selectOption('smaller');
+  await rows.nth(0).getByLabel('Isi dalam 1 pak').fill('12');
+  await rows.nth(0).locator('summary').click();
+  await rows.nth(0).getByLabel('Harga jual', { exact: true }).fill('2000');
+  await rows.nth(0).getByLabel('Harga modal', { exact: true }).fill('800');
+  await add.click();
+  await rows.nth(1).getByLabel('Nama unit').fill('dus');
+  await rows.nth(1).getByLabel('Isi dalam 1 dus').fill('2');
+  await rows.nth(1).locator('summary').click();
+  assert.equal(await page.getByLabel('Harga Jual (IDR)', { exact: true }).inputValue(), '24000.00');
+  assert.equal(await page.getByLabel('Harga Modal (HPP)', { exact: true }).inputValue(), '9600.00');
+  assert.equal(await rows.nth(1).getByLabel('Harga jual', { exact: true }).inputValue(), '48000.00');
+  assert.equal(Number(await rows.nth(1).getByLabel('Harga modal', { exact: true }).inputValue()), 19200);
+  await save.click(); await page.waitForFunction(() => window.closeCount === 1);
+  const sourceGroup = await page.evaluate(() => window.saved.additionalUnitVariants);
+  assert.equal(sourceGroup[0].price, 2000); assert.equal(sourceGroup[0].costPrice, 800);
+  assert.equal(sourceGroup[1].pricingMode, 'AUTO'); assert.equal(sourceGroup[1].price, 0);
+  assert.deepEqual(sourceGroup[1].priceFactor, { numerator: '1', denominator: '1' });
+  assert.equal(Object.hasOwn(sourceGroup[1], 'costPrice'), false);
+  process.stdout.write('PASS: edited smaller source drives primary and other Auto follower preview/payload.\n');
 
   await reset(); await fillPrimary(); await add.click();
   rows = page.locator('fieldset');
@@ -183,6 +240,7 @@ try {
   rows = page.locator('fieldset');
   await rows.nth(0).getByLabel('Nama unit').fill('dus');
   await rows.nth(0).getByLabel('Isi dalam 1 dus').fill('12');
+  await rows.nth(0).getByLabel('Mode harga unit 1').selectOption('MANUAL');
   await rows.nth(0).getByLabel('Harga modal', { exact: true }).fill('-1');
   await page.locator('form').evaluate(form => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
   assert.equal(await page.getByRole('alert').innerText(), 'Harga modal harus berupa angka 0 atau lebih.');

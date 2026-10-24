@@ -1,3 +1,4 @@
+import type { GroupPricingProjection, PricingMode, ExactRatio } from "../automatic-pricing";
 export interface StockGroupOption {
   id: string;
   displayName: string;
@@ -61,6 +62,8 @@ export async function fetchStockGroups(
 }
 
 export interface StockGroupDetail {
+  pricing?: GroupPricingProjection;
+  pricingMembers?: Array<{ id: string; name: string; unit: string; isActive: boolean; unitMultiplierToBase: number; conversionNeedsReview: boolean }>;
   id: string;
   displayName: string;
   baseUnit: string;
@@ -100,6 +103,8 @@ export interface UpdateSharedStockPayload {
 }
 
 export interface UpdateConversionRatePayload {
+  expectedVersion?: string;
+  expectedProjection?: string;
   mode: "KEEP_SHARED_STOCK" | "PRESERVE_SOURCE_STOCK";
   baseProductId?: string;
   sourceProductId?: string;
@@ -117,12 +122,16 @@ export interface UpdateConversionRatePayload {
 }
 
 export interface UpdateVariantPricePayload {
+  mode?: PricingMode;
+  factor?: ExactRatio;
   price: number;
   costPrice?: number | null;
   priceChangeNote?: string;
 }
 
 export interface AddVariantPayload {
+  pricingMode?: PricingMode;
+  priceFactor?: ExactRatio;
   unit: string;
   price: number;
   costPrice?: number | null;
@@ -142,9 +151,24 @@ export async function fetchStockGroupDetail(
 ): Promise<StockGroupDetail> {
   const response = await fetch(`/api/product-stock-groups/${groupId}`, {
     signal,
+    cache: "no-store",
   });
   if (!response.ok) throw new Error("Gagal memuat stok unit");
   return response.json();
+}
+
+export async function requestGroupPricing(
+  groupId: string,
+  changes: import("../group-pricing-service").GroupPricingChanges,
+  preview?: import("../group-pricing-service").GroupPricingPreview,
+): Promise<import("../group-pricing-service").GroupPricingPreview | GroupPricingProjection> {
+  const response = await fetch(`/api/product-stock-groups/${groupId}/pricing`, {
+    method: preview ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ changes, ...(preview ? { expectedVersion: preview.version, expectedProjection: preview.projectionToken } : {}) }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new StockGroupMutationError(body.message || "Harga grup belum dapat diproses.", response.status);
+  return body;
 }
 
 export async function updateSharedStock(

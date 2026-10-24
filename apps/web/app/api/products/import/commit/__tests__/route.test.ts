@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withImportPricingPersistence } from "@/features/product-import/services/__tests__/import-pricing-database";
 
 import { POST } from "../route";
 
@@ -107,7 +108,8 @@ describe("POST /api/products/import/commit", () => {
       name: "Owner",
       storeId: "store-main",
     });
-    dbTransactionMock.mockImplementation((callback) => callback(txMock));
+    let pricingTx: ReturnType<typeof withImportPricingPersistence> | undefined;
+    dbTransactionMock.mockImplementation((callback) => callback(pricingTx ??= withImportPricingPersistence(txMock)));
     txMock.$queryRaw.mockImplementation(
       async (strings: TemplateStringsArray, rowId?: string) =>
         strings.join(" ").includes("FOR UPDATE") ? [{ id: rowId }] : [],
@@ -470,7 +472,7 @@ describe("POST /api/products/import/commit", () => {
     );
 
     expect(response.status).toBe(201);
-    expect(txMock.productStockGroup.findMany).toHaveBeenCalledTimes(2);
+    expect(txMock.productStockGroup.findMany.mock.calls.every(([args]) => Array.isArray(args.where.id?.in) || Array.isArray(args.where.OR))).toBe(true);
     expect(txMock.productStockGroup.createMany).toHaveBeenCalledWith({
       data: expect.arrayContaining([
         expect.objectContaining({
@@ -743,7 +745,7 @@ describe("POST /api/products/import/commit", () => {
     );
     const body = await response.json();
 
-    expect(response.status).toBe(201);
+    expect(response.status, JSON.stringify(body)).toBe(201);
     expect(body.updatedProductCount).toBe(1);
     expect(body.skippedRowCount).toBe(1);
     expect(txMock.$queryRaw).toHaveBeenCalled();

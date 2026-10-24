@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "automatic-group-unit-pricing", date: "2026-10-24", revision: 1,
+    highlight: { title: "Harga otomatis antar satuan", summary: "Atur harga sumber, lalu tinjau harga jual dan HPP seluruh satuan dalam grup." },
+    title: "Harga jual dan HPP satuan mengikuti sumber grup.",
+    summary: "Pilih satu sumber untuk menghitung harga jual dan HPP satuan lain sesuai konversi. Atur diskon, markup, atau Manual, lalu periksa pratinjau sebelum menerapkan satu grup.",
+    kind: "feature", area: "Produk", href: "/products", visual: "stock-groups",
+    screenshot: { src: "/images/changelog/harga-otomatis-snowman-2026-10-24.png", alt: "Pratinjau data contoh Snowman per pcs, pak, dan dus dengan harga jual, HPP, dan margin sebelum serta sesudah perubahan sumber harga" },
+    steps: [
+      { title: "Pilih sumber harga", detail: "Buka grup produk > Harga, atau Ubah Harga > Atur harga grup / Manual dari Produk/POS. Pilih Sumber harga aktif lalu isi harga jual dan HPP sumber." },
+      { title: "Atur satuan pengikut", detail: "Gunakan Auto dengan diskon atau markup harga jual, atau pilih Manual untuk harga dan HPP sendiri. Diskon jual tidak mengurangi HPP." },
+      { title: "Tinjau dan terapkan", detail: "Klik Pratinjau harga, periksa sebelum/sesudah tiap satuan beserta peringatan, lalu klik Terapkan harga grup. Draf yang berubah perlu dipratinjau lagi." },
+    ],
+  },
+  {
     id: "product-group-stock-tree", date: "2026-10-22", revision: 1,
     highlight: { title: "Pohon persediaan grup produk", summary: "Lihat hubungan stok bersama, konversi, dan harga satuan dalam satu pohon." },
     title: "Hubungan satuan lebih jelas lewat Pohon persediaan.",

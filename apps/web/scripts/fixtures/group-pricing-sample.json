@@ -1,0 +1,11 @@
+[
+  {
+    "groupId": "sample-snowman",
+    "storeId": "sample-store",
+    "baseUnit": "pcs",
+    "members": [
+      { "id": "sample-pcs", "groupId": "sample-snowman", "storeId": "sample-store", "unit": "pcs", "price": "3000", "costPrice": "2000", "unitMultiplierToBase": 1, "isActive": true, "conversionNeedsReview": false },
+      { "id": "sample-pak", "groupId": "sample-snowman", "storeId": "sample-store", "unit": "pak", "price": "32400", "costPrice": "21000", "unitMultiplierToBase": 12, "isActive": true, "conversionNeedsReview": false }
+    ]
+  }
+]

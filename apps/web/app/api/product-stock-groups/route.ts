@@ -11,10 +11,11 @@ import {
 } from "@/features/product-stock-groups/bulk-stock-groups";
 import {
   isStockMutationConflict,
-  lockStockMutationRows,
   StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
+
+import { GroupPricingError, prepareGroupPricingMutation, seedNewGroupPricingMutation, synchronizeGroupPricingMutation } from "@/features/product-stock-groups/group-pricing-service";
 
 const log = getLogger("api:product-stock-groups");
 
@@ -136,18 +137,7 @@ export async function POST(request: Request) {
       const sourceGroupIds = productHints
         .map((product) => product.stockGroupId)
         .filter((stockGroupId): stockGroupId is string => Boolean(stockGroupId));
-      const locks = await lockStockMutationRows(tx, {
-        storeId,
-        stockGroupIds: sourceGroupIds,
-        productIds,
-      });
-      if (
-        locks.lockedProductIds.length !== productIds.length ||
-        locks.lockedStockGroupIds.length !== new Set(sourceGroupIds).size
-      ) {
-        throw new StockMutationConflictError();
-      }
-
+      const prepared = await prepareGroupPricingMutation(tx, { storeId, groupIds: sourceGroupIds, extraProductIds: productIds });
       const products = await tx.product.findMany({
         where: { id: { in: productIds }, storeId, isActive: true },
         select: {
@@ -212,6 +202,9 @@ export async function POST(request: Request) {
         });
       }
 
+      await seedNewGroupPricingMutation(tx, { prepared, groupId: group.id, sourceProductId: input.sourceProductId });
+      const pricing = await synchronizeGroupPricingMutation(tx, { prepared, actor: productUser, source: "MANUAL", note: input.note });
+
       await tx.inventoryLog.createMany({
         data: buildSharedStockInventoryLogRows({
           groupDisplayName: group.displayName,
@@ -223,7 +216,7 @@ export async function POST(request: Request) {
         }),
       });
 
-      return { ...group, conflictWarnings: resolved.conflictWarnings };
+      return { ...group, pricing: pricing[pricing.length - 1], pricingConfig: pricing[pricing.length - 1]?.config, conflictWarnings: resolved.conflictWarnings };
     });
 
     return NextResponse.json(result, { status: 201 });
@@ -231,6 +224,7 @@ export async function POST(request: Request) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
     if (error instanceof z.ZodError) return apiValidationError(error);
+    if (error instanceof GroupPricingError) return apiError(error.message, error.status);
     if (isStockMutationConflict(error)) {
       return apiError(
         "Data produk berubah saat grup stok dibuat. Silakan coba lagi.",

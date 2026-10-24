@@ -38,6 +38,10 @@ const pageOptions = (search = "", category = "", options: Parameters<typeof useP
   useProductsPage(search, category, { limit: 24, ...options }) as unknown as Options;
 
 describe("product query cache and request lifecycle", () => {
+  it("bypasses HTTP cache so invalidation observes cascaded server prices", async () => {
+    await fetchProducts("paper");
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/products?"), expect.objectContaining({ cache: "no-store" }));
+  });
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();

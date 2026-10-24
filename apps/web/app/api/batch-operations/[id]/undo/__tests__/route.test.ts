@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "../route";
+import { importPricingDatabase } from "@/features/product-import/services/__tests__/import-pricing-database";
+import { commitProductImportChunk, finishProductImportCommit } from "@/features/product-import/services/product-import-commit-service";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
@@ -167,6 +169,7 @@ function mockAuthoritativeReads(input: {
   });
   txMock.$queryRaw.mockImplementation(
     async (strings: TemplateStringsArray, rowId: string) => {
+      if (strings.join(" ").includes("pos_batch_operations")) { input.order?.push(`lock:batch:${rowId}`); return [{ id: rowId }]; }
       const kind = strings
         .join(" ")
         .includes("pos_product_stock_groups")
@@ -217,6 +220,19 @@ describe("POST /api/batch-operations/[id]/undo", () => {
     txMock.$queryRaw.mockImplementation(
       async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
     );
+  });
+
+  it("restores an import cascade through the route after finish preserves its snapshots", async () => {
+    const d = importPricingDatabase(); dbTransactionMock.mockImplementation(d.transaction);
+    d.addRow("rim", 2, 0, 60000, 45000);
+    const user = { id: "user-1", storeId: "store-main" };
+    await commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, user);
+    await finishProductImportCommit({ batchOperationId: "batch" }, user);
+    const revision = d.groups[0].pricingConfig.revision;
+    const response = await POST(new Request("http://localhost/api/batch-operations/batch/undo"), { params: Promise.resolve({ id: "batch" }) });
+    expect(response.status).toBe(200);
+    expect(Number(d.products.find(p => p.id === "dus").price)).toBe(225000);
+    expect(d.groups[0].pricingConfig.revision).toBeGreaterThan(revision);
   });
 
   it("restores product supplier links from product import snapshots", async () => {
@@ -276,66 +292,16 @@ describe("POST /api/batch-operations/[id]/undo", () => {
     });
   });
 
-  it("locks a created grouped variant and reloads it before undo deactivation", async () => {
-    const order: string[] = [];
-    const currentProduct = product({
-      stockGroupId: "group-z",
-      unitMultiplierToBase: 1,
-    });
-
+  it("blocks legacy grouped imports without configuration snapshots", async () => {
     txMock.batchOperation.findFirst.mockResolvedValue({
-      id: "batch-1",
-      type: "PRODUCT_IMPORT",
-      status: "COMMITTED",
-      storeId: "store-main",
-      createdAt: new Date("2026-07-01"),
-      undoOfBatchId: null,
-      items: [
-        {
-          id: "item-1",
-          batchOperationId: "batch-1",
-          productId: "prod-1",
-          sku: "AMP-001",
-          action: "CREATE",
-          beforeSnapshot: null,
-          afterSnapshot: snapshot(),
-          inventoryLogId: null,
-          createdAt: new Date("2026-07-01"),
-          sourceRowNumber: 2,
-        },
-      ],
+      id: "batch-1", type: "PRODUCT_IMPORT", status: "COMMITTED", storeId: "store-main",
+      createdAt: new Date("2026-07-01"), items: [{ productId: "prod-1", action: "CREATE", sku: "AMP-001" }],
     });
-    mockAuthoritativeReads({
-      batchProducts: [currentProduct],
-      variants: [currentProduct],
-      groups: [],
-      order,
-    });
-    txMock.product.update.mockImplementation(async () => {
-      order.push("deactivate-product");
-      return { ...currentProduct, stock: 0, isActive: false };
-    });
-    txMock.inventoryLog.create.mockResolvedValue({ id: "log-1" });
-
-    const response = await POST(
-      new Request("http://localhost/api/batch-operations/batch-1/undo"),
-      { params: Promise.resolve({ id: "batch-1" }) },
-    );
-
-    expect(response.status).toBe(200);
-    expect(order).toEqual([
-      "read:product-hints",
-      "read:variant-hints",
-      "lock:group:group-z",
-      "lock:product:prod-1",
-      "read:products-after-lock",
-      "read:variants-after-lock",
-      "deactivate-product",
-    ]);
-    expect(txMock.product.update).toHaveBeenCalledWith({
-      where: { id: "prod-1" },
-      data: { stock: 0, isActive: false },
-    });
+    txMock.product.findMany.mockResolvedValue([product({ stockGroupId: "group-z" })]);
+    const response = await POST(new Request("http://localhost/api/batch-operations/batch-1/undo"), { params: Promise.resolve({ id: "batch-1" }) });
+    expect(response.status).toBe(409);
+    expect((await response.json()).message).toContain("snapshot konfigurasi");
+    expect(txMock.product.update).not.toHaveBeenCalled();
   });
 
   it("restores authoritative grouped base stock and every active variant shadow", async () => {
@@ -408,7 +374,8 @@ describe("POST /api/batch-operations/[id]/undo", () => {
 
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(order.slice(0, 8)).toEqual([
+    expect(order.slice(0, 9)).toEqual([
+      "lock:batch:batch-1",
       "read:product-hints",
       "read:variant-hints",
       "lock:group:group-1",

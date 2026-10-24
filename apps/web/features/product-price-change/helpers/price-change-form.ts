@@ -44,10 +44,10 @@ export function buildPriceChangePayload({
 
   return {
     id: productId,
-    price,
-    costPrice,
-    hargaDinas,
-    hargaAgen,
+    ...(price !== currentPrice ? { price } : {}),
+    ...(costPrice !== normalizedCurrentCost ? { costPrice } : {}),
+    ...(hargaDinas !== normalizedCurrentHargaDinas ? { hargaDinas } : {}),
+    ...(hargaAgen !== normalizedCurrentHargaAgen ? { hargaAgen } : {}),
     priceChangeNote: note.trim() || undefined,
   };
 }
@@ -90,9 +90,9 @@ export function buildPosCartPriceUpdate(input: {
     masterUpdate: masterChanged
       ? {
           id: input.productId,
-          price,
-          hargaDinas,
-          hargaAgen,
+          ...(price !== input.currentPrice ? { price } : {}),
+          ...(hargaDinas !== (input.currentHargaDinas ?? null) ? { hargaDinas } : {}),
+          ...(hargaAgen !== (input.currentHargaAgen ?? null) ? { hargaAgen } : {}),
           priceChangeNote: input.note.trim() || undefined,
         }
       : null,

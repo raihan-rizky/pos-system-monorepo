@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Input, Modal } from "@pos/ui";
 import { History } from "lucide-react";
 import type { Product } from "@/hooks/useProducts";
 import type { ProductCartItem } from "@/hooks/useCart";
 import { useUpdateProduct } from "@/hooks/useProducts";
+import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
 import {
   buildPosCartPriceUpdate,
   buildPriceChangePayload,
@@ -25,17 +26,18 @@ export default function PriceUpdateModal({
   onViewHistory,
 }: PriceUpdateModalProps) {
   const updateProduct = useUpdateProduct();
-  const [price, setPrice] = useState("");
-  const [costPrice, setCostPrice] = useState("");
+  const initializedProduct = useRef<string | null>(null);
+  const price = String(product?.price ?? "");
+  const costPrice = product?.costPrice == null ? "" : String(product.costPrice);
   const [hargaDinas, setHargaDinas] = useState("");
   const [hargaAgen, setHargaAgen] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen || !product) return;
-    setPrice(String(product.price));
-    setCostPrice(product.costPrice == null ? "" : String(product.costPrice));
+    if (!isOpen) initializedProduct.current = null;
+    if (!isOpen || !product || initializedProduct.current === product.id) return;
+    initializedProduct.current = product.id;
     setHargaDinas(product.hargaDinas == null ? "" : String(product.hargaDinas));
     setHargaAgen(product.hargaAgen == null ? "" : String(product.hargaAgen));
     setNote("");
@@ -70,7 +72,7 @@ export default function PriceUpdateModal({
       setError(null);
 
       if (!product || !payload) {
-        setError("Ubah harga jual, HPP, Harga Dinas, atau Harga Agen sebelum menyimpan.");
+        setError("Ubah Harga Dinas atau Harga Agen sebelum menyimpan. Harga jual dan HPP diterapkan melalui Harga grup.");
         return;
       }
 
@@ -106,24 +108,8 @@ export default function PriceUpdateModal({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            label="Harga Jual (IDR)"
-            type="number"
-            min="0"
-            value={price}
-            onChange={(event) => setPrice(event.target.value)}
-            required
-          />
-          <Input
-            label="Harga Modal / HPP"
-            type="number"
-            min="0"
-            placeholder="Opsional"
-            value={costPrice}
-            onChange={(event) => setCostPrice(event.target.value)}
-          />
-        </div>
+        <ProductPricingAction groupId={product.stockGroupId ?? product.stockGroup?.id} identityChanged={false} disabled={updateProduct.isPending} />
+        <p className="text-xs text-slate-600">Simpan Harga hanya menyimpan Harga Agen dan Harga Dinas pada produk ini.</p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
@@ -210,7 +196,8 @@ export function PosPriceQuickEditModal({
   onClose,
   onSave,
 }: PosPriceQuickEditModalProps) {
-  const [price, setPrice] = useState(() => item == null ? "" : String(item.catalogPrice));
+  const initializedProduct = useRef<string | null>(null);
+  const price = item == null ? "" : String(item.catalogPrice);
   const [hargaDinas, setHargaDinas] = useState(() =>
     item?.hargaDinas == null ? "" : String(item.hargaDinas),
   );
@@ -234,7 +221,6 @@ export function PosPriceQuickEditModal({
   const masterPricesBelowCost = item?.costPrice == null
     ? []
     : [
-        { label: "Harga Normal", value: price },
         { label: "Harga Agen", value: hargaAgen },
         { label: "Harga Dinas", value: hargaDinas },
       ].filter(
@@ -245,8 +231,9 @@ export function PosPriceQuickEditModal({
       );
 
   useEffect(() => {
-    if (!open || !item) return;
-    setPrice(String(item.catalogPrice));
+    if (!open) initializedProduct.current = null;
+    if (!open || !item || initializedProduct.current === item.cartLineId) return;
+    initializedProduct.current = item.cartLineId;
     setHargaDinas(item.hargaDinas == null ? "" : String(item.hargaDinas));
     setHargaAgen(item.hargaAgen == null ? "" : String(item.hargaAgen));
     setTransactionPrice(
@@ -309,15 +296,9 @@ export function PosPriceQuickEditModal({
             <h3 className="text-sm font-bold text-surface-900">Harga master</h3>
             <p className="text-xs text-surface-500">Perubahan berlaku untuk transaksi berikutnya.</p>
           </div>
+          <ProductPricingAction groupId={item.stockGroup?.id} identityChanged={false} disabled={isSaving} />
+          <p className="text-xs text-slate-600">Simpan Harga menyimpan Harga Agen/Dinas dan Harga Khusus di bawah. Perubahan Harga grup tidak mengubah harga transaksi yang sudah ada di keranjang.</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Input
-              label="Harga Normal"
-              type="number"
-              min="1"
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
-              required
-            />
             <Input
               label="Harga Agen"
               type="number"

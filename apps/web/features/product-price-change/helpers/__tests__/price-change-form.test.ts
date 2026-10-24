@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { buildPriceChangePayload } from "../price-change-form";
 
 describe("buildPriceChangePayload", () => {
+  it("does not write master money for an independent POS member-price edit", async () => {
+    const { buildPosCartPriceUpdate } = await import("../price-change-form");
+    const input = { productId: "pak", currentPrice: 32400, currentHargaDinas: null, currentHargaAgen: null, nextPrice: "32400", nextHargaDinas: "", nextHargaAgen: "30000", transactionPrice: "29000", note: "" };
+    expect(buildPosCartPriceUpdate(input)).toEqual({ masterUpdate: { id: "pak", hargaAgen: 30000, priceChangeNote: undefined }, transactionPrice: 29000 });
+    expect(buildPosCartPriceUpdate({ ...input, nextHargaAgen: "" })).toEqual({ masterUpdate: null, transactionPrice: 29000 });
+  });
   it("separates permanent POS prices from a transaction-only price", async () => {
     const priceFormModule = await import("../price-change-form");
     const buildPosCartPriceUpdate = (
@@ -126,9 +132,6 @@ describe("buildPriceChangePayload", () => {
     ).toEqual({
       id: "product-1",
       price: 17000,
-      costPrice: 9000,
-      hargaDinas: 18000,
-      hargaAgen: 16000,
       priceChangeNote: "Harga supplier naik",
     });
   });
@@ -149,7 +152,6 @@ describe("buildPriceChangePayload", () => {
       }),
     ).toEqual({
       id: "product-1",
-      price: 15000,
       costPrice: null,
       hargaDinas: null,
       hargaAgen: null,
@@ -173,10 +175,7 @@ describe("buildPriceChangePayload", () => {
       }),
     ).toEqual({
       id: "product-1",
-      price: 15000,
-      costPrice: 9000,
       hargaDinas: 20000,
-      hargaAgen: null,
       priceChangeNote: undefined,
     });
   });
@@ -197,9 +196,6 @@ describe("buildPriceChangePayload", () => {
       }),
     ).toEqual({
       id: "product-1",
-      price: 15000,
-      costPrice: 9000,
-      hargaDinas: 18000,
       hargaAgen: 16000,
       priceChangeNote: undefined,
     });

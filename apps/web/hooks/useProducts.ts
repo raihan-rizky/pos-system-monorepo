@@ -1,5 +1,6 @@
 "use client";
 
+import { invalidatePricingQueries } from "@/features/product-stock-groups/invalidate-pricing-queries";
 import { useEffect } from "react";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "./useDebounce";
@@ -167,7 +168,7 @@ export async function fetchProducts(
     params.set("stockGroupMinVariants", String(stockGroupMinVariants));
   }
 
-  const res = await fetch(`/api/products?${params.toString()}`, { signal });
+  const res = await fetch(`/api/products?${params.toString()}`, { signal, cache: "no-store" });
   signal?.throwIfAborted();
   if (!res.ok) {
     const { getCachedCatalogProducts } = await import("@/lib/offline/offline-db");
@@ -298,7 +299,7 @@ async function fetchProductStats(
   if (search) params.set("search", search);
   if (categoryId) params.set("categoryId", categoryId);
 
-  const res = await fetch(`/api/products/stats?${params.toString()}`);
+  const res = await fetch(`/api/products/stats?${params.toString()}`, { cache: "no-store" });
   if (!res.ok) {
     throw new Error("Failed to fetch product stats");
   }
@@ -363,13 +364,7 @@ export function useCreateProduct() {
   return useMutation({
     mutationFn: createProduct,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["product-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-group"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory-management"] });
-      queryClient.invalidateQueries({ queryKey: ["product-price-logs"] });
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void invalidatePricingQueries(queryClient);
     },
   });
 }
@@ -399,10 +394,7 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: updateProduct,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["product-price-logs"] });
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void invalidatePricingQueries(queryClient);
     },
   });
 }
@@ -468,9 +460,7 @@ export function useDeleteProduct() {
   return useMutation({
     mutationFn: deleteProduct,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void invalidatePricingQueries(queryClient);
     },
   });
 }
@@ -509,9 +499,7 @@ export function useBulkDeleteProducts() {
   return useMutation({
     mutationFn: bulkDeleteProducts,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void invalidatePricingQueries(queryClient);
     },
   });
 }

@@ -1,3 +1,4 @@
+import { withPricingTransaction } from "./legacy-pricing-transaction";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DELETE, GET, POST } from "../route";
 
@@ -170,7 +171,7 @@ describe("POST /api/products", () => {
     transactionMock.mockImplementation(async (callback) => {
       const pending: unknown[] = [];
       let productCount = 0;
-      const result = await callback({
+      const result = await callback(withPricingTransaction({
         productStockGroup: {
           findUnique: async () => null,
           create: async ({ data }: { data: unknown }) => { pending.push(data); stagedWrites++; return { id: "new-group" }; },
@@ -186,7 +187,7 @@ describe("POST /api/products", () => {
           pending.push(data); stagedWrites++; return { count: 2 };
         } },
         productStockGroupActivity: { create: async () => { throw new Error("activity failed"); } },
-      });
+      }, await Promise.all(productFindFirstMock.mock.results.map(result => result.value))));
       committed.push(...pending);
       return result;
     });
@@ -235,8 +236,8 @@ describe("POST /api/products", () => {
       category: { id: "cat-1", name: "Jasa Cetak", icon: null, color: null },
     });
     productPriceLogCreateManyMock.mockResolvedValue({ count: 2 });
-    transactionMock.mockImplementation((callback) =>
-      callback({
+    transactionMock.mockImplementation(async (callback) =>
+      callback(withPricingTransaction({
         $queryRaw: groupRowLockMock,
         product: { create: productCreateMock },
         productStockGroup: {
@@ -244,7 +245,7 @@ describe("POST /api/products", () => {
           create: txProductStockGroupCreateMock,
         },
         productPriceLog: { createMany: productPriceLogCreateManyMock },
-      }),
+      }, await Promise.all(productFindFirstMock.mock.results.map(result => result.value)))),
     );
   });
 
@@ -329,8 +330,8 @@ describe("POST /api/products", () => {
         unit: "pcs",
         unitMultiplierToBase: 1,
       });
-    transactionMock.mockImplementation((callback) =>
-      callback({
+    transactionMock.mockImplementation(async (callback) =>
+      callback(withPricingTransaction({
         product: { create: productCreateMock },
         productStockGroup: {
           findUnique: txProductStockGroupFindUniqueMock,
@@ -338,7 +339,7 @@ describe("POST /api/products", () => {
         },
         productPriceLog: { createMany: productPriceLogCreateManyMock },
         productStockGroupActivity: { create: groupActivityCreateMock },
-      }),
+      }, await Promise.all(productFindFirstMock.mock.results.map(result => result.value)))),
     );
 
     const response = await POST(
@@ -761,8 +762,8 @@ describe("DELETE /api/products", () => {
     groupRowLockMock.mockImplementation(
       async (_strings: TemplateStringsArray, rowId: string) => [{ id: rowId }],
     );
-    transactionMock.mockImplementation((callback) =>
-      callback({
+    transactionMock.mockImplementation(async (callback) =>
+      callback(withPricingTransaction({
         $queryRaw: groupRowLockMock,
         product: {
           findFirst: productFindFirstMock,
@@ -773,7 +774,7 @@ describe("DELETE /api/products", () => {
         transactionItem: {
           count: transactionItemCountMock,
         },
-      }),
+      }, await Promise.all(productFindFirstMock.mock.results.map(result => result.value)))),
     );
   });
 
@@ -875,7 +876,7 @@ describe("DELETE /api/products", () => {
       events.push(`${txName}:begin`);
 
       try {
-        const result = await callback({
+        const result = await callback(withPricingTransaction({
           $queryRaw: async (
             strings: TemplateStringsArray,
             rowId: string,
@@ -923,7 +924,7 @@ describe("DELETE /api/products", () => {
               return 0;
             },
           },
-        });
+        }, await Promise.all(productFindFirstMock.mock.results.map(result => result.value))));
         if (poisoned) {
           throw new Error("current transaction is aborted");
         }

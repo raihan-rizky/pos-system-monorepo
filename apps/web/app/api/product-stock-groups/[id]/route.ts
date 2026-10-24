@@ -1,3 +1,4 @@
+import { groupPricingInputFromRow, previewGroupPricingSnapshot } from "@/features/product-stock-groups/group-pricing-service";
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
@@ -49,7 +50,6 @@ export async function GET(
       where: { id, storeId },
       include: {
         products: {
-          where: { isActive: true },
           include: {
             category: {
               select: { id: true, name: true, icon: true, color: true },
@@ -64,7 +64,13 @@ export async function GET(
       return apiError("Stock group not found", 404, { code: "NotFound" });
     }
 
+    const activeProducts = group.products.filter(product => product.isActive);
+    const pricingInput = groupPricingInputFromRow(group);
+    const pricing = previewGroupPricingSnapshot(pricingInput, pricingInput).before;
+
     return NextResponse.json({
+      pricing,
+      pricingMembers: group.products.filter(product => product.storeId === storeId).map(product => ({ id: product.id, name: product.name, unit: product.unit, isActive: product.isActive, unitMultiplierToBase: product.unitMultiplierToBase, conversionNeedsReview: product.conversionNeedsReview })),
       id: group.id,
       storeId: group.storeId,
       groupKey: group.groupKey,
@@ -73,16 +79,16 @@ export async function GET(
       baseStock: group.baseStock,
       hasNegativeStock: group.baseStock < 0,
       hasDuplicateUnits:
-        new Set(group.products.map((product) => product.unit.trim().toLowerCase()))
-          .size !== group.products.length,
+        new Set(activeProducts.map((product) => product.unit.trim().toLowerCase()))
+          .size !== activeProducts.length,
       conversionPairs: buildConversionPairSummaries(
-        group.products.map((product) => ({
+        activeProducts.map((product) => ({
           id: product.id,
           unit: product.unit,
           unitMultiplierToBase: product.unitMultiplierToBase,
         })),
       ),
-      variants: group.products.map((product) => ({
+      variants: activeProducts.map((product) => ({
         id: product.id,
         name: product.name,
         sku: product.sku,

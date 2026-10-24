@@ -20,6 +20,9 @@ import {
   StockMutationConflictError,
 } from "@/features/product-stock-groups/stock-group-lock";
 
+import { initializeGroupPricing } from "@/features/product-stock-groups/automatic-pricing";
+import { GroupPricingError, prepareGroupPricingMutation, seedNewGroupPricingMutation, synchronizeGroupPricingMutation } from "@/features/product-stock-groups/group-pricing-service";
+
 const log = getLogger("api:products:id");
 const updateProductSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
@@ -42,6 +45,7 @@ const updateProductSchema = z.object({
   isActive: z.boolean().optional(),
   priceChangeNote: z.string().optional().nullable(),
   quickEditGroup: z.boolean().optional(),
+  pricingMode: z.enum(["AUTO", "MANUAL"]).optional(),
 });
 
 async function findStoreBrand(brandId: string | null | undefined, storeId: string) {
@@ -84,7 +88,7 @@ export async function PUT(
     const storeId = user.storeId || "store-main";
     const body = await request.json();
     
-    const { priceChangeNote, quickEditGroup, ...validatedData } = updateProductSchema.parse(body);
+    const { priceChangeNote, quickEditGroup, pricingMode, ...validatedData } = updateProductSchema.parse(body);
 
     if (validatedData.sku) {
       const existingProduct = await db.product.findFirst({
@@ -297,7 +301,11 @@ export async function PUT(
         material: hintedNextMaterial,
         size: hintedNextSize,
       });
-      const targetGroupHint = await tx.productStockGroup.findUnique({
+      const retainCurrentGroup = Boolean(existingProduct.stockGroupId) && targetGroupKey === normalizeStockGroupKey({
+        name: existingProduct.name, categoryId: existingProduct.categoryId,
+        material: existingProduct.material, size: existingProduct.size,
+      });
+      const targetGroupHint = retainCurrentGroup ? existingProduct.stockGroup : await tx.productStockGroup.findUnique({
         where: {
           storeId_groupKey: { storeId, groupKey: targetGroupKey },
         },
@@ -309,21 +317,7 @@ export async function PUT(
           : []),
         ...(targetGroupHint ? [targetGroupHint.id] : []),
       ];
-      const locks = await lockStockMutationRows(tx, {
-        storeId,
-        stockGroupIds: candidateGroupIds,
-        productIds: [existingProduct.id],
-      });
-      if (
-        !locks.lockedProductIds.includes(existingProduct.id) ||
-        candidateGroupIds.some(
-          (stockGroupId) =>
-            !locks.lockedStockGroupIds.includes(stockGroupId),
-        )
-      ) {
-        throw new StockMutationConflictError();
-      }
-
+      const prepared = await prepareGroupPricingMutation(tx, { storeId, groupIds: candidateGroupIds, extraProductIds: [existingProduct.id] });
       const currentProduct = await tx.product.findFirst({
         where: { id: existingProduct.id, storeId },
         include: { stockGroup: true },
@@ -351,7 +345,9 @@ export async function PUT(
         throw new StockMutationConflictError();
       }
 
-      const targetGroup = await tx.productStockGroup.findUnique({
+      const targetGroup = retainCurrentGroup ? await tx.productStockGroup.findFirst({
+        where: { id: currentProduct.stockGroupId!, storeId },
+      }) : await tx.productStockGroup.findUnique({
         where: {
           storeId_groupKey: { storeId, groupKey: targetGroupKey },
         },
@@ -442,6 +438,30 @@ export async function PUT(
         });
       }
 
+      if (groupCreated) await seedNewGroupPricingMutation(tx, { prepared, groupId: group.id });
+      if (group.id !== currentProduct.stockGroupId) {
+        const targetBefore = prepared.before.get(group.id)!;
+        // Freeze legacy factors before adding the incoming product's money
+        // preimage. Its missing config entry gives the new follower factor one.
+        targetBefore.config = initializeGroupPricing(targetBefore).config;
+        targetBefore.members = targetBefore.members.filter(member => member.id !== currentProduct.id);
+        targetBefore.members.push({
+          id: currentProduct.id, storeId, groupId: group.id, unit: nextUnit,
+          unitMultiplierToBase: nextMultiplier, isActive: currentProduct.isActive,
+          conversionNeedsReview: productData.conversionNeedsReview,
+          price: currentProduct.price.toString(), costPrice: currentProduct.costPrice?.toString() ?? null,
+        });
+      }
+      const memberIntent = { productId: updated.id, mode: pricingMode, price: validatedData.price, costPrice: validatedData.costPrice };
+      const hasPricingIntent = pricingMode !== undefined || validatedData.price !== undefined || validatedData.costPrice !== undefined;
+      await synchronizeGroupPricingMutation(tx, {
+        prepared, actor: user, source: "MANUAL", note: priceChangeNote, allowInactiveMembers: true,
+        changes: hasPricingIntent ? {
+          [group.id]: { members: [memberIntent] },
+        } : undefined,
+      });
+      const persisted = await tx.product.findFirst({ where: { id: updated.id, storeId }, include: { category: true, brand: true, stockGroup: true } });
+      if (!persisted) throw new StockMutationConflictError();
       const priceLogEntries = buildProductPriceLogEntries({
         productId: updated.id,
         storeId,
@@ -460,13 +480,13 @@ export async function PUT(
         actor: user,
         source: "MANUAL",
         note: priceChangeNote,
-      });
+      }).filter(entry => entry.field === "HARGA_AGEN" || entry.field === "HARGA_DINAS");
 
       if (priceLogEntries.length > 0) {
         await tx.productPriceLog.createMany({ data: priceLogEntries });
       }
 
-      return updated;
+      return persisted;
     });
 
     return NextResponse.json(withCalculatedStock(product));
@@ -474,6 +494,7 @@ export async function PUT(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
+    if (error instanceof GroupPricingError) return NextResponse.json({ message: error.message }, { status: error.status });
     log.error("Failed to update product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -512,21 +533,7 @@ export async function DELETE(
       });
       if (!productHint) throw new Error("PRODUCT_NOT_FOUND");
 
-      const locks = await lockStockMutationRows(tx, {
-        storeId,
-        stockGroupIds: productHint.stockGroupId
-          ? [productHint.stockGroupId]
-          : [],
-        productIds: [productHint.id],
-      });
-      if (
-        !locks.lockedProductIds.includes(productHint.id) ||
-        (productHint.stockGroupId &&
-          !locks.lockedStockGroupIds.includes(productHint.stockGroupId))
-      ) {
-        throw new StockMutationConflictError();
-      }
-
+      const prepared = await prepareGroupPricingMutation(tx, { storeId, groupIds: productHint.stockGroupId ? [productHint.stockGroupId] : [], extraProductIds: [productHint.id] });
       const currentProduct = await tx.product.findFirst({
         where: { id, storeId },
         select: { id: true, stockGroupId: true, isActive: true },
@@ -548,12 +555,14 @@ export async function DELETE(
           where: { id: currentProduct.id },
           data: { isActive: false },
         });
+        await synchronizeGroupPricingMutation(tx, { prepared, actor: user, source: "MANUAL" });
         return;
       }
 
       await tx.product.delete({
         where: { id: currentProduct.id },
       });
+      await synchronizeGroupPricingMutation(tx, { prepared, actor: user, source: "MANUAL" });
     });
 
     return new NextResponse(null, { status: 204 });
@@ -561,6 +570,7 @@ export async function DELETE(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
+    if (error instanceof GroupPricingError) return NextResponse.json({ message: error.message }, { status: error.status });
     log.error("Failed to delete product:", error);
     if (error instanceof Error && error.message === "PRODUCT_NOT_FOUND") {
       return NextResponse.json({ message: "Product not found" }, { status: 404 });

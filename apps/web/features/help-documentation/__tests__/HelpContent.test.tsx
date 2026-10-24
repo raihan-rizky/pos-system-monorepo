@@ -30,7 +30,7 @@ describe('HelpContent', () => {
     expect(text).toContain('satuan acuan grup tujuan tetap');
     expect(text).not.toContain('Atur Grup Stok');
     expect(guide.steps[0].visual?.target).toBe('products-table');
-    expect(guide.steps[5].visual?.page).toBe('inventory');
+    expect(guide.steps.find(step => step.title === 'Ajukan perubahan stok di Inventori')?.visual?.page).toBe('inventory');
   });
   it('labels the inventory closing panel as Check Out in visual guides', () => {
     const target = HELP_VISUAL_PAGE_CONFIG.inventory.groups.flatMap(group => group.targets).find(entry => entry.key === 'inventory-day-session');

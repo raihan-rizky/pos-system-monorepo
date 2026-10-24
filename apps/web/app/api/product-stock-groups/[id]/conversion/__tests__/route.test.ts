@@ -1,298 +1,52 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const requirePermissionMock = vi.hoisted(() => vi.fn());
-const handleAuthErrorMock = vi.hoisted(() => vi.fn());
-const dbTransactionMock = vi.hoisted(() => vi.fn());
-const groupRowLockMock = vi.hoisted(() => vi.fn());
-const productStockGroupFindFirstMock = vi.hoisted(() => vi.fn());
-const productStockGroupUpdateMock = vi.hoisted(() => vi.fn());
-const productUpdateMock = vi.hoisted(() => vi.fn());
-const groupActivityCreateMock = vi.hoisted(() => vi.fn());
-
-vi.mock("@/lib/rbac/guard", () => ({
-  requirePermission: requirePermissionMock,
-  handleAuthError: handleAuthErrorMock,
-}));
-
-vi.mock("@pos/db", () => ({
-  db: {
-    $transaction: dbTransactionMock,
-  },
-}));
-
-describe("PATCH /api/product-stock-groups/[id]/conversion", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    productStockGroupFindFirstMock.mockReset();
-    groupRowLockMock.mockReset();
-    requirePermissionMock.mockResolvedValue({
-      id: "owner-1",
-      name: "Owner",
-      storeId: "store-main",
-    });
-    handleAuthErrorMock.mockReturnValue(null);
-    groupRowLockMock.mockResolvedValue([{ id: "group-1" }]);
-    productStockGroupFindFirstMock.mockResolvedValue({
-      id: "group-1",
-      storeId: "store-main",
-      displayName: "Kertas A4",
-      baseUnit: "rim",
-      baseStock: 20,
-      products: [
-        {
-          id: "rim",
-          stockGroupId: "group-1",
-          unit: "rim",
-          unitMultiplierToBase: 1,
-          conversionNeedsReview: false,
-        },
-        {
-          id: "dus",
-          stockGroupId: "group-1",
-          unit: "dus",
-          unitMultiplierToBase: 5,
-          conversionNeedsReview: false,
-        },
-      ],
-    });
-    productStockGroupUpdateMock.mockResolvedValue({
-      id: "group-1",
-      baseUnit: "rim",
-      baseStock: 20,
-    });
-    productUpdateMock.mockResolvedValue({});
-    groupActivityCreateMock.mockResolvedValue({});
-    dbTransactionMock.mockImplementation((callback) =>
-      callback({
-        $queryRaw: groupRowLockMock,
-        productStockGroup: {
-          findFirst: productStockGroupFindFirstMock,
-          update: productStockGroupUpdateMock,
-        },
-        product: { update: productUpdateMock },
-        productStockGroupActivity: { create: groupActivityCreateMock },
-      }),
-    );
+import { createPricingTestDatabase } from "@/features/product-stock-groups/__tests__/pricing-test-database";
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), auth: vi.fn(), transaction: vi.fn() }));
+vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.auth }));
+vi.mock("@pos/db", () => ({ db: { $transaction: mocks.transaction } }));
+describe("group conversion", () => {
+  let data: ReturnType<typeof createPricingTestDatabase>;
+  beforeEach(() => { vi.clearAllMocks(); data = createPricingTestDatabase(); mocks.permission.mockResolvedValue({ id: "u", storeId: "store-main" }); mocks.auth.mockReturnValue(null); mocks.transaction.mockImplementation(fn => fn(data.tx)); });
+  const change = { mode: "KEEP_SHARED_STOCK", directMultipliers: [{ productId: "rim", unitMultiplierToBase: 1 }, { productId: "dus", unitMultiplierToBase: 4 }] };
+  async function call(body: object, preview = false) { const route = await import("../route"); return (preview ? route.POST : route.PATCH)(new Request("http://localhost/conversion", { method: preview ? "POST" : "PATCH", body: JSON.stringify(body) }), { params: Promise.resolve({ id: "group-1" }) }); }
+  it("updates conversion and price/HPP in one transaction while keeping shared stock", async () => {
+    const response = await call(change); expect(response.status).toBe(200);
+    expect(data.products[1]).toMatchObject({ unitMultiplierToBase: 4, price: "180000.00", costPrice: "160000.00" });
+    expect(data.group.baseStock).toBe(20); expect(data.activities).toEqual(expect.arrayContaining([expect.objectContaining({ type: "CONVERSION_RATE_CHANGED" }), expect.objectContaining({ type: "GROUP_PRICING_CHANGED" })]));
+    expect(data.locks).toEqual(["group:group-1", "product:dus", "product:rim"]);
+    expect(data.raw.product.update).toHaveBeenCalledWith({ where: { id: "dus" }, data: { unitMultiplierToBase: 4, conversionNeedsReview: false } });
   });
-
-  it("updates conversion multipliers atomically and writes conversion history", async () => {
-    const { PATCH } = await import("../route");
-    const response = await PATCH(
-      new Request("http://localhost/api/product-stock-groups/group-1/conversion", {
-        method: "PATCH",
-        body: JSON.stringify({
-          mode: "KEEP_SHARED_STOCK",
-          conversionPairs: [
-            {
-              fromProductId: "dus",
-              fromQuantity: 1,
-              toProductId: "rim",
-              toQuantity: 4,
-            },
-          ],
-          note: "Dus supplier berubah",
-        }),
-      }),
-      { params: Promise.resolve({ id: "group-1" }) },
-    );
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.baseStock).toBe(20);
-    expect(productStockGroupUpdateMock).toHaveBeenCalledWith({
-      where: { id: "group-1" },
-      data: {
-        baseUnit: "rim",
-        baseStock: 20,
-      },
-    });
-    expect(productUpdateMock).toHaveBeenCalledWith({
-      where: { id: "dus" },
-      data: {
-        unitMultiplierToBase: 4,
-        conversionNeedsReview: false,
-      },
-    });
-    expect(groupActivityCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          stockGroupId: "group-1",
-          type: "CONVERSION_RATE_CHANGED",
-          note: "Dus supplier berubah",
-        }),
-      }),
-    );
+  it("previews on the server without writes and applies only matching preview", async () => {
+    const response = await call(change, true); expect(response.status).toBe(200); const preview = await response.json();
+    expect(data.products[1].unitMultiplierToBase).toBe(5); expect(data.logs).toEqual([]); expect(data.activities).toEqual([]);
+    expect(preview.pricing.after.members.find((m: { productId: string }) => m.productId === "dus").price).toBe("180000.00");
+    const applied = await call({ ...change, expectedVersion: preview.pricing.version, expectedProjection: preview.pricing.projectionToken }); expect(applied.status).toBe(200);
   });
-
-  it("rejects conversion pairs that use the same source and target product", async () => {
-    const { PATCH } = await import("../route");
-    const response = await PATCH(
-      new Request("http://localhost/api/product-stock-groups/group-1/conversion", {
-        method: "PATCH",
-        body: JSON.stringify({
-          mode: "KEEP_SHARED_STOCK",
-          conversionPairs: [
-            {
-              fromProductId: "rim",
-              fromQuantity: 1,
-              toProductId: "rim",
-              toQuantity: 1,
-            },
-          ],
-        }),
-      }),
-      { params: Promise.resolve({ id: "group-1" }) },
-    );
-    const body = await response.json();
-
-    expect(response.status).toBe(422);
-    expect(body.errors.conversionPairs).toContain("INVALID_CONVERSION_PAIR");
-    expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
-    expect(productUpdateMock).not.toHaveBeenCalled();
-    expect(groupActivityCreateMock).not.toHaveBeenCalled();
+  it("rejects stale version before writing conversion or prices", async () => {
+    const preview = await (await call(change, true)).json(); data.products[0].price = "51000";
+    const response = await call({ ...change, expectedVersion: preview.pricing.version, expectedProjection: preview.pricing.projectionToken });
+    expect(response.status).toBe(409); expect(data.products[1].unitMultiplierToBase).toBe(5); expect(data.logs).toEqual([]);
   });
-
-  it("locks the group and products before the authoritative stock reload", async () => {
-    let currentBaseStock = 20;
-    const order: string[] = [];
-    const groupState = () => ({
-      id: "group-1",
-      storeId: "store-main",
-      displayName: "Kertas A4",
-      baseUnit: "rim",
-      baseStock: currentBaseStock,
-      products: [
-        {
-          id: "rim",
-          stockGroupId: "group-1",
-          unit: "rim",
-          unitMultiplierToBase: 1,
-          conversionNeedsReview: false,
-        },
-        {
-          id: "dus",
-          stockGroupId: "group-1",
-          unit: "dus",
-          unitMultiplierToBase: 5,
-          conversionNeedsReview: false,
-        },
-      ],
-    });
-    productStockGroupFindFirstMock
-      .mockImplementationOnce(async () => {
-        order.push("hint");
-        return groupState();
-      })
-      .mockImplementationOnce(async () => {
-        order.push("read");
-        return groupState();
-      });
-    groupRowLockMock.mockImplementation(
-      async (strings: TemplateStringsArray, rowId: string) => {
-        const table = strings.join(" ").includes("pos_product_stock_groups")
-          ? "group"
-          : "product";
-        order.push(`${table}:${rowId}`);
-        if (table === "group") currentBaseStock = 44;
-        return [{ id: rowId }];
-      },
-    );
-
-    const { PATCH } = await import("../route");
-    const response = await PATCH(
-      new Request(
-        "http://localhost/api/product-stock-groups/group-1/conversion",
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            mode: "PRESERVE_SOURCE_STOCK",
-            sourceProductId: "rim",
-            conversionPairs: [
-              {
-                fromProductId: "dus",
-                fromQuantity: 1,
-                toProductId: "rim",
-                toQuantity: 4,
-              },
-            ],
-          }),
-        },
-      ),
-      { params: Promise.resolve({ id: "group-1" }) },
-    );
-
-    expect(response.status).toBe(200);
-    expect(order).toEqual([
-      "hint",
-      "group:group-1",
-      "product:dus",
-      "product:rim",
-      "read",
-    ]);
-    expect(productStockGroupUpdateMock).toHaveBeenCalledWith({
-      where: { id: "group-1" },
-      data: {
-        baseUnit: "rim",
-        baseStock: 44,
-      },
-    });
+  it("rejects stock-only changes and different stock intent after preview", async () => {
+    const preview = await (await call(change, true)).json();
+    const tokens = { expectedVersion: preview.pricing.version, expectedProjection: preview.pricing.projectionToken };
+    expect((await call({ ...change, mode: "PRESERVE_SOURCE_STOCK", sourceProductId: "rim", ...tokens })).status).toBe(409);
+    data.group.baseStock = 21;
+    expect((await call({ ...change, ...tokens })).status).toBe(409);
+    expect(data.raw.product.update).not.toHaveBeenCalled();
   });
-
-  it("returns conflict when active group membership changes before reload", async () => {
-    const hint = {
-      id: "group-1",
-      storeId: "store-main",
-      displayName: "Kertas A4",
-      baseUnit: "rim",
-      baseStock: 20,
-      products: [
-        {
-          id: "rim",
-          stockGroupId: "group-1",
-          unit: "rim",
-          unitMultiplierToBase: 1,
-          conversionNeedsReview: false,
-        },
-        {
-          id: "dus",
-          stockGroupId: "group-1",
-          unit: "dus",
-          unitMultiplierToBase: 5,
-          conversionNeedsReview: false,
-        },
-      ],
-    };
-    productStockGroupFindFirstMock
-      .mockResolvedValueOnce(hint)
-      .mockResolvedValueOnce({
-        ...hint,
-        products: hint.products.slice(0, 1),
-      });
-
-    const { PATCH } = await import("../route");
-    const response = await PATCH(
-      new Request(
-        "http://localhost/api/product-stock-groups/group-1/conversion",
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            mode: "KEEP_SHARED_STOCK",
-            conversionPairs: [
-              {
-                fromProductId: "dus",
-                fromQuantity: 1,
-                toProductId: "rim",
-                toQuantity: 4,
-              },
-            ],
-          }),
-        },
-      ),
-      { params: Promise.resolve({ id: "group-1" }) },
-    );
-
-    expect(response.status).toBe(409);
-    expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
-    expect(productUpdateMock).not.toHaveBeenCalled();
+  it("rejects a pair whose source and target are the same", async () => {
+    const response = await call({ mode: "KEEP_SHARED_STOCK", conversionPairs: [{ fromProductId: "rim", fromQuantity: 1, toProductId: "rim", toQuantity: 1 }] });
+    expect(response.status).toBe(422); expect(data.raw.product.update).not.toHaveBeenCalled();
+  });
+  it("reloads stock only after group/member locks", async () => {
+    data.raw.$queryRaw.mockImplementation(async (strings, ...values) => { data.locks.push(`${strings.join("").includes("pos_product_stock_groups") ? "group" : "product"}:${values[0]}`); if (values[0] === "rim") data.group.baseStock = 10; return [{ id: values[0] }]; });
+    expect((await call({ ...change, mode: "PRESERVE_SOURCE_STOCK", sourceProductId: "rim" })).status).toBe(200); expect(data.group.baseStock).toBe(10);
+    expect(data.raw.$queryRaw.mock.invocationCallOrder[2]).toBeLessThan(data.raw.productStockGroup.findFirst.mock.invocationCallOrder[1]);
+    expect(data.raw.productStockGroup.update).toHaveBeenCalledWith({ where: { id: "group-1" }, data: { baseUnit: "rim", baseStock: 10 } });
+  });
+  it("rejects changed membership during locking", async () => {
+    data.raw.$queryRaw.mockImplementation(async (_strings, ...values) => { if (values[0] === "rim") data.products.splice(1, 1); return [{ id: values[0] }]; });
+    expect((await call(change)).status).toBe(409); expect(data.logs).toEqual([]);
+    expect(data.raw.productStockGroup.update).not.toHaveBeenCalled(); expect(data.raw.product.update).not.toHaveBeenCalled();
   });
 });

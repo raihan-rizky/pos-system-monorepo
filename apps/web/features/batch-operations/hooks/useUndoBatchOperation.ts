@@ -1,5 +1,6 @@
 "use client";
 
+import { invalidatePricingQueries } from "@/features/product-stock-groups/invalidate-pricing-queries";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 async function undoBatchOperation(batchOperationId: string) {
@@ -19,7 +20,7 @@ export function useUndoBatchOperation() {
   return useMutation({
     mutationFn: undoBatchOperation,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      void invalidatePricingQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["inventory-logs"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
