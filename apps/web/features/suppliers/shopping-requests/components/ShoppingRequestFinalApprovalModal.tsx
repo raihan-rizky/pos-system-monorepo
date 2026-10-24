@@ -118,7 +118,7 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
         approvedQty: item.requestedQty,
         latestUnitPrice: cost === null || cost === undefined ? 0 : Number(cost),
         costMissing: cost === null || cost === undefined,
-        updateMasterHpp: false,
+        updateMasterHpp: true,
       };
     }));
     setError(null);
@@ -148,7 +148,7 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
       stockGroupId: variant.stockGroupId,
       latestUnitPrice: variant.costPrice ?? 0,
       costMissing: variant.costPrice === null,
-      updateMasterHpp: false,
+      updateMasterHpp: true,
     });
   };
   const addProduct = (product: Product) => {
@@ -170,7 +170,7 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
       approvedQty: 1,
       latestUnitPrice: product.costPrice ?? 0,
       costMissing: product.costPrice === null,
-      updateMasterHpp: false,
+      updateMasterHpp: true,
     }]);
     setError(null);
   };
