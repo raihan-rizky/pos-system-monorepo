@@ -48,6 +48,7 @@ Tes mencakup default mengikuti perubahan harga, override tetap, override dengan 
 - `pnpm --filter @pos/web exec tsc --noEmit --incremental false`: lulus tanpa diagnostik.
 - `git diff --check` pada file terkait: lulus.
 - Review kode independen selesai. Temuan nilai lama nol diperbaiki dengan regresi browser yang terlebih dahulu diverifikasi gagal.
+- Pemeriksaan suite lengkap menemukan pemuatan awal modul API percetakan melampaui batas tes request 5 detik dan mengganggu mock tes berikutnya. Pemuatan modul kini dilakukan pada setup setelah reset, dengan batas setup 30 detik; batas request tetap 5 detik. Kesembilan tes API tersebut lulus dengan perintah standar setelah perbaikan setup.
 - Screenshot aktual komponen dengan data contoh: `apps/web/public/images/changelog/harga-agen-dinas-default-2026-10-26.png`.
 
 Log pemeriksaan tersedia di `output/member-pricing-2026-10-26/`. Peringatan Browserslist tentang data browser lama muncul pada sebagian tes, tanpa kegagalan. Snapshot dibuat melalui harness browser tanpa menjalankan atau menghentikan dev server.

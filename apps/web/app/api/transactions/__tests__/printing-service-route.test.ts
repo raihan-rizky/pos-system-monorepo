@@ -87,7 +87,7 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions printing service items", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
     afterMock.mockImplementation((cb: () => void | Promise<void>) => cb());
@@ -163,7 +163,9 @@ describe("POST /api/transactions printing service items", () => {
         $queryRaw: queryRawMock,
       }),
     );
-  });
+    // Keep initial route compilation outside the request test's timeout.
+    await import("../route");
+  }, 30000);
 
   it("persists a discount once per service line while leaving its unit price intact", async () => {
     const { POST } = await import("../route");
