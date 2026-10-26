@@ -89,8 +89,8 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   const dinasPrice = priceCatalogVariantForCustomer(product, catalogVariant, "PEMERINTAH", categoryPricingRules);
   const hasSpecialAgenPrice = isSpecialCategoryPricing(agenPrice.appliedPricing);
   const hasSpecialDinasPrice = isSpecialCategoryPricing(dinasPrice.appliedPricing);
-  const hargaAgen = hasSpecialAgenPrice ? agenPrice.unitPrice : ("hargaAgen" in selectedVariant ? selectedVariant.hargaAgen : product.hargaAgen);
-  const hargaDinas = hasSpecialDinasPrice ? dinasPrice.unitPrice : ("hargaDinas" in selectedVariant ? selectedVariant.hargaDinas : product.hargaDinas);
+  const hargaAgen = agenPrice.unitPrice;
+  const hargaDinas = dinasPrice.unitPrice;
   const description = product.description;
   const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules);
   const selectedPrice = priceVariant(selectedVariant.id);
@@ -218,27 +218,17 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
         <div className="mt-1 space-y-0.5 text-[11px] leading-snug">
           <p className="flex flex-wrap items-center gap-1">
             <span className="font-medium text-surface-500">Agen:</span>
-            {Number(hargaAgen ?? 0) > 0 ? (
-              <span className="font-semibold text-emerald-600">
-                {formatRupiah(Number(hargaAgen))}
-              </span>
-            ) : (
-              <span className="font-medium italic text-surface-400">
-                Belum ada harga agen
-              </span>
-            )}
+            <span className={`font-semibold ${hasSpecialAgenPrice ? "text-emerald-800" : "text-surface-600"}`}>
+              {formatRupiah(hargaAgen)}
+            </span>
+            {hasSpecialAgenPrice ? <SpecialPriceBadge /> : <span className="text-surface-500">· Mengikuti harga jual</span>}
           </p>
           <p className="flex flex-wrap items-center gap-1">
             <span className="font-medium text-surface-500">Dinas:</span>
-            {Number(hargaDinas ?? 0) > 0 ? (
-              <span className="font-semibold text-blue-600">
-                {formatRupiah(Number(hargaDinas))}
-              </span>
-            ) : (
-              <span className="font-medium italic text-surface-400">
-                Belum ada harga dinas
-              </span>
-            )}
+            <span className={`font-semibold ${hasSpecialDinasPrice ? "text-emerald-800" : "text-surface-600"}`}>
+              {formatRupiah(hargaDinas)}
+            </span>
+            {hasSpecialDinasPrice ? <SpecialPriceBadge /> : <span className="text-surface-500">· Mengikuti harga jual</span>}
           </p>
         </div>
         {(showRegularPriceHint || (customerType !== "UMUM" && !selectedPrice.appliedPricing)) && (

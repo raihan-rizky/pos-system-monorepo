@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "member-prices-follow-selling-default", date: "2026-10-26", revision: 1,
+    highlight: { title: "Harga Agen dan Dinas otomatis", summary: "Ikuti harga jual secara default, dengan badge untuk harga yang diatur manual." },
+    title: "Harga Agen dan Dinas mengikuti harga jual.",
+    summary: "Harga Agen dan Dinas otomatis mengikuti harga jual sampai Anda mengisi harga manual. Badge Harga Khusus menandai override; atur diskon atau tambahan otomatis melalui tab Harga Khusus.",
+    kind: "improvement", area: "Produk", href: "/products", visual: "units",
+    screenshot: { src: "/images/changelog/harga-agen-dinas-default-2026-10-26.png", alt: "Editor harga produk contoh dengan Harga Agen mengikuti harga jual Rp12.000, Harga Dinas manual Rp11.000 berbadge Harga Khusus, dan tautan Atur diskon atau tambahan" },
+    steps: [
+      { title: "Periksa harga default", detail: "Buka Ubah Harga atau Edit produk. Harga Agen dan Dinas yang kosong menampilkan harga jual terbaru beserta status Mengikuti harga jual." },
+      { title: "Atur atau reset harga manual", detail: "Isi Harga Agen/Dinas untuk harga tetap dengan badge Harga Khusus, atau klik Ikuti harga jual lalu simpan untuk kembali otomatis." },
+      { title: "Gunakan aturan otomatis", detail: "Owner memilih Atur diskon / tambahan untuk membuka Produk > Harga Khusus dan mengatur aturan sesuai tipe pelanggan; pengguna lain dapat meminta Owner." },
+    ],
+  },
+  {
     id: "automatic-group-unit-pricing", date: "2026-10-24", revision: 1,
     highlight: { title: "Harga otomatis antar satuan", summary: "Atur harga sumber, lalu tinjau harga jual dan HPP seluruh satuan dalam grup." },
     title: "Harga jual dan HPP satuan mengikuti sumber grup.",

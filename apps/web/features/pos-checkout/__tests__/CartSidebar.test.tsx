@@ -63,7 +63,12 @@ describe("CartSidebar quick product references", () => {
     expect(html).toContain("Agen");
     expect(html).toContain("9.000");
     expect(html).toContain("Dinas");
-    expect(html).toContain("Belum diatur");
+    expect(html).not.toContain("Belum diatur");
+    const dinas = html.match(/<dt[^>]*>Dinas<\/dt><dd[^>]*>(.*?)<\/dd>/)?.[1];
+    expect(dinas).toContain("10.000");
+    expect(dinas).toContain("Mengikuti harga jual");
+    const agen = html.match(/<dt[^>]*>Agen<\/dt><dd[^>]*>(.*?)<\/dd>/)?.[1];
+    expect(agen).toContain('aria-label="Harga Khusus"');
   });
 
   it("shows product and price actions immediately for users with edit permission", () => {
@@ -238,6 +243,19 @@ describe("CartSidebar quick product references", () => {
     );
 
     expect(html).toContain("Harga khusus di bawah HPP");
+  });
+
+  it("explains the following default and marks manual member prices in the editor", async () => {
+    const { PosPriceQuickEditModal } = await import("@/components/inventory/PriceUpdateModal");
+    const html = renderToStaticMarkup(
+      <PosPriceQuickEditModal open item={productItem} onClose={vi.fn()} onSave={vi.fn()} />,
+    );
+    expect(html).toContain('aria-label="Pengaturan Harga Agen"');
+    expect(html).toContain('aria-label="Ikuti harga jual untuk Harga Agen"');
+    expect(html).toContain('aria-label="Harga Khusus"');
+    expect(html).toContain("Mengikuti harga jual");
+    expect(html).toContain("diskon atau tambahan");
+    expect(html).toContain("Harga Khusus");
   });
 
   it("warns when Harga Agen is below HPP", async () => {

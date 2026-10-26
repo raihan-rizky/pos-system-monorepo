@@ -37,10 +37,13 @@ describe('ProductCard', () => {
     expect(html).toContain('text-emerald-800');
     expect(html).not.toContain('700/pcs');
   });
-  it('does not show a special badge for member pricing', () => {
+  it('marks an overridden member price in both its row and the selected price', () => {
     const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 4200 })) }} onAddToCart={vi.fn()} customerType="AGEN" categoryPricingRules={[]} />);
     expect(html).toContain('4.200');
-    expect(html).not.toContain('>Harga Khusus<');
+    const row = html.match(/<p\b[^>]*><span\b[^>]*>Agen:<\/span>.*?<\/p>/)?.[0];
+    expect(row).toContain('aria-label="Harga Khusus"');
+    expect(row).toContain('text-emerald-800');
+    expect(html).toMatch(/text-base font-bold text-emerald-800/);
   });
   const mockProduct: Product = {
     id: 'group-1',
@@ -303,6 +306,8 @@ describe('ProductCard', () => {
   it('renders harga agen and harga dinas when they exist', () => {
     const mockProductWithPrices = {
       ...mockProduct,
+      variants: undefined,
+      defaultVariant: undefined,
       hargaAgen: 45000,
       hargaDinas: 47000,
     } as any;
@@ -316,7 +321,7 @@ describe('ProductCard', () => {
     expect(html).toContain('47.000');
   });
 
-  it('renders fallback text when harga agen and harga dinas are missing', () => {
+  it('shows the selected selling price for both member defaults without a special badge', () => {
     const mockProductWithoutPrices = {
       ...mockProduct,
       hargaAgen: 0,
@@ -328,8 +333,13 @@ describe('ProductCard', () => {
       <ProductCard product={mockProductWithoutPrices} onAddToCart={onAddToCart} />
     );
 
-    expect(html).toContain('Belum ada harga agen');
-    expect(html).toContain('Belum ada harga dinas');
+    for (const label of ['Agen', 'Dinas']) {
+      const row = html.match(new RegExp(`<p\\b[^>]*><span\\b[^>]*>${label}:<\\/span>.*?<\\/p>`))?.[0];
+      expect(row).toContain('50.000');
+      expect(row).toContain('Mengikuti harga jual');
+      expect(row).not.toContain('aria-label="Harga Khusus"');
+    }
+    expect(html).not.toContain('Belum ada harga');
   });
 
   it.each([
@@ -345,7 +355,10 @@ describe('ProductCard', () => {
 
     expect(row?.replace(/\s/g, ' ')).toContain(expected);
     expect(row).not.toContain('Belum ada harga');
-    expect(html).toContain(label === 'Agen' ? 'Belum ada harga dinas' : 'Belum ada harga agen');
+    const defaultLabel = label === 'Agen' ? 'Dinas' : 'Agen';
+    const defaultRow = html.match(new RegExp(`<p\\b[^>]*><span\\b[^>]*>${defaultLabel}:<\\/span>.*?<\\/p>`))?.[0];
+    expect(defaultRow).toContain('50.000');
+    expect(defaultRow).toContain('Mengikuti harga jual');
   });
 
   it('shows an ALL rule in both member rows instead of their manual prices', () => {

@@ -75,11 +75,11 @@ describe("multiple customer targets", () => {
 });
 
 describe("special price source and labels", () => {
-  it("marks real rules even when amount equals normal, and excludes member metadata", () => {
+  it("marks both rules and manual member prices as special, including fixed prices equal to normal", () => {
     const same = pricing.priceProductForCustomerType(product, "UMUM", [{ ...formula, value: 5300 }]);
     const member = pricing.priceProductForCustomerType(product, "AGEN", []);
     expect(pricing.isSpecialCategoryPricing?.(same.appliedPricing)).toBe(true);
-    expect(pricing.isSpecialCategoryPricing?.(member.appliedPricing)).toBe(false);
+    expect(pricing.isSpecialCategoryPricing?.(member.appliedPricing)).toBe(true);
     expect(pricing.isSpecialCategoryPricing?.(null)).toBe(false);
   });
   it("labels formulas clearly", () => {

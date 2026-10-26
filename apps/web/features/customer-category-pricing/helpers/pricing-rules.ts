@@ -106,7 +106,7 @@ export function getPricingRuleCustomerTypes(rule: Pick<CategoryPricingRule, "cus
 }
 
 export function isSpecialCategoryPricing(appliedPricing: Pick<AppliedCategoryPricing, "ruleId"> | null | undefined): boolean {
-  return Boolean(appliedPricing?.ruleId && !["harga-agen", "harga-dinas"].includes(appliedPricing.ruleId));
+  return Boolean(appliedPricing?.ruleId);
 }
 
 export function findMatchingCategoryPricingRule(

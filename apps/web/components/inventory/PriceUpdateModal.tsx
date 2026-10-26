@@ -7,6 +7,9 @@ import type { Product } from "@/hooks/useProducts";
 import type { ProductCartItem } from "@/hooks/useCart";
 import { useUpdateProduct } from "@/hooks/useProducts";
 import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
+import { MemberPriceField } from "@/features/customer-category-pricing/components/MemberPriceField";
+import { MemberPricingGuidance } from "@/features/customer-category-pricing/components/MemberPricingGuidance";
+import { formatRupiah } from "@/lib/utils";
 import {
   buildPosCartPriceUpdate,
   buildPriceChangePayload,
@@ -38,8 +41,8 @@ export default function PriceUpdateModal({
     if (!isOpen) initializedProduct.current = null;
     if (!isOpen || !product || initializedProduct.current === product.id) return;
     initializedProduct.current = product.id;
-    setHargaDinas(product.hargaDinas == null ? "" : String(product.hargaDinas));
-    setHargaAgen(product.hargaAgen == null ? "" : String(product.hargaAgen));
+    setHargaDinas(Number(product.hargaDinas) > 0 ? String(product.hargaDinas) : "");
+    setHargaAgen(Number(product.hargaAgen) > 0 ? String(product.hargaAgen) : "");
     setNote("");
     setError(null);
   }, [isOpen, product]);
@@ -110,16 +113,16 @@ export default function PriceUpdateModal({
 
         <ProductPricingAction groupId={product.stockGroupId ?? product.stockGroup?.id} identityChanged={false} disabled={updateProduct.isPending} />
         <p className="text-xs text-slate-600">Simpan Harga hanya menyimpan Harga Agen dan Harga Dinas pada produk ini.</p>
+        <MemberPricingGuidance />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
-            <Input
+            <MemberPriceField
               label="Harga Dinas"
-              type="number"
-              min="0"
-              placeholder="Opsional"
+              sellingPrice={product.price}
               value={hargaDinas}
-              onChange={(event) => setHargaDinas(event.target.value)}
+              onChange={setHargaDinas}
+              disabled={updateProduct.isPending}
             />
             {showHargaDinasWarning && (
               <p className="text-xs font-medium text-amber-700">
@@ -128,13 +131,12 @@ export default function PriceUpdateModal({
             )}
           </div>
           <div className="space-y-1">
-            <Input
+            <MemberPriceField
               label="Harga Agen"
-              type="number"
-              min="0"
-              placeholder="Opsional"
+              sellingPrice={product.price}
               value={hargaAgen}
-              onChange={(event) => setHargaAgen(event.target.value)}
+              onChange={setHargaAgen}
+              disabled={updateProduct.isPending}
             />
             {showHargaAgenWarning && (
               <p className="text-xs font-medium text-amber-700">
@@ -199,10 +201,10 @@ export function PosPriceQuickEditModal({
   const initializedProduct = useRef<string | null>(null);
   const price = item == null ? "" : String(item.catalogPrice);
   const [hargaDinas, setHargaDinas] = useState(() =>
-    item?.hargaDinas == null ? "" : String(item.hargaDinas),
+    Number(item?.hargaDinas) > 0 ? String(item?.hargaDinas) : "",
   );
   const [hargaAgen, setHargaAgen] = useState(() =>
-    item?.hargaAgen == null ? "" : String(item.hargaAgen),
+    Number(item?.hargaAgen) > 0 ? String(item?.hargaAgen) : "",
   );
   const [transactionPrice, setTransactionPrice] = useState(() =>
     item?.transactionPrice == null ? "" : String(item.transactionPrice),
@@ -234,8 +236,8 @@ export function PosPriceQuickEditModal({
     if (!open) initializedProduct.current = null;
     if (!open || !item || initializedProduct.current === item.cartLineId) return;
     initializedProduct.current = item.cartLineId;
-    setHargaDinas(item.hargaDinas == null ? "" : String(item.hargaDinas));
-    setHargaAgen(item.hargaAgen == null ? "" : String(item.hargaAgen));
+    setHargaDinas(Number(item.hargaDinas) > 0 ? String(item.hargaDinas) : "");
+    setHargaAgen(Number(item.hargaAgen) > 0 ? String(item.hargaAgen) : "");
     setTransactionPrice(
       item.transactionPrice == null ? "" : String(item.transactionPrice),
     );
@@ -297,23 +299,23 @@ export function PosPriceQuickEditModal({
             <p className="text-xs text-surface-500">Perubahan berlaku untuk transaksi berikutnya.</p>
           </div>
           <ProductPricingAction groupId={item.stockGroup?.id} identityChanged={false} disabled={isSaving} />
+          <p className="text-sm text-surface-600">Harga Normal: <span className="font-semibold text-surface-900">{formatRupiah(item.catalogPrice)}</span></p>
           <p className="text-xs text-slate-600">Simpan Harga menyimpan Harga Agen/Dinas dan Harga Khusus di bawah. Perubahan Harga grup tidak mengubah harga transaksi yang sudah ada di keranjang.</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Input
+          <MemberPricingGuidance />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <MemberPriceField
               label="Harga Agen"
-              type="number"
-              min="0"
-              placeholder="Opsional"
+              sellingPrice={item.catalogPrice}
               value={hargaAgen}
-              onChange={(event) => setHargaAgen(event.target.value)}
+              onChange={setHargaAgen}
+              disabled={isSaving}
             />
-            <Input
+            <MemberPriceField
               label="Harga Dinas"
-              type="number"
-              min="0"
-              placeholder="Opsional"
+              sellingPrice={item.catalogPrice}
               value={hargaDinas}
-              onChange={(event) => setHargaDinas(event.target.value)}
+              onChange={setHargaDinas}
+              disabled={isSaving}
             />
           </div>
           {masterPricesBelowCost.map((entry) => (

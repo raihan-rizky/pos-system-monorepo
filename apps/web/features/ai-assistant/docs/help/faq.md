@@ -12,7 +12,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 2. Klik tombol hitam **Tambah Produk** di kanan atas. Anda juga dapat meminta **Pak Teladan membuka modal Tambah Produk**; form tetap harus diperiksa, diisi, dan disimpan oleh pengguna.
 3. Isi formulir pendaftaran produk:
    - **Informasi Utama:** Nama produk, SKU (harus unik), Kategori, dan Merek bila ada. Jika merek belum tersedia, ketik nama merek baru lalu klik **Tambah**.
-   - **Harga:** Harga Jual dasar, Harga Dinas (opsional), dan Harga Modal/HPP (opsional).
+   - **Harga:** Harga Jual dasar dan Harga Modal/HPP (opsional). Harga Agen dan Dinas mengikuti harga jual secara default; isi harga manual hanya jika perlu harga tetap yang berbeda.
    - **Stok & Satuan:** Satuan/Unit (misal: pcs, dus), Stok Saat Ini dalam unit tersebut, dan Batas Minimum Stok.
 4. **Unit lain (opsional):** Klik **Tambah unit lain (opsional)** jika barang juga dijual dalam satuan lain. Pilih **Lebih besar** atau **Lebih kecil** dari unit utama, lalu isi konversi, misalnya **1 dus = 12 pcs**. Badge **Unit kecil** berwarna hijau dan **Unit besar** berwarna ungu mengikuti konversi. Harga jual dan SKU disarankan otomatis dan bisa diubah; buka **Detail tambahan** untuk SKU, barcode, dan HPP. Anda dapat menambahkan beberapa unit atau menghapus unit yang tidak diperlukan. Masukkan stok awal sekali dalam unit utama. Semua unit otomatis dikelompokkan saat disimpan dan memakai stok bersama, tanpa menghitung stok dua kali.
 5. Klik **Simpan**.
@@ -21,7 +21,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 **A:** Sistem menyediakan pencatatan riwayat setiap kali harga produk berubah untuk menjaga transparansi:
 1. Pada tabel **Produk**, buka **Ubah Harga** atau **Edit**, lalu klik **Atur harga grup / Manual**. Periksa **Sumber harga**: harga jual dan HPP sumber menjadi acuan pengikut **Auto**. Sesuaikan diskon/markup harga jual pengikut, atau pilih **Manual** untuk mengisi harga jual dan HPP sendiri.
 2. Klik **Pratinjau harga**, periksa dampak pada semua satuan, lalu **Terapkan harga grup**. Harga grup disimpan terpisah; draft formulir tetap ada. Jika data grup berubah, buat pratinjau baru. Buka **Riwayat Harga** untuk melihat perubahan.
-3. **Harga Agen** dan **Harga Dinas** tetap mandiri per produk. Isi di formulir lalu **Simpan Harga**. Tombol ini tidak menerapkan ulang harga grup.
+3. **Harga Agen** dan **Harga Dinas** yang kosong otomatis **mengikuti harga jual**, termasuk saat harga grup berubah. Isi manual untuk menetapkan harga tetap pada produk/satuan ini; override ditandai hijau dan badge **Harga Khusus**. Klik **Ikuti harga jual** atau kosongkan kolom, lalu **Simpan Harga**, untuk kembali otomatis. Harga manual lama tetap dipertahankan; tombol ini tidak menerapkan ulang harga grup. Untuk diskon atau tambahan otomatis, Owner memakai **Atur diskon / tambahan → Produk > Harga Khusus**; pengguna lain dapat meminta Owner mengaturnya.
 4. Di **POS**, aksi **Atur harga grup / Manual** memakai alur pratinjau yang sama. **Harga Khusus** hanya untuk transaksi ini dan tidak menulis master. Perubahan harga grup tidak mengganti harga transaksi yang sudah ada di keranjang.
 
 ### Q3: Bagaimana cara mengatur harga khusus/diskon bagi grup pelanggan (Agen, Industri, Dinas)?
@@ -36,7 +36,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 
 **Cara membaca modal:** **Modal unit + persen − persen** memakai modal unit yang dipilih dan memotong hasil setelah tambahan persen. **Modal + rupiah** dan **Modal + persen** memakai modal satuan terkecil secara langsung, tanpa mengalikannya dengan isi kemasan. Modal **Rp700/pcs + Rp4.000** dengan aturan satuan **Rim** menghasilkan **Rp4.700/rim**; dua rim berjumlah **Rp9.400**. **Modal + 10%** menghasilkan **Rp770/rim**. Jika modal pcs berubah menjadi Rp800, harga dengan tambahan Rp4.000 menjadi Rp4.800/rim.
 
-Harga yang benar-benar memakai aturan diberi **warna hijau** dan badge **Harga Khusus**, termasuk saat hasilnya sama dengan harga normal. Urutan harga otomatis adalah **Harga Khusus yang dapat diterapkan → Harga Agen/Dinas yang sesuai → harga normal**. Jika sumber modal satuan terkecil belum tersedia atau tidak valid, rumus tidak diterapkan dan harga member/normal digunakan. Kasir tidak memilih prioritas harga saat pembayaran.
+Harga dari aturan maupun override manual Agen/Dinas diberi **warna hijau** dan badge **Harga Khusus**, termasuk saat nilainya sama dengan harga jual. Status **Mengikuti harga jual** tidak diberi badge. Urutan harga otomatis adalah **Harga Khusus yang dapat diterapkan → override Harga Agen/Dinas yang sesuai → harga jual**. Jika sumber modal satuan terkecil belum tersedia atau tidak valid, rumus tidak diterapkan dan harga member/normal digunakan. Kasir tidak memilih prioritas harga saat pembayaran.
 
 Harga yang dimasukkan manual untuk transaksi tetap memakai penanda **Hanya berlaku untuk transaksi ini** dan tidak diberi badge aturan otomatis. Pengaturan rumus tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
 

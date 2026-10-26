@@ -5,6 +5,8 @@ import { Modal, Button, Input } from "@pos/ui";
 import { ImageIcon } from "lucide-react";
 import { useUpdateProduct, useCategories, Product } from "@/hooks/useProducts";
 import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
+import { MemberPriceField } from "@/features/customer-category-pricing/components/MemberPriceField";
+import { MemberPricingGuidance } from "@/features/customer-category-pricing/components/MemberPricingGuidance";
 import type { ProductCartItem } from "@/hooks/useCart";
 
 import { getLogger } from "@/lib/logger";
@@ -43,8 +45,8 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
       setName(product.name);
       setSku(product.sku);
       setPrice(product.price.toString());
-      setHargaDinas(product.hargaDinas == null ? "" : product.hargaDinas.toString());
-      setHargaAgen(product.hargaAgen == null ? "" : product.hargaAgen.toString());
+      setHargaDinas(Number(product.hargaDinas) > 0 ? String(product.hargaDinas) : "");
+      setHargaAgen(Number(product.hargaAgen) > 0 ? String(product.hargaAgen) : "");
       setStock(product.stock.toString());
       setUnit(product.unit);
       setCategoryId(product.category.id);
@@ -128,7 +130,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
 
   return (
     <Modal open={open} onClose={onClose} title="Ubah Barang" size="lg">
-      <div className="space-y-4">
+      <form onSubmit={(event) => { event.preventDefault(); void handleConfirm(); }} className="space-y-4">
         {/* Image Upload */}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-surface-700">Gambar Produk</label>
@@ -186,11 +188,12 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ProductPricingAction groupId={product?.stockGroupId ?? product?.stockGroup?.id} disabled={isUploading || updateProduct.isPending} identityChanged={!!product && (name !== product.name || categoryId !== product.category.id || unit !== product.unit || size !== (product.size ?? "") || material !== (product.material ?? ""))} />
           <div className="space-y-1">
-            <Input
-              label="Harga Dinas (Opsional)"
-              type="number"
+            <MemberPriceField
+              label="Harga Dinas"
+              sellingPrice={Number(product?.price ?? price)}
               value={hargaDinas}
-              onChange={(e) => setHargaDinas(e.target.value)}
+              onChange={setHargaDinas}
+              disabled={isUploading || updateProduct.isPending}
             />
             {hargaDinas.trim() && Number(hargaDinas) < Number(price || 0) && (
               <p className="text-xs font-medium text-amber-700">
@@ -199,11 +202,12 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
             )}
           </div>
           <div className="space-y-1">
-            <Input
-              label="Harga Agen (Opsional)"
-              type="number"
+            <MemberPriceField
+              label="Harga Agen"
+              sellingPrice={Number(product?.price ?? price)}
               value={hargaAgen}
-              onChange={(e) => setHargaAgen(e.target.value)}
+              onChange={setHargaAgen}
+              disabled={isUploading || updateProduct.isPending}
             />
             {hargaAgen.trim() && Number(hargaAgen) < Number(price || 0) && (
               <p className="text-xs font-medium text-amber-700">
@@ -213,10 +217,13 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           </div>
         </div>
 
+        <MemberPricingGuidance />
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Stok *"
             type="number"
+            step="any"
             value={stock}
             onChange={(e) => setStock(e.target.value)}
           />
@@ -241,19 +248,19 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
         </div>
 
         <div className="flex gap-3 pt-4">
-          <Button variant="secondary" onClick={onClose} className="flex-1">
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
             Batal
           </Button>
           <Button
+            type="submit"
             variant="accent"
-            onClick={handleConfirm}
             loading={updateProduct.isPending}
             className="flex-1"
           >
             Simpan Perubahan
           </Button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }

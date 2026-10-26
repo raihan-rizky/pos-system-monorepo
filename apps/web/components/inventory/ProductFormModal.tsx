@@ -7,6 +7,8 @@ import { buildProductFormPayload } from "@/lib/product-form/product-form-payload
 import { getProductUnitBadges, newUnitPrimaryPreview, validateUnitDrafts, type UnitVariantDraft } from "@/lib/product-form/product-unit-variants";
 import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
 import { ProductUnitFields, UnitSizeBadge } from "./ProductUnitFields";
+import { MemberPriceField } from "@/features/customer-category-pricing/components/MemberPriceField";
+import { MemberPricingGuidance } from "@/features/customer-category-pricing/components/MemberPricingGuidance";
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -97,8 +99,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         brandId: initialData.brandId || initialData.brand?.id || "",
         price: initialData.price.toString(),
         costPrice: initialData.costPrice?.toString() || "",
-        hargaDinas: initialData.hargaDinas?.toString() || "",
-        hargaAgen: initialData.hargaAgen?.toString() || "",
+        hargaDinas: Number(initialData.hargaDinas) > 0 ? String(initialData.hargaDinas) : "",
+        hargaAgen: Number(initialData.hargaAgen) > 0 ? String(initialData.hargaAgen) : "",
         minStock: initialData.minStock.toString(),
         unit: initialData.unit,
         unitMultiplierToBase: String(initialData.unitMultiplierToBase ?? 1),
@@ -308,13 +310,12 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             />
           )}
           <div className="space-y-1">
-            <Input
+            <MemberPriceField
               label="Harga Dinas"
-              type="number"
-              min="0"
-              placeholder="Opsional"
+              sellingPrice={regularPrice}
               value={formData.hargaDinas}
-              onChange={(e) => setFormData({ ...formData, hargaDinas: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, hargaDinas: value })}
+              disabled={isProcessing}
             />
             {showHargaDinasWarning && (
               <p className="text-xs font-medium text-amber-700">
@@ -323,13 +324,12 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             )}
           </div>
           <div className="space-y-1">
-            <Input
+            <MemberPriceField
               label="Harga Agen"
-              type="number"
-              min="0"
-              placeholder="Opsional"
+              sellingPrice={regularPrice}
               value={formData.hargaAgen}
-              onChange={(e) => setFormData({ ...formData, hargaAgen: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, hargaAgen: value })}
+              disabled={isProcessing}
             />
             {showHargaAgenWarning && (
               <p className="text-xs font-medium text-amber-700">
@@ -338,6 +338,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             )}
           </div>
         </div>
+
+        <MemberPricingGuidance />
 
         <div className="grid grid-cols-2 gap-4">
           {!productId && (

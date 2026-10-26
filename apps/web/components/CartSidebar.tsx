@@ -221,18 +221,20 @@ export function CartSidebar({
                       </div>
                       <div>
                         <dt className="font-semibold">Agen</dt>
-                        <dd>
+                        <dd className={item.hargaAgen != null && item.hargaAgen > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaAgen != null && item.hargaAgen > 0
                             ? formatRupiah(item.hargaAgen)
-                            : "Belum diatur"}
+                            : formatRupiah(item.catalogPrice)}
+                          {item.hargaAgen != null && item.hargaAgen > 0 ? <SpecialPriceBadge className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">Mengikuti harga jual</span>}
                         </dd>
                       </div>
                       <div>
                         <dt className="font-semibold">Dinas</dt>
-                        <dd>
+                        <dd className={item.hargaDinas != null && item.hargaDinas > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaDinas != null && item.hargaDinas > 0
                             ? formatRupiah(item.hargaDinas)
-                            : "Belum diatur"}
+                            : formatRupiah(item.catalogPrice)}
+                          {item.hargaDinas != null && item.hargaDinas > 0 ? <SpecialPriceBadge className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">Mengikuti harga jual</span>}
                         </dd>
                       </div>
                     </dl>
