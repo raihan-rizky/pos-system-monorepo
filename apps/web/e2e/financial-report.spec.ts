@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { test, expect } from "./fixtures/app";
 import { authenticate, mockApis } from "./fixtures/app";
 
@@ -66,7 +67,7 @@ test("KPI info tooltip opens on click and closes on Esc", async ({
   await expect(page.getByRole("tooltip")).not.toBeVisible();
 });
 
-test("export menu opens and walks format → period steps", async ({
+test("export dialog opens with monthly report and journal format and period controls", async ({
   appPage: page,
 }) => {
   await page.goto("/financial-report");
@@ -74,26 +75,31 @@ test("export menu opens and walks format → period steps", async ({
     page.getByRole("heading", { name: "Laporan Keuangan" }),
   ).toBeVisible();
 
-  // Step 1: Open menu
-  await page.getByRole("button", { name: "Ekspor" }).click();
-  await expect(page.getByText("Pilih format")).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: /Excel/ })).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: /^PDF/ })).toBeVisible();
+  const trigger = page.getByRole("button", { name: "Ekspor", exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Ekspor laporan keuangan" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Jenis laporan")).toHaveValue("monthly");
+  await expect(dialog.getByLabel("Bulan", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Tahun", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Unduh Excel", exact: true })).toBeVisible();
 
-  // Step 2: Pick format → period step appears with back button
-  await page.getByRole("menuitem", { name: /Excel/ }).click();
-  await expect(page.getByText("Excel · Pilih periode")).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: /Harian/ })).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: /Mingguan/ })).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: /Bulanan/ })).toBeVisible();
+  await dialog.getByLabel("Jenis laporan").selectOption("journal");
+  await expect(dialog.getByLabel("Format", { exact: true })).toHaveValue("xlsx");
+  await expect(dialog.getByLabel("Periode jurnal").getByRole("option")).toHaveText([
+    "Harian · Hari ini",
+    "Mingguan · 7 hari terakhir",
+    "30 hari terakhir",
+    "Bulanan · Bulan berjalan",
+  ]);
+  await dialog.getByLabel("Format", { exact: true }).selectOption("pdf");
+  await expect(dialog.getByRole("button", { name: "Unduh PDF", exact: true })).toBeVisible();
+  await dialog.getByLabel("Jenis laporan").selectOption("monthly");
+  await expect(dialog.getByLabel("Bulan", { exact: true })).toBeVisible();
 
-  // Step 3: Back to format selection
-  await page.getByRole("button", { name: "Kembali" }).click();
-  await expect(page.getByText("Pilih format")).toBeVisible();
-
-  // Escape closes the menu
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Pilih format")).not.toBeVisible();
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
 });
 
 test("Excel export downloads xlsx file with daily laporan data", async ({
@@ -105,18 +111,30 @@ test("Excel export downloads xlsx file with daily laporan data", async ({
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Ekspor" }).click();
-  await page.getByRole("menuitem", { name: /Excel/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Ekspor laporan keuangan" });
+  await dialog.getByLabel("Jenis laporan").selectOption("journal");
+  await dialog.getByLabel("Format", { exact: true }).selectOption("xlsx");
+  await dialog.getByLabel("Periode jurnal").selectOption("daily");
 
+  const requestPromise = page.waitForRequest("**/api/finance/report/journal?period=daily");
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("menuitem", { name: /Harian/ }).click();
+  await dialog.getByRole("button", { name: "Unduh Excel", exact: true }).click();
+  await requestPromise;
   const download = await downloadPromise;
 
   expect(download.suggestedFilename()).toMatch(
     /^laporan-keuangan-daily-\d{4}-\d{2}-\d{2}\.xlsx$/,
   );
 
-  // Menu closes after successful export
-  await expect(page.getByText("Pilih format")).not.toBeVisible();
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+  const { default: XLSX } = await import("xlsx-js-style");
+  const workbook = XLSX.read(await readFile(downloadPath!), { type: "buffer" });
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets.Laporan, { header: 1 });
+  expect(rows).toContainEqual([
+    "2026-05-20", "INV-20260520-0001", "Budi", "Kertas A4", "Alat Tulis", "Pemasukan", 100_000, "CASH",
+  ]);
+  await expect(dialog).not.toBeVisible();
 });
 
 test("PDF export downloads pdf file with weekly laporan data", async ({
@@ -128,22 +146,33 @@ test("PDF export downloads pdf file with weekly laporan data", async ({
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Ekspor" }).click();
-  await page.getByRole("menuitem", { name: /^PDF/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Ekspor laporan keuangan" });
+  await dialog.getByLabel("Jenis laporan").selectOption("journal");
+  await dialog.getByLabel("Format", { exact: true }).selectOption("pdf");
+  await dialog.getByLabel("Periode jurnal").selectOption("weekly");
 
+  const requestPromise = page.waitForRequest("**/api/finance/report/journal?period=weekly");
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("menuitem", { name: /Mingguan/ }).click();
+  await dialog.getByRole("button", { name: "Unduh PDF", exact: true }).click();
+  await requestPromise;
   const download = await downloadPromise;
 
   expect(download.suggestedFilename()).toMatch(
     /^laporan-keuangan-weekly-\d{4}-\d{2}-\d{2}\.pdf$/,
   );
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+  const content = await readFile(downloadPath!);
+  expect(content.subarray(0, 5).toString()).toBe("%PDF-");
+  await expect(dialog).not.toBeVisible();
 });
 
-test("export shows error message when laporan API fails", async ({ page }) => {
+test("export keeps journal selections after an API error and allows retry", async ({ page }) => {
   await authenticate(page, "OWNER");
   await mockApis(page);
-  // Override laporan endpoint to fail — registered after mockApis so it wins.
+  let fail = true;
   await page.route("**/api/finance/report/journal**", async (route) => {
+    if (!fail) return route.fallback();
     await route.fulfill({
       status: 500,
       contentType: "application/json",
@@ -157,12 +186,24 @@ test("export shows error message when laporan API fails", async ({ page }) => {
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Ekspor" }).click();
-  await page.getByRole("menuitem", { name: /Excel/ }).click();
-  await page.getByRole("menuitem", { name: /Harian/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Ekspor laporan keuangan" });
+  await dialog.getByLabel("Jenis laporan").selectOption("journal");
+  await dialog.getByLabel("Format", { exact: true }).selectOption("xlsx");
+  await dialog.getByLabel("Periode jurnal").selectOption("daily");
+  await dialog.getByRole("button", { name: "Unduh Excel", exact: true }).click();
 
-  await expect(page.getByText("Gagal memuat laporan")).toBeVisible();
-  // Menu stays open with period selector when there's an error
-  await expect(page.getByText("Excel · Pilih periode")).toBeVisible();
+  await expect(dialog.getByRole("alert")).toHaveText("Gagal memuat laporan");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Jenis laporan")).toHaveValue("journal");
+  await expect(dialog.getByLabel("Format", { exact: true })).toHaveValue("xlsx");
+  await expect(dialog.getByLabel("Periode jurnal")).toHaveValue("daily");
+
+  fail = false;
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Coba lagi", exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^laporan-keuangan-daily-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  await expect(dialog).not.toBeVisible();
 });
 
 test("sales role cannot access financial report and is redirected", async ({
