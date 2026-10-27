@@ -157,10 +157,13 @@ export function BulkStockImportDrawer({
             </div>
             <div className="min-w-0">
               <p className="text-sm font-black text-slate-950">
-                Upload file stok
+                Unggah file stok
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                Required columns: name product, category, unit, stock. Unmatched products are skipped.
+                Kolom wajib: nama produk, satuan, dan stok. Produk dicocokkan
+                berdasarkan nama dan satuan; kategori tidak diperlukan. Pilih
+                produk di pratinjau jika ada beberapa yang cocok. Produk yang
+                tidak ditemukan dilewati.
               </p>
             </div>
           </div>

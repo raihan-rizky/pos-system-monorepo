@@ -14,7 +14,20 @@ export async function previewImportGroupPricing(tx: Pick<Prisma.TransactionClien
   }
   const categories = await tx.category.findMany({ select: { id: true, name: true } });
   const categoryIds = new Map(categories.map(c => [c.name.toLowerCase(), c.id]));
-  const products = await tx.product.findMany({ where: { storeId: input.storeId, OR: [{ sku: { in: rows.map(r => r.sku) } }, { id: { in: rows.flatMap(r => [r.matchedProductId, r.existingProductId].filter((id): id is string => Boolean(id))) } }] }, include: { category: true } });
+  const hasCategorylessRows = rows.some(row => row.categoryProvided === false || !row.category.trim());
+  const products = await tx.product.findMany({
+    where: {
+      storeId: input.storeId,
+      // The resolver expands abbreviations and whitespace in stored names too.
+      ...(hasCategorylessRows ? {} : {
+        OR: [
+          { sku: { in: rows.map(r => r.sku) } },
+          { id: { in: rows.flatMap(r => [r.matchedProductId, r.existingProductId].filter((id): id is string => Boolean(id))) } },
+        ],
+      }),
+    },
+    include: { category: true },
+  });
   if (input.decisions) rows = resolveProductImportAutoDecisions({
     rows, decisions: input.decisions, existingSkus: new Set(products.map(p => p.sku)),
     existingProducts: products.map(p => ({ ...p, category: p.category.name, price: Number(p.price), costPrice: p.costPrice == null ? null : Number(p.costPrice), hargaAgen: p.hargaAgen == null ? null : Number(p.hargaAgen), hargaDinas: p.hargaDinas == null ? null : Number(p.hargaDinas) })),

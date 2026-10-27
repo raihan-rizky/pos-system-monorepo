@@ -134,8 +134,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Fitur Import", description: "Di halaman Pusat Produk, klik tombol dropdown Import di kanan atas." },
       { title: "Pilih tipe impor", description: "Pilih Impor Produk Massal untuk katalog, Impor Stok Massal untuk kuantitas stok, atau Impor Kode Supplier Massal untuk memperbarui relasi supplier berdasarkan SKU." },
-      { title: "Unggah Excel", description: "Pilih file .xlsx dari perangkat, lalu lakukan pemetaan kolom jika nama kolom berbeda. Kolom opsional termasuk Harga Agen, Harga Dinas, dan Kode Supplier." },
-      { title: "Periksa pratinjau", description: "Cek Harga Agen, Harga Dinas, kode supplier, dan keputusan setiap baris sebelum menyelesaikan impor. Untuk impor kode supplier, pastikan semua SKU dan kode supplier berstatus Siap; relasi supplier lama akan diganti sesuai berkas. Impor produk berjalan di antrean latar belakang; pantau progres, lalu gunakan Coba Lagi jika antrean belum berhasil dimulai." },
+      { title: "Unggah Excel", description: "Pilih file .xlsx atau .csv, maksimal 5 MB, lalu petakan kolom. Impor produk memerlukan nama, SKU, harga, dan satuan; kategori, Harga Agen, Harga Dinas, dan Kode Supplier opsional. Produk baru tanpa kategori masuk ke Tanpa Kategori, sedangkan produk lama tetap memakai kategorinya jika kolom kosong. Impor stok hanya memerlukan nama, satuan, dan stok; kategori tidak dipakai untuk pencocokan." },
+      { title: "Periksa pratinjau", description: "Cek Harga Agen, Harga Dinas, kode supplier, dan keputusan setiap baris sebelum menyelesaikan impor. Pada impor stok, pilih produk yang benar jika nama dan satuan cocok dengan beberapa produk; produk yang tidak ditemukan dilewati. Pada impor produk, SKU diprioritaskan; kecocokan nama tanpa kategori yang ambigu perlu kategori atau keputusan buat baru/lewati. Untuk impor kode supplier, pastikan semua SKU dan kode supplier berstatus Siap; relasi supplier lama akan diganti sesuai berkas. Impor produk berjalan di antrean latar belakang; pantau progres, lalu gunakan Coba Lagi jika antrean belum berhasil dimulai." },
     ],
   }),
   workflow({

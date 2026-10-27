@@ -74,7 +74,8 @@ export const importRowCommitSchema = z.object({
   rowNumber: z.number().int().min(1),
   name: z.string().trim().min(1),
   sku: z.string().trim().min(1),
-  category: z.string().trim().min(1),
+  category: z.string().trim().optional().default(""),
+  categoryProvided: z.boolean().optional(),
   price: z.coerce.number(),
   stock: z.coerce.number().optional().default(0),
   stockProvided: z.boolean().optional(),
@@ -330,7 +331,6 @@ export function normalizeImportRows(
 
     if (!normalizeValue(record.name)) rowErrors.push("Name is required.");
     if (!sku) rowErrors.push("SKU is required.");
-    if (!category) rowErrors.push("Category is required.");
     if (!Number.isFinite(price)) {
       rowWarnings.push("Price was not a valid number and will be imported as 0.");
     }
@@ -386,6 +386,7 @@ export function normalizeImportRows(
       name: normalizeValue(record.name),
       sku,
       category,
+      categoryProvided: Boolean(category),
       price: Number.isFinite(price) ? price : 0,
       stock: Number.isFinite(stock) ? stock : 0,
       stockProvided,

@@ -25,7 +25,7 @@ export interface BulkStockImportCommitInput {
   rows: Array<{
     rowNumber: number;
     name: string;
-    category: string;
+    category?: string;
     unit: string;
     stock: number;
     selectedProductId?: string;

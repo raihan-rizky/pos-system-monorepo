@@ -303,7 +303,7 @@ describe("commitBulkStockImport", () => {
   it("rejects stale selected product ids that no longer match the row identity", async () => {
     const repository = {
       findActiveProductsForStockImport: vi.fn().mockResolvedValue([
-        product("prod-other", "Map Plastik", "Lain", "pcs", 3),
+        product("prod-other", "Map Plastik", "Lain", "pak", 3),
         product("prod-dup-2", "Map Plastik", "ATK", "pcs", 9),
       ]),
       findActiveSupplierById: vi.fn(),

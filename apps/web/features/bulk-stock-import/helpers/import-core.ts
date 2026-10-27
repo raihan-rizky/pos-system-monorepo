@@ -5,6 +5,8 @@ export const BULK_STOCK_IMPORT_COLUMNS = [
   "stock",
 ] as const;
 
+export const REQUIRED_BULK_STOCK_IMPORT_COLUMNS = ["name", "unit", "stock"] as const;
+
 export type BulkStockImportColumn = (typeof BULK_STOCK_IMPORT_COLUMNS)[number];
 export type BulkStockImportMode = "ADD" | "SET";
 export type BulkStockImportStatus = "valid" | "skipped" | "error";
@@ -125,18 +127,16 @@ function toNumber(value: unknown) {
   return Number(cleaned);
 }
 
-function productKey(input: { name: string; categoryName: string; unit: string }) {
+function productKey(input: { name: string; unit: string }) {
   return [
     normalizeMatchValue(input.name),
-    normalizeMatchValue(input.categoryName),
     normalizeMatchValue(input.unit),
   ].join("|");
 }
 
-function rowKey(input: { name: string; category: string; unit: string }) {
+function rowKey(input: { name: string; unit: string }) {
   return [
     normalizeMatchValue(input.name),
-    normalizeMatchValue(input.category),
     normalizeMatchValue(input.unit),
   ].join("|");
 }
@@ -148,7 +148,7 @@ export function normalizeBulkStockHeader(value: unknown): BulkStockImportColumn 
 
 export function buildMissingBulkStockColumns(headers: string[]) {
   const headerSet = new Set(headers);
-  return BULK_STOCK_IMPORT_COLUMNS.filter((column) => !headerSet.has(column));
+  return REQUIRED_BULK_STOCK_IMPORT_COLUMNS.filter((column) => !headerSet.has(column));
 }
 
 function normalizeValue(value: unknown) {
@@ -177,11 +177,10 @@ export function normalizeBulkStockImportRows(
     const warnings: string[] = [];
 
     if (!name) errors.push("Name is required.");
-    if (!category) errors.push("Category is required.");
     if (!unit) errors.push("Unit is required.");
     if (!Number.isFinite(stock)) errors.push("Stock must be a valid number.");
 
-    const matches = productsByKey.get(rowKey({ name, category, unit })) ?? [];
+    const matches = productsByKey.get(rowKey({ name, unit })) ?? [];
     const selectedProduct = selectedProductId
       ? matches.find((match) => match.id === selectedProductId)
       : null;
@@ -205,7 +204,7 @@ export function normalizeBulkStockImportRows(
     return {
       rowNumber,
       name,
-      category,
+      category: product?.categoryName ?? category,
       unit,
       stock: Number.isFinite(stock) ? stock : 0,
       currentStock: product?.stock,
@@ -289,6 +288,7 @@ export function applyBulkStockImportRowSelections(
       ...row,
       selectedProductId,
       productId: candidate.id,
+      category: candidate.categoryName,
       sku: candidate.sku,
       currentStock: candidate.stock,
       status: errors.length > 0 ? row.status : "valid",

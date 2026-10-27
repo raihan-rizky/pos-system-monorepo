@@ -10,6 +10,7 @@ import {
 import { enforceRateLimit } from "@/lib/rate-limit";
 import {
   BULK_STOCK_IMPORT_COLUMNS,
+  REQUIRED_BULK_STOCK_IMPORT_COLUMNS,
   buildMissingBulkStockColumns,
   type BulkStockColumnMapping,
 } from "@/features/bulk-stock-import/helpers/import-core";
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
           code: "MISSING_REQUIRED_COLUMNS",
           message: "Import file is missing required columns.",
           missingColumns,
-          requiredColumns: BULK_STOCK_IMPORT_COLUMNS,
+          requiredColumns: REQUIRED_BULK_STOCK_IMPORT_COLUMNS,
         },
         { status: 422 },
       );
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...preview,
       missingColumns,
-      requiredColumns: BULK_STOCK_IMPORT_COLUMNS,
+      requiredColumns: REQUIRED_BULK_STOCK_IMPORT_COLUMNS,
     });
   } catch (error) {
     const authErr = handleAuthError(error);

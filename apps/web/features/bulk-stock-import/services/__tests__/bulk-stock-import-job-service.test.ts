@@ -32,6 +32,7 @@ vi.mock("../bulk-stock-import-service", () => ({
 }));
 
 import {
+  bulkStockImportJobCreateSchema,
   createBulkStockImportJob,
   getBulkStockImportJobStatus,
   processBulkStockImportJob,
@@ -61,6 +62,13 @@ const payload = {
 };
 
 describe("bulk stock import job service", () => {
+  it.each([undefined, ""])("accepts queued stock import rows without category (%s)", (category) => {
+    expect(bulkStockImportJobCreateSchema.safeParse({
+      mode: "ADD",
+      rows: [{ rowNumber: 2, name: "Kertas HVS A4", unit: "Rim", stock: 5, ...(category === undefined ? {} : { category }) }],
+    }).success).toBe(true);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     commitBulkStockImportMock.mockReset();

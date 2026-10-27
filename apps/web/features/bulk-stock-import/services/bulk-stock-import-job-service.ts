@@ -22,7 +22,7 @@ export const bulkStockImportJobCreateSchema = z.object({
     z.object({
       rowNumber: z.number().int().min(1),
       name: z.string().trim().min(1),
-      category: z.string().trim().min(1),
+      category: z.string().trim().optional().default(""),
       unit: z.string().trim().min(1),
       stock: z.coerce.number(),
       selectedProductId: z.string().trim().min(1).optional(),

@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "bulk-import-optional-category", date: "2026-10-28", revision: 1,
+    highlight: { title: "Impor tanpa kolom kategori", summary: "Impor produk dan stok massal kini bisa memakai file tanpa kolom kategori." },
+    title: "Kategori opsional pada impor massal.",
+    summary: "Impor produk dan stok bisa memakai file tanpa kolom kategori. Produk baru masuk ke Tanpa Kategori, produk lama tetap memakai kategorinya, dan stok dicocokkan dari nama serta satuan.",
+    kind: "improvement", area: "Produk & Stok", href: "/products", visual: "categories",
+    steps: [
+      { title: "Siapkan file", detail: "Untuk produk, isi nama, SKU, harga, dan satuan. Untuk stok, isi nama, satuan, dan stok. Kolom kategori boleh tidak ada atau kosong." },
+      { title: "Periksa pratinjau", detail: "Buka Produk > Import dan pilih jenis impor. Periksa kategori hasil pencocokan; pada impor stok, pilih produk yang benar jika beberapa produk cocok." },
+      { title: "Terapkan impor", detail: "Selesaikan keputusan baris, periksa dampaknya, lalu terapkan impor. Produk baru tanpa kategori memakai Tanpa Kategori secara otomatis." },
+    ],
+  },
+  {
     id: "member-prices-follow-selling-default", date: "2026-10-26", revision: 1,
     highlight: { title: "Harga Agen dan Dinas otomatis", summary: "Ikuti harga jual secara default, dengan badge untuk harga yang diatur manual." },
     title: "Harga Agen dan Dinas mengikuti harga jual.",

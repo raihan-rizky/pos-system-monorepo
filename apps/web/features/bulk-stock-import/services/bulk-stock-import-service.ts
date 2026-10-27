@@ -11,7 +11,7 @@ import type {
 export interface BulkStockImportCommitRowInput {
   rowNumber: number;
   name: string;
-  category: string;
+  category?: string;
   unit: string;
   stock: number;
   selectedProductId?: string;

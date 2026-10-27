@@ -220,9 +220,8 @@ describe("bulk stock import core", () => {
     expect(normalizeBulkStockHeader("Stok")).toBe("stock");
   });
 
-  it("requires name, category, unit, and stock columns", () => {
+  it("requires name, unit, and stock columns", () => {
     expect(buildMissingBulkStockColumns(["name", "stock"])).toEqual([
-      "category",
       "unit",
     ]);
   });

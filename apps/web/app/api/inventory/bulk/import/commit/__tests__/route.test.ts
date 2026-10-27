@@ -99,6 +99,17 @@ describe("POST /api/inventory/bulk/import/commit", () => {
     );
   });
 
+  it.each([undefined, "", "Kategori lama"])("commits stock without relying on category (%s)", async (category) => {
+    const response = await request({
+      mode: "ADD",
+      rows: [{ rowNumber: 2, name: "Kertas HVS A4", unit: "Rim", stock: 5, ...(category === undefined ? {} : { category }) }],
+    });
+    expect(response.status).toBe(201);
+    expect(commitStockImportMock).toHaveBeenCalledWith(expect.objectContaining({
+      impacts: [expect.objectContaining({ productId: "prod-a", beforeStock: 10, afterStock: 15 })],
+    }));
+  });
+
   it("rejects invalid stock mode", async () => {
     const response = await request({
       mode: "BAD",

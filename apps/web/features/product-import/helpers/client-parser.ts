@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnMapping, ImportColumn } from "../types";
-import { IMPORT_COLUMNS } from "../types";
+import { IMPORT_COLUMNS, REQUIRED_IMPORT_COLUMNS } from "../types";
 import { getColumnMappingKey } from "./column-mapping-key";
 
 const HEADER_ALIASES: Record<string, string> = {
@@ -104,6 +104,5 @@ export function buildAutoMapping(rawHeaders: string[]): ColumnMapping {
  */
 export function getMissingRequiredColumns(mapping: ColumnMapping): string[] {
   const mapped: Set<string> = new Set(Object.values(mapping).filter(Boolean));
-  const required = ["name", "sku", "category", "price", "unit"];
-  return required.filter((col) => !mapped.has(col));
+  return REQUIRED_IMPORT_COLUMNS.filter((col) => !mapped.has(col));
 }

@@ -1,4 +1,5 @@
 import type { ImportRowDecision, NormalizedImportRow } from "../types";
+import { DEFAULT_IMPORT_CATEGORY } from "../types";
 import { normalizeProductDuplicateKey } from "./name-normalization";
 import { resolveImportUnitMultiplier } from "./unit-conversion";
 import { generateVariantSku } from "./variant-sku";
@@ -150,6 +151,13 @@ export function resolveProductImportAutoDecisions(
     input.existingProducts.map((product) => [product.sku, product]),
   );
   const candidatesByKey = new Map<string, ProductCandidate[]>();
+  const candidatesByName = new Map<string, ProductCandidate[]>();
+
+  const addCandidate = (candidate: ProductCandidate) => {
+    const nameKey = normalizeProductDuplicateKey({ name: candidate.name, category: "" });
+    candidatesByKey.set(candidate.productKey, [...(candidatesByKey.get(candidate.productKey) ?? []), candidate]);
+    candidatesByName.set(nameKey, [...(candidatesByName.get(nameKey) ?? []), candidate]);
+  };
 
   for (const product of input.existingProducts) {
     const productKey = normalizeProductDuplicateKey({
@@ -157,24 +165,56 @@ export function resolveProductImportAutoDecisions(
       category: product.category,
     });
     const candidate: ProductCandidate = { ...product, productKey };
-    candidatesByKey.set(productKey, [...(candidatesByKey.get(productKey) ?? []), candidate]);
+    addCandidate(candidate);
   }
 
-  return input.rows.map((row) => {
+  return input.rows.map((sourceRow) => {
+    const existingSkuProduct = skuToProduct.get(sourceRow.sku);
+    const decision = input.decisions?.[String(sourceRow.rowNumber)] ?? input.decisions?.[sourceRow.sku];
+    const categoryProvided = sourceRow.categoryProvided ?? Boolean(sourceRow.category.trim());
+    const nameKey = normalizeProductDuplicateKey({ name: sourceRow.name, category: "" });
+    const matchingSkuProduct = existingSkuProduct &&
+      normalizeProductDuplicateKey({ name: existingSkuProduct.name, category: "" }) === nameKey
+      ? existingSkuProduct
+      : undefined;
+    const nameMatches = candidatesByName.get(nameKey) ?? [];
+    const unitMatches = nameMatches.filter((candidate) => normalizeUnit(candidate.unit) === normalizeUnit(sourceRow.unit));
+    const categoryMatches = unitMatches.length > 0 ? unitMatches : nameMatches;
+    const categoryNames = new Set(categoryMatches.map((candidate) => candidate.category.trim().toLowerCase()));
+    const ambiguousCategorylessMatch = !categoryProvided && !matchingSkuProduct &&
+      (categoryNames.size > 1 || unitMatches.length > 1);
+    const row: NormalizedImportRow = {
+      ...sourceRow,
+      categoryProvided,
+      category: categoryProvided
+        ? sourceRow.category
+        : ambiguousCategorylessMatch
+          ? DEFAULT_IMPORT_CATEGORY
+          : matchingSkuProduct?.category ?? (categoryNames.size === 1 ? categoryMatches[0].category : DEFAULT_IMPORT_CATEGORY),
+    };
     const productKey = normalizeProductDuplicateKey({
       name: row.name,
       category: row.category,
     });
-    const existingSkuProduct = skuToProduct.get(row.sku);
-    const matchingCandidates = candidatesByKey.get(productKey) ?? [];
-
-    const decision = input.decisions?.[String(row.rowNumber)] ?? input.decisions?.[row.sku];
+    const matchingCandidates = ambiguousCategorylessMatch && decision === "create"
+      ? []
+      : candidatesByKey.get(productKey) ?? [];
 
     if (decision === "skip") {
       return {
         ...row,
         autoAction: "auto_skip",
         autoActionReason: "Skipped by user.",
+        normalizedProductKey: productKey,
+      };
+    }
+
+    if (ambiguousCategorylessMatch && decision !== "create") {
+      return {
+        ...row,
+        autoAction: "conflict",
+        autoActionReason: "Beberapa produk cocok dengan nama dan satuan ini. Isi kategori atau pilih buat produk baru atau lewati.",
+        matchedProductId: undefined,
         normalizedProductKey: productKey,
       };
     }
@@ -201,7 +241,7 @@ export function resolveProductImportAutoDecisions(
           normalizedProductKey: productKey,
         };
         if (decision === "create") {
-          candidatesByKey.set(productKey, [...matchingCandidates, createCandidateFromRow(resolved)]);
+          addCandidate(createCandidateFromRow(resolved));
         }
         return resolved;
       }
@@ -216,6 +256,8 @@ export function resolveProductImportAutoDecisions(
     }
 
     const sameUnit = matchingCandidates.find(
+      (candidate) => candidate.id === existingSkuProduct?.id && normalizeUnit(candidate.unit) === normalizeUnit(row.unit),
+    ) ?? matchingCandidates.find(
       (candidate) => normalizeUnit(candidate.unit) === normalizeUnit(row.unit),
     );
 
@@ -228,7 +270,7 @@ export function resolveProductImportAutoDecisions(
         usedSkus,
         reasonPrefix: "Variant: user kept duplicate SKU as a new variant",
       });
-      candidatesByKey.set(productKey, [...matchingCandidates, createCandidateFromRow(resolved)]);
+      addCandidate(createCandidateFromRow(resolved));
       return resolved;
     }
 
@@ -259,7 +301,7 @@ export function resolveProductImportAutoDecisions(
         productKey,
         usedSkus,
       });
-      candidatesByKey.set(productKey, [...matchingCandidates, createCandidateFromRow(resolved)]);
+      addCandidate(createCandidateFromRow(resolved));
       return resolved;
     }
 
@@ -275,7 +317,7 @@ export function resolveProductImportAutoDecisions(
         : "Created: no matching product found.",
       normalizedProductKey: productKey,
     };
-    candidatesByKey.set(productKey, [...matchingCandidates, createCandidateFromRow(resolved)]);
+    addCandidate(createCandidateFromRow(resolved));
     return resolved;
   });
 }

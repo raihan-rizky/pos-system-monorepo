@@ -31,7 +31,7 @@ describe("buildMissingColumnResponse", () => {
   it("returns missing columns when required columns are absent", () => {
     const headers = ["name", "sku"];
     const result = buildMissingColumnResponse(headers);
-    expect(result.missingColumns).toContain("category");
+    expect(result.missingColumns).not.toContain("category");
     expect(result.missingColumns).toContain("price");
     expect(result.missingColumns).toContain("unit");
   });

@@ -1,6 +1,9 @@
-export const REQUIRED_IMPORT_COLUMNS = ["name", "sku", "category", "price", "unit"] as const;
+export const REQUIRED_IMPORT_COLUMNS = ["name", "sku", "price", "unit"] as const;
+
+export const DEFAULT_IMPORT_CATEGORY = "Tanpa Kategori";
 
 export const OPTIONAL_IMPORT_COLUMNS = [
+  "category",
   "stock",
   "costPrice",
   "hargaDinas",
@@ -45,6 +48,7 @@ export interface NormalizedImportRow {
   name: string;
   sku: string;
   category: string;
+  categoryProvided?: boolean;
   price: number;
   stock: number;
   stockProvided?: boolean;

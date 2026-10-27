@@ -42,6 +42,7 @@ import {
   validateSameUnitPriceConflictDecisions,
 } from "../helpers/same-unit-price-conflicts";
 import type { NormalizedImportRow } from "../types";
+import { DEFAULT_IMPORT_CATEGORY } from "../types";
 
 const logger = getLogger("features:product-import:commit");
 
@@ -230,6 +231,7 @@ function asCommitRows(rows: CommitInput["rows"]): NormalizedImportRow[] {
 
     return {
       ...row,
+      categoryProvided: row.categoryProvided ?? Boolean(row.category.trim()),
       hargaDinasProvided,
       hargaAgenProvided,
       supplierCodes:
@@ -254,33 +256,6 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
   const categoryByName = new Map(
     categories.map((category) => [category.name.toLowerCase(), category]),
   );
-  const missingCategories = Array.from(
-    new Set(
-      input.rows
-        .map((row) => row.category)
-        .filter((name) => !categoryByName.has(name.toLowerCase())),
-    ),
-  );
-
-  if (missingCategories.length > 0 && !input.createMissingCategories) {
-    throw new Error(`MISSING_CATEGORIES:${missingCategories.join(", ")}`);
-  }
-
-  if (options.createCategories) {
-    for (const categoryName of missingCategories) {
-      const category = await tx.category.create({
-        data: {
-          name: categoryName,
-          salesGroup: inferSalesGroup(categoryName),
-          icon: "Package",
-          color: "#64748b",
-          order: categories.length + categoryByName.size + 1,
-        },
-      });
-      categoryByName.set(category.name.toLowerCase(), category);
-    }
-  }
-
   const rowSkus = uniqueStrings(input.rows.map((row) => row.sku));
   const previewMatchedProductIds = uniqueStrings(
     input.rows.flatMap((row) => [row.existingProductId, row.matchedProductId]),
@@ -303,11 +278,15 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
       name: { in: rowNames },
     });
   }
+  const hasCategorylessRows = input.rows.some(
+    (row) => row.categoryProvided === false || !row.category.trim(),
+  );
 
   const existingProducts = await tx.product.findMany({
     where: {
       storeId,
-      OR: productCandidateFilters,
+      // Match the full preview candidate set before normalizing stored names.
+      ...(hasCategorylessRows ? {} : { OR: productCandidateFilters }),
     },
     select: {
       id: true,
@@ -390,6 +369,32 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
   ).map((group) => group.sku);
   if (duplicateSkus.length > 0) {
     throw new Error(`DUPLICATE_SKUS:${duplicateSkus.join(",")}`);
+  }
+
+  const missingCategories = Array.from(new Set(
+    resolvedRows
+      .filter((row) => getCommitActionForResolvedRow(row, getEffectiveImportDecision(row, resolvedCommitDecisions)) !== "skip")
+      .map((row) => row.category)
+      .filter((name) => !categoryByName.has(name.toLowerCase())),
+  ));
+  const unapprovedCategories = missingCategories.filter((name) => name !== DEFAULT_IMPORT_CATEGORY);
+  if (unapprovedCategories.length > 0 && !input.createMissingCategories) {
+    throw new Error(`MISSING_CATEGORIES:${unapprovedCategories.join(", ")}`);
+  }
+  if (options.createCategories) {
+    for (const categoryName of missingCategories) {
+      const data = {
+        name: categoryName,
+        salesGroup: inferSalesGroup(categoryName),
+        icon: "Package",
+        color: "#64748b",
+        order: categories.length + categoryByName.size + 1,
+      };
+      const category = categoryName === DEFAULT_IMPORT_CATEGORY
+        ? await tx.category.upsert({ where: { name: DEFAULT_IMPORT_CATEGORY }, create: data, update: {} })
+        : await tx.category.create({ data });
+      categoryByName.set(category.name.toLowerCase(), category);
+    }
   }
 
   const supplierByCode = await loadSupplierByCode(tx, resolvedRows);

@@ -86,7 +86,7 @@ describe("POST /api/inventory/bulk/import/preview", () => {
 
     expect(response.status).toBe(422);
     expect(body.code).toBe("MISSING_REQUIRED_COLUMNS");
-    expect(body.missingColumns).toEqual(["category", "unit"]);
+    expect(body.missingColumns).toEqual(["unit"]);
     expect(findActiveProductsForStockImportMock).not.toHaveBeenCalled();
   });
 
@@ -99,6 +99,17 @@ describe("POST /api/inventory/bulk/import/preview", () => {
     expect(response.status).toBe(413);
     expect(body.message).toContain("terlalu besar");
     expect(findActiveProductsForStockImportMock).not.toHaveBeenCalled();
+  });
+
+  it("previews categoryless workbooks and advertises only the actual required columns", async () => {
+    const response = await POST(request(workbookFile([
+      ["Nama Produk", "Satuan", "Stok"],
+      ["Kertas HVS A4", "Rim", 5],
+    ])));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.requiredColumns).toEqual(["name", "unit", "stock"]);
+    expect(body.rows[0]).toMatchObject({ productId: "prod-a", category: "ATK", status: "valid" });
   });
 });
 

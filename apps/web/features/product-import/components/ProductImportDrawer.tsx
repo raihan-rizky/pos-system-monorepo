@@ -560,7 +560,9 @@ export function ProductImportDrawer({
               />
               <p className="mt-3 text-xs text-slate-500">
                 Kolom wajib: {REQUIRED_IMPORT_COLUMNS.join(", ")}. Maksimal
-                3000 baris.
+                3000 baris. Kategori opsional; produk baru tanpa kategori masuk
+                ke Tanpa Kategori. Kategori produk lama tetap dipakai jika kolom
+                kategori kosong.
               </p>
               <Button
                 type="button"
