@@ -20,9 +20,8 @@ async function setupRole(
 ) {
   const userId = opts.userId ?? `e2e-${role.toLowerCase()}`;
   const userName = opts.userName ?? `E2E ${role}`;
-  await authenticate(page, role);
+  await authenticate(page, role, userId);
   await page.context().addCookies([
-    { name: "x-pos-user-id", value: userId, domain: "localhost", path: "/" },
     {
       name: "x-pos-user-name",
       value: encodeURIComponent(userName),

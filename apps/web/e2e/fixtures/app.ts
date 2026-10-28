@@ -28,8 +28,7 @@ async function emptyOk(route: Route) {
   await json(route, { ok: true });
 }
 
-export async function authenticate(page: Page, role: Role = "OWNER") {
-  const userId = "e2e-user";
+export async function authenticate(page: Page, role: Role = "OWNER", userId = "e2e-user") {
   await page.context().addCookies([
     { name: "x-pos-role", value: role, domain: "localhost", path: "/" },
     { name: "x-pos-user-id", value: userId, domain: "localhost", path: "/" },
@@ -45,6 +44,7 @@ export async function mockApis(page: Page) {
   let currentJobOrder = { ...jobOrder };
   let currentStoreSettings = { ...storeSettings };
   let currentShiftSettings = { enabled: true };
+  let currentPriceRoundingSettings = { enabled: true, increment: 500, threshold: 50 };
   let currentProductionActivity: Array<Record<string, unknown>> = [];
 
   await page.route("**/auth/v1/token**", async (route) => {
@@ -276,6 +276,11 @@ export async function mockApis(page: Page) {
         ...(JSON.parse(request.postData() || "{}") as Partial<typeof storeSettings>),
       };
       return json(route, currentStoreSettings);
+    }
+    if (path === "/api/settings/price-rounding" && method === "GET") return json(route, currentPriceRoundingSettings);
+    if (path === "/api/settings/price-rounding" && method === "PATCH") {
+      currentPriceRoundingSettings = JSON.parse(request.postData() || "{}") as typeof currentPriceRoundingSettings;
+      return json(route, currentPriceRoundingSettings);
     }
     if (path === "/api/settings/shift") {
       if (method === "PATCH") {
