@@ -1,3 +1,5 @@
+import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
+import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { PRINTING_SUBCATEGORIES } from "@/features/printing-receipts/types";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
@@ -124,6 +126,11 @@ const createTransactionSchema = z.object({
   customerName: z.string().optional().nullable(),
   customerId: z.string().optional().nullable(),
   pricingPreference: z.enum(PRICING_PREFERENCES).optional().default("SPECIAL"),
+  priceRoundingSettings: z.object({
+    enabled: z.boolean(),
+    increment: z.number().int().min(1).max(1_000_000_000),
+    threshold: z.number().int().min(0),
+  }).refine(settings => settings.threshold <= settings.increment, { path: ["threshold"] }).optional(),
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   cashierId: z.string().optional().nullable(),
@@ -568,6 +575,7 @@ export async function POST(request: Request) {
       customerName,
       customerId,
       pricingPreference,
+      priceRoundingSettings,
       salesName,
       salespersonId,
       paymentStatus,
@@ -806,6 +814,14 @@ export async function POST(request: Request) {
       updatedAt: rule.updatedAt,
     })) satisfies CategoryPricingRule[];
 
+    const roundingSettings = await getPriceRoundingSettings();
+    if (priceRoundingSettings && (
+      priceRoundingSettings.enabled !== roundingSettings.enabled ||
+      priceRoundingSettings.increment !== roundingSettings.increment ||
+      priceRoundingSettings.threshold !== roundingSettings.threshold
+    )) {
+      return NextResponse.json({ message: "Pengaturan pembulatan harga sudah berubah. Muat ulang harga sebelum melanjutkan transaksi." }, { status: 409 });
+    }
     const serverItems: ServerTransactionItem[] = items.map((item) => {
       if (item.lineType === "PRINTING_SERVICE") {
         const service = item.printingServiceId ? printingServiceById.get(item.printingServiceId) : null;
@@ -867,12 +883,13 @@ export async function POST(request: Request) {
             pricingRules,
             pricingPreference,
           );
-          const resolved = resolveCustomPricedLine({
+          const roundedAutomatic = roundSellingPriceLine(priced, roundingSettings);
+          const resolved = roundSellingPriceLine(resolveCustomPricedLine({
             pricedLine: priced,
-            submittedPrice: item.price,
+            submittedPrice: item.price === roundedAutomatic.unitPrice ? undefined : item.price,
             role: user.role,
             customerType: checkoutCustomerType,
-          });
+          }), roundingSettings);
           return {
             price: resolved.unitPrice,
             originalPrice: Number(product.price),

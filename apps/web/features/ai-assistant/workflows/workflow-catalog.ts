@@ -858,6 +858,21 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Simpan pembaruan transaksi", description: "Klik Simpan dan perbarui transaksi. Nota, transaksi, penyesuaian stok bahan beserta jurnalnya, piutang, dan status diperbarui bersama. Nota menunggu persetujuan tetap pending; stok dan piutang baru diterapkan setelah disetujui. Jika penyimpanan gagal, periksa pesan lalu tinjau ulang sebelum mencoba lagi." },
     ],
   }),
+  workflow({
+    faqNumber: 43,
+    slug: "pembulatan-harga-jual",
+    title: "Bagaimana cara mengatur pembulatan harga jual?",
+    aliases: ["pembulatan harga", "harga dibulatkan", "bulatkan harga jual", "badge harga naik turun", "aturan pembulatan", "ambang pembulatan"],
+    route: "/settings",
+    actionLabel: "Buka Pengaturan",
+    iconKey: "settings",
+    requiredCapabilities: [{ resource: "settings.price_rounding", action: "update" }],
+    steps: [
+      { title: "Buka Pembulatan Harga", description: "Masuk ke Pengaturan lalu pilih Pembulatan Harga. Default izin pengelolaan hanya Owner; Owner dapat memberi izin Lihat atau Ubah pada resource settings.price_rounding melalui RBAC untuk role lain yang memiliki akses halaman Pengaturan." },
+      { title: "Atur dan periksa pratinjau", description: "Aktifkan atau nonaktifkan aturan, isi kelipatan dan ambang naik, lalu periksa Pratinjau langsung. Default kelipatan Rp500 dan ambang Rp50: Rp4.049 menjadi Rp4.000, Rp4.050 menjadi Rp4.500, dan Rp4.500 tetap. Pembulatan diterapkan setelah rumus harga selesai; harga asal dan HPP tetap tersedia." },
+      { title: "Simpan dan baca badge", description: "Klik Simpan pengaturan lalu periksa harga di Produk atau Kasir. Buka badge Dibulatkan ke atas atau Dibulatkan ke bawah untuk melihat harga asal, harga final, dan selisih. Harga yang tetap tidak memiliki badge; perubahan aturan berlaku pada penjualan baru dan tidak menghitung ulang transaksi final terdahulu." },
+    ],
+  }),
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {

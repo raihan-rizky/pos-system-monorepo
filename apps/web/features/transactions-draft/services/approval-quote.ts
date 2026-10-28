@@ -1,3 +1,5 @@
+import { roundSellingPriceLine, type PriceRoundingResult } from "@/features/product-price-rounding/rounding";
+import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { createHash } from "node:crypto";
 import { Prisma } from "@pos/db";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -21,6 +23,7 @@ export interface ApprovalItemInput {
   size?: string | null;
   material?: string | null;
   submittedPrice?: number | null;
+  priceIntent?: "AUTOMATIC" | "MANUAL";
 }
 
 export interface ApprovalQuoteInput {
@@ -44,6 +47,13 @@ export interface ApprovalQuotedItem {
   government: number | null;
   special: number | null;
   appliedUnitPrice: number;
+  priceRounding?: PriceRoundingResult | null;
+  referencePriceRounding?: {
+    regular: PriceRoundingResult | null;
+    agent: PriceRoundingResult | null;
+    government: PriceRoundingResult | null;
+    special: PriceRoundingResult | null;
+  };
   discount: number;
   subtotal: number;
   appliedPricing: {
@@ -296,6 +306,7 @@ export async function buildApprovalQuote(
   })) satisfies CategoryPricingRule[];
   const customerType = (transaction.customer?.type ?? "UMUM") as CustomerType;
 
+  const roundingSettings = await getPriceRoundingSettings();
   const quotedItems = normalizedItems.map((line): ApprovalQuotedItem => {
     const product = line.productId
       ? productById.get(line.productId)
@@ -324,19 +335,28 @@ export async function buildApprovalQuote(
         customerType,
         rules,
       );
-      const applied = resolveCustomPricedLine({
+      const roundedAutomatic = roundSellingPriceLine(automatic, roundingSettings);
+      const applied = roundSellingPriceLine(resolveCustomPricedLine({
         pricedLine: automatic,
-        submittedPrice: line.submittedPrice,
+        submittedPrice: line.priceIntent === "AUTOMATIC"
+          ? undefined
+          : line.priceIntent === "MANUAL"
+            ? line.submittedPrice
+            : line.submittedPrice === roundedAutomatic.unitPrice ? undefined : line.submittedPrice,
         role: input.actorRole,
         customerType,
-      });
+      }), roundingSettings);
       const appliedPricing = applied.appliedPricing;
-      const special =
-        appliedPricing &&
-        appliedPricing.ruleId !== "harga-agen" &&
-        appliedPricing.ruleId !== "harga-dinas"
-          ? appliedPricing.appliedUnitPrice
-          : null;
+      const references = {
+        regular: roundSellingPriceLine({ unitPrice: regular, appliedPricing: null }, roundingSettings),
+        agent: product.hargaAgen == null ? null : roundSellingPriceLine({ unitPrice: Number(product.hargaAgen), appliedPricing: null }, roundingSettings),
+        government: product.hargaDinas == null ? null : roundSellingPriceLine({ unitPrice: Number(product.hargaDinas), appliedPricing: null }, roundingSettings),
+        special: automatic.appliedPricing &&
+          automatic.appliedPricing.ruleId !== "harga-agen" &&
+          automatic.appliedPricing.ruleId !== "harga-dinas"
+            ? roundSellingPriceLine(automatic, roundingSettings)
+            : null,
+      };
       const appliedUnitPrice = roundMoney(applied.unitPrice);
       const grossSubtotal = roundMoney(appliedUnitPrice * line.quantity);
       const source = transaction.items.find((item) => item.id === line.sourceItemId);
@@ -352,11 +372,18 @@ export async function buildApprovalQuote(
         unitCost: product.costPrice == null ? null : Number(product.costPrice),
         rawMaterialUnitCost: null,
         rawMaterialUnit: null,
-        regular,
-        agent: product.hargaAgen == null ? null : Number(product.hargaAgen),
-        government: product.hargaDinas == null ? null : Number(product.hargaDinas),
-        special,
+        regular: references.regular.unitPrice,
+        agent: references.agent?.unitPrice ?? null,
+        government: references.government?.unitPrice ?? null,
+        special: references.special?.unitPrice ?? null,
         appliedUnitPrice,
+        priceRounding: applied.priceRounding,
+        referencePriceRounding: {
+          regular: references.regular.priceRounding,
+          agent: references.agent?.priceRounding ?? null,
+          government: references.government?.priceRounding ?? null,
+          special: references.special?.priceRounding ?? null,
+        },
         discount,
         subtotal: discountedLineSubtotal(appliedUnitPrice, line.quantity, discount),
         appliedPricing: appliedPricing
@@ -382,7 +409,7 @@ export async function buildApprovalQuote(
     const automatic = { unitPrice: Number(service.basePrice), appliedPricing: null };
     const applied = resolveCustomPricedLine({
       pricedLine: automatic,
-      submittedPrice: line.submittedPrice,
+      submittedPrice: line.priceIntent === "AUTOMATIC" ? undefined : line.submittedPrice,
       role: input.actorRole,
       customerType,
     });
@@ -410,6 +437,8 @@ export async function buildApprovalQuote(
       government: null,
       special: null,
       appliedUnitPrice,
+      priceRounding: null,
+      referencePriceRounding: { regular: null, agent: null, government: null, special: null },
       discount,
       subtotal: discountedLineSubtotal(appliedUnitPrice, line.quantity, discount),
       appliedPricing: null,
@@ -441,6 +470,7 @@ export async function buildApprovalQuote(
         : null,
     })),
     pricingRules: rules,
+    roundingSettings,
     subtotal,
     discount,
     tax,
@@ -488,5 +518,6 @@ function normalizeItem(item: ApprovalItemInput): ApprovalItemInput {
     size: item.size ?? null,
     material: item.material ?? null,
     submittedPrice: item.submittedPrice ?? null,
+    priceIntent: item.priceIntent,
   };
 }

@@ -92,6 +92,16 @@ const draftRow = {
 };
 
 describe("POST /api/transactions/[id]/approve-draft", () => {
+  it("rejects unknown price intent before writing approval data", async () => {
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve-draft", { method: "POST", body: JSON.stringify({
+      type: "draft", paymentMethod: "CASH", amountPaid: 10000, quoteFingerprint: "fresh-quote",
+      items: [{ productId: "paper", quantity: 1, submittedPrice: 4000, priceIntent: "INVALID" }],
+    }) }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(422);
+    expect(buildApprovalQuoteMock).not.toHaveBeenCalled();
+  });
+
   it("persists the DPP basis when approving a legacy quote without editing its tax", async () => {
     const { POST } = await import("../route");
     const response = await POST(new Request("http://localhost/api/transactions/draft-1/approve-draft", {

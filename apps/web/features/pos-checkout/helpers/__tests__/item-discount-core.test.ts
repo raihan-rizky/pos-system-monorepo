@@ -26,6 +26,7 @@ describe("item discount checkout persistence contract", () => {
     const priced = priceCartItemsForCheckout({
       items: [{ ...product, price: scenario.price, catalogPrice: scenario.price, quantity: scenario.quantity }],
       customerType: "UMUM", pricingRules: [], manualPrices: {}, role: "CASHIER",
+      roundingSettings: { enabled: false, increment: 500, threshold: 50 },
     });
     const discounted = applyCartItemDiscounts(priced, { "row-1": { mode: scenario.mode, value: scenario.value } });
     expect(discounted[0].discount).toBe(scenario.lineDiscount);

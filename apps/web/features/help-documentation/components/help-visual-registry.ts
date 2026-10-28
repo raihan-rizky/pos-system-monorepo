@@ -65,6 +65,14 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
           { key: "settings-info-store", label: "Tab Info Toko" },
           { key: "settings-rbac-tab", label: "Tab RBAC" },
           { key: "settings-whatsapp-tab", label: "Tab WhatsApp" },
+          { key: "settings-rounding-tab", label: "Tab Pembulatan Harga" },
+        ],
+      },
+      {
+        title: "Pembulatan Harga Jual",
+        targets: [
+          { key: "settings-rounding-rule", label: "Aturan dan Pratinjau Pembulatan" },
+          { key: "settings-rounding-save", label: "Simpan Pengaturan Pembulatan" },
         ],
       },
       {

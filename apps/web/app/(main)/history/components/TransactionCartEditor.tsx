@@ -3,9 +3,14 @@
 import { useState } from "react";
 import { Search, Plus, Minus, Trash2, Check } from "lucide-react";
 import { useProducts, type Product } from "@/hooks/useProducts";
+import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS, roundSellingPrice, type PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 import { formatRupiah } from "@/lib/utils";
 
 export type CartEditorItem = {
+  priceIntent?: "AUTOMATIC" | "MANUAL";
+  priceRounding?: PriceRoundingResult | null;
   sourceItemId?: string | null;
   serviceNote?: string | null;
   productId: string | null;
@@ -24,6 +29,8 @@ export type CartEditorItem = {
 };
 
 export type ApprovalPriceDetails = {
+  priceRounding?: PriceRoundingResult | null;
+  referencePriceRounding?: { regular: PriceRoundingResult | null; agent: PriceRoundingResult | null; government: PriceRoundingResult | null; special: PriceRoundingResult | null };
   name: string;
   unit?: string;
   modal: number | null;
@@ -46,6 +53,7 @@ export function TransactionCartEditor({
   readOnly?: boolean;
   priceDetails?: ApprovalPriceDetails[];
 }) {
+  const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
   const [search, setSearch] = useState("");
   const { data: products = [], isLoading } = useProducts(search, undefined, {
     limit: 5,
@@ -56,14 +64,17 @@ export function TransactionCartEditor({
     if (existingIndex >= 0) {
       handleUpdateQuantity(existingIndex, items[existingIndex].quantity + 1);
     } else {
+      const rounding = roundSellingPrice(Number(p.price), roundingSettings);
       const newItem: CartEditorItem = {
+        priceIntent: "AUTOMATIC",
+        priceRounding: rounding,
         productId: p.id,
         productName: p.name,
         quantity: 1,
-        unitPrice: Number(p.price),
+        unitPrice: rounding.roundedPrice,
         originalUnitPrice: Number(p.price),
-        appliedUnitPrice: Number(p.price),
-        subtotal: Number(p.price),
+        appliedUnitPrice: rounding.roundedPrice,
+        subtotal: rounding.roundedPrice,
       };
       onChange([...items, newItem]);
     }
@@ -110,7 +121,9 @@ export function TransactionCartEditor({
                 <div className="p-3 text-center text-sm text-surface-500">Mencari...</div>
               ) : products.length > 0 ? (
                 products.map((p) => (
+                  <div key={p.id}>
                   <button
+                    type="button"
                     key={p.id}
                     className="w-full text-left px-3 py-2 hover:bg-surface-50 flex items-center justify-between border-b border-surface-50 last:border-0 transition-colors"
                     onClick={() => handleAddProduct(p)}
@@ -120,9 +133,11 @@ export function TransactionCartEditor({
                       <div className="text-xs text-surface-500">{p.sku}</div>
                     </div>
                     <div className="text-sm font-semibold text-brand-600">
-                      {formatRupiah(p.price)}
+                      {formatRupiah(roundSellingPrice(Number(p.price), roundingSettings).roundedPrice)}
                     </div>
                   </button>
+                  <PriceRoundingBadge rounding={roundSellingPrice(Number(p.price), roundingSettings)} />
+                  </div>
                 ))
               ) : (
                 <div className="p-3 text-center text-sm text-surface-500">Produk tidak ditemukan</div>
@@ -151,6 +166,7 @@ export function TransactionCartEditor({
                   <div className="text-xs text-brand-600 font-medium mt-0.5">
                     {formatRupiah(priceDetails?.[index]?.appliedUnitPrice ?? item.appliedUnitPrice)}
                   </div>
+                  {!priceDetails?.[index] && <PriceRoundingBadge rounding={item.priceRounding} />}
                   <div className="text-[10px] text-surface-500 mt-0.5">
                     {item.quantity} {priceDetails?.[index]?.unit ?? item.unit ?? "pcs"}
                     {item.size ? ` • Ukuran: ${item.size.split(" = ")[0]}` : ""}
@@ -200,11 +216,11 @@ export function TransactionCartEditor({
               {priceDetails?.[index] && (
                 <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-surface-100 pt-2 text-[11px]">
                   <PriceFact label="Modal" value={priceDetails[index].modal} />
-                  <PriceFact label="Normal" value={priceDetails[index].regular} />
-                  <PriceFact label="Agen" value={priceDetails[index].agent} />
-                  <PriceFact label="Dinas" value={priceDetails[index].government} />
-                  <PriceFact label="Harga khusus" value={priceDetails[index].special} />
-                  <PriceFact label="Harga berlaku" value={priceDetails[index].appliedUnitPrice} />
+                  <PriceFact label="Normal" value={priceDetails[index].regular} rounding={priceDetails[index].referencePriceRounding?.regular} />
+                  <PriceFact label="Agen" value={priceDetails[index].agent} rounding={priceDetails[index].referencePriceRounding?.agent} />
+                  <PriceFact label="Dinas" value={priceDetails[index].government} rounding={priceDetails[index].referencePriceRounding?.government} />
+                  <PriceFact label="Harga khusus" value={priceDetails[index].special} rounding={priceDetails[index].referencePriceRounding?.special} />
+                  <PriceFact label="Harga berlaku" value={priceDetails[index].appliedUnitPrice} rounding={priceDetails[index].priceRounding} />
                 </div>
               )}
               <div className="mt-2 flex justify-between text-xs text-surface-500">
@@ -230,13 +246,16 @@ export function TransactionCartEditor({
   );
 }
 
-function PriceFact({ label, value }: { label: string; value: number | null }) {
+function PriceFact({ label, value, rounding }: { label: string; value: number | null; rounding?: PriceRoundingResult | null }) {
   return (
-    <div className="flex justify-between gap-2">
-      <span className="text-surface-500">{label}</span>
-      <span className="font-medium text-surface-700 tabular-nums">
-        {value == null ? "—" : formatRupiah(value)}
-      </span>
+    <div className="min-w-0">
+      <div className="flex flex-wrap justify-between gap-2">
+        <span className="text-surface-500">{label}</span>
+        <span className="font-medium text-surface-700 tabular-nums">
+          {value == null ? "—" : formatRupiah(value)}
+        </span>
+      </div>
+      <PriceRoundingBadge rounding={rounding} />
     </div>
   );
 }

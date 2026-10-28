@@ -1,5 +1,7 @@
 "use client";
 
+import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import { roundSellingPrice } from "@/features/product-price-rounding/rounding";
 import { ArrowRightLeft, Boxes, Info, Package, Plus, Tag } from "lucide-react";
 import type { StockGroupWorkspaceContentProps } from "./StockGroupWorkspace";
 import styles from "./StockGroupTree.module.css";
@@ -11,10 +13,10 @@ const currency = new Intl.NumberFormat("id-ID", {
 
 export function StockGroupTree({
   detail, canUpdateProducts, canCreateProducts, onActiveTabChange,
-  isSaving, unitActionsBlocked,
+  isSaving, unitActionsBlocked, roundingSettings,
 }: Pick<StockGroupWorkspaceContentProps,
   "detail" | "canUpdateProducts" | "canCreateProducts" | "onActiveTabChange" |
-  "isSaving" | "unitActionsBlocked"
+  "isSaving" | "unitActionsBlocked" | "roundingSettings"
 >) {
   const canManage = canUpdateProducts && onActiveTabChange;
   const conversionPairs = detail.conversionPairs?.filter((pair) =>
@@ -100,7 +102,8 @@ export function StockGroupTree({
                         </div>
                         <div className={styles.price}>
                           <span>Harga jual</span>
-                          <strong>{currency.format(variant.price)}</strong>
+                          <strong>{currency.format(roundSellingPrice(variant.price, roundingSettings).roundedPrice)}</strong>
+                          <PriceRoundingBadge rounding={roundSellingPrice(variant.price, roundingSettings)} />
                         </div>
                       </div>
                       {(variant.conversionNeedsReview || !valid) && (

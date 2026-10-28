@@ -21,9 +21,12 @@ import {
   type PricingFormState,
   type PricingFormErrors,
 } from "../helpers/pricing-form";
+import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import { roundSellingPrice, type PriceRoundingResult, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { formatRupiah } from "@/lib/utils";
 
 interface Props {
+  roundingSettings?: PriceRoundingSettings;
   initialRule?: CustomerCategoryPricingRule | null;
   onSave: (input: CustomerCategoryPricingRuleInput) => Promise<unknown>;
   onClose: () => void;
@@ -39,6 +42,7 @@ export function PricingRuleForm({
   onSave,
   onClose,
   isSaving,
+  roundingSettings,
 }: Props) {
   const [form, setForm] = useState<PricingFormState>(() => ({
     categoryId: initialRule?.categoryId ?? "",
@@ -401,7 +405,7 @@ export function PricingRuleForm({
               ? "HPP memakai satuan terkecil, tanpa dikalikan isi satuan. Contoh: Rp700/pcs + Rp4.000 = Rp4.700/rim. Untuk mengikuti HPP tiap kemasan, pilih HPP masing-masing satuan + persen − persen."
               : "Diskon dihitung dari harga normal produk."}
           </p>
-          {isFormula && <p className="mt-1 text-xs text-slate-600">Persentase tambahan dihitung dari HPP; tambahan 35% menghasilkan margin 25,93% jika potongan 0%.</p>}
+          {isFormula && <p className="mt-1 text-xs text-slate-600">Persentase tambahan dihitung dari HPP; tambahan 35% menghasilkan margin 25,93% jika potongan 0%, sebelum pembulatan harga jual.</p>}
         </div>
       </fieldset>
       <details className="rounded-xl border border-slate-200 p-3">
@@ -531,11 +535,16 @@ export function PricingRuleForm({
             {products.slice(0, 3).map((product) => {
               const preview = previewPricingForm(form, product);
               const invalid = Object.keys(validatePricingForm(form)).length > 0;
-              const showResult = !preview.missingBaseCost && !invalid;
+              let priceRounding: PriceRoundingResult | null = null;
+              if (!preview.missingBaseCost && !invalid) {
+                try { priceRounding = roundSellingPrice(preview.price, roundingSettings); } catch { /* Hide incomplete or out-of-range previews. */ }
+              }
+              const showResult = priceRounding !== null;
+              const effectivePrice = priceRounding?.roundedPrice ?? preview.price;
               const margin = calculateCustomPriceMargin({
                 costPrice: product.costPrice != null && Number.isFinite(product.costPrice) && product.costPrice >= 0 ? product.costPrice : null,
                 catalogPrice: product.price,
-                customPrice: preview.price,
+                customPrice: effectivePrice,
               });
               return (
                 <li key={product.id} className="py-2 text-sm">
@@ -546,10 +555,11 @@ export function PricingRuleForm({
                     {showResult && (
                       <span className={`font-bold ${margin.isBelowCost ? "text-red-700" : "text-emerald-800"}`}>
                         <span className="sr-only">Harga aturan </span>
-                        {formatRupiah(preview.price)}/{product.unit}
+                        {formatRupiah(effectivePrice)}/{product.unit}
                       </span>
                     )}
                   </div>
+                  {showResult && <PriceRoundingBadge rounding={priceRounding} />}
                   <p className="mt-1 text-xs text-slate-600">
                     {preview.missingBaseCost
                       ? isUnitFormula ? "Modal unit dipilih belum tersedia. Harga normal atau member akan digunakan." : "Modal unit terkecil belum tersedia. Harga normal atau member akan digunakan."
@@ -559,7 +569,7 @@ export function PricingRuleForm({
                           ? `Modal ${formatRupiah(product.costPrice ?? 0)}/${product.unit}`
                           : isFormula
                           ? `Modal ${formatRupiah(product.baseCostPrice ?? 0)}/${product.baseCostUnit}`
-                          : `Harga normal ${formatRupiah(product.price)}/${product.unit}`}
+                          : `Harga asal ${formatRupiah(product.price)}/${product.unit}`}
                   </p>
                   {showResult && (margin.hasCostPrice ? (
                     <>
@@ -574,7 +584,7 @@ export function PricingRuleForm({
                         </div>
                         <div>
                           <dt className="text-xs text-slate-600">Margin</dt>
-                          <dd className={`font-semibold tabular-nums ${margin.isBelowCost ? "text-red-700" : "text-emerald-800"}`}>{preview.price > 0 ? `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(margin.customMarginPercent!)}%` : "—"}</dd>
+                          <dd className={`font-semibold tabular-nums ${margin.isBelowCost ? "text-red-700" : "text-emerald-800"}`}>{effectivePrice > 0 ? `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(margin.customMarginPercent!)}%` : "—"}</dd>
                         </div>
                       </dl>
                       {margin.isBelowCost && <p className="mt-2 text-xs font-semibold text-red-700">Harga di bawah HPP satuan. Periksa sumber HPP dan rumus sebelum menyimpan.</p>}

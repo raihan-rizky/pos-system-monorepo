@@ -28,6 +28,9 @@ import {
   PricingPanel,
   AdditionPanel,
 } from "./WorkspacePanels";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS } from "@/features/product-price-rounding/rounding";
+import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
 import { GroupPricingPanel } from "./GroupPricingPanel";
 import { invalidatePricingQueries } from "../invalidate-pricing-queries";
 import { StockGroupHistory } from "./StockGroupHistory";
@@ -37,6 +40,7 @@ export type StockGroupSaveReason =
 type WorkspaceTab =
   "summary" | "unitManagement" | "pricing" | "newVariant" | "history";
 export interface StockGroupWorkspaceContentProps {
+  roundingSettings?: PriceRoundingSettings;
   onPricingApplied?: () => void | Promise<void>;
   onPricingDirtyChange?: (dirty: boolean) => void;
   onPricingBusyChange?: (busy: boolean) => void;
@@ -246,7 +250,7 @@ export function StockGroupWorkspaceContent(
           />
         )}
         {activeTab === "unitManagement" && <ConversionPanel {...props} isSaving={props.isSaving || !!props.unitActionsBlocked} />}
-        {props.detail.pricing ? <div hidden={activeTab !== "pricing"}><GroupPricingPanel detail={props.detail} canUpdate={!!props.canUpdateProducts && !props.isSaving} onApplied={props.onPricingApplied ?? (() => {})} onDirtyChange={props.onPricingDirtyChange} onBusyChange={props.onPricingBusyChange} /></div> : activeTab === "pricing" && <><p className="mb-3 text-sm text-amber-900">Data harga grup belum tersedia. Muat ulang data sebelum mengubah harga.</p><PricingPanel {...props} canUpdateProducts={false} /></>}
+        {props.detail.pricing ? <div hidden={activeTab !== "pricing"}><GroupPricingPanel roundingSettings={props.roundingSettings} detail={props.detail} canUpdate={!!props.canUpdateProducts && !props.isSaving} onApplied={props.onPricingApplied ?? (() => {})} onDirtyChange={props.onPricingDirtyChange} onBusyChange={props.onPricingBusyChange} /></div> : activeTab === "pricing" && <><p className="mb-3 text-sm text-amber-900">Data harga grup belum tersedia. Muat ulang data sebelum mengubah harga.</p><PricingPanel {...props} canUpdateProducts={false} /></>}
         {activeTab === "newVariant" && <AdditionPanel {...props} isSaving={props.isSaving || !!props.unitActionsBlocked} />}
         {activeTab === "history" && (
           <StockGroupHistory groupId={props.detail.id} />
@@ -385,6 +389,7 @@ function StockGroupWorkspaceDataFetcher({
   closeRequest: React.MutableRefObject<() => void>;
   dialog: React.RefObject<HTMLDialogElement | null>;
 }) {
+  const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
   const { data: detail } = useSuspenseStockGroupDetail(stockGroupId);
   const detailContext = useRef(detail);
   const queryClient = useQueryClient();
@@ -740,6 +745,7 @@ function StockGroupWorkspaceDataFetcher({
         </p>
       )}
       <StockGroupWorkspaceContent
+        roundingSettings={roundingSettings}
         detail={detail}
         onPricingDirtyChange={setPricingDirty}
         onPricingBusyChange={handlePricingBusyChange}

@@ -7,6 +7,13 @@ import type { ProductCartItem } from "@/hooks/useCart";
 let roleMock = "OWNER";
 const useServerClockMock = vi.hoisted(() => vi.fn());
 const pricingRulesMock = vi.hoisted(() => vi.fn<() => unknown[]>(() => []));
+const roundingQueryMock = vi.hoisted(() => vi.fn(() => ({
+  data: { enabled: true, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false,
+})));
+
+vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({
+  usePriceRoundingSettings: roundingQueryMock,
+}));
 
 vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({
   useServerClock: useServerClockMock,
@@ -84,12 +91,36 @@ describe("PaymentModal custom invoice date", () => {
   });
   beforeEach(() => {
     pricingRulesMock.mockReturnValue([]);
+    roundingQueryMock.mockReturnValue({ data: { enabled: true, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false });
     useServerClockMock.mockReturnValue({
       now: new Date("2026-10-05T20:24:41.000Z"),
       source: "TIMEAPI_IO",
       lastSyncedAt: Date.parse("2026-10-05T20:24:30.000Z"),
       isLoading: false,
     });
+  });
+
+  it("uses the saved disabled rounding setting in payment totals", () => {
+    roundingQueryMock.mockReturnValue({ data: { enabled: false, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false });
+    const item: ProductCartItem = { cartLineId: "rounding", lineType: "PRODUCT", productId: "paper", name: "Contoh pembulatan", price: 4049, catalogPrice: 4049, quantity: 1, unit: "pcs", stock: 10, categoryId: "paper", categoryName: "Kertas" };
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[item]} subtotal={4049} onConfirm={vi.fn()} />);
+    expect(html).toContain("4.049");
+    expect(html).not.toContain("4.000");
+  });
+
+  it("shows an inline error instead of crashing for an excessive transaction price", () => {
+    const item: ProductCartItem = { cartLineId: "too-large", lineType: "PRODUCT", productId: "paper", name: "Contoh pembulatan", price: 4000, catalogPrice: 4000, transactionPrice: 10000000000, quantity: 1, unit: "pcs", stock: 10, categoryId: "paper", categoryName: "Kertas" };
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[item]} subtotal={4000} onConfirm={vi.fn()} />);
+    expect(html).toContain("kapasitas");
+    expect(html).toContain('role="alert"');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Konfirmasi Bayar/);
+  });
+
+  it("explains that payment waits for the saved rounding settings", () => {
+    roundingQueryMock.mockReturnValue({ data: { enabled: true, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: true });
+    const item: ProductCartItem = { cartLineId: "rounding", lineType: "PRODUCT", productId: "paper", name: "Contoh pembulatan", price: 4050, catalogPrice: 4050, quantity: 1, unit: "pcs", stock: 10, categoryId: "paper", categoryName: "Kertas" };
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[item]} subtotal={4050} onConfirm={vi.fn()} />);
+    expect(html).toContain("Memuat pengaturan pembulatan harga");
   });
 
   it("offers Tempo/Tagihan as a separate payment term", () => {

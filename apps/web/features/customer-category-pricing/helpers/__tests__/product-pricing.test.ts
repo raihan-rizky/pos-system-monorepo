@@ -16,9 +16,10 @@ const rules = [{ id: "special", categoryId: "paper", customerType: "ALL" as cons
 describe("catalog price projection", () => {
   it("prices each unit using its own scope while retaining the original catalog price", () => {
     const projected = priceCatalogProductForCustomer({ ...product, brandId: "a" }, "UMUM", rules.map(r => ({ ...r, customerTypes: [...r.customerTypes] })));
-    expect(projected.displayPrice).toBe(4700);
+    expect(projected.displayPrice).toBe(5000);
+    expect(projected.priceRounding?.originalPrice).toBe(4700);
     expect(projected.price).toBe(10000);
-    expect(projected.variants?.[0].displayPrice).toBe(4700);
+    expect(projected.variants?.[0].displayPrice).toBe(5000);
     expect(projected.variants?.[1].displayPrice).toBe(1000);
   });
   it("does not use another variant's brand or modal for a chosen variant", () => {

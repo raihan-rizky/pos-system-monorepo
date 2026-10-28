@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: vi.fn().mockResolvedValue({ enabled: false, increment: 500, threshold: 50 }) }));
 import { POST } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
@@ -46,6 +47,39 @@ describe("GET /api/transactions/[id]/approval-quote", () => {
       total: 0,
       fingerprint: "quote-fingerprint",
     });
+  });
+
+  it.each([
+    { priceIntent: "AUTOMATIC", expected: 4049 },
+    { priceIntent: "MANUAL", expected: 4000 },
+    { priceIntent: undefined, expected: 4000 },
+  ] as const)("keeps $priceIntent intent through the quote API and returns current selling totals", async ({ priceIntent, expected }) => {
+    const { buildApprovalQuote } = await vi.importActual<typeof import("@/features/transactions-draft/services/approval-quote")>("@/features/transactions-draft/services/approval-quote");
+    const client = {
+      transaction: { findFirst: vi.fn().mockResolvedValue({ id: "tx-1", storeId: "store-main", status: "DRAFT", customerId: "customer-1", customer: { type: "INDUSTRI" }, discount: 0, tax: 0, items: [] }) },
+      product: { findMany: vi.fn().mockResolvedValue([{ id: "paper", name: "Kertas", price: 4049, costPrice: 1000, hargaAgen: null, hargaDinas: null, unit: "pcs", categoryId: "paper-category", category: { name: "Kertas" }, brandId: null, brand: null }]) },
+      printingService: { findMany: vi.fn().mockResolvedValue([]) },
+      categoryCustomerPricingRule: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+    buildApprovalQuoteMock.mockImplementation((_tx, input) => buildApprovalQuote(client as never, input));
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approval-quote", { method: "POST", body: JSON.stringify({ type: "draft",
+      items: [{ productId: "paper", quantity: 2, submittedPrice: 4000, priceIntent }],
+    }) }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    const quote = await response.json();
+    expect(quote).toMatchObject({ subtotal: expected * 2, total: expected * 2 });
+    expect(quote.items[0].appliedUnitPrice).toBe(expected);
+    expect(quote.items[0].input.priceIntent).toBe(priceIntent);
+    expect(quote.items[0]).not.toHaveProperty("unitCost");
+  });
+
+  it("rejects unknown price intent before writing approval data", async () => {
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approval-quote", { method: "POST", body: JSON.stringify({
+      type: "draft", paymentMethod: "CASH", amountPaid: 10000, quoteFingerprint: "fresh-quote",
+      items: [{ productId: "paper", quantity: 1, submittedPrice: 4000, priceIntent: "INVALID" }],
+    }) }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(422);
+    expect(buildApprovalQuoteMock).not.toHaveBeenCalled();
   });
 
   it("requires draft approval permission and does not expose modal cost by default", async () => {

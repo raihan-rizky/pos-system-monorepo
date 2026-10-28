@@ -4,6 +4,8 @@ import { useId } from "react";
 import { Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import { SpecialPriceBadge } from "./SpecialPriceBadge";
+import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 
 interface MemberPriceFieldProps {
   label: "Harga Agen" | "Harga Dinas";
@@ -11,9 +13,10 @@ interface MemberPriceFieldProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  roundingSettings?: PriceRoundingSettings;
 }
 
-export function MemberPriceField({ label, sellingPrice, value, onChange, disabled }: MemberPriceFieldProps) {
+export function MemberPriceField({ label, sellingPrice, value, onChange, disabled, roundingSettings }: MemberPriceFieldProps) {
   const id = useId();
   const isOverride = value.trim() !== "";
   const price = Number.isFinite(sellingPrice) ? sellingPrice : 0;
@@ -42,9 +45,11 @@ export function MemberPriceField({ label, sellingPrice, value, onChange, disable
             <span className="font-semibold text-emerald-800">Harga khusus · diatur manual</span>
           </>
         ) : (
-          <span className="text-surface-600">Mengikuti harga jual · {formatRupiah(price)}</span>
+          <span className="text-surface-600">Mengikuti harga jual asal · {formatRupiah(price)}</span>
         )}
       </div>
+      {isOverride && <p className="text-xs text-surface-500">Harga asal sebelum pembulatan.</p>}
+      <PriceRoundingPreview price={isOverride ? value : price} settings={roundingSettings} />
       {isOverride && (
         <button
           type="button"

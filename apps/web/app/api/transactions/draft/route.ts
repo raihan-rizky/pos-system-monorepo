@@ -1,3 +1,5 @@
+import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
+import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
@@ -273,6 +275,7 @@ export async function POST(request: Request) {
       updatedAt: rule.updatedAt,
     })) satisfies CategoryPricingRule[];
 
+    const roundingSettings = await getPriceRoundingSettings();
     const serverItems = items.map((item) => {
       const product = productById.get(item.productId);
       if (!product) throw new Error("PRODUCT_NOT_FOUND");
@@ -295,13 +298,11 @@ export async function POST(request: Request) {
         pricingRules,
         pricingPreference,
       );
-      const price = item.transactionPrice ?? automaticPrice.unitPrice;
-      const appliedPricing = automaticPrice?.appliedPricing
-        ? {
-            ...automaticPrice.appliedPricing,
-            appliedUnitPrice: price,
-          }
-        : null;
+      const rounded = roundSellingPriceLine({ ...automaticPrice,
+        unitPrice: item.transactionPrice ?? automaticPrice.unitPrice,
+      }, roundingSettings);
+      const price = rounded.unitPrice;
+      const appliedPricing = rounded.appliedPricing;
 
       return {
         productId: product.id,

@@ -36,6 +36,9 @@ import { toJakartaInputParts } from "@/features/invoice-date/helpers/server-cloc
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
+import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
+import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
 
 
 
@@ -49,6 +52,7 @@ interface PaymentModalProps {
   items: CartItem[];
   subtotal: number;
   onConfirm: (data: {
+    priceRoundingSettings?: PriceRoundingSettings;
     paymentMethod: string;
     amountPaid: number;
     discount: number;
@@ -200,12 +204,17 @@ export function PaymentModal({
     selectedCustomerType,
   );
   const currentCatalogItems = useCartCatalogPrices(items, open);
+  const roundingQuery = usePriceRoundingSettings();
+  const roundingSettings = roundingQuery.data ?? DEFAULT_PRICE_ROUNDING_SETTINGS;
+  const canUseRoundingPolicy = !items.some(item => item.lineType === "PRODUCT") ||
+    Boolean(roundingQuery.data && !roundingQuery.isPlaceholderData);
   const basePricedItems = priceCartItemsForCheckout({
     items: currentCatalogItems,
     customerType: selectedCustomerType,
     pricingRules: pricingRulesQuery.data ?? [],
     manualPrices,
     role,
+    roundingSettings,
   });
   const pricedItems = applyCartItemDiscounts(basePricedItems, itemDiscounts);
   const grossSubtotal = pricedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -290,7 +299,8 @@ export function PaymentModal({
   const hasCheckoutCustomer =
     customerSelection.kind === "existing" ||
     (customerSelection.kind === "new" && Boolean(customerSelection.name.trim()));
-  const canPay = pricedItems.length > 0 && !invalidTax && !itemDiscountEditor && canSubmitPayment({
+  const hasInvalidSellingPrice = pricedItems.some(item => item.lineType === "PRODUCT" && item.priceError);
+  const canPay = canUseRoundingPolicy && !hasInvalidSellingPrice && pricedItems.length > 0 && !invalidTax && !itemDiscountEditor && canSubmitPayment({
     mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
     amountPaid,
     total,
@@ -327,6 +337,7 @@ export function PaymentModal({
       : {};
 
     onConfirm({
+      priceRoundingSettings: roundingSettings,
       ...buildPaymentSubmission({
         mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
         selectedPaymentMethods,
@@ -347,7 +358,7 @@ export function PaymentModal({
   };
 
   const handleSaveDraft = async () => {
-    if (!onSaveDraft || itemDiscountEditor) return;
+    if (!onSaveDraft || !canSaveDraft) return;
     const selectedSales = salespersons.find((s) => s.id === salespersonId);
     const customer = await resolveCustomerForSubmit();
     if (!customer) return;
@@ -375,6 +386,8 @@ export function PaymentModal({
   };
 
   const canSaveDraft =
+    canUseRoundingPolicy &&
+    !hasInvalidSellingPrice &&
     !itemDiscountEditor &&
     pricedItems.length > 0 &&
     total >= 0 &&
@@ -410,6 +423,11 @@ export function PaymentModal({
   return (
     <Modal open={open} onClose={onClose} title="Pembayaran" size="lg">
       <div className="space-y-5 px-1 py-1">
+        {!canUseRoundingPolicy && (
+          <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {roundingQuery.isError ? "Pengaturan pembulatan harga gagal dimuat. Muat ulang sebelum melanjutkan pembayaran." : "Memuat pengaturan pembulatan harga sebelum pembayaran…"}
+          </div>
+        )}
         {/* Order Summary */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-semibold text-surface-700">Ringkasan item</span>
@@ -439,6 +457,7 @@ export function PaymentModal({
           )}
           {pricedItems.map((item) => (
             <div key={item.cartLineId} className="rounded-lg bg-white/50 p-2 text-sm">
+              {item.lineType === "PRODUCT" && item.priceError && <p role="alert" className="mb-2 text-sm text-danger-700">{item.priceError}</p>}
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 text-surface-600">
                   {allowItemDiscounts && <input type="checkbox" checked={selectedDiscountItems.includes(item.cartLineId)}
@@ -450,6 +469,7 @@ export function PaymentModal({
                   <span className="break-words">{item.name} &times; {item.quantity}</span>
                 </label>
                 <div className="flex items-center gap-2">
+                  {item.lineType === "PRODUCT" && <PriceRoundingBadge rounding={item.priceRounding} />}
                   <span className={`font-medium ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-surface-900"}`}>
                     {formatRupiah(discountedLineSubtotal(item.price, item.quantity, item.discount))}
                   </span>

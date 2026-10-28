@@ -1519,6 +1519,9 @@ model StoreSettings {
   phone     String   @default("")
   logoUrl   String?
   shiftEnabled Boolean @default(true)
+  priceRoundingEnabled Boolean @default(true)
+  priceRoundingIncrement Int @default(500)
+  priceRoundingThreshold Int @default(50)
   updatedAt DateTime @updatedAt
 }
 

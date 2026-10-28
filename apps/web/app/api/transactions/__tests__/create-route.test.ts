@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const roundingSettingsMock = vi.hoisted(() => vi.fn());
+vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: roundingSettingsMock }));
 import { POST } from "../route";
 
 const afterMock = vi.hoisted(() => vi.fn());
@@ -95,6 +97,85 @@ describe("POST /api/transactions negative stock", () => {
     expect(response.status).toBe(201);
     expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal, total: subtotal,
       items: { create: [expect.objectContaining({ unitPrice: 1000, discount, subtotal })] },
+    });
+  });
+
+  it("accepts a matching policy snapshot and stores the effective automatic selling price", async () => {
+    const settings = { enabled: true, increment: 500, threshold: 50 };
+    roundingSettingsMock.mockResolvedValue(settings);
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, price: 4049 }]);
+    customerFindFirstMock.mockResolvedValue({ id: "customer-rounding", type: "INDUSTRI" });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      customerId: "customer-rounding", paymentMethod: "CASH", amountPaid: 10000, priceRoundingSettings: settings,
+      items: [{ productId: "p1", price: 4000, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 4000, total: 4000,
+      items: { create: [expect.objectContaining({ unitPrice: 4000, appliedUnitPrice: 4000, originalUnitPrice: 4049 })] },
+    });
+  });
+
+  it.each(["INDUSTRI", "PEMERINTAH"])("rejects an old rounded automatic price after policy changed for %s", async customerType => {
+    roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, price: 4049 }]);
+    customerFindFirstMock.mockResolvedValue({ id: "customer-rounding", type: customerType });
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      customerId: "customer-rounding", paymentMethod: "CASH", amountPaid: 10000,
+      priceRoundingSettings: { enabled: true, increment: 500, threshold: 50 },
+      items: [{ productId: "p1", price: 4000, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ message: "Pengaturan pembulatan harga sudah berubah. Muat ulang harga sebelum melanjutkan transaksi." });
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it.each([{ enabled: true, increment: 1000, threshold: 50 }, { enabled: true, increment: 500, threshold: 100 }])("rejects a stale policy snapshot when its values change %j", async currentSettings => {
+    roundingSettingsMock.mockResolvedValue(currentSettings);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 10000,
+      priceRoundingSettings: { enabled: true, increment: 500, threshold: 50 },
+      items: [{ productId: "p1", quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(409);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { enabled: true, increment: 500, threshold: 501 },
+    { enabled: true, increment: 0, threshold: 0 },
+    { enabled: "true", increment: 500, threshold: 50 },
+    { enabled: true, increment: 500.5, threshold: 50 },
+  ])("validates the optional policy snapshot %j", async priceRoundingSettings => {
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 10000, priceRoundingSettings, items: [{ productId: "p1", quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { enabled: true, custom: undefined, expected: 4000 },
+    { enabled: true, custom: 4050, expected: 4500 },
+    { enabled: false, custom: 4050, expected: 4050 },
+  ])("stores final rounded prices with policy $enabled and custom $custom", async ({ enabled, custom, expected }) => {
+    roundingSettingsMock.mockResolvedValue({ enabled, increment: 500, threshold: 50 });
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, price: 4049 }]);
+    requireRoleMock.mockResolvedValue({ id: "u1", role: "OWNER", storeId: "store-1", name: "Owner" });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    customerFindFirstMock.mockResolvedValue({ id: "c-round", type: "INDUSTRI" });
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      customerId: "c-round", paymentMethod: "CASH", amountPaid: 20000,
+      items: [{ productId: "p1", name: "Kertas", price: custom ?? 4049, transactionPrice: custom, quantity: 2, discount: 100 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: expected * 2 - 100, total: expected * 2 - 100,
+      items: { create: [expect.objectContaining({ unitPrice: expected, appliedUnitPrice: expected, subtotal: expected * 2 - 100, discount: 100 })] },
     });
   });
 
@@ -229,6 +310,7 @@ describe("POST /api/transactions negative stock", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
     invoiceNowMock.mockImplementation(async () => new Date());
     afterMock.mockImplementation((cb: any) => cb());
     requireRoleMock.mockResolvedValue({

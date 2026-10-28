@@ -7,10 +7,13 @@ import { buildProductFormPayload } from "@/lib/product-form/product-form-payload
 import { getProductUnitBadges, newUnitPrimaryPreview, validateUnitDrafts, type UnitVariantDraft } from "@/lib/product-form/product-unit-variants";
 import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
 import { ProductUnitFields, UnitSizeBadge } from "./ProductUnitFields";
+import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { MemberPriceField } from "@/features/customer-category-pricing/components/MemberPriceField";
 import { MemberPricingGuidance } from "@/features/customer-category-pricing/components/MemberPricingGuidance";
 
 interface ProductFormModalProps {
+  roundingSettings?: PriceRoundingSettings;
   isOpen: boolean;
   onClose: () => void;
   productId: string | null;
@@ -18,7 +21,7 @@ interface ProductFormModalProps {
   initialData?: Product | null;
 }
 
-export default function ProductFormModal({ isOpen, onClose, productId, categories, initialData }: ProductFormModalProps) {
+export default function ProductFormModal({ isOpen, onClose, productId, categories, initialData, roundingSettings }: ProductFormModalProps) {
   const initializedProduct = useRef<string | null>(null);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -309,8 +312,12 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
               required
             />
           )}
+          <div className="text-xs text-surface-500">Harga master asal sebelum pembulatan.
+            <PriceRoundingPreview price={regularPrice} settings={roundingSettings} />
+          </div>
           <div className="space-y-1">
             <MemberPriceField
+              roundingSettings={roundingSettings}
               label="Harga Dinas"
               sellingPrice={regularPrice}
               value={formData.hargaDinas}
@@ -325,6 +332,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
           </div>
           <div className="space-y-1">
             <MemberPriceField
+              roundingSettings={roundingSettings}
               label="Harga Agen"
               sellingPrice={regularPrice}
               value={formData.hargaAgen}
@@ -379,6 +387,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         {primaryPricing && <p className="text-sm text-slate-700">Harga dan HPP unit utama mengikuti sumber {primaryPricing.sourceUnit}. Ubah nilai sumber pada unit terkecil di bawah.</p>}
         {!productId && <ProductUnitFields
+          roundingSettings={roundingSettings}
           primary={formData} rows={formData.additionalUnits} errors={unitErrors} disabled={isProcessing}
           onChange={(additionalUnits) => setFormData((current) => ({ ...current, additionalUnits }))}
         />}

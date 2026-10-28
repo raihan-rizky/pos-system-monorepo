@@ -15,6 +15,9 @@ vi.mock("@/hooks/useCustomers", () => ({useCreateCustomer: () => ({isPending:fal
 vi.mock("@/components/providers/RoleProvider", () => ({useRole:()=>roleState}));
 vi.mock("@/hooks/useSalespersons", () => ({useSalespersons:()=>({data:[]})}));
 vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({useCustomerCategoryPricingRules:()=>({data:[]})}));
+vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({
+  usePriceRoundingSettings: () => ({ data: { enabled: true, increment: 500, threshold: 50 } }),
+}));
 vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({CustomerCheckoutSelect:()=>null}));
 vi.mock("@/features/pos-checkout/hooks/useCartCatalogPrices", () => ({useCartCatalogPrices:(items:unknown)=>items}));
 vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({useServerClock:()=>({now:new Date("2026-10-20T03:00:00Z"),isLoading:false,source:"SERVER_FALLBACK",lastSyncedAt:null})}));

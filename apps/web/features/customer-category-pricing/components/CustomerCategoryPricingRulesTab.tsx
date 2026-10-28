@@ -14,9 +14,10 @@ import {
   CUSTOMER_TARGET_LABELS,
   pricingFormRuleLabel,
 } from "../helpers/pricing-form";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { PricingRuleForm } from "./PricingRuleForm";
 
-export function CustomerCategoryPricingRulesTab() {
+export function CustomerCategoryPricingRulesTab({ roundingSettings }: { roundingSettings?: PriceRoundingSettings } = {}) {
   const [editor, setEditor] = useState<{
     rule: CustomerCategoryPricingRule | null;
   } | null>(null);
@@ -193,6 +194,7 @@ export function CustomerCategoryPricingRulesTab() {
       >
         {editor && (
           <PricingRuleForm
+            roundingSettings={roundingSettings}
             key={editor.rule?.id ?? "new"}
             initialRule={editor.rule}
             onSave={save}

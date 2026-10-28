@@ -1,5 +1,6 @@
 "use client";
 
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { useEffect, useRef, useState } from "react";
 import { fetchStockGroupDetail, requestGroupPricing, StockGroupMutationError, type StockGroupDetail } from "../api/stock-group-api";
 import type { GroupPricingChanges, GroupPricingPreview } from "../group-pricing-service";
@@ -7,8 +8,8 @@ import { adjustmentFactor, createPricingDraft, pricingChanges, selectPricingSour
 import { PricingFollower, PricingLedger, PricingMoneyFields, PricingReviewNotes } from "./GroupPricingFields";
 import styles from "./GroupPricingPanel.module.css";
 
-export function GroupPricingPanel({ detail: incoming, canUpdate, onApplied, onDirtyChange, onBusyChange }: {
-  detail: StockGroupDetail; canUpdate: boolean; onApplied: () => void | Promise<void>;
+export function GroupPricingPanel({ detail: incoming, canUpdate, onApplied, onDirtyChange, onBusyChange, roundingSettings }: {
+  roundingSettings?: PriceRoundingSettings; detail: StockGroupDetail; canUpdate: boolean; onApplied: () => void | Promise<void>;
   onDirtyChange?: (dirty: boolean) => void; onBusyChange?: (busy: boolean) => void;
 }) {
   const [detail, setDetail] = useState(incoming);
@@ -105,7 +106,7 @@ export function GroupPricingPanel({ detail: incoming, canUpdate, onApplied, onDi
           {!sourceValid && <p className={styles.review}>Pilih sumber aktif dengan konversi yang valid untuk memperbaiki harga otomatis.</p>}
           {sourceDraft && <fieldset className={styles.sourceMoney} disabled={!sourceValid}>
             <legend className={styles.srOnly}>{label(draft.sourceProductId)} · Sumber</legend>
-            <PricingMoneyFields unit={sourceMeta?.unit ?? "sumber"} value={sourceDraft} onChange={next => update(draft.sourceProductId, next)} />
+            <PricingMoneyFields roundingSettings={roundingSettings} unit={sourceMeta?.unit ?? "sumber"} value={sourceDraft} onChange={next => update(draft.sourceProductId, next)} />
           </fieldset>}
           <p className={styles.sourceHint}>HPP boleh dikosongkan jika belum diketahui.</p>
           {sourceMember && <PricingReviewNotes review={sourceMember.review} />}
@@ -119,11 +120,11 @@ export function GroupPricingPanel({ detail: incoming, canUpdate, onApplied, onDi
             let factor = freshPreview?.after.config.members[member.productId]?.factor ?? detail.pricing!.config.members[member.productId]?.factor;
             if (value.adjustmentEdited) { try { factor = adjustmentFactor(value.adjustment, value.percent); } catch { factor = null; } }
             else if (preserveSelling) factor = freshPreview?.after.config.members[member.productId]?.factor ?? null;
-            return <PricingFollower key={member.productId} meta={meta} source={sourceMeta} member={member} projected={freshPreview?.after.members.find(item => item.productId === member.productId)} value={value} factor={factor} preserveSelling={preserveSelling} disabled={disabled} onChange={next => update(member.productId, next)} />;
+            return <PricingFollower roundingSettings={roundingSettings} key={member.productId} meta={meta} source={sourceMeta} member={member} projected={freshPreview?.after.members.find(item => item.productId === member.productId)} value={value} factor={factor} preserveSelling={preserveSelling} disabled={disabled} onChange={next => update(member.productId, next)} />;
           })}
         </div>
       </div>
-      {detail.pricing && <PricingLedger current={freshPreview?.before ?? detail.pricing} after={freshPreview?.after} metadata={metadata} pending={busy === "preview"} />}
+      {detail.pricing && <PricingLedger roundingSettings={roundingSettings} current={freshPreview?.before ?? detail.pricing} after={freshPreview?.after} metadata={metadata} pending={busy === "preview"} />}
     </div>
     <footer className={styles.actions}>
       <div className={styles.actionStatus} aria-live="polite"><strong>{freshPreview ? "Siap diterapkan" : "Periksa sebelum menyimpan"}</strong><p>{error || message || (freshPreview ? "Hasil pratinjau sesuai dengan pengaturan terbaru." : dirty ? "Draf berubah. Buat pratinjau baru untuk melihat hasilnya." : "Pratinjau dulu, lalu terapkan harga satu grup.")}</p></div>

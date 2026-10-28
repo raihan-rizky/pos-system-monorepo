@@ -12,8 +12,11 @@ import { CartStockWarningDialog } from "@/features/pos-checkout/components/CartS
 import styles from "./CartSidebar.module.css";
 import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
+import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import { roundSellingPrice, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 
 interface CartSidebarProps {
+  roundingSettings?: PriceRoundingSettings;
   items: CartItem[];
   subtotal: number;
   totalItems: number;
@@ -45,6 +48,7 @@ export function CartSidebar({
   canQuickEdit = false,
   onEditProduct,
   onEditPrice,
+  roundingSettings,
 }: CartSidebarProps) {
   const isQuotationMode = checkoutMode === "quotation";
   const [invalidQuantityLines, setInvalidQuantityLines] = useState<Set<string>>(
@@ -213,18 +217,19 @@ export function CartSidebar({
                       <span className="ml-1">Hanya berlaku untuk transaksi ini</span>
                     </div>
                   )}
+                  {item.lineType === "PRODUCT" && <PriceRoundingBadge rounding={item.priceRounding} />}
                   {item.lineType === "PRODUCT" && (
                     <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-surface-600">
                       <div>
                         <dt className="font-semibold">Normal</dt>
-                        <dd>{formatRupiah(item.catalogPrice)}</dd>
+                        <dd>{formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}</dd>
                       </div>
                       <div>
                         <dt className="font-semibold">Agen</dt>
                         <dd className={item.hargaAgen != null && item.hargaAgen > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaAgen != null && item.hargaAgen > 0
-                            ? formatRupiah(item.hargaAgen)
-                            : formatRupiah(item.catalogPrice)}
+                            ? formatRupiah(roundSellingPrice(item.hargaAgen, roundingSettings).roundedPrice)
+                            : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}
                           {item.hargaAgen != null && item.hargaAgen > 0 ? <SpecialPriceBadge className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">Mengikuti harga jual</span>}
                         </dd>
                       </div>
@@ -232,8 +237,8 @@ export function CartSidebar({
                         <dt className="font-semibold">Dinas</dt>
                         <dd className={item.hargaDinas != null && item.hargaDinas > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaDinas != null && item.hargaDinas > 0
-                            ? formatRupiah(item.hargaDinas)
-                            : formatRupiah(item.catalogPrice)}
+                            ? formatRupiah(roundSellingPrice(item.hargaDinas, roundingSettings).roundedPrice)
+                            : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}
                           {item.hargaDinas != null && item.hargaDinas > 0 ? <SpecialPriceBadge className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">Mengikuti harga jual</span>}
                         </dd>
                       </div>

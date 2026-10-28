@@ -61,6 +61,7 @@ function toApprovalCartItem(item: Transaction["items"][number]): CartEditorItem 
 
 function quoteItemsFromCart(items: CartEditorItem[]) {
   return items.map((item) => ({
+    ...(item.priceIntent ? { priceIntent: item.priceIntent } : {}),
     sourceItemId: item.sourceItemId ?? null,
     serviceNote: item.serviceNote ?? null,
     productId: item.productId,

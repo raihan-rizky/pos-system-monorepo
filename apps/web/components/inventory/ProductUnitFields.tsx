@@ -1,4 +1,6 @@
 import { Input } from "@pos/ui";
+import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import {
   createUnitVariantDraft, getProductUnitBadges, relativeUnitQuantity,
   resolveUnitVariantValues, normalizeProductUnitGroup,
@@ -22,9 +24,10 @@ interface Props {
   onChange: (rows: UnitVariantDraft[]) => void;
   errors: Record<string, string>;
   disabled?: boolean;
+  roundingSettings?: PriceRoundingSettings;
 }
 
-export function ProductUnitFields({ primary, rows, onChange, errors, disabled }: Props) {
+export function ProductUnitFields({ primary, rows, onChange, errors, disabled, roundingSettings }: Props) {
   const badges = getProductUnitBadges(rows);
   let stockSummary: { unit: string; quantity: number }[] = [];
   if (rows.length) {
@@ -82,6 +85,8 @@ export function ProductUnitFields({ primary, rows, onChange, errors, disabled }:
             <div>
               <Input id={`${row.id}-price`} label="Harga jual" type="number" min="0" step="any" inputMode="decimal" value={values.price} readOnly={automatic} {...accessibility} onChange={(event) => update({ price: event.target.value, priceEdited: true, ...(isSource ? { pricingMode: "MANUAL" as const } : {}) })} />
               <p className="mt-1 text-xs text-surface-600">{automatic ? "Harga otomatis = sumber × konversi × faktor penyesuaian." : "Isi harga jual satuan ini."}</p>
+              <p className="text-xs text-surface-500">Harga asal sebelum pembulatan.</p>
+              <PriceRoundingPreview price={values.price} settings={roundingSettings} />
             </div>
           </div>
         </details>

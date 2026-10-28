@@ -21,6 +21,10 @@ vi.mock("@/hooks/useProducts", () => ({
   useProducts: () => ({ data: [], isLoading: false }),
 }));
 
+vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({
+  usePriceRoundingSettings: () => ({ data: { enabled: true, increment: 500, threshold: 50 } }),
+}));
+
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));

@@ -7,6 +7,12 @@ import {
 } from "../rbac-core";
 
 describe("RBAC settings UI helpers", () => {
+  it("exposes price rounding delegation with its own Indonesian label", async () => {
+    const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
+    expect(RBAC_PERMISSION_MODULES.find((module) => module.id === "price-rounding")).toMatchObject({
+      label: "Pembulatan Harga", resourceTargets: ["settings.price_rounding"], sensitivity: "critical",
+    });
+  });
   it("exposes Surat Jalan auto approval as a dedicated critical permission", async () => {
     const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
 

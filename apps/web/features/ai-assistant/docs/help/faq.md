@@ -374,3 +374,15 @@ Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yan
 2. Koreksi nama pelanggan, tanggal, catatan, item, harga, atau hubungan bahan. Perubahan **tidak tersimpan otomatis**. Nomor nota dan pelanggan terdaftar tetap; riwayat pembayaran tidak dihapus. Total baru tidak boleh lebih kecil daripada pembayaran bersih yang sudah diterima, yaitu pembayaran setelah dikurangi kembalian. Jika keluar sebelum menyimpan, konfirmasikan pembuangan perubahan.
 3. Klik **Tinjau perubahan**. Bandingkan total, pembayaran, piutang, status, dan pemakaian bahan **sebelum** serta **sesudah**. Kembali ke penyuntingan bila masih perlu diperbaiki.
 4. Klik **Simpan dan perbarui transaksi**. Nota, transaksi, penyesuaian stok bahan beserta jurnalnya, piutang, dan status diperbarui bersama. Nota **menunggu persetujuan** tetap pending; stok dan piutang baru diterapkan setelah disetujui. Jika penyimpanan gagal, periksa pesan lalu tinjau ulang sebelum mencoba lagi.
+
+---
+
+### Q43: Bagaimana cara mengatur pembulatan harga jual?
+
+**A:** Buka **Pengaturan > Pembulatan Harga**. Default izin pengelolaan hanya Owner; melalui RBAC, Owner dapat memberi izin **Lihat** atau **Ubah** pada `settings.price_rounding` kepada role lain yang memiliki akses halaman Pengaturan.
+
+1. Atur saklar aktif, **Kelipatan** dan **Ambang naik**. Default kelipatan Rp500 dengan ambang Rp50: Rp4.049 menjadi Rp4.000, Rp4.050 menjadi Rp4.500, Rp4.500 tetap, Rp4.549 menjadi Rp4.500, dan Rp4.550 menjadi Rp5.000. Ambang dihitung dari sisa terhadap kelipatan bawah; kelipatan dan ambang dapat disesuaikan.
+2. Periksa **Pratinjau langsung**, lalu klik **Simpan pengaturan**. Aturan berlaku pada hasil akhir harga jual normal, member, khusus, dan tiap satuan/varian, setelah rumus harga selesai. Harga asal tetap disimpan sehingga perubahan atau penonaktifan aturan dapat dihitung kembali secara akurat. HPP, diskon baris/total, pajak, dan jasa percetakan tidak dibulatkan oleh aturan ini.
+3. Buka **Produk** atau **Kasir**, lalu pilih badge **Dibulatkan ke atas** atau **Dibulatkan ke bawah** untuk melihat harga asal, harga final, dan selisih. Badge mendukung sentuhan, klik, serta keyboard; harga yang tidak berubah tidak memiliki badge. Transaksi final terdahulu tetap memakai harga yang tersimpan saat transaksi dilakukan.
+
+Kebijakan terakhir yang berhasil dimuat disimpan untuk tampilan offline. Jika kebijakan belum pernah dimuat, pembayaran produk menunggu pengaturan tersedia. Saat sinkronisasi, server memeriksa ulang harga memakai kebijakan yang berlaku dan mengikuti mekanisme penyesuaian/approval yang sudah ada.

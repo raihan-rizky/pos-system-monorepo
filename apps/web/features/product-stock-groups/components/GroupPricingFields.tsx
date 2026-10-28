@@ -1,3 +1,6 @@
+import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
+import { roundSellingPrice, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import type { StockGroupDetail } from "../api/stock-group-api";
 import type { ExactRatio, GroupPricingMemberProjection, GroupPricingProjection, PricingReview } from "../automatic-pricing";
 import type { PricingMemberDraft } from "../pricing-drafts";
@@ -19,20 +22,20 @@ export function PricingReviewNotes({ review }: { review: PricingReview }) {
     <p key={field} className={styles.review}>{field === "price" ? "Harga jual" : "HPP"}: {review[field].map(reason => reasons[reason]).join(" ")}</p>)}</>;
 }
 
-export function PricingMoneyFields({ unit, value, onChange }: {
-  unit: string; value: PricingMemberDraft; onChange: (next: Partial<PricingMemberDraft>) => void;
+export function PricingMoneyFields({ unit, value, onChange, roundingSettings }: {
+  unit: string; value: PricingMemberDraft; onChange: (next: Partial<PricingMemberDraft>) => void; roundingSettings?: PriceRoundingSettings;
 }) {
   return <div className={styles.moneyFields}>{(["price", "costPrice"] as const).map(field =>
-    <label key={field} className={styles.field}>
+    <div key={field}><label className={styles.field}>
       <span>{field === "price" ? "Harga jual" : "HPP (opsional)"} {unit}</span>
       <span className={styles.moneyInput}><span aria-hidden="true">Rp</span><input aria-label={`${field === "price" ? "Harga jual" : "HPP (opsional)"} ${unit}`} type="number" inputMode="decimal" min="0" step="any" value={value[field]} onChange={event => onChange({ [field]: event.target.value })} /></span>
-    </label>)}</div>;
+    </label>{field === "price" && <><p className="text-xs text-surface-500">Harga asal sebelum pembulatan.</p><PriceRoundingPreview price={value.price} settings={roundingSettings} /></>}</div>)}</div>;
 }
 
-export function PricingFollower({ meta, source, member, projected, value, factor, preserveSelling, disabled, onChange }: {
+export function PricingFollower({ meta, source, member, projected, value, factor, preserveSelling, disabled, onChange, roundingSettings }: {
   meta: PricingMetadata[number]; source?: PricingMetadata[number]; member: GroupPricingMemberProjection;
   projected?: GroupPricingMemberProjection; value: PricingMemberDraft; factor?: ExactRatio | null;
-  preserveSelling: boolean; disabled: boolean; onChange: (next: Partial<PricingMemberDraft>) => void;
+  roundingSettings?: PriceRoundingSettings; preserveSelling: boolean; disabled: boolean; onChange: (next: Partial<PricingMemberDraft>) => void;
 }) {
   const automatic = value.mode === "AUTO";
   const ratio = source && !source.conversionNeedsReview && !meta.conversionNeedsReview && source.unitMultiplierToBase > 0 && meta.unitMultiplierToBase > 0
@@ -62,9 +65,10 @@ export function PricingFollower({ meta, source, member, projected, value, factor
       {meta.isActive && <p className={styles.derivedState}>{projected ? "Hasil pratinjau" : "Harga tersimpan"}{automatic ? " · mengikuti sumber" : " · Manual"}</p>}
       <div className={styles.derivedMoney}>{(["price", "costPrice"] as const).map(field => <div key={field}>
         <span className={styles.caption}>{field === "price" ? "Harga jual" : automatic ? "HPP · tanpa penyesuaian" : "HPP"}</span>
-        <output aria-label={`${field === "price" ? automatic ? "Harga otomatis" : "Harga jual" : automatic ? "HPP otomatis" : "HPP"} ${meta.unit}`} aria-live="off">{money(displayed[field])}</output>
+        <output aria-label={`${field === "price" ? automatic ? "Harga otomatis" : "Harga jual" : automatic ? "HPP otomatis" : "HPP"} ${meta.unit}`} aria-live="off">{money(field === "price" && displayed.price !== null ? String(roundSellingPrice(Number(displayed.price), roundingSettings).roundedPrice) : displayed[field])}</output>
+        {field === "price" && displayed.price !== null && <PriceRoundingBadge rounding={roundSellingPrice(Number(displayed.price), roundingSettings)} />}
       </div>)}</div>
-    </div> : <><p className={styles.manualNote}>Isi harga satuan ini sendiri; perubahan sumber tidak mengubahnya.</p><PricingMoneyFields unit={meta.unit} value={value} onChange={onChange} /></>}
+    </div> : <><p className={styles.manualNote}>Isi harga satuan ini sendiri; perubahan sumber tidak mengubahnya.</p><PricingMoneyFields roundingSettings={roundingSettings} unit={meta.unit} value={value} onChange={onChange} /></>}
     {automatic && meta.isActive && <details className={styles.formula}>
       <summary>Rumus &amp; faktor eksak</summary>
       <p>Harga = harga sumber × ({meta.unitMultiplierToBase} / {source?.unitMultiplierToBase ?? "?"}) × faktor <strong>{factor ? `${factor.numerator}/${factor.denominator}` : "yang dihitung server"}</strong>.</p>
@@ -74,8 +78,8 @@ export function PricingFollower({ meta, source, member, projected, value, factor
   </fieldset>;
 }
 
-export function PricingLedger({ current, after, metadata, pending }: {
-  current: GroupPricingProjection; after?: GroupPricingProjection; metadata: PricingMetadata; pending: boolean;
+export function PricingLedger({ current, after, metadata, pending, roundingSettings }: {
+  current: GroupPricingProjection; after?: GroupPricingProjection; metadata: PricingMetadata; pending: boolean; roundingSettings?: PriceRoundingSettings;
 }) {
   return <section className={styles.ledger} aria-label={after ? "Pratinjau perubahan harga" : "Harga tersimpan"} aria-busy={pending}>
     <header className={styles.ledgerHeading}><span className={styles.eyebrow}>Periksa per satuan</span><h4>{after ? "Sebelum → sesudah" : "Harga tersimpan"}</h4>
@@ -84,10 +88,12 @@ export function PricingLedger({ current, after, metadata, pending }: {
     <div>{(after ?? current).members.map(member => {
       const before = current.members.find(item => item.productId === member.productId);
       const meta = metadata.find(item => item.id === member.productId);
-      const beforeMargin = before?.costPrice == null ? null : String(Number(before.price) - Number(before.costPrice));
-      const margin = member.costPrice === null ? null : String(Number(member.price) - Number(member.costPrice));
+      const roundedBefore = before?.price == null ? null : roundSellingPrice(Number(before.price), roundingSettings);
+      const roundedAfter = member.price == null ? null : roundSellingPrice(Number(member.price), roundingSettings);
+      const beforeMargin = before?.costPrice == null || !roundedBefore ? null : String(roundedBefore.roundedPrice - Number(before.costPrice));
+      const margin = member.costPrice === null || !roundedAfter ? null : String(roundedAfter.roundedPrice - Number(member.costPrice));
       const rows = [
-        { label: "Harga jual", before: before?.price ?? null, after: member.price },
+        { label: "Harga jual", before: roundedBefore ? String(roundedBefore.roundedPrice) : null, after: roundedAfter ? String(roundedAfter.roundedPrice) : null },
         { label: "HPP", before: before?.costPrice ?? null, after: member.costPrice },
         { label: "Margin", before: beforeMargin, after: margin },
       ];
@@ -97,7 +103,7 @@ export function PricingLedger({ current, after, metadata, pending }: {
           <caption className={styles.srOnly}>{meta?.name} {meta?.unit}: {after ? "sebelum dan sesudah" : "harga tersimpan"}</caption>
           <thead><tr><th scope="col"><span className={styles.srOnly}>Jenis harga</span></th>{after && <th scope="col">Sebelum</th>}<th scope="col">{after ? "Sesudah" : "Saat ini"}</th></tr></thead>
           <tbody>{rows.map(row => <tr key={row.label} data-negative={row.label === "Margin" && row.after !== null && Number(row.after) < 0 || undefined}>
-            <th scope="row">{row.label}</th>{after && <td>{money(row.before)}</td>}<td>{money(row.after)}</td>
+            <th scope="row">{row.label}</th>{after && <td>{money(row.before)}</td>}<td>{money(row.after)}{row.label === "Harga jual" && <PriceRoundingBadge rounding={roundedAfter} />}</td>
           </tr>)}</tbody>
         </table>
         {margin !== null && Number(margin) < 0 && <p className={styles.review}>Margin negatif: HPP lebih tinggi dari harga jual.</p>}

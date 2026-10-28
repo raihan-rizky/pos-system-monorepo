@@ -29,6 +29,7 @@ export const PREVIEW_RENDERERS: Record<HelpStepVisual["page"], PreviewRenderer> 
 };
 
 const settingsState = (target: string) => {
+  if (target.startsWith("settings-rounding-")) return "settings-price-rounding";
   if (target === "settings-whatsapp-tab") return "settings-whatsapp";
   if ([
     "settings-rbac-tab",

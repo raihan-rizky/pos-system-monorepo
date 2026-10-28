@@ -3,6 +3,8 @@ import path from "path";
 import { db } from "@pos/db";
 import { buildFinancialReport } from "@/features/financial-report/helpers/report-core";
 import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
+import { roundSellingPrice, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
+import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 
 type DecimalLike = { toNumber?: () => number } | number | string | null | undefined;
 
@@ -309,7 +311,7 @@ const productSelect = {
   category: { select: { name: true } },
 };
 
-function mapProduct(product: any) {
+function mapProduct(product: any, roundingSettings: PriceRoundingSettings) {
   return {
     id: product.id,
     name: product.name,
@@ -317,19 +319,22 @@ function mapProduct(product: any) {
     stock: product.stock,
     minStock: product.minStock,
     unit: product.unit,
-    price: toNumber(product.price),
+    price: roundSellingPrice(toNumber(product.price), roundingSettings).roundedPrice,
     category: product.category?.name ?? null,
   };
 }
 
 async function findProductMatches(storeId: string, query: string, limit = 10) {
-  const products = await db.product.findMany({
-    where: productWhere(storeId, query),
-    select: productSelect,
-    orderBy: [{ name: "asc" }],
-    take: limit,
-  });
-  return products.map(mapProduct);
+  const [products, roundingSettings] = await Promise.all([
+    db.product.findMany({
+      where: productWhere(storeId, query),
+      select: productSelect,
+      orderBy: [{ name: "asc" }],
+      take: limit,
+    }),
+    getPriceRoundingSettings(),
+  ]);
+  return products.map((product) => mapProduct(product, roundingSettings));
 }
 
 export async function getProductSearch({ storeId, query, limit = 10 }: { storeId: string; query: string; limit?: number }) {

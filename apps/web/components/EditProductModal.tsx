@@ -5,6 +5,8 @@ import { Modal, Button, Input } from "@pos/ui";
 import { ImageIcon } from "lucide-react";
 import { useUpdateProduct, useCategories, Product } from "@/hooks/useProducts";
 import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
+import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { MemberPriceField } from "@/features/customer-category-pricing/components/MemberPriceField";
 import { MemberPricingGuidance } from "@/features/customer-category-pricing/components/MemberPricingGuidance";
 import type { ProductCartItem } from "@/hooks/useCart";
@@ -13,12 +15,13 @@ import { getLogger } from "@/lib/logger";
 
 const log = getLogger("ui:EditProductModal");
 interface EditProductModalProps {
+  roundingSettings?: PriceRoundingSettings;
   open: boolean;
   onClose: () => void;
   product: Product | null;
 }
 
-export function EditProductModal({ open, onClose, product }: EditProductModalProps) {
+export function EditProductModal({ open, onClose, product, roundingSettings }: EditProductModalProps) {
   const { data: categories = [] } = useCategories();
   const updateProduct = useUpdateProduct();
 
@@ -189,6 +192,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           <ProductPricingAction groupId={product?.stockGroupId ?? product?.stockGroup?.id} disabled={isUploading || updateProduct.isPending} identityChanged={!!product && (name !== product.name || categoryId !== product.category.id || unit !== product.unit || size !== (product.size ?? "") || material !== (product.material ?? ""))} />
           <div className="space-y-1">
             <MemberPriceField
+              roundingSettings={roundingSettings}
               label="Harga Dinas"
               sellingPrice={Number(product?.price ?? price)}
               value={hargaDinas}
@@ -203,6 +207,7 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           </div>
           <div className="space-y-1">
             <MemberPriceField
+              roundingSettings={roundingSettings}
               label="Harga Agen"
               sellingPrice={Number(product?.price ?? price)}
               value={hargaAgen}
@@ -217,7 +222,9 @@ export function EditProductModal({ open, onClose, product }: EditProductModalPro
           </div>
         </div>
 
-        <MemberPricingGuidance />
+        <p className="text-xs text-surface-500">Harga master asal sebelum pembulatan.</p>
+          <PriceRoundingPreview price={price} settings={roundingSettings} />
+          <MemberPricingGuidance />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input

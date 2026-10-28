@@ -14,6 +14,7 @@ const harness = vi.hoisted(() => ({
   rules: undefined as CustomerCategoryPricingRule[] | undefined,
   catalog: [] as Product[],
   cart: null as any,
+  rounding: { enabled: true, increment: 500, threshold: 50 },
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -64,6 +65,7 @@ vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: harness.catal
 vi.mock("@/hooks/useBrands", () => ({ useBrands: () => ({ data: [] }) }));
 vi.mock("@/hooks/useShift", () => ({ useActiveShift: () => ({ data: null, isLoading: false }) }));
 vi.mock("@/hooks/useShiftSettings", () => ({ useShiftSettings: () => ({ data: { enabled: false } }) }));
+vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({ usePriceRoundingSettings: () => ({ data: harness.rounding }) }));
 vi.mock("@/hooks/useTransactions", () => ({ useCreateTransaction: () => ({}) }));
 vi.mock("@/features/transactions-draft", () => ({ useCreateDraft: () => ({}) }));
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ role: "CASHIER", canPerform: () => false }) }));
@@ -101,6 +103,7 @@ describe("POS pricing across unrelated renders", () => {
     harness.states.length = 0;
     harness.memos.length = 0;
     harness.rules = undefined;
+    harness.rounding = { enabled: true, increment: 500, threshold: 50 };
     harness.catalog = [{
       id: "paper", name: "Kertas", sku: "PAPER", unit: "pcs", stock: 10,
       price: 2000, hargaAgen: 1800, costPrice: 1000, baseCostPrice: 1000, baseCostUnit: "pcs",
@@ -112,6 +115,13 @@ describe("POS pricing across unrelated renders", () => {
       categoryId: "cat-paper", categoryName: "Kertas",
     };
     harness.cart = { items: [item], totalItems: 1, subtotal: 2000, hasLoadedStorage: true, addItem: vi.fn() };
+  });
+
+  it("reprices the cart when the rounding policy changes", () => {
+    harness.catalog = [{ ...harness.catalog[0], price: 4050 }];
+    expect(render().cart.subtotal).toBe(4500);
+    harness.rounding = { enabled: false, increment: 500, threshold: 50 };
+    expect(render().cart.subtotal).toBe(4050);
   });
 
   it("preserves grid rules and priced cart references when only search changes", () => {
@@ -192,8 +202,9 @@ describe("POS pricing across unrelated renders", () => {
     opened.payment.onCustomerSelectionChange(selection);
     const after = render();
     expect(after.grid.customerType).toBe("AGEN");
-    expect(after.cart.items[0].price).toBe(1800);
-    expect(after.cart.subtotal).toBe(1800);
+    expect(after.cart.items[0].price).toBe(2000);
+    expect(after.cart.items[0].priceRounding.originalPrice).toBe(1800);
+    expect(after.cart.subtotal).toBe(2000);
     after.payment.onClose();
     const closed = render();
     expect(closed.payment).toBeUndefined();

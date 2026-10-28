@@ -9,6 +9,7 @@ import {
   PreviewPageRoot,
 } from "../PreviewPrimitives";
 import type { PreviewContext } from "../types";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS, roundSellingPrice } from "@/features/product-price-rounding/rounding";
 
 const tabs = [
   ["store", "Info Toko", Store, "settings-info-store"],
@@ -19,7 +20,7 @@ const tabs = [
 ] as const;
 
 export function SettingsPreview(ctx: PreviewContext) {
-  const activeTab = ctx.state === "settings-whatsapp" ? "whatsapp" : ctx.state === "settings-rbac" ? "rbac" : "store";
+  const activeTab = ctx.state === "settings-price-rounding" ? "price-rounding" : ctx.state === "settings-whatsapp" ? "whatsapp" : ctx.state === "settings-rbac" ? "rbac" : "store";
 
   return (
     <PreviewPageRoot ctx={ctx} className="bg-surface-50">
@@ -46,16 +47,64 @@ export function SettingsPreview(ctx: PreviewContext) {
                 <GuideTarget key={id} ctx={ctx} target={target}>{tab}</GuideTarget>
               ) : <div key={id}>{tab}</div>;
             })}
+            <GuideTarget ctx={ctx} target="settings-rounding-tab">
+              <div className={cx("flex min-h-11 items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-semibold", activeTab === "price-rounding" ? "border border-surface-200 bg-white text-brand-600 shadow" : "text-surface-600")}>
+                <Settings className="h-4 w-4" aria-hidden="true" />
+                <span>Pembulatan Harga</span>
+              </div>
+            </GuideTarget>
           </GuideTarget>
 
           <GuideTarget ctx={ctx} target="settings-primary" className="min-h-[560px] flex-1 rounded-2xl border border-surface-100 bg-white p-6 shadow-sm">
             {activeTab === "store" ? <StorePanel ctx={ctx} /> : null}
             {activeTab === "whatsapp" ? <WhatsAppPanel /> : null}
             {activeTab === "rbac" ? <RbacPanel ctx={ctx} /> : null}
+            {activeTab === "price-rounding" ? <PriceRoundingPanel ctx={ctx} /> : null}
           </GuideTarget>
         </div>
       </div>
     </PreviewPageRoot>
+  );
+}
+
+function PriceRoundingPanel({ ctx }: { ctx: PreviewContext }) {
+  const settings = DEFAULT_PRICE_ROUNDING_SETTINGS;
+  const money = (price: number) => `Rp${price.toLocaleString("id-ID")}`;
+  return (
+    <section data-help-step-state="settings-price-rounding-active" aria-label="Ilustrasi pengaturan pembulatan harga" className="space-y-5">
+      <div>
+        <h2 className="text-lg font-bold text-surface-900">Pembulatan Harga</h2>
+        <p className="mt-1 text-sm text-surface-500">Ilustrasi pengaturan awal untuk hasil akhir harga jual produk.</p>
+      </div>
+      <GuideTarget ctx={ctx} target="settings-rounding-rule" className="space-y-4 rounded-xl p-3">
+        <label className="flex items-center gap-3 text-sm font-semibold text-surface-900">
+          <input type="checkbox" role="switch" checked={settings.enabled} aria-checked={settings.enabled} disabled className="h-5 w-5 accent-brand-600" />
+          Aktifkan pembulatan harga jual
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <PreviewField label="Kelipatan (Rp)" value={String(settings.increment)} />
+          <PreviewField label="Ambang naik (Rp)" value={String(settings.threshold)} />
+        </div>
+        <p className="text-sm text-surface-500">Sisa harga di bawah ambang turun; mulai ambang naik ke kelipatan berikutnya.</p>
+        <h3 className="text-sm font-bold text-surface-900">Pratinjau langsung</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[4049, 4050].map((price) => {
+            const result = roundSellingPrice(price, settings);
+            return (
+              <div key={price} className="rounded-xl border border-surface-200 bg-surface-50 p-3 text-sm">
+                <p className="font-semibold text-brand-700">{result.direction === "UP" ? "Dibulatkan ke atas" : "Dibulatkan ke bawah"}</p>
+                <dl className="mt-2 space-y-1 text-surface-700">
+                  <div className="flex justify-between gap-2"><dt>Harga asal</dt><dd>{money(result.originalPrice)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt>Harga final</dt><dd className="font-bold">{money(result.roundedPrice)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt>Selisih</dt><dd>{result.difference > 0 ? "+" : "−"}{money(Math.abs(result.difference))}</dd></div>
+                </dl>
+              </div>
+            );
+          })}
+        </div>
+      </GuideTarget>
+      <PreviewButton ctx={ctx} target="settings-rounding-save" tone="brand" icon={Save}>Simpan pengaturan</PreviewButton>
+    </section>
   );
 }
 

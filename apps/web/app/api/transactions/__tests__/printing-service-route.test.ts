@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: vi.fn().mockResolvedValue({ enabled: false, increment: 500, threshold: 50 }) }));
 
 const afterMock = vi.hoisted(() => vi.fn());
 const requireRoleMock = vi.hoisted(() => vi.fn());

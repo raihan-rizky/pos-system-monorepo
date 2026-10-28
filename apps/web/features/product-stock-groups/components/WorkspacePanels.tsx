@@ -1,5 +1,6 @@
 "use client";
 
+import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
 import { adjustmentFactor } from "../pricing-drafts";
 import { decimalToRatio, multiplyRatios, divideRatios, roundMoney } from "../automatic-pricing";
 import { useId, useState } from "react";
@@ -595,6 +596,9 @@ export function PricingPanel(props: StockGroupWorkspaceContentProps) {
                     : undefined
                 }
               />
+              <div className="text-xs text-surface-500">Harga asal sebelum pembulatan.
+                <PriceRoundingPreview price={draft.price} settings={props.roundingSettings} />
+              </div>
               <Field
                 label="HPP (opsional)"
                 value={draft.costPrice}
@@ -685,6 +689,9 @@ export function AdditionPanel(props: StockGroupWorkspaceContentProps) {
           onChange={(value) => update({ price: value })}
           disabled={disabled}
         />
+        <div className="text-xs text-surface-500">Harga asal sebelum pembulatan.
+          <PriceRoundingPreview price={automatic ? estimatedPrice : draft?.price} settings={props.roundingSettings} />
+        </div>
         <Field
           label="Jumlah satuan baru"
           value={draft?.conversionFromQuantity ?? "1"}

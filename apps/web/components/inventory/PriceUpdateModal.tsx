@@ -7,6 +7,8 @@ import type { Product } from "@/hooks/useProducts";
 import type { ProductCartItem } from "@/hooks/useCart";
 import { useUpdateProduct } from "@/hooks/useProducts";
 import { ProductPricingAction } from "@/features/product-stock-groups/components/ProductPricingAction";
+import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { MemberPriceField } from "@/features/customer-category-pricing/components/MemberPriceField";
 import { MemberPricingGuidance } from "@/features/customer-category-pricing/components/MemberPricingGuidance";
 import { formatRupiah } from "@/lib/utils";
@@ -16,6 +18,7 @@ import {
 } from "@/features/product-price-change/helpers/price-change-form";
 
 interface PriceUpdateModalProps {
+  roundingSettings?: PriceRoundingSettings;
   isOpen: boolean;
   product: Product | null;
   onClose: () => void;
@@ -27,6 +30,7 @@ export default function PriceUpdateModal({
   product,
   onClose,
   onViewHistory,
+  roundingSettings,
 }: PriceUpdateModalProps) {
   const updateProduct = useUpdateProduct();
   const initializedProduct = useRef<string | null>(null);
@@ -113,11 +117,14 @@ export default function PriceUpdateModal({
 
         <ProductPricingAction groupId={product.stockGroupId ?? product.stockGroup?.id} identityChanged={false} disabled={updateProduct.isPending} />
         <p className="text-xs text-slate-600">Simpan Harga hanya menyimpan Harga Agen dan Harga Dinas pada produk ini.</p>
-        <MemberPricingGuidance />
+        <p className="text-xs text-surface-500">Harga master asal sebelum pembulatan.</p>
+          <PriceRoundingPreview price={price} settings={roundingSettings} />
+          <MemberPricingGuidance />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
             <MemberPriceField
+              roundingSettings={roundingSettings}
               label="Harga Dinas"
               sellingPrice={product.price}
               value={hargaDinas}
@@ -132,6 +139,7 @@ export default function PriceUpdateModal({
           </div>
           <div className="space-y-1">
             <MemberPriceField
+              roundingSettings={roundingSettings}
               label="Harga Agen"
               sellingPrice={product.price}
               value={hargaAgen}
@@ -186,6 +194,7 @@ export default function PriceUpdateModal({
 export type PosCartPriceUpdate = ReturnType<typeof buildPosCartPriceUpdate>;
 
 interface PosPriceQuickEditModalProps {
+  roundingSettings?: PriceRoundingSettings;
   open: boolean;
   item: ProductCartItem | null;
   onClose: () => void;
@@ -197,6 +206,7 @@ export function PosPriceQuickEditModal({
   item,
   onClose,
   onSave,
+  roundingSettings,
 }: PosPriceQuickEditModalProps) {
   const initializedProduct = useRef<string | null>(null);
   const price = item == null ? "" : String(item.catalogPrice);
@@ -299,11 +309,14 @@ export function PosPriceQuickEditModal({
             <p className="text-xs text-surface-500">Perubahan berlaku untuk transaksi berikutnya.</p>
           </div>
           <ProductPricingAction groupId={item.stockGroup?.id} identityChanged={false} disabled={isSaving} />
-          <p className="text-sm text-surface-600">Harga Normal: <span className="font-semibold text-surface-900">{formatRupiah(item.catalogPrice)}</span></p>
+          <p className="text-sm text-surface-600">Harga Normal asal: <span className="font-semibold text-surface-900">{formatRupiah(item.catalogPrice)}</span></p>
           <p className="text-xs text-slate-600">Simpan Harga menyimpan Harga Agen/Dinas dan Harga Khusus di bawah. Perubahan Harga grup tidak mengubah harga transaksi yang sudah ada di keranjang.</p>
+          <p className="text-xs text-surface-500">Harga master asal sebelum pembulatan.</p>
+          <PriceRoundingPreview price={price} settings={roundingSettings} />
           <MemberPricingGuidance />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <MemberPriceField
+              roundingSettings={roundingSettings}
               label="Harga Agen"
               sellingPrice={item.catalogPrice}
               value={hargaAgen}
@@ -311,6 +324,7 @@ export function PosPriceQuickEditModal({
               disabled={isSaving}
             />
             <MemberPriceField
+              roundingSettings={roundingSettings}
               label="Harga Dinas"
               sellingPrice={item.catalogPrice}
               value={hargaDinas}
@@ -348,6 +362,8 @@ export function PosPriceQuickEditModal({
             value={transactionPrice}
             onChange={(event) => setTransactionPrice(event.target.value)}
           />
+          <p className="text-xs text-surface-500">Harga khusus asal sebelum pembulatan.</p>
+          <PriceRoundingPreview price={transactionPrice} settings={roundingSettings} label="Harga khusus berlaku" />
           {showTransactionBelowCostWarning && (
             <p className="text-xs font-semibold text-amber-700">
               Harga khusus di bawah HPP. Anda tetap dapat menyimpan perubahan ini.

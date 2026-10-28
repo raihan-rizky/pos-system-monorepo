@@ -9,24 +9,27 @@ import NotificationsTab from "@/components/settings/NotificationsTab";
 import RbacTab from "@/components/settings/RbacTab";
 import DatabaseResetTab from "@/components/settings/DatabaseResetTab";
 import ShiftSettingsTab from "@/components/settings/ShiftSettingsTab";
+import PriceRoundingSettingsTab from "@/features/product-price-rounding/components/PriceRoundingSettingsTab";
 import { useRole } from "@/components/providers/RoleProvider";
 
-type Tab = "store" | "whatsapp" | "rbac" | "notifications" | "offline" | "shift" | "reset";
+type Tab = "store" | "whatsapp" | "rbac" | "notifications" | "offline" | "shift" | "price-rounding" | "reset";
 
-const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
+const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean; resource?: string }[] = [
   { id: "store", label: "Info Toko", icon: <Store className="w-4 h-4" /> },
   { id: "whatsapp", label: "WhatsApp", icon: <MessageCircle className="w-4 h-4" /> },
   { id: "rbac", label: "RBAC", icon: <ShieldCheck className="w-4 h-4" />, ownerOnly: true },
   { id: "notifications", label: "Notifikasi", icon: <Bell className="w-4 h-4" /> },
   { id: "offline", label: "Offline Sync", icon: <RefreshCw className="w-4 h-4" /> },
   { id: "shift", label: "Shift Kasir", icon: <WalletCards className="w-4 h-4" />, ownerOnly: true },
+  { id: "price-rounding", label: "Pembulatan Harga", icon: <Settings className="w-4 h-4" />, resource: "settings.price_rounding" },
   { id: "reset", label: "Reset Database", icon: <Database className="w-4 h-4" />, ownerOnly: true },
 ];
 
 export default function SettingsPage() {
-  const { role } = useRole();
+  const { role, canPerform } = useRole();
   const [activeTab, setActiveTab] = useState<Tab>("store");
-  const visibleTabs = TABS.filter((tab) => !tab.ownerOnly || role === "OWNER");
+  const visibleTabs = TABS.filter((tab) => (!tab.ownerOnly || role === "OWNER") &&
+    (!tab.resource || canPerform(tab.resource, "read") || canPerform(tab.resource, "update")));
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-surface-50 min-h-screen">
@@ -51,6 +54,8 @@ export default function SettingsPage() {
             {visibleTabs.map(tab => (
               <button
                 key={tab.id}
+                aria-label={tab.label}
+                aria-current={activeTab === tab.id ? "page" : undefined}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2.5 px-6 sm:px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold transition-all duration-150 cursor-pointer w-full text-left
                   ${activeTab === tab.id
@@ -72,6 +77,7 @@ export default function SettingsPage() {
             {activeTab === "notifications" && <NotificationsTab />}
             {activeTab === "offline" && <OfflineSyncTab />}
             {activeTab === "shift" && role === "OWNER" && <ShiftSettingsTab />}
+            {activeTab === "price-rounding" && visibleTabs.some((tab) => tab.id === "price-rounding") && <PriceRoundingSettingsTab />}
             {activeTab === "reset" && role === "OWNER" && <DatabaseResetTab />}
           </div>
         </div>

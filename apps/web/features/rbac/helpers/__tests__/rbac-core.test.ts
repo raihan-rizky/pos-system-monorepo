@@ -11,6 +11,20 @@ import {
 } from "../rbac-core";
 
 describe("RBAC permission matrix", () => {
+  it("keeps price rounding management owner-only by default and honors delegation", () => {
+    const defaults = buildDefaultRolePermissions();
+    expect(RESOURCE_TARGETS).toContain("settings.price_rounding");
+    expect(canRolePerformAction("OWNER", "settings.price_rounding", "update", defaults)).toBe(true);
+    for (const role of EDITABLE_ROLES) {
+      expect(canRolePerformAction(role, "settings.price_rounding", "read", defaults)).toBe(false);
+      expect(canRolePerformAction(role, "settings.price_rounding", "update", defaults)).toBe(false);
+    }
+    const delegated = normalizeRolePermissions(["read", "update"].map((action) => ({
+      role: "ADMIN" as const, scope: "resource" as const, target: "settings.price_rounding", action: action as "read" | "update", allowed: true,
+    })));
+    expect(canRolePerformAction("ADMIN", "settings.price_rounding", "read", delegated)).toBe(true);
+    expect(canRolePerformAction("ADMIN", "settings.price_rounding", "update", delegated)).toBe(true);
+  });
   it("defaults transaction deletion to OWNER while honoring an explicit ADMIN grant", () => {
     const defaults = buildDefaultRolePermissions();
 

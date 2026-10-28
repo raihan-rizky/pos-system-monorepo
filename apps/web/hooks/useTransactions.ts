@@ -12,6 +12,7 @@ import {
 import { buildTransactionHistorySearchParams } from "@/features/transaction-history/helpers/history-params";
 import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import type { PrintingSubcategory } from "@/features/printing-receipts/types";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 
 export interface Transaction {
   id: string;
@@ -131,6 +132,7 @@ export interface TransactionHistoryParams {
 }
 
 interface CreateTransactionInput {
+  priceRoundingSettings?: PriceRoundingSettings;
   items: CartItem[];
   printingReceiptId?: string;
   printingReceiptRevision?: number;

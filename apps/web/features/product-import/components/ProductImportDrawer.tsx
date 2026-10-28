@@ -1,5 +1,8 @@
 "use client";
 
+import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
+import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Button } from "@pos/ui";
 import {
@@ -55,6 +58,7 @@ export function ProductImportDrawer({
   open: boolean;
   onClose: () => void;
 }) {
+  const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
   const preview = useProductImportPreview();
   const imageExtract = useProductImageExtract();
   const commit = useProductImportCommit();
@@ -707,6 +711,7 @@ export function ProductImportDrawer({
               )}
 
               <ImportPreviewTable
+                roundingSettings={roundingSettings}
                 filteredRows={filteredRows}
                 allRows={rows}
                 decisions={decisions}
@@ -1095,12 +1100,14 @@ function CommitProgressPanel({
 }
 
 function ImportPreviewTable({
+  roundingSettings,
   filteredRows,
   allRows,
   decisions,
   blockersByRow,
   setDecisions,
 }: {
+  roundingSettings?: PriceRoundingSettings;
   filteredRows: NormalizedImportRow[];
   allRows: NormalizedImportRow[];
   decisions: Record<string, ImportRowDecision>;
@@ -1111,6 +1118,7 @@ function ImportPreviewTable({
 }) {
   return (
     <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-200 bg-white relative">
+      <p className="p-3 text-xs text-slate-600">Harga impor disimpan sebagai harga asal. Harga jual berlaku mengikuti pembulatan saat transaksi.</p>
       <table className="min-w-[1120px] w-full text-left text-sm border-collapse">
         <thead className="sticky top-0 text-[11px] uppercase tracking-widest text-slate-500 z-20 shadow-sm">
           <tr>
@@ -1157,13 +1165,13 @@ function ImportPreviewTable({
                   {(row.pricingPreview ? row.pricingPreview.costPrice : row.costPrice) ?? "-"}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">
-                  {row.pricingPreview?.price ?? row.price}
+                  <PriceRoundingPreview price={row.pricingPreview?.price ?? row.price} settings={roundingSettings} />
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
-                  {row.hargaDinas != null ? row.hargaDinas : "-"}
+                  <PriceRoundingPreview price={row.hargaDinas ?? row.pricingPreview?.price ?? row.price} settings={roundingSettings} label={row.hargaDinas == null ? "Mengikuti harga jual" : "Harga Dinas berlaku"} />
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
-                  {row.hargaAgen != null ? row.hargaAgen : "-"}
+                  <PriceRoundingPreview price={row.hargaAgen ?? row.pricingPreview?.price ?? row.price} settings={roundingSettings} label={row.hargaAgen == null ? "Mengikuti harga jual" : "Harga Agen berlaku"} />
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">
                   <div className="flex items-center justify-end gap-1.5">

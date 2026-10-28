@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const roundingSettingsMock = vi.hoisted(() => vi.fn());
+vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: roundingSettingsMock }));
 import { POST } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
@@ -67,6 +69,39 @@ function request(transactions: unknown[]) {
 }
 
 describe("POST /api/offline-sync/transactions", () => {
+  it("keeps each repeated product price snapshot equal to its own final rounded custom price", async () => {
+    setupAgenPricing();
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
+    const response = await POST(request([offlineTx({ customerId: "agen-1", createdAt: new Date().toISOString(),
+      items: [
+        { productId: "product-1", name: "Pulpen", transactionPrice: 4049, price: 4049, quantity: 1 },
+        { productId: "product-1", name: "Pulpen", transactionPrice: 4050, price: 4050, quantity: 1 },
+      ], amountPaid: 8500, originalSubtotal: 8099, originalTotal: 8099,
+    })]));
+    expect((await response.json()).results[0]).toMatchObject({ status: "PENDING_APPROVAL" });
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create).toEqual([
+      expect.objectContaining({ unitPrice: 4000, appliedUnitPrice: 4000, subtotal: 4000 }),
+      expect.objectContaining({ unitPrice: 4500, appliedUnitPrice: 4500, subtotal: 4500 }),
+    ]);
+  });
+  it.each([
+    { enabled: true, custom: undefined, expected: 4000 },
+    { enabled: true, custom: 4050, expected: 4500 },
+    { enabled: false, custom: 4050, expected: 4050 },
+  ])("reprices offline amounts and snapshots with policy $enabled and custom $custom", async ({ enabled, custom, expected }) => {
+    roundingSettingsMock.mockResolvedValue({ enabled, increment: 500, threshold: 50 });
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, price: 4049 }]);
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(),
+      items: [{ productId: "product-1", name: "Kertas", price: 4049, transactionPrice: custom, quantity: 2, discount: 100 }],
+      amountPaid: 20000, originalSubtotal: 7998, originalTotal: 7998,
+    })]));
+    expect(response.status).toBe(200);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: expected * 2 - 100, total: expected * 2 - 100,
+      items: { create: [expect.objectContaining({ unitPrice: expected, appliedUnitPrice: expected, subtotal: expected * 2 - 100, discount: 100 })] },
+    });
+  });
+
   it("persists queued item discounts before invoice discount and tax", async () => {
     const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), items: [{ productId: "product-1", name: "Produk", price: 1000, quantity: 2, discount: 500 }], discount: 200, taxRate: 10, originalSubtotal: 1500, originalTotal: 1430, amountPaid: 1430 })]));
     expect(response.status).toBe(200);
@@ -101,6 +136,7 @@ describe("POST /api/offline-sync/transactions", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
     requirePermissionMock.mockResolvedValue({
       id: "cashier-1",
       name: "Cashier One",

@@ -182,6 +182,14 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     sensitivity: "critical",
   },
   {
+    id: "price-rounding",
+    label: "Pembulatan Harga",
+    description: "Lihat dan ubah kelipatan serta ambang pembulatan harga jual. Default hanya Owner; izin Lihat dan Ubah dapat diberikan ke role lain.",
+    pageTargets: [],
+    resourceTargets: ["settings.price_rounding"],
+    sensitivity: "critical",
+  },
+  {
     id: "keuangan",
     label: "Keuangan Harian",
     description: "Pengeluaran dan kas operasional.",

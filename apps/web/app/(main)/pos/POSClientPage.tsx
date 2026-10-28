@@ -66,6 +66,8 @@ import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
 import { useShiftSettings } from "@/hooks/useShiftSettings";
+import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { useRole } from "@/components/providers/RoleProvider";
 import type { PosCartPriceUpdate } from "@/components/inventory/PriceUpdateModal";
 import type { PosProductGroupUpdate } from "@/components/EditProductModal";
@@ -222,9 +224,10 @@ export default function POSClientPage({
   const customerType = pricingCustomer.kind === "existing" ? pricingCustomer.customer.type ?? "UMUM" : "UMUM";
   const { data: categoryRules = EMPTY_PRICING_RULES } = useCustomerCategoryPricingRules({ activeOnly: true });
   const catalogCartItems = useCartCatalogPrices(cart.items);
+  const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
   const pricedCartItems = useMemo(
-    () => priceCartItemsForCheckout({ items: catalogCartItems, customerType, pricingRules: categoryRules, manualPrices: {}, role }),
-    [catalogCartItems, customerType, categoryRules, role],
+    () => priceCartItemsForCheckout({ items: catalogCartItems, customerType, pricingRules: categoryRules, manualPrices: {}, role, roundingSettings }),
+    [catalogCartItems, customerType, categoryRules, role, roundingSettings],
   );
   const pricedCartSubtotal = useMemo(
     () => pricedCartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -277,10 +280,10 @@ export default function POSClientPage({
   );
   const productCartItems = useMemo(
     () =>
-      cart.items.filter(
+      pricedCartItems.filter(
         (item): item is ProductCartItem => item.lineType === "PRODUCT",
       ),
-    [cart.items],
+    [pricedCartItems],
   );
 
   const addCartItem = cart.addItem;
@@ -441,6 +444,7 @@ export default function POSClientPage({
   };
 
   const handleCheckout = async (data: {
+    priceRoundingSettings?: PriceRoundingSettings;
     paymentMethod: string;
     amountPaid: number;
     discount: number;
@@ -859,6 +863,7 @@ export default function POSClientPage({
         {activeTab === "products" && isDesktopCartOpen && (
           <div className="hidden lg:block w-[340px] flex-shrink-0">
             <CartSidebar
+              roundingSettings={roundingSettings}
               items={pricedCartItems}
               subtotal={pricedCartSubtotal}
               totalItems={cart.totalItems}
@@ -908,6 +913,7 @@ export default function POSClientPage({
           />
           <div className="relative bg-white rounded-t-3xl max-h-[85vh] flex flex-col animate-slide-up-full shadow-2xl">
             <CartSidebar
+              roundingSettings={roundingSettings}
               items={pricedCartItems}
               subtotal={pricedCartSubtotal}
               totalItems={cart.totalItems}
@@ -953,6 +959,7 @@ export default function POSClientPage({
 
       {priceEditItem && (
         <PosPriceQuickEditModal
+          roundingSettings={roundingSettings}
           open
           item={priceEditItem}
           onClose={() => setPriceEditItem(null)}

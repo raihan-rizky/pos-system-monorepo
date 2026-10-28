@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "product-selling-price-rounding", date: "2026-10-28", revision: 1,
+    highlight: { title: "Pembulatan harga jual", summary: "Atur pembulatan harga dan lihat badge naik atau turun pada setiap produk." },
+    title: "Harga jual dibulatkan dengan jelas.",
+    summary: "Atur kelipatan dan ambang pembulatan harga jual melalui Pengaturan. Badge menjelaskan arah pembulatan, harga asal, dan selisih pada harga produk.",
+    kind: "feature", area: "Produk & Kasir", href: "/settings", visual: "units",
+    screenshot: { src: "/images/changelog/pembulatan-harga-jual.png", alt: "Pengaturan pembulatan dengan data contoh: kelipatan Rp500 dan ambang Rp50, serta kartu produk Rp4.050 menjadi Rp4.500 dengan badge Dibulatkan ke atas dan rincian selisih Rp450." },
+    steps: [
+      { title: "Buka pengaturan pembulatan", detail: "Masuk ke Pengaturan > Pembulatan Harga. Izin pengelolaan default hanya Owner dan dapat diberikan ke role lain melalui RBAC." },
+      { title: "Tinjau aturan lalu simpan", detail: "Atur aktif/nonaktif, kelipatan dan ambang naik. Periksa pratinjau; default Rp500 dan ambang Rp50 membulatkan Rp4.049 ke Rp4.000 serta Rp4.050 ke Rp4.500, lalu klik Simpan pengaturan." },
+      { title: "Periksa badge harga", detail: "Buka Produk atau Kasir, lalu pilih Dibulatkan ke atas atau Dibulatkan ke bawah untuk melihat harga asal, final, dan selisih. Harga yang tetap tidak menampilkan badge." },
+    ],
+  },
+  {
     id: "bulk-import-optional-category", date: "2026-10-28", revision: 1,
     highlight: { title: "Impor tanpa kolom kategori", summary: "Impor produk dan stok massal kini bisa memakai file tanpa kolom kategori." },
     title: "Kategori opsional pada impor massal.",

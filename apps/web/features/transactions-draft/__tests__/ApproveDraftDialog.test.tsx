@@ -24,6 +24,10 @@ vi.mock("@/hooks/useProducts", () => ({
   useProducts: () => ({ data: [], isLoading: false }),
 }));
 
+vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({
+  usePriceRoundingSettings: () => ({ data: { enabled: true, increment: 500, threshold: 50 } }),
+}));
+
 const draft = {
   id: "draft-1",
   draftNumber: "DRF-20260709-0001",

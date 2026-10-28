@@ -50,6 +50,7 @@ const approveDraftSchema = z.object({
     size: z.string().nullable().optional(),
     material: z.string().nullable().optional(),
     submittedPrice: z.number().nullable().optional(),
+    priceIntent: z.enum(["AUTOMATIC", "MANUAL"]).optional(),
     sourceItemId: z.string().nullable().optional(),
     serviceNote: z.string().max(5000).nullable().optional(),
   })).min(1).optional(),

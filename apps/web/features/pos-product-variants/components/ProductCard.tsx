@@ -14,6 +14,8 @@ import { orderUnits } from "../helpers/unit-order";
 import { priceCatalogVariantForCustomer } from "@/features/customer-category-pricing/helpers/product-pricing";
 import { isSpecialCategoryPricing, type CategoryPricingRule, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
+import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 
 interface ProductCardProps {
   product: Product;
@@ -24,6 +26,7 @@ interface ProductCardProps {
   showRegularPriceHint?: boolean;
   customerType?: CustomerType;
   categoryPricingRules?: CategoryPricingRule[];
+  roundingSettings?: PriceRoundingSettings;
 }
 
 const BLUR_DATA_URL =
@@ -38,6 +41,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   showRegularPriceHint = false,
   customerType = "UMUM",
   categoryPricingRules = [],
+  roundingSettings,
 }) => {
   const { canPerform } = useRole();
   const canDeleteProducts = shouldShowDeleteAction("product", canPerform);
@@ -85,19 +89,19 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
     Number.isFinite(selectedMultiplier) && selectedMultiplier > 0
     ? `1 ${selectedVariant.unit} = ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 20 }).format(selectedMultiplier)} ${baseUnit}`
     : undefined;
-  const agenPrice = priceCatalogVariantForCustomer(product, catalogVariant, "AGEN", categoryPricingRules);
-  const dinasPrice = priceCatalogVariantForCustomer(product, catalogVariant, "PEMERINTAH", categoryPricingRules);
+  const agenPrice = priceCatalogVariantForCustomer(product, catalogVariant, "AGEN", categoryPricingRules, roundingSettings);
+  const dinasPrice = priceCatalogVariantForCustomer(product, catalogVariant, "PEMERINTAH", categoryPricingRules, roundingSettings);
   const hasSpecialAgenPrice = isSpecialCategoryPricing(agenPrice.appliedPricing);
   const hasSpecialDinasPrice = isSpecialCategoryPricing(dinasPrice.appliedPricing);
   const hargaAgen = agenPrice.unitPrice;
   const hargaDinas = dinasPrice.unitPrice;
   const description = product.description;
-  const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules);
+  const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules, roundingSettings);
   const selectedPrice = priceVariant(selectedVariant.id);
   const hasSpecialPrice = isSpecialCategoryPricing(selectedPrice.appliedPricing);
   const pricedVariants = orderedVariants.map(v => {
     const priced = priceVariant(v.id);
-    return { ...v, displayPrice: priced.unitPrice, appliedPricing: priced.appliedPricing };
+    return { ...v, displayPrice: priced.unitPrice, appliedPricing: priced.appliedPricing, priceRounding: priced.priceRounding };
   });
 
   const isOutOfStock = Math.floor(selectedVariant.stock ?? 0) <= 0;
@@ -215,6 +219,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           </p>
           {hasSpecialPrice && <SpecialPriceBadge />}
         </div>
+        <PriceRoundingBadge rounding={selectedPrice.priceRounding} />
         <div className="mt-1 space-y-0.5 text-[11px] leading-snug">
           <p className="flex flex-wrap items-center gap-1">
             <span className="font-medium text-surface-500">Agen:</span>
@@ -223,6 +228,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             </span>
             {hasSpecialAgenPrice ? <SpecialPriceBadge /> : <span className="text-surface-500">· Mengikuti harga jual</span>}
           </p>
+          <PriceRoundingBadge rounding={agenPrice.priceRounding} />
           <p className="flex flex-wrap items-center gap-1">
             <span className="font-medium text-surface-500">Dinas:</span>
             <span className={`font-semibold ${hasSpecialDinasPrice ? "text-emerald-800" : "text-surface-600"}`}>
@@ -230,6 +236,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             </span>
             {hasSpecialDinasPrice ? <SpecialPriceBadge /> : <span className="text-surface-500">· Mengikuti harga jual</span>}
           </p>
+          <PriceRoundingBadge rounding={dinasPrice.priceRounding} />
         </div>
         {(showRegularPriceHint || (customerType !== "UMUM" && !selectedPrice.appliedPricing)) && (
           <span

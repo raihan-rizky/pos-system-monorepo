@@ -4,6 +4,8 @@ import React, { useCallback } from "react";
 import { Search } from "lucide-react";
 import type { Product } from "@/hooks/useProducts";
 import { ProductCard } from "@/features/pos-product-variants";
+import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS } from "@/features/product-price-rounding/rounding";
 import {
   type CategoryPricingRule,
   type CustomerType,
@@ -30,6 +32,7 @@ export function ProductGrid({
   customerType,
   categoryPricingRules,
 }: ProductGridProps) {
+  const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
 
   const handleAddToCart = useCallback(
     (product: Product, variantId?: string) => {
@@ -73,6 +76,7 @@ export function ProductGrid({
           onDeleteProduct={onDeleteProduct}
           customerType={customerType}
           categoryPricingRules={categoryPricingRules}
+          roundingSettings={roundingSettings}
           showRegularPriceHint={false}
         />
       ))}

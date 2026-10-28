@@ -1,3 +1,5 @@
+import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
+import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { NextResponse } from "next/server";
@@ -243,6 +245,7 @@ async function syncOne(
   const appliedPricingByProductId = new Map<string, AppliedCategoryPricing | null>();
   const catalogPriceByProductId = new Map<string, number>();
 
+  const roundingSettings = await getPriceRoundingSettings();
   const serverItems: ServerOfflineItem[] = offlineTx.items.map((item) => {
     const product = productById.get(item.productId);
     if (!product) {
@@ -267,13 +270,11 @@ async function syncOne(
       pricingRules,
       offlineTx.pricingPreference,
     );
-    const price = item.transactionPrice ?? automaticPrice.unitPrice;
-    const appliedPricing = automaticPrice.appliedPricing
-      ? {
-          ...automaticPrice.appliedPricing,
-          appliedUnitPrice: price,
-        }
-      : null;
+    const rounded = roundSellingPriceLine({ ...automaticPrice,
+      unitPrice: item.transactionPrice ?? automaticPrice.unitPrice,
+    }, roundingSettings);
+    const price = rounded.unitPrice;
+    const appliedPricing = rounded.appliedPricing;
     appliedPricingByProductId.set(product.id, appliedPricing);
     catalogPriceByProductId.set(product.id, Number(product.price));
 
@@ -470,7 +471,7 @@ async function createSyncedTransaction({
                     appliedPricing?.originalUnitPrice ??
                     catalogPriceByProductId.get(item.productId) ??
                     item.price,
-                  appliedUnitPrice: appliedPricing?.appliedUnitPrice ?? item.price,
+                  appliedUnitPrice: item.price,
                 };
               }),
             },

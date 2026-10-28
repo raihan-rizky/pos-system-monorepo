@@ -1,10 +1,129 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+const roundingSettingsMock = vi.hoisted(() => vi.fn());
+vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: roundingSettingsMock }));
 import {
   buildApprovalFingerprint,
   buildApprovalQuote,
 } from "../approval-quote";
 
 describe("buildApprovalFingerprint", () => {
+  beforeEach(() => { roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 }); });
+  it.each([
+    { enabled: true, submittedPrice: undefined, expected: 4000 },
+    { enabled: true, submittedPrice: 4050, expected: 4500 },
+    { enabled: false, submittedPrice: 4050, expected: 4050 },
+  ])("quotes final product rounding after custom pricing with policy $enabled", async ({ enabled, submittedPrice, expected }) => {
+    roundingSettingsMock.mockResolvedValue({ enabled, increment: 500, threshold: 50 });
+    const client = makeQuoteClient({ customerType: "INDUSTRI" });
+    const product = (await client.product.findMany())[0];
+    client.product.findMany.mockResolvedValue([{ ...product, price: 4049 }] as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ productId: "paper", quantity: 2, submittedPrice }],
+    });
+    expect(quote).toMatchObject({ subtotal: expected * 2, total: expected * 2 });
+    expect(quote.items[0]).toMatchObject({ appliedUnitPrice: expected, unitCost: 40, subtotal: expected * 2 });
+  });
+
+  it.each([
+    { priceIntent: "AUTOMATIC", actorRole: "CASHIER", expected: 4049 },
+    { priceIntent: "MANUAL", actorRole: "CASHIER", expected: 4000 },
+    { priceIntent: undefined, actorRole: "CASHIER", expected: 4000 },
+    { priceIntent: "MANUAL", actorRole: "SALES", expected: 4049 },
+  ] as const)("honors explicit $priceIntent intent after rounding was disabled for $actorRole", async ({ priceIntent, actorRole, expected }) => {
+    roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
+    const client = makeQuoteClient({ customerType: "INDUSTRI" });
+    const product = (await client.product.findMany())[0];
+    client.product.findMany.mockResolvedValue([{ ...product, price: 4049 }] as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole, canViewCostPrice: false,
+      items: [{ productId: "paper", quantity: 2, submittedPrice: 4000, priceIntent }],
+    });
+    expect(quote).toMatchObject({ subtotal: expected * 2, total: expected * 2 });
+    expect(quote.items[0]).toMatchObject({ appliedUnitPrice: expected, input: { priceIntent }, priceRounding: null });
+  });
+
+  it("rounds an explicitly manual price with current policy and keeps automatic calculation separate", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
+    const client = makeQuoteClient({ customerType: "PEMERINTAH" });
+    const product = (await client.product.findMany())[0];
+    client.product.findMany.mockResolvedValue([{ ...product, price: 4049, hargaDinas: null }] as never);
+    const automatic = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "CASHIER", canViewCostPrice: false,
+      items: [{ productId: "paper", quantity: 2, submittedPrice: 5050, priceIntent: "AUTOMATIC" }],
+    });
+    const manual = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "CASHIER", canViewCostPrice: false,
+      items: [{ productId: "paper", quantity: 2, submittedPrice: 5050, priceIntent: "MANUAL" }],
+    });
+    expect(automatic).toMatchObject({ subtotal: 8000, total: 8000 });
+    expect(manual).toMatchObject({ subtotal: 11000, total: 11000 });
+    expect(manual.items[0].priceRounding).toMatchObject({ originalPrice: 5050, roundedPrice: 5500 });
+    expect(manual.fingerprint).not.toBe(automatic.fingerprint);
+  });
+
+  it.each([true, false])("quotes effective reference prices and rounding metadata with enabled policy %s", async enabled => {
+    roundingSettingsMock.mockResolvedValue({ enabled, increment: 500, threshold: 50 });
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const product = (await client.product.findMany())[0];
+    client.product.findMany.mockResolvedValue([{ ...product, price: 4049, hargaAgen: 4050, hargaDinas: 4549, costPrice: 4049 }] as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ productId: "paper", quantity: 1 }],
+    });
+    const regularRounding = { originalPrice: 4049, roundedPrice: 4000, direction: "DOWN", difference: -49 };
+    expect(quote.items[0]).toMatchObject({ regular: enabled ? 4000 : 4049, agent: enabled ? 4500 : 4050, government: enabled ? 4500 : 4549,
+      special: null, modal: 4049, unitCost: 4049, appliedUnitPrice: enabled ? 4000 : 4049,
+      priceRounding: enabled ? regularRounding : null,
+      referencePriceRounding: {
+        regular: enabled ? regularRounding : null,
+        agent: enabled ? { originalPrice: 4050, roundedPrice: 4500, direction: "UP", difference: 450 } : null,
+        government: enabled ? { originalPrice: 4549, roundedPrice: 4500, direction: "DOWN", difference: -49 } : null,
+        special: null,
+      },
+    });
+  });
+
+  it("keeps special formula reference independent from a rounded manual selling price", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
+    const client = makeQuoteClient({ customerType: "INDUSTRI", rules: [{ id: "round-rule", categoryId: "paper-category", category: { name: "Paper" }, customerType: "INDUSTRI", customerTypes: [], unit: "rim", brandId: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5, isActive: true }] });
+    const product = (await client.product.findMany())[0];
+    client.product.findMany.mockResolvedValue([{ ...product, costPrice: 4000 }] as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ productId: "paper", quantity: 1, submittedPrice: 5050 }],
+    });
+    expect(quote.items[0]).toMatchObject({ special: 4500, appliedUnitPrice: 5500,
+      priceRounding: { originalPrice: 5050, roundedPrice: 5500, direction: "UP", difference: 450 },
+      referencePriceRounding: { special: { originalPrice: 4180, roundedPrice: 4500, direction: "UP", difference: 320 } },
+      modal: 4000, unitCost: 4000,
+    });
+  });
+
+  it("rounds formula output after calculations and preserves raw audit values and cost", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
+    const client = makeQuoteClient({ customerType: "INDUSTRI", rules: [{ id: "round-rule", categoryId: "paper-category", category: { name: "Paper" }, customerType: "INDUSTRI", customerTypes: [], unit: "rim", brandId: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5, isActive: true }] });
+    const product = (await client.product.findMany())[0];
+    client.product.findMany.mockResolvedValue([{ ...product, costPrice: 4000 }] as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ productId: "paper", quantity: 2, submittedPrice: 4500 }],
+    });
+    expect(quote.items[0]).toMatchObject({ appliedUnitPrice: 4500, subtotal: 9000, modal: 4000, unitCost: 4000,
+      appliedPricing: { ruleId: "round-rule", mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5, originalUnitPrice: 100, appliedUnitPrice: 4500 },
+    });
+    roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
+    const raw = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ productId: "paper", quantity: 2 }],
+    });
+    expect(raw.items[0].appliedUnitPrice).toBe(4180);
+    expect(raw.fingerprint).not.toBe(quote.fingerprint);
+  });
+
+  it("leaves printing service selling prices unchanged when rounding is enabled", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    client.printingService.findMany.mockResolvedValue([{ id: "print", storeId: "store-1", name: "Cetak", basePrice: 4049, unit: "lembar", updatedAt: new Date() }] as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: false,
+      items: [{ printingServiceId: "print", quantity: 2 }],
+    });
+    expect(quote).toMatchObject({ subtotal: 8098, total: 8098 });
+    expect(quote.items[0].appliedUnitPrice).toBe(4049);
+  });
+
   it("preserves a saved line discount through repricing and recalculates tax after both discounts", async () => {
     const client = makeQuoteClient({ customerType: "UMUM", discount: 5 });
     const transaction = await client.transaction.findFirst();

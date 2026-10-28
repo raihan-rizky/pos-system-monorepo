@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const roundingSettingsMock = vi.hoisted(() => vi.fn());
+vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: roundingSettingsMock }));
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const requireRoleMock = vi.hoisted(() => vi.fn());
@@ -54,6 +56,25 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions/draft", () => {
+  it.each([
+    { enabled: true, custom: undefined, expected: 4000 },
+    { enabled: true, custom: 4050, expected: 4500 },
+    { enabled: false, custom: 4050, expected: 4050 },
+  ])("stores final rounded prices with policy $enabled and custom $custom", async ({ enabled, custom, expected }) => {
+    roundingSettingsMock.mockResolvedValue({ enabled, increment: 500, threshold: 50 });
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, price: 4049 }]);
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 20000,
+      items: [{ productId: "p1", name: "Kertas", price: 4049, transactionPrice: custom, quantity: 2, discount: 100 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: expected * 2 - 100, total: expected * 2 - 100,
+      items: { create: [expect.objectContaining({ unitPrice: expected, appliedUnitPrice: expected, subtotal: expected * 2 - 100, discount: 100 })] },
+    });
+  });
+
   it("stores a trimmed document name separately from the server product name", async () => {
     const { POST } = await import("../route");
     const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
@@ -192,6 +213,7 @@ describe("POST /api/transactions/draft", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-02T03:00:00.000Z"));
     invoiceNowMock.mockImplementation(async () => new Date());

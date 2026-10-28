@@ -56,9 +56,10 @@ describe("priceCartItemsForCheckout", () => {
       items: [{ ...paperRim, unitOptions: [{ ...paperRim }] }], customerType: "UMUM",
       pricingRules: [{ ...allPaperRimBrandRule, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5 }], manualPrices: {}, role: "CASHIER",
     });
-    expect(priced.price).toBe(7315);
+    expect(priced.price).toBe(7500);
     if (priced.lineType !== "PRODUCT") throw new Error("Expected product");
-    expect(priced.unitOptions?.[0].price).toBe(7315);
+    expect(priced.unitOptions?.[0].price).toBe(7500);
+    expect(priced.priceRounding?.originalPrice).toBe(7315);
     expect(priced.appliedPricing).toMatchObject({ discountPercent: 5 });
   });
   it("keeps rule metadata when a submitted manual price is not allowed", () => {
@@ -73,7 +74,8 @@ describe("priceCartItemsForCheckout", () => {
       customerType: "UMUM", pricingRules: [{ ...allPaperRimBrandRule, mode: "COST_PLUS_FLAT", value: 4000 }], manualPrices: {}, role: "SALES",
     });
     if (priced.lineType !== "PRODUCT") throw new Error("Expected product");
-    expect(priced.unitOptions?.[0].price).toBe(4700);
+    expect(priced.unitOptions?.[0].price).toBe(5000);
+    expect(priced.unitOptions?.[0].priceRounding?.originalPrice).toBe(4700);
     expect(priced.unitOptions?.[0].catalogPrice).toBe(10000);
   });
   it("uses smallest-unit modal directly for a selected rim and multiple customers", () => {
@@ -84,8 +86,9 @@ describe("priceCartItemsForCheckout", () => {
       manualPrices: {},
       role: "SALES",
     });
-    expect(priced.price).toBe(4700);
-    expect(priced.price * priced.quantity).toBe(9400);
+    expect(priced.price).toBe(5000);
+    expect(priced.price * priced.quantity).toBe(10000);
+    if (priced.lineType === "PRODUCT") expect(priced.priceRounding?.originalPrice).toBe(4700);
     if (priced.lineType !== "PRODUCT") throw new Error("Expected product");
     expect(priced.appliedPricing?.ruleId).toBe(allPaperRimBrandRule.id);
   });

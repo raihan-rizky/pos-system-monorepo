@@ -1,9 +1,11 @@
 import type { Product, ProductVariant } from "@/hooks/useProducts";
 import { priceProductForCustomerType, type AppliedCategoryPricing, type CategoryPricingRule, type CustomerType } from "./pricing-rules";
+import { roundSellingPriceLine, type PriceRoundingResult, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 
 export interface CatalogPriceDisplay {
   displayPrice: number;
   appliedPricing: AppliedCategoryPricing | null;
+  priceRounding: PriceRoundingResult | null;
 }
 export type PricedCatalogProduct = Product & CatalogPriceDisplay & {
   variants?: (ProductVariant & CatalogPriceDisplay)[];
@@ -14,9 +16,10 @@ export function priceCatalogVariantForCustomer(
   variant: ProductVariant | undefined,
   customerType: CustomerType,
   rules: CategoryPricingRule[],
+  roundingSettings?: PriceRoundingSettings,
 ) {
   const selected = variant ?? product;
-  return priceProductForCustomerType({
+  return roundSellingPriceLine(priceProductForCustomerType({
     categoryId: product.category.id,
     categoryName: product.category.name,
     price: Number(selected.price),
@@ -28,18 +31,19 @@ export function priceCatalogVariantForCustomer(
     hargaDinas: selected.hargaDinas == null ? null : Number(selected.hargaDinas),
     baseCostPrice: selected.baseCostPrice,
     baseCostUnit: selected.baseCostUnit,
-  }, customerType, rules);
+  }, customerType, rules), roundingSettings);
 }
 
-export function priceCatalogProductForCustomer(product: Product, customerType: CustomerType, rules: CategoryPricingRule[]): PricedCatalogProduct {
-  const priced = priceCatalogVariantForCustomer(product, undefined, customerType, rules);
+export function priceCatalogProductForCustomer(product: Product, customerType: CustomerType, rules: CategoryPricingRule[], roundingSettings?: PriceRoundingSettings): PricedCatalogProduct {
+  const priced = priceCatalogVariantForCustomer(product, undefined, customerType, rules, roundingSettings);
   return {
     ...product,
     displayPrice: priced.unitPrice,
     appliedPricing: priced.appliedPricing,
+    priceRounding: priced.priceRounding,
     variants: product.variants?.map(variant => {
-      const variantPrice = priceCatalogVariantForCustomer(product, variant, customerType, rules);
-      return { ...variant, displayPrice: variantPrice.unitPrice, appliedPricing: variantPrice.appliedPricing };
+      const variantPrice = priceCatalogVariantForCustomer(product, variant, customerType, rules, roundingSettings);
+      return { ...variant, displayPrice: variantPrice.unitPrice, appliedPricing: variantPrice.appliedPricing, priceRounding: variantPrice.priceRounding };
     }),
   };
 }

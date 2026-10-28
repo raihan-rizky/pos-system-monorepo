@@ -6,6 +6,7 @@ import type {
   CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { changeCartUnit } from "@/features/pos-checkout/helpers/cart-unit-change";
+import type { PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 
 export interface ProductCartItem {
   cartLineId: string;
@@ -16,6 +17,8 @@ export interface ProductCartItem {
   price: number;
   catalogPrice: number;
   transactionPrice?: number | null;
+  priceRounding?: PriceRoundingResult | null;
+  priceError?: string | null;
   costPrice?: number | null;
   baseCostPrice?: number | null;
   baseCostUnit?: string | null;
@@ -77,6 +80,8 @@ export type CartUnitOption = Pick<
   | "size"
   | "material"
   | "appliedPricing"
+  | "priceRounding"
+  | "priceError"
 >;
 
 export interface PrintingServiceCartItem {

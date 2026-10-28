@@ -47,6 +47,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "owner-stock-group": [["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"]],
   "owner-database-reset": [["settings", "settings-sidebar"], ["settings", "settings-primary"], ["settings", "settings-review-save"], ["settings", "settings-review-save"], ["settings", "settings-review-save"]],
   "owner-shift-settings": [["settings", "settings-sidebar"], ["settings", "settings-primary"], ["settings", "settings-primary"], ["settings", "settings-sidebar"]],
+  "owner-price-rounding": [["settings", "settings-rounding-tab"], ["settings", "settings-rounding-rule"], ["settings", "settings-rounding-save"]],
 
   "admin-settings": [["settings", "settings-sidebar"], ["settings", "settings-info-store"], ["settings", "settings-save"]],
   "admin-products": [["products", "products-primary"], ["products", "products-add-button"], ["products", "products-edit-action"]],

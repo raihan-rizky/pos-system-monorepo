@@ -4,6 +4,12 @@ import { readFileSync } from "node:fs";
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
+  it("mempertahankan urutan nomor FAQ saat panduan pembulatan ditambahkan", () => {
+    expect(FAQ_WORKFLOWS.map(workflow => workflow.faqNumber)).toEqual(
+      Array.from({ length: 43 }, (_, index) => index + 1),
+    );
+  });
+
   it("guides manual receivables separately from invoice payments", () => {
     const manual = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 41);
     expect(manual).toMatchObject({ route: "/customers", requiredCapabilities: [{ resource: "customer", action: "update" }] });
@@ -92,9 +98,9 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(42);
+    expect(FAQ_WORKFLOWS).toHaveLength(43);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 42 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 43 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);

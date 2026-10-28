@@ -88,6 +88,17 @@ const CATEGORY_HELP_STEPS: Step[] = [
 const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
   OWNER: [
     {
+      id: "owner-price-rounding",
+      title: "Mengatur Pembulatan Harga Jual",
+      description: "Samakan pembulatan hasil akhir harga jual produk, lalu lihat arah dan selisihnya pada harga produk atau kasir. Pengaturan awal aktif dengan kelipatan Rp500 dan ambang naik Rp50.",
+      icon: <DollarSign className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Pembulatan Harga", description: "Masuk ke Pengaturan > Pembulatan Harga. Secara default hanya Owner yang dapat mengelola tab ini. Owner dapat mendelegasikan izin Lihat dan Ubah pada resource settings.price_rounding melalui RBAC, bersama akses halaman Pengaturan.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Atur dan Periksa Pratinjau", description: "Pilih apakah pembulatan aktif, isi Kelipatan (Rp) dan Ambang naik (Rp), lalu periksa pratinjau langsung. Dengan kelipatan Rp500 dan ambang Rp50, Rp4.049 turun ke Rp4.000 sedangkan Rp4.050 naik ke Rp4.500. Kelipatan harus bulat positif; ambang bulat dari nol sampai kelipatan.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Simpan dan Baca Badge Harga", description: "Klik Simpan pengaturan dan tunggu konfirmasi berhasil. Pada produk atau POS, klik badge Dibulatkan ke atas / Dibulatkan ke bawah, atau fokuskan lalu tekan Enter, untuk melihat harga asal, harga final, dan selisih pembulatan. Harga yang tidak berubah tidak menampilkan badge; transaksi final yang sudah tersimpan tetap memakai harga saat transaksi.", icon: <ShoppingCart className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "owner-rbac",
       title: "Mengelola Akses (RBAC)",
       description: "Menu ini dipakai untuk mengatur siapa saja yang boleh membuka halaman tertentu atau melakukan aksi di aplikasi. Tampilan ringkasan role dan matrix modul membantu Owner melihat perubahan permission sebelum disimpan. Update operasional muncul di ikon bell dengan badge merah sesuai jumlah yang belum dibaca, termasuk Persetujuan Transaksi, permintaan stok, Daftar Belanja, dan Pembelian Barang. Klik item untuk membaca sekaligus membuka halaman terkait, atau pilih Tandai semua dibaca agar badge hilang. Ikon notifikasi awalnya disembunyikan di balik tab > pada tepi layar. Klik tab untuk menampilkan bell, geser bell atau tab ke posisi yang nyaman lalu lepas agar otomatis menempel ke sisi kiri atau kanan terdekat. Gunakan tombol sembunyikan di samping bell jika ingin menciutkannya lagi; sisi dan posisi terakhir tetap tersimpan setelah halaman dimuat ulang.",

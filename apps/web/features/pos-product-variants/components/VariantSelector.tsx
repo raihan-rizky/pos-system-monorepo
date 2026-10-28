@@ -41,7 +41,7 @@ export const VariantSelector: React.FC<VariantSelectorProps> = ({
           const suffix = Math.floor(variant.stock ?? 0) <= 0 ? ' (Stok Habis)' : '';
           return (
             <option key={variant.id} value={variant.id}>
-              {variant.unit} • {formatRupiah(variant.displayPrice ?? variant.price)}{isSpecialCategoryPricing(variant.appliedPricing) ? ' • Harga Khusus' : ''}{suffix}
+              {variant.unit} • {formatRupiah(variant.displayPrice ?? variant.price)}{isSpecialCategoryPricing(variant.appliedPricing) ? ' • Harga Khusus' : ''}{variant.priceRounding?.direction === 'UP' ? ' • Dibulatkan ke atas' : variant.priceRounding?.direction === 'DOWN' ? ' • Dibulatkan ke bawah' : ''}{suffix}
             </option>
           );
         })}

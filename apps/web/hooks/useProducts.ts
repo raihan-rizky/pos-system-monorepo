@@ -6,8 +6,10 @@ import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tansta
 import { useDebounce } from "./useDebounce";
 import type { ProductStockStatusFilter } from "@/features/pos-search/pos-stock-filter";
 import type { AppliedCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import type { PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 
 export interface ProductVariant {
+  priceRounding?: PriceRoundingResult | null;
   description?: string | null;
   displayPrice?: number;
   appliedPricing?: AppliedCategoryPricing | null;
@@ -40,6 +42,7 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  priceRounding?: PriceRoundingResult | null;
   description?: string | null;
   displayPrice?: number;
   appliedPricing?: AppliedCategoryPricing | null;

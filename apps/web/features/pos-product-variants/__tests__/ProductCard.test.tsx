@@ -5,6 +5,15 @@ import type { Product } from '@/hooks/useProducts';
 import type { CategoryPricingRule } from '@/features/customer-category-pricing/helpers/pricing-rules';
 
 describe('ProductCard', () => {
+  it('shows the rounded selling price with a disclosure and respects an inactive policy', () => {
+    const product = { ...mockProduct, price: 4050, defaultVariant: undefined, variants: undefined };
+    const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} />);
+    expect(html).toContain('4.500');
+    expect(html).toContain('Dibulatkan ke atas');
+    const unrounded = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} roundingSettings={{ enabled: false, increment: 500, threshold: 50 }} />);
+    expect(unrounded).toContain('4.050');
+    expect(unrounded).not.toContain('Dibulatkan');
+  });
   it('renders the shared product description instead of a unit description', () => {
     const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, description: 'Deskripsi grup', variants: mockProduct.variants?.map(v => ({ ...v, description: v.id === '1' ? 'Isi dua belas botol' : 'Satu botol' })) }} onAddToCart={vi.fn()} />);
     expect(html).not.toContain('Isi dua belas botol');
@@ -33,7 +42,7 @@ describe('ProductCard', () => {
     const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, baseCostPrice: 700, baseCostUnit: 'pcs' })) }} onAddToCart={vi.fn()} customerType="UMUM" categoryPricingRules={[{ id: 'special', categoryId: 'cat1', customerType: 'ALL', mode: 'COST_PLUS_FLAT', value: 4000, unit: 'dus', isActive: true }]} />);
     expect(html).toContain('4.700');
     expect(html).toContain('Harga Khusus');
-    expect(html).toMatch(/<div class="flex items-center gap-2"><p class="text-base font-bold text-emerald-800">Rp\s4\.700<\/p><span role="img" aria-label="Harga Khusus"/);
+    expect(html).toMatch(/<div class="flex items-center gap-2"><p class="text-base font-bold text-emerald-800">Rp\s5\.000<\/p><span role="img" aria-label="Harga Khusus"/);
     expect(html).toContain('text-emerald-800');
     expect(html).not.toContain('700/pcs');
   });

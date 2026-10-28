@@ -60,6 +60,9 @@ import { useProductSelection } from "./hooks/useProductSelection";
 import { useCustomerCategoryPricingRules } from "@/hooks/useCustomerCategoryPricingRules";
 import { mapCheckoutPricingRule } from "@/features/pos-checkout/helpers/checkout-pricing";
 import { priceCatalogProductForCustomer } from "@/features/customer-category-pricing/helpers/product-pricing";
+import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS } from "@/features/product-price-rounding/rounding";
 import { CUSTOMER_TYPES, isSpecialCategoryPricing, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 
@@ -215,6 +218,7 @@ function StatCard({
 }
 
 export default function ProductsClientPage() {
+  const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
   const pricingQueryClient = useQueryClient();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -370,7 +374,7 @@ export default function ProductsClientPage() {
   }, [pagination, page]);
 
   const processedProducts = React.useMemo(() => {
-    let result = products.map(product => priceCatalogProductForCustomer(product, pricingCustomerType, categoryPricingRules.map(mapCheckoutPricingRule)));
+    let result = products.map(product => priceCatalogProductForCustomer(product, pricingCustomerType, categoryPricingRules.map(mapCheckoutPricingRule), roundingSettings));
 
     // Status Filter
     if (stockFilter === "low") {
@@ -387,7 +391,7 @@ export default function ProductsClientPage() {
     });
 
     return result;
-  }, [products, stockFilter, sortBy, pricingCustomerType, categoryPricingRules]);
+  }, [products, stockFilter, sortBy, pricingCustomerType, categoryPricingRules, roundingSettings]);
 
   const stats = statsQuery.data;
   const statsReady = stats !== undefined;
@@ -833,7 +837,7 @@ export default function ProductsClientPage() {
                 />
               )}
               {activeTab === "special-prices" && canManageSpecialPrices && (
-                <CustomerCategoryPricingRulesTab />
+                <CustomerCategoryPricingRulesTab roundingSettings={roundingSettings} />
               )}
             </Suspense>
           </div>
@@ -1194,6 +1198,7 @@ export default function ProductsClientPage() {
         {isProductModalOpen &&
           (editingProductId ? canUpdateProducts : canCreateProducts) && (
             <ProductFormModal
+              roundingSettings={roundingSettings}
               isOpen={isProductModalOpen}
               onClose={closeProduct}
               productId={editingProductId}
@@ -1203,6 +1208,7 @@ export default function ProductsClientPage() {
           )}
         {priceUpdateProductId && canChangePrice && (
           <PriceUpdateModal
+            roundingSettings={roundingSettings}
             isOpen={Boolean(priceUpdateProductId)}
             onClose={closePriceChange}
             product={products.find((p) => p.id === priceUpdateProductId) ?? null}
@@ -1550,6 +1556,7 @@ function ProductGrid({
                   {fmt(p.displayPrice ?? p.price)}
                 </p>
                 {isSpecialCategoryPricing(p.appliedPricing) && <SpecialPriceBadge />}
+                <PriceRoundingBadge rounding={p.priceRounding} />
                 {canChangePrice && p.costPrice != null && (
                   <>
                     <p className="text-[10px] font-bold text-slate-500 mt-0.5">

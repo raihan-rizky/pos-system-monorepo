@@ -9,6 +9,11 @@ const cashierShiftFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
 const expenseAggregateMock = vi.hoisted(() => vi.fn());
 const expenseCountMock = vi.hoisted(() => vi.fn());
+const getPriceRoundingSettingsMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({
+  getPriceRoundingSettings: getPriceRoundingSettingsMock,
+}));
 
 vi.mock("@pos/db", () => ({
   db: {
@@ -38,6 +43,7 @@ import {
 describe("assistant tools repository", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getPriceRoundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
   });
 
   it("returns active low-stock products scoped to store with safe fields", async () => {
@@ -133,6 +139,47 @@ describe("assistant tools repository", () => {
     const result = await getProductPrice({ storeId: "store-1", query: "A4" });
 
     expect(result.match).toMatchObject({ name: "Kertas A4", price: 50000 });
+  });
+
+  it.each([[4049, 4000], [4050, 4500], [4549, 4500], [4550, 5000], [4049.99, 4000]])("returns the effective selling price for %s", async (price, expected) => {
+    productFindManyMock.mockResolvedValue([
+      { id: "p1", name: "Kertas", sku: "A4", stock: 10, minStock: 5, unit: "rim", price: { toNumber: () => price } },
+    ]);
+
+    const result = await getProductPrice({ storeId: "store-1", query: "Kertas" });
+
+    expect(result.match?.price).toBe(expected);
+    expect(result.candidates).toEqual([]);
+  });
+
+  it("uses the current saved policy for searches and stock answers without changing source data", async () => {
+    getPriceRoundingSettingsMock.mockResolvedValue({ enabled: true, increment: 100, threshold: 20 });
+    const source = { id: "p1", name: "Kertas", sku: "A4", stock: 10, minStock: 5, unit: "rim", price: { toNumber: () => 4049 }, costPrice: 2049.99 };
+    productFindManyMock.mockResolvedValue([source]);
+
+    const search = await getProductSearch({ storeId: "store-1", query: "Kertas" });
+    const stock = await getProductStock({ storeId: "store-1", query: "Kertas" });
+
+    expect(search.items[0].price).toBe(4100);
+    expect(stock.match?.price).toBe(4100);
+    expect(source.price.toNumber()).toBe(4049);
+    expect(source.costPrice).toBe(2049.99);
+    expect(stock.match?.stock).toBe(10);
+    expect(search.items[0]).not.toHaveProperty("costPrice");
+  });
+
+  it("keeps all ambiguous price candidates consistent and uses changed policies on the next request", async () => {
+    productFindManyMock.mockResolvedValue([
+      { id: "p1", name: "Kertas A", price: "4049.99" },
+      { id: "p2", name: "Kertas B", price: "4050" },
+    ]);
+    const rounded = await getProductPrice({ storeId: "store-1", query: "Kertas" });
+    expect(rounded.match).toBeNull();
+    expect(rounded.candidates.map((item) => item.price)).toEqual([4000, 4500]);
+
+    getPriceRoundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
+    const unrounded = await getProductPrice({ storeId: "store-1", query: "Kertas" });
+    expect(unrounded.candidates.map((item) => item.price)).toEqual([4049.99, 4050]);
   });
 
   it("searches customers scoped to store", async () => {

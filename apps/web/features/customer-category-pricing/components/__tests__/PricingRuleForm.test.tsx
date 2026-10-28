@@ -141,6 +141,14 @@ describe("Harga Khusus editor", () => {
     expect(html).toContain("/rim");
     expect(html).toContain('aria-live="polite"');
   });
+  it("rounds the completed formula and previews the current rounding policy", () => {
+    const html = renderToStaticMarkup(<PricingRuleForm initialRule={initialRule} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
+    expect(html).toContain("Dibulatkan ke atas");
+    expect(html).toContain("5.000");
+    const disabled = renderToStaticMarkup(<PricingRuleForm initialRule={initialRule} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} roundingSettings={{ enabled: false, increment: 500, threshold: 50 }} />);
+    expect(disabled).toContain("4.700");
+    expect(disabled).not.toContain("Dibulatkan ke atas");
+  });
   it("preserves a saved unit absent from current category options", () => {
     const html = renderToStaticMarkup(
       <PricingRuleForm
@@ -206,8 +214,8 @@ describe("Harga Khusus editor", () => {
     expect(html).toContain("Laba");
     expect(html).toContain("Margin");
     expect(html).toContain("76.000");
-    expect(html).toMatch(/-Rp\s65\.740/);
-    expect(html).toContain("-640,74%");
+    expect(html).toMatch(/-Rp\s65\.500/);
+    expect(html).toContain("-623,81%");
     expect(html).toContain("Harga di bawah HPP satuan");
     expect(html).toMatch(/class="[^"]*text-red-700[^"]*"[^>]*>[^<]*Harga di bawah HPP satuan/);
   });
@@ -217,8 +225,8 @@ describe("Harga Khusus editor", () => {
     ];
     const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, unit: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 35, discountPercent: 0 }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
     expect(html).toContain("102.600");
-    expect(html).toContain("26.600");
-    expect(html).toContain("25,93%");
+    expect(html).toContain("27.000");
+    expect(html).toContain("26,21%");
     expect(html).toContain("tambahan 35% menghasilkan margin 25,93%");
     expect(html).not.toContain("Harga di bawah HPP satuan");
   });

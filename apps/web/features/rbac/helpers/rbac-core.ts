@@ -85,6 +85,7 @@ export const RESOURCE_TARGETS = [
   "shift",
   "salesperson",
   "settings",
+  "settings.price_rounding",
   "whatsapp",
   "rbac",
   "expense",
