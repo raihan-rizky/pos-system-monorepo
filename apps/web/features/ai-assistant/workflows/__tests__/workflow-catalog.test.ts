@@ -146,6 +146,18 @@ describe("FAQ workflow catalog", () => {
     expect(JSON.stringify(inbound)).not.toContain("admin dengan izin `inventory.approve`");
   });
 
+  it("documents required inbound prices and the optional mismatch exception in the FAQ source", () => {
+    const faq = readFileSync(new URL("../../docs/help/faq.md", import.meta.url), "utf8");
+    const inbound = faq.split("### Q18:")[1]?.split("### Q19:")[0];
+    expect(inbound).toBeDefined();
+    for (const label of ["HPP Unit", "Harga Jual", "Harga Jual Agen", "Harga Jual Dinas"]) {
+      expect(inbound).toContain(label);
+    }
+    expect(inbound).toContain("satuan dan harga bersifat opsional");
+    expect(inbound).toContain("memperbarui HPP dan harga jual produk");
+    expect(inbound).toContain("HPP satuan acuan");
+  });
+
   it("documents the custom invoice date guide in the workflow catalog and FAQ source", () => {
     const customInvoiceDateWorkflow = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 10);
     const faqSource = readFileSync(new URL("../../docs/help/faq.md", import.meta.url), "utf8");
