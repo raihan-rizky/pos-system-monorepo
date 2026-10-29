@@ -12,8 +12,21 @@ import { MemberPricingGuidance } from "@/features/customer-category-pricing/comp
 import type { ProductCartItem } from "@/hooks/useCart";
 
 import { getLogger } from "@/lib/logger";
+import { changedProductFields } from "@/lib/product-form/product-form-payload";
 
 const log = getLogger("ui:EditProductModal");
+type EditableProductFields = {
+  name: string;
+  sku: string;
+  hargaDinas: number | null;
+  hargaAgen: number | null;
+  stock: number;
+  unit: string;
+  categoryId: string;
+  size: string | undefined;
+  material: string | undefined;
+};
+
 interface EditProductModalProps {
   roundingSettings?: PriceRoundingSettings;
   open: boolean;
@@ -26,6 +39,7 @@ export function EditProductModal({ open, onClose, product, roundingSettings }: E
   const updateProduct = useUpdateProduct();
 
   const initializedProduct = useRef<string | null>(null);
+  const initialFields = useRef<EditableProductFields | null>(null);
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
@@ -42,9 +56,23 @@ export function EditProductModal({ open, onClose, product, roundingSettings }: E
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    if (!open) initializedProduct.current = null;
+    if (!open) {
+      initializedProduct.current = null;
+      initialFields.current = null;
+    }
     if (product && open && initializedProduct.current !== product.id) {
       initializedProduct.current = product.id;
+      initialFields.current = {
+        name: product.name,
+        sku: product.sku,
+        hargaDinas: Number(product.hargaDinas) > 0 ? Number(product.hargaDinas) : null,
+        hargaAgen: Number(product.hargaAgen) > 0 ? Number(product.hargaAgen) : null,
+        stock: Number(product.stock),
+        unit: product.unit,
+        categoryId: product.category.id,
+        size: product.size || undefined,
+        material: product.material || undefined,
+      };
       setName(product.name);
       setSku(product.sku);
       setPrice(product.price.toString());
@@ -107,24 +135,21 @@ export function EditProductModal({ open, onClose, product, roundingSettings }: E
     try {
       const parsedHargaDinas = hargaDinas.trim() ? Number(hargaDinas) : null;
       const parsedHargaAgen = hargaAgen.trim() ? Number(hargaAgen) : null;
+      if (!initialFields.current) throw new Error("Data produk belum siap. Coba lagi.");
+      const currentFields: EditableProductFields = {
+        name, sku, hargaDinas: parsedHargaDinas, hargaAgen: parsedHargaAgen,
+        stock: Number(stock), unit, categoryId, size: size || undefined, material: material || undefined,
+      };
       await updateProduct.mutateAsync({
         id: product.id,
-        name,
-        sku,
-        hargaDinas: parsedHargaDinas,
-        hargaAgen: parsedHargaAgen,
-        stock: Number(stock),
-        unit,
-        categoryId,
-        size: size || undefined,
-        material: material || undefined,
-        imageUrl: finalImageUrl, // Will be undefined if no new image was uploaded, so Prisma ignores it
+        ...changedProductFields(currentFields, initialFields.current),
+        imageUrl: finalImageUrl,
       });
       setIsUploading(false);
       onClose();
     } catch (error) {
       log.error("Failed to update product:", error);
-      alert("Gagal merubah barang. SKU mungkin sudah ada.");
+      alert(error instanceof Error ? error.message : "Barang belum dapat diubah. Coba lagi.");
       setIsUploading(false);
     }
   };
@@ -170,10 +195,12 @@ export function EditProductModal({ open, onClose, product, roundingSettings }: E
             onChange={(e) => setSku(e.target.value)}
           />
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-surface-700">
+            <label htmlFor="pos-product-category" className="text-sm font-medium text-surface-700">
               Kategori *
             </label>
             <select
+              id="pos-product-category"
+              aria-describedby={product.stockGroupId || product.stockGroup?.id ? "pos-category-group-hint" : undefined}
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl bg-white border border-surface-200 text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400 hover:border-surface-300"
@@ -185,6 +212,7 @@ export function EditProductModal({ open, onClose, product, roundingSettings }: E
                 </option>
               ))}
             </select>
+            {(product.stockGroupId || product.stockGroup?.id) && <p id="pos-category-group-hint" className="text-xs text-surface-600">Mengubah kategori akan memindahkan semua satuan dalam grup stok ini, termasuk satuan tidak aktif.</p>}
           </div>
         </div>
 
@@ -330,7 +358,7 @@ export function PosProductQuickEditModal({
     try {
       await onSave({
         name: name.trim(),
-        ...(item.description !== undefined || descriptionChanged
+        ...(descriptionChanged
           ? { description: description.trim() || null }
           : {}),
         categoryId,

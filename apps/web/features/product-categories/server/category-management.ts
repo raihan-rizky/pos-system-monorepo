@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { db, type Prisma } from "@pos/db";
 import { z } from "zod";
 import { isCategoryIconName } from "@/lib/category-icon-catalog";
+import { stockGroupKeyForCategory } from "@/features/product-stock-groups/group-category";
+import { lockStockMutationRows } from "@/features/product-stock-groups/stock-group-lock";
 import type { CategoryActionResult, DeletePreview, MovePreview, PricingRuleImpact } from "../types";
 
 type Actor = { id: string; role: string; storeId: string | null };
@@ -61,9 +63,68 @@ function verifyToken(token: string, actor: Actor, snapshot: unknown) {
 }
 
 const categorySelect = { id: true, name: true, icon: true, color: true, order: true, salesGroup: true } as const;
-const productSelect = { id: true, categoryId: true, storeId: true, isActive: true, updatedAt: true, store: { select: { id: true, name: true } } } as const;
+const productSelect = { id: true, name: true, categoryId: true, storeId: true, stockGroupId: true, material: true, size: true, isActive: true, updatedAt: true, store: { select: { id: true, name: true } } } as const;
+const groupSelect = { id: true, storeId: true, groupKey: true, updatedAt: true } as const;
 const ruleInclude = { store: { select: { id: true, name: true } }, brand: { select: { name: true } } } as const;
 type RuleRow = Prisma.CategoryCustomerPricingRuleGetPayload<{ include: typeof ruleInclude }>;
+type ProductRow = Prisma.ProductGetPayload<{ select: typeof productSelect }>;
+type GroupRow = Prisma.ProductStockGroupGetPayload<{ select: typeof groupSelect }>;
+
+async function expandStockGroups(tx: Prisma.TransactionClient, selected: ProductRow[]) {
+  const groupIds = [...new Set(selected.flatMap(product => product.stockGroupId ? [product.stockGroupId] : []))].sort();
+  if (!groupIds.length) return { products: selected, groups: [] as GroupRow[] };
+
+  const groups = await tx.productStockGroup.findMany({ where: { id: { in: groupIds } }, select: groupSelect, orderBy: { id: "asc" } });
+  if (groups.length !== groupIds.length) conflict();
+  const members = await tx.product.findMany({ where: { stockGroupId: { in: groupIds } }, select: productSelect, orderBy: { id: "asc" } });
+  const groupStores = new Map(groups.map(group => [group.id, group.storeId]));
+  if (members.some(member => member.stockGroupId && groupStores.get(member.stockGroupId) !== member.storeId)) conflict();
+  const products = [...new Map([...selected, ...members].map(product => [product.id, product])).values()].sort((a, b) => a.id.localeCompare(b.id));
+  return { products, groups };
+}
+
+async function planGroupKeys(tx: Prisma.TransactionClient, groups: GroupRow[], products: ProductRow[], destinations: ReadonlyMap<string, string>) {
+  const plans: { group: GroupRow; groupKey: string }[] = [];
+  const plannedKeys = new Map<string, string>();
+  for (const group of groups) {
+    const destination = destinations.get(group.id);
+    if (!destination) continue;
+    const members = products.filter(product => product.stockGroupId === group.id);
+    if (!members.length) conflict();
+    const groupKey = stockGroupKeyForCategory(group.groupKey, members, destination);
+    if (groupKey === group.groupKey) continue;
+    const scopedKey = JSON.stringify([group.storeId, groupKey]);
+    if (plannedKeys.has(scopedKey)) throw new CategoryManagementError(409, "Kategori tujuan sudah memiliki grup stok dengan identitas yang sama. Periksa grup sebelum memindahkan produk.");
+    plannedKeys.set(scopedKey, group.id);
+    const existing = await tx.productStockGroup.findUnique({ where: { storeId_groupKey: { storeId: group.storeId, groupKey } }, select: { id: true } });
+    if (existing && existing.id !== group.id) throw new CategoryManagementError(409, "Kategori tujuan sudah memiliki grup stok dengan identitas yang sama. Periksa grup sebelum memindahkan produk.");
+    plans.push({ group, groupKey });
+  }
+  return plans;
+}
+
+async function lockCategoryGroups(tx: Prisma.TransactionClient, groups: GroupRow[], products: ProductRow[]) {
+  const storeIds = [...new Set(groups.map(group => group.storeId))].sort();
+  for (const storeId of storeIds) {
+    const stockGroupIds = groups.filter(group => group.storeId === storeId).map(group => group.id);
+    const productIds = products.filter(product => product.storeId === storeId).map(product => product.id);
+    const locked = await lockStockMutationRows(tx, { storeId, stockGroupIds, productIds });
+    if (locked.lockedStockGroupIds.length !== stockGroupIds.length || locked.lockedProductIds.length !== productIds.length) conflict();
+  }
+}
+
+async function applyGroupKeys(tx: Prisma.TransactionClient, plans: Awaited<ReturnType<typeof planGroupKeys>>) {
+  for (const { group, groupKey } of plans) {
+    try {
+      await tx.productStockGroup.update({ where: { id: group.id }, data: { groupKey } });
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+        throw new CategoryManagementError(409, "Kategori tujuan sudah memiliki grup stok dengan identitas yang sama. Periksa grup sebelum memindahkan produk.");
+      }
+      throw error;
+    }
+  }
+}
 
 function ruleImpact(rule: RuleRow): PricingRuleImpact {
   return { id: rule.id, storeId: rule.storeId, storeName: rule.store.name, customerTypes: rule.customerTypes.length ? rule.customerTypes : rule.customerType ? [rule.customerType] : ["ALL"], unit: rule.unit, brandName: rule.brand?.name ?? null, mode: rule.mode, value: String(rule.value), isActive: rule.isActive };
@@ -126,6 +187,18 @@ async function deleteCategories(tx: Prisma.TransactionClient, input: Extract<z.i
   if (actor.role !== "OWNER" && (sourceRules.length > 0 || products.some(product => product.storeId !== (actor.storeId || "store-main")))) {
     throw new CategoryManagementError(403, "Minta Owner menjalankan penghapusan ini karena memengaruhi aturan harga pelanggan atau produk di toko lain.");
   }
+  const expanded = await expandStockGroups(tx, products);
+  for (const group of expanded.groups) {
+    const memberCategories = new Set(expanded.products.filter(product => product.stockGroupId === group.id).map(product => product.categoryId));
+    if (memberCategories.size > 1) throw new CategoryManagementError(409, "Satuan dalam satu grup stok memiliki kategori berbeda. Pindahkan seluruh grup ke satu kategori sebelum menghapus kategori.");
+  }
+  const groupDestinations = new Map<string, string>();
+  for (const group of expanded.groups) {
+    const member = expanded.products.find(product => product.stockGroupId === group.id)!;
+    const destination = destinations[member.categoryId];
+    if (destination) groupDestinations.set(group.id, destination);
+  }
+  const groupPlans = await planGroupKeys(tx, expanded.groups, expanded.products, groupDestinations);
   const rows = sourceIds.map(source => {
     const category = categories.find(row => row.id === source)!;
     const sourceProducts = products.filter(product => product.categoryId === source);
@@ -134,7 +207,7 @@ async function deleteCategories(tx: Prisma.TransactionClient, input: Extract<z.i
     return { id: source, name: category.name, targetCategoryId: destinations[source], targetCategoryName: categories.find(row => row.id === destinations[source])?.name ?? null, products: sourceProducts.length, activeProducts, inactiveProducts: sourceProducts.length - activeProducts, rules: categoryRules.map(ruleImpact), stores: storeImpact(sourceProducts, categoryRules) };
   });
   const stores = storeImpact(products, sourceRules);
-  const snapshot = { kind: "delete", sourceIds, destinations, categories, products, rules };
+  const snapshot = { kind: "delete", sourceIds, destinations, categories, products, groups: expanded.groups, members: expanded.products, rules };
   if (input.action === "preview-delete") {
     const activeProducts = products.filter(product => product.isActive).length;
     return { kind: "delete", ...previewToken(actor, snapshot), categories: rows, totals: { categories: rows.length, products: products.length, activeProducts, inactiveProducts: products.length - activeProducts, rules: sourceRules.length, stores: stores.length }, stores };
@@ -142,6 +215,13 @@ async function deleteCategories(tx: Prisma.TransactionClient, input: Extract<z.i
   if (input.confirmation !== `HAPUS ${sourceIds.length} KATEGORI`) throw new CategoryManagementError(422, `Ketik HAPUS ${sourceIds.length} KATEGORI untuk mengonfirmasi`);
   if (rows.some(row => row.products > 0 && !row.targetCategoryId)) throw new CategoryManagementError(422, "Pilih kategori tujuan untuk setiap kategori yang masih berisi produk");
   verifyToken(input.token, actor, snapshot);
+  await lockCategoryGroups(tx, expanded.groups, expanded.products);
+  if (expanded.groups.length) {
+    const currentProducts = await tx.product.findMany({ where: { categoryId: { in: sourceIds } }, select: productSelect, orderBy: { id: "asc" } });
+    const current = await expandStockGroups(tx, currentProducts);
+    if (JSON.stringify(current) !== JSON.stringify(expanded)) conflict();
+  }
+  await applyGroupKeys(tx, groupPlans);
   let movedProducts = 0;
   for (const row of rows) {
     if (!row.products || !row.targetCategoryId) continue;
@@ -158,22 +238,34 @@ async function deleteCategories(tx: Prisma.TransactionClient, input: Extract<z.i
 
 async function moveProducts(tx: Prisma.TransactionClient, input: Extract<z.infer<typeof actionSchema>, { action: "preview-move" | "move" }>, actor: Actor): Promise<MovePreview | CategoryActionResult> {
   const productIds = [...input.productIds].sort();
-  const products = await tx.product.findMany({ where: { id: { in: productIds }, storeId: actor.storeId || "store-main" }, select: productSelect, orderBy: { id: "asc" } });
-  if (products.length !== productIds.length) conflict();
+  const storeId = actor.storeId || "store-main";
+  const selected = await tx.product.findMany({ where: { id: { in: productIds }, storeId }, select: productSelect, orderBy: { id: "asc" } });
+  if (selected.length !== productIds.length) conflict();
+  const expanded = await expandStockGroups(tx, selected);
+  const { products, groups } = expanded;
+  if (products.some(product => product.storeId !== storeId)) conflict();
   const categoryIds = [...new Set([input.targetCategoryId, ...products.map(product => product.categoryId)])].sort();
   const categories = await tx.category.findMany({ where: { id: { in: categoryIds } }, select: categorySelect, orderBy: { id: "asc" } });
   const target = categories.find(category => category.id === input.targetCategoryId);
   if (!target) conflict();
-  const rules = await tx.categoryCustomerPricingRule.findMany({ where: { categoryId: { in: categoryIds }, storeId: actor.storeId || "store-main" }, include: ruleInclude, orderBy: { id: "asc" } });
+  const rules = await tx.categoryCustomerPricingRule.findMany({ where: { categoryId: { in: categoryIds }, storeId }, include: ruleInclude, orderBy: { id: "asc" } });
   const movingIds = products.filter(product => product.categoryId !== target.id).map(product => product.id);
-  const snapshot = { kind: "move", productIds, targetCategoryId: target.id, categories, products, rules };
+  const groupPlans = await planGroupKeys(tx, groups, products, new Map(groups.map(group => [group.id, target.id])));
+  const snapshot = { kind: "move", productIds, targetCategoryId: target.id, categories, products, groups, rules };
   if (input.action === "preview-move") {
     return { kind: "move", ...previewToken(actor, snapshot), targetCategoryId: target.id, targetCategoryName: target.name, totals: { products: movingIds.length, unchanged: products.length - movingIds.length }, origins: categories.map(category => ({ id: category.id, name: category.name, products: products.filter(product => product.categoryId === category.id).length })).filter(origin => origin.products > 0) };
   }
   verifyToken(input.token, actor, snapshot);
+  await lockCategoryGroups(tx, groups, products);
+  if (groups.length) {
+    const currentSelected = await tx.product.findMany({ where: { id: { in: productIds }, storeId }, select: productSelect, orderBy: { id: "asc" } });
+    const current = await expandStockGroups(tx, currentSelected);
+    if (JSON.stringify(current) !== JSON.stringify(expanded)) conflict();
+  }
+  await applyGroupKeys(tx, groupPlans);
   let movedProducts = 0;
   if (movingIds.length) {
-    const moved = await tx.product.updateMany({ where: { id: { in: movingIds }, storeId: actor.storeId || "store-main" }, data: { categoryId: target.id } });
+    const moved = await tx.product.updateMany({ where: { id: { in: movingIds }, storeId }, data: { categoryId: target.id } });
     if (moved.count !== movingIds.length) conflict();
     movedProducts = moved.count;
   }

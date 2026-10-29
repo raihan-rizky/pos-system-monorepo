@@ -34,19 +34,16 @@ type ProductDetailsUpdatePayload = Omit<
   "id" | "price" | "costPrice" | "priceChangeNote"
 >;
 
-export function buildProductFormPayload(
-  formData: ProductFormValues,
-  mode: "create",
-): CreateProductInput;
-export function buildProductFormPayload(
-  formData: ProductFormValues,
-  mode: "edit",
-): ProductDetailsUpdatePayload;
-export function buildProductFormPayload(
-  formData: ProductFormValues,
-  mode: ProductFormMode,
-): CreateProductInput | ProductDetailsUpdatePayload {
-  const common = {
+export function changedProductFields<T extends object>(current: T, initial: T): Partial<T> {
+  const changed: Partial<T> = {};
+  for (const key of Object.keys(current) as Array<keyof T>) {
+    if (!Object.is(current[key], initial[key])) changed[key] = current[key];
+  }
+  return changed;
+}
+
+function productDetailFields(formData: ProductFormValues) {
+  return {
     name: formData.name,
     description: formData.description?.trim() || null,
     sku: formData.sku,
@@ -62,9 +59,26 @@ export function buildProductFormPayload(
     hargaDinas: formData.hargaDinas ? Number(formData.hargaDinas) : null,
     hargaAgen: formData.hargaAgen ? Number(formData.hargaAgen) : null,
   };
+}
+
+export function buildProductFormPayload(
+  formData: ProductFormValues,
+  mode: "create",
+): CreateProductInput;
+export function buildProductFormPayload(
+  formData: ProductFormValues,
+  mode: "edit",
+  initialFormData?: ProductFormValues,
+): ProductDetailsUpdatePayload;
+export function buildProductFormPayload(
+  formData: ProductFormValues,
+  mode: ProductFormMode,
+  initialFormData?: ProductFormValues,
+): CreateProductInput | ProductDetailsUpdatePayload {
+  const common = productDetailFields(formData);
 
   if (mode === "edit") {
-    return common;
+    return initialFormData ? changedProductFields(common, productDetailFields(initialFormData)) : common;
   }
 
   return {

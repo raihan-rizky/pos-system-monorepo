@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildProductFormPayload } from "../product-form-payload";
+import { buildProductFormPayload, changedProductFields } from "../product-form-payload";
 
 const formData = {
   name: "Banner Flexi",
@@ -81,6 +81,24 @@ describe("buildProductFormPayload", () => {
   it.each(["", "   ", undefined])("clears empty descriptions (%s)", (description) => {
     expect(buildProductFormPayload({ ...formData, description }, "edit"))
       .toMatchObject({ description: null });
+  });
+
+  it("keeps unchanged POS stock and prices out while preserving explicit edits", () => {
+    const initial = { categoryId: "cat-1", stock: 12, hargaDinas: 18000 as number | null, hargaAgen: 16000 as number | null };
+    expect(changedProductFields({ ...initial, categoryId: "cat-2" }, initial)).toEqual({ categoryId: "cat-2" });
+    expect(changedProductFields({ ...initial, stock: 9, hargaDinas: null }, initial)).toEqual({ stock: 9, hargaDinas: null });
+  });
+
+  it("sends only changed fields for an inventory category edit", () => {
+    const initial = { ...formData, description: "Awal" };
+    expect(buildProductFormPayload({ ...initial, categoryId: "cat-2" }, "edit", initial)).toEqual({ categoryId: "cat-2" });
+  });
+
+  it("includes explicit stock, member price, and description edits", () => {
+    const initial = { ...formData, description: "Awal" };
+    expect(buildProductFormPayload({ ...initial, stock: "9", hargaDinas: "", description: "Baru" }, "edit", initial)).toEqual({
+      stock: 9, hargaDinas: null, description: "Baru",
+    });
   });
 
   it("includes pricing when creating a product", () => {

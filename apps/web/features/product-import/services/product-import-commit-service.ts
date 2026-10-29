@@ -14,7 +14,7 @@ import {
 } from "@/features/product-stock-groups/product-stock-groups-service";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import { StockMutationConflictError } from "@/features/product-stock-groups/stock-group-lock";
-import { prepareGroupPricingMutation } from "@/features/product-stock-groups/group-pricing-service";
+import { GroupPricingError, prepareGroupPricingMutation } from "@/features/product-stock-groups/group-pricing-service";
 import { decimalToRatio, roundMoney } from "@/features/product-stock-groups/automatic-pricing";
 import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
 import { expandImportGroupRows, importGroupComponents, type AtomicImportGroup } from "./import-group-pricing";
@@ -119,6 +119,16 @@ function uniqueStrings(values: Array<string | null | undefined>) {
 
 function numberOrNull(value: unknown) {
   return value == null ? null : Number(value);
+}
+
+function assertImportStockGroupCategoryUnchanged(
+  rowNumber: number,
+  product: { stockGroupId: string | null; categoryId: string } | undefined,
+  categoryId: string | undefined,
+) {
+  if (product?.stockGroupId && product.categoryId !== categoryId) {
+    throw new GroupPricingError(`Baris ${rowNumber}: kategori produk dalam grup stok tidak dapat diubah melalui impor. Pindahkan seluruh grup melalui Produk terlebih dahulu.`, 409);
+  }
 }
 
 function supplierCodesFromRows(rows: Array<Pick<NormalizedImportRow, "supplierCodes">>) {
@@ -362,6 +372,16 @@ async function prepareImportPlan(tx: Tx, input: CommitInput, storeId: string, op
     existingSkus: new Set(existingProducts.map((product) => product.sku)),
     decisions: resolvedCommitDecisions,
   });
+
+  for (const row of resolvedRows) {
+    const decision = getEffectiveImportDecision(row, resolvedCommitDecisions);
+    if (decision !== "update" || row.autoAction === "auto_price_update" || row.autoAction === "same_unit_price_conflict") continue;
+    const existing =
+      (row.matchedProductId ? existingById.get(row.matchedProductId) : undefined) ??
+      (row.existingProductId ? existingById.get(row.existingProductId) : undefined) ??
+      existingBySku.get(row.sku);
+    assertImportStockGroupCategoryUnchanged(row.rowNumber, existing, categoryByName.get(row.category.toLowerCase())?.id);
+  }
 
   const duplicateSkus = findDuplicateFinalSkuGroups(
     resolvedRows,
@@ -920,6 +940,8 @@ async function preEnsureImportStockGroups(input: {
     if (!category) continue;
 
     if (commitAction === "update" && existing) {
+      const rowGroupKey = normalizeStockGroupKey({ ...row, categoryId: category.id });
+      if (existing.stockGroupId && rowGroupKey === normalizeStockGroupKey(existing)) continue;
       const multiplier = existing.unitMultiplierToBase || 1;
       groupInputs.push(
         stockGroupInputForRow({
@@ -1098,6 +1120,10 @@ async function processResolvedRows(input: {
     const category = input.plan.categoryByName.get(row.category.toLowerCase());
     if (!category) throw new Error(`CATEGORY_NOT_FOUND:${row.category}`);
 
+    if (commitAction === "update") {
+      assertImportStockGroupCategoryUnchanged(row.rowNumber, existing, category.id);
+    }
+
     if (commitAction === "update-price" && existing) {
       const beforeDisplayStock = resolveProductDisplayStock(existing);
       const beforeSnapshot = productSnapshot({ ...existing, stock: beforeDisplayStock });
@@ -1162,11 +1188,18 @@ async function processResolvedRows(input: {
         categoryId: category.id,
         baseStock: row.stock * multiplier,
       });
-      const { group } = await resolveImportStockGroup({
-        ensuredGroups: ensuredImportStockGroups,
-        fallbackEnsure: ensureImportStockGroup,
-        groupInput,
-      });
+      if (existing.stockGroupId && existing.stockGroup?.id !== existing.stockGroupId) {
+        throw new StockMutationConflictError();
+      }
+      const keepExistingGroup = existing.stockGroup &&
+        normalizeStockGroupKey({ ...row, categoryId: category.id }) === normalizeStockGroupKey(existing);
+      const { group } = keepExistingGroup
+        ? { group: existing.stockGroup! }
+        : await resolveImportStockGroup({
+          ensuredGroups: ensuredImportStockGroups,
+          fallbackEnsure: ensureImportStockGroup,
+          groupInput,
+        });
 
       bulkStockGroupUpdates.push({
         id: group.id,
@@ -1268,8 +1301,15 @@ async function processResolvedRows(input: {
         row.matchedProductId && row.autoAction !== "conflict"
           ? input.plan.existingById.get(row.matchedProductId)
           : undefined;
+      if (commitAction === "create-variant" && !row.matchedProductId?.startsWith("row:") &&
+          row.matchedStockGroupId !== undefined && row.matchedStockGroupId !== matched?.stockGroupId) {
+        throw new StockMutationConflictError();
+      }
       const variantGroup =
         commitAction === "create-variant" && matched?.stockGroup ? matched.stockGroup : null;
+      if (variantGroup && matched && matched.categoryId !== category.id) {
+        throw new GroupPricingError(`Baris ${row.rowNumber}: kategori satuan baru berbeda dari grup stok. Samakan kategori di berkas atau pindahkan seluruh grup melalui Produk terlebih dahulu.`, 409);
+      }
       const stockPlan = resolveImportCreateStockPlan({
         commitAction,
         rowStock: row.stock,

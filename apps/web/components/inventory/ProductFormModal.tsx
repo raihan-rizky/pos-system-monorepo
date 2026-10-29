@@ -54,6 +54,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
     imageUrl: "",
   });
 
+  const initialFormData = useRef<typeof formData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [newBrandName, setNewBrandName] = useState("");
@@ -91,10 +92,13 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   };
 
   useEffect(() => {
-    if (!isOpen) initializedProduct.current = null;
+    if (!isOpen) {
+      initializedProduct.current = null;
+      initialFormData.current = null;
+    }
     if (isOpen && initialData && initializedProduct.current !== initialData.id) {
       initializedProduct.current = initialData.id;
-      setFormData({
+      const values = {
         name: initialData.name,
         description: initialData.description ?? "",
         sku: initialData.sku,
@@ -118,7 +122,9 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         size: initialData.size || "",
         material: initialData.material || "",
         imageUrl: initialData.imageUrl || "",
-      });
+      };
+      initialFormData.current = values;
+      setFormData(values);
     } else if (isOpen && !initialData && initializedProduct.current !== "create") {
       initializedProduct.current = "create";
       setFormData({
@@ -192,7 +198,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
     try {
       if (productId) {
-        const payload = buildProductFormPayload(formData, "edit");
+        if (!initialFormData.current) throw new Error("Data produk belum siap. Coba lagi.");
+        const payload = buildProductFormPayload(formData, "edit", initialFormData.current);
         await updateProduct.mutateAsync({ id: productId, ...payload });
       } else {
         const payload = buildProductFormPayload(formData, "create");
@@ -256,8 +263,10 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-1">Kategori</label>
+            <label htmlFor="inventory-product-category" className="block text-sm font-medium text-surface-700 mb-1">Kategori</label>
             <select
+              id="inventory-product-category"
+              aria-describedby={initialData?.stockGroupId || initialData?.stockGroup?.id ? "inventory-category-group-hint" : undefined}
               value={formData.categoryId}
               onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
               className="w-full px-3 py-2 bg-white border border-surface-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none"
@@ -268,6 +277,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            {(initialData?.stockGroupId || initialData?.stockGroup?.id) && <p id="inventory-category-group-hint" className="mt-1 text-xs text-surface-600">Mengubah kategori akan memindahkan semua satuan dalam grup stok ini, termasuk satuan tidak aktif.</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">Merek</label>

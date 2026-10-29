@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "product-category-stock-group-move", date: "2026-10-29", revision: 1,
+    highlight: { title: "Kategori mengikuti grup stok", summary: "Pindahkan seluruh satuan dalam grup bersama ke kategori tujuan." },
+    title: "Satuan dalam grup berpindah kategori bersama.",
+    summary: "Pemindahan kategori mencakup seluruh satuan dalam grup stok, termasuk satuan tidak aktif. Stok bersama dan harga dasar tetap terjaga.",
+    kind: "fix", area: "Produk", href: "/products", visual: "stock-groups",
+    steps: [
+      { title: "Pilih produk", detail: "Di daftar Produk, centang produk yang ingin dipindahkan lalu pilih Pindahkan Kategori." },
+      { title: "Tinjau dampak", detail: "Pilih kategori tujuan dan klik Tinjau Pemindahan. Periksa jumlah produk, termasuk satuan lain dalam grup." },
+      { title: "Konfirmasi", detail: "Setujui dampak harga pelanggan, lalu klik Pindahkan Produk. Jika identitas grup tujuan sama, periksa grup tersebut sebelum mencoba lagi." },
+    ],
+  },
+  {
     id: "product-selling-price-rounding", date: "2026-10-28", revision: 1,
     highlight: { title: "Pembulatan harga jual", summary: "Atur pembulatan harga dan lihat badge naik atau turun pada setiap produk." },
     title: "Harga jual dibulatkan dengan jelas.",

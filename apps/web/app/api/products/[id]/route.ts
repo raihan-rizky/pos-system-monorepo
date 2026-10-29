@@ -14,6 +14,7 @@ import {
   shouldMarkConversionForReview,
 } from "@/features/product-stock-groups/product-stock-groups-service";
 import { normalizeStockGroupKey } from "@/features/product-stock-groups/stock-grouping";
+import { stockGroupKeyForCategory } from "@/features/product-stock-groups/group-category";
 import {
   isStockMutationConflict,
   lockStockMutationRows,
@@ -147,11 +148,7 @@ export async function PUT(
         const productIds = await db.$transaction(async (tx) => {
           const groupWhere = existingProduct.stockGroupId
             ? { storeId, stockGroupId: existingProduct.stockGroupId }
-            : {
-                storeId,
-                name: { equals: existingProduct.name, mode: "insensitive" as const },
-                categoryId: existingProduct.categoryId,
-              };
+            : { storeId, id: existingProduct.id };
           const groupProductHints = await tx.product.findMany({
             where: groupWhere,
             select: { id: true, stockGroupId: true },
@@ -182,7 +179,7 @@ export async function PUT(
 
           const groupProducts = await tx.product.findMany({
             where: groupWhere,
-            select: { id: true, stockGroupId: true },
+            select: { id: true, stockGroupId: true, name: true, categoryId: true, material: true, size: true },
           });
           const currentIds = groupProducts
             .map((product) => product.id)
@@ -204,24 +201,33 @@ export async function PUT(
             throw new StockMutationConflictError();
           }
 
-          if (existingProduct.stockGroupId) {
-            const currentProduct = groupProducts.find(
-              (product) => product.id === existingProduct.id,
-            );
-            if (
-              currentProduct?.stockGroupId !== existingProduct.stockGroupId
-            ) {
-              throw new StockMutationConflictError();
-            }
+          const selectedProduct = groupProducts.find(
+            (product) => product.id === existingProduct.id,
+          );
+          if (!selectedProduct || selectedProduct.stockGroupId !== existingProduct.stockGroupId ||
+              selectedProduct.categoryId !== existingProduct.categoryId) {
+            throw new StockMutationConflictError();
           }
 
+          const categoryChanged = groupCategoryId !== existingProduct.categoryId;
+          const changeName = !categoryChanged || groupName !== existingProduct.name;
+          const changeBrand = validatedData.brandId !== undefined &&
+            (!categoryChanged || validatedData.brandId !== (existingProduct.brandId ?? null));
+          const changeDescription = validatedData.description !== undefined;
+
           if (existingProduct.stockGroupId) {
-            const nextGroupKey = normalizeStockGroupKey({
-              name: groupName,
-              categoryId: groupCategoryId,
-              material: existingProduct.material,
-              size: existingProduct.size,
-            });
+            const currentGroupKey = existingProduct.stockGroup?.groupKey;
+            if (!currentGroupKey) throw new StockMutationConflictError();
+            const nextGroupKey = currentGroupKey.startsWith("manual:")
+              ? currentGroupKey
+              : categoryChanged && !changeName
+                ? stockGroupKeyForCategory(currentGroupKey, groupProducts, groupCategoryId)
+                : normalizeStockGroupKey({
+                  name: groupName,
+                  categoryId: groupCategoryId,
+                  material: existingProduct.material,
+                  size: existingProduct.size,
+                });
             const collision = await tx.productStockGroup.findFirst({
               where: {
                 storeId,
@@ -236,7 +242,7 @@ export async function PUT(
               where: { id: existingProduct.stockGroupId },
               data: {
                 groupKey: nextGroupKey,
-                displayName: groupName,
+                ...(changeName ? { displayName: groupName } : {}),
               },
             });
           }
@@ -244,12 +250,10 @@ export async function PUT(
           await tx.product.updateMany({
             where: { id: { in: groupProductIds }, storeId },
             data: {
-              name: groupName,
+              ...(changeName ? { name: groupName } : {}),
               categoryId: groupCategoryId,
-              brandId: validatedData.brandId ?? null,
-              ...(validatedData.description !== undefined
-                ? { description: validatedData.description }
-                : {}),
+              ...(changeBrand ? { brandId: validatedData.brandId } : {}),
+              ...(changeDescription ? { description: validatedData.description } : {}),
             },
           });
 
@@ -301,10 +305,12 @@ export async function PUT(
         material: hintedNextMaterial,
         size: hintedNextSize,
       });
-      const retainCurrentGroup = Boolean(existingProduct.stockGroupId) && targetGroupKey === normalizeStockGroupKey({
+      const changingGroupCategory = Boolean(existingProduct.stockGroupId) &&
+        validatedData.categoryId !== undefined && validatedData.categoryId !== existingProduct.categoryId;
+      const retainCurrentGroup = Boolean(existingProduct.stockGroupId) && (changingGroupCategory || targetGroupKey === normalizeStockGroupKey({
         name: existingProduct.name, categoryId: existingProduct.categoryId,
         material: existingProduct.material, size: existingProduct.size,
-      });
+      }));
       const targetGroupHint = retainCurrentGroup ? existingProduct.stockGroup : await tx.productStockGroup.findUnique({
         where: {
           storeId_groupKey: { storeId, groupKey: targetGroupKey },
@@ -324,7 +330,8 @@ export async function PUT(
       });
       if (
         !currentProduct ||
-        currentProduct.stockGroupId !== existingProduct.stockGroupId
+        currentProduct.stockGroupId !== existingProduct.stockGroupId ||
+        (validatedData.categoryId !== undefined && currentProduct.categoryId !== existingProduct.categoryId)
       ) {
         throw new StockMutationConflictError();
       }
@@ -344,6 +351,14 @@ export async function PUT(
       if (currentTargetGroupKey !== targetGroupKey) {
         throw new StockMutationConflictError();
       }
+      if (changingGroupCategory && currentTargetGroupKey !== normalizeStockGroupKey({
+        name: currentProduct.name,
+        categoryId: nextCategoryId,
+        material: currentProduct.material,
+        size: currentProduct.size,
+      })) {
+        throw new GroupPricingError("Ubah kategori dan identitas produk secara terpisah agar seluruh satuan tetap dalam grup yang benar.", 409);
+      }
 
       const targetGroup = retainCurrentGroup ? await tx.productStockGroup.findFirst({
         where: { id: currentProduct.stockGroupId!, storeId },
@@ -354,6 +369,11 @@ export async function PUT(
       });
       if (targetGroupHint?.id !== targetGroup?.id) {
         throw new StockMutationConflictError();
+      }
+
+      if (!currentProduct.stockGroupId && validatedData.categoryId !== undefined &&
+          validatedData.categoryId !== currentProduct.categoryId && targetGroup) {
+        throw new GroupPricingError("Kategori tujuan sudah memiliki grup stok dengan identitas yang sama. Periksa grup sebelum memindahkan produk.", 409);
       }
 
       const currentMultiplier = currentProduct.unitMultiplierToBase ?? 1;
@@ -379,6 +399,32 @@ export async function PUT(
           },
         }));
       const groupCreated = targetGroup === null;
+      if (changingGroupCategory && currentProduct.stockGroupId) {
+        const groupMembers = await tx.product.findMany({
+          where: { storeId, stockGroupId: group.id },
+          select: { name: true, categoryId: true, material: true, size: true },
+          orderBy: { id: "asc" },
+        });
+        const nextGroupKey = stockGroupKeyForCategory(group.groupKey, groupMembers, nextCategoryId);
+        if (nextGroupKey !== group.groupKey) {
+          const collision = await tx.productStockGroup.findUnique({
+            where: { storeId_groupKey: { storeId, groupKey: nextGroupKey } },
+            select: { id: true },
+          });
+          if (collision && collision.id !== group.id) {
+            throw new GroupPricingError("Kategori tujuan sudah memiliki grup stok dengan identitas yang sama. Periksa grup sebelum memindahkan produk.", 409);
+          }
+          try {
+            await tx.productStockGroup.update({ where: { id: group.id }, data: { groupKey: nextGroupKey } });
+          } catch (error) {
+            if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+              throw new GroupPricingError("Kategori tujuan sudah memiliki grup stok dengan identitas yang sama. Periksa grup sebelum memindahkan produk.", 409);
+            }
+            throw error;
+          }
+        }
+        await tx.product.updateMany({ where: { storeId, stockGroupId: group.id }, data: { categoryId: nextCategoryId } });
+      }
       const shouldUseGroupedStock = Boolean(group.id);
       const productData = {
         ...validatedData,
@@ -386,7 +432,7 @@ export async function PUT(
         stockGroupId: group.id,
         unitMultiplierToBase: nextMultiplier,
         conversionNeedsReview:
-          validatedData.unitMultiplierToBase !== undefined
+          validatedData.unitMultiplierToBase !== undefined && (!changingGroupCategory || nextMultiplier !== currentMultiplier)
             ? false
             : group.id === currentProduct.stockGroupId
               ? currentProduct.conversionNeedsReview
@@ -452,14 +498,31 @@ export async function PUT(
           price: currentProduct.price.toString(), costPrice: currentProduct.costPrice?.toString() ?? null,
         });
       }
-      const memberIntent = { productId: updated.id, mode: pricingMode, price: validatedData.price, costPrice: validatedData.costPrice };
-      const hasPricingIntent = pricingMode !== undefined || validatedData.price !== undefined || validatedData.costPrice !== undefined;
-      await synchronizeGroupPricingMutation(tx, {
-        prepared, actor: user, source: "MANUAL", note: priceChangeNote, allowInactiveMembers: true,
-        changes: hasPricingIntent ? {
-          [group.id]: { members: [memberIntent] },
-        } : undefined,
-      });
+      const priceChanged = validatedData.price !== undefined && Number(validatedData.price) !== Number(currentProduct.price);
+      const costChanged = validatedData.costPrice !== undefined && (
+        validatedData.costPrice === null
+          ? currentProduct.costPrice !== null
+          : currentProduct.costPrice === null || Number(validatedData.costPrice) !== Number(currentProduct.costPrice)
+      );
+      const memberIntent = {
+        productId: updated.id,
+        mode: pricingMode,
+        price: changingGroupCategory && !priceChanged ? undefined : validatedData.price,
+        costPrice: changingGroupCategory && !costChanged ? undefined : validatedData.costPrice,
+      };
+      const hasPricingIntent = pricingMode !== undefined || memberIntent.price !== undefined || memberIntent.costPrice !== undefined;
+      const pricingRelevantChange = hasPricingIntent || nextMultiplier !== currentMultiplier ||
+        nextUnit !== currentProduct.unit ||
+        (validatedData.isActive !== undefined && validatedData.isActive !== currentProduct.isActive) ||
+        productData.conversionNeedsReview !== currentProduct.conversionNeedsReview;
+      if (!changingGroupCategory || pricingRelevantChange) {
+        await synchronizeGroupPricingMutation(tx, {
+          prepared, actor: user, source: "MANUAL", note: priceChangeNote, allowInactiveMembers: true,
+          changes: hasPricingIntent ? {
+            [group.id]: { members: [memberIntent] },
+          } : undefined,
+        });
+      }
       const persisted = await tx.product.findFirst({ where: { id: updated.id, storeId }, include: { category: true, brand: true, stockGroup: true } });
       if (!persisted) throw new StockMutationConflictError();
       const priceLogEntries = buildProductPriceLogEntries({
