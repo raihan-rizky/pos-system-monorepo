@@ -1,4 +1,6 @@
 import { productSnapshot } from "@/features/batch-operations/helpers/snapshots";
+import { GroupPricingError } from "@/features/product-stock-groups/group-pricing-service";
+import { isStockMutationConflict } from "@/features/product-stock-groups/stock-group-lock";
 import {
   calculateBaseQuantity,
   calculateDisplayStock,
@@ -113,6 +115,15 @@ function validateFinalizableReceipt(
     conflict("Masih ada produk Penerimaan Barang yang belum disetujui");
   }
 
+  const priceUnits = new Set<string>();
+  for (const line of receipt.lines) {
+    if (line.matchStatus !== "MATCHED" || !line.pricingSnapshot?.productId) continue;
+    if (priceUnits.has(line.pricingSnapshot.productId)) {
+      conflict("Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.");
+    }
+    priceUnits.add(line.pricingSnapshot.productId);
+  }
+
   for (const line of receipt.lines) {
     if (!line.goodsPurchaseItem) {
       conflict("Produk Penerimaan Barang tidak terhubung ke Pembelian Barang");
@@ -139,7 +150,7 @@ function validateFinalizableReceipt(
     ) {
       conflict("Jumlah diterima sudah melebihi sisa Pembelian Barang");
     }
-    if (line.receivedQuantity <= 0) continue;
+    if (line.receivedQuantity <= 0 && !(line.matchStatus === "MATCHED" && line.pricingSnapshot)) continue;
     if (
       !line.product ||
       !line.product.isActive ||
@@ -389,6 +400,37 @@ async function executeFinalization(
     }
     if (Math.abs(beforeStock - mutation.afterStock) > 1e-9) {
       conflict("Perubahan stok produk tidak konsisten");
+    }
+  }
+
+  const pricedLines = receipt.lines.flatMap((line) =>
+    line.matchStatus === "MATCHED" && line.pricingSnapshot
+      ? [{ productId: line.productId, stockGroupId: line.stockGroupId, pricing: line.pricingSnapshot }]
+      : [],
+  );
+  if (pricedLines.length) {
+    try {
+      if (!input.repository.applyInboundPricing) {
+        conflict("Pembaruan harga penerimaan belum tersedia.");
+      }
+      // Pricing-only group members are locked after stock groups; retry a lock
+      // conflict instead of waiting behind another group mutation indefinitely.
+      await input.repository.applyInboundPricing(input.tx, {
+        storeId,
+        receiptId: receipt.id,
+        actor: input.user,
+        lines: pricedLines,
+      });
+    } catch (error) {
+      if (error instanceof InboundReceiptFinalizationError) throw error;
+      if (isStockMutationConflict(error)) {
+        conflict("Data produk berubah saat penerimaan diproses. Muat ulang dan coba lagi.");
+      }
+      if (error instanceof GroupPricingError || error instanceof RangeError ||
+        (error instanceof Error && !error.name.startsWith("Prisma"))) {
+        conflict(error.message);
+      }
+      throw error;
     }
   }
 

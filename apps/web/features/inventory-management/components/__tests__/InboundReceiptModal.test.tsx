@@ -70,6 +70,7 @@ const receivingQueue = {
           sku: "KRT-A4",
           unit: "rim",
           currentCostPrice: 12_500,
+          pricingUnits: [{ productId: "product-1", unit: "rim", unitMultiplierToBase: 1, costPrice: 12_500, price: 15_000, hargaAgen: 14_000, hargaDinas: 13_000 }],
           orderedQuantity: 10,
           approvedReceivedQuantity: 2,
           pendingReservedQuantity: 3,
@@ -92,6 +93,7 @@ const receivingQueue = {
           sku: "TNT-H",
           unit: "botol",
           currentCostPrice: null,
+          pricingUnits: [{ productId: "product-2", unit: "botol", unitMultiplierToBase: 1, costPrice: null, price: 10_000, hargaAgen: null, hargaDinas: null }],
           orderedQuantity: 8,
           approvedReceivedQuantity: 2,
           pendingReservedQuantity: 0,
@@ -178,8 +180,8 @@ describe("InboundReceiptModal", () => {
     const html = renderModal("gp-2");
     expect(html).toContain("Dipilih");
     expect(html).toContain("Bisa diterima");
-    expect(html).toContain("Jumlah maksimal");
-    expect(html).toContain("Harga per satuan dalam rupiah");
+    expect(html).toContain("Jumlah Diterima");
+    expect(html).toContain("Harga per satuan");
     expect(html.includes("Catat barang yang tiba")).toBe(true);
     expect(html.includes("Stok bertambah setelah disetujui")).toBe(true);
   });

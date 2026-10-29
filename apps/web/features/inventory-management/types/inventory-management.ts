@@ -5,6 +5,31 @@ import type {
   InboundReceiptMatchStatus,
 } from "../helpers/inbound-receipt-rules";
 
+export interface InboundPricingUnit {
+  productId: string;
+  unit: string;
+  unitMultiplierToBase: number;
+  costPrice: number | null;
+  price: number;
+  hargaAgen: number | null;
+  hargaDinas: number | null;
+}
+
+export interface InboundPricingInput {
+  productId: string | null;
+  costPrice: number | null;
+  price: number | null;
+  hargaAgen: number | null;
+  hargaDinas: number | null;
+}
+
+export interface InboundPricingSnapshot extends InboundPricingInput {
+  version: 1;
+  unit: string | null;
+  unitMultiplierToBase: number | null;
+  orderedUnitMultiplierToBase: number;
+}
+
 export interface InventoryManagementUser {
   id: string;
   role: Role;
@@ -150,6 +175,8 @@ export interface LockedSubmittedInboundReceiptLine {
   note: string | null;
   costPriceSnapshot: number | null;
   supplierCostPrice: number | null;
+  pricingSnapshot: InboundPricingSnapshot | null;
+  pricingUnits: InboundPricingUnit[];
   product: Product;
   stockGroupId: string | null;
   unitMultiplierToBase: number;
@@ -243,6 +270,7 @@ export interface ReceivingQueueRepositoryRow {
   sku: string;
   unit: string | null;
   currentCostPrice: number | null;
+  pricingUnits?: InboundPricingUnit[];
   orderedQuantity: number;
   approvedReceivedQuantity: number;
   pendingReservedQuantity: number;
@@ -285,6 +313,7 @@ export interface ReceivingQueuePurchaseItem {
   sku: string;
   unit: string | null;
   currentCostPrice: number | null;
+  pricingUnits: InboundPricingUnit[];
   orderedQuantity: number;
   approvedReceivedQuantity: number;
   pendingReservedQuantity: number;
@@ -516,10 +545,24 @@ export interface InventoryInboundReceiptRepository {
       receivedQuantity: number;
       note: string | null;
       supplierCostPrice?: number | null;
+      pricingSnapshot?: InboundPricingSnapshot | null;
       reviewStatus: "PENDING";
       approvedById: null;
       approvedByName: null;
       approvedAt: null;
+    },
+  ): Promise<void>;
+  applyInboundPricing?(
+    tx: unknown,
+    input: {
+      storeId: string;
+      receiptId: string;
+      actor: { id: string; name?: string | null };
+      lines: Array<{
+        productId: string;
+        stockGroupId: string | null;
+        pricing: InboundPricingSnapshot;
+      }>;
     },
   ): Promise<void>;
   removeReceiptLine(

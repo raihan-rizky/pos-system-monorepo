@@ -1068,6 +1068,7 @@ model InventoryInboundReceiptLine {
   unitSnapshot             String?
   costPriceSnapshot        Decimal?                          @db.Decimal(12, 2)
   supplierCostPrice        Decimal?                          @db.Decimal(12, 2)
+  pricingSnapshot          Json?
   costPriceApplied         Decimal?                          @db.Decimal(12, 2)
   expectedQuantitySnapshot Float
   receivedQuantitySnapshot Float

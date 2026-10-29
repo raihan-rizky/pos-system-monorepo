@@ -317,14 +317,18 @@ describe("FAQ workflow catalog", () => {
     expect(serialized).toContain("tidak mengubah stok");
   });
 
-  it("documents supplier receipt cost snapshots and purchase approval", () => {
+  it("documents unit prices, optional mismatch pricing, and purchase approval", () => {
     const receipt = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 18);
     const serialized = JSON.stringify(receipt);
 
     expect(serialized).toContain("Gudang atau Owner");
     expect(serialized).toContain("disetujui Owner/Admin");
-    expect(serialized).toContain("modal produk saat ini menjadi nilai awal");
-    expect(serialized).toContain("Harga aktual disimpan sebagai snapshot");
+    expect(serialized).toContain("HPP Unit");
+    expect(serialized).toContain("Harga Jual Agen");
+    expect(serialized).toContain("Harga Jual Dinas");
+    expect(serialized).toContain("satuan dan harga bersifat opsional");
+    expect(serialized).toContain("Harga disimpan sebagai snapshot");
+    expect(serialized).toContain("stok dan harga satuan pada barang Sesuai diperbarui bersama");
   });
 
   it("documents editable units and one final approval", () => {
