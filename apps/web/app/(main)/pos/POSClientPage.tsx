@@ -129,6 +129,7 @@ export default function POSClientPage({
     getInitialHideOutOfStock,
   );
   const [showPayment, setShowPayment] = useState(false);
+  const [hasOpenedPayment, setHasOpenedPayment] = useState(false);
   const [showNotaPenawaran, setShowNotaPenawaran] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [draftPrintDivision, setDraftPrintDivision] = useState("");
@@ -427,6 +428,7 @@ export default function POSClientPage({
     }
 
     setCheckoutNotice(null);
+    setHasOpenedPayment(true);
     setShowPayment(true);
   };
 
@@ -940,7 +942,7 @@ export default function POSClientPage({
       )}
 
       {/* Payment Modal */}
-      {showPayment && (
+      {(showPayment || (hasOpenedPayment && cart.totalItems > 0)) && (
         <PaymentModal
           open={showPayment}
           onClose={() => setShowPayment(false)}
@@ -1035,6 +1037,7 @@ export default function POSClientPage({
                 onClick={() => {
                   setShowNegativeStockCheckoutConfirm(false);
                   setCheckoutNotice(null);
+                  setHasOpenedPayment(true);
                   setShowPayment(true);
                 }}
               >

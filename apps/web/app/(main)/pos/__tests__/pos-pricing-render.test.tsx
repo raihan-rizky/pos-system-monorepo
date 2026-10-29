@@ -207,9 +207,26 @@ describe("POS pricing across unrelated renders", () => {
     expect(after.cart.subtotal).toBe(2000);
     after.payment.onClose();
     const closed = render();
-    expect(closed.payment).toBeUndefined();
+    expect(closed.payment).toBeDefined();
+    expect(closed.payment.open).toBe(false);
     closed.cart.onCheckout();
     expect(render().payment.initialCustomerSelection).toEqual(selection);
+  });
+
+  it("keeps the payment modal mounted while its cart remains active", () => {
+    const before = render();
+    before.cart.onCheckout();
+
+    const opened = render();
+    expect(opened.payment.open).toBe(true);
+    opened.payment.onClose();
+
+    const closed = render();
+    expect(closed.payment).toBeDefined();
+    expect(closed.payment.open).toBe(false);
+
+    harness.cart = { ...harness.cart, items: [], totalItems: 0 };
+    expect(render().payment).toBeUndefined();
   });
 
   it("refreshes cart prices when new catalog data arrives", () => {

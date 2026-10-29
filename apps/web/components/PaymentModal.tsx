@@ -190,7 +190,12 @@ export function PaymentModal({
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
   const [invoiceDateReason, setInvoiceDateReason] = useState("");
   const serverClock = useServerClock(open);
-  const { invoiceDate: selectedInvoiceDate, invoiceTime, setInvoiceDate, setInvoiceTime } = useInvoiceDateInputs(open, serverClock.now, serverClock.isLoading);
+  const { invoiceDate: selectedInvoiceDate, invoiceTime, setInvoiceDate, setInvoiceTime } = useInvoiceDateInputs(
+    open,
+    serverClock.now,
+    serverClock.isLoading,
+    { preserveOnReopen: true },
+  );
   const invoiceDate = receiptInvoiceDate ?? selectedInvoiceDate;
   
   const { role } = useRole();
@@ -251,24 +256,6 @@ export function PaymentModal({
       item.lineType === "PRODUCT" &&
       (item.catalogPrice ?? item.price) !== item.price,
   );
-
-  useEffect(() => {
-    if (!open) {
-      // reset on close
-      setCustomerSelection({ kind: "general" });
-      setManualPrices({});
-      setItemDiscounts({});
-      setSelectedDiscountItems([]);
-      setItemDiscountEditor(null);
-      setCustomerError(null);
-      setInvoiceDateReason("");
-      setIsTempo(false);
-      setTaxRateText("0");
-    } else {
-      // auto-set isJobOrder if opening with items that have material/size
-      setIsJobOrder(items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size));
-    }
-  }, [open, items]);
 
   useEffect(() => {
     if (canEditCustomPrices) return;
