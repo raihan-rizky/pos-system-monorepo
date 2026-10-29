@@ -120,7 +120,7 @@ describe("InboundReceiptReviewModal", () => {
     expect(html).toContain("Hapus");
     expect(html).toContain("Sesuai");
     expect(html).toContain("Tidak Sesuai");
-    expect(html).toContain("Harga Modal Supplier");
+    expect(html).toContain("HPP Unit");
     expect(html).toContain("Rp 6.500");
     expect(html).toContain("Konflik Qty");
     expect(html).toContain("Alasan penolakan");

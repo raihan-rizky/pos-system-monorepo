@@ -56,7 +56,7 @@ describe("inbound receipt product thumbnails", () => {
         },
         include: expect.objectContaining({
           lines: expect.objectContaining({
-            include: { product: { select: { imageUrl: true } } },
+            include: expect.objectContaining({ product: expect.objectContaining({ select: expect.objectContaining({ imageUrl: true }) }) }),
           }),
         }),
       }),

@@ -6,6 +6,18 @@ import {
 } from "@/features/product-stock-groups/stock-group-lock";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
 import {
+  prepareGroupPricingMutation,
+  synchronizeGroupPricingMutation,
+} from "@/features/product-stock-groups/group-pricing-service";
+import {
+  decimalToRatio,
+  divideRatios,
+  initializeGroupPricing,
+  multiplyRatios,
+  roundMoney,
+} from "@/features/product-stock-groups/automatic-pricing";
+import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
+import {
   calculateInboundAvailability,
   getInboundStockQuantity,
 } from "../helpers/inbound-receipt-rules";
@@ -17,6 +29,8 @@ import type {
   InboundReceiptStatus,
   InboundReceiptForApproval,
   InboundReceiptLineStatus,
+  InboundPricingSnapshot,
+  InboundPricingUnit,
   InventoryInboundReceiptRepository as InventoryInboundReceiptRepositoryContract,
   LockedInboundStockGroup,
   LockedSubmittedInboundReceipt,
@@ -24,6 +38,54 @@ import type {
 } from "../types/inventory-management";
 
 type Tx = Prisma.TransactionClient;
+
+const pricingUnitSelect = {
+  id: true,
+  storeId: true,
+  unit: true,
+  unitMultiplierToBase: true,
+  conversionNeedsReview: true,
+  isActive: true,
+  costPrice: true,
+  price: true,
+  hargaAgen: true,
+  hargaDinas: true,
+} satisfies Prisma.ProductSelect;
+
+const pricingProductSelect = {
+  ...pricingUnitSelect,
+  stockGroupId: true,
+  imageUrl: true,
+  stockGroup: {
+    select: {
+      products: {
+        where: { isActive: true },
+        orderBy: { id: "asc" },
+        select: pricingUnitSelect,
+      },
+    },
+  },
+} satisfies Prisma.ProductSelect;
+
+type PricingProduct = Prisma.ProductGetPayload<{ select: typeof pricingProductSelect }>;
+
+function pricingUnitsForProduct(product: PricingProduct | null): InboundPricingUnit[] {
+  if (!product) return [];
+  const candidates = product.stockGroupId ? product.stockGroup?.products ?? [] : [product];
+  return candidates
+    .filter((candidate) => candidate.storeId === product.storeId && candidate.isActive &&
+      !candidate.conversionNeedsReview && Number.isFinite(candidate.unitMultiplierToBase) &&
+      candidate.unitMultiplierToBase > 0)
+    .map((candidate) => ({
+      productId: candidate.id,
+      unit: candidate.unit,
+      unitMultiplierToBase: candidate.unitMultiplierToBase,
+      costPrice: candidate.costPrice === null ? null : Number(candidate.costPrice.toString()),
+      price: Number(candidate.price.toString()),
+      hargaAgen: candidate.hargaAgen === null ? null : Number(candidate.hargaAgen.toString()),
+      hargaDinas: candidate.hargaDinas === null ? null : Number(candidate.hargaDinas.toString()),
+    }));
+}
 
 export class InventoryInboundReceiptRepository
   implements InventoryInboundReceiptRepositoryContract
@@ -89,7 +151,8 @@ export class InventoryInboundReceiptRepository
             note: true,
             costPriceSnapshot: true,
             supplierCostPrice: true,
-            product: true,
+            pricingSnapshot: true,
+            product: { include: { stockGroup: { select: { products: { where: { isActive: true }, select: pricingUnitSelect } } } } },
             goodsPurchaseItem: {
               select: {
                 id: true,
@@ -150,6 +213,8 @@ export class InventoryInboundReceiptRepository
           line.supplierCostPrice === null
             ? null
             : Number(line.supplierCostPrice.toString()),
+        pricingSnapshot: line.pricingSnapshot as unknown as InboundPricingSnapshot | null,
+        pricingUnits: pricingUnitsForProduct(line.product),
         product: line.product,
         stockGroupId: line.product.stockGroupId,
         unitMultiplierToBase: line.product.unitMultiplierToBase,
@@ -222,6 +287,7 @@ export class InventoryInboundReceiptRepository
       receivedQuantity: number;
       note: string | null;
       supplierCostPrice?: number | null;
+      pricingSnapshot?: InboundPricingSnapshot | null;
       reviewStatus: "PENDING";
       approvedById: null;
       approvedByName: null;
@@ -245,6 +311,9 @@ export class InventoryInboundReceiptRepository
         ...(input.supplierCostPrice !== undefined
           ? { supplierCostPrice: input.supplierCostPrice }
           : {}),
+        ...(input.pricingSnapshot !== undefined
+          ? { pricingSnapshot: input.pricingSnapshot === null ? Prisma.DbNull : input.pricingSnapshot as unknown as Prisma.InputJsonValue }
+          : {}),
         reviewStatus: input.reviewStatus,
         approvedById: input.approvedById,
         approvedByName: input.approvedByName,
@@ -253,6 +322,134 @@ export class InventoryInboundReceiptRepository
     });
     if (updated.count !== 1) {
       throw new Error("INBOUND_RECEIPT_CONFLICT");
+    }
+  }
+
+  async applyInboundPricing(
+    tx: Tx,
+    input: {
+      storeId: string;
+      receiptId: string;
+      actor: { id: string; name?: string | null };
+      lines: Array<{ productId: string; stockGroupId: string | null; pricing: InboundPricingSnapshot }>;
+    },
+  ): Promise<void> {
+    await tx.$executeRaw`SET LOCAL lock_timeout = '2s'`;
+    const groupedIds = [...new Set(input.lines.flatMap((line) => line.stockGroupId ? [line.stockGroupId] : []))].sort();
+    const standaloneIds = input.lines.filter((line) => !line.stockGroupId).map((line) => line.productId);
+    const prepared = await prepareGroupPricingMutation(tx, {
+      storeId: input.storeId,
+      groupIds: groupedIds,
+      extraProductIds: standaloneIds,
+    });
+    const selected = new Map<string, InboundPricingSnapshot>();
+    const groupIntents = new Map<string, Map<string, { productId: string; price?: string; costPrice?: string }>>();
+
+    // Set the source price first so automatic follower factors use its new value.
+    const orderedLines = [...input.lines].sort((left, right) => {
+      const isSource = (line: typeof left) => {
+        const group = line.stockGroupId ? prepared.before.get(line.stockGroupId) : null;
+        return group && initializeGroupPricing(group).config.sourceProductId === line.pricing.productId ? 0 : 1;
+      };
+      return isSource(left) - isSource(right);
+    });
+    for (const line of orderedLines) {
+      const pricing = line.pricing;
+      if (pricing.version !== 1 || !pricing.productId || pricing.costPrice === null ||
+        pricing.price === null || pricing.hargaAgen === null || pricing.hargaDinas === null ||
+        pricing.unitMultiplierToBase === null) {
+        throw new Error("Satuan dan harga produk belum lengkap.");
+      }
+      const existing = selected.get(pricing.productId);
+      if (existing && (existing.costPrice !== pricing.costPrice || existing.price !== pricing.price ||
+        existing.hargaAgen !== pricing.hargaAgen || existing.hargaDinas !== pricing.hargaDinas)) {
+        throw new Error("Harga untuk satu satuan berbeda pada penerimaan ini.");
+      }
+      selected.set(pricing.productId, pricing);
+
+      if (!line.stockGroupId) {
+        if (pricing.productId !== line.productId || pricing.unitMultiplierToBase !== pricing.orderedUnitMultiplierToBase) {
+          throw new Error("Satuan produk berubah. Periksa kembali penerimaan ini.");
+        }
+        continue;
+      }
+      const group = prepared.before.get(line.stockGroupId);
+      const ordered = group?.members.find((member) => member.id === line.productId);
+      const member = group?.members.find((candidate) => candidate.id === pricing.productId);
+      if (!group || !ordered || !ordered.isActive || ordered.conversionNeedsReview || !member || !member.isActive || member.conversionNeedsReview ||
+        Number(member.unitMultiplierToBase) !== pricing.unitMultiplierToBase ||
+        Number(ordered.unitMultiplierToBase) !== pricing.orderedUnitMultiplierToBase || member.unit !== pricing.unit) {
+        throw new Error("Satuan atau konversi produk berubah. Periksa kembali penerimaan ini.");
+      }
+      const config = initializeGroupPricing(group).config;
+      const source = group.members.find((candidate) => candidate.id === config.sourceProductId && candidate.isActive);
+      const isFollower = config.sourceProductId !== member.id && config.members[member.id]?.mode === "AUTO";
+      const costProduct = isFollower ? source : member;
+      if (!costProduct || costProduct.conversionNeedsReview || Number(costProduct.unitMultiplierToBase) <= 0) {
+        throw new Error("Acuan HPP otomatis perlu ditinjau sebelum penerimaan disetujui.");
+      }
+      const costPrice = isFollower
+        ? roundMoney(multiplyRatios(decimalToRatio(pricing.costPrice), divideRatios(
+            decimalToRatio(costProduct.unitMultiplierToBase), decimalToRatio(member.unitMultiplierToBase),
+          )))
+        : pricing.costPrice.toFixed(2);
+      const intents = groupIntents.get(group.groupId) ?? new Map();
+      const costIntent = intents.get(costProduct.id) ?? { productId: costProduct.id };
+      if (costIntent.costPrice !== undefined && costIntent.costPrice !== costPrice) {
+        throw new Error("HPP satuan otomatis pada penerimaan ini saling berbeda.");
+      }
+      costIntent.costPrice = costPrice;
+      intents.set(costProduct.id, costIntent);
+      const memberIntent = intents.get(member.id) ?? { productId: member.id };
+      memberIntent.price = pricing.price.toFixed(2);
+      intents.set(member.id, memberIntent);
+      groupIntents.set(group.groupId, intents);
+    }
+
+    const note = `Penerimaan barang ${input.receiptId}`;
+    if (groupedIds.length) {
+      await synchronizeGroupPricingMutation(tx, {
+        prepared,
+        changes: Object.fromEntries([...groupIntents].map(([groupId, intents]) => [groupId, { members: [...intents.values()] }])),
+        actor: input.actor,
+        source: "SYSTEM",
+        note,
+      });
+    }
+
+    for (const [productId, pricing] of selected) {
+      const before = await tx.product.findFirst({ where: { id: productId, storeId: input.storeId, isActive: true } });
+      if (!before) throw new Error("Satuan produk sudah tidak tersedia.");
+      if (!before.stockGroupId && (before.unit !== pricing.unit || before.conversionNeedsReview ||
+        before.unitMultiplierToBase !== pricing.unitMultiplierToBase)) {
+        throw new Error("Satuan atau konversi produk berubah. Periksa kembali penerimaan ini.");
+      }
+      if (before.stockGroupId) {
+        if (before.costPrice === null || Number(before.costPrice) !== pricing.costPrice) {
+          throw new Error("HPP satuan tidak dapat diwakili tepat oleh aturan harga otomatis. Periksa kembali nilainya.");
+        }
+        if (Number(before.price) !== pricing.price) {
+          throw new Error("Harga jual tidak dapat diwakili tepat oleh aturan harga otomatis. Periksa kembali nilainya.");
+        }
+      }
+      const after = await tx.product.update({
+        where: { id: productId },
+        data: {
+          ...(!before.stockGroupId ? { costPrice: pricing.costPrice, price: pricing.price! } : {}),
+          hargaAgen: pricing.hargaAgen,
+          hargaDinas: pricing.hargaDinas,
+        },
+      });
+      const logs = buildProductPriceLogEntries({
+        productId,
+        storeId: input.storeId,
+        before,
+        after,
+        actor: input.actor,
+        source: "SYSTEM",
+        note,
+      }).filter((entry) => !before.stockGroupId || entry.field === "HARGA_AGEN" || entry.field === "HARGA_DINAS");
+      if (logs.length) await tx.productPriceLog.createMany({ data: logs });
     }
   }
 
@@ -998,7 +1195,7 @@ export class InventoryInboundReceiptRepository
             skuSnapshot: true,
             unitSnapshot: true,
             latestUnitPrice: true,
-            product: { select: { costPrice: true } },
+            product: { select: pricingProductSelect },
             quantity: true,
             inboundReceiptLines: {
               where: {
@@ -1028,6 +1225,8 @@ export class InventoryInboundReceiptRepository
           item.product?.costPrice == null
             ? null
             : Number(item.product.costPrice.toString()),
+        unitMultiplierToBase: item.product?.unitMultiplierToBase ?? 1,
+        pricingUnits: pricingUnitsForProduct(item.product),
       })),
     };
   }
@@ -1051,6 +1250,7 @@ export class InventoryInboundReceiptRepository
         unitSnapshot: string | null;
         costPriceSnapshot: number;
         supplierCostPrice: number | null;
+        pricingSnapshot: InboundPricingSnapshot;
         supplierNameSnapshot: string;
         invoiceNumberSnapshot: string;
         expectedQuantity: number;
@@ -1082,6 +1282,7 @@ export class InventoryInboundReceiptRepository
             unitSnapshot: line.unitSnapshot,
             costPriceSnapshot: line.costPriceSnapshot,
             supplierCostPrice: line.supplierCostPrice,
+            pricingSnapshot: line.pricingSnapshot as unknown as Prisma.InputJsonValue,
             supplierNameSnapshot: line.supplierNameSnapshot,
             invoiceNumberSnapshot: line.invoiceNumberSnapshot,
             status: line.status,
@@ -1126,7 +1327,7 @@ export class InventoryInboundReceiptRepository
         lines: {
           orderBy: { createdAt: "asc" },
           take: 100,
-          include: { product: { select: { imageUrl: true } } },
+          include: { product: { select: pricingProductSelect } },
         },
       },
     });
@@ -1136,6 +1337,7 @@ export class InventoryInboundReceiptRepository
       lines: receipt.lines.map(({ product, ...line }) => ({
         ...line,
         imageUrl: product?.imageUrl ?? null,
+        pricingUnits: pricingUnitsForProduct(product),
         costPriceSnapshot:
           line.costPriceSnapshot === null
             ? null
@@ -1218,7 +1420,7 @@ export class InventoryInboundReceiptRepository
             skuSnapshot: true,
             unitSnapshot: true,
             quantity: true,
-            product: { select: { costPrice: true } },
+            product: { select: pricingProductSelect },
             inboundReceiptLines: {
               where: {
                 receipt: {
@@ -1279,6 +1481,7 @@ export class InventoryInboundReceiptRepository
             item.product?.costPrice == null
               ? null
               : Number(item.product.costPrice.toString()),
+          pricingUnits: pricingUnitsForProduct(item.product),
           orderedQuantity: item.quantity,
           approvedReceivedQuantity,
           pendingReservedQuantity,
