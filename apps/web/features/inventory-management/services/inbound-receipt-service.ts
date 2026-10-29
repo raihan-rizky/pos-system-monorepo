@@ -21,7 +21,7 @@ import type {
   InboundPricingUnit,
   ReceivingQueueResult,
 } from "../types/inventory-management";
-import { createInboundPricingSnapshot, inboundCostForOrderedUnit } from "../helpers/inbound-pricing";
+import { createInboundPricingSnapshot, inboundCostForOrderedUnit, inboundPricingReference } from "../helpers/inbound-pricing";
 import {
   finalizeInboundReceiptIfReady,
   InboundReceiptFinalizationError,
@@ -41,6 +41,22 @@ export class InventoryManagementError extends Error {
   ) {
     super(message);
     this.name = "InventoryManagementError";
+  }
+}
+
+function validateInboundReferenceCosts(
+  entries: Array<{ pricing: InboundPricingInput | null | undefined; units: InboundPricingUnit[] | undefined }>,
+  focusProductId?: string,
+): void {
+  const costs = new Map<string, string>();
+  for (const entry of entries) {
+    const reference = inboundPricingReference(entry.pricing, entry.units);
+    if (!reference || (focusProductId && reference.productId !== focusProductId)) continue;
+    const previous = costs.get(reference.productId);
+    if (previous !== undefined && previous !== reference.costPrice) {
+      throw new InventoryManagementError("VALIDATION_ERROR", `HPP acuan ${reference.unit} berbeda antar satuan. Periksa HPP pada produk terkait.`, 422);
+    }
+    costs.set(reference.productId, reference.costPrice);
   }
 }
 
@@ -733,6 +749,31 @@ export async function editInboundReceiptItem(
         );
       }
 
+      if (input.input.matchStatus === "MATCHED" && pricingSnapshot) {
+        const otherMatched = receipt.lines.filter((other) => other.id !== line.id && other.matchStatus === "MATCHED");
+        const duplicate = pricingSnapshot.productId && otherMatched.some((other) =>
+          other.pricingSnapshot?.productId === pricingSnapshot!.productId,
+        );
+        const unchangedUnit = line.matchStatus === "MATCHED" && line.pricingSnapshot?.productId === pricingSnapshot.productId;
+        if (duplicate && !unchangedUnit) {
+          throw new InventoryManagementError("VALIDATION_ERROR", "Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.", 422);
+        }
+        const focus = inboundPricingReference(pricingSnapshot, line.pricingUnits);
+        const previous = line.matchStatus === "MATCHED" ? inboundPricingReference(line.pricingSnapshot, line.pricingUnits) : null;
+        if (focus) {
+          const others = otherMatched.map((other) => inboundPricingReference(other.pricingSnapshot, other.pricingUnits))
+            .filter((reference) => reference?.productId === focus.productId);
+          const newConflicts = others.filter((reference) => reference?.costPrice !== focus.costPrice).length;
+          const oldConflicts = previous?.productId === focus.productId
+            ? others.filter((reference) => reference?.costPrice !== previous.costPrice).length
+            : 0;
+          const unchangedCost = previous?.productId === focus.productId && previous.costPrice === focus.costPrice;
+          if (newConflicts > 0 && (newConflicts > oldConflicts || (newConflicts === oldConflicts && !unchangedCost))) {
+            throw new InventoryManagementError("VALIDATION_ERROR", `HPP acuan ${focus.unit} berbeda antar satuan. Periksa HPP pada produk terkait.`, 422);
+          }
+        }
+      }
+
       await input.repository.updateReceiptLine(tx, {
         storeId,
         receiptId: receipt.id,
@@ -1226,6 +1267,11 @@ export async function createAndSubmitGoodsPurchaseReceipt(
     if (new Set(priceUnits).size !== priceUnits.length) {
       throw new InventoryManagementError("VALIDATION_ERROR", "Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.", 422);
     }
+
+    validateInboundReferenceCosts(lines.filter((line) => line.matchStatus === "MATCHED").map((line) => ({
+      pricing: line.pricingSnapshot,
+      units: purchase.items.find((item) => item.id === line.goodsPurchaseItemId)?.pricingUnits,
+    })));
 
     return input.repository.createSubmittedGoodsPurchaseReceipt(tx, {
       storeId,

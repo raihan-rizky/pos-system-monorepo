@@ -423,7 +423,11 @@ async function executeFinalization(
       });
     } catch (error) {
       if (error instanceof InboundReceiptFinalizationError) throw error;
-      if (isStockMutationConflict(error)) {
+      const databaseError = error && typeof error === "object"
+        ? error as { code?: unknown; meta?: { code?: unknown } }
+        : null;
+      if (isStockMutationConflict(error) ||
+        (databaseError?.code === "P2010" && (databaseError.meta?.code === "55P03" || databaseError.meta?.code === "40P01"))) {
         conflict("Data produk berubah saat penerimaan diproses. Muat ulang dan coba lagi.");
       }
       if (error instanceof GroupPricingError || error instanceof RangeError ||

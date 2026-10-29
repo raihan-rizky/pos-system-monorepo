@@ -843,6 +843,26 @@ describe("pricing during receipt finalization", () => {
     expect(repository.applyInboundPricing).not.toHaveBeenCalled();
   });
 
+  it.each(["55P03", "40P01"])("reports PostgreSQL lock error %s as a retryable pricing conflict", async (sqlState) => {
+    const repository = withPricing();
+    const error = Object.assign(new Error("lock conflict"), {
+      name: "PrismaClientKnownRequestError", code: "P2010", meta: { code: sqlState },
+    });
+    repository.applyInboundPricing.mockRejectedValueOnce(error);
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+    expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
+  });
+
+  it("does not misclassify other raw database errors as lock conflicts", async () => {
+    const repository = withPricing();
+    const error = Object.assign(new Error("database failure"), {
+      name: "PrismaClientKnownRequestError", code: "P2010", meta: { code: "23505" },
+    });
+    repository.applyInboundPricing.mockRejectedValueOnce(error);
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toBe(error);
+  });
+
   it("does not mark the receipt approved if pricing reports a conflict", async () => {
     const repository = withPricing();
     repository.applyInboundPricing.mockRejectedValueOnce(new Error("Satuan berubah"));

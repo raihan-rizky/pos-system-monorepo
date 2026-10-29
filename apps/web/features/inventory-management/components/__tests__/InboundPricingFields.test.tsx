@@ -40,6 +40,22 @@ describe("inbound pricing fields", () => {
     expect(html.match(/disabled=""/g)).toHaveLength(4);
   });
 
+  it("explains that mismatched prices are recorded without updating product prices", () => {
+    const html = renderToStaticMarkup(<InboundPricingFields units={[unit]} value={pricingDraftForUnit(unit)} onChange={vi.fn()} required={false} namePrefix="line" />);
+    expect(html).toContain("dicatat tanpa memperbarui harga produk");
+    expect(html).not.toContain("diperbarui setelah penerimaan disetujui");
+  });
+
+  it("shows an automatic-unit rounding error before submitting a matched item", () => {
+    const autoBox = { ...unit, autoCostSource: { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1 } };
+    const draft = { ...pricingDraftForUnit(autoBox), costPrice: "100" };
+    expect(isInboundPricingDraftValid(draft, true, [autoBox])).toBe(false);
+    expect(isInboundPricingDraftValid(draft, false, [autoBox])).toBe(true);
+    const html = renderToStaticMarkup(<InboundPricingFields units={[autoBox]} value={draft} onChange={vi.fn()} required namePrefix="line" />);
+    expect(html).toContain("99,96");
+    expect(html).toContain("pcs");
+  });
+
   it("accepts zero and partial optional prices but rejects invalid and unitless values", () => {
     const draft = { ...pricingDraftForUnit(unit), costPrice: "0", price: "", hargaAgen: "", hargaDinas: "" };
     expect(isInboundPricingDraftValid(draft, false)).toBe(true);

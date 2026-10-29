@@ -9,6 +9,7 @@ export interface InboundPricingUnit {
   productId: string;
   unit: string;
   unitMultiplierToBase: number;
+  autoCostSource?: { productId: string; unit: string; unitMultiplierToBase: number };
   costPrice: number | null;
   price: number;
   hargaAgen: number | null;

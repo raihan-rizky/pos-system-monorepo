@@ -1360,6 +1360,71 @@ describe("inbound receipt service", () => {
     expect(repository.createInboundStockLog).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { mode: "AUTO", cost: 100, error: "99,96" },
+    { mode: "AUTO", cost: 240, error: "HPP acuan" },
+    { mode: "AUTO", cost: 120, error: null },
+    { mode: "MANUAL", cost: 240, error: null },
+  ])("validates edit against $mode group pricing with HPP $cost", async ({ mode, cost, error }) => {
+    const repository = createRepository();
+    const sourceUnit = { productId: "product-1", unit: "pcs", unitMultiplierToBase: 1, costPrice: 10, price: 15, hargaAgen: 14, hargaDinas: 13 };
+    const boxUnit = { productId: "product-2", unit: "box", unitMultiplierToBase: 12, costPrice: 120, price: 150, hargaAgen: 140, hargaDinas: 130,
+      ...(mode === "AUTO" ? { autoCostSource: { productId: "product-1", unit: "pcs", unitMultiplierToBase: 1 } } : {}) };
+    const sourcePricing = { version: 1 as const, ...sourceUnit, orderedUnitMultiplierToBase: 1 };
+    const boxPricing = { version: 1 as const, productId: "product-2", unit: "box", unitMultiplierToBase: 12, orderedUnitMultiplierToBase: 12, costPrice: 120, price: 150, hargaAgen: 140, hargaDinas: 130 };
+    const current = submittedReviewReceipt();
+    vi.mocked(repository.lockSubmittedReceipt).mockResolvedValueOnce(submittedReviewReceipt({ lines: [
+      { ...current.lines[0], pricingSnapshot: sourcePricing, pricingUnits: [sourceUnit], unitMultiplierToBase: 1 },
+      { ...current.lines[1], pricingSnapshot: boxPricing, pricingUnits: [boxUnit], unitMultiplierToBase: 12 },
+    ] }));
+    const action = editInboundReceiptItem({ repository, user: { id: "owner-1", name: "Owner", role: "OWNER", storeId: "store-main" },
+      receiptId: "receipt-1", itemId: "line-2", input: { matchStatus: "MATCHED", receivedQuantity: 3,
+        pricing: { productId: "product-2", costPrice: cost, price: 150, hargaAgen: 140, hargaDinas: 130 } } });
+    if (error) {
+      await expect(action).rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining(error) });
+      expect(repository.updateReceiptLine).not.toHaveBeenCalled();
+    } else {
+      await expect(action).resolves.toMatchObject({ finalized: false });
+      expect(repository.updateReceiptLine).toHaveBeenCalled();
+    }
+  });
+
+  it("rejects an edit that selects a pricing unit already used by another matched line", async () => {
+    const repository = createRepository();
+    const unit = { productId: "product-1", unit: "pcs", unitMultiplierToBase: 1, costPrice: 10, price: 15, hargaAgen: 14, hargaDinas: 13 };
+    const existing = { version: 1 as const, ...unit, orderedUnitMultiplierToBase: 1 };
+    const current = submittedReviewReceipt();
+    vi.mocked(repository.lockSubmittedReceipt).mockResolvedValueOnce(submittedReviewReceipt({ lines: [
+      { ...current.lines[0], pricingSnapshot: existing, pricingUnits: [unit], unitMultiplierToBase: 1 },
+      { ...current.lines[1], pricingSnapshot: { ...existing, productId: "product-2", unit: "box", unitMultiplierToBase: 12 }, pricingUnits: [unit], unitMultiplierToBase: 12 },
+    ] }));
+    await expect(editInboundReceiptItem({ repository, user: { id: "owner-1", name: "Owner", role: "OWNER", storeId: "store-main" },
+      receiptId: "receipt-1", itemId: "line-2", input: { matchStatus: "MATCHED", receivedQuantity: 3,
+        pricing: { productId: "product-1", costPrice: 10, price: 15, hargaAgen: 14, hargaDinas: 13 } } }))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("hanya dapat digunakan sekali") });
+    expect(repository.updateReceiptLine).not.toHaveBeenCalled();
+  });
+
+  it("allows an edit that reduces pre-existing reference HPP conflicts one line at a time", async () => {
+    const repository = createRepository();
+    const source = { productId: "product-1", unit: "pcs", unitMultiplierToBase: 1, costPrice: 10, price: 15, hargaAgen: 14, hargaDinas: 13 };
+    const reference = { productId: "product-1", unit: "pcs", unitMultiplierToBase: 1 };
+    const box = { productId: "product-2", unit: "box", unitMultiplierToBase: 12, costPrice: 240, price: 150, hargaAgen: 140, hargaDinas: 130, autoCostSource: reference };
+    const pack = { productId: "product-3", unit: "pack", unitMultiplierToBase: 24, costPrice: 720, price: 300, hargaAgen: 280, hargaDinas: 260, autoCostSource: reference };
+    const snapshot = (unit: typeof source, orderedUnitMultiplierToBase: number) => ({ version: 1 as const, ...unit, orderedUnitMultiplierToBase });
+    const current = submittedReviewReceipt();
+    vi.mocked(repository.lockSubmittedReceipt).mockResolvedValueOnce(submittedReviewReceipt({ lines: [
+      { ...current.lines[0], pricingSnapshot: snapshot(source, 1), pricingUnits: [source], unitMultiplierToBase: 1 },
+      { ...current.lines[1], pricingSnapshot: snapshot(box, 12), pricingUnits: [box], unitMultiplierToBase: 12 },
+      { ...current.lines[1], id: "line-3", productId: "product-3", pricingSnapshot: snapshot(pack, 24), pricingUnits: [pack], unitMultiplierToBase: 24 },
+    ] }));
+    await expect(editInboundReceiptItem({ repository, user: { id: "owner-1", name: "Owner", role: "OWNER", storeId: "store-main" },
+      receiptId: "receipt-1", itemId: "line-3", input: { matchStatus: "MATCHED", receivedQuantity: 3,
+        pricing: { productId: "product-3", costPrice: 240, price: 300, hargaAgen: 280, hargaDinas: 260 } } }))
+      .resolves.toMatchObject({ finalized: false });
+    expect(repository.updateReceiptLine).toHaveBeenCalled();
+  });
+
   it("locks the submitted header before validating an item edit", async () => {
     const repository = createRepository();
 
@@ -2419,6 +2484,22 @@ describe("pricing on goods purchase receipt submission", () => {
       { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 5, pricing: { ...firstPrice, hargaDinas: null } },
       { goodsPurchaseItemId: "gpi-2", matchStatus: "MISMATCHED", receivedQuantity: 4 },
     ] } })).rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("lengkapi") });
+    expect(repository.createSubmittedGoodsPurchaseReceipt).not.toHaveBeenCalled();
+  });
+
+  it("rejects conflicting source HPP values across automatic units before creating a receipt", async () => {
+    const repository = createRepository();
+    const purchase = await repository.findGoodsPurchaseForReceipt();
+    purchase.items[0].pricingUnits = [{ productId: "product-1", unit: "pcs", unitMultiplierToBase: 1, costPrice: 10, price: 15, hargaAgen: 14, hargaDinas: 13 }];
+    const automaticBox = { productId: "product-2", unit: "box", unitMultiplierToBase: 12, costPrice: 120, price: 150, hargaAgen: 140, hargaDinas: 130,
+      autoCostSource: { productId: "product-1", unit: "pcs", unitMultiplierToBase: 1 } };
+    purchase.items[1].pricingUnits = [automaticBox];
+    purchase.items[1].unitMultiplierToBase = 12;
+    repository.findGoodsPurchaseForReceipt.mockResolvedValueOnce(purchase);
+    await expect(createAndSubmitGoodsPurchaseReceipt({ repository, user, input: { goodsPurchaseId: "gp-1", lines: [
+      { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 5, pricing: { ...firstPrice, costPrice: 10 } },
+      { goodsPurchaseItemId: "gpi-2", matchStatus: "MATCHED", receivedQuantity: 4, pricing: { productId: "product-2", costPrice: 240, price: 150, hargaAgen: 140, hargaDinas: 130 } },
+    ] } })).rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("HPP acuan") });
     expect(repository.createSubmittedGoodsPurchaseReceipt).not.toHaveBeenCalled();
   });
 

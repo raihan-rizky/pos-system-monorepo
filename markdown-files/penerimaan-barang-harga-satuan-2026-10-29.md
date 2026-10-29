@@ -13,7 +13,7 @@ Tanggal: 2026-10-29 (WIB)
 ## Satuan dan riwayat
 
 - Jumlah penerimaan tetap memakai satuan Pembelian Barang. HPP pada Log Stok dikonversi dari satuan harga yang dipilih ke satuan Pembelian Barang.
-- Untuk satuan pengikut dengan HPP otomatis, sistem menyesuaikan HPP acuan dan menghitung ulang satuan lain sesuai aturan grup. Jika HPP yang dimasukkan tidak dapat diwakili tepat setelah pembulatan acuan, penerimaan tidak difinalisasi sampai nilainya diperbaiki.
+- Untuk satuan pengikut dengan HPP otomatis, sistem menyesuaikan HPP acuan dan menghitung ulang satuan lain sesuai aturan grup. HPP diperiksa sebelum pengajuan dan saat finalisasi. Jika nilainya tidak dapat diwakili tepat setelah pembulatan acuan, pilih satuan acuan atau perbaiki nilainya.
 - Satuan harga yang sama hanya dapat dipilih sekali untuk barang Sesuai pada satu dokumen. Nilai HPP dari beberapa satuan otomatis dalam satu grup harus menghasilkan HPP acuan yang sama.
 - Harga dan satuan disimpan sebagai snapshot untuk pemeriksaan. Perubahan harga produk dicatat di riwayat harga bersama nama petugas persetujuan.
 - Dokumen lama tanpa snapshot harga tetap diproses memakai perilaku sebelumnya dan tidak mengubah harga produk melalui alur baru.

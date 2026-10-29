@@ -111,6 +111,30 @@ describe("/api/inventory-management/inbound-receipts/[id]/items/[itemId]", () =>
     expect(body.conflict).toBe(true);
   });
 
+  it("PATCH accepts and forwards pricing for the selected unit", async () => {
+    const pricing = { productId: "unit-1", costPrice: 100, price: 150, hargaAgen: 140, hargaDinas: 130 };
+    const input = { matchStatus: "MATCHED", receivedQuantity: 4, pricing, note: "Kurang satu" };
+    const response = await patch(input);
+
+    expect(response.status).toBe(200);
+    expect(editInboundReceiptItemMock).toHaveBeenCalledWith(expect.objectContaining({ input }));
+  });
+
+  it("PATCH accepts omitted optional mismatch prices as null", async () => {
+    const response = await patch({ matchStatus: "MISMATCHED", receivedQuantity: 4, pricing: {}, note: "Kurang satu" });
+
+    expect(response.status).toBe(200);
+    expect(editInboundReceiptItemMock.mock.calls[0][0].input.pricing).toEqual({
+      productId: null, costPrice: null, price: null, hargaAgen: null, hargaDinas: null,
+    });
+  });
+
+  it("PATCH rejects malformed pricing before the service call", async () => {
+    const response = await patch({ matchStatus: "MATCHED", receivedQuantity: 4, pricing: { price: -1 } });
+    expect(response.status).toBe(422);
+    expect(editInboundReceiptItemMock).not.toHaveBeenCalled();
+  });
+
   it("PATCH rejects malformed item data before the service call", async () => {
     const response = await patch({
       matchStatus: "UNKNOWN",

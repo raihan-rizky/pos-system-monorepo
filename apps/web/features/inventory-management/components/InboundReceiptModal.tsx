@@ -220,7 +220,7 @@ export function InboundReceiptModal({
         isInboundReceiptLineValid({
           availableQuantity: item.availableQuantity,
           line,
-        }) && isInboundPricingDraftValid(line.pricing, line.matchStatus === "MATCHED")
+        }) && isInboundPricingDraftValid(line.pricing, line.matchStatus === "MATCHED", item.pricingUnits)
       );
     });
   const canSubmit = Boolean(selectedPurchase) && !isLoading && !isSubmitting;

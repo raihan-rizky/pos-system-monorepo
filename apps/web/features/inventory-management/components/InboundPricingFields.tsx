@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
+import { inboundAutoCostRoundingError } from "../helpers/inbound-pricing";
 import type { InboundPricingInput, InboundPricingUnit } from "../types/inventory-management";
 
 export type InboundPricingDraft = {
@@ -21,16 +22,21 @@ export function pricingDraftForUnit(unit?: InboundPricingUnit): InboundPricingDr
   };
 }
 
-export function isInboundPricingDraftValid(draft: InboundPricingDraft, required: boolean): boolean {
+export function isInboundPricingDraftValid(draft: InboundPricingDraft, required: boolean, units?: InboundPricingUnit[]): boolean {
   if (required && !draft.productId) return false;
   if (!draft.productId && [draft.costPrice, draft.price, draft.hargaAgen, draft.hargaDinas].some((value) => value.trim())) return false;
-  return (["costPrice", "price", "hargaAgen", "hargaDinas"] as const).every((field) => {
+  const pricesValid = (["costPrice", "price", "hargaAgen", "hargaDinas"] as const).every((field) => {
     const raw = draft[field].trim();
     if (!raw) return !required;
     const value = Number(raw);
     return Number.isFinite(value) && value >= 0 && value <= 9_999_999_999.99 &&
       Math.abs(value * 100 - Math.round(value * 100)) <= 0.0001;
   });
+  if (!pricesValid) return false;
+  return !required || !units || !inboundAutoCostRoundingError(
+    units.find((unit) => unit.productId === draft.productId),
+    draft.costPrice.trim() ? Number(draft.costPrice) : null,
+  );
 }
 
 export function inboundPricingInputFromDraft(draft: InboundPricingDraft): InboundPricingInput {
@@ -58,6 +64,9 @@ export function InboundPricingFields({
   namePrefix: string;
 }) {
   const drafts = useRef<Record<string, InboundPricingDraft>>({});
+  const roundingError = required && value.costPrice.trim()
+    ? inboundAutoCostRoundingError(units.find((unit) => unit.productId === value.productId), Number(value.costPrice))
+    : null;
   const fields = [
     { key: "costPrice", label: "HPP Unit" },
     { key: "price", label: "Harga Jual" },
@@ -105,7 +114,8 @@ export function InboundPricingFields({
           </label>
         ))}
       </div>
-      <p className="mt-2 text-[11px] text-slate-500">Harga berlaku untuk satu satuan yang dipilih dan diperbarui setelah penerimaan disetujui.</p>
+      <p className="mt-2 text-[11px] text-slate-500">{required ? "Harga berlaku untuk satu satuan yang dipilih dan diperbarui setelah penerimaan disetujui." : "Harga opsional dicatat tanpa memperbarui harga produk."}</p>
+      {roundingError && <p role="alert" className="mt-2 text-xs text-red-700">{roundingError}</p>}
     </fieldset>
   );
 }

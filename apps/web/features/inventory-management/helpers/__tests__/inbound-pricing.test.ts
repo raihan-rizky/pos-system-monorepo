@@ -25,6 +25,15 @@ describe("inbound pricing snapshot", () => {
     },
   );
 
+  it("rejects an automatic follower HPP that cannot round-trip through its source before submission", () => {
+    const autoBox = { ...units[1], autoCostSource: { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1 } };
+    const pricing = { ...complete, productId: "box", costPrice: 100 };
+    expect(() => createInboundPricingSnapshot(pricing, [autoBox], true, 12)).toThrow(/99,96.*pcs/i);
+    expect(createInboundPricingSnapshot({ ...pricing, costPrice: 99.96 }, [autoBox], true, 12).costPrice).toBe(99.96);
+    expect(createInboundPricingSnapshot(pricing, [autoBox], false, 12).costPrice).toBe(100);
+    expect(createInboundPricingSnapshot(pricing, [units[1]], true, 12).costPrice).toBe(100);
+  });
+
   it("accepts zero for every price", () => {
     const zero = { productId: "box", costPrice: 0, price: 0, hargaAgen: 0, hargaDinas: 0 };
     expect(createInboundPricingSnapshot(zero, units, true, 12)).toMatchObject(zero);

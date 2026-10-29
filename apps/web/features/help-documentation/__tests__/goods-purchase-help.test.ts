@@ -15,8 +15,8 @@ describe("Bantuan Daftar Belanja terpadu", () => {
     expect(source).toContain('id: "owner-goods-purchase"');
     expect(source).toContain("Lengkapi Pembelian Lama");
     expect(source).toContain("Pembelian Barang lama");
-    expect(source).toContain("harga modal produk saat ini");
-    expect(source).toContain("tidak mengubah HPP master");
+    expect(source).toContain("HPP Unit, Harga Jual, Harga Jual Agen, serta Harga Jual Dinas");
+    expect(source).toContain("harga untuk satuan yang sesuai diperbarui bersama stok");
     expect(source).toContain("supplier.goods_purchase.approve");
     expect(source).toContain("supplier.goods_purchase.reject");
     expect(source).toContain("Pengeluaran kategori Bahan");

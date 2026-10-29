@@ -238,7 +238,7 @@ export function InboundReceiptReviewModal({
       setError("HPP unit wajib berupa angka valid.");
       return;
     }
-    if (line.pricingSnapshot && !isInboundPricingDraftValid(editInput.pricing, editInput.matchStatus === "MATCHED")) {
+    if (line.pricingSnapshot && !isInboundPricingDraftValid(editInput.pricing, editInput.matchStatus === "MATCHED", line.pricingUnits)) {
       setError("Pilih satuan dan lengkapi HPP unit serta semua harga jual untuk barang yang sesuai.");
       return;
     }

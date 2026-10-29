@@ -6,6 +6,7 @@ import {
 } from "@/features/product-stock-groups/stock-group-lock";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
 import {
+  groupPricingInputFromRow,
   prepareGroupPricingMutation,
   synchronizeGroupPricingMutation,
 } from "@/features/product-stock-groups/group-pricing-service";
@@ -42,6 +43,7 @@ type Tx = Prisma.TransactionClient;
 const pricingUnitSelect = {
   id: true,
   storeId: true,
+  stockGroupId: true,
   unit: true,
   unitMultiplierToBase: true,
   conversionNeedsReview: true,
@@ -58,8 +60,11 @@ const pricingProductSelect = {
   imageUrl: true,
   stockGroup: {
     select: {
+      id: true,
+      storeId: true,
+      baseUnit: true,
+      pricingConfig: true,
       products: {
-        where: { isActive: true },
         orderBy: { id: "asc" },
         select: pricingUnitSelect,
       },
@@ -72,6 +77,23 @@ type PricingProduct = Prisma.ProductGetPayload<{ select: typeof pricingProductSe
 function pricingUnitsForProduct(product: PricingProduct | null): InboundPricingUnit[] {
   if (!product) return [];
   const candidates = product.stockGroupId ? product.stockGroup?.products ?? [] : [product];
+  let automaticSource: { id: string; unit: string; unitMultiplierToBase: number } | undefined;
+  let automaticMembers: Set<string> | undefined;
+  if (product.stockGroup) {
+    try {
+      const config = initializeGroupPricing(groupPricingInputFromRow(product.stockGroup)).config;
+      const source = candidates.find((candidate) => candidate.id === config.sourceProductId && candidate.isActive &&
+        !candidate.conversionNeedsReview && candidate.unitMultiplierToBase > 0);
+      if (source) {
+        automaticSource = source;
+        automaticMembers = new Set(candidates
+          .filter((candidate) => candidate.id !== source.id && (config.members[candidate.id]?.mode ?? "AUTO") === "AUTO")
+          .map((candidate) => candidate.id));
+      }
+    } catch {
+      // The finalization path will report invalid group configuration under its locks.
+    }
+  }
   return candidates
     .filter((candidate) => candidate.storeId === product.storeId && candidate.isActive &&
       !candidate.conversionNeedsReview && Number.isFinite(candidate.unitMultiplierToBase) &&
@@ -80,6 +102,9 @@ function pricingUnitsForProduct(product: PricingProduct | null): InboundPricingU
       productId: candidate.id,
       unit: candidate.unit,
       unitMultiplierToBase: candidate.unitMultiplierToBase,
+      ...(automaticSource && automaticMembers?.has(candidate.id) ? {
+        autoCostSource: { productId: automaticSource.id, unit: automaticSource.unit, unitMultiplierToBase: automaticSource.unitMultiplierToBase },
+      } : {}),
       costPrice: candidate.costPrice === null ? null : Number(candidate.costPrice.toString()),
       price: Number(candidate.price.toString()),
       hargaAgen: candidate.hargaAgen === null ? null : Number(candidate.hargaAgen.toString()),
@@ -152,7 +177,7 @@ export class InventoryInboundReceiptRepository
             costPriceSnapshot: true,
             supplierCostPrice: true,
             pricingSnapshot: true,
-            product: { include: { stockGroup: { select: { products: { where: { isActive: true }, select: pricingUnitSelect } } } } },
+            product: { include: { stockGroup: pricingProductSelect.stockGroup } },
             goodsPurchaseItem: {
               select: {
                 id: true,
@@ -383,7 +408,7 @@ export class InventoryInboundReceiptRepository
       }
       const config = initializeGroupPricing(group).config;
       const source = group.members.find((candidate) => candidate.id === config.sourceProductId && candidate.isActive);
-      const isFollower = config.sourceProductId !== member.id && config.members[member.id]?.mode === "AUTO";
+      const isFollower = config.sourceProductId !== member.id && (config.members[member.id]?.mode ?? "AUTO") === "AUTO";
       const costProduct = isFollower ? source : member;
       if (!costProduct || costProduct.conversionNeedsReview || Number(costProduct.unitMultiplierToBase) <= 0) {
         throw new Error("Acuan HPP otomatis perlu ditinjau sebelum penerimaan disetujui.");

@@ -97,6 +97,17 @@ describe("receipt pricing repository", () => {
     expect(context.state.activities).toHaveLength(1);
   });
 
+  it("treats a follower missing from a legacy pricing config as automatic", async () => {
+    const context = fixture();
+    await enableAuto(context);
+    const config = context.state.groups[0].pricingConfig as { members: Record<string, unknown> };
+    delete config.members.box;
+    await context.transaction(() => context.apply());
+    expect(context.state.products[0].costPrice).toBe("3000.00");
+    expect(context.state.products[1].costPrice).toBe("36000.00");
+    expect(context.state.groups[0].pricingConfig).toMatchObject({ members: { box: { mode: "AUTO" } } });
+  });
+
   it("rejects a stale unit conversion without changing prices", async () => {
     const context = fixture();
     context.state.products[1].unitMultiplierToBase = 6;

@@ -12,6 +12,38 @@ import type {
 
 const MAX_PRICE = 9_999_999_999.99;
 
+export function inboundPricingReference(pricing: InboundPricingInput | null | undefined, units: InboundPricingUnit[] | undefined) {
+  const unit = units?.find((candidate) => candidate.productId === pricing?.productId);
+  if (!unit || pricing?.costPrice == null || !Number.isFinite(pricing.costPrice) || pricing.costPrice < 0) return null;
+  try {
+    const source = unit.autoCostSource;
+    const costPrice = source
+      ? roundMoney(multiplyRatios(decimalToRatio(pricing.costPrice), divideRatios(
+          decimalToRatio(source.unitMultiplierToBase), decimalToRatio(unit.unitMultiplierToBase),
+        )))
+      : pricing.costPrice.toFixed(2);
+    return { productId: source?.productId ?? unit.productId, unit: source?.unit ?? unit.unit, costPrice };
+  } catch {
+    return null;
+  }
+}
+
+export function inboundAutoCostRoundingError(unit: InboundPricingUnit | undefined | null, costPrice: number | null): string | null {
+  if (!unit?.autoCostSource || costPrice === null || !Number.isFinite(costPrice) || costPrice < 0) return null;
+  try {
+    const sourceMultiplier = decimalToRatio(unit.autoCostSource.unitMultiplierToBase);
+    const unitMultiplier = decimalToRatio(unit.unitMultiplierToBase);
+    const sourceCost = roundMoney(multiplyRatios(decimalToRatio(costPrice), divideRatios(sourceMultiplier, unitMultiplier)));
+    const projectedCost = roundMoney(multiplyRatios(decimalToRatio(sourceCost), divideRatios(unitMultiplier, sourceMultiplier)));
+    if (projectedCost !== costPrice.toFixed(2)) {
+      return `HPP satuan otomatis tidak dapat dihitung tepat setelah pembulatan (hasil ${projectedCost.replace(".", ",")}). Pilih satuan acuan ${unit.autoCostSource.unit} atau ubah HPP.`;
+    }
+    return null;
+  } catch {
+    return "Konversi HPP satuan otomatis tidak valid. Pilih satuan acuan atau periksa HPP.";
+  }
+}
+
 export function createInboundPricingSnapshot(
   pricing: InboundPricingInput | null | undefined,
   units: InboundPricingUnit[],
@@ -42,6 +74,8 @@ export function createInboundPricingSnapshot(
   if (!productId && Object.values(values).some((value) => value !== null)) {
     throw new Error("Pilih satuan untuk harga yang diisi.");
   }
+  const roundingError = required ? inboundAutoCostRoundingError(unit, values.costPrice) : null;
+  if (roundingError) throw new Error(roundingError);
   return {
     version: 1,
     productId,
