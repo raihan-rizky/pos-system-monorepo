@@ -60,7 +60,7 @@ Untuk harga otomatis, buka tab **Harga** dengan izin `product.update`:
 
 Contoh Snowman V5 saat pengikut dipilih Auto: beli 10 pak dengan 12 pcs/pak berarti stok masuk 120 pcs memakai HPP pcs. HPP pcs Rp2.000 menghasilkan HPP pak Rp24.000. Harga pcs Rp3.000 dan pak lama Rp32.400 membentuk faktor 9/10. Saat harga pcs Rp3.500, harga pak menjadi Rp37.800; HPP pak tetap Rp24.000.
 
-Sumber jual nol dengan faktor valid menghasilkan nol dan mempertahankan faktor; tanpa faktor yang dapat dihitung, harga lama tetap disertai review. Satuan baru memakai Manual; pilih Auto bila ingin mengikuti sumber dan konversi. Satuan terkecil menjadi sumber pada produk baru dengan banyak satuan. Satuan nonaktif tetap terlihat dalam tinjauan. Harga supplier pada dokumen saja tidak mengubah HPP master; penulisan HPP pengikut Auto perlu melalui sumber atau beralih ke Manual.
+Sumber jual nol dengan faktor valid menghasilkan nol dan mempertahankan faktor; tanpa faktor yang dapat dihitung, harga lama tetap disertai review. Satuan baru memakai Manual; pilih Auto bila ingin mengikuti sumber dan konversi. Satuan terkecil menjadi sumber pada produk baru dengan banyak satuan. Satuan nonaktif tetap terlihat dalam tinjauan. HPP Unit pada Penerimaan Barang yang disetujui memperbarui harga sesuai satuan. Untuk pengikut Auto, HPP sumber dan satuan terkait disesuaikan mengikuti konversi; pengikut Manual tetap memiliki HPP sendiri.
 
 ---
 
@@ -197,11 +197,11 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 **A:** Buka menu Inventaris untuk mencatat barang fisik yang datang:
 1. Buka **Transaksi > Penerimaan Barang**, klik **Terima barang**, lalu **Pilih Pembelian Barang** yang berstatus APPROVED atau BARANG DITERIMA SEBAGIAN.
 2. Periksa supplier, jumlah dipesan, jumlah yang sudah diterima, penerimaan lain yang masih PENDING, dan sisa pesanan. Pembelian parsial boleh dipilih lagi hanya untuk sisanya.
-3. Pada setiap produk, pilih **Sesuai** atau **Tidak Sesuai** dan isi **Jumlah Diterima** tanpa melebihi sisa pesanan. Catatan wajib bila jumlah berbeda dari jumlah dipesan yang tersedia; bila sama, catatan opsional.
+3. Pada setiap produk, pilih **Sesuai** atau **Tidak Sesuai** dan isi **Jumlah Diterima** tanpa melebihi sisa pesanan. Untuk barang Sesuai, pilih satuan harga dan isi **HPP Unit**, **Harga Jual**, **Harga Jual Agen**, dan **Harga Jual Dinas**. Untuk barang Tidak Sesuai, satuan dan harga bersifat opsional. Sebelum mengajukan, perbaiki HPP satuan otomatis yang tidak dapat dibulatkan tepat atau menghasilkan HPP acuan yang berbeda antar satuan. Catatan wajib bila jumlah berbeda dari jumlah dipesan yang tersedia; bila sama, catatan opsional.
 4. Klik **Ajukan ke Owner**. Dokumen masuk riwayat dengan status PENDING dan belum mengubah stok.
-5. OWNER atau role dengan `inventory.inbound_receipt.approve:update` membuka **Proses**, lalu dapat mengubah status kesesuaian, mengedit qty/catatan, menyetujui, atau menghapus tiap produk. Izin edit dokumen memakai `inventory.inbound_receipt.edit:update`.
+5. OWNER atau role dengan `inventory.inbound_receipt.approve:update` membuka **Proses**, lalu dapat mengubah status kesesuaian, jumlah, catatan, satuan, dan harga sebelum menyetujui atau menghapus tiap produk. Izin edit dokumen memakai `inventory.inbound_receipt.edit:update`.
 6. Dokumen tetap PENDING selama ada produk **Belum Ada Aksi**. Role dengan `inventory.inbound_receipt.reject:update` dapat menolak seluruh dokumen dan wajib memberi alasan.
-7. Setelah semua produk disetujui, penerimaan otomatis APPROVED dan stok bertambah atomik sesuai qty final. Dalam mode **stok bersama**, canonical dan semua varian ikut berubah sebagai satu **bundle** Log Stok.
+7. Setelah semua produk disetujui, penerimaan otomatis APPROVED dan stok bertambah atomik sesuai qty final. Barang Sesuai memperbarui HPP dan harga jual produk untuk satuan yang dipilih; barang Tidak Sesuai tidak mengubah harga. Untuk satuan pengikut Auto, sistem menyesuaikan HPP satuan acuan dan menghitung ulang satuan terkait sesuai aturan grup. Dalam mode **stok bersama**, canonical dan semua varian ikut berubah sebagai satu **bundle** Log Stok.
 8. Di Supplier > Pembelian Barang, gunakan **Barang Sudah Diterima?** untuk membuka modal dengan PB langsung terpilih, atau **Lihat Riwayat Penerimaan Barang** untuk membuka riwayat terfilter. Status PB menjadi **BARANG DITERIMA SEBAGIAN** atau **BARANG DITERIMA**; klik baris untuk membandingkan jumlah dipesan, diterima, pending, dan sisa.
 
 ### Q19: Bagaimana cara membuat Daftar Belanja kebutuhan toko ke supplier?

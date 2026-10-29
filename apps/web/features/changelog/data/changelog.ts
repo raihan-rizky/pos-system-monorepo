@@ -27,6 +27,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "inbound-receipt-unit-pricing", date: "2026-10-29", revision: 1,
+    highlight: { title: "Harga satuan penerimaan", summary: "Atur HPP dan harga jual sesuai satuan saat menerima barang." },
+    title: "Atur harga satuan saat menerima barang.",
+    summary: "Catat HPP dan harga jual untuk satuan yang dipilih. Harga produk diperbarui setelah penerimaan disetujui.",
+    kind: "improvement", area: "Supplier & Inventaris", href: "/inventory?tab=transactions&subtab=inbound", visual: "units",
+    steps: [
+      { title: "Buka penerimaan", detail: "Buka Inventaris > Transaksi > Penerimaan Barang dan pilih Pembelian Barang yang disetujui." },
+      { title: "Isi harga satuan", detail: "Pilih kesesuaian dan satuan, lalu isi HPP Unit serta harga jual untuk barang yang sesuai." },
+      { title: "Ajukan dan setujui", detail: "Ajukan ke Owner, lalu periksa dan setujui setiap produk untuk memperbarui stok dan harga." },
+    ],
+  },
+  {
     id: "product-category-stock-group-move", date: "2026-10-29", revision: 1,
     highlight: { title: "Kategori mengikuti grup stok", summary: "Pindahkan seluruh satuan dalam grup bersama ke kategori tujuan." },
     title: "Satuan dalam grup berpindah kategori bersama.",

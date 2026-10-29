@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { inboundPricingSchema } from "@/features/inventory-management/api/inbound-pricing-schema";
 import { InventoryInboundReceiptRepository } from "@/features/inventory-management/repositories/InventoryInboundReceiptRepository";
 import {
   InventoryManagementError,
@@ -30,6 +31,7 @@ const createSchema = z.object({
       matchStatus: z.enum(["MATCHED", "MISMATCHED"]),
       receivedQuantity: z.number().min(0),
       supplierCostPrice: z.number().min(0).max(9_999_999_999.99).optional(),
+      pricing: inboundPricingSchema.nullable().optional(),
       note: z.string().trim().max(500).optional().nullable(),
     }).strict(),
   ).min(1),

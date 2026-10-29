@@ -802,3 +802,72 @@ describe("inbound receipt finalizer", () => {
     expect(repository.markReceiptApproved).not.toHaveBeenCalled();
   });
 });
+
+describe("pricing during receipt finalization", () => {
+  const pricing = {
+    version: 1 as const, productId: "pcs", unit: "pcs", unitMultiplierToBase: 1,
+    orderedUnitMultiplierToBase: 12, costPrice: 100, price: 150, hargaAgen: 140, hargaDinas: 130,
+  };
+  const withPricing = (candidate = receipt({ lines: [line({ pricingSnapshot: pricing })] })) =>
+    Object.assign(createRepository(candidate), { applyInboundPricing: vi.fn(async () => undefined) });
+
+  it("waits for every line to be approved before applying pricing", async () => {
+    const repository = withPricing(receipt({ lines: [line({ pricingSnapshot: pricing, reviewStatus: "PENDING" })] }));
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).resolves.toMatchObject({ finalized: false });
+    expect(repository.applyInboundPricing).not.toHaveBeenCalled();
+  });
+
+  it("applies matched prices inside the stock transaction before approving the receipt", async () => {
+    const repository = withPricing();
+    await finalizeInboundReceiptIfReady(finalizerInput(repository));
+    expect(repository.applyInboundPricing).toHaveBeenCalledWith(tx, expect.objectContaining({
+      storeId: "store-main", receiptId: "receipt-1", actor: user,
+      lines: [{ productId: "dus", stockGroupId: "group-1", pricing }],
+    }));
+    expect(repository.applyInboundPricing.mock.invocationCallOrder[0]).toBeLessThan(repository.markReceiptApproved.mock.invocationCallOrder[0]);
+  });
+
+  it("does not apply prices on mismatched or legacy lines", async () => {
+    for (const candidate of [line({ matchStatus: "MISMATCHED", pricingSnapshot: pricing }), line()]) {
+      const repository = withPricing(receipt({ lines: [candidate] }));
+      await finalizeInboundReceiptIfReady(finalizerInput(repository));
+      expect(repository.applyInboundPricing).not.toHaveBeenCalled();
+      expect(repository.markReceiptApproved).toHaveBeenCalled();
+    }
+  });
+
+  it("rejects duplicate selected pricing units before writing stock", async () => {
+    const repository = withPricing(receipt({ lines: [line({ pricingSnapshot: pricing }), line({ id: "line-2", pricingSnapshot: pricing })] }));
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(repository.incrementStockGroupBase).not.toHaveBeenCalled();
+    expect(repository.applyInboundPricing).not.toHaveBeenCalled();
+  });
+
+  it.each(["55P03", "40P01"])("reports PostgreSQL lock error %s as a retryable pricing conflict", async (sqlState) => {
+    const repository = withPricing();
+    const error = Object.assign(new Error("lock conflict"), {
+      name: "PrismaClientKnownRequestError", code: "P2010", meta: { code: sqlState },
+    });
+    repository.applyInboundPricing.mockRejectedValueOnce(error);
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+    expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
+  });
+
+  it("does not misclassify other raw database errors as lock conflicts", async () => {
+    const repository = withPricing();
+    const error = Object.assign(new Error("database failure"), {
+      name: "PrismaClientKnownRequestError", code: "P2010", meta: { code: "23505" },
+    });
+    repository.applyInboundPricing.mockRejectedValueOnce(error);
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toBe(error);
+  });
+
+  it("does not mark the receipt approved if pricing reports a conflict", async () => {
+    const repository = withPricing();
+    repository.applyInboundPricing.mockRejectedValueOnce(new Error("Satuan berubah"));
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toMatchObject({ code: "CONFLICT", message: "Satuan berubah" });
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+    expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
+  });
+});

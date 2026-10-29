@@ -16,8 +16,12 @@ import type {
   InboundReceiptStatus,
   InventoryInboundReceiptRepository,
   InventoryManagementUser,
+  InboundPricingInput,
+  InboundPricingSnapshot,
+  InboundPricingUnit,
   ReceivingQueueResult,
 } from "../types/inventory-management";
+import { createInboundPricingSnapshot, inboundCostForOrderedUnit, inboundPricingReference } from "../helpers/inbound-pricing";
 import {
   finalizeInboundReceiptIfReady,
   InboundReceiptFinalizationError,
@@ -40,6 +44,22 @@ export class InventoryManagementError extends Error {
   }
 }
 
+function validateInboundReferenceCosts(
+  entries: Array<{ pricing: InboundPricingInput | null | undefined; units: InboundPricingUnit[] | undefined }>,
+  focusProductId?: string,
+): void {
+  const costs = new Map<string, string>();
+  for (const entry of entries) {
+    const reference = inboundPricingReference(entry.pricing, entry.units);
+    if (!reference || (focusProductId && reference.productId !== focusProductId)) continue;
+    const previous = costs.get(reference.productId);
+    if (previous !== undefined && previous !== reference.costPrice) {
+      throw new InventoryManagementError("VALIDATION_ERROR", `HPP acuan ${reference.unit} berbeda antar satuan. Periksa HPP pada produk terkait.`, 422);
+    }
+    costs.set(reference.productId, reference.costPrice);
+  }
+}
+
 interface InboundReceiptServiceInput {
   repository: InventoryInboundReceiptRepository;
   user: InventoryManagementUser & { name?: string | null };
@@ -59,6 +79,7 @@ interface EditInboundReceiptItemInput extends InboundReceiptItemServiceInput {
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
     supplierCostPrice?: number | null;
+    pricing?: InboundPricingInput | null;
     note?: string | null;
   };
 }
@@ -125,6 +146,8 @@ interface GoodsPurchaseForReceipt {
     unitSnapshot: string | null;
     latestUnitPrice: number;
     currentCostPrice: number | null;
+    unitMultiplierToBase?: number;
+    pricingUnits?: InboundPricingUnit[];
     quantity: number;
     inboundReceiptLines: Array<{
       status: InboundReceiptLineStatus;
@@ -143,6 +166,7 @@ interface SubmittedGoodsPurchaseReceiptLine {
   unitSnapshot: string | null;
   costPriceSnapshot: number;
   supplierCostPrice: number | null;
+  pricingSnapshot: InboundPricingSnapshot;
   supplierNameSnapshot: string;
   invoiceNumberSnapshot: string;
   expectedQuantity: number;
@@ -189,6 +213,7 @@ export interface CreateGoodsPurchaseReceiptServiceInput {
       matchStatus: InboundReceiptMatchStatus;
       receivedQuantity: number;
       supplierCostPrice?: number | null;
+      pricing?: InboundPricingInput | null;
       note?: string | null;
     }>;
   };
@@ -287,6 +312,7 @@ export async function getReceivingQueue(
       sku: row.sku,
       unit: row.unit,
       currentCostPrice: row.currentCostPrice,
+      pricingUnits: row.pricingUnits ?? [],
       ...availability,
     });
   }
@@ -695,22 +721,57 @@ export async function editInboundReceiptItem(
           line.approvedReceivedExcludingCurrentReceipt,
         currentReceiptQuantity: input.input.receivedQuantity,
       });
-      const supplierCostPrice = receiptCostOrValidationError({
-        supplierCostPrice:
-          input.input.supplierCostPrice ??
-          line.supplierCostPrice ??
-          line.costPriceSnapshot,
-        masterCostPrice:
-          line.product?.costPrice == null
-            ? null
-            : Number(line.product.costPrice.toString()),
-      });
-      if (input.input.receivedQuantity > 0 && supplierCostPrice === null) {
+      let pricingSnapshot: InboundPricingSnapshot | undefined;
+      let supplierCostPrice: number | null;
+      if (line.pricingSnapshot) {
+        try {
+          pricingSnapshot = createInboundPricingSnapshot(
+            input.input.pricing === undefined ? line.pricingSnapshot : input.input.pricing,
+            line.pricingUnits,
+            input.input.matchStatus === "MATCHED",
+            line.unitMultiplierToBase,
+          );
+          supplierCostPrice = inboundCostForOrderedUnit(pricingSnapshot, line.unitMultiplierToBase);
+        } catch (error) {
+          throw new InventoryManagementError("VALIDATION_ERROR", error instanceof Error ? error.message : "Harga produk tidak valid", 422);
+        }
+      } else {
+        supplierCostPrice = receiptCostOrValidationError({
+          supplierCostPrice: input.input.supplierCostPrice ?? line.supplierCostPrice ?? line.costPriceSnapshot,
+          masterCostPrice: line.product?.costPrice == null ? null : Number(line.product.costPrice.toString()),
+        });
+      }
+      if (!line.pricingSnapshot && input.input.receivedQuantity > 0 && supplierCostPrice === null) {
         throw new InventoryManagementError(
           "VALIDATION_ERROR",
           "Harga modal supplier wajib diisi untuk jumlah yang diterima",
           422,
         );
+      }
+
+      if (input.input.matchStatus === "MATCHED" && pricingSnapshot) {
+        const otherMatched = receipt.lines.filter((other) => other.id !== line.id && other.matchStatus === "MATCHED");
+        const duplicate = pricingSnapshot.productId && otherMatched.some((other) =>
+          other.pricingSnapshot?.productId === pricingSnapshot!.productId,
+        );
+        const unchangedUnit = line.matchStatus === "MATCHED" && line.pricingSnapshot?.productId === pricingSnapshot.productId;
+        if (duplicate && !unchangedUnit) {
+          throw new InventoryManagementError("VALIDATION_ERROR", "Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.", 422);
+        }
+        const focus = inboundPricingReference(pricingSnapshot, line.pricingUnits);
+        const previous = line.matchStatus === "MATCHED" ? inboundPricingReference(line.pricingSnapshot, line.pricingUnits) : null;
+        if (focus) {
+          const others = otherMatched.map((other) => inboundPricingReference(other.pricingSnapshot, other.pricingUnits))
+            .filter((reference) => reference?.productId === focus.productId);
+          const newConflicts = others.filter((reference) => reference?.costPrice !== focus.costPrice).length;
+          const oldConflicts = previous?.productId === focus.productId
+            ? others.filter((reference) => reference?.costPrice !== previous.costPrice).length
+            : 0;
+          const unchangedCost = previous?.productId === focus.productId && previous.costPrice === focus.costPrice;
+          if (newConflicts > 0 && (newConflicts > oldConflicts || (newConflicts === oldConflicts && !unchangedCost))) {
+            throw new InventoryManagementError("VALIDATION_ERROR", `HPP acuan ${focus.unit} berbeda antar satuan. Periksa HPP pada produk terkait.`, 422);
+          }
+        }
       }
 
       await input.repository.updateReceiptLine(tx, {
@@ -721,6 +782,7 @@ export async function editInboundReceiptItem(
         receivedQuantity: input.input.receivedQuantity,
         note,
         supplierCostPrice,
+        ...(pricingSnapshot ? { pricingSnapshot } : {}),
         reviewStatus: "PENDING",
         approvedById: null,
         approvedByName: null,
@@ -1123,6 +1185,9 @@ export async function createAndSubmitGoodsPurchaseReceipt(
           422,
         );
       }
+      if (line.matchStatus !== "MATCHED" && line.matchStatus !== "MISMATCHED") {
+        throw new InventoryManagementError("VALIDATION_ERROR", "Status kesesuaian produk tidak valid", 422);
+      }
       if (
         !Number.isFinite(line.receivedQuantity) ||
         line.receivedQuantity < 0
@@ -1141,16 +1206,21 @@ export async function createAndSubmitGoodsPurchaseReceipt(
         );
       }
 
-      const supplierCostPrice = receiptCostOrValidationError({
-        supplierCostPrice: line.supplierCostPrice,
-        masterCostPrice: item.currentCostPrice,
-      });
-      if (line.receivedQuantity > 0 && supplierCostPrice === null) {
-        throw new InventoryManagementError(
-          "VALIDATION_ERROR",
-          "Harga modal supplier wajib diisi untuk jumlah yang diterima",
-          422,
+      let pricingSnapshot: InboundPricingSnapshot;
+      let supplierCostPrice: number | null;
+      try {
+        if (!item.pricingUnits || item.unitMultiplierToBase === undefined) {
+          throw new Error("Data satuan produk belum tersedia. Muat ulang dan coba lagi.");
+        }
+        pricingSnapshot = createInboundPricingSnapshot(
+          line.pricing,
+          item.pricingUnits,
+          line.matchStatus === "MATCHED",
+          item.unitMultiplierToBase,
         );
+        supplierCostPrice = inboundCostForOrderedUnit(pricingSnapshot, item.unitMultiplierToBase);
+      } catch (error) {
+        throw new InventoryManagementError("VALIDATION_ERROR", error instanceof Error ? error.message : "Harga produk tidak valid", 422);
       }
 
       const note = line.note?.trim() || null;
@@ -1177,6 +1247,7 @@ export async function createAndSubmitGoodsPurchaseReceipt(
         unitSnapshot: item.unitSnapshot,
         costPriceSnapshot: item.latestUnitPrice,
         supplierCostPrice,
+        pricingSnapshot,
         supplierNameSnapshot: purchase.supplierNameSnapshot,
         invoiceNumberSnapshot: purchase.number,
         expectedQuantity: availableQuantity,
@@ -1187,6 +1258,20 @@ export async function createAndSubmitGoodsPurchaseReceipt(
         note,
       };
     });
+
+    const priceUnits = lines.flatMap((line) =>
+      line.matchStatus === "MATCHED" && line.pricingSnapshot.productId
+        ? [line.pricingSnapshot.productId]
+        : [],
+    );
+    if (new Set(priceUnits).size !== priceUnits.length) {
+      throw new InventoryManagementError("VALIDATION_ERROR", "Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.", 422);
+    }
+
+    validateInboundReferenceCosts(lines.filter((line) => line.matchStatus === "MATCHED").map((line) => ({
+      pricing: line.pricingSnapshot,
+      units: purchase.items.find((item) => item.id === line.goodsPurchaseItemId)?.pricingUnits,
+    })));
 
     return input.repository.createSubmittedGoodsPurchaseReceipt(tx, {
       storeId,

@@ -17,6 +17,13 @@ import type {
   InboundReceiptMutationResult,
 } from "../types/inventory-management";
 import type { InboundReceiptMatchStatus } from "../helpers/inbound-receipt-rules";
+import {
+  InboundPricingFields,
+  inboundPricingInputFromDraft,
+  isInboundPricingDraftValid,
+  pricingDraftForUnit,
+  type InboundPricingDraft,
+} from "./InboundPricingFields";
 
 interface LineConflictInput {
   line: Pick<
@@ -74,6 +81,7 @@ type EditInput = {
   matchStatus: InboundReceiptMatchStatus;
   receivedQuantity: string;
   supplierCostPrice: string;
+  pricing: InboundPricingDraft;
   note: string;
 };
 
@@ -198,24 +206,40 @@ export function InboundReceiptReviewModal({
       supplierCostPrice: String(
         line.supplierCostPrice ?? line.costPriceSnapshot ?? "",
       ),
+      pricing: line.pricingSnapshot ? {
+        productId: line.pricingSnapshot.productId ?? "",
+        costPrice: line.pricingSnapshot.costPrice == null ? "" : String(line.pricingSnapshot.costPrice),
+        price: line.pricingSnapshot.price == null ? "" : String(line.pricingSnapshot.price),
+        hargaAgen: line.pricingSnapshot.hargaAgen == null ? "" : String(line.pricingSnapshot.hargaAgen),
+        hargaDinas: line.pricingSnapshot.hargaDinas == null ? "" : String(line.pricingSnapshot.hargaDinas),
+      } : pricingDraftForUnit(),
       note: line.note ?? "",
     });
   };
 
   const handleSaveEdit = (line: InboundReceiptListLine) => {
     if (!editInput) return;
+    if (!editInput.receivedQuantity.trim()) {
+      setError("Jumlah diterima wajib diisi.");
+      return;
+    }
     const receivedQuantity = Number(editInput.receivedQuantity);
     if (!Number.isFinite(receivedQuantity) || receivedQuantity < 0) {
       setError("Jumlah diterima wajib berupa angka valid.");
       return;
     }
     const supplierCostPrice = Number(editInput.supplierCostPrice);
-    if (
+    if (!line.pricingSnapshot && (
+      !editInput.supplierCostPrice.trim() ||
       !Number.isFinite(supplierCostPrice) ||
       supplierCostPrice < 0 ||
       supplierCostPrice > 9_999_999_999.99
-    ) {
-      setError("Harga modal supplier wajib berupa angka valid.");
+    )) {
+      setError("HPP unit wajib berupa angka valid.");
+      return;
+    }
+    if (line.pricingSnapshot && !isInboundPricingDraftValid(editInput.pricing, editInput.matchStatus === "MATCHED", line.pricingUnits)) {
+      setError("Pilih satuan dan lengkapi HPP unit serta semua harga jual untuk barang yang sesuai.");
       return;
     }
     if (
@@ -232,7 +256,9 @@ export function InboundReceiptReviewModal({
         editInboundReceiptItem(receipt.id, line.id, {
           matchStatus: editInput.matchStatus,
           receivedQuantity,
-          supplierCostPrice,
+          ...(line.pricingSnapshot
+            ? { pricing: inboundPricingInputFromDraft(editInput.pricing) }
+            : { supplierCostPrice }),
           note: editInput.note.trim() || null,
         }),
       async (result) => {
@@ -243,7 +269,13 @@ export function InboundReceiptReviewModal({
                   ...candidate,
                   matchStatus: editInput.matchStatus,
                   receivedQuantity,
-                  supplierCostPrice,
+                  supplierCostPrice: line.pricingSnapshot ? candidate.supplierCostPrice : supplierCostPrice,
+                  pricingSnapshot: line.pricingSnapshot ? {
+                    ...line.pricingSnapshot,
+                    ...inboundPricingInputFromDraft(editInput.pricing),
+                    unit: line.pricingUnits?.find((unit) => unit.productId === editInput.pricing.productId)?.unit ?? null,
+                    unitMultiplierToBase: line.pricingUnits?.find((unit) => unit.productId === editInput.pricing.productId)?.unitMultiplierToBase ?? null,
+                  } : null,
                   note: editInput.note.trim() || null,
                   reviewStatus: "PENDING",
                 }
@@ -347,9 +379,17 @@ export function InboundReceiptReviewModal({
                       {line.receivedQuantity} / {line.expectedQuantity}{" "}
                       {line.unitSnapshot ?? ""}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-600">
-                      Harga Modal Supplier: {formatCostPrice(line.supplierCostPrice)}
-                    </p>
+                    {line.pricingSnapshot ? (
+                      <div className="mt-1 space-y-0.5 text-xs font-semibold text-slate-600">
+                        <p>Satuan harga: {line.pricingSnapshot.unit ?? "Belum dipilih"}</p>
+                        <p>HPP Unit: {formatCostPrice(line.pricingSnapshot.costPrice)}</p>
+                        <p>Harga Jual: {formatCostPrice(line.pricingSnapshot.price)}</p>
+                        <p>Harga Jual Agen: {formatCostPrice(line.pricingSnapshot.hargaAgen)}</p>
+                        <p>Harga Jual Dinas: {formatCostPrice(line.pricingSnapshot.hargaDinas)}</p>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs font-semibold text-slate-600">HPP Unit: {formatCostPrice(line.supplierCostPrice)}</p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <span
@@ -429,8 +469,8 @@ export function InboundReceiptReviewModal({
                         className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3"
                       />
                     </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Harga Modal Supplier
+                    {!line.pricingSnapshot && <label className="text-xs font-bold text-slate-600">
+                      HPP Unit
                       <input
                         type="number"
                         min={0}
@@ -445,7 +485,7 @@ export function InboundReceiptReviewModal({
                         }
                         className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3"
                       />
-                    </label>
+                    </label>}
                     <label className="text-xs font-bold text-slate-600">
                       Catatan
                       <input
@@ -459,6 +499,17 @@ export function InboundReceiptReviewModal({
                         className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3"
                       />
                     </label>
+                    {line.pricingSnapshot && (
+                      <div className="md:col-span-2 xl:col-span-4">
+                        <InboundPricingFields
+                          units={line.pricingUnits ?? []}
+                          value={editInput.pricing}
+                          onChange={(pricing) => setEditInput({ ...editInput, pricing })}
+                          required={editInput.matchStatus === "MATCHED"}
+                          namePrefix={`reviewLines.${line.id}.pricing`}
+                        />
+                      </div>
+                    )}
                     <div className="flex gap-2 md:col-span-3">
                       <Button
                         type="button"

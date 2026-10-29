@@ -423,6 +423,7 @@ export interface CreateInboundReceiptInput {
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
     supplierCostPrice?: number;
+    pricing?: import("../types/inventory-management").InboundPricingInput | null;
     note?: string | null;
   }>;
 }
@@ -439,6 +440,8 @@ export interface InboundReceiptListLine {
   receivedQuantity: number;
   costPriceSnapshot: number | null;
   supplierCostPrice: number | null;
+  pricingSnapshot?: import("../types/inventory-management").InboundPricingSnapshot | null;
+  pricingUnits?: import("../types/inventory-management").InboundPricingUnit[];
   status: string;
   matchStatus: InboundReceiptMatchStatus | null;
   reviewStatus: "PENDING" | "APPROVED" | null;
@@ -551,6 +554,7 @@ export async function editInboundReceiptItem(
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
     supplierCostPrice?: number;
+    pricing?: import("../types/inventory-management").InboundPricingInput | null;
     note?: string | null;
   },
 ): Promise<InboundReceiptMutationResult> {

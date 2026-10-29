@@ -12,10 +12,18 @@ import {
   type InboundReceiptMatchStatus,
 } from "../helpers/inbound-receipt-rules";
 import type {
+  InboundPricingUnit,
   ReceivingQueuePurchase,
   ReceivingQueuePurchaseItem,
   ReceivingQueueResult,
 } from "../types/inventory-management";
+import {
+  InboundPricingFields,
+  inboundPricingInputFromDraft,
+  isInboundPricingDraftValid,
+  pricingDraftForUnit,
+  type InboundPricingDraft,
+} from "./InboundPricingFields";
 
 export interface InboundReceiptModalProps {
   open: boolean;
@@ -29,6 +37,7 @@ type LineInput = {
   matchStatus: InboundReceiptMatchStatus;
   receivedQuantity: string;
   supplierCostPrice: string;
+  pricing: InboundPricingDraft;
   note: string;
 };
 
@@ -36,6 +45,7 @@ const EMPTY_LINE_INPUT: LineInput = {
   matchStatus: "MATCHED",
   receivedQuantity: "",
   supplierCostPrice: "",
+  pricing: pricingDraftForUnit(),
   note: "",
 };
 
@@ -95,6 +105,8 @@ export function getInboundReceiptLineInput(input: {
   lineInputs: Record<string, LineInput>;
   itemId: string;
   currentCostPrice: number | null;
+  productId?: string;
+  pricingUnits?: InboundPricingUnit[];
 }): LineInput {
   return (
     input.lineInputs[input.itemId] ?? {
@@ -103,6 +115,7 @@ export function getInboundReceiptLineInput(input: {
         input.currentCostPrice === null
           ? ""
           : String(input.currentCostPrice),
+      pricing: pricingDraftForUnit(input.pricingUnits?.find((unit) => unit.productId === input.productId)),
     }
   );
 }
@@ -200,32 +213,31 @@ export function InboundReceiptModal({
         lineInputs,
         itemId: item.goodsPurchaseItemId,
         currentCostPrice: item.currentCostPrice,
+        productId: item.productId,
+        pricingUnits: item.pricingUnits,
       });
       return (
         isInboundReceiptLineValid({
           availableQuantity: item.availableQuantity,
           line,
-        }) && isInboundReceiptCostValid(line)
+        }) && isInboundPricingDraftValid(line.pricing, line.matchStatus === "MATCHED", item.pricingUnits)
       );
     });
-  const canSubmit =
-    Boolean(selectedPurchase) &&
-    allLinesValid &&
-    !isLoading &&
-    !isSubmitting;
+  const canSubmit = Boolean(selectedPurchase) && !isLoading && !isSubmitting;
 
   const updateLine = (
-    itemId: string,
-    currentCostPrice: number | null,
+    item: ReceivingQueuePurchaseItem,
     patch: Partial<LineInput>,
   ) => {
     setLineInputs((current) => ({
       ...current,
-      [itemId]: {
+      [item.goodsPurchaseItemId]: {
         ...getInboundReceiptLineInput({
           lineInputs: current,
-          itemId,
-          currentCostPrice,
+          itemId: item.goodsPurchaseItemId,
+          currentCostPrice: item.currentCostPrice,
+          productId: item.productId,
+          pricingUnits: item.pricingUnits,
         }),
         ...patch,
       },
@@ -251,8 +263,24 @@ export function InboundReceiptModal({
     }
     if (!allLinesValid) {
       setError(
-        "Lengkapi jumlah dan harga modal supplier. Catatan wajib diisi jika jumlahnya berbeda dari jumlah tersedia.",
+        "Lengkapi jumlah, satuan, dan harga produk yang sesuai. Catatan wajib diisi jika jumlah berbeda dari sisa pesanan.",
       );
+      return;
+    }
+    const priceUnits = visibleItems.flatMap((item) => {
+      const line = getInboundReceiptLineInput({
+        lineInputs,
+        itemId: item.goodsPurchaseItemId,
+        currentCostPrice: item.currentCostPrice,
+        productId: item.productId,
+        pricingUnits: item.pricingUnits,
+      });
+      return line.matchStatus === "MATCHED" && line.pricing.productId
+        ? [line.pricing.productId]
+        : [];
+    });
+    if (new Set(priceUnits).size !== priceUnits.length) {
+      setError("Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.");
       return;
     }
 
@@ -267,12 +295,14 @@ export function InboundReceiptModal({
             lineInputs,
             itemId: item.goodsPurchaseItemId,
             currentCostPrice: item.currentCostPrice,
+            productId: item.productId,
+            pricingUnits: item.pricingUnits,
           });
           return {
             goodsPurchaseItemId: item.goodsPurchaseItemId,
             matchStatus: input.matchStatus,
             receivedQuantity: Number(input.receivedQuantity),
-            supplierCostPrice: Number(input.supplierCostPrice),
+            pricing: inboundPricingInputFromDraft(input.pricing),
             note: input.note.trim() || null,
           };
         }),
@@ -400,11 +430,12 @@ export function InboundReceiptModal({
                 lineInputs,
                 itemId: item.goodsPurchaseItemId,
                 currentCostPrice: item.currentCostPrice,
+                productId: item.productId,
+                pricingUnits: item.pricingUnits,
               })}
               onChange={(patch) =>
                 updateLine(
-                  item.goodsPurchaseItemId,
-                  item.currentCostPrice,
+                  item,
                   patch,
                 )
               }
@@ -522,26 +553,7 @@ function InboundReceiptLine({
             className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
             placeholder={`Maks. ${formatQuantity(item.availableQuantity)}`}
           />
-          <span className="mt-1 block text-[11px] font-medium text-cyan-700">Jumlah maksimal {formatQuantity(item.availableQuantity)} {item.unit ?? "unit"}</span>
-        </label>
-
-        <label className="text-xs font-bold text-slate-600">
-          Harga Modal Supplier
-          <input
-            name={`inboundLines.${item.goodsPurchaseItemId}.supplierCostPrice`}
-            type="number"
-            inputMode="decimal"
-            min={0}
-            max={9_999_999_999.99}
-            step="0.01"
-            value={input.supplierCostPrice}
-            onChange={(event) =>
-              onChange({ supplierCostPrice: event.target.value })
-            }
-            className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-            placeholder="Masukkan harga modal"
-          />
-          <span className="mt-1 block text-[11px] font-medium text-slate-500">Harga per satuan dalam rupiah</span>
+          <span className="mt-1 block text-[11px] font-medium text-cyan-700">Jumlah dalam satuan pesanan; maksimal {formatQuantity(item.availableQuantity)} {item.unit ?? "unit"}</span>
         </label>
 
         <label className="text-xs font-bold text-slate-600">
@@ -562,6 +574,13 @@ function InboundReceiptLine({
           {noteRequired && <span id={`inbound-note-help-${item.goodsPurchaseItemId}`} className="mt-1 block text-[11px] font-medium text-amber-800">Jumlah berbeda dari sisa pesanan. Tambahkan alasannya, ya.</span>}
         </label>
       </div>
+      <InboundPricingFields
+        units={item.pricingUnits}
+        value={input.pricing}
+        onChange={(pricing) => onChange({ pricing })}
+        required={input.matchStatus === "MATCHED"}
+        namePrefix={`inboundLines.${item.goodsPurchaseItemId}.pricing`}
+      />
     </article>
   );
 }
