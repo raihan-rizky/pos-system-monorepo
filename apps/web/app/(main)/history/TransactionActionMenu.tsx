@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { 
   MoreVertical, 
-  Edit2, 
   Trash2, 
   XCircle, 
   CheckCircle,
@@ -29,7 +28,6 @@ interface TransactionActionMenuProps {
   canChangeInvoiceDate: boolean;
   isPending: boolean;
   isBundled: boolean;
-  onEdit: () => void;
   onEditInvoiceDate: () => void;
   onDelete: () => void;
   onApprove: () => void;
@@ -52,7 +50,6 @@ export function TransactionActionMenu({
   canChangeInvoiceDate,
   isPending,
   isBundled,
-  onEdit,
   onEditInvoiceDate,
   onDelete,
   onApprove,
@@ -171,15 +168,6 @@ export function TransactionActionMenu({
       {/* Action groups */}
       {(hasUpdateAction || hasInvoiceDateAction || hasVoidAction) && (
         <div className="p-1">
-          {hasUpdateAction && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
-              className="w-full text-left px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-700 flex items-center rounded-lg transition-colors cursor-pointer"
-            >
-              <Edit2 className="mr-2 h-4 w-4 text-surface-500" />
-              Ubah
-            </button>
-          )}
           {hasInvoiceDateAction && (
             <button
               onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEditInvoiceDate(); }}

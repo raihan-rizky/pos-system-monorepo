@@ -1579,9 +1579,18 @@ export default function HistoryClientPage() {
                                   <Button
                                     variant="secondary"
                                     onClick={(e) => { e.stopPropagation(); openTransactionDetail(tx); }}
-                                    className="!py-1.5 !px-3 text-sm h-auto"
+                                    className="!py-1.5 !px-3 text-sm h-auto whitespace-nowrap"
                                   >
                                     Lihat Struk
+                                  </Button>
+                                )}
+                                {!isBundled && !isSalesRole && canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && (
+                                  <Button
+                                    variant="secondary"
+                                    onClick={(e) => { e.stopPropagation(); setEditingTransaction(tx); }}
+                                    className="!py-1.5 !px-3 text-sm h-auto whitespace-nowrap"
+                                  >
+                                    Ubah
                                   </Button>
                                 )}
                                 {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
@@ -1624,7 +1633,6 @@ export default function HistoryClientPage() {
                                   canChangeInvoiceDate={canChangeInvoiceDate && !tx.printingReceipt && !tx.printingSubcategory}
                                   isPending={isPending}
                                   isBundled={isBundled}
-                                  onEdit={() => setEditingTransaction(tx)}
                                   onEditInvoiceDate={() => setEditingInvoiceDateTransaction(tx)}
                                   onDelete={() => setDeletingTransaction(tx)}
                                   onApprove={() => setApprovingTransaction(tx)}
@@ -1801,16 +1809,25 @@ export default function HistoryClientPage() {
 
                         {!isBundled && (
                           <div
-                            className="flex items-center justify-end gap-2 pt-3 border-t border-surface-100"
+                            className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-surface-100"
                             onClick={(event) => event.stopPropagation()}
                           >
                             {!isBundled && (
                               <Button
                                 variant="secondary"
                                 onClick={(e) => { e.stopPropagation(); openTransactionDetail(tx); }}
-                                className="flex-1 !py-2 !px-3 text-xs h-auto"
+                                className="flex-1 !py-2 !px-3 text-xs h-auto whitespace-nowrap"
                               >
                                 Lihat Struk
+                              </Button>
+                            )}
+                            {!isSalesRole && canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && (
+                              <Button
+                                variant="secondary"
+                                onClick={(e) => { e.stopPropagation(); setEditingTransaction(tx); }}
+                                className="flex-1 !py-2 !px-3 text-xs h-auto whitespace-nowrap"
+                              >
+                                Ubah
                               </Button>
                             )}
                             {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
@@ -1853,7 +1870,6 @@ export default function HistoryClientPage() {
                               canChangeInvoiceDate={canChangeInvoiceDate && !tx.printingReceipt && !tx.printingSubcategory}
                               isPending={isPending}
                               isBundled={isBundled}
-                              onEdit={() => setEditingTransaction(tx)}
                               onEditInvoiceDate={() => setEditingInvoiceDateTransaction(tx)}
                               onDelete={() => setDeletingTransaction(tx)}
                               onApprove={() => setApprovingTransaction(tx)}

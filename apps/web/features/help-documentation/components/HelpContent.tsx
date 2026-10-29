@@ -717,7 +717,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Riwayat Transaksi", description: "Buka menu samping (sidebar) sebelah kiri, pilih kategori 'Operasi', dan klik menu 'Riwayat'.", icon: <History className="w-8 h-8" /> },
-        { title: "Pilih Transaksi", description: "Cari dan klik transaksi yang ingin Anda cetak invoice-nya pada tabel.", icon: <Search className="w-8 h-8" /> },
+        { title: "Pilih Transaksi", description: "Cari transaksi di tabel, lalu klik Lihat Struk untuk membuka invoice. Untuk mengubah invoice reguler, klik Ubah di samping Lihat Struk jika memiliki izin; aksi tidak tersedia untuk Sales atau transaksi gabungan.", icon: <Search className="w-8 h-8" /> },
         { title: "Cetak Invoice", description: "Pada rincian transaksi, klik ikon printer atau tombol Cetak Invoice. Nota biasa menampilkan Pajak sebagai persen di bagian atas nota dan PDF. Tarif dapat diisi sejak modal Pembayaran. Pada Cetak Nota Penawaran, PPN (%) dihitung dari DPP Nilai Lain (11/12 jumlah setelah diskon), lalu DPP dan PPN dicetak sebagai nominal rupiah. Pengguna dengan izin edit transaksi/draft dapat mengisi 0–100% dengan maksimal dua desimal. Simpan Pajak atau cetak untuk menyimpan perubahan ke total dan sisa tagihan. Metode pajak penawaran dipertahankan saat dilanjutkan ke pembayaran. Jika penyimpanan gagal, input tetap tersimpan di layar; coba lagi atau buka kembali nota bila transaksi berubah.", icon: <FileText className="w-8 h-8" /> },
       ]
     },

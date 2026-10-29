@@ -108,7 +108,7 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 - **Melalui POS Kasir:** Setelah menyelesaikan pembayaran transaksi, klik tombol **Cetak Struk** pada halaman konfirmasi keberhasilan.
 - **Melalui Riwayat Transaksi:** 
   1. Buka sidebar **Operasi > Riwayat**.
-  2. Cari dan klik baris transaksi yang ingin dicetak invoice-nya.
+  2. Cari transaksi dan klik Lihat Struk atau barisnya. Untuk mengubah invoice reguler, klik Ubah di samping Lihat Struk jika memiliki izin; aksi ini tidak tersedia untuk Sales atau transaksi gabungan.
   3. Pada panel detail transaksi di sebelah kanan, klik ikon printer atau tombol **Cetak Invoice/Struk** di sudut kanan atas panel.
 
 ### Q10: Bagaimana cara mengubah tanggal invoice transaksi?
