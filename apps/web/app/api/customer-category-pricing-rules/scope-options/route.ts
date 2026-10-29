@@ -1,7 +1,7 @@
 import { db } from "@pos/db";
 import { requireRole, handleAuthError } from "@/lib/rbac/guard";
 import { apiError } from "@/lib/api/responses";
-import { normalizePricingUnit } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { normalizePricingUnit, normalizePricingUnits } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { getLogger } from "@/lib/logger";
 
@@ -20,20 +20,24 @@ export async function GET(request: Request) {
     if (!["all", "units", "preview"].includes(view)) {
       return apiError("Pilihan data tidak valid", 422, { code: "ValidationError" });
     }
-    const unit = normalizePricingUnit(searchParams.get("unit"));
+    const selectedUnits = normalizePricingUnits(searchParams.getAll("unit"));
+    const unit = selectedUnits.length === 1 ? selectedUnits[0] : null;
     const brandId = searchParams.get("brandId");
     const where = { storeId, categoryId, isActive: true };
     const [productUnits, savedUnits, products] = await Promise.all([
       view === "preview" ? [] : db.product.findMany({ where, select: { unit: true }, distinct: ["unit"] }),
-      view === "preview" ? [] : db.categoryCustomerPricingRule.findMany({ where: { storeId, categoryId }, select: { unit: true } }),
+      view === "preview" ? [] : db.categoryCustomerPricingRule.findMany({ where: { storeId, categoryId }, select: { unit: true, units: true } }),
       view === "units" ? [] : db.product.findMany({
-        where: { ...where, ...(unit ? { unit: { equals: unit, mode: "insensitive" as const } } : {}), ...(brandId ? { brandId } : {}) },
+        where: { ...where, ...(unit ? { unit: { equals: unit, mode: "insensitive" as const } } : selectedUnits.length ? { OR: selectedUnits.map((value) => ({ unit: { equals: value, mode: "insensitive" as const } })) } : {}), ...(brandId ? { brandId } : {}) },
         ...(unit ? {} : { distinct: ["unit" as const] }),
         take: 3, orderBy: [{ name: "asc" }, { id: "asc" }],
         select: { id: true, name: true, storeId: true, unit: true, price: true, costPrice: true, brandId: true, stockGroupId: true, stockGroup: { select: { baseUnit: true, storeId: true } } },
       }),
     ]);
-    const units = [...new Set([...productUnits, ...savedUnits].map((row) => normalizePricingUnit(row.unit)).filter((value): value is string => value !== null))].sort();
+    const units = [...new Set([
+      ...productUnits.map((row) => normalizePricingUnit(row.unit)).filter((value): value is string => value !== null),
+      ...savedUnits.flatMap((row) => normalizePricingUnits(row.units, row.unit)),
+    ])].sort();
     if (view === "units") return Response.json({ data: { units, products: [] } });
     const baseCosts = await loadProductBaseCosts(db, products);
     return Response.json({ data: { units, products: products.map((product) => ({ id: product.id, name: product.name, unit: product.unit, price: Number(product.price), costPrice: product.costPrice == null ? null : Number(product.costPrice), brandId: product.brandId, ...baseCosts.get(product.id) })) } });

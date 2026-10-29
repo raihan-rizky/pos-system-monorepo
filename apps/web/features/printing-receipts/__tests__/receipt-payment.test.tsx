@@ -15,6 +15,7 @@ vi.mock("@/hooks/useCustomers", () => ({useCreateCustomer: () => ({isPending:fal
 vi.mock("@/components/providers/RoleProvider", () => ({useRole:()=>roleState}));
 vi.mock("@/hooks/useSalespersons", () => ({useSalespersons:()=>({data:[]})}));
 vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({useCustomerCategoryPricingRules:()=>({data:[]})}));
+vi.mock("@/features/customer-category-pricing/hooks/useSpecialPricingSettings", () => ({useSpecialPricingSettings:()=>({data:false})}));
 vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({
   usePriceRoundingSettings: () => ({ data: { enabled: true, increment: 500, threshold: 50 } }),
 }));

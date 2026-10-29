@@ -4,14 +4,14 @@ import { createGroupPricingInitializationAdapter } from "../../../scripts/group-
 import { createPricingTestDatabase } from "./pricing-test-database";
 
 describe("backfill transaction adapter", () => {
-  it("uses one supplied transaction per group, records HPP audit and skips a repeat", async () => {
+  it("uses one supplied transaction per group, preserves HPP and skips a repeat", async () => {
     const data = createPricingTestDatabase(); const transaction = vi.fn(fn => fn(data.tx));
     const apply = createGroupPricingInitializationAdapter({ $transaction: transaction } as unknown as Pick<PrismaClient, "$transaction">);
     const request = { storeId: "store-main", groupId: "group-1", expectedInitializationVersion: null } as const;
     expect((await apply(request)).initialized).toBe(true);
-    expect(data.products[1].price).toBe("225000.00"); expect(data.products[1].costPrice).toBe("200000.00");
-    expect(data.logs).toHaveLength(1); expect(data.activities).toHaveLength(1);
+    expect(data.products[1].price).toBe("225000.00"); expect(data.products[1].costPrice).toBe("150000.00");
+    expect(data.logs).toHaveLength(0); expect(data.activities).toHaveLength(1);
     expect((await apply(request)).initialized).toBe(false);
-    expect(data.logs).toHaveLength(1); expect(transaction).toHaveBeenCalledTimes(2);
+    expect(data.logs).toHaveLength(0); expect(transaction).toHaveBeenCalledTimes(2);
   });
 });

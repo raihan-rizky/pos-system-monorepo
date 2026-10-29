@@ -1,5 +1,6 @@
 import { roundSellingPriceLine, type PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
+import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { createHash } from "node:crypto";
 import { Prisma } from "@pos/db";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -300,6 +301,7 @@ export async function buildApprovalQuote(
     discountPercent: Number(rule.discountPercent ?? 0),
     isActive: rule.isActive,
     unit: rule.unit,
+    units: rule.units,
     brandId: rule.brandId,
     brandName: rule.brand?.name ?? null,
     updatedAt: rule.updatedAt,
@@ -307,6 +309,7 @@ export async function buildApprovalQuote(
   const customerType = (transaction.customer?.type ?? "UMUM") as CustomerType;
 
   const roundingSettings = await getPriceRoundingSettings();
+  const specialPricingEnabled = await getSpecialPricingEnabled(tx);
   const quotedItems = normalizedItems.map((line): ApprovalQuotedItem => {
     const product = line.productId
       ? productById.get(line.productId)
@@ -334,6 +337,8 @@ export async function buildApprovalQuote(
         },
         customerType,
         rules,
+        undefined,
+        specialPricingEnabled,
       );
       const roundedAutomatic = roundSellingPriceLine(automatic, roundingSettings);
       const applied = roundSellingPriceLine(resolveCustomPricedLine({
@@ -345,12 +350,13 @@ export async function buildApprovalQuote(
             : line.submittedPrice === roundedAutomatic.unitPrice ? undefined : line.submittedPrice,
         role: input.actorRole,
         customerType,
+        specialPricingEnabled,
       }), roundingSettings);
       const appliedPricing = applied.appliedPricing;
       const references = {
         regular: roundSellingPriceLine({ unitPrice: regular, appliedPricing: null }, roundingSettings),
-        agent: product.hargaAgen == null ? null : roundSellingPriceLine({ unitPrice: Number(product.hargaAgen), appliedPricing: null }, roundingSettings),
-        government: product.hargaDinas == null ? null : roundSellingPriceLine({ unitPrice: Number(product.hargaDinas), appliedPricing: null }, roundingSettings),
+        agent: !specialPricingEnabled || product.hargaAgen == null ? null : roundSellingPriceLine({ unitPrice: Number(product.hargaAgen), appliedPricing: null }, roundingSettings),
+        government: !specialPricingEnabled || product.hargaDinas == null ? null : roundSellingPriceLine({ unitPrice: Number(product.hargaDinas), appliedPricing: null }, roundingSettings),
         special: automatic.appliedPricing &&
           automatic.appliedPricing.ruleId !== "harga-agen" &&
           automatic.appliedPricing.ruleId !== "harga-dinas"

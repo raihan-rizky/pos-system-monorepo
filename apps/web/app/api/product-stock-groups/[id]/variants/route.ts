@@ -26,7 +26,7 @@ const conversionPairSchema = z.object({
 const createVariantSchema = z.object({
   unit: z.string().trim().min(1),
   price: z.coerce.number().min(0).optional().default(0),
-  pricingMode: z.enum(["AUTO", "MANUAL"]).optional().default("AUTO"),
+  pricingMode: z.enum(["AUTO", "MANUAL"]).optional().default("MANUAL"),
   priceFactor: z.object({ numerator: z.string().regex(/^\d+$/), denominator: z.string().regex(/^[1-9]\d*$/) }).optional(),
   costPrice: z.coerce.number().min(0).nullable().optional(),
   stock: z.coerce.number(),

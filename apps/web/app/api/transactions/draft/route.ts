@@ -1,5 +1,6 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
+import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
@@ -266,6 +267,7 @@ export async function POST(request: Request) {
       customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
       customerTypes: rule.customerTypes,
       unit: rule.unit,
+      units: rule.units,
       brandId: rule.brandId,
       brandName: rule.brand?.name ?? null,
       mode: rule.mode,
@@ -276,6 +278,7 @@ export async function POST(request: Request) {
     })) satisfies CategoryPricingRule[];
 
     const roundingSettings = await getPriceRoundingSettings();
+    const specialPricingEnabled = await getSpecialPricingEnabled();
     const serverItems = items.map((item) => {
       const product = productById.get(item.productId);
       if (!product) throw new Error("PRODUCT_NOT_FOUND");
@@ -297,9 +300,10 @@ export async function POST(request: Request) {
         checkoutCustomerType,
         pricingRules,
         pricingPreference,
+        specialPricingEnabled,
       );
       const rounded = roundSellingPriceLine({ ...automaticPrice,
-        unitPrice: item.transactionPrice ?? automaticPrice.unitPrice,
+        unitPrice: specialPricingEnabled ? item.transactionPrice ?? automaticPrice.unitPrice : automaticPrice.unitPrice,
       }, roundingSettings);
       const price = rounded.unitPrice;
       const appliedPricing = rounded.appliedPricing;

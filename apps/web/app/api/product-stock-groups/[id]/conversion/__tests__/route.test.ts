@@ -9,6 +9,10 @@ describe("group conversion", () => {
   const change = { mode: "KEEP_SHARED_STOCK", directMultipliers: [{ productId: "rim", unitMultiplierToBase: 1 }, { productId: "dus", unitMultiplierToBase: 4 }] };
   async function call(body: object, preview = false) { const route = await import("../route"); return (preview ? route.POST : route.PATCH)(new Request("http://localhost/conversion", { method: preview ? "POST" : "PATCH", body: JSON.stringify(body) }), { params: Promise.resolve({ id: "group-1" }) }); }
   it("updates conversion and price/HPP in one transaction while keeping shared stock", async () => {
+    data.group.pricingConfig = { sourceProductId: "rim", revision: 1, initializationVersion: 1, members: {
+      rim: { mode: "AUTO", factor: { numerator: "1", denominator: "1" }, review: { price: [], costPrice: [] } },
+      dus: { mode: "AUTO", factor: { numerator: "9", denominator: "10" }, review: { price: [], costPrice: [] } },
+    } };
     const response = await call(change); expect(response.status).toBe(200);
     expect(data.products[1]).toMatchObject({ unitMultiplierToBase: 4, price: "180000.00", costPrice: "160000.00" });
     expect(data.group.baseStock).toBe(20); expect(data.activities).toEqual(expect.arrayContaining([expect.objectContaining({ type: "CONVERSION_RATE_CHANGED" }), expect.objectContaining({ type: "GROUP_PRICING_CHANGED" })]));
@@ -16,6 +20,10 @@ describe("group conversion", () => {
     expect(data.raw.product.update).toHaveBeenCalledWith({ where: { id: "dus" }, data: { unitMultiplierToBase: 4, conversionNeedsReview: false } });
   });
   it("previews on the server without writes and applies only matching preview", async () => {
+    data.group.pricingConfig = { sourceProductId: "rim", revision: 1, initializationVersion: 1, members: {
+      rim: { mode: "AUTO", factor: { numerator: "1", denominator: "1" }, review: { price: [], costPrice: [] } },
+      dus: { mode: "AUTO", factor: { numerator: "9", denominator: "10" }, review: { price: [], costPrice: [] } },
+    } };
     const response = await call(change, true); expect(response.status).toBe(200); const preview = await response.json();
     expect(data.products[1].unitMultiplierToBase).toBe(5); expect(data.logs).toEqual([]); expect(data.activities).toEqual([]);
     expect(preview.pricing.after.members.find((m: { productId: string }) => m.productId === "dus").price).toBe("180000.00");

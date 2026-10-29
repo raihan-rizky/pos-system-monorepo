@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@pos/db";
 import { initializeGroupPricing } from "@/features/product-stock-groups/automatic-pricing";
+import { configuredAutoGroup } from "@/features/product-stock-groups/__tests__/configured-auto-group";
 import { groupPricingInputFromRow } from "@/features/product-stock-groups/group-pricing-service";
 
 const transaction = vi.hoisted(() => vi.fn());
@@ -133,11 +134,17 @@ function fixture() {
   return { state, events, tx: tx as unknown as Prisma.TransactionClient, line, manual, setFailure: (value: string) => { fail = value; }, race: (fn: () => void) => { onGroupLock = fn; } };
 }
 
+function autoFixture() {
+  const f = fixture();
+  f.state.groups[0].pricingConfig = configuredAutoGroup("a-source", "b-pack");
+  return f;
+}
+
 describe("purchase master HPP automatic group pricing", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("projects source HPP once with legacy selling factors, half-up money and original snapshots", async () => {
-    const f = fixture();
+    const f = autoFixture();
     const result = await approveGoodsPurchaseItemRecord("purchase", "line", actor, now);
     expect(result.finalized).toBe(true);
     expect(f.state.products.map(p => [p.price, p.costPrice])).toEqual([["3000.00", "2100.01"], ["32400.00", "25200.12"]]);
@@ -183,12 +190,12 @@ describe("purchase master HPP automatic group pricing", () => {
   });
 
   it.each([false, true])("rejects Auto follower independent master HPP, including equal values (%s), and rolls back pending review", async (equal) => {
-    const f = fixture(); f.state.purchase.items[0].productId = "b-pack";
+    const f = autoFixture(); f.state.purchase.items[0].productId = "b-pack";
     if (equal) f.state.purchase.items[0].latestUnitPrice = decimal("10000");
     await expect(approveGoodsPurchaseItemRecord("purchase", "line", actor, now)).rejects.toMatchObject({ status: 422, message: expect.stringMatching(/acuan.*Manual/) });
     expect(f.state.purchase.status).toBe("PENDING");
     expect(f.state.purchase.items[0].reviewStatus).toBe("PENDING");
-    expect(f.state.groups[0].pricingConfig).toBeNull();
+    expect(f.state.groups[0].pricingConfig).toEqual(configuredAutoGroup("a-source", "b-pack"));
     expect(f.state.logs).toEqual([]); expect(f.state.expenses).toEqual([]);
   });
 
@@ -211,7 +218,7 @@ describe("purchase master HPP automatic group pricing", () => {
   });
 
   it("projects an explicit zero HPP from a previously unknown source", async () => {
-    const f = fixture(); f.state.products[0].costPrice = null; f.state.purchase.items[0].latestUnitPrice = decimal("0");
+    const f = autoFixture(); f.state.products[0].costPrice = null; f.state.purchase.items[0].latestUnitPrice = decimal("0");
     await approveGoodsPurchaseItemRecord("purchase", "line", actor, now);
     expect(f.state.products.map(p => p.costPrice)).toEqual(["0.00", "0.00"]);
     expect(f.state.logs[0]).toMatchObject({ oldValue: null });
@@ -241,7 +248,7 @@ describe("purchase master HPP automatic group pricing", () => {
   });
 
   it("uses the same projection when removing the last pending line", async () => {
-    const f = fixture(); f.state.purchase.items[0].reviewStatus = "APPROVED";
+    const f = autoFixture(); f.state.purchase.items[0].reviewStatus = "APPROVED";
     f.state.purchase.items.push(f.line("remove", "b-pack", false));
     await removeGoodsPurchaseItemRecord("purchase", "remove", actor, now);
     expect(f.state.products[1].costPrice).toBe("25200.12"); expect(f.state.expenses).toHaveLength(1);
@@ -256,7 +263,7 @@ describe("purchase master HPP automatic group pricing", () => {
   });
 
   it.each(["approve", "remove"])("propagates friendly validation through the real %s service and restores the pending decision", async (action) => {
-    const f = fixture(); f.state.purchase.items[0].productId = "b-pack";
+    const f = autoFixture(); f.state.purchase.items[0].productId = "b-pack";
     if (action === "remove") {
       f.state.purchase.items[0].reviewStatus = "APPROVED";
       f.state.purchase.items.push(f.line("remove", "a-source", false));
@@ -268,13 +275,14 @@ describe("purchase master HPP automatic group pricing", () => {
   });
 
   it("uses the supplied transaction for direct finalization", async () => {
-    const f = fixture(); f.state.purchase.items[0].reviewStatus = "APPROVED";
+    const f = autoFixture(); f.state.purchase.items[0].reviewStatus = "APPROVED";
     await finalizeGoodsPurchaseIfReady(f.tx, "purchase", actor, now);
     expect(transaction).not.toHaveBeenCalled(); expect(f.state.products[1].costPrice).toBe("25200.12");
   });
 
   it("records an equal-HPP Auto supplier snapshot once without a master pricing mutation", async () => {
-    const f = fixture();
+    const f = autoFixture();
+    f.state.products[1].costPrice = "24000";
     const initialized = initializeGroupPricing(groupPricingInputFromRow({ ...f.state.groups[0], products: f.state.products } as never));
     f.state.groups[0].pricingConfig = initialized.config;
     for (const member of initialized.members) {
@@ -317,7 +325,7 @@ describe("purchase master HPP automatic group pricing", () => {
   });
 
   it.each(["source", "auto", "log"])("keeps real shopping-request finalization atomic for %s with header-before-pricing locks", async (scenario) => {
-    const f = fixture();
+    const f = autoFixture();
     if (scenario === "log") f.setFailure("log");
     const productId = scenario === "auto" ? "b-pack" : "a-source";
     const result = finalizeShoppingRequestRecord("shopping", {
@@ -338,7 +346,7 @@ describe("purchase master HPP automatic group pricing", () => {
       expect(f.state.request).toEqual({ status: "REQUESTED", decision: null });
       expect(f.state.createdPurchase).toBe(false);
       expect(f.state.purchase.status).toBe("PENDING"); expect(f.state.expenses).toEqual([]);
-      expect(f.state.logs).toEqual([]); expect(f.state.groups[0].pricingConfig).toBeNull();
+      expect(f.state.logs).toEqual([]); expect(f.state.groups[0].pricingConfig).toEqual(configuredAutoGroup("a-source", "b-pack"));
     }
   });
 });

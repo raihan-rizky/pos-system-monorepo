@@ -84,8 +84,8 @@ describe("GET /api/product-stock-groups/[id]", () => {
       }),
     );
     expect(body.conversionPairs).toEqual([]);
-    expect(body.pricing.config.members["rim-1"].mode).toBe("AUTO");
-    expect(body.pricing.config.members["rim-1"].review.price).toContain("SOURCE_UNAVAILABLE");
+    expect(body.pricing.config.members["rim-1"].mode).toBe("MANUAL");
+    expect(body.pricing.config.members["rim-1"].review.price).toEqual([]);
     expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
   });
 });

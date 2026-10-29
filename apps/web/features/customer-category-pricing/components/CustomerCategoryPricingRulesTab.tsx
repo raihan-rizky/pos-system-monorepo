@@ -136,7 +136,7 @@ export function CustomerCategoryPricingRulesTab({ roundingSettings }: { rounding
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-slate-900">
-                      {rule.category.name} · {rule.unit || "Semua satuan"}
+                      {rule.category.name} · {rule.units?.length ? rule.units.join(", ") : rule.unit || "Semua satuan"}
                     </h3>
                     {!rule.isActive && (
                       <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
@@ -157,7 +157,7 @@ export function CustomerCategoryPricingRulesTab({ roundingSettings }: { rounding
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
-                    aria-label={`Ubah aturan ${rule.category.name} ${rule.unit || "semua satuan"}`}
+                    aria-label={`Ubah aturan ${rule.category.name} ${rule.units?.length ? rule.units.join(", ") : rule.unit || "semua satuan"}`}
                     onClick={() => {
                       setEditor({ rule });
                       setNotice(null);
@@ -168,7 +168,7 @@ export function CustomerCategoryPricingRulesTab({ roundingSettings }: { rounding
                   </button>
                   {rule.isActive && <button
                     type="button"
-                    aria-label={`Nonaktifkan aturan ${rule.category.name} ${rule.unit || "semua satuan"}`}
+                    aria-label={`Nonaktifkan aturan ${rule.category.name} ${rule.units?.length ? rule.units.join(", ") : rule.unit || "semua satuan"}`}
                     disabled={deleteRule.isPending}
                     onClick={() => {
                       setRemoving(rule);

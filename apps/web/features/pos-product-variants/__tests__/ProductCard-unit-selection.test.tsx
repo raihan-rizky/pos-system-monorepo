@@ -13,6 +13,7 @@ vi.mock("react", async (importOriginal) => {
   return { ...actual, ...hooks, default: { ...actual, ...hooks } };
 });
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canPerform: () => false }) }));
+vi.mock("@/features/customer-category-pricing/hooks/useSpecialPricingSettings", () => ({ useSpecialPricingSettings: () => ({ data: false }) }));
 
 import { ProductCard } from "../components/ProductCard";
 import { VariantSelector } from "../components/VariantSelector";

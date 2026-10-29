@@ -13,6 +13,7 @@ export interface CustomerCategoryPricingRule {
   customerType: PricingCustomerType;
   customerTypes?: PricingCustomerType[];
   unit: string | null;
+  units?: string[];
   brandId: string | null;
   mode: CategoryCustomerPricingMode;
   value: number;
@@ -40,6 +41,7 @@ export interface CustomerCategoryPricingRuleInput {
   customerType?: PricingCustomerType;
   customerTypes?: PricingCustomerType[];
   unit?: string | null;
+  units?: string[];
   brandId?: string | null;
   mode: CategoryCustomerPricingMode;
   value: number;
@@ -177,11 +179,11 @@ async function fetchPricingScopeOptions(
   categoryId: string,
   view: "units" | "preview",
   signal: AbortSignal,
-  unit?: string | null,
+  unit?: string | string[] | null,
   brandId?: string | null,
 ): Promise<PricingScopeOptions> {
   const params = new URLSearchParams({ categoryId, view });
-  if (unit) params.set("unit", unit);
+  for (const selected of Array.isArray(unit) ? unit : unit ? [unit] : []) params.append("unit", selected);
   if (brandId) params.set("brandId", brandId);
   const response = await fetch(`/api/customer-category-pricing-rules/scope-options?${params}`, { signal });
   if (!response.ok) {
@@ -203,7 +205,7 @@ export function usePricingUnitOptions(categoryId?: string) {
   });
 }
 
-export function usePricingScopeOptions(categoryId?: string, unit?: string | null, brandId?: string | null, options: { enabled?: boolean } = {}) {
+export function usePricingScopeOptions(categoryId?: string, unit?: string | string[] | null, brandId?: string | null, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["pricing-scope-options", categoryId, unit, brandId],
     enabled: Boolean(categoryId) && options.enabled !== false,

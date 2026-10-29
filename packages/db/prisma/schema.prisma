@@ -195,6 +195,7 @@ model ProductStockGroup {
   baseUnit    String                      @default("pcs")
   baseStock   Float                       @default(0)
   pricingConfig Json?
+  conversionConfig Json?
   createdAt   DateTime                    @default(now())
   updatedAt   DateTime                    @default(now()) @updatedAt
   activities  ProductStockGroupActivity[]
@@ -1152,6 +1153,7 @@ model CategoryCustomerPricingRule {
   customerType  CustomerType?
   customerTypes CustomerType[]              @default([])
   unit          String?
+  units         String[]                    @default([])
   brandId       String?
   mode          CategoryCustomerPricingMode
   value         Decimal                     @db.Decimal(12, 2)
@@ -1519,6 +1521,7 @@ model StoreSettings {
   phone     String   @default("")
   logoUrl   String?
   shiftEnabled Boolean @default(true)
+  specialPricingEnabled Boolean @default(false)
   priceRoundingEnabled Boolean @default(true)
   priceRoundingIncrement Int @default(500)
   priceRoundingThreshold Int @default(50)

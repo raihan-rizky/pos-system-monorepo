@@ -121,7 +121,7 @@ describe("Harga Khusus editor", () => {
     );
     expect(html).toContain("<fieldset");
     expect(html.match(/type="radio"/g)).toHaveLength(5);
-    expect(html.match(/type="checkbox"/g)).toHaveLength(6);
+    expect(html.match(/name="customerTypes"/g)).toHaveLength(5);
     expect(html).toContain("HPP satuan terkecil + rupiah");
     expect(html).toContain("HPP masing-masing satuan + persen");
     expect(html).toContain("Pengaturan tambahan");
@@ -158,7 +158,7 @@ describe("Harga Khusus editor", () => {
         isSaving={false}
       />,
     );
-    expect(html).toContain('value="box" selected=""');
+    expect(html).toMatch(/<input(?=[^>]*name="units")(?=[^>]*value="box")(?=[^>]*checked)[^>]*>/);
   });
   it("keeps all unit choices available while a preview is loading", () => {
     queryState.previewPending = true;
@@ -171,12 +171,12 @@ describe("Harga Khusus editor", () => {
     queryState.unitsPending = true;
     const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, unit: "" }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
     expect(html).toContain("Memuat satuan");
-    expect(html).toContain('value="" selected="">Semua satuan</option>');
+    expect(html).toMatch(/type="checkbox"[^>]*checked=""[^>]*\/>Semua satuan/);
     expect(html).not.toMatch(/id="pricing-unit"[^>]*disabled=""/);
   });
   it.each(["COST_PLUS_FLAT", "COST_PLUS_PERCENT"])("shows and previews all units for %s", (mode) => {
     const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, mode, unit: null }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
-    expect(html).toContain('value="" selected="">Semua satuan</option>');
+    expect(html).toMatch(/type="checkbox"[^>]*checked=""[^>]*\/>Semua satuan/);
     expect(html).toContain("Aturan berlaku pada semua satuan dalam kategori ini, termasuk satuan yang ditambahkan nanti.");
     expect(html).not.toContain("Pilih satuan untuk melihat contoh harga.");
     expect(html).toContain("/rim");
@@ -185,7 +185,7 @@ describe("Harga Khusus editor", () => {
   it("keeps all units selectable when the category has no unit options", () => {
     queryState.units = [];
     const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, unit: null }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
-    expect(html).toContain('value="" selected="">Semua satuan</option>');
+    expect(html).toMatch(/type="checkbox"[^>]*checked=""[^>]*\/>Semua satuan/);
     expect(html).not.toMatch(/id="pricing-unit"[^>]*disabled=""/);
     expect(html).toContain("Belum ada satuan yang tersedia untuk kategori ini.");
   });

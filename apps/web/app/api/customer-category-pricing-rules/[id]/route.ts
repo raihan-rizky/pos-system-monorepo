@@ -2,7 +2,7 @@ import { apiError, apiNoContent, apiValidationError } from "@/lib/api/responses"
 import { handleAuthError, requirePermission, requireRole } from "@/lib/rbac/guard";
 import {
   type CategoryCustomerPricingMode,
-  normalizePricingUnit,
+  normalizePricingUnits,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { getLogger } from "@/lib/logger";
 import { db, type Prisma } from "@pos/db";
@@ -82,10 +82,14 @@ export async function PATCH(
       const data = parsed.data;
       const targets = data.customerTypes !== undefined || data.customerType !== undefined
         ? storedCustomerTargets(data) : storedCustomerTargets({ customerTypes: readCustomerTargets(existing) });
+      const units = data.units !== undefined || data.unit !== undefined
+        ? normalizePricingUnits(data.units, data.unit)
+        : normalizePricingUnits(existing.units, existing.unit);
       const next = {
         categoryId: data.categoryId ?? existing.categoryId,
         ...targets,
-        unit: data.unit !== undefined ? normalizePricingUnit(data.unit) : existing.unit,
+        unit: units.length === 1 ? units[0] : null,
+        units,
         brandId: data.brandId !== undefined ? data.brandId || null : existing.brandId,
         mode: data.mode ?? existing.mode,
         value: data.value ?? Number(existing.value),

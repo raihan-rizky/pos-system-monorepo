@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const roundingSettingsMock = vi.hoisted(() => vi.fn());
+const specialPricingSettingsMock = vi.hoisted(() => vi.fn());
 vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: roundingSettingsMock }));
 import { POST } from "../route";
 
@@ -60,6 +61,7 @@ vi.mock("@/features/product-stock-groups/stock-mutations", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
+    storeSettings: { findUnique: specialPricingSettingsMock },
     customer: { findFirst: customerFindFirstMock },
     salesperson: { findFirst: salespersonFindFirstMock },
     product: {
@@ -77,6 +79,24 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
+  it.each(["AGEN", "PEMERINTAH"])("uses the regular price for %s when Harga Khusus is disabled", async (customerType) => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: customerType });
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, hargaAgen: 700, hargaDinas: 600 }]);
+    pricingRuleFindManyMock.mockResolvedValue([{ id: "rule-1", categoryId: "cat1", category: { name: "CAT1" }, customerType: "ALL", mode: "FLAT_DISCOUNT", value: 100, isActive: true }]);
+    requireRoleMock.mockResolvedValue({ id: "u1", role: "OWNER", storeId: "store-1", name: "Owner" });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      customerId: "customer-1", paymentMethod: "CASH", amountPaid: 1000,
+      items: [{ productId: "p1", quantity: 1, price: 400 }],
+    }) }));
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000 });
+  });
+
   it.each([0.001, 999.999, 1000.01, true, {}, []])("rejects malformed or over-precise item discount %j without changing stock", async discount => {
     const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
       paymentMethod: "CASH", amountPaid: 10000, items: [{ productId: "p1", quantity: 1, discount }],
@@ -310,6 +330,7 @@ describe("POST /api/transactions negative stock", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: true });
     roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
     invoiceNowMock.mockImplementation(async () => new Date());
     afterMock.mockImplementation((cb: any) => cb());

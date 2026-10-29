@@ -56,6 +56,7 @@ describe("GET /api/transactions/[id]/approval-quote", () => {
   ] as const)("keeps $priceIntent intent through the quote API and returns current selling totals", async ({ priceIntent, expected }) => {
     const { buildApprovalQuote } = await vi.importActual<typeof import("@/features/transactions-draft/services/approval-quote")>("@/features/transactions-draft/services/approval-quote");
     const client = {
+      storeSettings: { findUnique: vi.fn().mockResolvedValue({ specialPricingEnabled: true }) },
       transaction: { findFirst: vi.fn().mockResolvedValue({ id: "tx-1", storeId: "store-main", status: "DRAFT", customerId: "customer-1", customer: { type: "INDUSTRI" }, discount: 0, tax: 0, items: [] }) },
       product: { findMany: vi.fn().mockResolvedValue([{ id: "paper", name: "Kertas", price: 4049, costPrice: 1000, hargaAgen: null, hargaDinas: null, unit: "pcs", categoryId: "paper-category", category: { name: "Kertas" }, brandId: null, brand: null }]) },
       printingService: { findMany: vi.fn().mockResolvedValue([]) },

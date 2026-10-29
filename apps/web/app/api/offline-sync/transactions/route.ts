@@ -1,5 +1,6 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
+import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { NextResponse } from "next/server";
@@ -234,6 +235,7 @@ async function syncOne(
     customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
     customerTypes: rule.customerTypes,
     unit: rule.unit,
+    units: rule.units,
     brandId: rule.brandId,
     brandName: rule.brand?.name ?? null,
     mode: rule.mode,
@@ -246,6 +248,7 @@ async function syncOne(
   const catalogPriceByProductId = new Map<string, number>();
 
   const roundingSettings = await getPriceRoundingSettings();
+  const specialPricingEnabled = await getSpecialPricingEnabled();
   const serverItems: ServerOfflineItem[] = offlineTx.items.map((item) => {
     const product = productById.get(item.productId);
     if (!product) {
@@ -269,9 +272,10 @@ async function syncOne(
       checkoutCustomerType,
       pricingRules,
       offlineTx.pricingPreference,
+      specialPricingEnabled,
     );
     const rounded = roundSellingPriceLine({ ...automaticPrice,
-      unitPrice: item.transactionPrice ?? automaticPrice.unitPrice,
+      unitPrice: specialPricingEnabled ? item.transactionPrice ?? automaticPrice.unitPrice : automaticPrice.unitPrice,
     }, roundingSettings);
     const price = rounded.unitPrice;
     const appliedPricing = rounded.appliedPricing;
@@ -284,7 +288,7 @@ async function syncOne(
       size: item.size ?? product.size ?? null,
       material: item.material ?? product.material ?? null,
       price,
-      transactionPrice: item.transactionPrice,
+      transactionPrice: specialPricingEnabled ? item.transactionPrice : null,
       quantity: item.quantity,
       discount: Math.round((Math.min(item.discount, price * item.quantity) + Number.EPSILON) * 100) / 100,
     };

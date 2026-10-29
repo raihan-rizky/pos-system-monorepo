@@ -6,7 +6,7 @@ const tx = vi.hoisted(() => ({ categoryCustomerPricingRule: { findFirst: mocks.f
 vi.mock("@pos/db", () => ({ db: { ...tx, $transaction: mocks.transaction } }));
 vi.mock("@/lib/rbac/guard", () => ({ requireRole: mocks.role, requirePermission: mocks.role, handleAuthError: mocks.authError }));
 
-const existing = { id: "rule", storeId: "store", categoryId: "cat", customerType: "AGEN", customerTypes: ["AGEN"], unit: "rim", brandId: null, mode: "FLAT_DISCOUNT", value: 1000, isActive: true };
+const existing = { id: "rule", storeId: "store", categoryId: "cat", customerType: "AGEN", customerTypes: ["AGEN"], unit: "rim", units: ["rim"], brandId: null, mode: "FLAT_DISCOUNT", value: 1000, isActive: true };
 function request(body: unknown) { return new Request("http://localhost/api/customer-category-pricing-rules/rule", { method: "PATCH", body: JSON.stringify(body) }); }
 const params = { params: Promise.resolve({ id: "rule" }) };
 
@@ -21,6 +21,15 @@ describe("pricing rule updates", () => {
     mocks.transaction.mockImplementation((callback) => callback(tx));
     mocks.lock.mockResolvedValue([]);
     mocks.update.mockImplementation(({ data }) => Promise.resolve({ ...existing, ...data }));
+  });
+  it("updates several units and can later switch to all units", async () => {
+    const selected = await PATCH(request({ units: ["rim", " BOX "] }), params);
+    expect(selected.status).toBe(200);
+    expect(await selected.json()).toMatchObject({ unit: null, units: ["rim", "box"] });
+    mocks.findFirst.mockResolvedValue({ ...existing, unit: null, units: ["rim", "box"] });
+    const all = await PATCH(request({ units: [] }), params);
+    expect(all.status).toBe(200);
+    expect(await all.json()).toMatchObject({ unit: null, units: [] });
   });
   it("updates targets and formula atomically", async () => {
     const response = await PATCH(request({ customerTypes: ["UMUM", "AGEN"], mode: "COST_PLUS_FLAT", value: 4000 }), params);
@@ -68,11 +77,11 @@ describe("pricing rule updates", () => {
     expect(response.status).toBe(method === "PATCH" ? 200 : 204);
   });
   it("rejects conflicts excluding the rule being edited", async () => {
-    mocks.findMany.mockResolvedValue([{ id: "other", customerTypes: ["UMUM"], customerType: "UMUM" }]);
+    mocks.findMany.mockResolvedValue([{ id: "other", customerTypes: ["UMUM"], customerType: "UMUM", unit: "rim", units: ["rim"] }]);
     const response = await PATCH(request({ customerTypes: ["UMUM", "AGEN"] }), params);
     expect(response.status).toBe(409);
     expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: { not: "rule" }, storeId: "store", categoryId: "cat", unit: "rim", brandId: null }) }));
+    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: { not: "rule" }, storeId: "store", categoryId: "cat", brandId: null }), select: expect.objectContaining({ unit: true, units: true }) }));
   });
   it.each(["COST_PLUS_FLAT", "COST_PLUS_PERCENT"])("switches %s to all units with a partial update", async (mode) => {
     mocks.findFirst.mockResolvedValue({ ...existing, mode, value: 4000 });

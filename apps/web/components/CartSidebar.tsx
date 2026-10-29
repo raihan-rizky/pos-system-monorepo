@@ -17,6 +17,7 @@ import { roundSellingPrice, type PriceRoundingSettings } from "@/features/produc
 
 interface CartSidebarProps {
   roundingSettings?: PriceRoundingSettings;
+  specialPricingEnabled?: boolean;
   items: CartItem[];
   subtotal: number;
   totalItems: number;
@@ -49,6 +50,7 @@ export function CartSidebar({
   onEditProduct,
   onEditPrice,
   roundingSettings,
+  specialPricingEnabled = true,
 }: CartSidebarProps) {
   const isQuotationMode = checkoutMode === "quotation";
   const [invalidQuantityLines, setInvalidQuantityLines] = useState<Set<string>>(
@@ -219,12 +221,12 @@ export function CartSidebar({
                   )}
                   {item.lineType === "PRODUCT" && <PriceRoundingBadge rounding={item.priceRounding} />}
                   {item.lineType === "PRODUCT" && (
-                    <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-surface-600">
+                    <dl className={`mt-2 grid ${specialPricingEnabled ? "grid-cols-3" : "grid-cols-1"} gap-2 text-[11px] text-surface-600`}>
                       <div>
                         <dt className="font-semibold">Normal</dt>
                         <dd>{formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}</dd>
                       </div>
-                      <div>
+                      {specialPricingEnabled && <div>
                         <dt className="font-semibold">Agen</dt>
                         <dd className={item.hargaAgen != null && item.hargaAgen > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaAgen != null && item.hargaAgen > 0
@@ -232,8 +234,8 @@ export function CartSidebar({
                             : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}
                           {item.hargaAgen != null && item.hargaAgen > 0 ? <SpecialPriceBadge className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">Mengikuti harga jual</span>}
                         </dd>
-                      </div>
-                      <div>
+                      </div>}
+                      {specialPricingEnabled && <div>
                         <dt className="font-semibold">Dinas</dt>
                         <dd className={item.hargaDinas != null && item.hargaDinas > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaDinas != null && item.hargaDinas > 0
@@ -241,8 +243,11 @@ export function CartSidebar({
                             : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}
                           {item.hargaDinas != null && item.hargaDinas > 0 ? <SpecialPriceBadge className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">Mengikuti harga jual</span>}
                         </dd>
-                      </div>
+                      </div>}
                     </dl>
+                  )}
+                  {item.lineType === "PRODUCT" && !specialPricingEnabled && (
+                    <p className="mt-1 text-[10px] text-surface-500">Harga Khusus nonaktif; transaksi memakai harga normal.</p>
                   )}
                   <p className={`text-sm font-bold mt-1 ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-brand-600"}`}>
                     {formatRupiah(item.price * item.quantity)}

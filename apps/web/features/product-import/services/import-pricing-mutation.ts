@@ -71,7 +71,7 @@ export async function finalizeImportPricingMutation(tx: Prisma.TransactionClient
     const current = await readGroupPricingInput(tx, { storeId: state.prepared.storeId, groupId });
     const config = initializeGroupPricing(before).config;
     // Missing source HPP must retain the true old follower HPP, never a raw import placeholder.
-    for (const member of current.members) if (member.id !== config.sourceProductId && config.members[member.id]?.mode !== "MANUAL") {
+    for (const member of current.members) if (member.id !== config.sourceProductId && config.members[member.id]?.mode === "AUTO") {
       const old = state.products.get(member.id);
       if (old) member.costPrice = old.costPrice?.toString() ?? null;
     }
@@ -85,7 +85,7 @@ export async function finalizeImportPricingMutation(tx: Prisma.TransactionClient
     changes[groupId] = result.changes;
     // Keep the same held values for the synchronizer's fresh read.
     for (const member of current.members) {
-      if (member.id !== config.sourceProductId && config.members[member.id]?.mode !== "MANUAL" && state.products.has(member.id)) {
+      if (member.id !== config.sourceProductId && config.members[member.id]?.mode === "AUTO" && state.products.has(member.id)) {
         await tx.product.update({ where: { id: member.id }, data: { costPrice: member.costPrice } });
       }
     }

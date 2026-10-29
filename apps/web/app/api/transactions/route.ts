@@ -1,5 +1,6 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
+import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { PRINTING_SUBCATEGORIES } from "@/features/printing-receipts/types";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
@@ -805,6 +806,7 @@ export async function POST(request: Request) {
       customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
       customerTypes: rule.customerTypes,
       unit: rule.unit,
+      units: rule.units,
       brandId: rule.brandId,
       brandName: rule.brand?.name ?? null,
       mode: rule.mode,
@@ -815,6 +817,7 @@ export async function POST(request: Request) {
     })) satisfies CategoryPricingRule[];
 
     const roundingSettings = await getPriceRoundingSettings();
+    const specialPricingEnabled = await getSpecialPricingEnabled();
     if (priceRoundingSettings && (
       priceRoundingSettings.enabled !== roundingSettings.enabled ||
       priceRoundingSettings.increment !== roundingSettings.increment ||
@@ -882,6 +885,7 @@ export async function POST(request: Request) {
             checkoutCustomerType,
             pricingRules,
             pricingPreference,
+            specialPricingEnabled,
           );
           const roundedAutomatic = roundSellingPriceLine(priced, roundingSettings);
           const resolved = roundSellingPriceLine(resolveCustomPricedLine({
@@ -889,6 +893,7 @@ export async function POST(request: Request) {
             submittedPrice: item.price === roundedAutomatic.unitPrice ? undefined : item.price,
             role: user.role,
             customerType: checkoutCustomerType,
+            specialPricingEnabled,
           }), roundingSettings);
           return {
             price: resolved.unitPrice,

@@ -38,6 +38,15 @@ function fixture() {
 const actor = { id: "u", name: "Admin" };
 const intent = { productId: "a", price: "3500", costPrice: "2100" };
 
+async function enableFollowerAuto({ tx, state }: ReturnType<typeof fixture>) {
+  const changes = { members: [{ productId: "b", mode: "AUTO" as const }] };
+  const preview = await previewGroupPricingChange(tx, { storeId: "s", groupId: "g", changes });
+  await applyGroupPricingChange(tx, { storeId: "s", groupId: "g", changes, expectedVersion: preview.version, expectedProjection: preview.projectionToken, actor });
+  state.logs.length = 0;
+  state.activities.length = 0;
+  state.locks.length = 0;
+}
+
 describe("transactional group pricing", () => {
   it("keeps inactive member intents unavailable to ordinary group pricing previews", async () => {
     const { tx, state } = fixture();
@@ -47,16 +56,16 @@ describe("transactional group pricing", () => {
     } })).rejects.toMatchObject({ status: 422 });
     expect(state.products[1].costPrice).toBe("10000");
   });
-  it("initializes the legacy preimage before source writes and audits the complete projection without stock writes", async () => {
+  it("initializes the legacy preimage as Manual before source writes", async () => {
     const { tx, state } = fixture();
     const prepared = await prepareGroupPricingMutation(tx, { storeId: "s", groupIds: ["g"] });
     await tx.product.update({ where: { id: "a" }, data: { price: "3500", costPrice: "2100" } });
     const result = await synchronizeGroupPricingMutation(tx, { prepared, actor });
-    expect(result[0].members.find(p => p.productId === "b")).toMatchObject({ price: "37800.00", costPrice: "25200.00" });
-    expect(result[0].config.members.b.factor).toEqual({ numerator: "9", denominator: "10" });
+    expect(result[0].members.find(p => p.productId === "b")).toMatchObject({ price: "32400.00", costPrice: "10000.00" });
+    expect(result[0].config.members.b).toMatchObject({ mode: "MANUAL", factor: null });
     expect(state.locks).toEqual(["group:g", "product:a", "product:b"]);
     expect(state.products.some(p => "stock" in p)).toBe(false);
-    expect(state.logs).toHaveLength(4);
+    expect(state.logs).toHaveLength(2);
     expect(state.activities).toHaveLength(1);
   });
 
@@ -86,7 +95,9 @@ describe("transactional group pricing", () => {
   });
 
   it("rejects explicit AUTO follower HPP, allows Manual, and returns to Auto preserving selling price", async () => {
-    const { tx } = fixture();
+    const context = fixture();
+    await enableFollowerAuto(context);
+    const { tx } = context;
     await expect(previewGroupPricingChange(tx, { storeId: "s", groupId: "g", changes: { members: [{ productId: "b", costPrice: "5" }] } })).rejects.toMatchObject({ status: 422 });
     const manual = { members: [{ productId: "b", mode: "MANUAL" as const, price: "30000", costPrice: "7" }] };
     const p = await previewGroupPricingChange(tx, { storeId: "s", groupId: "g", changes: manual });
@@ -97,16 +108,19 @@ describe("transactional group pricing", () => {
   });
 
   it("keeps HPP independent when source HPP is null", async () => {
-    const { tx, state } = fixture(); state.products[0].costPrice = null;
+    const context = fixture();
+    context.state.products[0].costPrice = null;
+    await enableFollowerAuto(context);
+    const { tx } = context;
     const p = await previewGroupPricingChange(tx, { storeId: "s", groupId: "g", changes: { members: [{ productId: "a", price: "3500" }] } });
     expect(p.after.members[1]).toMatchObject({ price: "37800.00", costPrice: "10000.00", review: { costPrice: ["SOURCE_COST_UNKNOWN"] } });
   });
 
   it("retains a valid factor at source zero and holds money when the legacy factor is missing", async () => {
-    const ready = fixture(); await initializeGroupPricingInTransaction(ready.tx, { storeId: "s", groupId: "g" });
+    const ready = fixture(); await enableFollowerAuto(ready);
     const zero = await previewGroupPricingChange(ready.tx, { storeId: "s", groupId: "g", changes: { members: [{ productId: "a", price: "0" }] } });
     expect(zero.after.members[1].price).toBe("0.00"); expect(zero.after.config.members.b.factor).toEqual({ numerator: "9", denominator: "10" });
-    const legacy = fixture(); legacy.state.products[0].price = "0";
+    const legacy = fixture(); legacy.state.products[0].price = "0"; await enableFollowerAuto(legacy);
     const missing = await previewGroupPricingChange(legacy.tx, { storeId: "s", groupId: "g", changes: {} });
     expect(missing.after.members[1]).toMatchObject({ price: "32400.00", review: { price: ["SOURCE_PRICE_ZERO"] } });
     expect(missing.after.config.members.b.factor).toBeNull();
@@ -126,15 +140,17 @@ describe("transactional group pricing", () => {
     expect(p.after.config.members.a.factor).toEqual({ numerator: "10", denominator: "9" });
   });
 
-  it("projects conversions, gives new members factor one and marks a missing source for review", async () => {
-    const { tx, state } = fixture();
+  it("projects Auto conversions, keeps new members Manual and marks a missing source for review", async () => {
+    const context = fixture();
+    await enableFollowerAuto(context);
+    const { tx, state } = context;
     const prepared = await prepareGroupPricingMutation(tx, { storeId: "s", groupIds: ["g"] });
     state.products[1].unitMultiplierToBase = 24;
     state.products.push({ ...state.products[1], id: "c", unit: "dus", unitMultiplierToBase: 120 });
     const [result] = await synchronizeGroupPricingMutation(tx, { prepared, actor });
     expect(result.members[1]).toMatchObject({ price: "64800.00", costPrice: "48000.00" });
-    expect(result.members[2]).toMatchObject({ price: "360000.00", costPrice: "240000.00" });
-    expect(result.config.members.c.factor).toEqual({ numerator: "1", denominator: "1" });
+    expect(result.members[2]).toMatchObject({ price: "32400.00", costPrice: "24000.00" });
+    expect(result.config.members.c).toMatchObject({ mode: "MANUAL", factor: null });
     const beforeDelete = await prepareGroupPricingMutation(tx, { storeId: "s", groupIds: ["g"] });
     state.products.splice(0, 1);
     const [missing] = await synchronizeGroupPricingMutation(tx, { prepared: beforeDelete, actor });
@@ -152,12 +168,12 @@ describe("transactional group pricing", () => {
     expect(state).toEqual(before);
   });
 
-  it("initialization is idempotent and audits old HPP exactly once", async () => {
+  it("initialization is idempotent and preserves old HPP", async () => {
     const { tx, state } = fixture();
     const first = await initializeGroupPricingInTransaction(tx, { storeId: "s", groupId: "g" });
-    expect(first.initialized).toBe(true); expect(state.logs).toHaveLength(1);
+    expect(first.initialized).toBe(true); expect(state.logs).toHaveLength(0);
     const again = await initializeGroupPricingInTransaction(tx, { storeId: "s", groupId: "g" });
-    expect(again.initialized).toBe(false); expect(state.logs).toHaveLength(1);
+    expect(again.initialized).toBe(false); expect(state.logs).toHaveLength(0);
     expect(initializeGroupPricing).toBeTypeOf("function");
   });
   it("locks every affected group first and inactive members in a single sorted product set", async () => {
@@ -169,10 +185,12 @@ describe("transactional group pricing", () => {
     expect(state.locks).toEqual(["group:g", "group:z", "product:a", "product:b", "product:c"]);
   });
   it("anchors the first projection to rounded source money and remains stable after apply and no-op synchronization", async () => {
-    const { tx, state } = fixture();
+    const context = fixture();
+    const { tx, state } = context;
     state.products[0].price = "3.00"; state.products[0].costPrice = "2.00";
     state.products[1].price = "30.00"; state.products[1].costPrice = "20.00";
     state.products[1].unitMultiplierToBase = 10;
+    await enableFollowerAuto(context);
     const changes = { members: [{ productId: "a", price: "3.005", costPrice: "2.005" }] };
     const p = await previewGroupPricingChange(tx, { storeId: "s", groupId: "g", changes });
     expect(p.after.members[0]).toMatchObject({ price: "3.01", costPrice: "2.01" });
@@ -191,8 +209,10 @@ describe("transactional group pricing", () => {
     expect(stable.members).toEqual(applied.members); expect(state.logs).toHaveLength(logCount);
   });
   it("derives an AUTO follower factor from rounded effective money", async () => {
-    const { tx, state } = fixture();
+    const context = fixture();
+    const { tx, state } = context;
     state.products[0].price = "3.00"; state.products[1].price = "30.00"; state.products[1].unitMultiplierToBase = 10;
+    await enableFollowerAuto(context);
     const changes = { members: [{ productId: "b", price: "30.005" }] };
     const p = await previewGroupPricingChange(tx, { storeId: "s", groupId: "g", changes });
     expect(p.after.members[1].price).toBe("30.01");

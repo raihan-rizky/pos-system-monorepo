@@ -8,13 +8,18 @@ describe("new unit variants", () => {
   beforeEach(() => { vi.clearAllMocks(); data = createPricingTestDatabase(); data.products.splice(1, 1); mocks.permission.mockResolvedValue({ id: "u", storeId: "store-main" }); mocks.auth.mockReturnValue(null); mocks.transaction.mockImplementation(fn => fn(data.tx)); });
   const input = { unit: "dus", price: 1, stock: 4, minStock: 1, conversionPair: { fromQuantity: 1, toProductId: "rim", toQuantity: 5 } };
   async function call(body: object) { const { POST } = await import("../route"); return POST(new Request("http://localhost/variants", { method: "POST", body: JSON.stringify(body) }), { params: Promise.resolve({ id: "group-1" }) }); }
-  it("defaults to AUTO factor one and returns projected money without adding shared stock", async () => {
-    const response = await call(input); expect(response.status).toBe(201); const product = await response.json();
+  it("uses explicit AUTO factor one and returns projected money without adding shared stock", async () => {
+    const response = await call({ ...input, pricingMode: "AUTO" }); expect(response.status).toBe(201); const product = await response.json();
     expect(product).toMatchObject({ sku: "HVS-A4-DUS", price: "250000.00", costPrice: "200000.00" });
     expect(data.group.baseStock).toBe(20); expect(data.products[0].stock).toBe(20);
     expect(data.group.pricingConfig).toMatchObject({ members: { "new-variant": { mode: "AUTO", factor: { numerator: "1", denominator: "1" } } } });
     expect(data.logs).toEqual(expect.arrayContaining([expect.objectContaining({ productId: "new-variant", newValue: "250000.00" })]));
     expect(data.activities).toEqual(expect.arrayContaining([expect.objectContaining({ type: "VARIANT_ADDED" })]));
+  });
+  it("defaults to Manual without changing the submitted price", async () => {
+    const response = await call(input); expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ price: "1.00", costPrice: null });
+    expect(data.group.pricingConfig).toMatchObject({ members: { "new-variant": { mode: "MANUAL" } } });
   });
   it("supports an explicitly Manual variant", async () => {
     const response = await call({ ...input, pricingMode: "MANUAL", price: 200000, costPrice: 170000 }); expect(response.status).toBe(201);

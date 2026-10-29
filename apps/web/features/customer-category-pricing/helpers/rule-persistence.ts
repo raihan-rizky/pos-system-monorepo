@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Prisma } from "@pos/db";
-import { isPricingCustomerType, isPricingMode, type CustomerType, type PricingCustomerType } from "./pricing-rules";
+import { isPricingCustomerType, isPricingMode, normalizePricingUnits, type CustomerType, type PricingCustomerType } from "./pricing-rules";
 
 const target = z.string().refine(isPricingCustomerType, "Tipe pelanggan tidak valid");
 const fields = {
@@ -8,6 +8,7 @@ const fields = {
   customerType: target.optional(),
   customerTypes: z.array(target).min(1, "Pilih minimal satu tipe pelanggan").optional(),
   unit: z.string().nullable().optional(),
+  units: z.array(z.string().trim().min(1)).optional(),
   brandId: z.string().nullable().optional(),
   mode: z.string().refine(isPricingMode, "Cara hitung harga tidak valid"),
   value: z.coerce.number().finite("Nilai harus berupa angka yang valid").nonnegative("Nilai tidak boleh negatif"),
@@ -73,13 +74,16 @@ export async function lockPricingRules(tx: Prisma.TransactionClient, storeId: st
 
 export async function hasOverlappingPricingRule(tx: Prisma.TransactionClient, input: {
   storeId: string; categoryId: string; customerType?: CustomerType | null; customerTypes: CustomerType[];
-  unit: string | null; brandId: string | null; excludeId?: string;
+  unit: string | null; units?: string[]; brandId: string | null; excludeId?: string;
 }) {
+  const units = normalizePricingUnits(input.units, input.unit);
   const others = await tx.categoryCustomerPricingRule.findMany({
-    where: { storeId: input.storeId, categoryId: input.categoryId, unit: input.unit, brandId: input.brandId, isActive: true, ...(input.excludeId ? { id: { not: input.excludeId } } : {}) },
-    select: { id: true, customerType: true, customerTypes: true },
+    where: { storeId: input.storeId, categoryId: input.categoryId, brandId: input.brandId, isActive: true, ...(input.excludeId ? { id: { not: input.excludeId } } : {}) },
+    select: { id: true, customerType: true, customerTypes: true, unit: true, units: true },
   });
   return others.some((other) => {
+    const otherUnits = normalizePricingUnits(other.units, other.unit);
+    if (units.length === 0 ? otherUnits.length !== 0 : !otherUnits.some((unit) => units.includes(unit))) return false;
     const targets = readCustomerTargets(other);
     const all = targets.includes("ALL");
     return input.customerTypes.length === 0 ? all : !all && targets.some((type) => input.customerTypes.includes(type as CustomerType));

@@ -10,7 +10,7 @@ import {
   type CustomerCategoryPricingRule,
   type CustomerCategoryPricingRuleInput,
 } from "@/hooks/useCustomerCategoryPricingRules";
-import { PRICING_CUSTOMER_TYPES, normalizePricingUnit, calculateCustomPriceMargin } from "../helpers/pricing-rules";
+import { PRICING_CUSTOMER_TYPES, normalizePricingUnits, calculateCustomPriceMargin } from "../helpers/pricing-rules";
 import {
   CUSTOMER_TARGET_LABELS,
   PRICING_METHODS,
@@ -47,6 +47,7 @@ export function PricingRuleForm({
   const [form, setForm] = useState<PricingFormState>(() => ({
     categoryId: initialRule?.categoryId ?? "",
     unit: initialRule?.unit ?? "",
+    units: normalizePricingUnits(initialRule?.units, initialRule?.unit),
     customerTypes: initialRule?.customerTypes?.length
       ? initialRule.customerTypes
       : [initialRule?.customerType ?? "ALL"],
@@ -69,9 +70,10 @@ export function PricingRuleForm({
   const method = getPricingMethod(form.mode);
   const isUnitFormula = form.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT";
   const isFormula = form.mode.startsWith("COST_PLUS") || isUnitFormula;
+  const selectedUnits = normalizePricingUnits(form.units, form.unit);
   const scopeQuery = usePricingScopeOptions(
     form.categoryId,
-    form.unit || null,
+    selectedUnits.length === 1 ? selectedUnits[0] : selectedUnits.length ? selectedUnits : null,
     form.brandId || null,
     { enabled: Boolean(form.categoryId) },
   );
@@ -82,9 +84,8 @@ export function PricingRuleForm({
       ...(unitsQuery.data ?? []),
       ...(rulesQuery.data ?? [])
         .filter((rule) => rule.categoryId === form.categoryId)
-        .map((rule) => normalizePricingUnit(rule.unit))
-        .filter((unit): unit is string => unit !== null),
-      ...(form.unit ? [form.unit] : []),
+        .flatMap((rule) => normalizePricingUnits(rule.units, rule.unit)),
+      ...selectedUnits,
     ]),
   );
   const products = scopeQuery.data?.products ?? [];
@@ -141,7 +142,8 @@ export function PricingRuleForm({
       await onSave({
         categoryId: form.categoryId,
         customerTypes: [...form.customerTypes],
-        unit: form.unit.trim() || null,
+        unit: selectedUnits.length === 1 ? selectedUnits[0] : null,
+        units: selectedUnits,
         brandId: form.brandId || null,
         mode: form.mode,
         value: Number(form.value),
@@ -226,6 +228,7 @@ export function PricingRuleForm({
               onChange={(event) => {
                 change("categoryId", event.target.value);
                 change("unit", "");
+                change("units", []);
               }}
             >
               <option value="">Pilih kategori</option>
@@ -250,32 +253,23 @@ export function PricingRuleForm({
             )}
           </div>
           <div>
-            <label
-              htmlFor="pricing-unit"
-              className="text-sm font-semibold text-slate-700"
-            >
-              Satuan
-            </label>
-            <select
-              id="pricing-unit"
-              name="unit"
-              value={form.unit}
-              disabled={!form.categoryId}
-              aria-busy={Boolean(form.categoryId && unitsQuery.isPending)}
-              aria-invalid={Boolean(errors.unit)}
-              aria-describedby={
-                errors.unit ? "pricing-unit-error" : "pricing-unit-help"
-              }
-              className={controlClass}
-              onChange={(event) => change("unit", event.target.value)}
-            >
-              <option value="">Semua satuan</option>
-              {units.map((unit) => (
-                <option key={unit} value={unit}>
-                  {unit}
-                </option>
-              ))}
-            </select>
+            <fieldset id="pricing-unit" disabled={!form.categoryId} aria-busy={Boolean(form.categoryId && unitsQuery.isPending)} aria-describedby="pricing-unit-help">
+              <legend className="text-sm font-semibold text-slate-700">Satuan</legend>
+              <div className="mt-2 flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-700">
+                  <input type="checkbox" checked={selectedUnits.length === 0} onChange={() => change("units", [])} className="h-4 w-4 accent-brand-600" />
+                  Semua satuan
+                </label>
+                {units.map((unit) => (
+                  <label key={unit} className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-700">
+                    <input type="checkbox" name="units" value={unit} checked={selectedUnits.includes(unit)}
+                      onChange={(event) => change("units", event.target.checked ? [...selectedUnits, unit] : selectedUnits.filter((selected) => selected !== unit))}
+                      className="h-4 w-4 accent-brand-600" />
+                    {unit}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             {inlineError("unit")}
             {form.categoryId && unitsQuery.isPending && (
               <p role="status" className="mt-1 text-xs text-slate-600">Memuat satuan…</p>
@@ -294,7 +288,7 @@ export function PricingRuleForm({
               </p>
             )}
             <p id="pricing-unit-help" className="mt-1 text-xs text-slate-500">
-              {form.unit
+              {selectedUnits.length
                 ? "Aturan berlaku pada satuan yang dipilih."
                 : "Aturan berlaku pada semua satuan dalam kategori ini, termasuk satuan yang ditambahkan nanti."}
             </p>

@@ -127,7 +127,7 @@ async function applyGroupKeys(tx: Prisma.TransactionClient, plans: Awaited<Retur
 }
 
 function ruleImpact(rule: RuleRow): PricingRuleImpact {
-  return { id: rule.id, storeId: rule.storeId, storeName: rule.store.name, customerTypes: rule.customerTypes.length ? rule.customerTypes : rule.customerType ? [rule.customerType] : ["ALL"], unit: rule.unit, brandName: rule.brand?.name ?? null, mode: rule.mode, value: String(rule.value), isActive: rule.isActive };
+  return { id: rule.id, storeId: rule.storeId, storeName: rule.store.name, customerTypes: rule.customerTypes.length ? rule.customerTypes : rule.customerType ? [rule.customerType] : ["ALL"], unit: rule.units?.length ? rule.units.join(", ") : rule.unit, brandName: rule.brand?.name ?? null, mode: rule.mode, value: String(rule.value), isActive: rule.isActive };
 }
 
 function storeImpact(products: { storeId: string; store: { name: string } }[], rules: { storeId: string; store: { name: string } }[]): DeletePreview["stores"] {

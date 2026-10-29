@@ -12,7 +12,7 @@ const group = (storeId: string): GroupPricingInput => ({
 async function* groups(values: GroupPricingInput[]) { yield* values; }
 
 describe("group pricing backfill", () => {
-  it("previews all stores and HPP audit deltas without invoking an available writer", async () => {
+  it("previews all stores without changing HPP or invoking a writer", async () => {
     let writes = 0;
     const result = await runGroupPricingBackfill({
       groups: groups([group("a"), group("b")]),
@@ -20,7 +20,8 @@ describe("group pricing backfill", () => {
     });
     expect(writes).toBe(0);
     expect(result).toMatchObject({ scanned: 2, initialized: 0, pending: 2, skipped: 0 });
-    expect(result.groups[0].costChanges).toEqual([{ productId: "pak-a", before: "10000.00", after: "24000.00" }]);
+    expect(result.groups[0].costChanges).toEqual([]);
+    expect(result.groups[0].projection.config.members["pak-a"].mode).toBe("MANUAL");
     expect(result.groups[0].projection.members[1].price).toBe("32400.00");
   });
 

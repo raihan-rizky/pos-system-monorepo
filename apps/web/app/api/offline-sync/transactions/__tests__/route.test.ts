@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const roundingSettingsMock = vi.hoisted(() => vi.fn());
+const specialPricingSettingsMock = vi.hoisted(() => vi.fn());
 vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: roundingSettingsMock }));
 import { POST } from "../route";
 
@@ -30,6 +31,7 @@ vi.mock("@/features/product-stock-groups/stock-mutations", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
+    storeSettings: { findUnique: specialPricingSettingsMock },
     transaction: { findUnique: transactionFindUniqueMock },
     product: { findMany: productFindManyMock },
     customer: { findFirst: customerFindFirstMock },
@@ -69,6 +71,17 @@ function request(transactions: unknown[]) {
 }
 
 describe("POST /api/offline-sync/transactions", () => {
+  it("reprices an offline manual special price and requests approval when Harga Khusus is disabled", async () => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
+    const response = await POST(request([offlineTx({
+      items: [{ productId: "product-1", name: "Product 1", price: 500, transactionPrice: 500, quantity: 1 }],
+      amountPaid: 500, originalSubtotal: 500, originalTotal: 500,
+    })]));
+
+    expect((await response.json()).results[0]).toMatchObject({ status: "PENDING_APPROVAL" });
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000 });
+  });
+
   it("keeps each repeated product price snapshot equal to its own final rounded custom price", async () => {
     setupAgenPricing();
     roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
@@ -136,6 +149,7 @@ describe("POST /api/offline-sync/transactions", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: true });
     roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
     requirePermissionMock.mockResolvedValue({
       id: "cashier-1",

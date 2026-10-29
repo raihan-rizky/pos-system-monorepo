@@ -67,6 +67,7 @@ import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
 import { useShiftSettings } from "@/hooks/useShiftSettings";
 import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { useSpecialPricingSettings } from "@/features/customer-category-pricing/hooks/useSpecialPricingSettings";
 import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { useRole } from "@/components/providers/RoleProvider";
 import type { PosCartPriceUpdate } from "@/components/inventory/PriceUpdateModal";
@@ -226,9 +227,10 @@ export default function POSClientPage({
   const { data: categoryRules = EMPTY_PRICING_RULES } = useCustomerCategoryPricingRules({ activeOnly: true });
   const catalogCartItems = useCartCatalogPrices(cart.items);
   const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
+  const { data: specialPricingEnabled = false } = useSpecialPricingSettings();
   const pricedCartItems = useMemo(
-    () => priceCartItemsForCheckout({ items: catalogCartItems, customerType, pricingRules: categoryRules, manualPrices: {}, role, roundingSettings }),
-    [catalogCartItems, customerType, categoryRules, role, roundingSettings],
+    () => priceCartItemsForCheckout({ items: catalogCartItems, customerType, pricingRules: categoryRules, manualPrices: {}, role, roundingSettings, specialPricingEnabled }),
+    [catalogCartItems, customerType, categoryRules, role, roundingSettings, specialPricingEnabled],
   );
   const pricedCartSubtotal = useMemo(
     () => pricedCartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -866,6 +868,7 @@ export default function POSClientPage({
           <div className="hidden lg:block w-[340px] flex-shrink-0">
             <CartSidebar
               roundingSettings={roundingSettings}
+              specialPricingEnabled={specialPricingEnabled}
               items={pricedCartItems}
               subtotal={pricedCartSubtotal}
               totalItems={cart.totalItems}
@@ -916,6 +919,7 @@ export default function POSClientPage({
           <div className="relative bg-white rounded-t-3xl max-h-[85vh] flex flex-col animate-slide-up-full shadow-2xl">
             <CartSidebar
               roundingSettings={roundingSettings}
+              specialPricingEnabled={specialPricingEnabled}
               items={pricedCartItems}
               subtotal={pricedCartSubtotal}
               totalItems={cart.totalItems}

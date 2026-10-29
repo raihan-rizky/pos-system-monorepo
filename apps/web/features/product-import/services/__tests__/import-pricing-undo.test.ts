@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { configuredAutoGroup } from "@/features/product-stock-groups/__tests__/configured-auto-group";
 const transact = vi.hoisted(() => vi.fn());
 vi.mock("@pos/db", () => ({ db: { $transaction: transact }, Prisma: {} }));
 import { importPricingDatabase, reorderPersistedKeys } from "./import-pricing-database";
@@ -43,7 +44,7 @@ describe("import automatic pricing undo", () => {
     expect(d.inventory.at(-1)).toMatchObject({ productId: "rim", type: "OUT", quantity: 10 });
   });
   it("restores cascade money and legacy ratios with a new revision/token", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     const oldVersion = groupPricingVersion(await readGroupPricingInput(d.tx, { storeId: actor.storeId, groupId: "group-1" }));
     d.addRow("rim", 2, 0, 60000, 45000);
     await commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, actor);
@@ -58,7 +59,7 @@ describe("import automatic pricing undo", () => {
     expect(d.batches[0].status).toBe("UNDONE");
   });
   it("refuses a config-only edit even when product money still matches", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000);
     await commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, actor);
     d.batches[0].summary = reorderPersistedKeys(d.batches[0].summary);
@@ -67,7 +68,7 @@ describe("import automatic pricing undo", () => {
     expect(Number(d.products.find(p => p.id === "rim")?.price)).toBe(60000);
   });
   it("refuses a later edit to a cascaded member", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000);
     await commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, actor);
     d.batches[0].summary = reorderPersistedKeys(d.batches[0].summary);

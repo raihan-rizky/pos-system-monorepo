@@ -32,6 +32,7 @@ export function mapCheckoutPricingRule(
     discountPercent: rule.discountPercent,
     isActive: rule.isActive,
     unit: rule.unit,
+    units: rule.units,
     brandId: rule.brandId,
     brandName: rule.brand?.name ?? null,
     updatedAt: rule.updatedAt,
@@ -46,11 +47,12 @@ export function priceCartItemsForCheckout(input: {
   manualPrices: Record<string, number>;
   role: string | null | undefined;
   roundingSettings?: PriceRoundingSettings;
+  specialPricingEnabled?: boolean;
 }): CartItem[] {
   const activePricingRules = input.pricingRules.map(mapCheckoutPricingRule);
 
   return input.items.map((item): CartItem => {
-    if (item.lineType !== "PRODUCT" || !item.categoryId) return item;
+    if (item.lineType !== "PRODUCT") return item;
 
     const priced = priceProductForCustomerType(
       {
@@ -69,10 +71,11 @@ export function priceCartItemsForCheckout(input: {
       input.customerType,
       activePricingRules,
       input.pricingPreference,
+      input.specialPricingEnabled,
     );
     const submittedManualPrice = input.manualPrices[item.cartLineId];
     const resolved =
-      submittedManualPrice == null && item.transactionPrice != null
+      input.specialPricingEnabled !== false && submittedManualPrice == null && item.transactionPrice != null
         ? {
             unitPrice: item.transactionPrice,
             appliedPricing: null,
@@ -83,12 +86,14 @@ export function priceCartItemsForCheckout(input: {
             submittedPrice: submittedManualPrice,
             role: input.role,
             customerType: input.customerType,
+            specialPricingEnabled: input.specialPricingEnabled,
           });
 
     const rounded = roundCartPrice(resolved, input.roundingSettings);
     return {
       ...item,
       price: rounded.unitPrice,
+      transactionPrice: input.specialPricingEnabled === false ? null : item.transactionPrice,
       priceRounding: rounded.priceRounding,
       priceError: rounded.priceError,
       appliedPricing: rounded.manualOverrideApplied ? null : rounded.appliedPricing,
@@ -100,7 +105,7 @@ export function priceCartItemsForCheckout(input: {
           brandId: option.brandId, brandName: option.brandName,
           hargaAgen: option.hargaAgen, hargaDinas: option.hargaDinas,
           baseCostPrice: option.baseCostPrice, baseCostUnit: option.baseCostUnit,
-        }, input.customerType, activePricingRules);
+        }, input.customerType, activePricingRules, undefined, input.specialPricingEnabled);
         const roundedOption = roundCartPrice(optionPrice, input.roundingSettings);
         return { ...option, price: roundedOption.unitPrice, appliedPricing: roundedOption.appliedPricing, priceRounding: roundedOption.priceRounding, priceError: roundedOption.priceError };
       }),

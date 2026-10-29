@@ -21,6 +21,7 @@ vi.mock("@/hooks/useCustomers", () => ({ useCreateCustomer: () => ({ mutateAsync
 vi.mock("@/hooks/useSalespersons", () => ({ useSalespersons: () => ({ data: [] }) }));
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ role: "CASHIER" }) }));
 vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({ useCustomerCategoryPricingRules: () => ({ data: [] }) }));
+vi.mock("@/features/customer-category-pricing/hooks/useSpecialPricingSettings", () => ({ useSpecialPricingSettings: () => ({ data: false }) }));
 vi.mock("@/features/pos-checkout/hooks/useCartCatalogPrices", () => ({ useCartCatalogPrices: (items: unknown) => items }));
 vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({ usePriceRoundingSettings: () => ({ data: policy, isPlaceholderData: false }) }));
 vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({ useServerClock: () => ({ now: null, isLoading: false }) }));

@@ -359,7 +359,7 @@ function additionDefaults(
   detail: StockGroupDetail,
 ): NonNullable<StockGroupWorkspaceContentProps["newVariantDraft"]> {
   return {
-    pricingMode: "AUTO",
+    pricingMode: "MANUAL",
     adjustment: "none",
     percent: "0",
     unit: "",

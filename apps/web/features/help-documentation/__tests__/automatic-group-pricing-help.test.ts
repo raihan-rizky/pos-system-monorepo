@@ -49,8 +49,9 @@ describe("automatic group pricing guidance", () => {
     const preview = await runGroupPricingBackfill({ groups: groups(), applyGroup: async () => { writes++; throw new Error("Preview must not write"); } });
     expect(writes).toBe(0);
     expect(preview).toMatchObject({ scanned: 1, pending: 1, initialized: 0, skipped: 0 });
-    expect(preview.groups[0].projection.config.members["sample-pak"].factor).toEqual({ numerator: "9", denominator: "10" });
-    expect(preview.groups[0].costChanges).toEqual([{ productId: "sample-pak", before: "21000.00", after: "24000.00" }]);
+    expect(preview.groups[0].projection.config.members["sample-pak"].mode).toBe("MANUAL");
+    expect(preview.groups[0].projection.config.members["sample-pak"].factor).toBeNull();
+    expect(preview.groups[0].costChanges).toEqual([]);
     const stored = structuredClone(sample[0]);
     const applyGroup = async () => {
       writes++;

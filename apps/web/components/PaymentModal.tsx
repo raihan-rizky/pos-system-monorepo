@@ -37,6 +37,7 @@ import { SpecialPriceBadge } from "@/features/customer-category-pricing/componen
 import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
 import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { useSpecialPricingSettings } from "@/features/customer-category-pricing/hooks/useSpecialPricingSettings";
 import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
 
@@ -204,7 +205,10 @@ export function PaymentModal({
     customerSelection.kind === "existing"
       ? customerSelection.customer.type ?? "UMUM"
       : "UMUM";
-  const canEditCustomPrices = canEditCustomPriceForCustomer(
+  const specialPricingSettings = useSpecialPricingSettings();
+  const specialPricingEnabled = specialPricingSettings.data ?? false;
+  const canUseSpecialPricingPolicy = !items.some(item => item.lineType === "PRODUCT") || specialPricingSettings.data !== undefined;
+  const canEditCustomPrices = specialPricingEnabled && canEditCustomPriceForCustomer(
     role,
     selectedCustomerType,
   );
@@ -220,6 +224,7 @@ export function PaymentModal({
     manualPrices,
     role,
     roundingSettings,
+    specialPricingEnabled,
   });
   const pricedItems = applyCartItemDiscounts(basePricedItems, itemDiscounts);
   const grossSubtotal = pricedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -287,7 +292,7 @@ export function PaymentModal({
     customerSelection.kind === "existing" ||
     (customerSelection.kind === "new" && Boolean(customerSelection.name.trim()));
   const hasInvalidSellingPrice = pricedItems.some(item => item.lineType === "PRODUCT" && item.priceError);
-  const canPay = canUseRoundingPolicy && !hasInvalidSellingPrice && pricedItems.length > 0 && !invalidTax && !itemDiscountEditor && canSubmitPayment({
+  const canPay = canUseRoundingPolicy && canUseSpecialPricingPolicy && !hasInvalidSellingPrice && pricedItems.length > 0 && !invalidTax && !itemDiscountEditor && canSubmitPayment({
     mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
     amountPaid,
     total,
@@ -374,6 +379,7 @@ export function PaymentModal({
 
   const canSaveDraft =
     canUseRoundingPolicy &&
+    canUseSpecialPricingPolicy &&
     !hasInvalidSellingPrice &&
     !itemDiscountEditor &&
     pricedItems.length > 0 &&
@@ -415,6 +421,11 @@ export function PaymentModal({
             {roundingQuery.isError ? "Pengaturan pembulatan harga gagal dimuat. Muat ulang sebelum melanjutkan pembayaran." : "Memuat pengaturan pembulatan harga sebelum pembayaran…"}
           </div>
         )}
+        {!canUseSpecialPricingPolicy && (
+          <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {specialPricingSettings.isError ? "Pengaturan Harga Khusus gagal dimuat. Muat ulang sebelum melanjutkan pembayaran." : "Memuat pengaturan Harga Khusus sebelum pembayaran…"}
+          </div>
+        )}
         {/* Order Summary */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-semibold text-surface-700">Ringkasan item</span>
@@ -431,7 +442,7 @@ export function PaymentModal({
           )}
         </div>
         <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[280px] overflow-y-auto">
-          {pricingRulesQuery.isError && (
+          {specialPricingEnabled && pricingRulesQuery.isError && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
               Aturan Harga Khusus gagal dimuat. Harga Agen/Dinas dipakai jika
               tersedia, lalu Harga Normal.
@@ -611,6 +622,7 @@ export function PaymentModal({
                 </div>
               )}
               {item.lineType === "PRODUCT" &&
+                specialPricingEnabled &&
                 !item.appliedPricing &&
                 isRegularPriceFallback({
                   appliedPricing: null,

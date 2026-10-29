@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { configuredAutoGroup } from "@/features/product-stock-groups/__tests__/configured-auto-group";
 import { createPricingTestDatabase } from "@/features/product-stock-groups/__tests__/pricing-test-database";
 import { readGroupPricingInput } from "@/features/product-stock-groups/group-pricing-service";
 import { expandImportGroupRows, projectImportGroupPricing } from "../import-group-pricing";
@@ -6,6 +7,7 @@ import { expandImportGroupRows, projectImportGroupPricing } from "../import-grou
 describe("coherent import group intent", () => {
   it("derives follower factor against final source in reversed order and rounds source first", async () => {
     const db = createPricingTestDatabase();
+    db.group.pricingConfig = configuredAutoGroup("rim", "dus");
     const before = await readGroupPricingInput(db.tx, { storeId: "store-main", groupId: "group-1" });
     const result = projectImportGroupPricing(before, before, [
       { productId: "dus", price: 15.05, costPrice: 10.05 },
@@ -20,6 +22,7 @@ describe("coherent import group intent", () => {
 
   it("reports contradictory HPP with the row identity and calculated value", async () => {
     const db = createPricingTestDatabase();
+    db.group.pricingConfig = configuredAutoGroup("rim", "dus");
     const before = await readGroupPricingInput(db.tx, { storeId: "store-main", groupId: "group-1" });
     const result = projectImportGroupPricing(before, before, [
       { productId: "dus", rowNumber: 3, price: 270000, costPrice: 12 },
@@ -31,6 +34,7 @@ describe("coherent import group intent", () => {
 
   it("null/omitted follower HPP means follow source, whereas source null stays unknown", async () => {
     const db = createPricingTestDatabase();
+    db.group.pricingConfig = configuredAutoGroup("rim", "dus");
     const before = await readGroupPricingInput(db.tx, { storeId: "store-main", groupId: "group-1" });
     const result = projectImportGroupPricing(before, before, [{ productId: "dus", price: 250000, costPrice: null }]);
     expect(result.projection.members.find(m => m.productId === "dus")?.costPrice).toBe("200000.00");
@@ -38,6 +42,17 @@ describe("coherent import group intent", () => {
     const missing = projectImportGroupPricing(before, before, [{ productId: "rim", price: 50000, costPrice: null }]);
     expect(missing.projection.members.find(m => m.productId === "rim")?.costPrice).toBeNull();
     expect(missing.projection.members.find(m => m.productId === "dus")?.costPrice).toBe("150000.00");
+  });
+
+  it("keeps a newly joined follower Manual and preserves its imported HPP", async () => {
+    const db = createPricingTestDatabase();
+    db.group.pricingConfig = configuredAutoGroup("rim", "dus");
+    const before = await readGroupPricingInput(db.tx, { storeId: "store-main", groupId: "group-1" });
+    const current = { ...before, members: [...before.members, { ...before.members.find(m => m.id === "dus")!, id: "box", unit: "box", unitMultiplierToBase: 10, price: "540000", costPrice: "40000" }] };
+    const result = projectImportGroupPricing(before, current, [{ productId: "box", price: 540000, costPrice: 430000 }]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.projection.config.members.box.mode).toBe("MANUAL");
+    expect(result.projection.members.find(m => m.productId === "box")).toMatchObject({ price: "540000.00", costPrice: "430000.00" });
   });
 
   it("expands a single follower cursor through both old and target groups without unrelated rows", () => {

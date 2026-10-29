@@ -643,7 +643,7 @@ export function AdditionPanel(props: StockGroupWorkspaceContentProps) {
   const draft = props.newVariantDraft;
   const result = additionResult(props.detail, draft),
     disabled = props.isSaving || !props.canCreateProducts;
-  const automatic = !!props.detail.pricing && draft?.pricingMode !== "MANUAL";
+  const automatic = !!props.detail.pricing && draft?.pricingMode === "AUTO";
   let estimatedPrice = "", estimatedCost = "";
   try {
     const source = props.detail.pricing?.members.find(member => member.productId === props.detail.pricing?.config.sourceProductId);
@@ -668,7 +668,7 @@ export function AdditionPanel(props: StockGroupWorkspaceContentProps) {
         </p>
       </div>
       {props.detail.pricing && <div className="space-y-3">
-        <label className="block text-sm font-semibold">Mode harga satuan baru<select aria-label="Mode harga satuan baru" className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 focus-visible:outline-blue-600" value={draft?.pricingMode ?? "AUTO"} disabled={disabled} onChange={event => update({ pricingMode: event.target.value as "AUTO" | "MANUAL" })}><option value="AUTO">Auto — mengikuti sumber</option><option value="MANUAL">Manual — isi sendiri</option></select></label>
+        <label className="block text-sm font-semibold">Mode harga satuan baru<select aria-label="Mode harga satuan baru" className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 focus-visible:outline-blue-600" value={draft?.pricingMode ?? "MANUAL"} disabled={disabled} onChange={event => update({ pricingMode: event.target.value as "AUTO" | "MANUAL" })}><option value="AUTO">Auto — mengikuti sumber</option><option value="MANUAL">Manual — isi sendiri</option></select></label>
         {automatic && <><p className="text-sm text-slate-700">Harga dan HPP mengikuti sumber serta konversi. Tanpa penyesuaian memakai faktor 1. Nilai akhir dihitung server saat disimpan.</p><label className="block text-sm">Penyesuaian satuan baru<select aria-label="Penyesuaian satuan baru" className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3" value={draft?.adjustment ?? "none"} disabled={disabled} onChange={e => update({ adjustment: e.target.value as "none" | "discount" | "markup" })}><option value="none">Tanpa penyesuaian</option><option value="discount">Diskon</option><option value="markup">Markup</option></select></label>{draft?.adjustment && draft.adjustment !== "none" && <Field label="Persentase satuan baru" value={draft.percent ?? "0"} disabled={disabled} onChange={percent => update({ percent })} />}</>}
       </div>}
       <div className="grid gap-4 sm:grid-cols-2">

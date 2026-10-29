@@ -10,9 +10,10 @@ import RbacTab from "@/components/settings/RbacTab";
 import DatabaseResetTab from "@/components/settings/DatabaseResetTab";
 import ShiftSettingsTab from "@/components/settings/ShiftSettingsTab";
 import PriceRoundingSettingsTab from "@/features/product-price-rounding/components/PriceRoundingSettingsTab";
+import SpecialPricingSettingsTab from "@/features/customer-category-pricing/components/SpecialPricingSettingsTab";
 import { useRole } from "@/components/providers/RoleProvider";
 
-type Tab = "store" | "whatsapp" | "rbac" | "notifications" | "offline" | "shift" | "price-rounding" | "reset";
+type Tab = "store" | "whatsapp" | "rbac" | "notifications" | "offline" | "shift" | "price-rounding" | "special-pricing" | "reset";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean; resource?: string }[] = [
   { id: "store", label: "Info Toko", icon: <Store className="w-4 h-4" /> },
@@ -22,6 +23,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean
   { id: "offline", label: "Offline Sync", icon: <RefreshCw className="w-4 h-4" /> },
   { id: "shift", label: "Shift Kasir", icon: <WalletCards className="w-4 h-4" />, ownerOnly: true },
   { id: "price-rounding", label: "Pembulatan Harga", icon: <Settings className="w-4 h-4" />, resource: "settings.price_rounding" },
+  { id: "special-pricing", label: "Harga Khusus", icon: <Settings className="w-4 h-4" />, ownerOnly: true },
   { id: "reset", label: "Reset Database", icon: <Database className="w-4 h-4" />, ownerOnly: true },
 ];
 
@@ -78,6 +80,7 @@ export default function SettingsPage() {
             {activeTab === "offline" && <OfflineSyncTab />}
             {activeTab === "shift" && role === "OWNER" && <ShiftSettingsTab />}
             {activeTab === "price-rounding" && visibleTabs.some((tab) => tab.id === "price-rounding") && <PriceRoundingSettingsTab />}
+            {activeTab === "special-pricing" && role === "OWNER" && <SpecialPricingSettingsTab />}
             {activeTab === "reset" && role === "OWNER" && <DatabaseResetTab />}
           </div>
         </div>

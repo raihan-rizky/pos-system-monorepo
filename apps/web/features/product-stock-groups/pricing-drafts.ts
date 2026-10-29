@@ -20,7 +20,7 @@ export function createPricingDraft(detail: StockGroupDetail): PricingDraft {
     const config = pricing!.config.members[member.productId];
     const factor = config?.factor;
     const value = factor ? Number(factor.numerator) / Number(factor.denominator) : 1;
-    return [member.productId, { mode: config?.mode ?? "AUTO", price: member.price, costPrice: member.costPrice ?? "",
+    return [member.productId, { mode: config?.mode ?? (member.productId === pricing?.config.sourceProductId ? "AUTO" : "MANUAL"), price: member.price, costPrice: member.costPrice ?? "",
       adjustment: value < 1 ? "discount" : value > 1 ? "markup" : "none", percent: String(Number((Math.abs(1 - value) * 100).toFixed(6))), adjustmentEdited: false }];
   })) };
 }

@@ -1,10 +1,21 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProductCard } from '../components/ProductCard';
 import type { Product } from '@/hooks/useProducts';
 import type { CategoryPricingRule } from '@/features/customer-category-pricing/helpers/pricing-rules';
 
+const specialPricingEnabled = vi.hoisted(() => vi.fn(() => true));
+vi.mock('@/features/customer-category-pricing/hooks/useSpecialPricingSettings', () => ({ useSpecialPricingSettings: () => ({ data: specialPricingEnabled() }) }));
+
 describe('ProductCard', () => {
+  beforeEach(() => specialPricingEnabled.mockReturnValue(true));
+
+  it('uses regular prices when special pricing is disabled', () => {
+    specialPricingEnabled.mockReturnValue(false);
+    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 4200 })) }} onAddToCart={vi.fn()} customerType="AGEN" categoryPricingRules={[]} />);
+    expect(html).not.toContain('4.200');
+    expect(html).not.toContain('aria-label="Harga Khusus"');
+  });
   it('shows the rounded selling price with a disclosure and respects an inactive policy', () => {
     const product = { ...mockProduct, price: 4050, defaultVariant: undefined, variants: undefined };
     const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} />);

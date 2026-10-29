@@ -8,6 +8,16 @@ import {
 
 describe("buildApprovalFingerprint", () => {
   beforeEach(() => { roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 }); });
+  it("quotes only the regular price when Harga Khusus is disabled", async () => {
+    const client = makeQuoteClient({ customerType: "AGEN", rules: [{ id: "r", categoryId: "paper-category", category: { name: "Paper" }, customerType: "ALL", mode: "FLAT_DISCOUNT", value: 10, isActive: true }] });
+    client.storeSettings.findUnique.mockResolvedValue({ specialPricingEnabled: false });
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ productId: "paper", quantity: 1, submittedPrice: 20, priceIntent: "MANUAL" }],
+    });
+
+    expect(quote.items[0]).toMatchObject({ regular: 100, agent: null, government: null, special: null, appliedUnitPrice: 100, appliedPricing: null });
+  });
+
   it.each([
     { enabled: true, submittedPrice: undefined, expected: 4000 },
     { enabled: true, submittedPrice: 4050, expected: 4500 },
@@ -405,6 +415,7 @@ function makeQuoteClient(input: {
   rules?: Record<string, unknown>[];
 }) {
   return {
+    storeSettings: { findUnique: vi.fn().mockResolvedValue({ specialPricingEnabled: true }) },
     transaction: {
       findFirst: vi.fn().mockResolvedValue({
         id: "tx-1",

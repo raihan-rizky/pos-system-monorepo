@@ -46,7 +46,7 @@ export interface NormalizedUnitGroup {
 }
 
 export function createUnitVariantDraft(id: string): UnitVariantDraft {
-  return { id, pricingMode: "AUTO", adjustment: "none", percent: "0", unit: "", direction: "larger", quantity: "", price: "", priceEdited: false,
+  return { id, pricingMode: "MANUAL", adjustment: "none", percent: "0", unit: "", direction: "larger", quantity: "", price: "", priceEdited: false,
     sku: "", skuEdited: false, barcode: "", costPrice: "" };
 }
 

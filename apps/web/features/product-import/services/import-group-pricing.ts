@@ -7,7 +7,7 @@ export type ImportPricingConflict = { rowNumber?: number; productId: string; fie
 /** Blank import HPP means inherit for Auto followers; explicit numeric HPP is an assertion. */
 export function projectImportGroupPricing(before: GroupPricingInput, current: GroupPricingInput, intents: ImportPricingIntent[]) {
   const config = initializeGroupPricing(before).config;
-  const automaticFollower = (id: string) => id !== config.sourceProductId && config.members[id]?.mode !== "MANUAL";
+  const automaticFollower = (id: string) => id !== config.sourceProductId && config.members[id]?.mode === "AUTO";
   const changes: GroupPricingChanges = { members: intents.map(intent => ({
     productId: intent.productId, price: intent.price,
     ...(!automaticFollower(intent.productId) ? { costPrice: intent.costPrice ?? null } : {}),

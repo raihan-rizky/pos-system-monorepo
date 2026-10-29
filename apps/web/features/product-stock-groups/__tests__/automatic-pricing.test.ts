@@ -18,10 +18,16 @@ function snowman(): GroupPricingInput {
   };
 }
 
+function initializeAutoPricing(input: GroupPricingInput) {
+  const initial = initializeGroupPricing(input);
+  for (const member of Object.values(initial.config.members)) member.mode = "AUTO";
+  return projectGroupPricing({ ...input, config: initial.config });
+}
+
 describe("automatic group pricing", () => {
-  it("initializes Snowman AUTO at the exact old price and updates directly from the source", () => {
+  it("enables Snowman AUTO at the exact old price and updates directly from the source", () => {
     const input = snowman();
-    const initial = initializeGroupPricing(input);
+    const initial = initializeAutoPricing(input);
     expect(initial.config.sourceProductId).toBe("pcs");
     expect(initial.config.members.pak).toMatchObject({ mode: "AUTO", factor: { numerator: "9", denominator: "10" } });
     expect(initial.members[1]).toMatchObject({ price: "32400.00", costPrice: "24000.00", review: { price: [], costPrice: [] } });
@@ -33,7 +39,7 @@ describe("automatic group pricing", () => {
   it("keeps nonterminating legacy factors exact across initialization reruns", () => {
     const input = snowman();
     input.members[1].price = "10000.01";
-    const first = initializeGroupPricing(input);
+    const first = initializeAutoPricing(input);
     expect(first.config.members.pak.factor).toEqual({ numerator: "1000001", denominator: "3600000" });
     input.members[0].price = "3500";
     const rerun = initializeGroupPricing({ ...input, config: first.config });
@@ -47,7 +53,7 @@ describe("automatic group pricing", () => {
     const input = snowman();
     input.members[0].price = price;
     input.members[0].costPrice = costPrice;
-    const result = initializeGroupPricing(input);
+    const result = initializeAutoPricing(input);
     expect(result.members[1].price).toBe("32400.00");
     expect(result.members[1].costPrice).toBe(costPrice === null ? "10000.00" : "0.00");
     expect(result.members[1].review.price).toEqual(price === "0" ? ["SOURCE_PRICE_ZERO"] : []);
@@ -57,7 +63,7 @@ describe("automatic group pricing", () => {
   it("forms a missing factor on repair without jumping the held selling price", () => {
     const input = snowman();
     input.members[0].price = "0";
-    const initial = initializeGroupPricing(input);
+    const initial = initializeAutoPricing(input);
     expect(initial.config.members.pak.factor).toBeNull();
     input.members[0].price = "3500";
     const repaired = projectGroupPricing({ ...input, config: initial.config });
@@ -71,9 +77,11 @@ describe("automatic group pricing", () => {
     input.members[0].unitMultiplierToBase = "3";
     input.members[0].price = "0.01";
     input.members[0].costPrice = "0.01";
-    const initial = initializeGroupPricing(input);
+    const initial = initializeAutoPricing(input);
     input.members.push({ ...input.members[1], id: "setengah", unitMultiplierToBase: "1.5" });
     input.members.push({ ...input.members[1], id: "satu", unitMultiplierToBase: "1" });
+    initial.config.members.setengah = { mode: "AUTO", factor: { numerator: "1", denominator: "1" }, review: { price: [], costPrice: [] } };
+    initial.config.members.satu = { mode: "AUTO", factor: { numerator: "1", denominator: "1" }, review: { price: [], costPrice: [] } };
     const result = projectGroupPricing({ ...input, config: initial.config });
     expect(result.members[2]).toMatchObject({ price: "0.01", costPrice: "0.01" });
     expect(result.members[3]).toMatchObject({ price: "0.00", costPrice: "0.00" });
@@ -83,10 +91,10 @@ describe("automatic group pricing", () => {
   it("supports a zero factor and a factor above one", () => {
     const input = snowman();
     input.members[1].price = "0";
-    const zero = initializeGroupPricing(input);
+    const zero = initializeAutoPricing(input);
     expect(zero.config.members.pak.factor).toEqual({ numerator: "0", denominator: "1" });
     input.members[1].price = "43200";
-    const increased = initializeGroupPricing(input);
+    const increased = initializeAutoPricing(input);
     expect(increased.config.members.pak.factor).toEqual({ numerator: "6", denominator: "5" });
   });
 
@@ -96,7 +104,7 @@ describe("automatic group pricing", () => {
       if (kind === "ambiguous") input.members.push({ ...input.members[0], id: "pcs2" });
       if (kind === "inactive") input.members[0].isActive = false;
       if (kind === "reviewed") input.members[0].conversionNeedsReview = true;
-      const result = initializeGroupPricing(input);
+      const result = initializeAutoPricing(input);
       expect(result.config.sourceProductId).toBeNull();
       expect(result.config.members.pak.mode).toBe("AUTO");
       expect(result.members[1]).toMatchObject({ price: "32400.00", costPrice: "10000.00" });
@@ -106,7 +114,7 @@ describe("automatic group pricing", () => {
 
   it("does not silently replace an unavailable explicit source", () => {
     const input = snowman();
-    const initial = initializeGroupPricing(input);
+    const initial = initializeAutoPricing(input);
     input.members[0].isActive = false;
     input.members.push({ ...input.members[0], id: "other", isActive: true });
     const result = projectGroupPricing({ ...input, config: initial.config });
@@ -116,7 +124,7 @@ describe("automatic group pricing", () => {
 
   it("holds invalid follower conversion while other members continue updating", () => {
     const input = snowman();
-    const initial = initializeGroupPricing(input);
+    const initial = initializeAutoPricing(input);
     input.members[0].price = "3500";
     input.members[1].conversionNeedsReview = true;
     const result = projectGroupPricing({ ...input, config: initial.config });
@@ -156,7 +164,7 @@ describe("automatic group pricing", () => {
     initial.config.members.pak.factor = { numerator: "-1", denominator: "1" };
     expect(() => projectGroupPricing({ ...input, config: initial.config })).toThrow();
     input.members[0].price = "9999999999.99";
-    expect(() => projectGroupPricing({ ...input, config: initializeGroupPricing(snowman()).config })).toThrow(/kapasitas/i);
+    expect(() => projectGroupPricing({ ...input, config: initializeAutoPricing(snowman()).config })).toThrow(/kapasitas/i);
   });
 
   it("parses decimal exponents precisely and rounds half up at Decimal(12,2) limits", () => {
@@ -176,7 +184,7 @@ describe("automatic group pricing", () => {
 
   it("preserves selling prices while replacing the source or reactivating AUTO", () => {
     const input = snowman();
-    const initial = initializeGroupPricing(input);
+    const initial = initializeAutoPricing(input);
     initial.config.sourceProductId = "pak";
     for (const member of Object.values(initial.config.members)) member.factor = null;
     const replaced = projectGroupPricing({ ...input, config: initial.config });

@@ -42,6 +42,24 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("/api/customer-category-pricing-rules", () => {
+  it("stores normalized, distinct selected units on one rule", async () => {
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["AGEN"], units: [" Rim ", "box", "rim"], mode: "FLAT_DISCOUNT", value: 500 }),
+    }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ unit: null, units: ["rim", "box"] });
+    expect(ruleCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ unit: null, units: ["rim", "box"] }) }));
+  });
+
+  it("rejects a rule when any selected unit overlaps an existing rule for the same customers", async () => {
+    ruleFindManyMock.mockResolvedValue([{ id: "other", customerTypes: ["AGEN"], customerType: "AGEN", unit: null, units: ["box", "pcs"] }]);
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["AGEN"], units: ["rim", "box"], mode: "FLAT_DISCOUNT", value: 500 }),
+    }));
+    expect(response.status).toBe(409);
+    expect(ruleCreateMock).not.toHaveBeenCalled();
+  });
+
   it("persists both percentages of the selected-unit modal formula", async () => {
     const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
       method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["ALL"], unit: "dus", mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5 }),
@@ -121,7 +139,7 @@ describe("/api/customer-category-pricing-rules", () => {
   });
 
   it("rejects overlapping explicit targets inside the locked transaction", async () => {
-    ruleFindManyMock.mockResolvedValue([{ id: "other", customerTypes: ["AGEN", "INDUSTRI"], customerType: null }]);
+    ruleFindManyMock.mockResolvedValue([{ id: "other", customerTypes: ["AGEN", "INDUSTRI"], customerType: null, unit: "rim", units: ["rim"] }]);
     const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
       method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["UMUM", "AGEN"], unit: "rim", mode: "COST_PLUS_FLAT", value: 4000 }),
     }));
@@ -131,7 +149,7 @@ describe("/api/customer-category-pricing-rules", () => {
   });
 
   it("allows ALL fallback alongside explicit targets", async () => {
-    ruleFindManyMock.mockResolvedValue([{ id: "all", customerTypes: [], customerType: null }]);
+    ruleFindManyMock.mockResolvedValue([{ id: "all", customerTypes: [], customerType: null, unit: "rim", units: ["rim"] }]);
     const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
       method: "POST", body: JSON.stringify({ categoryId: "cat-1", customerTypes: ["AGEN"], unit: "rim", mode: "COST_PLUS_PERCENT", value: 150 }),
     }));
@@ -250,10 +268,10 @@ describe("/api/customer-category-pricing-rules", () => {
         where: expect.objectContaining({
           storeId: "store-main",
           categoryId: "cat-1",
-          unit: "rim",
           brandId: "brand-1",
           isActive: true,
         }),
+        select: expect.objectContaining({ unit: true, units: true }),
       }),
     );
     expect(ruleCreateMock).toHaveBeenCalledWith(

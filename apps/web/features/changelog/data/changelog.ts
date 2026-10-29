@@ -3,6 +3,30 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "special-pricing-multiple-units-and-setting", date: "2026-10-29", revision: 1,
+    highlight: { title: "Satuan Harga Khusus", summary: "Pilih beberapa satuan dan atur pemakaian Harga Khusus untuk toko." },
+    title: "Pilih beberapa satuan untuk Harga Khusus.",
+    summary: "Satu aturan dapat mencakup beberapa satuan. Owner dapat mengaktifkan Harga Khusus untuk menggunakan aturan dan harga Agen/Dinas yang tersimpan.",
+    kind: "improvement", area: "Produk & Harga Khusus", href: "/products?tab=special-prices", visual: "units",
+    steps: [
+      { title: "Buka aturan", detail: "Sebagai Owner, buka Produk > Harga Khusus lalu tambah atau ubah aturan." },
+      { title: "Pilih satuan", detail: "Pilih kategori dan centang satu atau beberapa satuan, atau pilih Semua satuan. Lengkapi aturan, periksa contoh harga, lalu simpan." },
+      { title: "Atur pemakaian toko", detail: "Buka Pengaturan > Harga Khusus, ubah Aktifkan Harga Khusus, lalu simpan pengaturan." },
+    ],
+  },
+  {
+    id: "manual-group-pricing-default", date: "2026-10-29", revision: 1,
+    highlight: { title: "Harga dan HPP manual", summary: "Harga jual dan HPP satuan grup memakai mode Manual secara default." },
+    title: "Harga dan HPP satuan grup mulai dari Manual.",
+    summary: "Pengikut grup memakai mode Manual agar harga jual dan HPP dapat diatur sendiri. Nilai pada produk lama tetap disimpan saat pengikut beralih ke Manual.",
+    kind: "improvement", area: "Produk & Grup Stok", href: "/products", visual: "stock-groups",
+    steps: [
+      { title: "Buka harga grup", detail: "Di Produk, buka Edit atau Ubah Harga, lalu pilih Atur harga grup / Manual." },
+      { title: "Atur satuan", detail: "Isi harga jual dan HPP pengikut pada mode Manual, atau pilih Auto jika ingin mengikuti sumber dan konversi." },
+      { title: "Tinjau dan terapkan", detail: "Klik Pratinjau harga, periksa dampak tiap satuan, lalu Terapkan harga grup." },
+    ],
+  },
+  {
     id: "product-category-stock-group-move", date: "2026-10-29", revision: 1,
     highlight: { title: "Kategori mengikuti grup stok", summary: "Pindahkan seluruh satuan dalam grup bersama ke kategori tujuan." },
     title: "Satuan dalam grup berpindah kategori bersama.",

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const roundingSettingsMock = vi.hoisted(() => vi.fn());
+const specialPricingSettingsMock = vi.hoisted(() => vi.fn());
 vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: roundingSettingsMock }));
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
@@ -41,6 +42,7 @@ vi.mock("@/features/rbac/helpers/rbac-server", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
+    storeSettings: { findUnique: specialPricingSettingsMock },
     customer: { findFirst: customerFindFirstMock },
     salesperson: { findFirst: salespersonFindFirstMock },
     product: { findMany: productFindManyMock },
@@ -56,6 +58,17 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions/draft", () => {
+  it("ignores a manual special price in a draft when Harga Khusus is disabled", async () => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas A4", price: 50000, transactionPrice: 20000, quantity: 1 }],
+    }) }));
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 50000 });
+  });
+
   it.each([
     { enabled: true, custom: undefined, expected: 4000 },
     { enabled: true, custom: 4050, expected: 4500 },
@@ -213,6 +226,7 @@ describe("POST /api/transactions/draft", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: true });
     roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-02T03:00:00.000Z"));

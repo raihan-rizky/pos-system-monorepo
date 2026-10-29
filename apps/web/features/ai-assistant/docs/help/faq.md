@@ -27,8 +27,8 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 ### Q3: Bagaimana cara mengatur harga khusus/diskon bagi grup pelanggan (Agen, Industri, Dinas)?
 **A:** Owner dapat membuat satu aturan untuk satu atau beberapa tipe pelanggan:
 
-1. Buka **Produk > Harga Khusus**, lalu klik **Tambah aturan**.
-2. Pilih **Kategori**, lalu pilih **Semua satuan** agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Pilih satuan tertentu jika aturan hanya berlaku untuk satuan itu; aturan untuk Rim berlaku saat satuan Rim dipilih.
+1. Harga Khusus nonaktif secara default. Sebagai Owner, aktifkan di **Pengaturan > Harga Khusus**, lalu buka **Produk > Harga Khusus** dan klik **Tambah aturan**.
+2. Pilih **Kategori**, lalu pilih **Semua satuan** agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Centang satu atau beberapa satuan untuk membatasi aturan pada satuan yang dipilih.
 3. Centang tipe pelanggan yang diinginkan, misalnya **Umum dan Agen**. **Semua pelanggan** berlaku untuk keempat tipe dan dipilih sendiri.
 4. Pilih cara menghitung harga: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, **Modal + persen**, atau **Modal unit + persen − persen**. Untuk rumus terakhir, isi tambahan dan potongan: modal Rp12.000/dus +10% lalu −5% menghasilkan Rp12.540/dus.
 5. Periksa **Contoh harga**. Buka **Pengaturan tambahan** jika ingin memilih merek, menambah merek, atau mengubah status aktif. Klik **Simpan aturan** setelah sesuai.
@@ -36,7 +36,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 
 **Cara membaca modal:** **Modal unit + persen − persen** memakai modal unit yang dipilih dan memotong hasil setelah tambahan persen. **Modal + rupiah** dan **Modal + persen** memakai modal satuan terkecil secara langsung, tanpa mengalikannya dengan isi kemasan. Modal **Rp700/pcs + Rp4.000** dengan aturan satuan **Rim** menghasilkan **Rp4.700/rim**; dua rim berjumlah **Rp9.400**. **Modal + 10%** menghasilkan **Rp770/rim**. Jika modal pcs berubah menjadi Rp800, harga dengan tambahan Rp4.000 menjadi Rp4.800/rim.
 
-Harga dari aturan maupun override manual Agen/Dinas diberi **warna hijau** dan badge **Harga Khusus**, termasuk saat nilainya sama dengan harga jual. Status **Mengikuti harga jual** tidak diberi badge. Urutan harga otomatis adalah **Harga Khusus yang dapat diterapkan → override Harga Agen/Dinas yang sesuai → harga jual**. Jika sumber modal satuan terkecil belum tersedia atau tidak valid, rumus tidak diterapkan dan harga member/normal digunakan. Kasir tidak memilih prioritas harga saat pembayaran.
+Harga dari aturan maupun override manual Agen/Dinas diberi **warna hijau** dan badge **Harga Khusus**, termasuk saat nilainya sama dengan harga jual. Status **Mengikuti harga jual** tidak diberi badge. Saat fitur aktif, urutan harga otomatis adalah **Harga Khusus yang dapat diterapkan → override Harga Agen/Dinas yang sesuai → harga jual**. Saat nonaktif, transaksi produk memakai harga normal dan input harga khusus manual tidak tersedia; aturan serta harga Agen/Dinas tetap tersimpan. Jika sumber modal satuan terkecil belum tersedia atau tidak valid, rumus tidak diterapkan dan harga member/normal digunakan. Kasir tidak memilih prioritas harga saat pembayaran.
 
 Harga yang dimasukkan manual untuk transaksi tetap memakai penanda **Hanya berlaku untuk transaksi ini** dan tidak diberi badge aturan otomatis. Pengaturan rumus tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
 
@@ -54,13 +54,13 @@ Harga yang dimasukkan manual untuk transaksi tetap memakai penanda **Hanya berla
 **A:** Buka grup dari halaman **Produk** atau **Aktivitas Grup**. Untuk membuat atau menggabungkan grup, pilih produk berbeda satuan, klik **Buat atau gabungkan grup stok**, tentukan sumber stok dan konversi, lalu tinjau sebelum menyimpan. Stok tiap satuan mewakili persediaan yang sama dan tidak dijumlahkan.
 
 Untuk harga otomatis, buka tab **Harga** dengan izin `product.update`:
-1. Pilih **Sumber harga** aktif dan isi harga jual serta HPP sumber. Grup baru dan lama default **Auto**; inisialisasi mempertahankan harga jual lama sebagai faktor eksak.
+1. Pilih **Sumber harga** aktif dan isi harga jual serta HPP sumber. Pengikut grup baru dan lama memakai **Manual**; harga jual dan HPP lama tetap dipertahankan saat beralih ke Manual.
 2. Atur pengikut **Auto** dengan diskon/markup atau pilih **Manual** untuk uang independen. Diskon jual tidak mengurangi HPP. Kembali ke Auto mempertahankan harga jual lewat faktor dan menghitung HPP dari sumber.
 3. Klik **Pratinjau harga**, periksa harga/HPP/margin sebelum dan sesudah tiap satuan, lalu **Terapkan harga grup**. Mengubah draf membatalkan pratinjau. Jika data berubah, muat ulang dan tinjau lagi. Perbaiki alasan **Perlu ditinjau** pada sumber, konversi, faktor, atau HPP; HPP kosong berbeda dari nol.
 
-Contoh Snowman V5: beli 10 pak dengan 12 pcs/pak berarti stok masuk 120 pcs memakai HPP pcs. HPP pcs Rp2.000 menghasilkan HPP pak Rp24.000. Harga pcs Rp3.000 dan pak lama Rp32.400 membentuk faktor 9/10. Saat harga pcs Rp3.500, harga pak menjadi Rp37.800; HPP pak tetap Rp24.000.
+Contoh Snowman V5 saat pengikut dipilih Auto: beli 10 pak dengan 12 pcs/pak berarti stok masuk 120 pcs memakai HPP pcs. HPP pcs Rp2.000 menghasilkan HPP pak Rp24.000. Harga pcs Rp3.000 dan pak lama Rp32.400 membentuk faktor 9/10. Saat harga pcs Rp3.500, harga pak menjadi Rp37.800; HPP pak tetap Rp24.000.
 
-Sumber jual nol dengan faktor valid menghasilkan nol dan mempertahankan faktor; tanpa faktor yang dapat dihitung, harga lama tetap disertai review. Tambah satuan default Auto faktor 1; pilih Manual sebelum menyimpan bila perlu. Satuan terkecil menjadi sumber pada produk baru dengan banyak satuan. Satuan nonaktif tetap terlihat dalam tinjauan. Harga supplier pada dokumen saja tidak mengubah HPP master; penulisan HPP pengikut Auto perlu melalui sumber atau beralih ke Manual.
+Sumber jual nol dengan faktor valid menghasilkan nol dan mempertahankan faktor; tanpa faktor yang dapat dihitung, harga lama tetap disertai review. Satuan baru memakai Manual; pilih Auto bila ingin mengikuti sumber dan konversi. Satuan terkecil menjadi sumber pada produk baru dengan banyak satuan. Satuan nonaktif tetap terlihat dalam tinjauan. Harga supplier pada dokumen saja tidak mengubah HPP master; penulisan HPP pengikut Auto perlu melalui sumber atau beralih ke Manual.
 
 ---
 

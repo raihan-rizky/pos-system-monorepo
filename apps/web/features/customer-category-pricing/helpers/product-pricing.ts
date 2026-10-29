@@ -17,6 +17,7 @@ export function priceCatalogVariantForCustomer(
   customerType: CustomerType,
   rules: CategoryPricingRule[],
   roundingSettings?: PriceRoundingSettings,
+  specialPricingEnabled = true,
 ) {
   const selected = variant ?? product;
   return roundSellingPriceLine(priceProductForCustomerType({
@@ -31,18 +32,18 @@ export function priceCatalogVariantForCustomer(
     hargaDinas: selected.hargaDinas == null ? null : Number(selected.hargaDinas),
     baseCostPrice: selected.baseCostPrice,
     baseCostUnit: selected.baseCostUnit,
-  }, customerType, rules), roundingSettings);
+  }, customerType, rules, undefined, specialPricingEnabled), roundingSettings);
 }
 
-export function priceCatalogProductForCustomer(product: Product, customerType: CustomerType, rules: CategoryPricingRule[], roundingSettings?: PriceRoundingSettings): PricedCatalogProduct {
-  const priced = priceCatalogVariantForCustomer(product, undefined, customerType, rules, roundingSettings);
+export function priceCatalogProductForCustomer(product: Product, customerType: CustomerType, rules: CategoryPricingRule[], roundingSettings?: PriceRoundingSettings, specialPricingEnabled = true): PricedCatalogProduct {
+  const priced = priceCatalogVariantForCustomer(product, undefined, customerType, rules, roundingSettings, specialPricingEnabled);
   return {
     ...product,
     displayPrice: priced.unitPrice,
     appliedPricing: priced.appliedPricing,
     priceRounding: priced.priceRounding,
     variants: product.variants?.map(variant => {
-      const variantPrice = priceCatalogVariantForCustomer(product, variant, customerType, rules, roundingSettings);
+      const variantPrice = priceCatalogVariantForCustomer(product, variant, customerType, rules, roundingSettings, specialPricingEnabled);
       return { ...variant, displayPrice: variantPrice.unitPrice, appliedPricing: variantPrice.appliedPricing, priceRounding: variantPrice.priceRounding };
     }),
   };

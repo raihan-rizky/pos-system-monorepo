@@ -11,7 +11,7 @@ import {
   isPricingCustomerType,
   type CategoryCustomerPricingMode,
   type CustomerType,
-  normalizePricingUnit,
+  normalizePricingUnits,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { getLogger } from "@/lib/logger";
 import { pricingRuleSchema, storedCustomerTargets, serializePricingRule, pricingRuleInclude, lockPricingRules, hasOverlappingPricingRule, overlapMessage } from "@/features/customer-category-pricing/helpers/rule-persistence";
@@ -93,7 +93,8 @@ export async function POST(request: Request) {
     const data = parsed.data as z.infer<typeof pricingRuleSchema> & {
       mode: CategoryCustomerPricingMode;
     };
-    const normalizedUnit = normalizePricingUnit(data.unit);
+    const units = normalizePricingUnits(data.units, data.unit);
+    const normalizedUnit = units.length === 1 ? units[0] : null;
     const brandId = data.brandId || null;
 
     if (!(await assertCategoryExists(data.categoryId))) {
@@ -107,11 +108,11 @@ export async function POST(request: Request) {
       await lockPricingRules(tx, storeId);
       const targets = storedCustomerTargets(data);
       const isActive = data.isActive ?? true;
-      if (isActive && await hasOverlappingPricingRule(tx, { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, brandId })) {
+      if (isActive && await hasOverlappingPricingRule(tx, { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, units, brandId })) {
         return apiError(overlapMessage, 409, { code: "Conflict" });
       }
       const created = await tx.categoryCustomerPricingRule.create({
-        data: { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, brandId, mode: data.mode, value: data.value, discountPercent: data.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? data.discountPercent : 0, isActive, createdBy: user.id, updatedBy: user.id },
+        data: { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, units, brandId, mode: data.mode, value: data.value, discountPercent: data.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? data.discountPercent : 0, isActive, createdBy: user.id, updatedBy: user.id },
         include: pricingRuleInclude,
       });
       return NextResponse.json(serializePricingRule(created), { status: 201 });

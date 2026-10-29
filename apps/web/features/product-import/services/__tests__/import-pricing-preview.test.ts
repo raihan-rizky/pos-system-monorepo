@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { configuredAutoGroup } from "@/features/product-stock-groups/__tests__/configured-auto-group";
 const transact = vi.hoisted(() => vi.fn());
 vi.mock("@pos/db", () => ({ db: { $transaction: transact }, Prisma: {} }));
 import { importPricingDatabase } from "./import-pricing-database";
@@ -8,7 +9,7 @@ import { startProductImportCommit, commitProductImportChunk, productImportStartS
 
 describe("visible import pricing preview", () => {
   it("fills the existing price/HPP cells with the effective projection and row errors", async () => {
-    const d = importPricingDatabase();
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus");
     d.addRow("dus", 2, 0, 270000, 123); d.addRow("rim", 3, 1, 60000, 45000);
     const rows = d.planned.map(p => ({ ...p.rowData, autoAction: "auto_price_update" as const }));
     const preview = await previewImportGroupPricing(d.tx, { rows, storeId: "store-main" });
@@ -16,10 +17,10 @@ describe("visible import pricing preview", () => {
     expect(preview[0].pricingPreview?.costPrice).toBe(225000);
     expect(preview[0].errors.join(" ")).toMatch(/HPP.*225000.*Manual/);
     expect(preview[0].price).toBe(270000);
-    expect(d.logs).toEqual([]); expect(d.groups[0].pricingConfig).toBeNull();
+    expect(d.logs).toEqual([]); expect(d.groups[0].pricingConfig).toEqual(configuredAutoGroup("rim", "dus"));
   });
   it("blank follower HPP previews the final source HPP without conflict", async () => {
-    const d = importPricingDatabase();
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus");
     d.addRow("dus", 2, 0, 270000); d.addRow("rim", 3, 1, 60000, 45000);
     const rows = d.planned.map(p => ({ ...p.rowData, autoAction: "auto_price_update" as const }));
     const preview = await previewImportGroupPricing(d.tx, { rows, storeId: "store-main" });
@@ -41,7 +42,7 @@ describe("visible import pricing preview", () => {
     expect(d.logs).toEqual([]); expect(d.activities).toEqual([]);
   });
   it("recomputes from original nullable intent after the source is skipped", async () => {
-    const d = importPricingDatabase();
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus");
     d.addRow("dus", 2, 0, 270000, null); d.addRow("rim", 3, 1, 60000, 45000);
     const rows = d.planned.map(p => ({ ...p.rowData, autoAction: "auto_price_update" as const }));
     const first = await previewImportGroupPricing(d.tx, { rows, storeId: "store-main" });

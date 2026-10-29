@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { configuredAutoGroup } from "@/features/product-stock-groups/__tests__/configured-auto-group";
 const transact = vi.hoisted(() => vi.fn());
 vi.mock("@pos/db", () => ({ db: { $transaction: transact }, Prisma: {} }));
 import { importPricingDatabase, reorderPersistedKeys } from "./import-pricing-database";
@@ -24,6 +25,7 @@ describe("import pricing transactions", () => {
     d.groups.push({ ...d.groups[0], id: "group-2", groupKey: "moved|cat||", baseUnit: "lembar" });
     d.products.push({ ...d.products[0], id: "b-source", sku: "B-SOURCE", name: "MOVED", unit: "lembar", stockGroupId: "group-2", price: "30000", costPrice: String(cost) });
     d.products.push({ ...d.products[0], id: "b-follower", sku: "B-FOLLOWER", name: "MOVED", unit: "pack", stockGroupId: "group-2", unitMultiplierToBase: 2, price: "54000", costPrice: String(cost * 2) });
+    d.groups[1].pricingConfig = configuredAutoGroup("b-source", "b-follower");
     d.addRow("rim", 2, 0, changed ? 60000 : 50000, cost, "update");
     d.planned[0].rowData.name = "MOVED";
     await commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, user);
@@ -38,7 +40,7 @@ describe("import pricing transactions", () => {
     expect(d.batches[0].summary.priceLogCount).toBe(d.logs.length);
   });
   it("does not absorb an intervening group edit into an older batch undo snapshot", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000);
     await commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, user);
     d.batches[0].summary = reorderPersistedKeys(d.batches[0].summary);
@@ -79,7 +81,7 @@ describe("import pricing transactions", () => {
     expect(result.cumulative.updatedProductCount).toBe(1);
   });
   it("a corrected retry commits prior failed peers exactly once", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000); d.addRow("dus", 3, 1, 270000, 1);
     await expect(commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, user)).rejects.toMatchObject({ atomicGroups: [{ cursor: 0, rowNumbers: [2, 3] }] });
     d.planned[0].status = "FAILED"; d.planned[1].status = "FAILED";
@@ -95,7 +97,7 @@ describe("import pricing transactions", () => {
     expect(d.planned[0].status).toBe("PENDING");
   });
   it("moving a source preserves old follower money and audits the moved source against its true before", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000, "update");
     d.planned[0].rowData.name = "MOVED";
     await commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, user);
@@ -122,14 +124,14 @@ describe("import pricing transactions", () => {
     expect(d.groups[0].pricingConfig).toBeNull();
   });
   it("mixed insert and price update derive new follower price against the final source", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000);
     const rowData = { ...d.planned[0].rowData, rowNumber: 3, sku: "HVS-NEW", unit: "box", price: 540000, costPrice: 450000, unitMultiplierToBase: 10, autoAction: "auto_create_variant" };
     d.planned.push({ batchOperationId: "batch", cursorIndex: 1, sourceRowNumber: 3, status: "PENDING", commitAction: "create-variant", rowData });
     await commitProductImportChunk({ batchOperationId: "batch", cursor: 1, chunkSize: 1 }, user);
     const created = d.products.find(p => p.sku === "HVS-NEW");
     expect(created).toMatchObject({ price: "540000.00", costPrice: "450000.00", stock: 2 });
-    expect(d.groups[0].pricingConfig.members[created.id].factor).toEqual({ numerator: "9", denominator: "10" });
+    expect(d.groups[0].pricingConfig.members[created.id].mode).toBe("MANUAL");
     expect(d.logs.filter((l: any) => l.productId === created.id && l.field === "PRICE")).toEqual([expect.objectContaining({ oldValue: null, newValue: "540000.00" })]);
   });
   it("a new group chooses its base source independently of reversed import rows", async () => {
@@ -144,7 +146,7 @@ describe("import pricing transactions", () => {
     expect(d.products.find(p => p.sku === "NEW-0")).toMatchObject({ price: "270000.00", costPrice: "225000.00" });
   });
   it.each(["update-price", "update"])("%s locks and projects the full group across reversed chunk boundaries", async action => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("dus", 2, 0, 270000, 225000, action);
     d.addRow("rim", 3, 1, 60000, 45000, action);
     const result = await commitProductImportChunk({ batchOperationId: "batch", cursor: 0, chunkSize: 1 }, user);
@@ -161,20 +163,20 @@ describe("import pricing transactions", () => {
   });
 
   it("a follower HPP conflict aborts source and single-row fallback alike", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000); d.addRow("dus", 3, 1, 270000, 99);
     for (const cursor of [0, 1]) await expect(commitProductImportChunk({ batchOperationId: "batch", cursor, chunkSize: 1 }, user)).rejects.toThrow(/HPP/);
     expect(d.products.find(p => p.id === "rim")?.price).toBe("50000");
-    expect(d.groups[0].pricingConfig).toBeNull(); expect(d.logs).toEqual([]); expect(d.items).toEqual([]);
+    expect(d.groups[0].pricingConfig).toEqual(configuredAutoGroup("rim", "dus")); expect(d.logs).toEqual([]); expect(d.items).toEqual([]);
   });
 
   it("records effective cascade snapshots and serializes overlapping out-of-order requests", async () => {
-    const d = importPricingDatabase(); transact.mockImplementation(d.transaction);
+    const d = importPricingDatabase(); d.groups[0].pricingConfig = configuredAutoGroup("rim", "dus"); transact.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000); d.addRow("dus", 3, 1, 270000);
     await Promise.all([1, 0].map(cursor => commitProductImportChunk({ batchOperationId: "batch", cursor, chunkSize: 1 }, user)));
     expect(d.batches[0].summary.updatedProductCount).toBe(2);
     expect(d.items.find(i => i.productId === "dus").afterSnapshot.costPrice).toBe(225000);
-    expect(d.batches[0].summary.pricingUndo.groups["group-1"].before.config).toBeNull();
+    expect(d.batches[0].summary.pricingUndo.groups["group-1"].before.config).toEqual(configuredAutoGroup("rim", "dus"));
     expect(d.batches[0].summary.pricingUndo.groups["group-1"].after.config.members.dus.factor).toEqual({ numerator: "9", denominator: "10" });
   });
 });

@@ -172,7 +172,7 @@ export function additionResult(
   const duplicate = detail.variants.some(
     (v) => v.unit.trim().toLowerCase() === draft.unit.trim().toLowerCase(),
   );
-  const automatic = !!detail.pricing && draft.pricingMode !== "MANUAL";
+  const automatic = !!detail.pricing && draft.pricingMode === "AUTO";
   if (automatic && !detail.variants.some(member => member.id === detail.pricing?.config.sourceProductId && !member.conversionNeedsReview && member.unitMultiplierToBase > 0)) {
     return { stock, payload: null, error: "Perbaiki sumber harga di tab Harga sebelum menambah satuan Auto." };
   }

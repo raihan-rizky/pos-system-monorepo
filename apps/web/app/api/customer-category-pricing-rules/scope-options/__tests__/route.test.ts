@@ -59,4 +59,14 @@ describe("pricing scope options", () => {
     expect(response.status).toBe(200);
     expect(mocks.products).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ id: true, costPrice: true }), distinct: ["unit"], take: 3 }));
   });
+  it("samples only the selected units for a multi-unit rule", async () => {
+    const response = await GET(new Request("http://localhost/api/customer-category-pricing-rules/scope-options?categoryId=cat&view=preview&unit=rim&unit=box&unit=RIM"));
+    expect(response.status).toBe(200);
+    expect(mocks.products).toHaveBeenCalledWith(expect.objectContaining({
+      where: { storeId: "store", categoryId: "cat", isActive: true, OR: [
+        { unit: { equals: "rim", mode: "insensitive" } },
+        { unit: { equals: "box", mode: "insensitive" } },
+      ] }, distinct: ["unit"], take: 3,
+    }));
+  });
 });

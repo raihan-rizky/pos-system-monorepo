@@ -12,7 +12,7 @@ describe("product unit conversions", () => {
   it("projects every Auto follower from the edited smaller source, matching the submitted source", () => {
     const packaging = { ...primary, unit: "pak", sku: "SN-PAK", price: "12000", costPrice: "6000" };
     const source = { ...createUnitVariantDraft("pcs"), unit: "pcs", direction: "smaller" as const, quantity: "12", pricingMode: "MANUAL" as const, priceEdited: true, price: "2000", costPrice: "800" };
-    const follower = { ...createUnitVariantDraft("dus"), unit: "dus", quantity: "2" };
+    const follower = { ...createUnitVariantDraft("dus"), pricingMode: "AUTO" as const, unit: "dus", quantity: "2" };
     const rows = [source, follower];
     expect(newUnitPrimaryPreview(packaging, rows)).toEqual({ sourceUnit: "pcs", price: "24000.00", costPrice: "9600.00" });
     expect(resolveUnitVariantValues(packaging, follower, false, rows)).toMatchObject({ price: "48000.00", costPrice: "19200" });
@@ -22,8 +22,8 @@ describe("product unit conversions", () => {
   });
   it("rounds generated source half cents up before all follower projections", () => {
     const packaging = { ...primary, unit: "pak", sku: "SN-PAK", price: "2.01", costPrice: "2.01" };
-    const source = { ...createUnitVariantDraft("pcs"), unit: "pcs", direction: "smaller" as const, quantity: "2" };
-    const follower = { ...createUnitVariantDraft("dus"), unit: "dus", quantity: "3" };
+    const source = { ...createUnitVariantDraft("pcs"), pricingMode: "AUTO" as const, unit: "pcs", direction: "smaller" as const, quantity: "2" };
+    const follower = { ...createUnitVariantDraft("dus"), pricingMode: "AUTO" as const, unit: "dus", quantity: "3" };
     const rows = [source, follower];
     expect(buildAdditionalUnitInputs(packaging, rows)[0]).toMatchObject({ price: 1.01, costPrice: 1.01 });
     expect(newUnitPrimaryPreview(packaging, rows)).toEqual({ sourceUnit: "pcs", price: "2.02", costPrice: "2.02" });
@@ -32,24 +32,24 @@ describe("product unit conversions", () => {
   it("normalizes an edited source once before multiplying, including primary-source groups", () => {
     const packaging = { ...primary, unit: "pak", price: "10", costPrice: "10" };
     const source = { ...createUnitVariantDraft("pcs"), unit: "pcs", direction: "smaller" as const, quantity: "2", pricingMode: "MANUAL" as const, priceEdited: true, price: "1.005", costPrice: "2.005" };
-    const follower = { ...createUnitVariantDraft("dus"), unit: "dus", quantity: "3" };
+    const follower = { ...createUnitVariantDraft("dus"), pricingMode: "AUTO" as const, unit: "dus", quantity: "3" };
     expect(newUnitPrimaryPreview(packaging, [source, follower])).toEqual({ sourceUnit: "pcs", price: "2.02", costPrice: "4.02" });
     expect(resolveUnitVariantValues(packaging, follower, false, [source, follower])).toMatchObject({ price: "6.06", costPrice: "12.06" });
     expect(resolveUnitVariantValues({ ...primary, price: "1.005", costPrice: "2.005" }, { ...follower, quantity: "2" })).toMatchObject({ price: "2.02", costPrice: "4.02" });
   });
   it("shows derived primary money when a smaller unit becomes the source", () => {
-    const preview = newUnitPrimaryPreview({ ...primary, unit: "pak", sku: "SN-PAK", price: "3.33", costPrice: "2.22" }, [{ ...createUnitVariantDraft("pcs"), unit: "pcs", direction: "smaller", quantity: "12" }]);
+    const preview = newUnitPrimaryPreview({ ...primary, unit: "pak", sku: "SN-PAK", price: "3.33", costPrice: "2.22" }, [{ ...createUnitVariantDraft("pcs"), pricingMode: "AUTO", unit: "pcs", direction: "smaller", quantity: "12" }]);
     expect(preview).toEqual({ price: "3.36", costPrice: "2.28", sourceUnit: "pcs" });
   });
   it("keeps new source cents and automatic estimates aligned with server rounding", () => {
-    const source = { ...createUnitVariantDraft("pcs"), unit: "pcs", direction: "smaller" as const, quantity: "12" };
+    const source = { ...createUnitVariantDraft("pcs"), pricingMode: "AUTO" as const, unit: "pcs", direction: "smaller" as const, quantity: "12" };
     const [input] = buildAdditionalUnitInputs({ ...primary, unit: "pak", sku: "SN-PAK", price: "3.33", costPrice: "2.22" }, [source]);
     expect(input).toMatchObject({ price: 0.28, costPrice: 0.19 });
     expect(input).not.toHaveProperty("pricingMode");
     expect(resolveUnitVariantValues({ ...primary, price: "0.28", costPrice: "0.19" }, { ...box, pricingMode: "AUTO" }).price).toBe("3.36");
   });
-  it("defaults new followers Auto and accepts explicit Manual", () => {
-    expect(createUnitVariantDraft("new").pricingMode).toBe("AUTO");
+  it("defaults new followers Manual and accepts explicit Auto", () => {
+    expect(createUnitVariantDraft("new").pricingMode).toBe("MANUAL");
     const [automatic] = buildAdditionalUnitInputs(primary, [{ ...box, pricingMode: "AUTO", price: "1", costPrice: "999" }]);
     expect(automatic).toMatchObject({ pricingMode: "AUTO", priceFactor: { numerator: "1", denominator: "1" }, price: 0 });
     expect(automatic).not.toHaveProperty("costPrice");

@@ -124,11 +124,12 @@ function projectChanges(before: GroupPricingInput, current: GroupPricingInput, c
   for (const intent of intents) {
     const member = next.members.find(m => m.id === intent.productId && (m.isActive || allowInactiveMembers));
     if (!member) throw new GroupPricingError("Satuan aktif tidak ditemukan dalam grup ini.", 422);
-    const previous = config.members[member.id] ?? { mode: "AUTO", factor: { numerator: "1", denominator: "1" }, review: { price: [], costPrice: [] } };
+    const isNewMember = !before.members.some(existing => existing.id === member.id);
+    const previous = config.members[member.id] ?? { mode: member.id === config.sourceProductId ? "AUTO" : "MANUAL", factor: { numerator: "1", denominator: "1" }, review: { price: [], costPrice: [] } };
     config.members[member.id] = previous;
     if (intent.mode) {
       if (member.id === config.sourceProductId && intent.mode === "MANUAL") throw new GroupPricingError("Acuan harga tetap menjadi sumber perhitungan grup.", 422);
-      if (intent.mode === "AUTO" && previous.mode === "MANUAL") previous.factor = null;
+      if (intent.mode === "AUTO" && previous.mode === "MANUAL" && !isNewMember) previous.factor = null;
       previous.mode = intent.mode;
     }
     if (member.id !== config.sourceProductId && previous.mode === "AUTO" && intent.costPrice !== undefined) {

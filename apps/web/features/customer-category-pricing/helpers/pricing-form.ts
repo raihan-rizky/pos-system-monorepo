@@ -52,6 +52,7 @@ export const PRICING_METHODS = [
 export interface PricingFormState {
   categoryId: string;
   unit: string;
+  units?: string[];
   customerTypes: readonly PricingCustomerType[];
   brandId: string;
   mode: CategoryCustomerPricingMode;
@@ -137,6 +138,7 @@ export function previewPricingForm(
         value: Number(form.value),
         ...(form.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? { discountPercent: Number(form.discountPercent) } : {}),
         unit: form.unit || null,
+        units: form.units,
         brandId: form.brandId || null,
         isActive: true,
       },

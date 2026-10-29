@@ -13,7 +13,17 @@ const request = (body: object) => new Request("http://localhost/api/products", {
 const update = (id: string, body: object) => PUT(request(body), { params: Promise.resolve({ id }) });
 const config = (id = "group-1") => database.groups.find(g => g.id === id)!.pricingConfig as GroupPricingConfig;
 const money = (id: string) => { const p = database.products.find(p => p.id === id)!; return [Number(p.price), p.costPrice === null ? null : Number(p.costPrice)]; };
-beforeEach(() => { database = createProductPricingDatabase(); state.db = database.raw; state.storeId = "store-main"; });
+beforeEach(() => {
+  database = createProductPricingDatabase();
+  database.groups[0].pricingConfig = {
+    sourceProductId: "pcs", revision: 1, initializationVersion: 1,
+    members: {
+      pcs: { mode: "AUTO", factor: { numerator: "1", denominator: "1" }, review: { price: [], costPrice: [] } },
+      pak: { mode: "AUTO", factor: { numerator: "9", denominator: "10" }, review: { price: [], costPrice: [] } },
+    },
+  };
+  state.db = database.raw; state.storeId = "store-main";
+});
 describe("automatic pricing through product writers", () => {
   it.each([{ price: 3500 }, { costPrice: 2100 }])("cascades independently from legacy source %j and preserves member prices and stock", async (body) => {
     const response = await update("pcs", body);
@@ -42,9 +52,10 @@ describe("automatic pricing through product writers", () => {
     await update("pcs", { price: 4000, costPrice: 2500 }); expect(money("pak")).toEqual([31000, 19000]);
   });
   it("rolls back the source, followers, config and history when audit fails", async () => {
+    const initialConfig = structuredClone(config());
     database.raw.productStockGroupActivity.create.mockRejectedValueOnce(new Error("audit unavailable"));
     expect((await update("pcs", { price: 3500 })).status).toBe(500);
-    expect(money("pcs")).toEqual([3000, 2000]); expect(money("pak")).toEqual([32400, 21000]); expect(config()).toBeNull(); expect(database.logs).toHaveLength(0);
+    expect(money("pcs")).toEqual([3000, 2000]); expect(money("pak")).toEqual([32400, 21000]); expect(config()).toEqual(initialConfig); expect(database.logs).toHaveLength(0);
   });
   it.each(["deactivate", "soft", "hard", "bulk"])("retains unavailable source and follower money for %s removal", async operation => {
     await update("pcs", { price: 3500 });
@@ -66,9 +77,9 @@ describe("automatic pricing through product writers", () => {
       if (database.locks.at(-1) === "product:pcs") database.products[0].price = "4000";
       return result;
     });
-    expect((await update("pcs", { price: 5000 })).status).toBe(200);
-    expect(money("pak")).toEqual([40500, 24000]);
-    expect(config().members.pak.factor).toEqual({ numerator: "27", denominator: "40" });
+    expect((await update("pcs", { costPrice: 2500 })).status).toBe(200);
+    expect(money("pak")).toEqual([43200, 30000]);
+    expect(config().members.pak.factor).toEqual({ numerator: "9", denominator: "10" });
   });
   it("retains a manually-created group for source and follower money edits", async () => {
     database.groups[0].groupKey = "manual:store-main:100";
@@ -145,40 +156,41 @@ describe("automatic pricing through product writers", () => {
     const response = await POST(request({ name: "New", sku: "NEW", categoryId: "cat", ...body }));
     expect(response.status).toBe(201);
     const source = database.products.find(p => p.unit === "pcs")!; const pack = database.products.find(p => p.unit === "pak")!;
-    expect(money(pack.id)).toEqual([36000, 24000]); expect(config(database.groups[0].id).sourceProductId).toBe(source.id);
+    expect(money(pack.id)).toEqual([99999, 9999]); expect(config(database.groups[0].id).sourceProductId).toBe(source.id);
+    expect(config(database.groups[0].id).members[pack.id].mode).toBe("MANUAL");
     expect(config(database.groups[0].id).members[pack.id].factor).toEqual({ numerator: "1", denominator: "1" });
-    expect(database.groups[0].baseStock).toBe(24); expect(Number((await response.json()).price)).toBe(packagingFirst ? 36000 : 3000);
+    expect(database.groups[0].baseStock).toBe(24); expect(Number((await response.json()).price)).toBe(packagingFirst ? 99999 : 3000);
     expect(database.logs.filter(l => l.productId === source.id && l.field === "PRICE")).toHaveLength(1);
   });
-  it("supports legacy packaging-first creation with factor one", async () => {
+  it("keeps legacy packaging-first money manual by default", async () => {
     database.products.splice(0); database.groups.splice(0);
     const response = await POST(request({ name: "New", sku: "NEW", categoryId: "cat", unit: "pak", price: 99999, costPrice: 9999, stock: 2, smallestUnitVariant: { unit: "pcs", sku: "NEW-PCS", price: 3000, costPrice: 2000, multiplierFromPackaging: 12 } }));
     expect(response.status).toBe(201); const pack = database.products.find(p => p.unit === "pak")!;
-    expect(money(pack.id)).toEqual([36000, 24000]); expect(Number((await response.json()).price)).toBe(36000); expect(database.groups[0].baseStock).toBe(24);
+    expect(money(pack.id)).toEqual([99999, 9999]); expect(Number((await response.json()).price)).toBe(99999); expect(database.groups[0].baseStock).toBe(24);
   });
   it.each([undefined, "MANUAL"])("returns effective pack money from rounded smallest-unit source with mode %s", async pricingMode => {
     const response = await POST(request({ name: "New", sku: "NEW", categoryId: "cat", unit: "pak", price: 3.33, costPrice: 2.22, pricingMode, smallestUnitVariant: { unit: "pcs", sku: "NEW-PCS", price: 0.28, costPrice: 0.19, multiplierFromPackaging: 12 } }));
     expect(response.status).toBe(201); const pack = database.products.find(p => p.sku === "NEW")!;
-    expect(money(pack.id)).toEqual(pricingMode === "MANUAL" ? [3.33, 2.22] : [3.36, 2.28]);
-    expect(Number((await response.json()).price)).toBe(pricingMode === "MANUAL" ? 3.33 : 3.36);
+    expect(money(pack.id)).toEqual([3.33, 2.22]);
+    expect(Number((await response.json()).price)).toBe(3.33);
   });
-  it("joins existing source at factor one without replacing stock", async () => {
+  it("joins an existing source in Manual mode without replacing stock", async () => {
     const response = await POST(request({ name: "Snowman", sku: "SN-DUS", categoryId: "cat", unit: "dus", unitMultiplierToBase: 120, price: 1, costPrice: 1, stock: 10 }));
     expect(response.status).toBe(201); const created = database.products.find(p => p.sku === "SN-DUS")!;
-    expect(money(created.id)).toEqual([360000, 240000]); expect(database.groups[0].baseStock).toBe(24);
+    expect(money(created.id)).toEqual([1, 1]); expect(config().members[created.id].mode).toBe("MANUAL"); expect(database.groups[0].baseStock).toBe(24);
   });
   it("synchronizes old and target groups on source movement", async () => {
     database.groups.push({ ...database.groups[0], id: "group-2", groupKey: "other|cat||", displayName: "Other", pricingConfig: null });
     database.products.push({ ...database.products[0], id: "other", stockGroupId: "group-2", name: "Other", sku: "OTHER", price: 5000, costPrice: 4000 });
     expect((await update("pcs", { name: "Other" })).status).toBe(200);
     expect(config().sourceProductId).toBe("pcs"); expect(config().members.pak.review.price).toContain("SOURCE_UNAVAILABLE");
-    expect(money("pcs")).toEqual([5000, 4000]); expect(config("group-2").sourceProductId).toBe("other");
+    expect(money("pcs")).toEqual([3000, 2000]); expect(config("group-2").members.pcs.mode).toBe("MANUAL"); expect(config("group-2").sourceProductId).toBe("other");
     expect(database.locks.slice(0, 5)).toEqual(["group:group-1", "group:group-2", "product:other", "product:pak", "product:pcs"]);
   });
-  it("creates a manual stock group with factor-one followers and synchronizes its old source group", async () => {
+  it("creates a stock group with Manual followers and synchronizes its old source group", async () => {
     database.products.push({ ...database.products[0], id: "dus", sku: "DUS", unit: "dus", stockGroupId: null, price: 1, costPrice: 1, unitMultiplierToBase: 120 });
     const response = await createGroup(request({ displayName: "Snowman baru", baseUnit: "pcs", sharedStock: 24, stockInput: { mode: "BASE" }, products: [{ productId: "pcs", unitMultiplierToBase: 1 }, { productId: "dus", unitMultiplierToBase: 120 }] }));
-    expect(response.status).toBe(201); const result = await response.json(); expect(money("dus")).toEqual([360000, 240000]);
+    expect(response.status).toBe(201); const result = await response.json(); expect(money("dus")).toEqual([1, 1]);
     expect(config(result.id).sourceProductId).toBe("pcs"); expect(config().members.pak.review.price).toContain("SOURCE_UNAVAILABLE");
   });
   it("merges into an existing group using its own source and retains old source review", async () => {
@@ -187,7 +199,7 @@ describe("automatic pricing through product writers", () => {
     database.products.push({ ...database.products[0], id: "other", stockGroupId: "group-2", unit: "lembar", name: "Other", sku: "OTHER", price: 5000, costPrice: 4000 });
     database.products.push({ ...database.products[1], id: "dus", unit: "dus", sku: "DUS", stockGroupId: null, price: 1, costPrice: 1, unitMultiplierToBase: 120 });
     const response = await appendGroup(request({ sharedStock: 24, stockInput: { mode: "BASE" }, products: [{ productId: "pcs", unitMultiplierToBase: 2 }, { productId: "dus", unitMultiplierToBase: 240 }] }), { params: Promise.resolve({ id: "group-2" }) });
-    expect(response.status).toBe(200); expect(money("pcs")).toEqual([10000, 8000]); expect(config().sourceProductId).toBe("pcs"); expect(config().members.pak.review.price).toContain("SOURCE_UNAVAILABLE"); expect(money("pak")).toEqual([32400, 21000]);
-    expect(database.logs.filter(log => log.productId === "pcs" && log.field === "PRICE")).toEqual([expect.objectContaining({ oldValue: "3000.00", newValue: "10000.00" })]);
+    expect(response.status).toBe(200); expect(money("pcs")).toEqual([3000, 2000]); expect(config("group-2").members.pcs.mode).toBe("MANUAL"); expect(config().sourceProductId).toBe("pcs"); expect(config().members.pak.review.price).toContain("SOURCE_UNAVAILABLE"); expect(money("pak")).toEqual([32400, 21000]);
+    expect(database.logs.filter(log => log.productId === "pcs" && log.field === "PRICE")).toEqual([]);
   });
 });

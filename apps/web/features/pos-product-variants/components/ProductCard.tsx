@@ -16,6 +16,7 @@ import { isSpecialCategoryPricing, type CategoryPricingRule, type CustomerType }
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
 import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
+import { useSpecialPricingSettings } from "@/features/customer-category-pricing/hooks/useSpecialPricingSettings";
 
 interface ProductCardProps {
   product: Product;
@@ -44,6 +45,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   roundingSettings,
 }) => {
   const { canPerform } = useRole();
+  const { data: specialPricingEnabled = false } = useSpecialPricingSettings();
   const canDeleteProducts = shouldShowDeleteAction("product", canPerform);
 
   const [selectedVariantId, setSelectedVariantId] = useState(
@@ -89,14 +91,14 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
     Number.isFinite(selectedMultiplier) && selectedMultiplier > 0
     ? `1 ${selectedVariant.unit} = ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 20 }).format(selectedMultiplier)} ${baseUnit}`
     : undefined;
-  const agenPrice = priceCatalogVariantForCustomer(product, catalogVariant, "AGEN", categoryPricingRules, roundingSettings);
-  const dinasPrice = priceCatalogVariantForCustomer(product, catalogVariant, "PEMERINTAH", categoryPricingRules, roundingSettings);
+  const agenPrice = priceCatalogVariantForCustomer(product, catalogVariant, "AGEN", categoryPricingRules, roundingSettings, specialPricingEnabled);
+  const dinasPrice = priceCatalogVariantForCustomer(product, catalogVariant, "PEMERINTAH", categoryPricingRules, roundingSettings, specialPricingEnabled);
   const hasSpecialAgenPrice = isSpecialCategoryPricing(agenPrice.appliedPricing);
   const hasSpecialDinasPrice = isSpecialCategoryPricing(dinasPrice.appliedPricing);
   const hargaAgen = agenPrice.unitPrice;
   const hargaDinas = dinasPrice.unitPrice;
   const description = product.description;
-  const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules, roundingSettings);
+  const priceVariant = (variantId: string) => priceCatalogVariantForCustomer(product, product.variants?.find(v => v.id === variantId), customerType, categoryPricingRules, roundingSettings, specialPricingEnabled);
   const selectedPrice = priceVariant(selectedVariant.id);
   const hasSpecialPrice = isSpecialCategoryPricing(selectedPrice.appliedPricing);
   const pricedVariants = orderedVariants.map(v => {

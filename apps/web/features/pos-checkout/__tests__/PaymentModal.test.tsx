@@ -7,12 +7,18 @@ import type { ProductCartItem } from "@/hooks/useCart";
 let roleMock = "OWNER";
 const useServerClockMock = vi.hoisted(() => vi.fn());
 const pricingRulesMock = vi.hoisted(() => vi.fn<() => unknown[]>(() => []));
+const pricingRulesErrorMock = vi.hoisted(() => vi.fn(() => false));
+const specialPricingEnabledMock = vi.hoisted(() => vi.fn(() => true));
 const roundingQueryMock = vi.hoisted(() => vi.fn(() => ({
   data: { enabled: true, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false,
 })));
 
 vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({
   usePriceRoundingSettings: roundingQueryMock,
+}));
+
+vi.mock("@/features/customer-category-pricing/hooks/useSpecialPricingSettings", () => ({
+  useSpecialPricingSettings: () => ({ data: specialPricingEnabledMock() }),
 }));
 
 vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({
@@ -58,7 +64,7 @@ vi.mock("@/hooks/useSalespersons", () => ({
 }));
 
 vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
-  useCustomerCategoryPricingRules: () => ({ data: pricingRulesMock(), isError: false }),
+  useCustomerCategoryPricingRules: () => ({ data: pricingRulesMock(), isError: pricingRulesErrorMock() }),
 }));
 
 vi.mock("@/features/pos-checkout/hooks/useCartCatalogPrices", () => ({
@@ -91,6 +97,8 @@ describe("PaymentModal custom invoice date", () => {
   });
   beforeEach(() => {
     pricingRulesMock.mockReturnValue([]);
+    pricingRulesErrorMock.mockReturnValue(false);
+    specialPricingEnabledMock.mockReturnValue(true);
     roundingQueryMock.mockReturnValue({ data: { enabled: true, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false });
     useServerClockMock.mockReturnValue({
       now: new Date("2026-10-05T20:24:41.000Z"),
@@ -98,6 +106,15 @@ describe("PaymentModal custom invoice date", () => {
       lastSyncedAt: Date.parse("2026-10-05T20:24:30.000Z"),
       isLoading: false,
     });
+  });
+
+  it("only reports a pricing-rule load failure when special pricing is enabled", () => {
+    pricingRulesErrorMock.mockReturnValue(true);
+    specialPricingEnabledMock.mockReturnValue(false);
+    const render = () => renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[]} subtotal={0} onConfirm={vi.fn()} />);
+    expect(render()).not.toContain("Aturan Harga Khusus gagal dimuat");
+    specialPricingEnabledMock.mockReturnValue(true);
+    expect(render()).toContain("Aturan Harga Khusus gagal dimuat");
   });
 
   it("uses the saved disabled rounding setting in payment totals", () => {

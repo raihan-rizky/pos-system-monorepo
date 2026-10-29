@@ -174,7 +174,7 @@ function calculate(input: GroupPricingInput, initializing: boolean): GroupPricin
     const result = storedMember(member);
     const previous = existing?.members[member.id];
     const config: GroupPricingMemberConfig = {
-      mode: previous?.mode ?? "AUTO",
+      mode: previous?.mode ?? (member.id === sourceProductId ? "AUTO" : "MANUAL"),
       factor: previous?.factor ? exactRatio(previous.factor.numerator, previous.factor.denominator) : null,
       review: result.review,
     };

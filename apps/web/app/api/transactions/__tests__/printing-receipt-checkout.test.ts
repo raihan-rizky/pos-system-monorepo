@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: vi.fn().mockResolvedValue({ enabled: false, increment: 500, threshold: 50 }) }));
+vi.mock("@/features/customer-category-pricing/server/special-pricing-settings", () => ({ getSpecialPricingEnabled: vi.fn().mockResolvedValue(false) }));
 
 const mocks = vi.hoisted(() => ({
   role: vi.fn(), permission: vi.fn(), receipt: vi.fn(), lock: vi.fn(), link: vi.fn(),
