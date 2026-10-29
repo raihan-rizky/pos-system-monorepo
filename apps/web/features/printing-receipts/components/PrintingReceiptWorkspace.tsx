@@ -307,7 +307,10 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
     </div>
     {stockLine && editable && <PrintingReceiptStockLinkModal key={stockLine.id} line={stockLine} onClose={() => setStockLineId(null)} onSave={stockLink => editor.update({ ...receipt!, document: { ...receipt!.document, lines: receipt!.document.lines.map(line => line.id === stockLine.id ? { ...line, stockLink } : line) } })} />}
     {paymentReceipt && <PaymentModal open onClose={() => { if (!busy) { setPaymentReceipt(null); setError(null); } }} items={paymentItems} subtotal={getPrintingReceiptTotals(paymentReceipt).subtotal} initialCustomerSelection={initialCustomer} onConfirm={data => void checkout(data)} isProcessing={busy} allowItemDiscounts={false} receiptInvoiceDate={paymentReceipt.document.date} draftError={error} />}
-    {previewReceipt && <PrintingReceiptModal open onClose={() => setPreviewReceipt(null)} receipt={previewReceipt} transaction={previewReceipt.transaction} />}
+    {previewReceipt && <PrintingReceiptModal open onClose={() => setPreviewReceipt(null)} onReceiptUpdated={saved => {
+      if (!isCurrentSession()) return;
+      setPreviewReceipt(saved); loadRecord(saved);
+    }} receipt={previewReceipt} transaction={previewReceipt.transaction} />}
     {processedEditReceipt && canEditProcessed && <ProcessedPrintingReceiptEditor key={processedEditReceipt.id} receipt={processedEditReceipt} onClose={() => setProcessedEditReceipt(null)} onSaved={savedProcessedEdit} />}
     <Modal open={Boolean(confirmAction)} onClose={() => { if (!busy) setConfirmAction(null); }} title={confirmAction === "delete" ? "Hapus draft nota?" : "Muat ulang versi tersimpan?"} size="sm">
       <p className="text-sm text-surface-600">{confirmAction === "delete" ? "Draft ini akan dihapus dari daftar nota. Nota yang sudah diproses tidak dapat dihapus di sini." : "Isian lokal yang belum tersimpan akan diganti dengan versi terbaru di server."}</p>

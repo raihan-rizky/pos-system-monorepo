@@ -6,10 +6,11 @@ import type { Transaction } from "@/hooks/useTransactions";
 import type { PrintingReceipt } from "../types";
 import { PrintingReceiptModal } from "./PrintingReceiptModal";
 
-export function PrintingReceiptTransactionModal({ open, onClose, transaction }: {
+export function PrintingReceiptTransactionModal({ open, onClose, transaction, startEditing = false }: {
   open: boolean;
   onClose: () => void;
   transaction: Transaction;
+  startEditing?: boolean;
 }) {
   const [receipt, setReceipt] = useState<PrintingReceipt | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +38,7 @@ export function PrintingReceiptTransactionModal({ open, onClose, transaction }: 
   }, [open, receiptId, transaction.id, attempt]);
 
   if (receipt) {
-    return <PrintingReceiptModal open={open} onClose={onClose} receipt={receipt} transaction={receipt.transaction ?? transaction} />;
+    return <PrintingReceiptModal open={open} onClose={onClose} onReceiptUpdated={setReceipt} receipt={receipt} transaction={receipt.transaction ?? transaction} startEditing={startEditing} />;
   }
   return <Modal open={open} onClose={onClose} title="Nota Percetakan" size="lg">
     {error ? <div role="alert" className="space-y-3">

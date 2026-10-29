@@ -73,6 +73,10 @@ const ReceiptModal = dynamic(
   () => import("@/components/ReceiptModal").then((module) => module.ReceiptModal),
   { ssr: false },
 );
+const PrintingReceiptTransactionModal = dynamic(
+  () => import("@/features/printing-receipts/components/PrintingReceiptTransactionModal").then((module) => module.PrintingReceiptTransactionModal),
+  { ssr: false },
+);
 const SuratJalanCreateModal = dynamic(
   () =>
     import(
@@ -1020,6 +1024,7 @@ export default function HistoryClientPage() {
   const { role, canPerform } = useRole();
   const isSalesRole = role === "SALES";
   const canUpdateTransactions = shouldShowUpdateAction("transaction", canPerform);
+  const canEditProcessedReceipt = canPerform("printing_receipt.processed", "update");
   const canApproveTransactions = shouldShowUpdateAction("transaction.approve", canPerform);
   const canRejectTransactions = shouldShowDeleteAction("transaction.approve", canPerform);
   const canDeleteTransactions = shouldShowDeleteAction("transaction", canPerform);
@@ -1029,6 +1034,8 @@ export default function HistoryClientPage() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [selectedSuratJalanTransactionId, setSelectedSuratJalanTransactionId] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingPrintingTransaction, setEditingPrintingTransaction] = useState<Transaction | null>(null);
+  const printingEditTrigger = React.useRef<HTMLButtonElement | null>(null);
   const [editingInvoiceDateTransaction, setEditingInvoiceDateTransaction] =
     useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
@@ -1584,6 +1591,11 @@ export default function HistoryClientPage() {
                                     Lihat Struk
                                   </Button>
                                 )}
+                                {!isBundled && canEditProcessedReceipt && tx.printingReceipt?.id && ["COMPLETED", "DP", "PENDING_APPROVAL"].includes(tx.status) && (
+                                  <Button variant="danger" onClick={(e) => { e.stopPropagation(); printingEditTrigger.current = e.currentTarget; setEditingPrintingTransaction(tx); }} className="!py-1.5 !px-3 text-sm h-auto whitespace-nowrap">
+                                    Edit nota diproses
+                                  </Button>
+                                )}
                                 {!isBundled && !isSalesRole && canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && (
                                   <Button
                                     variant="secondary"
@@ -1821,6 +1833,11 @@ export default function HistoryClientPage() {
                                 Lihat Struk
                               </Button>
                             )}
+                            {canEditProcessedReceipt && tx.printingReceipt?.id && ["COMPLETED", "DP", "PENDING_APPROVAL"].includes(tx.status) && (
+                              <Button variant="danger" onClick={(e) => { e.stopPropagation(); printingEditTrigger.current = e.currentTarget; setEditingPrintingTransaction(tx); }} className="flex-1 !py-2 !px-3 text-xs h-auto whitespace-nowrap">
+                                Edit nota diproses
+                              </Button>
+                            )}
                             {!isSalesRole && canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && (
                               <Button
                                 variant="secondary"
@@ -1931,6 +1948,12 @@ export default function HistoryClientPage() {
           onClose={() => setSelectedTransaction(null)}
           transaction={receiptTransaction}
         />
+      )}
+      {editingPrintingTransaction && canEditProcessedReceipt && (
+        <PrintingReceiptTransactionModal open startEditing transaction={editingPrintingTransaction} onClose={() => {
+          setEditingPrintingTransaction(null);
+          requestAnimationFrame(() => printingEditTrigger.current?.focus());
+        }} />
       )}
 
       {selectedSuratJalanTransactionId && (
