@@ -34,15 +34,13 @@ test("cashier can save a draft and open its quotation print dialog", async ({
   ).toBeVisible();
 });
 
-test("draft button is disabled when cart is empty (subtotal is 0)", async ({
+test("draft button is enabled when the cart contains a product", async ({
   appPage: page,
 }) => {
   await page.goto("/pos");
   await page.getByText("Kertas HVS A4").first().click();
   await page.getByRole("button", { name: /Bayar/ }).click();
 
-  // Apply a 100% discount so total = 0 (canSaveDraft requires total > 0)
-  // Open the discount mode dropdown — verify draft button still meets minimum target
   const draftButton = page.locator("#payment-save-draft");
   await expect(draftButton).toBeVisible();
   await expect(draftButton).toBeEnabled();

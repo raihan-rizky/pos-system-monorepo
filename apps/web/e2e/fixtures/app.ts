@@ -45,6 +45,7 @@ export async function mockApis(page: Page) {
   let currentStoreSettings = { ...storeSettings };
   let currentShiftSettings = { enabled: true };
   let currentPriceRoundingSettings = { enabled: true, increment: 500, threshold: 50 };
+  let currentSpecialPricingSettings = { enabled: false };
   let currentProductionActivity: Array<Record<string, unknown>> = [];
 
   await page.route("**/auth/v1/token**", async (route) => {
@@ -281,6 +282,11 @@ export async function mockApis(page: Page) {
     if (path === "/api/settings/price-rounding" && method === "PATCH") {
       currentPriceRoundingSettings = JSON.parse(request.postData() || "{}") as typeof currentPriceRoundingSettings;
       return json(route, currentPriceRoundingSettings);
+    }
+    if (path === "/api/settings/special-pricing" && method === "GET") return json(route, currentSpecialPricingSettings);
+    if (path === "/api/settings/special-pricing" && method === "PATCH") {
+      currentSpecialPricingSettings = JSON.parse(request.postData() || "{}") as typeof currentSpecialPricingSettings;
+      return json(route, currentSpecialPricingSettings);
     }
     if (path === "/api/settings/shift") {
       if (method === "PATCH") {

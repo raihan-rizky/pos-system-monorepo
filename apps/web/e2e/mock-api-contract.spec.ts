@@ -38,6 +38,30 @@ test("shift settings mock persists changes across refetches", async ({ page }) =
   }
 });
 
+test("mock Harga Khusus menyediakan nilai awal dan menyimpan perubahan", async ({ page }) => {
+  await mockApis(page);
+  const response = await page.goto("/api/settings/special-pricing");
+  expect(response!.status()).toBe(200);
+  expect(await response!.json()).toEqual({ enabled: false });
+
+  for (const enabled of [true, false]) {
+    const result = await page.evaluate(async (value) => {
+      const updated = await fetch("/api/settings/special-pricing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: value }),
+      });
+      const refetched = await fetch("/api/settings/special-pricing");
+      return {
+        status: updated.status,
+        updated: await updated.json(),
+        refetched: await refetched.json(),
+      };
+    }, enabled);
+    expect(result).toEqual({ status: 200, updated: { enabled }, refetched: { enabled } });
+  }
+});
+
 test("mock pembulatan menyediakan kebijakan valid dan menyimpan perubahan saat dimuat ulang", async ({ page }) => {
   await mockApis(page);
   const response = await page.goto("/api/settings/price-rounding");
