@@ -11,11 +11,14 @@ import type {
 } from "../types/shopping-request";
 import type { FinalizeShoppingRequestInput } from "../services/finalize-shopping-request";
 import type { GoodsPurchaseFulfillmentStatus } from "../../goods-purchases/types/goods-purchase";
+import type { ShoppingRequestPaymentMethod } from "../helpers/shopping-request-payment";
 
 export type ShoppingRequestListParams = {
   q?: string;
   status?: ShoppingRequestStatus;
   fulfillmentStatus?: GoodsPurchaseFulfillmentStatus;
+  paymentMethod?: ShoppingRequestPaymentMethod;
+  paymentDueDate?: string;
   supplierId?: string;
   page?: number;
   limit?: number;
@@ -40,6 +43,8 @@ export async function listShoppingRequests(
   if (params.q) searchParams.set("q", params.q);
   if (params.status) searchParams.set("status", params.status);
   if (params.fulfillmentStatus) searchParams.set("fulfillmentStatus", params.fulfillmentStatus);
+  if (params.paymentMethod) searchParams.set("paymentMethod", params.paymentMethod);
+  if (params.paymentDueDate) searchParams.set("paymentDueDate", params.paymentDueDate);
   if (params.supplierId) searchParams.set("supplierId", params.supplierId);
   if (params.page) searchParams.set("page", String(params.page));
   if (params.limit) searchParams.set("limit", String(params.limit));

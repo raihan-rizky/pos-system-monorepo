@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, Check, FileText, FolderInput, History, Layers, Package, ReceiptText } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, FileText, FolderInput, History, Layers, Package, ReceiptText, ShoppingBag } from "lucide-react";
 import type { ChangeVisual } from "../types";
 
 export function ChangeIllustration({ visual, compact = false }: { visual: ChangeVisual; compact?: boolean }) {
@@ -14,6 +14,7 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       "stock-groups": { Icon: Layers, title: "Satu grup, stok bersama.", detail: "Buat · Tinjau · Simpan" },
       changelog: { Icon: History, title: "Terus berkembang.", detail: "Lihat yang baru, langsung coba." },
       printing: { Icon: FileText, title: "Nota Percetakan langsung.", detail: "Pilih jenis · Isi nota · Bayar / DP" },
+      shopping: { Icon: ShoppingBag, title: "Pantau pembayaran belanja.", detail: "Metode pembayaran dan jatuh tempo" },
     };
     const preview = previews[visual];
     return <div className="relative flex min-h-36 items-center gap-4 bg-brand-50 px-5 pb-5 pt-9 sm:min-h-44 sm:px-7"><span className="absolute left-5 top-3 text-[11px] font-medium text-brand-800">Ilustrasi fitur</span><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white"><preview.Icon className="h-7 w-7 text-brand-600" aria-hidden="true" /></span><div><p className="text-base font-extrabold leading-tight tracking-tight text-brand-950 sm:text-xl">{preview.title}</p><p className="mt-2 text-xs text-brand-800">{preview.detail}</p></div></div>;
@@ -22,6 +23,16 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
   return (
     <div className="relative flex min-h-64 flex-col justify-center overflow-hidden bg-brand-50 px-5 py-9 sm:min-h-72 sm:px-9">
       <span className="absolute left-5 top-4 text-[11px] font-semibold text-brand-800">Ilustrasi fitur</span>
+      {visual === "shopping" && (
+        <div className={`mx-auto w-full max-w-sm ${panel}`}>
+          <div className="flex items-center gap-3"><ShoppingBag className={icon} aria-hidden="true" /><span className="text-sm font-bold">Daftar Belanja</span></div>
+          <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+            <div className="rounded-lg bg-brand-50 p-3"><p className="text-xs text-brand-800">Metode pembayaran</p><p className="mt-1 font-semibold text-brand-950">Transfer atau Giro</p></div>
+            <div className="rounded-lg bg-surface-50 p-3"><p className="text-xs text-surface-600">Filter tanggal</p><p className="mt-1 font-semibold text-surface-900">Jatuh tempo</p></div>
+          </div>
+          <p className="mt-4 text-xs text-surface-600">Lihat tanggal jatuh tempo pada kartu belanja.</p>
+        </div>
+      )}
       {visual === "printing" && (
         <div className="mx-auto w-full max-w-lg space-y-4">
           <div className="flex flex-wrap gap-2">{["SPANDUK", "PERCETAKAN", "PLAT", "STEMPEL", "PRINT"].map((label, index) => <span key={label} className={`rounded-lg px-2.5 py-2 text-[10px] font-bold ${index === 0 ? "bg-brand-600 text-white" : "border border-brand-200 bg-white text-brand-900"}`}>{label}</span>)}</div>

@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "shopping-payment-due-date-filter", date: "2026-11-01", revision: 1,
+    highlight: { title: "Jatuh tempo belanja", summary: "Temukan belanja berdasarkan metode pembayaran dan jatuh tempo." },
+    title: "Pantau jatuh tempo dari Daftar Belanja.",
+    summary: "Tanggal jatuh tempo yang tercatat tampil pada kartu belanja. Gunakan filter metode pembayaran dan tanggal untuk menemukan pembelian yang dibutuhkan.",
+    kind: "improvement", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "shopping",
+    steps: [
+      { title: "Buka daftar", detail: "Buka Supplier lalu pilih tab Daftar Belanja." },
+      { title: "Pilih filter", detail: "Pilih Transfer atau Giro; untuk Giro, isi tanggal jatuh tempo bila diperlukan." },
+      { title: "Periksa kartu", detail: "Lihat badge jatuh tempo pada kartu, atau pilih Hapus filter untuk menampilkan semua daftar." },
+    ],
+  },
+  {
     id: "special-pricing-multiple-units-and-setting", date: "2026-10-29", revision: 1,
     highlight: { title: "Satuan Harga Khusus", summary: "Pilih beberapa satuan dan atur pemakaian Harga Khusus untuk toko." },
     title: "Pilih beberapa satuan untuk Harga Khusus.",

@@ -1,5 +1,6 @@
 import { db, Prisma } from "@pos/db";
 import type { GoodsPurchaseFulfillmentStatus } from "../../goods-purchases/types/goods-purchase";
+import type { ShoppingRequestPaymentMethod } from "../helpers/shopping-request-payment";
 import type {
   ShoppingRequestDetail,
   ShoppingRequestItemRecord,
@@ -15,6 +16,8 @@ export type ShoppingRequestListFilters = {
   q?: string;
   status?: ShoppingRequestStatus;
   fulfillmentStatus?: GoodsPurchaseFulfillmentStatus;
+  paymentMethod?: ShoppingRequestPaymentMethod;
+  paymentDueDate?: string;
   supplierId?: string;
   skip: number;
   take: number;
@@ -56,9 +59,14 @@ export function buildShoppingRequestWhere(
   const where: Prisma.ShoppingRequestWhereInput = { storeId: filters.storeId };
   if (filters.status) where.status = filters.status;
   if (filters.supplierId) where.supplierId = filters.supplierId;
-  if (filters.fulfillmentStatus) {
+  if (filters.fulfillmentStatus || filters.paymentMethod || filters.paymentDueDate) {
     where.goodsPurchases = {
-      some: { status: "APPROVED", fulfillmentStatus: filters.fulfillmentStatus },
+      some: {
+        status: "APPROVED",
+        ...(filters.fulfillmentStatus ? { fulfillmentStatus: filters.fulfillmentStatus } : {}),
+        ...(filters.paymentMethod ? { paymentMethod: filters.paymentMethod } : {}),
+        ...(filters.paymentDueDate ? { paymentDueDate: new Date(`${filters.paymentDueDate}T00:00:00.000Z`) } : {}),
+      },
     };
   }
   if (filters.q) {

@@ -28,6 +28,7 @@ import { GoodsPurchaseApprovalModal } from "@/features/suppliers/goods-purchases
 import { GoodsPurchaseDetailModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseDetailModal";
 import { GoodsPurchaseRejectModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseRejectModal";
 import type { GoodsPurchaseFulfillmentStatus } from "../../goods-purchases/types/goods-purchase";
+import type { ShoppingRequestPaymentMethod } from "../helpers/shopping-request-payment";
 import type {
   ShoppingRequestDetail,
   ShoppingRequestKpiSummary,
@@ -86,6 +87,8 @@ export function ShoppingRequestList({
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [fulfillmentFilter, setFulfillmentFilter] = useState<GoodsPurchaseFulfillmentStatus | "">("");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<ShoppingRequestPaymentMethod | "">("");
+  const [paymentDueDateFilter, setPaymentDueDateFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [printTarget, setPrintTarget] = useState<ShoppingRequestDetail | null>(null);
   const [approveTarget, setApproveTarget] = useState<ShoppingRequestDetail | null>(null);
@@ -120,6 +123,8 @@ export function ShoppingRequestList({
     limit: 10,
     q: searchQuery.trim() || undefined,
     fulfillmentStatus: fulfillmentFilter || undefined,
+    paymentMethod: paymentMethodFilter || undefined,
+    paymentDueDate: paymentDueDateFilter || undefined,
     ...(statusFilter ? { status: statusFilter as "REQUESTED" | "APPROVED" | "CANCELLED" | "REJECTED" } : {}),
   });
   const summary = useShoppingRequestSummary();
@@ -176,6 +181,48 @@ export function ShoppingRequestList({
           <option value="PARTIALLY_RECEIVED">Diterima sebagian</option>
           <option value="RECEIVED">Sudah diterima</option>
         </select>
+        <select
+          aria-label="Metode pembayaran"
+          value={paymentMethodFilter}
+          onChange={(event) => {
+            setPaymentMethodFilter(event.target.value as ShoppingRequestPaymentMethod | "");
+            setPage(1);
+          }}
+          className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:w-auto"
+        >
+          <option value="">Semua metode pembayaran</option>
+          <option value="TRANSFER">Transfer</option>
+          <option value="GIRO">Giro</option>
+        </select>
+        <label className="flex w-full items-center gap-2 text-sm text-slate-600 sm:w-auto">
+          <span className="shrink-0">Jatuh tempo</span>
+          <input
+            type="date"
+            aria-label="Tanggal jatuh tempo"
+            value={paymentDueDateFilter}
+            onChange={(event) => {
+              setPaymentDueDateFilter(event.target.value);
+              setPage(1);
+            }}
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm sm:flex-none"
+          />
+        </label>
+        {(searchQuery || statusFilter || fulfillmentFilter || paymentMethodFilter || paymentDueDateFilter) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery("");
+              setStatusFilter("");
+              setFulfillmentFilter("");
+              setPaymentMethodFilter("");
+              setPaymentDueDateFilter("");
+              setPage(1);
+            }}
+            className="min-h-11 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
+          >
+            Hapus filter
+          </button>
+        )}
         <Button
           type="button"
           onClick={onCreateClick}
@@ -193,7 +240,9 @@ export function ShoppingRequestList({
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500">
-          Belum ada daftar belanja
+          {searchQuery || statusFilter || fulfillmentFilter || paymentMethodFilter || paymentDueDateFilter
+            ? "Tidak ada daftar belanja yang cocok dengan filter."
+            : "Belum ada daftar belanja"}
         </div>
       ) : (
         <div className="grid gap-3">
@@ -226,6 +275,11 @@ export function ShoppingRequestList({
                       {row.purchase?.status === "APPROVED" && row.purchase.paymentMethod && (
                         <span aria-label={`Metode pembayaran: ${row.purchase.paymentMethod === "GIRO" ? "Giro" : "Transfer"}`} className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-sky-800">
                           {row.purchase.paymentMethod === "GIRO" ? "Giro" : "Transfer"}
+                        </span>
+                      )}
+                      {row.purchase?.status === "APPROVED" && row.purchase.paymentDueDate && (
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-800">
+                          Jatuh tempo {row.purchase.paymentDueDate.split("-").reverse().join("/")}
                         </span>
                       )}
                     </div>

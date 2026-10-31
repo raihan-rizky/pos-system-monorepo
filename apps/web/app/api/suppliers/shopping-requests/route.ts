@@ -65,6 +65,14 @@ export async function GET(request: Request) {
       rawFulfillmentStatus === "RECEIVED"
         ? rawFulfillmentStatus
         : undefined;
+    const rawPaymentMethod = searchParams.get("paymentMethod");
+    const paymentMethod = rawPaymentMethod === "TRANSFER" || rawPaymentMethod === "GIRO"
+      ? rawPaymentMethod
+      : undefined;
+    const rawPaymentDueDate = searchParams.get("paymentDueDate");
+    const paymentDueDate = rawPaymentDueDate && z.iso.date().safeParse(rawPaymentDueDate).success
+      ? rawPaymentDueDate
+      : undefined;
 
     const result = await listShoppingRequestsPage({
       storeId: user.storeId,
@@ -72,6 +80,8 @@ export async function GET(request: Request) {
       status,
       supplierId,
       fulfillmentStatus,
+      paymentMethod,
+      paymentDueDate,
       skip,
       take: limit,
     });

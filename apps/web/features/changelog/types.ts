@@ -1,5 +1,5 @@
 export type ChangeKind = "feature" | "improvement" | "fix";
-export type ChangeVisual = "tax" | "categories" | "units" | "quotation" | "stock-groups" | "changelog" | "printing";
+export type ChangeVisual = "tax" | "categories" | "units" | "quotation" | "stock-groups" | "changelog" | "printing" | "shopping";
 
 export interface ChangeEntry {
   id: string;
