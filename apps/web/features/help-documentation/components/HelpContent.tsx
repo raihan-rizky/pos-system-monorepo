@@ -256,7 +256,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Catat semua biaya operasional toko di sini dan jangan lupa lampirkan foto struk belanjanya biar pembukuan rapi.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Menu Keuangan", description: "Dari sidebar kiri, buka menu 'Keuangan' (di bawah kategori Keuangan).", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Buka Menu Keuangan", description: "Dari sidebar kiri, buka menu 'Keuangan' (di bawah kategori Keuangan). Pada bagian Pengeluaran, pilih Filter kategori untuk menyaring daftar, atau Semua kategori untuk menampilkan semuanya. Jumlah dan grafik tetap mencakup seluruh bulan.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Tambah Pengeluaran", description: "Klik tombol 'Tambah Pengeluaran' di bagian atas. Isi nama pemohon, pilih kategori, jumlah nominal, dan deskripsi tambahan.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', lalu gunakan 'Putar kiri' atau 'Putar kanan' sampai orientasinya benar. Klik 'Unggah foto' untuk menyimpan hasilnya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
@@ -438,7 +438,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Catat semua pengeluaran operasional toko di sini dan jangan lupa lampirkan foto struk belanjanya biar pembukuan rapi.",
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Halaman Keuangan", description: "Buka menu 'Keuangan' di sidebar kiri. Klik tombol 'Tambah Pengeluaran' di bagian atas.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Buka Halaman Keuangan", description: "Buka menu 'Keuangan' di sidebar kiri. Pada bagian Pengeluaran, pilih Filter kategori untuk menyaring daftar, atau Semua kategori untuk menampilkan semuanya. Jumlah dan grafik tetap mencakup seluruh bulan. Untuk mencatat biaya, klik tombol 'Tambah Pengeluaran' di bagian atas.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Isi Data Pengeluaran", description: "Ketik nama pemohon, pilih kategori pengeluaran, masukkan jumlah nominal, dan keterangan pengeluaran.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', atur orientasi dengan 'Putar kiri' atau 'Putar kanan', lalu klik 'Unggah foto' untuk menyimpannya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Periksa pratinjau. Jika R2 gagal, gunakan input prnt.sc yang muncul, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },

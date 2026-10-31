@@ -423,6 +423,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Pilih gambar bukti", description: "Jika ada foto nota, klik Pilih gambar bukti untuk mengunggahnya ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul sebagai fallback." },
       { title: "Simpan pengeluaran", description: "Periksa pratinjau lampiran dan klik Simpan." },
       { title: "Kenali sumber pengeluaran", description: "Badge Manual menandai input dari form. Badge Pembelian Barang menandai entri otomatis baru yang tidak dapat diedit atau dihapus dari Keuangan. Badge Daftar Belanja (Legacy) hanya dipakai untuk data lama." },
+      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori di Filter kategori untuk menyaring daftar. Pilih Semua kategori untuk menampilkan semua pengeluaran bulan tersebut. Jumlah dan grafik tetap mencakup seluruh bulan." },
     ],
   }),
   workflow({

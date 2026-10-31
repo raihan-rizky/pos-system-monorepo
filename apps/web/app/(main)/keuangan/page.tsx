@@ -324,9 +324,10 @@ export default function KeuanganDashboardPage() {
                     <button
                       key={c.category}
                       type="button"
-                      onClick={() =>
-                        setFilterCategory((cur) => (cur === c.category ? null : c.category))
-                      }
+                      onClick={() => {
+                        setFilterCategory((cur) => (cur === c.category ? null : c.category));
+                        setPage(1);
+                      }}
                       title={`${CATEGORY_LABELS_ID[c.category]} — ${formatRupiah(c.total)}`}
                       style={{
                         width: `${c.pct}%`,
@@ -336,6 +337,7 @@ export default function KeuanganDashboardPage() {
                       }}
                       className="transition-opacity cursor-pointer hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
                       aria-label={`Filter ${CATEGORY_LABELS_ID[c.category]}`}
+                      aria-pressed={filterCategory === c.category}
                     />
                   ))}
                 </div>
@@ -349,7 +351,10 @@ export default function KeuanganDashboardPage() {
                   {filterCategory && (
                     <button
                       type="button"
-                      onClick={() => setFilterCategory(null)}
+                      onClick={() => {
+                        setFilterCategory(null);
+                        setPage(1);
+                      }}
                       className="text-brand-700 hover:text-brand-800 font-semibold cursor-pointer focus:outline-none focus-visible:underline"
                     >
                       Hapus filter
@@ -358,6 +363,28 @@ export default function KeuanganDashboardPage() {
                 </div>
               </>
             )}
+          </div>
+
+          <div className="px-3 sm:px-4 py-3 border-b border-surface-100">
+            <label htmlFor="expense-category-filter" className="block text-xs font-medium text-surface-700 mb-1">
+              Filter kategori
+            </label>
+            <select
+              id="expense-category-filter"
+              value={filterCategory ?? ""}
+              onChange={(event) => {
+                setFilterCategory((event.target.value || null) as ExpenseCategory | null);
+                setPage(1);
+              }}
+              className="min-h-12 w-full sm:max-w-xs rounded-lg border border-surface-300 bg-white px-3 text-base sm:text-sm text-surface-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+            >
+              <option value="">Semua kategori</option>
+              {EXPENSE_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {CATEGORY_LABELS_ID[category]}
+                </option>
+              ))}
+            </select>
           </div>
 
           {list.isLoading ? (
