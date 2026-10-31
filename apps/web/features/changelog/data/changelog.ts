@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "history-edit-product-price-discount-unit", date: "2026-11-01", revision: 1,
+    highlight: { title: "Atur produk di Riwayat", summary: "Ubah harga, diskon, dan satuan produk pada transaksi." },
+    title: "Atur harga dan satuan saat mengubah transaksi.",
+    summary: "Foto produk membantu mengenali barang. Ubah harga transaksi, diskon per baris, atau satuan lain dalam grup stok dan periksa total sebelum menyimpan.",
+    kind: "improvement", area: "Riwayat Transaksi", href: "/history", visual: "units",
+    steps: [
+      { title: "Buka transaksi", detail: "Di Riwayat, cari transaksi lalu pilih Ubah." },
+      { title: "Atur produk", detail: "Buka Harga, diskon & satuan pada produk, lalu pilih satuan atau isi harga dan diskon." },
+      { title: "Periksa dan simpan", detail: "Periksa total produk lalu klik Simpan untuk memperbarui transaksi." },
+    ],
+  },
+  {
     id: "shopping-payment-due-date-filter", date: "2026-11-01", revision: 1,
     highlight: { title: "Jatuh tempo belanja", summary: "Temukan belanja berdasarkan metode pembayaran dan jatuh tempo." },
     title: "Pantau jatuh tempo dari Daftar Belanja.",

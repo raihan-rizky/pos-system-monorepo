@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Banknote,
@@ -40,6 +41,7 @@ import {
   buildTransactionHistoryQuickDateRange,
   type TransactionHistoryQuickDateFilter,
 } from "@/features/transaction-history/helpers/date-range";
+import { invalidateTransactionViews } from "@/features/transaction-history/helpers/invalidate";
 import {
   useTransactionHistory,
   useTransaction,
@@ -202,6 +204,7 @@ function EditModal({
   onClose: () => void;
 }) {
   const updateTx = useUpdateTransaction();
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState<EditForm>({
     salesName: tx.salesName ?? "",
@@ -214,16 +217,26 @@ function EditModal({
   const [cartItems, setCartItems] = useState<CartEditorItem[]>(
     tx.items.map((i) => ({
       sourceItemId: i.id,
-      productId: i.productId || "",
+      productId: i.productId ?? null,
+      printingServiceId: i.printingServiceId ?? null,
       productName: i.productName,
       quantity: Number(i.quantity),
       unitPrice: Number(i.unitPrice),
-      originalUnitPrice: Number(i.originalUnitPrice || i.unitPrice),
-      appliedUnitPrice: Number(i.appliedUnitPrice || i.unitPrice),
+      originalUnitPrice: Number(i.originalUnitPrice ?? i.unitPrice),
+      appliedUnitPrice: Number(i.appliedUnitPrice ?? i.unitPrice),
       subtotal: Number(i.subtotal),
+      discount: Number(i.discount ?? 0),
+      discountMode: "RP",
+      discountValue: Number(i.discount ?? 0),
+      unit: i.product?.unit ?? i.printingService?.unit ?? i.rawMaterialUnit ?? "pcs",
+      imageUrl: i.product?.imageUrl,
+      categoryName: i.product?.category?.name,
+      size: i.size,
+      material: i.material,
     }))
   );
   const [isUpdatingItems, setIsUpdatingItems] = useState(false);
+  const [itemsSavedWithoutDetails, setItemsSavedWithoutDetails] = useState(false);
 
   const [salespersons, setSalespersons] = useState<{ id: string; name: string }[]>([]);
 
@@ -246,6 +259,7 @@ function EditModal({
   const handleSave = async () => {
     setError("");
     setIsUpdatingItems(true);
+    let itemsSaved = false;
     try {
       const itemsRes = await fetch(`/api/transactions/${tx.id}/items`, {
         method: "PATCH",
@@ -256,14 +270,17 @@ function EditModal({
         const errData = await itemsRes.json();
         throw new Error(errData.message || "Gagal menyimpan produk");
       }
+      itemsSaved = true;
 
       const payload: Parameters<typeof updateTx.mutateAsync>[0] = {
         id: tx.id,
         salesName: form.salesName,
         salespersonId: form.salespersonId,
         customerName: form.customerName,
-        paymentMethod: form.paymentMethod,
       };
+      if (form.paymentMethod !== tx.paymentMethod) {
+        payload.paymentMethod = form.paymentMethod;
+      }
       // Only include status when it actually changed
       if (form.status !== tx.status) {
         payload.status = form.status;
@@ -271,7 +288,14 @@ function EditModal({
       await updateTx.mutateAsync(payload);
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
+      const message = err instanceof Error ? err.message : "Gagal menyimpan perubahan";
+      if (itemsSaved) {
+        invalidateTransactionViews(queryClient);
+        setItemsSavedWithoutDetails(true);
+        setError(`Produk sudah disimpan, tetapi rincian transaksi belum tersimpan: ${message}. Tutup dan buka kembali transaksi sebelum mencoba lagi.`);
+      } else {
+        setError(message);
+      }
     } finally {
       setIsUpdatingItems(false);
     }
@@ -397,9 +421,15 @@ function EditModal({
           </div>
 
           <div className="pt-2 border-t border-surface-100">
+            {(tx.status === "PENDING_APPROVAL" || tx.status === "DRAFT") && (
+              <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Harga produk dihitung ulang saat persetujuan, sehingga harga yang diubah di sini bisa berubah. Periksa harga dan total sebelum menyetujui.
+              </p>
+            )}
             <TransactionCartEditor
               items={cartItems}
               onChange={setCartItems}
+              editableDetails
             />
           </div>
 
@@ -421,7 +451,7 @@ function EditModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={updateTx.isPending || isUpdatingItems}
+            disabled={updateTx.isPending || isUpdatingItems || itemsSavedWithoutDetails}
             className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold
               hover:bg-brand-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >

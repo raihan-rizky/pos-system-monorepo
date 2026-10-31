@@ -7,6 +7,9 @@ import { PriceRoundingBadge } from "@/features/product-price-rounding/components
 import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
 import { DEFAULT_PRICE_ROUNDING_SETTINGS, roundSellingPrice, type PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 import { formatRupiah } from "@/lib/utils";
+import Image from "next/image";
+import { getDefaultProductImage } from "@/lib/utils";
+import { TransactionItemSettings, updateEditableLine } from "./TransactionItemSettings";
 
 export type CartEditorItem = {
   priceIntent?: "AUTOMATIC" | "MANUAL";
@@ -26,6 +29,11 @@ export type CartEditorItem = {
   size?: string | null;
   material?: string | null;
   unit?: string | null;
+  imageUrl?: string | null;
+  categoryName?: string | null;
+  discount?: number;
+  discountMode?: "RP" | "PERCENT";
+  discountValue?: number;
 };
 
 export type ApprovalPriceDetails = {
@@ -47,11 +55,13 @@ export function TransactionCartEditor({
   onChange,
   readOnly,
   priceDetails,
+  editableDetails = false,
 }: {
   items: CartEditorItem[];
   onChange: (items: CartEditorItem[]) => void;
   readOnly?: boolean;
   priceDetails?: ApprovalPriceDetails[];
+  editableDetails?: boolean;
 }) {
   const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
   const [search, setSearch] = useState("");
@@ -75,6 +85,10 @@ export function TransactionCartEditor({
         originalUnitPrice: Number(p.price),
         appliedUnitPrice: rounding.roundedPrice,
         subtotal: rounding.roundedPrice,
+        unit: p.unit,
+        imageUrl: p.imageUrl,
+        categoryName: p.category?.name,
+        discount: 0,
       };
       onChange([...items, newItem]);
     }
@@ -83,11 +97,12 @@ export function TransactionCartEditor({
 
   const handleUpdateQuantity = (index: number, newQty: number) => {
     if (newQty < 1) return;
-    const newItems = [...items];
-    const item = newItems[index];
-    item.quantity = newQty;
-    item.subtotal = Number(item.appliedUnitPrice) * newQty;
-    onChange(newItems);
+    onChange(items.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      return editableDetails
+        ? updateEditableLine(item, { quantity: newQty })
+        : { ...item, quantity: newQty, subtotal: Number(item.appliedUnitPrice) * newQty };
+    }));
   };
 
   const handleRemoveItem = (index: number) => {
@@ -128,9 +143,12 @@ export function TransactionCartEditor({
                     className="w-full text-left px-3 py-2 hover:bg-surface-50 flex items-center justify-between border-b border-surface-50 last:border-0 transition-colors"
                     onClick={() => handleAddProduct(p)}
                   >
-                    <div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      {editableDetails && <Image src={p.imageUrl || getDefaultProductImage(p.category?.name)} alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-lg object-cover" />}
+                      <div className="min-w-0">
                       <div className="text-sm font-medium text-surface-900">{p.name}</div>
                       <div className="text-xs text-surface-500">{p.sku}</div>
+                      </div>
                     </div>
                     <div className="text-sm font-semibold text-brand-600">
                       {formatRupiah(roundSellingPrice(Number(p.price), roundingSettings).roundedPrice)}
@@ -147,7 +165,7 @@ export function TransactionCartEditor({
         </div>
       )}
 
-      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+        <div className={`space-y-2 ${editableDetails ? "" : "max-h-48 overflow-y-auto pr-1"}`}>
         {items.length === 0 ? (
           <div className="text-center py-4 text-surface-400 text-sm bg-surface-50 rounded-xl border border-surface-100 border-dashed">
             Belum ada produk
@@ -155,10 +173,11 @@ export function TransactionCartEditor({
         ) : (
           items.map((item, index) => (
             <div
-              key={`${item.productId ?? item.printingServiceId ?? item.productName}-${index}`}
+              key={`${item.sourceItemId ?? item.productId ?? item.printingServiceId ?? item.productName}-${index}`}
               className="p-3 rounded-xl border border-surface-100 bg-white shadow-sm"
             >
               <div className="flex items-center justify-between gap-3">
+                {editableDetails && <Image src={item.imageUrl || getDefaultProductImage(item.categoryName)} alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-lg object-cover" />}
                 <div className="flex-1 min-w-0 pr-1">
                   <div className="text-sm font-semibold text-surface-900 truncate">
                     {item.productName}
@@ -213,6 +232,14 @@ export function TransactionCartEditor({
                 </div>
               </div>
 
+              {editableDetails && !readOnly && (
+                <TransactionItemSettings
+                  item={item}
+                  onChange={(updated) => onChange(items.map((entry, itemIndex) => itemIndex === index ? updated : entry))}
+                  roundingSettings={roundingSettings}
+                />
+              )}
+
               {priceDetails?.[index] && (
                 <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-surface-100 pt-2 text-[11px]">
                   <PriceFact label="Modal" value={priceDetails[index].modal} />
@@ -229,6 +256,9 @@ export function TransactionCartEditor({
                   {formatRupiah(priceDetails?.[index]?.subtotal ?? item.subtotal)}
                 </span>
               </div>
+              {editableDetails && Number(item.discount ?? 0) > 0 && (
+                <div className="mt-1 text-xs text-emerald-700">Diskon item −{formatRupiah(Number(item.discount))}</div>
+              )}
             </div>
           ))
         )}
