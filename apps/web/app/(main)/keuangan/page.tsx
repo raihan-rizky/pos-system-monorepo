@@ -26,6 +26,7 @@ import {
 } from "@/features/keuangan/helpers/category-meta";
 import type { ExpenseFormInitial } from "@/features/keuangan/components/ExpenseFormModal";
 import { DeferredCashFlowChart } from "@/features/keuangan/components/DeferredCashFlowChart";
+import { SupplierPayablesPanel } from "@/features/keuangan/components/SupplierPayablesPanel";
 import { formatRupiah } from "@/lib/utils";
 
 const ExpenseFormModal = dynamic(
@@ -204,6 +205,8 @@ export default function KeuanganDashboardPage() {
           )}
         </div>
       </section>
+
+      {canPerform("expense", "read") && <SupplierPayablesPanel canCreate={canCreate} canUpdate={canEdit} />}
 
       {/* ───────── Bidirectional Daily Flow ───────── */}
       <section className="rounded-2xl border border-surface-200 bg-white p-3 sm:p-4 md:p-5 shadow-sm">

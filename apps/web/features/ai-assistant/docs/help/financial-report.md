@@ -39,13 +39,13 @@ Sistem akan memunculkan peringatan jika:
 
 ## Ekspor Laporan Keuangan
 
-### Excel bulanan tujuh sheet
+### Excel bulanan delapan sheet
 
-Klik **Ekspor** di halaman Laporan Keuangan. Pilihan awal **Laporan bulanan · Excel 7 sheet** menyediakan pilihan bulan dan tahun, termasuk bulan lampau. Periode menggunakan WIB; bulan berjalan memuat data sampai hari ini dan bulan mendatang belum dapat dipilih.
+Klik **Ekspor** di halaman Laporan Keuangan. Pilihan awal **Laporan bulanan · Excel 8 sheet** menyediakan pilihan bulan dan tahun, termasuk bulan lampau. Periode menggunakan WIB; bulan berjalan memuat data sampai hari ini dan bulan mendatang belum dapat dipilih.
 
-Klik **Unduh Excel** untuk mendapatkan **LAP KEU**, **BERSIH**, **nama bulan**, **RC nama bulan**, **RP nama bulan**, **PENGELUARAN BELANJA**, dan **PIUTANG & HUTANG**. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan, tetapi biaya gaji yang tercatat tetap masuk pengeluaran.
+Klik **Unduh Excel** untuk mendapatkan **LAP KEU**, **BERSIH**, **nama bulan**, **RC nama bulan**, **RP nama bulan**, **PENGELUARAN BELANJA**, **PIUTANG & HUTANG**, dan **PANDUAN**. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan, tetapi biaya gaji yang tercatat tetap masuk pengeluaran.
 
-Isi **modal awal** sendiri di sel kuning **D8** pada LAP KEU. Rumus memperbarui hasil yang bergantung pada modal awal. Persediaan akhir dan hutang pemasok yang belum punya sumber historis lengkap tetap kosong dengan catatan; sel kosong bukan nol. Ringkasan kekayaan menunggu input lengkap.
+**Modal awal** memakai nilai inventaris akhir bulan sebelumnya, dan **stok akhir** memakai nilai inventaris akhir periode. Nilai inventaris menghitung stok positif dikali harga jual; stok negatif tidak mengurangi total. Riwayat sebelum pencatatan tersedia tetap kosong, bukan nol. Hutang berasal dari catatan di halaman Keuangan dan berkurang sesuai tanggal pembayaran. Jumlah harta = modal awal + piutang − hutang − stok akhir.
 
 Penerimaan dan pengeluaran memakai basis kas. Piutang mencakup saldo invoice dan piutang manual pada akhir periode; rincian belanja sudah masuk pengeluaran dan tidak dijumlahkan dua kali. Penerimaan yang belum dikenali kategorinya ditampilkan sebagai **Perlu pemetaan** dan tetap dihitung pada total. Biaya belum lengkap serta keterbatasan riwayat perubahan nominal diberi catatan dalam file.
 

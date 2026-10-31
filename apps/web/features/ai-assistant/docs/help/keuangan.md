@@ -11,6 +11,7 @@ Buka sidebar **Keuangan > Keuangan** (`/keuangan`) untuk memantau arus kas bulan
 - **Sumber Pengeluaran:** Badge **Manual** menandai entri dari form. Badge **Pembelian Barang** menandai entri otomatis baru, sedangkan **Daftar Belanja (Legacy)** hanya untuk data lama.
 - **Pengeluaran Otomatis:** Nominal memakai jumlah dan harga terbaru yang disetujui pada Pembelian Barang, berkategori Bahan, dan tercatat saat approval final. Entri ini tidak dapat diedit, dihapus, atau diubah lampirannya dari halaman Keuangan.
 - **Update HPP:** Jika harga terbaru berbeda dari HPP master, pilihan update HPP diputuskan per produk. Snapshot nilai pengeluaran tetap memakai data final Pembelian Barang.
+- **Hutang Pemasok:** Catat pemasok, nominal, dan tanggal lewat **Tambahkan Hutang**. Pembayaran awal opsional; pilih **Catat pembayaran** untuk pembayaran sebagian atau pelunasan. Pembayaran hutang tidak otomatis menjadi pengeluaran. Saldo yang dicatat masuk laporan bulanan sesuai tanggal.
 
 ## Mengelola Pengeluaran & Bukti Transaksi
 - **Pencatatan Pengeluaran:** Catat nominal, pilih kategori, dan masukkan pengeluaran operasional toko. Langkah selengkapnya dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q18-bagaimana-cara-mencatat-pengeluaran-operasional-toko).

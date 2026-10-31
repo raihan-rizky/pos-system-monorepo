@@ -6,7 +6,7 @@ import { FAQ_WORKFLOWS } from "../workflow-catalog";
 describe("FAQ workflow catalog", () => {
   it("mempertahankan urutan nomor FAQ saat panduan pembulatan ditambahkan", () => {
     expect(FAQ_WORKFLOWS.map(workflow => workflow.faqNumber)).toEqual(
-      Array.from({ length: 43 }, (_, index) => index + 1),
+      Array.from({ length: 44 }, (_, index) => index + 1),
     );
   });
 
@@ -98,9 +98,9 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(43);
+    expect(FAQ_WORKFLOWS).toHaveLength(44);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 43 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 44 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);

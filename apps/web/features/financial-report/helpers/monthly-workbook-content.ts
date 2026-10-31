@@ -41,7 +41,7 @@ export function colorMonthlyWorkbookContent(workbook: WorkBook, layout: ContentL
   const [overview, net, daily, rc, rp, purchases, balances] = workbook.SheetNames.map(name => workbook.Sheets[name]);
   const resultColor = Number(overview.G29.v) < 0 ? danger : success;
 
-  paint(overview, 8, 2, 8, 4, input);
+  paint(overview, 8, 2, 8, 4, brandDeep);
   paint(overview, 9, 2, 9, 4, success);
   paint(overview, 11, 3, 11, 6, brand);
   paint(overview, 13, 2, 13, 4, danger);
@@ -137,6 +137,6 @@ export function colorMonthlyWorkbookContent(workbook: WorkBook, layout: ContentL
   paint(balances, layout.balanceTotal, 1, layout.balanceTotal, 7, success, true);
   paint(balances, layout.debtRow - 2, 1, layout.debtRow - 2, 7, danger, true);
   paint(balances, layout.debtRow - 1, 1, layout.debtRow - 1, 7, danger, true);
-  paint(balances, layout.debtRow, 1, layout.debtRow, 7, danger);
+  paint(balances, layout.debtRow, 1, layout.debtTotal - 2, 7, danger);
   paint(balances, layout.debtTotal, 1, layout.debtTotal, 7, danger);
 }

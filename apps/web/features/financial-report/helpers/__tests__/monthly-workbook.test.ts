@@ -42,13 +42,13 @@ describe("monthly workbook", () => {
     expect(wb.SheetNames.join(" ")).not.toMatch(/NON TELADAN|GAJI/);
   });
 
-  it("keeps capital editable and incomplete balances blank while guarding dependent formulas", () => {
+  it("keeps unavailable balances blank while guarding dependent formulas", () => {
     const ws = buildMonthlyWorkbook(report()).Sheets["LAP KEU"];
     expect(ws.D8.v).toBe("");
     expect(ws.D8.f).toBeUndefined();
-    expect(ws.D8.c?.[0].t).toContain("Isi modal awal");
+    expect(ws.D8.c?.[0].t).toMatch(/belum tersedia/i);
     expect(ws.D17.v).toBe("");
-    expect(ws.D17.c?.[0].t).toContain("Belum tersedia");
+    expect(ws.D17.c?.[0].t).toMatch(/belum tersedia/i);
     expect(ws.F11.f).toContain("ISNUMBER(D8)");
     expect(ws.F11.v).toBe("");
     expect(ws.G21.v).toBe("");
@@ -204,7 +204,7 @@ describe("monthly workbook", () => {
     expect(wb.Sheets["RP SEPTEMBER"].F7.v).toBe(30.1);
     expect(wb.Sheets["PENGELUARAN BELANJA"].A7.v).toBe("VIA GIRO");
     expect(wb.Sheets["LAP KEU"].D8.v).toBe("");
-    expect(wb.Sheets["LAP KEU"].D8.s.fill.fgColor.rgb).toBe("FEF3C7");
+    expect(wb.Sheets["LAP KEU"].D8.s.fill.fgColor.rgb).not.toBe("FEF3C7");
   });
 
   it("summarizes actual cash, mapping, salary, purchases and unavailable debt in existing spaces", () => {

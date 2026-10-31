@@ -43,27 +43,27 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
 
   const link = (name: string, cell: string) => `#'${name.replace(/'/g, "''")}'!${cell}`;
   block("A2:L3", "CARA PAKAI LAPORAN INI", brand, { solid: true, size: 18 });
-  block("A4:L4", `${period} • Baca panduannya di sini. Isi angkanya lewat link di bawah.`, surface, { size: 11 });
+  block("A4:L4", `${period} • Baca panduan dan buka bagian laporan lewat tautan di bawah.`, surface, { size: 11 });
   block("A6:L6", "01  Mulai dari sini", brand, { solid: true, size: 13 });
   block("A8:D8", "1. Cek bulan & tahun", brandDeep, { solid: true });
   block("A9:D11", "Cek dulu bulan dan tahunnya. Data dari aplikasi sudah masuk ke file saat diunduh.", brand);
-  block("E8:H8", "2. Isi tiga angka ini", input, { solid: true });
-  block("E9:H11", "Klik link kuning di bawah untuk isi modal awal, nilai stok akhir, dan total hutang.", input);
+  block("E8:H8", "2. Periksa saldo", input, { solid: true });
+  block("E9:H11", "Modal awal, stok akhir, dan hutang diambil otomatis dari data yang tersedia.", input);
   block("I8:L8", "3. Lihat hasilnya", success, { solid: true });
-  block("I9:L11", "Setelah diisi, Excel otomatis menghitung hasilnya. Cek BERSIH dan LAP KEU, lalu simpan.", success);
-  block("A13:L13", "Biru = alur angka • Kuning = yang perlu diisi • Hijau = hasil hitungan • Oranye = catatan", surface, { size: 11, center: true });
+  block("I9:L11", "Cek BERSIH dan LAP KEU untuk melihat hasil perhitungan, lalu simpan.", success);
+  block("A13:L13", "Biru = alur angka • Hijau = hasil hitungan • Oranye = catatan", surface, { size: 11, center: true });
 
-  block("A15:L15", "02  Tiga angka yang perlu kamu isi", brand, { solid: true, size: 13 });
+  block("A15:L15", "02  Sumber saldo otomatis", brand, { solid: true, size: 13 });
   block("A17:D17", "Modal awal", input, { solid: true });
   block("E17:H17", "Nilai stok akhir", input, { solid: true });
   block("I17:L17", "Hutang ke pemasok", input, { solid: true });
-  block("A18:D20", "Isi modal awal sesuai catatanmu. Angkanya sengaja dikosongkan supaya bisa kamu isi sendiri.", input);
-  block("E18:H20", "Isi nilai stok yang masih ada di tanggal akhir laporan, dalam rupiah. Bukan jumlah barang, ya.", input);
-  block("I18:L20", "Isi total hutang yang belum dibayar ke pemasok pada tanggal akhir laporan. Cukup isi totalnya di satu sel.", input);
-  block("A21:D22", "→ Isi modal awal (D8)", input, { center: true, target: link("LAP KEU", "D8") });
-  block("E21:H22", "→ Isi nilai stok (D17)", input, { center: true, target: link("LAP KEU", "D17") });
-  block("I21:L22", `→ Isi hutang (D${debtRow})`, input, { center: true, target: link("PIUTANG & HUTANG", `D${debtRow}`) });
-  block("A24:L25", "Kosong itu belum diisi, bukan berarti 0. Isi 0 kalau nilainya memang nol. Jumlah harta dan kekayaan bersih baru muncul setelah tiga angka di atas diisi.", accent);
+  block("A18:D20", "Diambil dari nilai inventaris akhir bulan sebelumnya bila riwayat tersedia.", input);
+  block("E18:H20", "Diambil dari nilai inventaris akhir periode. Stok negatif tidak dihitung.", input);
+  block("I18:L20", "Diambil dari sisa hutang pemasok yang dicatat di halaman Keuangan hingga akhir periode.", input);
+  block("A21:D22", "→ Lihat modal awal (D8)", input, { center: true, target: link("LAP KEU", "D8") });
+  block("E21:H22", "→ Lihat nilai stok (D17)", input, { center: true, target: link("LAP KEU", "D17") });
+  block("I21:L22", `→ Lihat hutang (D${debtRow})`, input, { center: true, target: link("PIUTANG & HUTANG", `D${debtRow}`) });
+  block("A24:L25", "Saldo inventaris historis yang belum tersedia dibiarkan kosong, bukan nol. Jumlah harta menunggu data lengkap.", accent);
 
   block("A27:L27", "03  Angka-angkanya dari mana?", brand, { solid: true, size: 13 });
   block("A29:D29", "RC = UANG MASUK", success, { solid: true, target: link(`RC ${monthName}`, "A7") });
@@ -79,7 +79,7 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("G34:I36", "BERSIH", success, { solid: true, center: true, target: link("BERSIH", "F27") });
   block("J34:J36", "→", surface, { size: 22, center: true });
   block("K34:L36", "LAP KEU", brand, { solid: true, center: true, target: link("LAP KEU", "G29") });
-  block("A38:L39", "Ada perubahan di aplikasi? Unduh ulang laporannya. Kalau mengubah angka isian di Excel, rumusnya ikut menghitung ulang. Biarkan sel yang berisi rumus tetap seperti semula.", accent);
+  block("A38:L39", "Ada perubahan di aplikasi? Unduh ulang laporannya agar saldo dan rincian kembali sesuai data terbaru.", accent);
 
   block("A41:L41", "04  Begini cara hitungnya", brand, { solid: true, size: 13 });
   block("A42:L42", "CONTOH SAJA • Angka di bawah bukan angka dari laporanmu.", surface, { size: 11 });
@@ -89,7 +89,7 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("A44:D46", "Rp10.000.000", success, { size: 20, center: true });
   block("E44:H46", "Rp7.000.000", accent, { size: 20, center: true });
   block("I44:L46", "Rp3.000.000", brand, { size: 20, center: true });
-  block("A48:L49", "Jumlah harta = modal awal + piutang − hutang + nilai stok akhir (persediaan)", brand);
+  block("A48:L49", "Jumlah harta = modal awal + piutang − hutang − nilai stok akhir (persediaan)", brand);
   block("A50:L51", "Kekayaan bersih = jumlah harta + sisa kas", success, { target: link("LAP KEU", "D32") });
   block("A52:L52", "Yang dihitung: uang yang sudah masuk dan keluar. Tagihan yang belum dibayar belum jadi uang masuk.", surface, { size: 11 });
 
@@ -97,7 +97,7 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("A56:F58", "Belanja sudah masuk hitungan\nTab PENGELUARAN BELANJA cuma merinci belanjanya. Totalnya sudah ada di RP, jadi tidak perlu ditambah lagi.", accent);
   block("G56:L58", "Belum ada kategori? Tetap dihitung\nAngka di bagian Perlu pemetaan sudah masuk total. Cek kategorinya di aplikasi, lalu unduh ulang kalau ada perubahan.", accent);
   block("A60:F62", "Gaji juga sudah dihitung\nGaji/mingguan yang tercatat sudah masuk RP dan rekap. Jadi tidak perlu dihitung lagi, meski tidak ada tab gaji.", brand);
-  block("G60:L62", "Bayar pakai giro belum tentu hutang\nJangan pakai total giro sebagai saldo hutang. Isi hutang sesuai catatan tagihan yang memang belum dibayar.", accent);
-  block("A64:L66", "Sudah siap disimpan?\nCek bulan, tiga angka isian, dan rumusnya. Hasil positif berarti ada sisa uang; hasil negatif berarti pengeluaran lebih besar. Kalau unduh ulang dari aplikasi, isi lagi tiga angka manual tadi.", success);
+  block("G60:L62", "Bayar pakai giro belum tentu hutang\nSaldo hutang berasal dari catatan hutang di Keuangan, bukan otomatis dari total giro.", accent);
+  block("A64:L66", "Sudah siap disimpan?\nCek bulan, saldo yang tersedia, dan hasilnya. Hasil positif berarti ada sisa uang; hasil negatif berarti pengeluaran lebih besar.", success);
   return sheet;
 }

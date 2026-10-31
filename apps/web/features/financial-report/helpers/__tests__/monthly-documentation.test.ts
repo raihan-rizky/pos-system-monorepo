@@ -17,23 +17,25 @@ describe("monthly financial export user guidance", () => {
     expect(existsSync(path.join(process.cwd(), "public", entry!.screenshot!.src))).toBe(true);
   });
 
-  it("teaches month selection and manual capital without claiming monthly templates from chat", () => {
+  it("explains automatic capital and month selection without claiming monthly templates from chat", () => {
     const workflow = FAQ_WORKFLOWS.find(item => item.id === "faq-q21-export-financial-report");
     const content = JSON.stringify(workflow?.steps);
     expect(content).toContain("bulan dan tahun");
-    expect(content).toContain("modal awal");
+    expect(content).toMatch(/modal awal/i);
+    expect(content).toContain("nilai inventaris");
     expect(content).toContain("Jurnal transaksi");
     const faq = readFileSync(path.join(process.cwd(), "features/ai-assistant/docs/help/faq.md"), "utf8");
     const exportFaq = faq.slice(faq.indexOf("### Q21:"), faq.indexOf("### Q22:"));
     expect(exportFaq).toContain("bulan dan tahun");
-    expect(exportFaq).toContain("modal awal");
+    expect(exportFaq).toMatch(/modal awal/i);
+    expect(exportFaq).not.toContain("isi **modal awal**");
     expect(exportFaq).toContain("Jurnal transaksi");
     expect(exportFaq).toContain("delapan sheet");
     for (const role of ["OWNER", "ADMIN"]) {
       const guide = HELP_ROLE_CONTENT[role].find(item => item.id === `${role.toLowerCase()}-export-reports`)!;
       const guideText = JSON.stringify(guide.steps);
       expect(guideText).toContain("bulan dan tahun");
-      expect(guideText).toContain("modal awal");
+      expect(guideText).toMatch(/modal awal/i);
       expect(guideText).toContain("Jurnal transaksi");
       for (const step of guide.steps) {
         expect(step.visual?.page).toBe("finance");

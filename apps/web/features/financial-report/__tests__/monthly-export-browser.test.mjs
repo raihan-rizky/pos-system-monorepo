@@ -68,8 +68,8 @@ try {
     await page.getByLabel("Bulan", { exact: true }).selectOption("9");
     await expect(dialog.getByText("1–30 September 2026", { exact: true })).toBeVisible();
     assert.equal(await page.getByRole("list", { name: "Delapan sheet Excel" }).getByRole("listitem").count(), 8);
-    await expect(dialog.getByText("Modal awal diisi sendiri di Excel.", { exact: true })).toBeVisible();
-    await expect(dialog.getByText(/Persediaan akhir dan hutang pemasok/)).toBeVisible();
+    await expect(dialog.getByText("Modal awal, stok akhir, dan hutang diambil otomatis dari data yang tersedia.", { exact: true })).toBeVisible();
+    await expect(dialog.getByText(/Riwayat inventaris sebelum pencatatan/)).toBeVisible();
     for (let index = 0; index < 14; index++) {
       await page.keyboard.press("Tab");
       const focus = await dialog.evaluate(element => ({ inside: element.contains(document.activeElement), active: document.activeElement?.tagName, id: document.activeElement?.id }));
@@ -126,7 +126,7 @@ try {
     await expect(page.getByRole("button", { name: "Unduh Excel", exact: true })).toBeInViewport();
     const scrollable = dialog.locator("form > div").first();
     await scrollable.evaluate(element => { element.scrollTop = element.scrollHeight; });
-    await expect(dialog.getByText(/Persediaan akhir dan hutang pemasok/)).toBeInViewport();
+    await expect(dialog.getByText(/Riwayat inventaris sebelum pencatatan/)).toBeInViewport();
     await scrollable.evaluate(element => { element.scrollTop = 0; });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.equal(await dialog.evaluate(element => element.getBoundingClientRect().height <= innerHeight), true);

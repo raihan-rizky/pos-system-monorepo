@@ -71,6 +71,9 @@ model Store {
   customerCategoryPricingRules CategoryCustomerPricingRule[]
   customers                    Customer[]
   customerReceivables           CustomerReceivable[]
+  supplierPayables              SupplierPayable[]
+  inventoryValuationBaseline    InventoryValuationBaseline?
+  inventoryValuationChanges     InventoryValuationChange[]
   debtPaymentLogs              DebtPaymentLog[]
   printingServices             PrintingService[]
   printingReceipts              PrintingReceipt[]
@@ -128,6 +131,56 @@ model Brand {
   @@unique([storeId, normalizedName])
   @@index([storeId])
   @@map("pos_brands")
+}
+
+model InventoryValuationBaseline {
+  storeId    String   @id
+  capturedAt DateTime @db.Timestamptz(6)
+  value      Decimal  @db.Decimal(65, 20)
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("pos_inventory_valuation_baselines")
+}
+
+model InventoryValuationChange {
+  id         BigInt   @id @default(autoincrement())
+  storeId    String
+  occurredAt DateTime @db.Timestamptz(6)
+  delta      Decimal  @db.Decimal(65, 20)
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, occurredAt])
+  @@map("pos_inventory_valuation_changes")
+}
+
+model SupplierPayable {
+  id           String                   @id
+  storeId      String
+  supplierName String
+  amount       Decimal                  @db.Decimal(12, 2)
+  debtDate     DateTime                 @db.Date
+  dueDate      DateTime?                @db.Date
+  note         String?
+  createdById  String
+  createdAt    DateTime                 @default(now())
+  store        Store                    @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  payments     SupplierPayablePayment[]
+
+  @@index([storeId, debtDate])
+  @@map("pos_supplier_payables")
+}
+
+model SupplierPayablePayment {
+  id          String          @id
+  payableId   String
+  amount      Decimal         @db.Decimal(12, 2)
+  paidAt      DateTime        @db.Date
+  createdById String
+  createdAt   DateTime        @default(now())
+  payable     SupplierPayable @relation(fields: [payableId], references: [id], onDelete: Restrict)
+
+  @@index([payableId, paidAt])
+  @@map("pos_supplier_payable_payments")
 }
 
 model Product {

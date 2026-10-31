@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "financial-report-inventory-supplier-debt", date: "2026-11-01", revision: 1,
+    highlight: { title: "Saldo laporan otomatis", summary: "Gunakan inventaris dan hutang tercatat dalam laporan bulanan." },
+    title: "Isi saldo laporan bulanan secara otomatis.",
+    summary: "Laporan memakai nilai inventaris dan sisa hutang yang tercatat. Catat pembayaran sebagian di Keuangan dan unduh kembali laporan saat data berubah.",
+    kind: "feature", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Catat hutang", detail: "Buka Keuangan dan pilih Tambahkan Hutang untuk mencatat pemasok, nominal, dan tanggal." },
+      { title: "Catat pembayaran", detail: "Isi pembayaran awal bila ada, atau pilih Catat pembayaran untuk pembayaran berikutnya." },
+      { title: "Unduh laporan", detail: "Buka Laporan Keuangan > Ekspor, pilih bulan, lalu unduh Excel dan periksa saldo yang tersedia." },
+    ],
+  },
+  {
     id: "history-edit-product-price-discount-unit", date: "2026-11-01", revision: 1,
     highlight: { title: "Atur produk di Riwayat", summary: "Ubah harga, diskon, dan satuan produk pada transaksi." },
     title: "Atur harga dan satuan saat mengubah transaksi.",
@@ -160,7 +172,7 @@ export const CHANGELOG: ChangeEntry[] = [
     steps: [
       { title: "Unduh laporan bulanan", detail: "Buka Laporan Keuangan > Ekspor, pilih Laporan bulanan · Excel 8 sheet, lalu pilih bulan dan tahun dan klik Unduh Excel." },
       { title: "Buka PANDUAN", detail: "Buka tab terakhir untuk membaca diagram alur angka, contoh perhitungan, serta perbedaan sel kosong dan nol." },
-      { title: "Lengkapi isian manual", detail: "Klik tautan kuning menuju modal awal, persediaan akhir, dan saldo hutang. Isi angka sesuai catatan, periksa hasil otomatis, lalu simpan file." },
+      { title: "Periksa saldo", detail: "Lihat modal awal, persediaan akhir, dan saldo hutang yang tersedia, lalu simpan file." },
     ],
   },
   {

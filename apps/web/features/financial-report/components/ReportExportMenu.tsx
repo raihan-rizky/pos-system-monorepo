@@ -140,9 +140,9 @@ export function ReportExportMenu(): ReactNode {
                     </ol>
                   </section>
                   <div className="space-y-2 text-xs leading-relaxed text-surface-600">
-                    <p className="font-medium text-surface-800">Modal awal diisi sendiri di Excel.</p>
-                    <p>Buka PANDUAN untuk alur visual, contoh perhitungan, dan tautan ke sel isian manual.</p>
-                    <p>Persediaan akhir dan hutang pemasok belum tersedia dari sistem. Sel terkait dibiarkan kosong.</p>
+                    <p className="font-medium text-surface-800">Modal awal, stok akhir, dan hutang diambil otomatis dari data yang tersedia.</p>
+                    <p>Buka PANDUAN untuk alur visual, contoh perhitungan, dan tautan ke bagian laporan.</p>
+                    <p>Riwayat inventaris sebelum pencatatan tersedia dibiarkan kosong. Catat hutang pemasok di halaman Keuangan.</p>
                     <p>Penerimaan dan pengeluaran memakai basis kas. Data bulan berjalan sampai hari ini (WIB).</p>
                   </div>
                 </>

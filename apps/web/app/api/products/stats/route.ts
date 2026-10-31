@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         COUNT(*)::bigint AS total_products,
         COUNT(*) FILTER (WHERE "stock" <= "minStock")::bigint AS low_stock,
         COUNT(*) FILTER (WHERE "stock" < 0)::bigint AS negative_stock,
-        COALESCE(SUM("stock"::numeric * "price"::numeric), 0)::text AS inventory_value
+        COALESCE(SUM(GREATEST("stock"::numeric, 0) * "price"::numeric), 0)::text AS inventory_value
       FROM pos_products
       WHERE ${whereClause}
     `;

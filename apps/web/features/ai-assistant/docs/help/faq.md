@@ -255,8 +255,8 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 **A:** Anda dapat mengunduh salinan data laporan keuangan ke perangkat Anda:
 1. Di bagian kanan atas halaman Laporan Keuangan, klik tombol **Ekspor**.
 2. Untuk template Excel bulanan, pilih **bulan dan tahun**. Berkas berisi delapan sheet: **LAP KEU**, **BERSIH**, nama bulan, **RC [bulan]**, **RP [bulan]**, **PENGELUARAN BELANJA**, **PIUTANG & HUTANG**, dan **PANDUAN**.
-   Sheet **PANDUAN** menjelaskan alur angka, contoh perhitungan, dan tautan ke sel isian manual dengan warna tema web. Tujuh sheet laporan memiliki warna dan ringkasan di atas tabel. Kolom kiri tidak dibekukan, sehingga seluruh tabel bebas digeser; header atas tetap terlihat pada sheet rincian.
-3. Klik **Unduh Excel**, lalu isi **modal awal** langsung di sel **D8** sheet **LAP KEU**. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan; pengeluaran gaji yang tercatat tetap dihitung. Persediaan akhir dan hutang pemasok dibiarkan kosong karena saldo historisnya belum tersedia; ikuti tautan pada PANDUAN untuk melengkapinya. Kosong berbeda dengan nol. Data aplikasi memerlukan ekspor ulang; rumus Excel menghitung ulang dari isian di file.
+   Sheet **PANDUAN** menjelaskan alur angka, contoh perhitungan, dan tautan ke bagian laporan. Tujuh sheet laporan memiliki warna dan ringkasan di atas tabel. Kolom kiri tidak dibekukan, sehingga seluruh tabel bebas digeser; header atas tetap terlihat pada sheet rincian.
+3. Klik **Unduh Excel**. Modal awal dan stok akhir memakai nilai inventaris yang tersedia, sementara hutang memakai saldo yang dicatat di Keuangan. Stok negatif tidak dihitung; riwayat inventaris yang belum tersedia tetap kosong, bukan nol. Jumlah harta = modal awal + piutang − hutang − stok akhir. Unduh ulang jika data aplikasi berubah.
 4. Untuk ekspor sebelumnya, buka **Jurnal transaksi · Excel / PDF**, pilih format serta periode **Harian**, **Mingguan**, **30 hari terakhir**, atau **Bulanan** (bulan berjalan), lalu unduh.
    *(Filter tanggal di halaman tidak mengubah berkas ekspor. Isi berkas mengikuti periode yang dipilih dalam dialog Ekspor.)*
 5. Di halaman laporan, KPI **Pengeluaran** mencakup pengeluaran manual dan Pembelian Barang. **Laba Bersih (Estimasi)** adalah Laba Kotor dikurangi seluruh pengeluaran; angka ini bukan laba akrual formal atau bukti pembayaran supplier.
@@ -386,3 +386,9 @@ Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yan
 3. Buka **Produk** atau **Kasir**, lalu pilih badge **Dibulatkan ke atas** atau **Dibulatkan ke bawah** untuk melihat harga asal, harga final, dan selisih. Badge mendukung sentuhan, klik, serta keyboard; harga yang tidak berubah tidak memiliki badge. Transaksi final terdahulu tetap memakai harga yang tersimpan saat transaksi dilakukan.
 
 Kebijakan terakhir yang berhasil dimuat disimpan untuk tampilan offline. Jika kebijakan belum pernah dimuat, pembayaran produk menunggu pengaturan tersedia. Saat sinkronisasi, server memeriksa ulang harga memakai kebijakan yang berlaku dan mengikuti mekanisme penyesuaian/approval yang sudah ada.
+
+### Q44: Bagaimana cara mencatat hutang pemasok?
+
+**A:** Buka **Keuangan**, lalu pilih **Tambahkan Hutang** pada bagian Hutang Pemasok. Isi pemasok, nominal, dan tanggal hutang. Jatuh tempo, catatan, dan pembayaran awal bersifat opsional.
+
+Untuk pembayaran berikutnya, pilih **Catat pembayaran** pada hutang yang belum lunas. Pembayaran dapat sebagian atau sekaligus; nominal tidak boleh melebihi sisa hutang. Pencatatan awal memerlukan izin `expense:create`, dan pembayaran berikutnya memerlukan `expense:update`. Saldo yang dicatat masuk laporan bulanan sesuai tanggal; pembayaran hutang tidak otomatis menjadi pengeluaran.

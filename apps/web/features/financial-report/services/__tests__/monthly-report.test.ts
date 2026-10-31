@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getMonthlyFinancialReport } from '../monthly-report';
 
-const mocks = vi.hoisted(() => ({ transaction: vi.fn(), expense: vi.fn(), customerReceivable: vi.fn() }));
+const mocks = vi.hoisted(() => ({ transaction: vi.fn(), expense: vi.fn(), customerReceivable: vi.fn(), balances: vi.fn() }));
 vi.mock('@pos/db', () => ({ db: { transaction: { findMany: mocks.transaction }, expense: { findMany: mocks.expense }, customerReceivable: { findMany: mocks.customerReceivable } } }));
+vi.mock('../monthly-balances', () => ({ getMonthlyBalances: mocks.balances }));
 
 describe('pembacaan data bulanan', () => {
-  beforeEach(() => Object.values(mocks).forEach(mock => mock.mockReset().mockResolvedValue([])));
+  beforeEach(() => {
+    [mocks.transaction, mocks.expense, mocks.customerReceivable].forEach(mock => mock.mockReset().mockResolvedValue([]));
+    mocks.balances.mockReset().mockResolvedValue({ openingInventoryBalance: 100, inventoryBalance: 90, supplierDebts: [], supplierDebtBalance: 0 });
+  });
   it('membatasi seluruh sumber pada toko dan membaca riwayat pembayaran lengkap', async () => {
-    await getMonthlyFinancialReport('store-test', 2026, 9, new Date('2026-10-21T00:00:00Z'));
-    for (const mock of Object.values(mocks)) expect(mock.mock.calls[0][0].where.storeId).toBe('store-test');
+    const result = await getMonthlyFinancialReport('store-test', 2026, 9, new Date('2026-10-21T00:00:00Z'));
+    for (const mock of [mocks.transaction, mocks.expense, mocks.customerReceivable]) expect(mock.mock.calls[0][0].where.storeId).toBe('store-test');
+    expect(mocks.balances.mock.calls[0][0]).toBe('store-test');
+    expect(result).toMatchObject({ openingInventoryBalance: 100, inventoryBalance: 90, supplierDebtBalance: 0 });
     const query = mocks.transaction.mock.calls[0][0];
     expect(query.where.status).toEqual({ in: ['COMPLETED', 'DP'] });
     expect(query.where.OR).toContainEqual({ invoiceDate: { lt: new Date('2026-09-30T17:00:00Z') } });
