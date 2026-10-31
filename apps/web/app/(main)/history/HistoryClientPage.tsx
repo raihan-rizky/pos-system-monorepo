@@ -32,6 +32,7 @@ import type { LucideIcon } from "lucide-react";
 import { SuratJalanBundleButton } from "@/features/surat-jalan/components/SuratJalanBundleButton";
 import { Modal } from "@pos/ui";
 import { TransactionActionMenu } from "./TransactionActionMenu";
+import { AutoFitHistoryTable } from "./components/AutoFitHistoryTable";
 import type { CartEditorItem } from "./components/TransactionCartEditor";
 import {
   formatSuratJalanBundleProgress,
@@ -1429,8 +1430,8 @@ export default function HistoryClientPage() {
             ) : (
               <>
                 {/* Desktop Table View */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                <AutoFitHistoryTable>
+                  <table className="w-full text-left border-collapse [&_th]:!px-3 [&_td]:!px-3">
                     <thead>
                       <tr className="bg-surface-50 border-b border-surface-200">
                         <th className="py-4 px-4 font-semibold text-sm text-surface-600 whitespace-nowrap">Tanggal</th>
@@ -1556,7 +1557,7 @@ export default function HistoryClientPage() {
                             </td>
                             <td className={`py-3.5 px-4 text-sm font-medium ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
                               <div className="max-w-[220px]">
-                                <div className="whitespace-nowrap">
+                                <div className="[overflow-wrap:anywhere]">
                                   {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
                                 </div>
                                 {displayNote && (
@@ -1569,8 +1570,10 @@ export default function HistoryClientPage() {
                                 )}
                               </div>
                             </td>
-                            <td className={`py-3.5 px-4 text-sm font-medium whitespace-nowrap ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
-                              {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
+                            <td className={`py-3.5 px-4 text-sm font-medium ${isVoided ? "text-surface-400 line-through" : "text-surface-700"}`}>
+                              <div className="max-w-[160px] [overflow-wrap:anywhere]">
+                                {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
+                              </div>
                             </td>
                             <td className={`py-3.5 px-4 text-sm ${isVoided ? "text-surface-400 line-through" : "text-surface-600"}`}>
                               <div>{tx.items.length} Barang</div>
@@ -1611,7 +1614,7 @@ export default function HistoryClientPage() {
                               className="py-3.5 px-4 text-right"
                               onClick={(event) => event.stopPropagation()}
                             >
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex flex-wrap items-center justify-end gap-2">
                                 {!isBundled && (
                                   <Button
                                     variant="secondary"
@@ -1690,7 +1693,7 @@ export default function HistoryClientPage() {
                       })}
                     </tbody>
                   </table>
-                </div>
+                </AutoFitHistoryTable>
 
                 {/* Mobile Cards View */}
                 <div className="flex flex-col gap-3 md:hidden p-4 border-b border-surface-100">
@@ -1726,10 +1729,10 @@ export default function HistoryClientPage() {
                           }
                         }}
                       >
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
+                        <div className="flex justify-between items-start gap-2 mb-3">
+                          <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                              <span className={`whitespace-nowrap font-mono text-sm font-bold ${isVoided ? "line-through text-surface-400" : "text-brand-700"}`}>
+                              <span className={`min-w-0 font-mono text-sm font-bold [overflow-wrap:anywhere] ${isVoided ? "line-through text-surface-400" : "text-brand-700"}`}>
                                 {tx.invoiceNumber ?? (tx.draftNumber ? formatDraftNumberForDisplay(tx.draftNumber) : "—")}
                               </span>
                               {isDraft && <span className="bg-amber-100 text-amber-800 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">Draft</span>}
@@ -1747,7 +1750,7 @@ export default function HistoryClientPage() {
                               )}
                             </div>
                             {tx.printingReceipt && tx.printingReceipt.number !== (tx.invoiceNumber ?? tx.draftNumber) && (
-                              <p className="mb-1.5 whitespace-nowrap text-[11px] text-surface-500">Nota {tx.printingReceipt.number}</p>
+                              <p className="mb-1.5 text-[11px] text-surface-500 [overflow-wrap:anywhere]">Nota {tx.printingReceipt.number}</p>
                             )}
                             <div className="mb-2">
                               <TransactionCategoryLabel transaction={tx} />
@@ -1801,16 +1804,22 @@ export default function HistoryClientPage() {
                         </div>
 
                         <div className="flex flex-col gap-1 mb-4">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-surface-500">Pelanggan</span>
-                            <span className={`font-medium ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}>
+                          <div className="flex justify-between gap-3 text-sm">
+                            <span className="shrink-0 text-surface-500">Pelanggan</span>
+                            <span className={`min-w-0 text-right font-medium [overflow-wrap:anywhere] ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}>
                               {tx.customerName || <span className="text-surface-400 italic">Umum</span>}
                             </span>
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-surface-500">Sales</span>
-                            <span className={`font-medium ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}>
+                          <div className="flex justify-between gap-3 text-sm">
+                            <span className="shrink-0 text-surface-500">Sales</span>
+                            <span className={`min-w-0 text-right font-medium [overflow-wrap:anywhere] ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}>
                               {tx.salesName || tx.salesperson?.name || <span className="text-surface-400 italic">—</span>}
+                            </span>
+                          </div>
+                          <div className="flex justify-between gap-3 text-sm">
+                            <span className="text-surface-500">Item</span>
+                            <span className={`font-medium ${isVoided ? "line-through text-surface-400" : "text-surface-900"}`}>
+                              {tx.items.length} Barang
                             </span>
                           </div>
                           {displayNote && (

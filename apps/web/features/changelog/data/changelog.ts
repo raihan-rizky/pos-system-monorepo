@@ -15,6 +15,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "history-table-auto-fit", date: "2026-11-01", revision: 1,
+    highlight: { title: "Tabel Riwayat sesuai layar", summary: "Lihat kolom dan aksi Riwayat tanpa menggeser tabel ke samping." },
+    title: "Lihat tabel Riwayat sesuai lebar layar.",
+    summary: "Tabel Riwayat di komputer menyesuaikan lebar layar agar kolom dan tombol aksi terlihat bersama. Gunakan Sesuaikan tabel untuk menghitung ulang ukurannya.",
+    kind: "improvement", area: "Riwayat", href: "/history", visual: "history-table",
+    steps: [
+      { title: "Buka Riwayat", detail: "Buka Riwayat Transaksi di komputer." },
+      { title: "Lihat seluruh kolom", detail: "Cari transaksi dan lihat kolom beserta tombol aksi pada tabel." },
+      { title: "Sesuaikan kembali", detail: "Klik Sesuaikan tabel jika ingin menghitung ulang ukuran tabel." },
+    ],
+  },
+  {
     id: "shopping-payment-due-date-filter", date: "2026-11-01", revision: 1,
     highlight: { title: "Jatuh tempo belanja", summary: "Temukan belanja berdasarkan metode pembayaran dan jatuh tempo." },
     title: "Pantau jatuh tempo dari Daftar Belanja.",

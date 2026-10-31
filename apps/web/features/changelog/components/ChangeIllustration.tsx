@@ -15,6 +15,7 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       changelog: { Icon: History, title: "Terus berkembang.", detail: "Lihat yang baru, langsung coba." },
       printing: { Icon: FileText, title: "Nota Percetakan langsung.", detail: "Pilih jenis · Isi nota · Bayar / DP" },
       shopping: { Icon: ShoppingBag, title: "Pantau pembayaran belanja.", detail: "Metode pembayaran dan jatuh tempo" },
+      "history-table": { Icon: History, title: "Tabel Riwayat menyesuaikan layar.", detail: "Kolom dan aksi terlihat bersama" },
     };
     const preview = previews[visual];
     return <div className="relative flex min-h-36 items-center gap-4 bg-brand-50 px-5 pb-5 pt-9 sm:min-h-44 sm:px-7"><span className="absolute left-5 top-3 text-[11px] font-medium text-brand-800">Ilustrasi fitur</span><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white"><preview.Icon className="h-7 w-7 text-brand-600" aria-hidden="true" /></span><div><p className="text-base font-extrabold leading-tight tracking-tight text-brand-950 sm:text-xl">{preview.title}</p><p className="mt-2 text-xs text-brand-800">{preview.detail}</p></div></div>;
@@ -23,6 +24,18 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
   return (
     <div className="relative flex min-h-64 flex-col justify-center overflow-hidden bg-brand-50 px-5 py-9 sm:min-h-72 sm:px-9">
       <span className="absolute left-5 top-4 text-[11px] font-semibold text-brand-800">Ilustrasi fitur</span>
+      {visual === "history-table" && (
+        <div className={`mx-auto w-full max-w-md ${panel}`}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-sm font-bold"><History className={icon} aria-hidden="true" /> Riwayat Transaksi</span>
+            <span className="rounded-lg bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-700">Sesuaikan tabel</span>
+          </div>
+          <div className="mt-4 grid grid-cols-4 gap-1 rounded-lg bg-surface-50 p-3 text-center text-xs font-semibold text-surface-600">
+            <span>Tanggal</span><span>Invoice</span><span>Status</span><span>Aksi</span>
+          </div>
+          <p className="mt-3 text-xs text-surface-600">Kolom dan aksi menyesuaikan lebar layar komputer.</p>
+        </div>
+      )}
       {visual === "shopping" && (
         <div className={`mx-auto w-full max-w-sm ${panel}`}>
           <div className="flex items-center gap-3"><ShoppingBag className={icon} aria-hidden="true" /><span className="text-sm font-bold">Daftar Belanja</span></div>
