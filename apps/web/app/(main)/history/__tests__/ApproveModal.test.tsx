@@ -43,6 +43,21 @@ vi.mock("@pos/ui", async (importOriginal) => {
 });
 
 describe("ApproveModal", () => {
+  it("shows the prices originally captured offline for approval", () => {
+    const html = renderToStaticMarkup(
+      <ApproveModal tx={{ id: "tx-offline", total: 3000, paymentMethod: "CASH", amountPaid: 3000,
+        status: "PENDING_APPROVAL", items: [
+          { id: "a", productId: "a", productName: "Kertas", quantity: 1, unitPrice: 2000, subtotal: 2000 },
+          { id: "b", productId: "b", productName: "Tinta", quantity: 1, unitPrice: 1000, subtotal: 1000 },
+        ], offlineOriginalPayload: { items: [
+          { productId: "a", name: "Kertas", quantity: 1, price: 1000 },
+          { productId: "b", name: "Tinta", quantity: 1, price: 2000 },
+        ] } } as any} onClose={vi.fn()} onSuccess={vi.fn()} />,
+    );
+    expect(html).toContain("Harga saat offline");
+    expect(html).toContain("1.000");
+    expect(html).toContain("2.000");
+  });
   it("lets the approver edit product lines before accepting the transaction", () => {
     const html = renderToStaticMarkup(
       <ApproveModal

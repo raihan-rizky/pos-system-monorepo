@@ -893,6 +893,22 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Unduh laporan", description: "Saldo hutang tercatat masuk ke laporan bulanan sesuai tanggal. Pembayaran hutang tidak otomatis dicatat sebagai pengeluaran; unduh ulang jika data berubah." },
     ],
   }),
+  workflow({
+    faqNumber: 45,
+    slug: "offline-sync",
+    title: "Bagaimana cara menyiapkan dan memeriksa transaksi offline?",
+    aliases: ["transaksi offline", "siapkan katalog offline", "sync transaksi", "antrean offline", "koneksi terputus"],
+    route: "/pos/offline",
+    requiredPages: ["/pos"],
+    actionLabel: "Buka Offline Sync",
+    iconKey: "shopping-cart",
+    requiredCapabilities: [{ resource: "product", action: "read" }],
+    steps: [
+      { title: "Siapkan POS", description: "Saat online, masuk sebagai kasir asal, buka Kasir > Offline Sync, buat dan ulangi PIN offline, lalu pilih Siapkan POS offline. Siapkan ulang sedikitnya setiap tujuh hari dan setelah pembaruan aplikasi. PIN mengenkripsi halaman; katalog dan antrean belum terenkripsi." },
+      { title: "Buka saat offline", description: "Buka alamat POS, pilih akun dan masukkan PIN, lalu pilih Buka POS offline. Transaksi tersimpan di perangkat sampai diperiksa server; jangan hapus data situs sebelum sinkronisasi." },
+      { title: "Periksa hasil sync", description: "Setelah terhubung, masuk sebagai kasir asal dan periksa Offline Sync. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi tanpa menetapkan asal secara otomatis." },
+    ],
+  }),
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {

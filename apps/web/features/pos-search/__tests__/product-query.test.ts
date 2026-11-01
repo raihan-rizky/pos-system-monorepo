@@ -38,6 +38,23 @@ const pageOptions = (search = "", category = "", options: Parameters<typeof useP
   useProductsPage(search, category, { limit: 24, ...options }) as unknown as Options;
 
 describe("product query cache and request lifecycle", () => {
+  it("loads cached products after a network failure", async () => {
+    vi.mocked(fetch).mockRejectedValue(new TypeError("network unavailable"));
+    mocks.getCachedCatalogProducts.mockResolvedValue(initialData.data);
+    await expect(fetchProducts("paper", "", 1, 24)).resolves.toMatchObject({ data: initialData.data });
+  });
+
+  it.each([401, 403])("does not expose cached products after an authorization response %s", async (status) => {
+    vi.mocked(fetch).mockResolvedValue(new Response("forbidden", { status }));
+    mocks.getCachedCatalogProducts.mockResolvedValue(initialData.data);
+    await expect(fetchProducts("paper", "", 1, 24)).rejects.toThrow();
+    expect(mocks.getCachedCatalogProducts).not.toHaveBeenCalled();
+  });
+
+  it("allows the POS product query to run while offline", () => {
+    expect(pageOptions().networkMode).toBe("always");
+  });
+
   it("bypasses HTTP cache so invalidation observes cascaded server prices", async () => {
     await fetchProducts("paper");
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/products?"), expect.objectContaining({ cache: "no-store" }));

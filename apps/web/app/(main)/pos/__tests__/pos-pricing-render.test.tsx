@@ -1,5 +1,5 @@
 import React, { isValidElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Product } from "@/hooks/useProducts";
 import type { ProductCartItem } from "@/hooks/useCart";
 import type { CustomerCategoryPricingRule } from "@/hooks/useCustomerCategoryPricingRules";
@@ -15,6 +15,11 @@ const harness = vi.hoisted(() => ({
   catalog: [] as Product[],
   cart: null as any,
   rounding: { enabled: true, increment: 500, threshold: 50 },
+  mutateTransaction: vi.fn(),
+  queueTransaction: vi.fn(),
+  offlineRows: new Map<string, any>(),
+  userId: "cashier-1" as string | null,
+  storeId: "store-main" as string | null,
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -30,6 +35,7 @@ vi.mock("react", async (importOriginal) => {
   };
   const hooks = {
     useMemo,
+    useRef: (initial: unknown) => useMemo(() => ({ current: initial }), []),
     useCallback: (callback: () => unknown, dependencies: readonly unknown[]) => useMemo(() => callback, dependencies),
     useEffect: () => {},
     useDeferredValue: (value: unknown) => value,
@@ -66,9 +72,21 @@ vi.mock("@/hooks/useBrands", () => ({ useBrands: () => ({ data: [] }) }));
 vi.mock("@/hooks/useShift", () => ({ useActiveShift: () => ({ data: null, isLoading: false }) }));
 vi.mock("@/hooks/useShiftSettings", () => ({ useShiftSettings: () => ({ data: { enabled: false } }) }));
 vi.mock("@/features/product-price-rounding/hooks/usePriceRoundingSettings", () => ({ usePriceRoundingSettings: () => ({ data: harness.rounding }) }));
-vi.mock("@/hooks/useTransactions", () => ({ useCreateTransaction: () => ({}) }));
+vi.mock("@/hooks/useTransactions", () => ({ useCreateTransaction: () => ({ mutateAsync: harness.mutateTransaction }) }));
+vi.mock("@/lib/offline/offline-db", () => ({
+  createOfflineTransaction: harness.queueTransaction,
+  offlineDb: {
+    offlineTransactions: {
+      where: () => ({ anyOf: () => ({ count: async () => harness.offlineRows.size }) }),
+      add: async (row: any) => { harness.offlineRows.set(row.clientMutationId, structuredClone(row)); },
+      get: async (id: string) => harness.offlineRows.get(id),
+      update: async (id: string, changes: any) => Object.assign(harness.offlineRows.get(id), changes),
+    },
+    transaction: async (...args: any[]) => args.at(-1)(),
+  },
+}));
 vi.mock("@/features/transactions-draft", () => ({ useCreateDraft: () => ({}) }));
-vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ role: "CASHIER", canPerform: () => false }) }));
+vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ role: "CASHIER", userId: harness.userId, storeId: harness.storeId, canPerform: () => false }) }));
 vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({ useServerClock: () => ({ now: null }) }));
 
 import POSClientPage from "../POSClientPage";
@@ -100,6 +118,11 @@ function render() {
 
 describe("POS pricing across unrelated renders", () => {
   beforeEach(() => {
+    harness.mutateTransaction.mockReset();
+    harness.queueTransaction.mockReset();
+    harness.offlineRows.clear();
+    harness.userId = "cashier-1";
+    harness.storeId = "store-main";
     harness.states.length = 0;
     harness.memos.length = 0;
     harness.rules = undefined;
@@ -114,7 +137,82 @@ describe("POS pricing across unrelated renders", () => {
       unit: "pcs", stock: 10, price: 2000, catalogPrice: 2000, quantity: 1,
       categoryId: "cat-paper", categoryName: "Kertas",
     };
-    harness.cart = { items: [item], totalItems: 1, subtotal: 2000, hasLoadedStorage: true, addItem: vi.fn() };
+    harness.cart = { items: [item], totalItems: 1, subtotal: 2000, hasLoadedStorage: true, addItem: vi.fn(), clearCart: vi.fn() };
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("uses the same checkout ID when an online response is lost and the sale is queued", async () => {
+    render().cart.onCheckout();
+    const payment = render().payment;
+    vi.stubGlobal("window", { dispatchEvent: vi.fn() });
+    vi.stubGlobal("CustomEvent", class {});
+    vi.stubGlobal("navigator", { onLine: true });
+    harness.mutateTransaction.mockRejectedValueOnce(new TypeError("response lost"));
+
+    await payment.onConfirm({
+      items: harness.cart.items, paymentMethod: "CASH", amountPaid: 2000,
+      discount: 0, taxRate: 0, note: "", customerName: "", customerId: null,
+      salesName: "", salespersonId: "", paymentStatus: "COMPLETED",
+      isJobOrder: false, estimatedDoneAt: null,
+      payments: [{ method: "CASH", amount: 500 }, { method: "TRANSFER", amount: 1500 }],
+    });
+
+    const onlineId = harness.mutateTransaction.mock.calls[0][0].clientMutationId;
+    expect(onlineId).toEqual(expect.any(String));
+    const queued = harness.offlineRows.get(onlineId);
+    expect(queued).toMatchObject({ clientMutationId: onlineId, status: "PENDING_SYNC" });
+    expect(queued.payload).toMatchObject({
+      originCashierId: "cashier-1", originStoreId: "store-main",
+      payments: [{ method: "CASH", amount: 500 }, { method: "TRANSFER", amount: 1500 }],
+    });
+  });
+
+  it("keeps a product invoice date in the offline reconciliation payload", async () => {
+    render().cart.onCheckout();
+    const payment = render().payment;
+    vi.stubGlobal("window", { dispatchEvent: vi.fn() });
+    vi.stubGlobal("CustomEvent", class {});
+    vi.stubGlobal("navigator", { onLine: false });
+
+    await payment.onConfirm({
+      items: harness.cart.items, paymentMethod: "CASH", amountPaid: 2000,
+      discount: 0, taxRate: 0, note: "", customerName: "", customerId: null,
+      salesName: "", salespersonId: "", paymentStatus: "COMPLETED",
+      isJobOrder: false, estimatedDoneAt: null, invoiceDate: "2026-10-28",
+      invoiceTime: "09:30", invoiceDateReason: "Koreksi tanggal",
+    });
+
+    expect([...harness.offlineRows.values()][0]).toMatchObject({
+      status: "PENDING_SYNC", reconcileOffline: true,
+      payload: { invoiceDate: "2026-10-28", invoiceTime: "09:30", invoiceDateReason: "Koreksi tanggal" },
+    });
+  });
+
+  it("does not queue an unattributed sale when the cashier identity is unavailable", async () => {
+    harness.userId = null;
+    render().cart.onCheckout();
+    const payment = render().payment;
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("navigator", { onLine: false });
+    harness.mutateTransaction.mockRejectedValueOnce(new TypeError("offline"));
+
+    await payment.onConfirm({
+      items: harness.cart.items, paymentMethod: "CASH", amountPaid: 2000,
+      discount: 0, taxRate: 0, note: "", customerName: "", customerId: null,
+      salesName: "", salespersonId: "", paymentStatus: "COMPLETED",
+      isJobOrder: false, estimatedDoneAt: null,
+    });
+
+    expect(harness.queueTransaction).not.toHaveBeenCalled();
+    expect(harness.cart.clearCart).not.toHaveBeenCalled();
+  });
+
+  it("reprices the cart when the rounding policy changes", () => {
+    harness.catalog = [{ ...harness.catalog[0], price: 4050 }];
+    expect(render().cart.subtotal).toBe(4500);
+    harness.rounding = { enabled: false, increment: 500, threshold: 50 };
+    expect(render().cart.subtotal).toBe(4050);
   });
 
   it("reprices the cart when the rounding policy changes", () => {

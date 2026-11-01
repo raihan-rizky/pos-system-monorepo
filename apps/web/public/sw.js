@@ -1,30 +1,39 @@
 /**
  * POS System Service Worker
  *
- * Authenticated API and SSR navigation responses are never cached. Static
- * hashed assets can be cached safely because they are content-addressed.
+ * Cache only explicitly public assets. Authenticated API, navigation, and
+ * React Server Component responses must never enter the shared cache.
  */
 
 const CACHE_PREFIX = "pos-v";
-const CACHE_NAME = "pos-v6";
+const CACHE_NAME = "pos-v10";
+const OFFLINE_STATIC_CACHE = "pos-offline-static-v1";
 
-const PRECACHE_ASSETS = [
+const REQUIRED_OFFLINE_ASSETS = [
+  "/offline.html",
+  "/offline-unlock.mjs",
+  "/offline-vault.mjs",
+];
+const OPTIONAL_ASSETS = [
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      Promise.allSettled(
-        PRECACHE_ASSETS.map((asset) =>
-          cache.add(new Request(asset, { cache: "reload" })),
-        ),
-      ),
-    ),
-  );
-  self.skipWaiting();
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.all(REQUIRED_OFFLINE_ASSETS.map(async (asset) => {
+      const request = new Request(asset, { cache: "reload" });
+      const response = await fetch(request);
+      const contentType = response.headers.get("content-type") || "";
+      const expectedType = asset.endsWith(".html") ? /text\/html/i : /javascript|ecmascript/i;
+      if (!response.ok || response.redirected || !expectedType.test(contentType)) throw new Error(`Invalid offline asset: ${asset}`);
+      await cache.put(request, response);
+    }));
+    await Promise.allSettled(OPTIONAL_ASSETS.map((asset) => cache.add(new Request(asset, { cache: "reload" }))));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (event) => {
@@ -45,6 +54,21 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
+  }
+  if (event.data?.type === "OFFLINE_CAPABILITY_VERSION") {
+    event.waitUntil((async () => {
+      let ready = false;
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        const [page, unlock, vault] = await Promise.all([
+          cache.match("/offline.html"), cache.match("/offline-unlock.mjs"), cache.match("/offline-vault.mjs"),
+        ]);
+        ready = Boolean(page?.ok && !page.redirected && page.headers.get("content-type")?.includes("text/html") &&
+          unlock?.ok && !unlock.redirected && /javascript|ecmascript/i.test(unlock.headers.get("content-type") || "") &&
+          vault?.ok && !vault.redirected && /javascript|ecmascript/i.test(vault.headers.get("content-type") || ""));
+      } catch { /* Preparation must fail closed if the fallback is unavailable. */ }
+      event.ports?.[0]?.postMessage({ version: 1, ready });
+    })());
   }
 });
 
@@ -121,6 +145,10 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== location.origin) return;
   if (request.method !== "GET") return;
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(networkWithPreparedStatic(request));
+    return;
+  }
   if (url.pathname.startsWith("/_next/")) return;
 
   if (url.pathname.startsWith("/api/")) {
@@ -130,16 +158,47 @@ self.addEventListener("fetch", (event) => {
 
   if (
     url.pathname.startsWith("/images/") ||
-    url.pathname.startsWith("/icons/")
+    url.pathname.startsWith("/icons/") ||
+    url.pathname === "/offline-vault.mjs" ||
+    url.pathname === "/offline-unlock.mjs"
   ) {
     event.respondWith(cacheFirst(request));
     return;
   }
 
-  if (request.mode === "navigate") return;
+  if (request.mode === "navigate") {
+    event.respondWith(networkOnlyNavigation(request));
+    return;
+  }
 
-  event.respondWith(staleWhileRevalidate(request));
+  // Other GET requests can contain user-specific server-rendered data. Let the
+  // browser fetch them normally rather than placing them in a shared cache.
 });
+
+async function networkOnlyNavigation(request) {
+  try {
+    const response = await fetch(request);
+    if (new URL(request.url).pathname !== "/pos" || ![502, 503, 504].includes(response.status)) return response;
+  } catch { /* Use the offline page when the network is unavailable. */ }
+  const cache = await caches.open(CACHE_NAME);
+  return (await cache.match("/offline.html")) || new Response("Koneksi terputus. Hubungkan perangkat dan coba lagi.", {
+    status: 503,
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
+}
+
+async function networkWithPreparedStatic(request) {
+  if (request.headers.get("x-pos-offline-prepare") === "1") return fetch(request);
+  try {
+    const response = await fetch(request);
+    if (response.ok) return response;
+    const cached = await (await caches.open(OFFLINE_STATIC_CACHE)).match(request);
+    return cached || response;
+  } catch {
+    const cached = await (await caches.open(OFFLINE_STATIC_CACHE)).match(request);
+    return cached || new Response("", { status: 503 });
+  }
+}
 
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);
@@ -166,17 +225,4 @@ async function networkOnlyApi(request) {
       { status: 503 },
     );
   }
-}
-
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
-  const networkPromise = fetch(request)
-    .then((network) => {
-      if (network.ok) cache.put(request, network.clone());
-      return network;
-    })
-    .catch(() => cached || new Response("", { status: 503 }));
-
-  return cached || networkPromise;
 }

@@ -26,4 +26,10 @@ describe("category catalog cancellation", () => {
     await expect(query().queryFn({ signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
     expect(offline.cache).not.toHaveBeenCalled();
   });
+  it("loads cached categories when the network request fails", async () => {
+    const controller = new AbortController();
+    offline.read.mockResolvedValueOnce([{ id: "cached", name: "ATK" }]);
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("Network error"));
+    await expect(query().queryFn({ signal: controller.signal })).resolves.toEqual([{ id: "cached", name: "ATK" }]);
+  });
 });

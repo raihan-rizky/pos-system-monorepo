@@ -52,6 +52,9 @@ export async function resolveCheckoutCustomer(
   if (!name) {
     throw new Error("Nama pelanggan wajib diisi");
   }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new Error("Pelanggan baru belum dapat disimpan saat offline. Pilih pelanggan yang sudah tersedia atau sambungkan perangkat.");
+  }
 
   const phone = selection.phone?.trim();
   const customer = await createCustomer({

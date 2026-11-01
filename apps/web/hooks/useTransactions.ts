@@ -16,6 +16,7 @@ import type { PriceRoundingSettings } from "@/features/product-price-rounding/ro
 
 export interface Transaction {
   id: string;
+  offlineOriginalPayload?: unknown;
   transactionCategory?: "ATK" | "PERCETAKAN" | null;
   printingSubcategory?: PrintingSubcategory | null;
   printingReceipt?: { id: string; subcategory: string; number: string } | null;
@@ -132,6 +133,9 @@ export interface TransactionHistoryParams {
 }
 
 interface CreateTransactionInput {
+  clientMutationId?: string;
+  originCashierId?: string;
+  originStoreId?: string;
   priceRoundingSettings?: PriceRoundingSettings;
   items: CartItem[];
   printingReceiptId?: string;
@@ -191,7 +195,7 @@ async function createTransaction(
   });
   if (!res.ok) {
     const error = await res.json();
-    throw new Error(error.message || "Failed to create transaction");
+    throw Object.assign(new Error(error.message || "Failed to create transaction"), { status: res.status });
   }
   return res.json();
 }
@@ -264,6 +268,7 @@ export function useCreateTransaction() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: createTransaction,
     onSuccess: (_result, variables) => {
       // Optimistically decrement stock in the products cache to prevent grid flash

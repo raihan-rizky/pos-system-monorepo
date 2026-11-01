@@ -13,13 +13,17 @@ const dbTransactionMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
+const printingServiceFindManyMock = vi.hoisted(() => vi.fn());
 const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
+const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
 const transactionInventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
 const invoiceNowMock = vi.hoisted(() => vi.fn());
+const shiftFindFirstMock = vi.hoisted(() => vi.fn());
+const shiftUpdateManyMock = vi.hoisted(() => vi.fn());
 vi.mock("@/features/invoice-date/services/internet-clock", () => ({ getInvoiceNow: invoiceNowMock }));
 
 vi.mock("next/server", async () => {
@@ -67,10 +71,13 @@ vi.mock("@pos/db", () => ({
     product: {
       findMany: productFindManyMock,
     },
+    printingService: { findMany: printingServiceFindManyMock },
     categoryCustomerPricingRule: { findMany: pricingRuleFindManyMock },
+    cashierShift: { findFirst: shiftFindFirstMock },
     transaction: {
       count: transactionCountMock,
       findMany: transactionFindManyMock,
+      findFirst: transactionFindFirstMock,
       create: transactionCreateMock,
     },
     $transaction: dbTransactionMock,
@@ -79,6 +86,150 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
+  it.each(["AGEN", "PEMERINTAH"])("uses the regular price for %s when Harga Khusus is disabled", async (customerType) => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: customerType });
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, hargaAgen: 700, hargaDinas: 600 }]);
+    pricingRuleFindManyMock.mockResolvedValue([{ id: "rule-1", categoryId: "cat1", category: { name: "CAT1" }, customerType: "ALL", mode: "FLAT_DISCOUNT", value: 100, isActive: true }]);
+    requireRoleMock.mockResolvedValue({ id: "u1", role: "OWNER", storeId: "store-1", name: "Owner" });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      customerId: "customer-1", paymentMethod: "CASH", amountPaid: 1000,
+      items: [{ productId: "p1", quantity: 1, price: 400 }],
+    }) }));
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000 });
+  });
+
+  it("holds a mixed offline sale for approval when a product price changes", async () => {
+    printingServiceFindManyMock.mockResolvedValue([{ id: "service-1", name: "Cetak", basePrice: 1000, unit: "lembar" }]);
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      clientMutationId: "mixed-replay", originCashierId: "u1", originStoreId: "store-1",
+      offlineReplay: { capturedAt: "2026-01-01T00:30:00.000Z" },
+      paymentMethod: "CASH", amountPaid: 1500, items: [
+        { lineType: "PRODUCT", productId: "p1", name: "Item 1", quantity: 1, price: 500 },
+        { lineType: "PRINTING_SERVICE", printingServiceId: "service-1", name: "Cetak", quantity: 1, price: 1000 },
+      ],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "PENDING_APPROVAL", amountPaid: 1500,
+      offlineOriginalPayload: { items: expect.arrayContaining([expect.objectContaining({ productId: "p1", price: 500 })]) },
+    });
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+  it("preserves a replayed sale's capture time for its matching open shift", async () => {
+    shiftFindFirstMock.mockResolvedValue({ id: "shift-1", openedAt: new Date("2026-01-01T00:00:00Z") });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      clientMutationId: "replayed-sale", originCashierId: "u1", originStoreId: "store-1",
+      offlineReplay: { shiftId: "shift-1", capturedAt: "2026-01-01T00:30:00.000Z" },
+      paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.createdAt).toEqual(new Date("2026-01-01T00:30:00Z"));
+    expect(shiftFindFirstMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({
+      id: "shift-1", cashierId: "u1", storeId: "store-1", status: "OPEN",
+    }) }));
+    expect(shiftUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: "shift-1", status: "OPEN", cashierId: "u1", storeId: "store-1" }),
+      data: { pausedDurationSeconds: { increment: 0 } },
+    }));
+    expect(shiftUpdateManyMock.mock.invocationCallOrder[0]).toBeLessThan(transactionCreateMock.mock.invocationCallOrder[0]);
+  });
+
+  it("rejects a replay if its originating shift is unavailable", async () => {
+    shiftFindFirstMock.mockResolvedValue(null);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      clientMutationId: "replayed-sale", originCashierId: "u1", originStoreId: "store-1",
+      offlineReplay: { shiftId: "shift-1", capturedAt: "2026-01-01T00:30:00.000Z" },
+      paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(409);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("does not insert an unassigned replay into a shift already closed", async () => {
+    shiftFindFirstMock.mockResolvedValue({ id: "closed-shift", status: "CLOSED" });
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      clientMutationId: "old-replay", originCashierId: "u1", originStoreId: "store-1",
+      offlineReplay: { capturedAt: "2026-01-01T00:30:00.000Z" },
+      paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(409);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+  it("rejects a queued checkout when the signed-in cashier changed", async () => {
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        clientMutationId: "checkout-original-cashier", originCashierId: "different-cashier", originStoreId: "store-1",
+        paymentMethod: "CASH", amountPaid: 1000,
+        items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+      }),
+    }));
+    expect(response.status).toBe(403);
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+    expect(transactionFindFirstMock).not.toHaveBeenCalled();
+  });
+  it("returns the original transaction when a checkout is retried with its mutation ID", async () => {
+    transactionFindFirstMock.mockResolvedValueOnce({ id: "existing-sale", status: "COMPLETED" });
+
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        clientMutationId: "checkout-unique-1",
+        paymentMethod: "CASH",
+        amountPaid: 1000,
+        items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ id: "existing-sale" });
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("stores the checkout mutation ID on a newly committed sale", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        clientMutationId: "checkout-unique-2",
+        paymentMethod: "CASH",
+        amountPaid: 1000,
+        items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+      }),
+    }));
+
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      offlineClientMutationId: "checkout-unique-2",
+    });
+  });
+
+  it("returns the committed sale when two requests race with the same mutation ID", async () => {
+    transactionFindFirstMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "winning-sale", status: "COMPLETED" });
+    dbTransactionMock.mockRejectedValueOnce({ code: "P2002", meta: { target: ["offlineClientMutationId"] } });
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        clientMutationId: "checkout-race-1",
+        paymentMethod: "CASH",
+        amountPaid: 1000,
+        items: [{ lineType: "PRODUCT", productId: "p1", quantity: 1 }],
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ id: "winning-sale" });
+  });
   it.each(["AGEN", "PEMERINTAH"])("uses the regular price for %s when Harga Khusus is disabled", async (customerType) => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
     customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: customerType });
@@ -362,7 +513,10 @@ describe("POST /api/transactions negative stock", () => {
     pricingRuleFindManyMock.mockResolvedValue([]);
     transactionCountMock.mockResolvedValue(0);
     transactionFindManyMock.mockResolvedValue([]);
+    transactionFindFirstMock.mockReset().mockResolvedValue(null);
+    shiftFindFirstMock.mockReset().mockResolvedValue(null);
     transactionCreateMock.mockResolvedValue({ id: "tx-1", status: "COMPLETED" });
+    shiftUpdateManyMock.mockResolvedValue({ count: 1 });
     buildInventoryLogRowsMock.mockReturnValue([]);
     transactionInventoryLogCreateManyMock.mockResolvedValue({ count: 0 });
     dbTransactionMock.mockImplementation(async (cb: any) => cb({
@@ -370,6 +524,7 @@ describe("POST /api/transactions negative stock", () => {
       transactionItemSnapshot: { createMany: vi.fn() },
       inventoryLog: { createMany: transactionInventoryLogCreateManyMock },
       customer: { update: customerUpdateMock },
+      cashierShift: { updateMany: shiftUpdateManyMock, findFirst: shiftFindFirstMock },
     }));
   });
 

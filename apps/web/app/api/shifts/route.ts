@@ -4,6 +4,7 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 import { getShiftSettings } from "@/lib/shift/shift-settings-server";
+import { cashReceived } from "@/lib/shift/cash-summary";
 
 import { getLogger } from "@/lib/logger";
 
@@ -93,15 +94,13 @@ export async function GET(request: Request) {
       const cashTransactions = await db.transaction.findMany({
         where: {
           storeId,
-          paymentMethod: "CASH",
           status: { in: ["COMPLETED", "DP"] },
           createdAt: { gte: openShift.openedAt },
         },
-        select: { total: true, amountPaid: true, status: true },
+        select: { total: true, amountPaid: true, status: true, paymentMethod: true, change: true,
+          payments: { select: { method: true, amount: true } } },
       });
-      const totalCash = cashTransactions.reduce((acc, t) => {
-        return acc + Number(t.status === "DP" ? t.amountPaid : t.total);
-      }, 0);
+      const totalCash = cashTransactions.reduce((acc, transaction) => acc + cashReceived(transaction), 0);
       computedExpectedBalance = Number(openShift.openingBalance) + totalCash;
     }
 
@@ -125,11 +124,21 @@ export async function GET(request: Request) {
 const openShiftSchema = z.object({
   openingBalance: z.number().min(0, "Saldo awalan invalid"),
   note: z.string().optional().nullable(),
+  clientShiftId: z.string().min(1).max(200).optional(),
+  openedAt: z.string().datetime().optional(),
+  originCashierId: z.string().min(1).optional(),
+  originStoreId: z.string().min(1).optional(),
+}).refine((value) => !value.openedAt || Boolean(value.clientShiftId), {
+  message: "ID shift diperlukan untuk menyimpan waktu pembukaan offline.",
+  path: ["clientShiftId"],
+}).refine((value) => !value.openedAt || Boolean(value.originCashierId && value.originStoreId), {
+  message: "Identitas kasir dan toko asal diperlukan untuk menyinkronkan shift offline.",
+  path: ["originCashierId"],
 });
 
 class ShiftConflictError extends Error {
-  constructor() {
-    super("Masih ada shift yang terbuka di toko ini.");
+  constructor(message = "Masih ada shift yang terbuka di toko ini.") {
+    super(message);
     this.name = "ShiftConflictError";
   }
 }
@@ -149,9 +158,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { openingBalance, note } = validatedData.data;
+    const { openingBalance, note, clientShiftId, openedAt, originCashierId, originStoreId } = validatedData.data;
     const cashierId = user.id;
     const storeId = user.storeId || "store-main";
+    if ((originCashierId !== undefined || originStoreId !== undefined) &&
+        (originCashierId !== cashierId || originStoreId !== storeId)) {
+      return NextResponse.json({ message: "Kasir atau toko berubah. Masuk kembali sebagai kasir asal untuk menyinkronkan shift." }, { status: 403 });
+    }
 
     const newShift = await db.$transaction(async (transaction) => {
       const [{ enabled: shiftEnabled }, existing] = await Promise.all([
@@ -164,10 +177,27 @@ export async function POST(request: Request) {
         }),
       ]);
 
-      if (existing) throw new ShiftConflictError();
+      if (existing) {
+        if (clientShiftId && existing.id === clientShiftId && existing.cashierId === cashierId && Number(existing.openingBalance) === openingBalance) {
+          return { shift: existing, replayed: true };
+        }
+        throw new ShiftConflictError();
+      }
 
-      return transaction.cashierShift.create({
+      if (openedAt) {
+        // A backdated local shift must not overlap a shift already closed on
+        // another device; its end time is not yet known during the open replay.
+        const overlap = await transaction.cashierShift.findFirst({
+          where: { storeId, status: "CLOSED", closedAt: { gte: new Date(openedAt) } },
+          select: { id: true },
+        });
+        if (overlap) throw new ShiftConflictError("Waktu shift offline bertabrakan dengan waktu shift lain. Periksa bersama pengelola.");
+      }
+
+      const shift = await transaction.cashierShift.create({
         data: {
+          ...(clientShiftId ? { id: clientShiftId } : {}),
+          ...(openedAt ? { openedAt: new Date(openedAt) } : {}),
           cashierId,
           storeId,
           openingBalance: Number(openingBalance),
@@ -177,9 +207,10 @@ export async function POST(request: Request) {
           pausedDurationSeconds: 0,
         },
       });
-    });
+      return { shift, replayed: false };
+    }, { isolationLevel: "Serializable" });
 
-    return NextResponse.json(newShift, { status: 201 });
+    return NextResponse.json(newShift.shift, { status: newShift.replayed ? 200 : 201 });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

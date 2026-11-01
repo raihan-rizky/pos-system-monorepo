@@ -118,6 +118,8 @@ const transactionItemSchema = z.union([
 ]);
 
 const createTransactionSchema = z.object({
+  clientMutationId: z.string().min(1).max(200).optional(),
+  offlineReplay: z.object({ shiftId: z.string().min(1).optional(), capturedAt: z.string().datetime() }).optional(),
   taxRate: z.number().min(0).max(100).multipleOf(0.01).optional().default(0),
   items: z.array(transactionItemSchema).min(1, "Cart is empty"),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER", "TEMPO"]).optional().default("CASH"),
@@ -509,6 +511,10 @@ export async function POST(request: Request) {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ message: "Data transaksi tidak valid." }, { status: 422 });
     }
+    if ((body.originCashierId !== undefined || body.originStoreId !== undefined) &&
+        (body.originCashierId !== user.id || body.originStoreId !== storeId)) {
+      return NextResponse.json({ message: "Kasir atau toko berubah. Masuk kembali sebagai kasir asal untuk memproses transaksi." }, { status: 403 });
+    }
     let printingReceipt: Awaited<ReturnType<typeof db.printingReceipt.findFirst>> = null;
     let receiptInvoiceDate: string | null = null;
     if (body.printingReceiptId !== undefined || body.printingReceiptRevision !== undefined) {
@@ -560,6 +566,39 @@ export async function POST(request: Request) {
         { message: "Validation error", errors: parsed.error.flatten() },
         { status: 422 }
       );
+    }
+
+    const clientMutationId = parsed.data.clientMutationId;
+    const findExistingCheckout = clientMutationId
+      ? () => db.transaction.findFirst({
+          where: {
+            offlineClientMutationId: clientMutationId,
+            storeId,
+            OR: [{ cashierId: user.id }, { requestedById: user.id }],
+          },
+          include: receiptTransactionInclude,
+        })
+      : null;
+    if (findExistingCheckout) {
+      const existingCheckout = await findExistingCheckout();
+      if (existingCheckout) return NextResponse.json(existingCheckout);
+    }
+    let replayCapturedAt: Date | undefined;
+    if (parsed.data.offlineReplay) {
+      const { shiftId, capturedAt } = parsed.data.offlineReplay;
+      replayCapturedAt = new Date(capturedAt);
+      if (!clientMutationId || body.originCashierId !== user.id || body.originStoreId !== storeId || replayCapturedAt.getTime() > Date.now()) {
+        return NextResponse.json({ message: "Identitas atau waktu transaksi offline tidak sesuai." }, { status: 409 });
+      }
+      if (shiftId) {
+        const replayShift = await db.cashierShift.findFirst({
+          where: { id: shiftId, cashierId: user.id, storeId, status: "OPEN", openedAt: { lte: replayCapturedAt } },
+          select: { id: true, openedAt: true },
+        });
+        if (!replayShift) {
+          return NextResponse.json({ message: "Shift asal transaksi offline tidak tersedia. Periksa antrean bersama pengelola." }, { status: 409 });
+        }
+      }
     }
 
     if (!printingReceipt && parsed.data.items.some(item => item.lineType === "PRINTING_SERVICE" && item.printingServiceId === null)) {
@@ -924,16 +963,21 @@ export async function POST(request: Request) {
       "create",
       permissions,
     );
-    const requiresApproval = !autoApproveTransaction;
-
     const amountPaidComputed = resolvedPayments.reduce((sum, p) => sum + p.amount, 0);
+    const replayPriceChanged = Boolean(parsed.data.offlineReplay) && serverItems.some((item, index) => {
+      const capturedPrice = items[index].price;
+      return capturedPrice === undefined || Math.round(capturedPrice * 100) !== Math.round(item.price * 100);
+    });
+    const replayPaymentChanged = Boolean(parsed.data.offlineReplay) &&
+      (isDP || isTempo ? amountPaidComputed >= total : amountPaidComputed < total);
+    const requiresApproval = !autoApproveTransaction || replayPriceChanged || replayPaymentChanged;
     if (printingReceipt && (
       !Number.isFinite(discount) || discount > MAX_PRINTING_RECEIPT_AMOUNT ||
       !Number.isFinite(amountPaidComputed) || amountPaidComputed > MAX_PRINTING_RECEIPT_AMOUNT
     )) {
       return NextResponse.json({ message: "Diskon atau pembayaran melebihi batas nilai nota. Sesuaikan nilainya sebelum pembayaran." }, { status: 422 });
     }
-    if (isTempo && amountPaidComputed >= total) {
+    if (isTempo && amountPaidComputed >= total && !parsed.data.offlineReplay) {
       return NextResponse.json(
         { message: "Pembayaran Tempo harus menyisakan saldo tagihan." },
         { status: 422 },
@@ -950,7 +994,7 @@ export async function POST(request: Request) {
         ? "DP"
         : "COMPLETED";
 
-    if (!isDP && !isTempo && amountPaidComputed < total) {
+    if (!isDP && !isTempo && amountPaidComputed < total && !parsed.data.offlineReplay) {
       return NextResponse.json(
         { message: `Pembayaran kurang dari total belanja (Total: Rp ${total.toLocaleString("id-ID")}, Terbayar: Rp ${amountPaidComputed.toLocaleString("id-ID")})` },
         { status: 422 }
@@ -968,6 +1012,29 @@ export async function POST(request: Request) {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         transaction = await db.$transaction(async (tx: TxClient) => {
+          if (parsed.data.offlineReplay?.shiftId && replayCapturedAt) {
+            const locked = await tx.cashierShift.updateMany({
+              where: { id: parsed.data.offlineReplay.shiftId, cashierId: user.id, storeId, status: "OPEN", openedAt: { lte: replayCapturedAt } },
+              data: { pausedDurationSeconds: { increment: 0 } },
+            });
+            if (locked.count !== 1) throw new Error("OFFLINE_SHIFT_CLOSED");
+          } else if (parsed.data.offlineReplay && replayCapturedAt) {
+            const matchingShift = await tx.cashierShift.findFirst({
+              where: { storeId, openedAt: { lte: replayCapturedAt }, OR: [
+                { status: "OPEN" }, { status: "CLOSED", closedAt: { gte: replayCapturedAt } },
+              ] },
+              orderBy: { openedAt: "desc" },
+              select: { id: true, status: true },
+            });
+            if (matchingShift?.status === "CLOSED") throw new Error("OFFLINE_SHIFT_CLOSED");
+            if (matchingShift) {
+              const locked = await tx.cashierShift.updateMany({
+                where: { id: matchingShift.id, storeId, status: "OPEN" },
+                data: { pausedDurationSeconds: { increment: 0 } },
+              });
+              if (locked.count !== 1) throw new Error("OFFLINE_SHIFT_CLOSED");
+            }
+          }
           // The revision update locks this receipt before any financial side
           // effect. Concurrent saves/checkouts serialize on this single row.
           if (printingReceipt) {
@@ -1000,6 +1067,12 @@ export async function POST(request: Request) {
           const txn = await tx.transaction.create({
             data: {
               invoiceNumber,
+              ...(clientMutationId ? { offlineClientMutationId: clientMutationId } : {}),
+              ...(replayCapturedAt ? { createdAt: replayCapturedAt } : {}),
+              ...(parsed.data.offlineReplay ? {
+                offlineOriginalPayload: JSON.parse(JSON.stringify({ items, amountPaid, discount, taxRate, paymentMethod, payments: rawPayments })) as Prisma.InputJsonValue,
+                offlineSyncMetadata: { reason: replayPriceChanged ? "ITEM_PRICE_CHANGED" : replayPaymentChanged ? "PAYMENT_CHANGED" : "REPLAYED" },
+              } : {}),
               transactionCategory: printingReceipt || serviceLineItems.length > 0 ? "PERCETAKAN" : "ATK",
               printingSubcategory: printingReceipt?.subcategory ?? null,
               invoiceDate: resolvedInvoiceDate,
@@ -1209,6 +1282,10 @@ export async function POST(request: Request) {
         // Transaction succeeded â€” break out of retry loop
         break;
       } catch (err: any) {
+        if (err?.code === "P2002" && findExistingCheckout) {
+          const existingCheckout = await findExistingCheckout();
+          if (existingCheckout) return NextResponse.json(existingCheckout);
+        }
         if (err?.code === "P2034" && printingReceipt) {
           throw new PrintingReceiptCheckoutConflict("Nota sedang diproses pengguna lain. Coba lagi untuk memuat transaksi tersimpan.");
         }
@@ -1284,6 +1361,9 @@ export async function POST(request: Request) {
 
     if (error instanceof Error && error.message === "ITEM_DISCOUNT_INVALID") {
       return NextResponse.json({ message: "Diskon item harus bernilai positif atau nol dan tidak melebihi total item." }, { status: 422 });
+    }
+    if (error instanceof Error && error.message === "OFFLINE_SHIFT_CLOSED") {
+      return NextResponse.json({ message: "Shift asal transaksi sudah ditutup. Periksa antrean bersama pengelola." }, { status: 409 });
     }
     log.error("Failed to create transaction:", error);
     return NextResponse.json(

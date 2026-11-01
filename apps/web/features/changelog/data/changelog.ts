@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "pos-offline-sync-recovery", date: "2026-11-01", revision: 1,
+    highlight: { title: "Siapkan POS offline", summary: "Siapkan PIN dan periksa transaksi yang menunggu sinkronisasi." },
+    title: "Siapkan dan periksa POS offline.",
+    summary: "Siapkan PIN untuk membuka kembali POS saat koneksi terputus. Periksa transaksi dan unduh data yang perlu direkonsiliasi.",
+    kind: "improvement", area: "Kasir", href: "/pos/offline", visual: "changelog",
+    steps: [
+      { title: "Siapkan POS", detail: "Saat online, buka Kasir > Offline Sync, buat PIN lalu pilih Siapkan POS offline." },
+      { title: "Buka POS", detail: "Saat offline, buka alamat POS dan masukkan PIN akun yang disiapkan." },
+      { title: "Periksa hasil", detail: "Setelah terhubung, masuk sebagai kasir asal dan periksa status transaksi di Offline Sync." },
+    ],
+  },
+  {
     id: "history-actions-layout", date: "2026-11-01", revision: 1,
     highlight: { title: "Aksi Riwayat lebih rapi", summary: "Temukan struk dan pilihan transaksi dengan lebih mudah." },
     title: "Aksi transaksi lebih mudah ditemukan.",

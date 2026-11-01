@@ -9,13 +9,17 @@ import {
 } from "./offline-core";
 import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
-export type OfflinePaymentMethod = "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER";
+export type OfflinePaymentMethod = "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER" | "TEMPO";
 
 export type OfflineTransactionPayload = {
+  originCashierId?: string;
+  originStoreId?: string;
+  shiftId?: string | null;
   timeSource?: "SERVER_ESTIMATE" | "DEVICE_UNVERIFIED";
   items: OfflineCartItem[];
   paymentMethod: OfflinePaymentMethod;
   amountPaid: number;
+  payments?: { method: string; amount: number }[];
   discount: number;
   taxRate?: number;
   note?: string | null;
@@ -26,6 +30,9 @@ export type OfflineTransactionPayload = {
   paymentStatus?: string;
   isJobOrder?: boolean;
   estimatedDoneAt?: string | null;
+  invoiceDate?: string;
+  invoiceTime?: string | null;
+  invoiceDateReason?: string | null;
   pricingPreference?: PricingPreference;
   originalSubtotal: number;
   originalTotal: number;
@@ -33,6 +40,10 @@ export type OfflineTransactionPayload = {
 
 export type OfflineTransactionRecord = {
   clientMutationId: string;
+  // The original online request is retained until its outcome is known. This
+  // preserves fields and line types that the offline reconciliation API cannot replay.
+  onlineRequest?: Record<string, unknown>;
+  reconcileOffline?: boolean;
   status: OfflineSyncState;
   payload: OfflineTransactionPayload;
   createdAt: string;
@@ -42,6 +53,8 @@ export type OfflineTransactionRecord = {
   serverTransactionId: string | null;
   syncResult: unknown | null;
   syncedAt: string | null;
+  syncClaimId?: string | null;
+  syncLeaseExpiresAt?: string | null;
 };
 
 export type SyncAttemptRecord = {
@@ -68,6 +81,19 @@ export type OfflineShiftRecord = {
   pausedDurationSeconds: number;
   cashier?: { name: string };
   isLocalOnly: true;
+  openSynced?: boolean;
+  closeSynced?: boolean;
+  closeNote?: string | null;
+  syncError?: string | null;
+};
+
+type OfflineSyncLock = { id: string; owner: string; expiresAt: number };
+export type OfflineCatalogIdentity = { cashierId: string; storeId: string };
+export type OfflineCatalogSnapshot = OfflineCatalogIdentity & {
+  id: string;
+  generatedAt: string;
+  products: (Record<string, unknown> & { id: string })[];
+  categories: (Record<string, unknown> & { id: string })[];
 };
 
 export class PosOfflineDatabase extends Dexie {
@@ -76,6 +102,8 @@ export class PosOfflineDatabase extends Dexie {
   catalogProducts!: Table<Record<string, unknown> & { id: string; updatedAt: string }, string>;
   catalogCategories!: Table<Record<string, unknown> & { id: string; order?: number }, string>;
   offlineShifts!: Table<OfflineShiftRecord, string>;
+  syncLocks!: Table<OfflineSyncLock, string>;
+  catalogSnapshots!: Table<OfflineCatalogSnapshot, string>;
 
   constructor() {
     super("pos-offline-pwa");
@@ -102,6 +130,9 @@ export class PosOfflineDatabase extends Dexie {
       notificationSubscriptions: "&endpoint,userId,role,storeId,updatedAt",
       offlineShifts: "&id,status,openedAt,closedAt",
     });
+
+    this.version(3).stores({ syncLocks: "&id" });
+    this.version(4).stores({ catalogSnapshots: "&id" });
   }
 }
 
@@ -110,6 +141,7 @@ export const offlineDb = new PosOfflineDatabase();
 export async function createOfflineTransaction(
   payload: OfflineTransactionPayload,
   now = new Date(),
+  clientMutationId = buildClientMutationId(now),
 ) {
   const pendingCount = await offlineDb.offlineTransactions
     .where("status")
@@ -122,7 +154,7 @@ export async function createOfflineTransaction(
 
   const timestamp = now.toISOString();
   const record: OfflineTransactionRecord = {
-    clientMutationId: buildClientMutationId(now),
+    clientMutationId,
     status: "PENDING_SYNC",
     payload,
     createdAt: timestamp,
@@ -139,20 +171,26 @@ export async function createOfflineTransaction(
   return record;
 }
 
-export async function getOfflineQueueSummary() {
+export async function getOfflineQueueSummary(identity: { cashierId: string; storeId: string } | null) {
+  if (!identity) return { pending: 0, syncing: 0, failed: 0, pendingApproval: 0, lastSyncAt: null };
+  const belongsToCashier = (record: OfflineTransactionRecord) =>
+    record.payload.originCashierId === identity.cashierId && record.payload.originStoreId === identity.storeId;
   const [pending, syncing, failed, pendingApproval] = await Promise.all([
     offlineDb.offlineTransactions
       .where("status")
       .anyOf(["PENDING_SYNC", "FAILED_RETRYABLE"])
+      .filter(belongsToCashier)
       .count(),
-    offlineDb.offlineTransactions.where("status").equals("SYNCING").count(),
+    offlineDb.offlineTransactions.where("status").equals("SYNCING").filter(belongsToCashier).count(),
     offlineDb.offlineTransactions
       .where("status")
       .anyOf(["FAILED_RETRYABLE", "FAILED_FINAL"])
+      .filter(belongsToCashier)
       .count(),
     offlineDb.offlineTransactions
       .where("status")
       .equals("PENDING_APPROVAL")
+      .filter(belongsToCashier)
       .count(),
   ]);
 
@@ -160,6 +198,7 @@ export async function getOfflineQueueSummary() {
     .where("syncedAt")
     .above("")
     .reverse()
+    .filter(belongsToCashier)
     .first();
 
   return {
@@ -171,11 +210,33 @@ export async function getOfflineQueueSummary() {
   };
 }
 
-export async function clearSyncedOfflineTransactions() {
+export async function clearSyncedOfflineTransactions(storeId: string) {
   await offlineDb.offlineTransactions
     .where("status")
-    .anyOf(["SYNCED", "PENDING_APPROVAL", "FAILED_FINAL"])
+    .anyOf(["SYNCED", "PENDING_APPROVAL"])
+    .filter((record) => Boolean(record.serverTransactionId) && record.payload.originStoreId === storeId)
     .delete();
+  window.dispatchEvent(new CustomEvent("pos-offline-queue-changed"));
+}
+
+export async function getOfflineQueueRecords() {
+  return offlineDb.offlineTransactions.orderBy("createdAt").reverse().toArray();
+}
+
+export async function retryOfflineTransaction(
+  clientMutationId: string,
+  identity: { cashierId: string; storeId: string },
+) {
+  await offlineDb.transaction("rw", offlineDb.offlineTransactions, async () => {
+    const record = await offlineDb.offlineTransactions.get(clientMutationId);
+    if (!record || record.status !== "FAILED_FINAL" || record.serverTransactionId ||
+        record.payload.originCashierId !== identity.cashierId || record.payload.originStoreId !== identity.storeId) {
+      throw new Error("Transaksi ini tidak dapat dicoba ulang oleh kasir yang sedang masuk.");
+    }
+    await offlineDb.offlineTransactions.update(clientMutationId, {
+      status: "PENDING_SYNC", lastError: null, updatedAt: new Date().toISOString(),
+    });
+  });
   window.dispatchEvent(new CustomEvent("pos-offline-queue-changed"));
 }
 
@@ -222,8 +283,15 @@ export async function getCachedCatalogProducts<T>(
   search?: string,
   categoryId?: string,
   inStockOnly = false,
+  identity?: OfflineCatalogIdentity,
 ) {
-  const all = (await offlineDb.catalogProducts.toArray()) as T[];
+  const snapshot = identity ? await offlineDb.catalogSnapshots.get(`${identity.cashierId}:${identity.storeId}`) : undefined;
+  if (identity && (!snapshot || snapshot.cashierId !== identity.cashierId || snapshot.storeId !== identity.storeId)) {
+    throw new Error("Katalog offline belum disiapkan untuk kasir ini. Hubungkan perangkat dan siapkan katalog.");
+  }
+  const all = (snapshot?.products ?? (await offlineDb.catalogProducts.toArray()).filter((product) =>
+    !identity || product.storeId === identity.storeId,
+  )) as T[];
   const { parseSearchQuery, matchesSearchTokens } = await import(
     "@/features/pos-search/pos-search"
   );
@@ -254,35 +322,43 @@ export async function cacheCatalogCategories<T extends { id: string }>(categorie
   await offlineDb.catalogCategories.bulkPut(categories);
 }
 
-export async function getCachedCatalogCategories<T>() {
-  return (await offlineDb.catalogCategories.toArray()) as T[];
+export async function getCachedCatalogCategories<T>(identity?: OfflineCatalogIdentity) {
+  const snapshot = identity ? await offlineDb.catalogSnapshots.get(`${identity.cashierId}:${identity.storeId}`) : undefined;
+  if (identity && (!snapshot || snapshot.cashierId !== identity.cashierId || snapshot.storeId !== identity.storeId)) {
+    throw new Error("Katalog offline belum disiapkan untuk kasir ini. Hubungkan perangkat dan siapkan katalog.");
+  }
+  return (snapshot?.categories ?? await offlineDb.catalogCategories.toArray()) as T[];
 }
 
-export async function getOfflineActiveShift() {
-  return offlineDb.offlineShifts.where("status").equals("OPEN").first();
+export async function getOfflineActiveShift(identity: { cashierId: string; storeId: string }) {
+  return offlineDb.offlineShifts.where("status").equals("OPEN")
+    .filter((shift) => shift.cashierId === identity.cashierId && shift.storeId === identity.storeId)
+    .first();
 }
 
 export async function createOfflineShift({
   openingBalance,
   note,
-  cashierId = "offline-user",
-  cashierName = "Offline cashier",
-  storeId = "offline-store",
+  cashierId,
+  cashierName = "Kasir",
+  storeId,
+  clientShiftId,
   now = new Date(),
 }: {
   openingBalance: number;
   note?: string | null;
-  cashierId?: string;
+  cashierId: string;
   cashierName?: string;
-  storeId?: string;
+  storeId: string;
+  clientShiftId?: string;
   now?: Date;
 }) {
-  const existing = await getOfflineActiveShift();
+  const existing = await getOfflineActiveShift({ cashierId, storeId });
   if (existing) return existing;
 
   const openedAt = now.toISOString();
   const shift: OfflineShiftRecord = {
-    id: `offline-shift-${openedAt.replace(/\D/g, "")}`,
+    id: clientShiftId || `shift-${buildClientMutationId(now)}`,
     cashierId,
     storeId,
     openingBalance,
@@ -297,9 +373,47 @@ export async function createOfflineShift({
     pausedDurationSeconds: 0,
     cashier: { name: cashierName },
     isLocalOnly: true,
+    openSynced: false,
+    closeSynced: false,
+    syncError: null,
   };
 
   await offlineDb.offlineShifts.add(shift);
   window.dispatchEvent(new CustomEvent("pos-offline-shift-changed"));
   return shift;
+}
+
+export async function rememberActiveShift(shift: Omit<OfflineShiftRecord, "isLocalOnly">) {
+  await offlineDb.transaction("rw", offlineDb.offlineShifts, async () => {
+    const current = await offlineDb.offlineShifts.get(shift.id);
+    // A local close must survive a stale server response while replay is pending.
+    if (current?.status === "CLOSED" && !current.closeSynced) return;
+    await offlineDb.offlineShifts.put({ ...shift, isLocalOnly: true, openSynced: true, closeSynced: false });
+  });
+}
+
+export async function closeOfflineShift(
+  shiftId: string,
+  identity: { cashierId: string; storeId: string },
+  closingBalance: number,
+  note?: string,
+) {
+  if (!Number.isFinite(closingBalance) || closingBalance < 0) {
+    throw new Error("Jumlah uang fisik tidak valid.");
+  }
+  await offlineDb.transaction("rw", offlineDb.offlineShifts, async () => {
+    const shift = await offlineDb.offlineShifts.get(shiftId);
+    if (!shift || shift.status !== "OPEN" || shift.cashierId !== identity.cashierId || shift.storeId !== identity.storeId) {
+      throw new Error("Shift offline tidak ditemukan untuk kasir ini.");
+    }
+    await offlineDb.offlineShifts.update(shiftId, {
+      status: "CLOSED",
+      closingBalance,
+      closedAt: new Date().toISOString(),
+      closeNote: note || null,
+      closeSynced: false,
+      syncError: null,
+    });
+  });
+  window.dispatchEvent(new CustomEvent("pos-offline-shift-changed"));
 }

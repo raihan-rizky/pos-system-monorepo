@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useMemo, useDeferredValue } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useDeferredValue, useRef } from "react";
 import dynamic from "next/dynamic";
 import { buildDraftCheckoutItems, buildOfflineCheckoutTotals } from "@/features/pos-checkout/helpers/checkout-persistence";
 import { AlertTriangle, Check, CircleMinus, Clock, Search, ShoppingCart, X } from "lucide-react";
@@ -62,6 +62,9 @@ import { mapCheckoutPricingRule, priceCartItemsForCheckout } from "@/features/po
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
 import type { CheckoutCustomerSelection } from "@/features/pos-checkout/customer-selection";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
+import { buildClientMutationId } from "@/lib/offline/offline-core";
+import { warmOfflineCheckoutModules } from "@/lib/offline/offline-module-preparation";
+import { OfflinePreparationBeacon } from "@/lib/offline/OfflinePreparationBeacon";
 import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
@@ -122,6 +125,7 @@ export default function POSClientPage({
   initialData: POSInitialData;
 }) {
   const offlineClock = useServerClock();
+  const checkoutMutationId = useRef<string | null>(null);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -151,6 +155,17 @@ export default function POSClientPage({
     message: string;
   } | null>(null);
   const [todayLabel, setTodayLabel] = useState("");
+
+  useEffect(() => {
+    const prepare = () => {
+      if (navigator.onLine) {
+        void warmOfflineCheckoutModules().catch((error) => log.warn("Offline checkout preparation failed", error));
+      }
+    };
+    prepare();
+    window.addEventListener("online", prepare);
+    return () => window.removeEventListener("online", prepare);
+  }, []);
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
@@ -188,7 +203,11 @@ export default function POSClientPage({
     initialData.activeShift ?? undefined,
   );
   const { data: shiftSettings } = useShiftSettings(initialData.shiftEnabled);
-  const { role, canPerform } = useRole();
+  const { role, userId, storeId, canPerform } = useRole();
+  const offlineIdentity = useMemo(
+    () => userId ? { cashierId: userId, storeId: storeId || "store-main" } : undefined,
+    [userId, storeId],
+  );
   const isSales = role === "SALES";
   const shiftRequired = shiftSettings?.enabled !== false;
   const canQuickEdit = canPerform("product", "update");
@@ -199,6 +218,7 @@ export default function POSClientPage({
     inStockOnly: hideOutOfStock,
     initialData: initialData.products ?? undefined,
     initialDataUpdatedAt: initialData.productsUpdatedAt,
+    offlineIdentity,
   });
   const visibleProducts = useMemo(
     () =>
@@ -217,7 +237,7 @@ export default function POSClientPage({
   );
   const searchTokens = parseSearchQuery(deferredSearch);
 
-  const { data: categories = [] } = useCategories(initialData.categories);
+  const { data: categories = [] } = useCategories(initialData.categories, offlineIdentity);
   const { data: brands = [] } = useBrands({
     enabled: Boolean(productEditItem),
   });
@@ -252,7 +272,7 @@ export default function POSClientPage({
         const { getCachedCatalogProducts } = await import(
           "@/lib/offline/offline-db"
         );
-        cachedProducts = await getCachedCatalogProducts<Product>();
+        cachedProducts = await getCachedCatalogProducts<Product>(undefined, undefined, false, offlineIdentity);
       } catch {
         // The current product page still provides options while offline cache is unavailable.
       }
@@ -275,6 +295,7 @@ export default function POSClientPage({
   }, [
     hasLoadedCartStorage,
     syncCartUnitOptions,
+    offlineIdentity,
     productsQuery.data?.data,
   ]);
   const checkoutMode = useMemo(
@@ -451,6 +472,7 @@ export default function POSClientPage({
     priceRoundingSettings?: PriceRoundingSettings;
     paymentMethod: string;
     amountPaid: number;
+    payments?: { method: string; amount: number }[];
     discount: number;
     taxRate: number;
     note: string;
@@ -466,12 +488,57 @@ export default function POSClientPage({
     invoiceDateReason?: string | null;
     items: typeof cart.items;
   }) => {
+    const clientMutationId = checkoutMutationId.current ?? buildClientMutationId();
+    checkoutMutationId.current = clientMutationId;
     try {
       const { items: pricedItems, ...transactionData } = data;
-      const result = await createTransaction.mutateAsync({
-        items: pricedItems,
-        ...transactionData,
-      });
+      if (!userId) throw new Error("Identitas kasir belum tersedia. Hubungkan perangkat dan masuk kembali.");
+      const offlinePricedItems = pricedItems.filter(
+        (item): item is ProductCartItem => item.lineType === "PRODUCT",
+      );
+      const request = { items: pricedItems, ...transactionData, clientMutationId,
+        originCashierId: userId, originStoreId: storeId || "store-main" };
+      const { resolveCheckoutShiftId, submitCheckoutWithOutbox } = await import("@/lib/offline/checkout-outbox");
+      const outcome = await submitCheckoutWithOutbox({
+        originCashierId: userId,
+        originStoreId: storeId || "store-main",
+        shiftId: resolveCheckoutShiftId(activeShift, userId),
+        items: offlinePricedItems,
+        paymentMethod: data.paymentMethod as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER" | "TEMPO",
+        amountPaid: data.amountPaid,
+        payments: data.payments,
+        discount: data.discount,
+        taxRate: data.taxRate,
+        note: data.note,
+        customerName: data.customerName,
+        customerId: data.customerId,
+        salesName: data.salesName,
+        salespersonId: data.salespersonId,
+        paymentStatus: data.paymentStatus,
+        isJobOrder: data.isJobOrder,
+        estimatedDoneAt: data.estimatedDoneAt,
+        ...buildOfflineCheckoutTotals(offlinePricedItems, data.discount, data.taxRate),
+        timeSource: isTrustedServerClockSource(offlineClock.source) ? "SERVER_ESTIMATE" : "DEVICE_UNVERIFIED",
+      }, request, () => {
+        if (!navigator.onLine || activeShift?.isLocalOnly) throw new TypeError("Transaksi menunggu koneksi dan sinkronisasi shift.");
+        return createTransaction.mutateAsync(request);
+      }, offlineClock.now ?? new Date(), !hasServiceItems);
+      checkoutMutationId.current = null;
+      if (outcome.kind === "rejected") {
+        setCheckoutNotice({ tone: "danger", message: outcome.message });
+        return;
+      }
+      if (outcome.kind === "queued") {
+        cart.clearCart();
+        setShowPayment(false);
+        setCheckoutNotice({
+          tone: "warning",
+          message: "Transaksi tersimpan di perangkat dan akan dikirim saat koneksi tersedia. Periksa hasilnya di Offline Sync.",
+        });
+        window.dispatchEvent(new CustomEvent("pos-offline-sync-requested"));
+        return;
+      }
+      const result = outcome.transaction;
       setLastTransaction(result);
       if (result.status === "PENDING_APPROVAL") {
         setCheckoutNotice({
@@ -489,69 +556,10 @@ export default function POSClientPage({
       setShowPayment(false);
     } catch (error) {
       log.error("Transaction failed:", error);
-      if (
-        typeof window !== "undefined" &&
-        (!navigator.onLine || error instanceof TypeError)
-      ) {
-        if (hasServiceItems) {
-          setCheckoutNotice({
-            tone: "danger",
-            message:
-              "Transaksi layanan cetak membutuhkan koneksi agar pemakaian bahan bisa dicatat ke stok.",
-          });
-          return;
-        }
-        const offlinePricedItems = data.items.filter(
-          (item): item is ProductCartItem => item.lineType === "PRODUCT",
-        );
-        try {
-          const { createOfflineTransaction } = await import(
-            "@/lib/offline/offline-db"
-          );
-          await createOfflineTransaction({
-            items: offlinePricedItems,
-            paymentMethod: data.paymentMethod as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER",
-            amountPaid: data.amountPaid,
-            discount: data.discount,
-            taxRate: data.taxRate,
-            note: data.note,
-            customerName: data.customerName,
-            customerId: data.customerId,
-            salesName: data.salesName,
-            salespersonId: data.salespersonId,
-            paymentStatus: data.paymentStatus,
-            isJobOrder: data.isJobOrder,
-            estimatedDoneAt: data.estimatedDoneAt,
-            ...buildOfflineCheckoutTotals(offlinePricedItems, data.discount, data.taxRate),
-            timeSource: isTrustedServerClockSource(offlineClock.source)
-              ? "SERVER_ESTIMATE"
-              : "DEVICE_UNVERIFIED",
-          }, offlineClock.now ?? new Date());
-          cart.clearCart();
-          setShowPayment(false);
-          setCheckoutNotice({
-            tone: "warning",
-            message:
-              "Transaksi tersimpan offline dan akan disinkronkan saat online.",
-          });
-        } catch (queueError) {
-          setCheckoutNotice({
-            tone: "danger",
-            message:
-              queueError instanceof Error
-                ? queueError.message
-                : "Gagal menyimpan transaksi offline.",
-          });
-        }
-      } else {
-        setCheckoutNotice({
-          tone: "danger",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Transaksi gagal diproses. Periksa data pembayaran lalu coba lagi.",
-        });
-      }
+      setCheckoutNotice({
+        tone: "danger",
+        message: error instanceof Error ? error.message : "Transaksi belum dapat disimpan di perangkat.",
+      });
     }
   };
 
@@ -644,6 +652,7 @@ export default function POSClientPage({
 
   return (
     <>
+      <OfflinePreparationBeacon />
       <div className="flex flex-1 overflow-hidden">
         {/* Products Area */}
         {/* Layout fix: remove fixed width, hide overflow, and keep min-w-0 */}
@@ -653,7 +662,7 @@ export default function POSClientPage({
               <ShiftStatusBanner
                 shift={activeShift}
                 onCloseShift={() => setShowCloseShift(true)}
-                canCloseShift={!isSales && !activeShift.isLocalOnly}
+                canCloseShift={!isSales}
               />
             )}
           {/* Top Bar */}
@@ -715,6 +724,9 @@ export default function POSClientPage({
               )}
             </div>
             <div className="flex items-center gap-2 md:gap-3">
+              <a href="/pos/offline" className="inline-flex min-h-10 items-center rounded-lg px-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+                Offline Sync
+              </a>
               {todayLabel && (
                 <div className="hidden lg:block text-right">
                   <p className="text-xs text-surface-400">{todayLabel}</p>

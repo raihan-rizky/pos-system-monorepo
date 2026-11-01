@@ -6,14 +6,20 @@ import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpe
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { AuthError, requireRole, handleAuthError } from "@/lib/rbac/guard";
+import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
+import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import type { Role } from "@/lib/rbac/permissions";
 import { buildOfflineSyncDecision } from "@/lib/offline/offline-sync-core";
+import { allocateOfflineStock } from "./stock-allocation";
 import { applyProductStockDeltas } from "@/features/product-stock-groups/stock-mutations";
 import { buildTransactionStockJournal } from "@/features/transactions-stock/helpers/transaction-stock-journal";
-import { parseDocumentSequence } from "@/features/invoice-date/helpers/invoice-date-core";
+import { compactJakartaDateKey, jakartaDateKey, parseDocumentSequence, requiresInvoiceDateReason, resolveInvoiceDateTime } from "@/features/invoice-date/helpers/invoice-date-core";
+import { buildCustomerUpdateArgs } from "@/features/pos-checkout/post-commit";
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
+  resolveCustomPricedLine,
   type AppliedCategoryPricing,
   type CategoryPricingRule,
   type CustomerType,
@@ -22,6 +28,7 @@ import {
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("api:offline-sync:transactions");
+class OfflineShiftConflict extends Error {}
 export const dynamic = "force-dynamic";
 
 const offlineItemSchema = z.object({
@@ -37,11 +44,18 @@ const offlineItemSchema = z.object({
 
 const offlineTransactionSchema = z.object({
   clientMutationId: z.string().min(1),
+  originCashierId: z.string().min(1).optional(),
+  originStoreId: z.string().min(1).optional(),
+  shiftId: z.string().min(1).nullable().optional(),
   createdAt: z.string().datetime(),
   timeSource: z.enum(["SERVER_ESTIMATE", "DEVICE_UNVERIFIED"]).optional(),
   items: z.array(offlineItemSchema).min(1),
-  paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
+  paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER", "TEMPO"]),
   amountPaid: z.number().min(0),
+  payments: z.array(z.object({
+    method: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]),
+    amount: z.number().min(0),
+  })).optional(),
   discount: z.number().min(0).default(0),
   taxRate: z.number().min(0).max(100).multipleOf(0.01).optional().default(0),
   note: z.string().optional().nullable(),
@@ -50,15 +64,18 @@ const offlineTransactionSchema = z.object({
   pricingPreference: z.enum(PRICING_PREFERENCES).optional().default("SPECIAL"),
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
-  paymentStatus: z.string().optional().default("COMPLETED"),
+  paymentStatus: z.enum(["COMPLETED", "DP"]).optional().default("COMPLETED"),
   isJobOrder: z.boolean().optional().default(false),
   estimatedDoneAt: z.string().optional().nullable(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  invoiceTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
+  invoiceDateReason: z.string().optional().nullable(),
   originalSubtotal: z.number().min(0),
   originalTotal: z.number().min(0),
 });
 
 const syncSchema = z.object({
-  transactions: z.array(offlineTransactionSchema).min(1).max(500),
+  transactions: z.array(z.unknown()).min(1).max(500),
 });
 
 type TxClient = Prisma.TransactionClient;
@@ -73,7 +90,12 @@ type SyncResult = {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("transaction", "create");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
+    const permissions = await getGlobalRolePermissions();
+    const resource = user.role === "SALES" ? "transaction.request" : "transaction";
+    if (!canRolePerformAction(user.role as Role, resource, "create", permissions)) {
+      throw new AuthError(403, "Insufficient permissions");
+    }
     const storeId = user.storeId || "store-main";
     const body = await request.json();
     const parsed = syncSchema.safeParse(body);
@@ -90,23 +112,31 @@ export async function POST(request: Request) {
     // are already committed and the client needs per-item results so it
     // doesn't re-queue them.
     const results: SyncResult[] = [];
-    for (const offlineTx of parsed.data.transactions) {
+    for (const rawTransaction of parsed.data.transactions) {
+      const item = offlineTransactionSchema.safeParse(rawTransaction);
+      if (!item.success) {
+        const clientMutationId = typeof rawTransaction === "object" && rawTransaction !== null &&
+          "clientMutationId" in rawTransaction && typeof rawTransaction.clientMutationId === "string"
+          ? rawTransaction.clientMutationId : "";
+        results.push({ clientMutationId, status: "FAILED_FINAL", message: "Data transaksi tidak valid. Periksa transaksi ini." });
+        continue;
+      }
+      const offlineTx = item.data;
       try {
         results.push(await syncOne(offlineTx, user, storeId));
       } catch (err) {
+        if (err instanceof OfflineShiftConflict) {
+          results.push({ clientMutationId: offlineTx.clientMutationId, status: "FAILED_FINAL", message: err.message });
+          continue;
+        }
         if (isPrismaUniqueConstraint(err)) {
           try {
             const winner = await db.transaction.findUnique({
               where: { offlineClientMutationId: offlineTx.clientMutationId },
-              select: { id: true, status: true },
+              select: { id: true, status: true, storeId: true, cashierId: true, requestedById: true },
             });
             if (winner) {
-              results.push({
-                clientMutationId: offlineTx.clientMutationId,
-                status: winner.status === "PENDING_APPROVAL" ? "PENDING_APPROVAL" : "SYNCED",
-                serverTransactionId: winner.id,
-                message: "Already synced",
-              });
+              results.push(existingSyncResult(offlineTx.clientMutationId, winner, user.id, storeId));
               continue;
             }
           } catch (refetchErr) {
@@ -119,8 +149,8 @@ export async function POST(request: Request) {
         );
         results.push({
           clientMutationId: offlineTx.clientMutationId,
-          status: "FAILED_FINAL",
-          message: err instanceof Error ? err.message : "Sync failed",
+          status: "FAILED_RETRYABLE",
+          message: "Sinkronisasi gagal sementara. Coba lagi saat koneksi tersedia.",
         });
       }
     }
@@ -138,6 +168,23 @@ export async function POST(request: Request) {
   }
 }
 
+function existingSyncResult(
+  clientMutationId: string,
+  existing: { id: string; status: string; storeId: string; cashierId: string | null; requestedById: string | null },
+  userId: string,
+  storeId: string,
+): SyncResult {
+  if (existing.storeId !== storeId || (existing.cashierId !== userId && existing.requestedById !== userId)) {
+    return { clientMutationId, status: "FAILED_FINAL", message: "ID transaksi digunakan oleh kasir atau toko lain. Periksa antrean ini." };
+  }
+  return {
+    clientMutationId,
+    status: existing.status === "PENDING_APPROVAL" ? "PENDING_APPROVAL" : "SYNCED",
+    serverTransactionId: existing.id,
+    message: "Already synced",
+  };
+}
+
 // Recognise a Prisma P2002 unique-constraint error without importing the
 // client types here (they live in @pos/db).
 function isPrismaUniqueConstraint(err: unknown): boolean {
@@ -151,22 +198,55 @@ function isPrismaUniqueConstraint(err: unknown): boolean {
 
 async function syncOne(
   offlineTx: OfflineTransactionInput,
-  user: Awaited<ReturnType<typeof requirePermission>>,
+  user: Awaited<ReturnType<typeof requireRole>>,
   storeId: string,
 ): Promise<SyncResult> {
+  if (offlineTx.originCashierId !== user.id || offlineTx.originStoreId !== storeId) {
+    return {
+      clientMutationId: offlineTx.clientMutationId,
+      status: "FAILED_FINAL",
+      message: "Identitas kasir atau toko asal tidak cocok. Periksa transaksi ini sebelum sinkronisasi.",
+    };
+  }
   const existing = await db.transaction.findUnique({
     where: { offlineClientMutationId: offlineTx.clientMutationId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, storeId: true, cashierId: true, requestedById: true },
   });
 
   if (existing) {
-    return {
-      clientMutationId: offlineTx.clientMutationId,
-      status: existing.status === "PENDING_APPROVAL" ? "PENDING_APPROVAL" : "SYNCED",
-      serverTransactionId: existing.id,
-      message: "Already synced",
-    };
+    return existingSyncResult(offlineTx.clientMutationId, existing, user.id, storeId);
   }
+
+  const capturedAt = new Date(offlineTx.createdAt);
+  if (capturedAt.getTime() > Date.now()) {
+    return { clientMutationId: offlineTx.clientMutationId, status: "FAILED_FINAL", message: "Waktu transaksi berada di masa depan. Periksa jam perangkat dan transaksi ini bersama pengelola." };
+  }
+  const hasCustomInvoiceDate = Boolean(offlineTx.invoiceDate || offlineTx.invoiceTime);
+  if (hasCustomInvoiceDate && user.role !== "OWNER" && user.role !== "ADMIN") {
+    return { clientMutationId: offlineTx.clientMutationId, status: "FAILED_FINAL", message: "Hanya Owner atau Admin yang boleh mengatur tanggal invoice." };
+  }
+  const resolvedInvoiceDate = hasCustomInvoiceDate
+    ? resolveInvoiceDateTime({ mode: "create", date: offlineTx.invoiceDate ?? jakartaDateKey(capturedAt), time: offlineTx.invoiceTime, now: capturedAt })
+    : capturedAt;
+  if (!Number.isFinite(resolvedInvoiceDate.getTime()) ||
+      (offlineTx.invoiceDate && jakartaDateKey(resolvedInvoiceDate) !== offlineTx.invoiceDate)) {
+    return { clientMutationId: offlineTx.clientMutationId, status: "FAILED_FINAL", message: "Tanggal invoice tidak valid." };
+  }
+  if (hasCustomInvoiceDate && requiresInvoiceDateReason({ invoiceDate: resolvedInvoiceDate, now: capturedAt }) && !offlineTx.invoiceDateReason?.trim()) {
+    return { clientMutationId: offlineTx.clientMutationId, status: "FAILED_FINAL", message: "Alasan wajib diisi untuk tanggal invoice beda hari." };
+  }
+
+  const isTempo = offlineTx.paymentMethod === "TEMPO";
+  const submittedPayments = offlineTx.payments ?? [];
+  const submittedTotal = submittedPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  if ((submittedPayments.length > 0 && Math.abs(submittedTotal - offlineTx.amountPaid) > 0.01) ||
+      (isTempo && (!offlineTx.customerId || offlineTx.paymentStatus === "DP" ||
+        (offlineTx.amountPaid > 0 && submittedPayments.length === 0)))) {
+    return { clientMutationId: offlineTx.clientMutationId, status: "FAILED_FINAL", message: "Rincian pembayaran tidak sesuai. Periksa transaksi ini." };
+  }
+  const resolvedPayments = submittedPayments.length > 0
+    ? submittedPayments
+    : isTempo ? [] : [{ method: offlineTx.paymentMethod as Exclude<typeof offlineTx.paymentMethod, "TEMPO">, amount: offlineTx.amountPaid }];
 
   const productIds = [...new Set(offlineTx.items.map((item) => item.productId))];
   const [products, customer, rawPricingRules] = await Promise.all([
@@ -179,6 +259,8 @@ async function syncOne(
         costPrice: true,
         storeId: true,
         stockGroupId: true,
+        unitMultiplierToBase: true,
+        stockGroup: { select: { id: true, baseStock: true, baseUnit: true, storeId: true } },
         hargaDinas: true,
         hargaAgen: true,
         size: true,
@@ -274,9 +356,14 @@ async function syncOne(
       offlineTx.pricingPreference,
       specialPricingEnabled,
     );
-    const rounded = roundSellingPriceLine({ ...automaticPrice,
-      unitPrice: specialPricingEnabled ? item.transactionPrice ?? automaticPrice.unitPrice : automaticPrice.unitPrice,
-    }, roundingSettings);
+    const resolved = resolveCustomPricedLine({
+      pricedLine: automaticPrice,
+      submittedPrice: item.transactionPrice,
+      role: user.role,
+      customerType: checkoutCustomerType,
+      specialPricingEnabled,
+    });
+    const rounded = roundSellingPriceLine(resolved, roundingSettings);
     const price = rounded.unitPrice;
     const appliedPricing = rounded.appliedPricing;
     appliedPricingByProductId.set(product.id, appliedPricing);
@@ -288,12 +375,12 @@ async function syncOne(
       size: item.size ?? product.size ?? null,
       material: item.material ?? product.material ?? null,
       price,
-      transactionPrice: specialPricingEnabled ? item.transactionPrice : null,
+      transactionPrice: resolved.manualOverrideApplied ? item.transactionPrice : null,
       quantity: item.quantity,
       discount: Math.round((Math.min(item.discount, price * item.quantity) + Number.EPSILON) * 100) / 100,
     };
   });
-  const stockByProductId = new Map(products.map((product) => [product.id, product.stock]));
+  const stockByProductId = allocateOfflineStock(products, serverItems);
 
   const subtotalFromServer = serverItems.reduce((sum, item) => sum + discountedLineSubtotal(item.price, item.quantity, item.discount), 0);
   const cappedDiscount = Math.min(offlineTx.discount ?? 0, subtotalFromServer);
@@ -339,24 +426,44 @@ async function syncOne(
     ...offlineTx,
     items: serverItems,
     discount: decision.discount,
+    payments: resolvedPayments,
   };
+  const canAutoApprove = canRolePerformAction(
+    user.role as Role,
+    "transaction.auto_approve",
+    "create",
+    await getGlobalRolePermissions(),
+  );
+  const itemPricesChanged = serverItems.some((item, index) =>
+    Math.round(item.price * 100) !== Math.round(offlineTx.items[index].price * 100),
+  );
   const finalDecision =
-    decision.transactionStatus === "COMPLETED" && offlineTx.amountPaid < decision.total
+    decision.transactionStatus === "COMPLETED" &&
+    (!canAutoApprove || itemPricesChanged ||
+      (offlineTx.paymentStatus === "DP" || isTempo
+        ? offlineTx.amountPaid >= decision.total
+        : offlineTx.amountPaid < decision.total))
       ? {
           ...decision,
           resultStatus: "PENDING_APPROVAL" as const,
           transactionStatus: "PENDING_APPROVAL" as const,
-          reason: "ADJUSTED_TOTAL_CHANGED" as const,
+          reason: !canAutoApprove
+            ? "AUTO_APPROVAL_REQUIRED" as const
+            : itemPricesChanged
+              ? "ITEM_PRICE_CHANGED" as const
+            : "ADJUSTED_TOTAL_CHANGED" as const,
         }
       : decision;
 
   const created = await createSyncedTransaction({
     txData: serverOfflineTx,
+    originalTxData: offlineTx,
     decision: finalDecision,
     user,
     storeId,
     appliedPricingByProductId,
     catalogPriceByProductId,
+    resolvedInvoiceDate,
   });
 
   return {
@@ -372,36 +479,69 @@ async function syncOne(
 
 async function createSyncedTransaction({
   txData,
+  originalTxData,
   decision,
   user,
   storeId,
   appliedPricingByProductId,
   catalogPriceByProductId,
+  resolvedInvoiceDate,
 }: {
   txData: OfflineTransactionInput;
+  originalTxData: OfflineTransactionInput;
   decision: ReturnType<typeof buildOfflineSyncDecision>;
-  user: Awaited<ReturnType<typeof requirePermission>>;
+  user: Awaited<ReturnType<typeof requireRole>>;
   storeId: string;
   appliedPricingByProductId: Map<string, AppliedCategoryPricing | null>;
   catalogPriceByProductId: Map<string, number>;
+  resolvedInvoiceDate: Date;
 }) {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const dateStr = compactJakartaDateKey(resolvedInvoiceDate);
   const invoicePrefix = `INV-${dateStr}-`;
   const maxAttempts = 5;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await db.$transaction(async (tx: TxClient) => {
-        const isPendingApproval = decision.transactionStatus === "PENDING_APPROVAL";
-        const amountPaid = isPendingApproval ? 0 : Math.min(txData.amountPaid, decision.total);
-        if (!isPendingApproval && txData.customerId) {
-          await tx.customer.update({
-            where: { id: txData.customerId },
-            data: {
-              totalOrders: { increment: 1 }, totalSpent: { increment: amountPaid },
-              lastVisitAt: new Date(),
-            },
+        if (txData.shiftId) {
+          const locked = await tx.cashierShift.updateMany({
+            where: { id: txData.shiftId, cashierId: user.id, storeId, status: "OPEN", openedAt: { lte: new Date(txData.createdAt) } },
+            data: { pausedDurationSeconds: { increment: 0 } },
           });
+          if (locked.count !== 1) throw new OfflineShiftConflict("Shift asal transaksi sudah ditutup atau tidak tersedia. Periksa antrean bersama pengelola.");
+        } else {
+          // Older queue entries do not carry a shift ID. A sale still affects
+          // the store-wide cash summary, so protect a matching shift as well.
+          const capturedAt = new Date(txData.createdAt);
+          const matchingShift = await tx.cashierShift.findFirst({
+            where: { storeId, openedAt: { lte: capturedAt }, OR: [
+              { status: "OPEN" }, { status: "CLOSED", closedAt: { gte: capturedAt } },
+            ] },
+            orderBy: { openedAt: "desc" },
+            select: { id: true, status: true },
+          });
+          if (matchingShift?.status === "CLOSED") throw new OfflineShiftConflict("Shift pada waktu transaksi sudah ditutup. Periksa antrean bersama pengelola.");
+          if (matchingShift) {
+            const locked = await tx.cashierShift.updateMany({
+              where: { id: matchingShift.id, storeId, status: "OPEN" },
+              data: { pausedDurationSeconds: { increment: 0 } },
+            });
+            if (locked.count !== 1) throw new OfflineShiftConflict("Shift pada waktu transaksi sudah ditutup. Periksa antrean bersama pengelola.");
+          }
         }
+        const isPendingApproval = decision.transactionStatus === "PENDING_APPROVAL";
+        const amountPaid = txData.amountPaid;
+        const isTempo = txData.paymentMethod === "TEMPO";
+        const isDP = txData.paymentStatus === "DP";
+        const payments = txData.payments ?? [];
+        const customerUpdate = !isPendingApproval ? buildCustomerUpdateArgs({
+          customerId: txData.customerId || null, isDP: isDP || isTempo,
+          total: decision.total, amountPaid,
+        }) : null;
+        if (customerUpdate) await tx.customer.update(customerUpdate);
+        const paymentMethod = isTempo ? "TEMPO" : payments.reduce(
+          (primary, payment) => payment.amount > primary.amount ? payment : primary,
+          payments[0] ?? { method: "CASH" as const, amount: 0 },
+        ).method;
         // The invoice key is globally unique and independent of captured createdAt.
         const invoices = await tx.transaction.findMany({
           where: { invoiceNumber: { startsWith: invoicePrefix } },
@@ -417,8 +557,8 @@ async function createSyncedTransaction({
           data: {
             invoiceNumber,
             storeId,
-            cashierId: user.role === "SALES" || isPendingApproval ? null : user.id,
-            requestedById: user.role === "SALES" || isPendingApproval ? user.id : null,
+            cashierId: isPendingApproval ? null : user.id,
+            requestedById: isPendingApproval ? user.id : null,
             customerId: txData.customerId || null,
             subtotal: decision.subtotal,
             discount: decision.discount,
@@ -426,10 +566,10 @@ async function createSyncedTransaction({
             taxRate: txData.taxRate,
             taxMethod: "STANDARD",
             total: decision.total,
-            paymentMethod: txData.paymentMethod,
+            paymentMethod,
             amountPaid,
-            change: isPendingApproval ? 0 : Math.max(0, amountPaid - decision.total),
-            status: decision.transactionStatus || "PENDING_APPROVAL",
+            change: isPendingApproval || isDP || isTempo ? 0 : Math.max(0, amountPaid - decision.total),
+            status: isPendingApproval ? "PENDING_APPROVAL" : isDP ? "DP" : "COMPLETED",
             note: buildOfflineNote(txData.note, decision),
             customerName: txData.customerName || null,
             salesName: txData.salesName || null,
@@ -438,7 +578,7 @@ async function createSyncedTransaction({
             productionStatus: txData.isJobOrder ? "PRINTING" : null,
             estimatedDoneAt: txData.estimatedDoneAt ? new Date(txData.estimatedDoneAt) : null,
             offlineClientMutationId: txData.clientMutationId,
-            offlineOriginalPayload: txData as Prisma.JsonObject,
+            offlineOriginalPayload: originalTxData as Prisma.JsonObject,
             offlineSyncMetadata: {
               reason: decision.reason,
               removedItems: decision.removedItems,
@@ -446,8 +586,9 @@ async function createSyncedTransaction({
               adjustedTotal: decision.total,
               timeSource: txData.timeSource ?? "DEVICE_UNVERIFIED",
             } as Prisma.JsonObject,
-            invoiceDate: new Date(txData.createdAt),
+            invoiceDate: resolvedInvoiceDate,
             createdAt: new Date(txData.createdAt),
+            ...(payments.length ? { payments: { create: payments } } : {}),
             items: {
               create: decision.items.map((item) => {
                 const appliedPricing =

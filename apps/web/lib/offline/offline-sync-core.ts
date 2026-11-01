@@ -18,7 +18,7 @@ export type OfflineSyncPayload = {
 export type OfflineSyncDecision = {
   resultStatus: "SYNCED" | "PENDING_APPROVAL" | "FAILED_FINAL";
   transactionStatus: "COMPLETED" | "PENDING_APPROVAL" | null;
-  reason: "UNCHANGED" | "ADJUSTED_TOTAL_CHANGED" | "EXPIRED" | "NO_ITEMS_AVAILABLE";
+  reason: "UNCHANGED" | "ADJUSTED_TOTAL_CHANGED" | "ITEM_PRICE_CHANGED" | "EXPIRED" | "NO_ITEMS_AVAILABLE" | "AUTO_APPROVAL_REQUIRED";
   items: OfflineCartItem[];
   subtotal: number;
   discount: number;

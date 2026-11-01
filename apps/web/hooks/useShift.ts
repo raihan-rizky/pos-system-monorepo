@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRole } from "@/components/providers/RoleProvider";
+import { buildClientMutationId } from "@/lib/offline/offline-core";
 
 // Type definitions
 export interface CashierShift {
@@ -48,22 +50,36 @@ export interface CloseShiftSummary {
 }
 
 export function useActiveShift(initialData?: CashierShift | null) {
+  const { userId, storeId } = useRole();
   return useQuery({
-    queryKey: ["active-shift"],
+    queryKey: ["active-shift", storeId, userId],
+    networkMode: "always",
     queryFn: async (): Promise<CashierShift | null> => {
-      const { getOfflineActiveShift } = await import("@/lib/offline/offline-db");
+      const { getOfflineActiveShift, rememberActiveShift, offlineDb } = await import("@/lib/offline/offline-db");
+      const getLocalShift = () => userId
+        ? getOfflineActiveShift({ cashierId: userId, storeId: storeId || "store-main" })
+        : Promise.resolve(undefined);
       if (typeof window !== "undefined" && !navigator.onLine) {
-        return (await getOfflineActiveShift()) || null;
+        return (await getLocalShift()) || null;
       }
 
       try {
         const res = await fetch("/api/shifts?active=true");
+        if (res.status >= 500) return (await getLocalShift()) || null;
         if (!res.ok) throw new Error("Failed to fetch active shift");
         const json = await res.json();
-        return json.data || (await getOfflineActiveShift()) || null;
+        const local = await getLocalShift();
+        if (local && !local.openSynced) return local;
+        const serverShift = json.data as CashierShift | null;
+        if (serverShift && serverShift.cashierId === userId && serverShift.storeId === (storeId || "store-main")) {
+          const saved = await offlineDb.offlineShifts.get(serverShift.id);
+          if (saved?.status === "CLOSED" && !saved.closeSynced) return local || null;
+          await rememberActiveShift(serverShift).catch(() => undefined);
+        }
+        return serverShift || local || null;
       } catch (error) {
         if (typeof window !== "undefined" && (error instanceof TypeError || !navigator.onLine)) {
-          return (await getOfflineActiveShift()) || null;
+          return (await getLocalShift()) || null;
         }
         throw error;
       }
@@ -98,19 +114,26 @@ export function useShiftHistory(
 
 export function useOpenShift() {
   const queryClient = useQueryClient();
+  const { userId, userName, storeId } = useRole();
   return useMutation({
+    networkMode: "always",
     mutationFn: async (vars: { openingBalance: number; note?: string }) => {
       const { createOfflineShift } = await import("@/lib/offline/offline-db");
+      const clientShiftId = `shift-${buildClientMutationId()}`;
+      const openLocalShift = () => {
+        if (!userId) throw new Error("Identitas kasir belum tersedia. Masuk kembali untuk membuka shift offline.");
+        return createOfflineShift({ ...vars, clientShiftId, cashierId: userId, cashierName: userName || "Kasir", storeId: storeId || "store-main" });
+      };
 
       if (typeof window !== "undefined" && !navigator.onLine) {
-        return createOfflineShift(vars);
+        return openLocalShift();
       }
 
       try {
         const res = await fetch("/api/shifts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(vars),
+          body: JSON.stringify({ ...vars, clientShiftId, originCashierId: userId, originStoreId: storeId || "store-main" }),
         });
         if (!res.ok) {
           const err = await res.json();
@@ -119,13 +142,17 @@ export function useOpenShift() {
         return res.json();
       } catch (error) {
         if (typeof window !== "undefined" && (error instanceof TypeError || !navigator.onLine)) {
-          return createOfflineShift(vars);
+          return openLocalShift();
         }
         throw error;
       }
     },
-    onSuccess: (shift) => {
-      queryClient.setQueryData(["active-shift"], shift);
+    onSuccess: async (shift) => {
+      if (!shift.isLocalOnly && shift.cashierId === userId && shift.storeId === (storeId || "store-main")) {
+        const { rememberActiveShift } = await import("@/lib/offline/offline-db");
+        await rememberActiveShift({ ...shift, openingBalance: Number(shift.openingBalance) }).catch(() => undefined);
+      }
+      queryClient.setQueryData(["active-shift", storeId, userId], shift);
       queryClient.invalidateQueries({ queryKey: ["active-shift"] });
       queryClient.invalidateQueries({ queryKey: ["shift-history"] });
       queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
@@ -158,8 +185,20 @@ export function useCloseShiftSummary(
 
 export function useCloseShift() {
   const queryClient = useQueryClient();
+  const { userId, storeId } = useRole();
   return useMutation({
+    networkMode: "always",
     mutationFn: async (vars: { shiftId: string; closingBalance: number; note?: string }) => {
+      const { offlineDb, closeOfflineShift } = await import("@/lib/offline/offline-db");
+      const local = await offlineDb.offlineShifts.get(vars.shiftId);
+      if (local && userId && local.cashierId === userId && local.storeId === (storeId || "store-main")) {
+        await closeOfflineShift(vars.shiftId, { cashierId: userId, storeId: storeId || "store-main" }, vars.closingBalance, vars.note);
+        window.dispatchEvent(new CustomEvent("pos-offline-sync-requested"));
+        return { ...local, status: "CLOSED", closingBalance: vars.closingBalance };
+      }
+      if (typeof window !== "undefined" && !navigator.onLine) {
+        throw new Error("Data shift belum tersedia di perangkat ini. Hubungkan perangkat untuk menutup shift.");
+      }
       const res = await fetch("/api/shifts/close", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -7,6 +7,7 @@ import { useDebounce } from "./useDebounce";
 import type { ProductStockStatusFilter } from "@/features/pos-search/pos-stock-filter";
 import type { AppliedCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import type { PriceRoundingResult } from "@/features/product-price-rounding/rounding";
+import type { OfflineCatalogIdentity } from "@/lib/offline/offline-db";
 
 export interface ProductVariant {
   priceRounding?: PriceRoundingResult | null;
@@ -125,6 +126,7 @@ export interface UseProductsOptions {
   stockGroupMinVariants?: number;
   initialData?: ProductsResponse;
   initialDataUpdatedAt?: number;
+  offlineIdentity?: OfflineCatalogIdentity;
 }
 
 export function productQueryKey(
@@ -142,6 +144,7 @@ export function productQueryKey(
     options.stockStatus === "all" ? undefined : options.stockStatus,
     options.stockGroupMinVariants || undefined,
     ...(options.unit?.trim() ? [options.unit.trim().toLowerCase()] : []),
+    ...(options.offlineIdentity ? ["offline-identity", options.offlineIdentity.cashierId, options.offlineIdentity.storeId] : []),
   ] as const;
 }
 
@@ -155,6 +158,7 @@ export async function fetchProducts(
   stockGroupMinVariants?: number,
   signal?: AbortSignal,
   unit?: string,
+  offlineIdentity?: OfflineCatalogIdentity,
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   const normalizedUnit = unit?.trim().toLowerCase() || "";
@@ -171,15 +175,25 @@ export async function fetchProducts(
     params.set("stockGroupMinVariants", String(stockGroupMinVariants));
   }
 
-  const res = await fetch(`/api/products?${params.toString()}`, { signal, cache: "no-store" });
+  let res: Response | undefined;
+  try {
+    res = await fetch(`/api/products?${params.toString()}`, { signal, cache: "no-store" });
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (!(error instanceof TypeError)) throw error;
+  }
   signal?.throwIfAborted();
-  if (!res.ok) {
+  if (res?.status === 401 || res?.status === 403) {
+    throw new Error("Akses katalog tidak tersedia. Masuk kembali atau hubungi pengelola.");
+  }
+  if (!res?.ok) {
     const { getCachedCatalogProducts } = await import("@/lib/offline/offline-db");
     signal?.throwIfAborted();
     const cachedProducts = await getCachedCatalogProducts<Product>(
       search,
       categoryId,
       inStockOnly,
+      offlineIdentity,
     );
     signal?.throwIfAborted();
     if (cachedProducts.length > 0) {
@@ -220,14 +234,23 @@ export async function fetchProducts(
   return response;
 }
 
-async function fetchCategories(signal?: AbortSignal): Promise<Category[]> {
+async function fetchCategories(signal?: AbortSignal, offlineIdentity?: OfflineCatalogIdentity): Promise<Category[]> {
   signal?.throwIfAborted();
-  const res = await fetch("/api/categories", { cache: "no-store", signal });
+  let res: Response | undefined;
+  try {
+    res = await fetch("/api/categories", { cache: "no-store", signal });
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (!(error instanceof TypeError)) throw error;
+  }
   signal?.throwIfAborted();
-  if (!res.ok) {
+  if (res?.status === 401 || res?.status === 403) {
+    throw new Error("Akses kategori tidak tersedia. Masuk kembali atau hubungi pengelola.");
+  }
+  if (!res?.ok) {
     const { getCachedCatalogCategories } = await import("@/lib/offline/offline-db");
     signal?.throwIfAborted();
-    const cached = await getCachedCatalogCategories<Category>();
+    const cached = await getCachedCatalogCategories<Category>(offlineIdentity);
     signal?.throwIfAborted();
     if (cached.length > 0) return cached;
     throw new Error("Failed to fetch categories");
@@ -240,10 +263,11 @@ async function fetchCategories(signal?: AbortSignal): Promise<Category[]> {
   return json.data;
 }
 
-export function useCategories(initialData?: Category[]) {
+export function useCategories(initialData?: Category[], offlineIdentity?: OfflineCatalogIdentity) {
   return useQuery({
-    queryKey: ["categories"],
-    queryFn: ({ signal }) => fetchCategories(signal),
+    queryKey: offlineIdentity ? ["categories", offlineIdentity.cashierId, offlineIdentity.storeId] : ["categories"],
+    networkMode: "always",
+    queryFn: ({ signal }) => fetchCategories(signal, offlineIdentity),
     initialData,
   });
 }
@@ -575,6 +599,7 @@ export function useProductsPage(
     const key = productQueryKey("", "", {
       page: initialData.pagination.page,
       limit: initialData.pagination.limit,
+      offlineIdentity: options.offlineIdentity,
     });
     void import("@/lib/offline/offline-db")
       .then(({ cacheCatalogProducts }) => {
@@ -586,10 +611,11 @@ export function useProductsPage(
         // Optional offline storage must not block the server-loaded catalog.
       });
     return () => { current = false; };
-  }, [initialData, queryClient]);
+  }, [initialData, queryClient, options.offlineIdentity?.cashierId, options.offlineIdentity?.storeId]);
 
   return useQuery({
     queryKey: productQueryKey(debouncedSearch, categoryId, options),
+    networkMode: "always",
     queryFn: ({ signal }) =>
       fetchProducts(
         debouncedSearch,
@@ -601,6 +627,7 @@ export function useProductsPage(
         options.stockGroupMinVariants,
         signal,
         options.unit,
+        options.offlineIdentity,
       ),
     initialData,
     initialDataUpdatedAt: canUseInitialData ? options.initialDataUpdatedAt : undefined,

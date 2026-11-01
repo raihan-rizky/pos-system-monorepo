@@ -155,7 +155,7 @@ export function useServerClock(enabled = true) {
     const refreshOnline = () => void refresh();
     const timer = window.setInterval(
       () => setState((current) => {
-        if (!anchorRef.current) return current;
+        if (!anchorRef.current) return { ...current, now: new Date() };
         return {
           ...current,
           now: estimateServerNow(anchorRef.current, performance.now()),

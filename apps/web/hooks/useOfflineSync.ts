@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRole } from "@/components/providers/RoleProvider";
+import type { OfflineShiftRecord, OfflineTransactionRecord } from "@/lib/offline/offline-db";
 
 export type OfflineSyncSummary = {
   pending: number;
@@ -19,31 +21,44 @@ const EMPTY_SUMMARY: OfflineSyncSummary = {
 };
 
 export function useOfflineSync() {
+  const { userId, storeId } = useRole();
   const [summary, setSummary] = useState<OfflineSyncSummary>(EMPTY_SUMMARY);
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [records, setRecords] = useState<OfflineTransactionRecord[]>([]);
+  const [shifts, setShifts] = useState<OfflineShiftRecord[]>([]);
 
   const refresh = useCallback(async () => {
     if (typeof window === "undefined") return;
     setIsOnline(navigator.onLine);
-    const { getOfflineQueueSummary } = await import("@/lib/offline/offline-db");
-    setSummary(await getOfflineQueueSummary());
-  }, []);
+    const { getOfflineQueueSummary, getOfflineQueueRecords, offlineDb } = await import("@/lib/offline/offline-db");
+    const [nextSummary, nextRecords, nextShifts] = await Promise.all([
+      getOfflineQueueSummary(userId ? { cashierId: userId, storeId: storeId || "store-main" } : null),
+      getOfflineQueueRecords(), offlineDb.offlineShifts.orderBy("openedAt").reverse().toArray(),
+    ]);
+    setSummary(nextSummary);
+    setRecords(nextRecords);
+    setShifts(nextShifts);
+  }, [userId, storeId]);
 
   const syncNow = useCallback(async () => {
     if (typeof window === "undefined" || !navigator.onLine) {
       setError("Tidak bisa sync saat offline.");
       return null;
     }
+    if (!userId) {
+      setError("Identitas kasir belum tersedia. Masuk kembali untuk sinkronisasi.");
+      return null;
+    }
 
     setIsSyncing(true);
     setError(null);
     try {
-      const { syncOfflineTransactions } = await import(
-        "@/lib/offline/offline-sync-client"
+      const { syncOfflineWork } = await import(
+        "@/lib/offline/offline-work-sync"
       );
-      const result = await syncOfflineTransactions();
+      const result = await syncOfflineWork({ cashierId: userId, storeId: storeId || "store-main" });
       await refresh();
       return result;
     } catch (syncError) {
@@ -55,19 +70,40 @@ export function useOfflineSync() {
     } finally {
       setIsSyncing(false);
     }
-  }, [refresh]);
+  }, [refresh, userId, storeId]);
 
   const clearSynced = useCallback(async () => {
+    if (!userId) return;
     const { clearSyncedOfflineTransactions } = await import(
       "@/lib/offline/offline-db"
     );
-    await clearSyncedOfflineTransactions();
+    await clearSyncedOfflineTransactions(storeId || "store-main");
     await refresh();
-  }, [refresh]);
+  }, [refresh, storeId, userId]);
+
+  const retryRecord = useCallback(async (clientMutationId: string) => {
+    if (!userId) {
+      setError("Identitas kasir belum tersedia. Masuk kembali untuk mencoba lagi.");
+      return;
+    }
+    try {
+      const { retryOfflineTransaction } = await import("@/lib/offline/offline-db");
+      await retryOfflineTransaction(clientMutationId, { cashierId: userId, storeId: storeId || "store-main" });
+      if (navigator.onLine) await syncNow();
+      else await refresh();
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : "Transaksi belum dapat dicoba lagi.");
+    }
+  }, [refresh, storeId, syncNow, userId]);
 
   useEffect(() => {
     refresh();
+    if (navigator.onLine && userId) void syncNow();
+    const retryTimer = window.setInterval(() => {
+      if (navigator.onLine && userId) void syncNow();
+    }, 60_000);
     const onQueueChange = () => refresh();
+    const onSyncRequested = () => { if (navigator.onLine && userId) void syncNow(); };
     const onOnline = () => {
       setIsOnline(true);
       setError(null);
@@ -80,15 +116,20 @@ export function useOfflineSync() {
     };
 
     window.addEventListener("pos-offline-queue-changed", onQueueChange);
+    window.addEventListener("pos-offline-shift-changed", onQueueChange);
+    window.addEventListener("pos-offline-sync-requested", onSyncRequested);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
 
     return () => {
+      window.clearInterval(retryTimer);
       window.removeEventListener("pos-offline-queue-changed", onQueueChange);
+      window.removeEventListener("pos-offline-shift-changed", onQueueChange);
+      window.removeEventListener("pos-offline-sync-requested", onSyncRequested);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [refresh, syncNow]);
+  }, [refresh, syncNow, userId]);
 
   return {
     summary,
@@ -98,5 +139,9 @@ export function useOfflineSync() {
     refresh,
     syncNow,
     clearSynced,
+    records,
+    shifts,
+    retryRecord,
+    currentIdentity: userId ? { cashierId: userId, storeId: storeId || "store-main" } : null,
   };
 }

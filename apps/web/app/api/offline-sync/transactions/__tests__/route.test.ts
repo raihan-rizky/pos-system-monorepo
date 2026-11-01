@@ -19,9 +19,23 @@ const productCostFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const applyProductStockDeltasMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
+const shiftUpdateManyMock = vi.hoisted(() => vi.fn());
+const shiftFindFirstMock = vi.hoisted(() => vi.fn());
+const canRolePerformActionMock = vi.hoisted(() => vi.fn().mockReturnValue(true));
+
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({
+  getGlobalRolePermissions: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-core", async () => ({
+  ...await vi.importActual<typeof import("@/features/rbac/helpers/rbac-core")>("@/features/rbac/helpers/rbac-core"),
+  canRolePerformAction: canRolePerformActionMock,
+}));
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
+  requireRole: requirePermissionMock,
+  AuthError: class AuthError extends Error {},
   handleAuthError: handleAuthErrorMock,
 }));
 
@@ -45,6 +59,8 @@ vi.mock("@pos/db", () => ({
 function offlineTx(overrides: Record<string, unknown> = {}) {
   return {
     clientMutationId: "offline-1",
+    originCashierId: "cashier-1",
+    originStoreId: "store-main",
     createdAt: "2026-06-22T08:00:00.000Z",
     items: [
       {
@@ -71,6 +87,252 @@ function request(transactions: unknown[]) {
 }
 
 describe("POST /api/offline-sync/transactions", () => {
+  it("locks the originating shift before saving a replayed sale", async () => {
+    const response = await POST(request([offlineTx({ shiftId: "shift-1", createdAt: new Date().toISOString() })]));
+    expect((await response.json()).results[0].status).toBe("SYNCED");
+    expect(shiftUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: "shift-1", cashierId: "cashier-1", storeId: "store-main", status: "OPEN" }),
+      data: { pausedDurationSeconds: { increment: 0 } },
+    }));
+    expect(shiftUpdateManyMock.mock.invocationCallOrder[0]).toBeLessThan(transactionCreateMock.mock.invocationCallOrder[0]);
+  });
+
+  it("keeps a sale for review if the originating shift was closed", async () => {
+    shiftUpdateManyMock.mockResolvedValue({ count: 0 });
+    const response = await POST(request([offlineTx({ shiftId: "shift-1", createdAt: new Date().toISOString() })]));
+    expect((await response.json()).results[0]).toMatchObject({ status: "FAILED_FINAL", message: expect.stringMatching(/shift/i) });
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("retains an older unassigned sale when its store shift has already closed", async () => {
+    shiftFindFirstMock.mockResolvedValue({ id: "closed-shift", status: "CLOSED" });
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString() })]));
+    expect((await response.json()).results[0]).toMatchObject({ status: "FAILED_FINAL", message: expect.stringMatching(/shift/i) });
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("retains a sale whose device capture time is in the future", async () => {
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const response = await POST(request([offlineTx({ createdAt: future })]));
+    expect((await response.json()).results[0]).toMatchObject({ status: "FAILED_FINAL", message: expect.stringMatching(/waktu/i) });
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+  it("uses shared base stock rather than a variant's stale stock field", async () => {
+    productFindManyMock.mockResolvedValue([{
+      id: "product-1", storeId: "store-main", name: "Kertas", price: 1000,
+      stock: 0, stockGroupId: "group-1", unit: "rim", unitMultiplierToBase: 6,
+      stockGroup: { id: "group-1", baseStock: 12, baseUnit: "lembar", storeId: "store-main" },
+    }]);
+
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString() })]));
+
+    expect((await response.json()).results[0].status).toBe("SYNCED");
+    expect(applyProductStockDeltasMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      items: [{ productId: "product-1", delta: -2 }],
+    }));
+  });
+
+  it("allocates shared base stock across variants before deciding approval", async () => {
+    const stockGroup = { id: "group-1", baseStock: 12, baseUnit: "lembar", storeId: "store-main" };
+    productFindManyMock.mockResolvedValue([
+      { id: "product-1", storeId: "store-main", name: "Kertas rim", price: 1000, stock: 100,
+        stockGroupId: "group-1", unit: "rim", unitMultiplierToBase: 6, stockGroup },
+      { id: "product-2", storeId: "store-main", name: "Kertas lembar", price: 100, stock: 100,
+        stockGroupId: "group-1", unit: "lembar", unitMultiplierToBase: 1, stockGroup },
+    ]);
+
+    const response = await POST(request([offlineTx({
+      createdAt: new Date().toISOString(),
+      items: [
+        { productId: "product-1", name: "Kertas rim", price: 1000, quantity: 1 },
+        { productId: "product-2", name: "Kertas lembar", price: 100, quantity: 8 },
+      ],
+      originalSubtotal: 1800, originalTotal: 1800, amountPaid: 1800,
+    })]));
+
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create).toEqual([
+      expect.objectContaining({ productId: "product-1", quantity: 1 }),
+      expect.objectContaining({ productId: "product-2", quantity: 6 }),
+    ]);
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves the authorized invoice date and time from an offline sale", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "cashier-1", role: "OWNER", storeId: "store-main", name: "Owner" });
+    const response = await POST(request([offlineTx({
+      createdAt: new Date().toISOString(), invoiceDate: "2026-10-28", invoiceTime: "09:30", invoiceDateReason: "Koreksi tanggal",
+    })]));
+    expect((await response.json()).results[0].status).toBe("SYNCED");
+    expect(transactionCreateMock.mock.calls[0][0].data.invoiceDate).toEqual(new Date("2026-10-28T02:30:00.000Z"));
+    expect(transactionCreateMock.mock.calls[0][0].data.invoiceNumber).toMatch(/^INV-20261028-/);
+  });
+
+  it("rejects a custom invoice date from a role that cannot set it", async () => {
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), invoiceDate: "2026-10-28" })]));
+    expect((await response.json()).results[0].status).toBe("FAILED_FINAL");
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+  it("requires a reason when an offline invoice uses a different day", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "cashier-1", role: "OWNER", storeId: "store-main" });
+    const response = await POST(request([offlineTx({
+      createdAt: "2026-11-01T02:00:00.000Z", invoiceDate: "2026-10-28",
+    })]));
+    expect((await response.json()).results[0].status).toBe("FAILED_FINAL");
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+  it("preserves cash tender and change", async () => {
+    await POST(request([offlineTx({ createdAt: new Date().toISOString(), amountPaid: 2500, payments: [{ method: "CASH", amount: 2500 }] })]));
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "COMPLETED", amountPaid: 2500, change: 500,
+      payments: { create: [{ method: "CASH", amount: 2500 }] },
+    });
+  });
+
+  it("preserves each part of a split payment", async () => {
+    await POST(request([offlineTx({ createdAt: new Date().toISOString(), payments: [{ method: "CASH", amount: 500 }, { method: "TRANSFER", amount: 1500 }] })]));
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      paymentMethod: "TRANSFER", amountPaid: 2000,
+      payments: { create: [{ method: "CASH", amount: 500 }, { method: "TRANSFER", amount: 1500 }] },
+    });
+  });
+
+  it("records a partial DP payment without marking it fully paid", async () => {
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "UMUM" });
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), customerId: "customer-1", paymentStatus: "DP", amountPaid: 500, payments: [{ method: "CASH", amount: 500 }] })]));
+    expect((await response.json()).results[0].status).toBe("SYNCED");
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "DP", amountPaid: 500, change: 0,
+      payments: { create: [{ method: "CASH", amount: 500 }] },
+    });
+    expect(applyProductStockDeltasMock).toHaveBeenCalled();
+    expect(customerUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ totalDebt: { increment: 1500 }, totalSpent: { increment: 500 } }) }));
+  });
+
+  it("records a Tempo sale and its actual initial payment", async () => {
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "UMUM" });
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), paymentMethod: "TEMPO", customerId: "customer-1", amountPaid: 500, payments: [{ method: "TRANSFER", amount: 500 }] })]));
+    expect((await response.json()).results[0].status).toBe("SYNCED");
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "COMPLETED", paymentMethod: "TEMPO", amountPaid: 500, change: 0,
+      payments: { create: [{ method: "TRANSFER", amount: 500 }] },
+    });
+    expect(customerUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ totalDebt: { increment: 1500 }, totalSpent: { increment: 500 } }) }));
+  });
+
+  it("holds a sale when the payment breakdown does not match the amount collected", async () => {
+    const response = await POST(request([offlineTx({ payments: [{ method: "CASH", amount: 100 }] })]));
+    expect((await response.json()).results[0].status).toBe("FAILED_FINAL");
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the sales request permission when a salesperson syncs", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "cashier-1", role: "SALES", storeId: "store-main" });
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource === "transaction.request");
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString() })]));
+    expect(response.status).toBe(200);
+    expect(canRolePerformActionMock).toHaveBeenCalledWith("SALES", "transaction.request", "create", expect.anything());
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+  });
+
+  it("attributes an auto-approved salesperson's synced sale the same way as online checkout", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "cashier-1", role: "SALES", storeId: "store-main" });
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString() })]));
+    expect((await response.json()).results[0].status).toBe("SYNCED");
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ cashierId: "cashier-1", requestedById: null });
+  });
+
+  it("rejects syncing when transaction creation permission is denied", async () => {
+    canRolePerformActionMock.mockReturnValue(false);
+    handleAuthErrorMock.mockReturnValue(new Response(null, { status: 403 }));
+    const response = await POST(request([offlineTx()]));
+    expect(response.status).toBe(403);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("isolates an invalid queued sale from valid sales in the same batch", async () => {
+    const response = await POST(request([
+      offlineTx({ clientMutationId: "invalid", paymentMethod: "UNKNOWN" }),
+      offlineTx({ clientMutationId: "valid", createdAt: new Date().toISOString() }),
+    ]));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).results).toEqual([
+      expect.objectContaining({ clientMutationId: "invalid", status: "FAILED_FINAL" }),
+      expect.objectContaining({ clientMutationId: "valid", status: "SYNCED" }),
+    ]);
+    expect(transactionCreateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks unexpected server errors as retryable without deleting the sale", async () => {
+    dbTransactionMock.mockRejectedValueOnce(new Error("database temporarily unavailable"));
+    const response = await POST(request([offlineTx()]));
+    expect((await response.json()).results[0]).toMatchObject({ status: "FAILED_RETRYABLE" });
+  });
+
+  it.each([
+    { originCashierId: "cashier-2", originStoreId: "store-main" },
+    { originCashierId: "cashier-1", originStoreId: "store-2" },
+    { originCashierId: undefined, originStoreId: undefined },
+  ])("retains a sale for review when its originating cashier or store cannot be verified: %o", async (origin) => {
+    const response = await POST(request([offlineTx(origin)]));
+    const result = (await response.json()).results[0];
+    expect(result.status).toBe("FAILED_FINAL");
+    expect(result.serverTransactionId).toBeUndefined();
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("does not expose or accept another cashier's transaction when a mutation ID collides (race: %s)", async (race) => {
+    const otherSale = { id: "other-sale", status: "COMPLETED", storeId: "store-main", cashierId: "other-cashier", requestedById: null };
+    if (race) {
+      transactionFindUniqueMock.mockResolvedValueOnce(null).mockResolvedValueOnce(otherSale);
+      dbTransactionMock.mockRejectedValueOnce({ code: "P2002" });
+    } else {
+      transactionFindUniqueMock.mockResolvedValueOnce(otherSale);
+    }
+
+    const response = await POST(request([offlineTx()]));
+    const result = (await response.json()).results[0];
+
+    expect(result.status).toBe("FAILED_FINAL");
+    expect(result.serverTransactionId).toBeUndefined();
+  });
+
+  it("keeps an unchanged offline sale pending when the cashier cannot auto-approve", async () => {
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.auto_approve");
+
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString() })]));
+    const body = await response.json();
+
+    expect(body.results[0]).toMatchObject({ status: "PENDING_APPROVAL" });
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "PENDING_APPROVAL",
+      amountPaid: 2000,
+    });
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it("requires approval when item prices change even if their total stays the same", async () => {
+    productFindManyMock.mockResolvedValue([
+      { id: "product-1", name: "Produk A", price: 1100, stock: 10 },
+      { id: "product-2", name: "Produk B", price: 900, stock: 10 },
+    ]);
+    const items = [
+      { productId: "product-1", name: "Produk A", price: 1000, quantity: 1 },
+      { productId: "product-2", name: "Produk B", price: 1000, quantity: 1 },
+    ];
+
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), items })]));
+
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "PENDING_APPROVAL",
+      offlineSyncMetadata: { reason: "ITEM_PRICE_CHANGED" },
+      offlineOriginalPayload: { items },
+    });
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
   it("reprices an offline manual special price and requests approval when Harga Khusus is disabled", async () => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
     const response = await POST(request([offlineTx({
@@ -82,8 +344,23 @@ describe("POST /api/offline-sync/transactions", () => {
     expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000 });
   });
 
+  it("honors online pricing authorization when a salesperson submits a transaction price", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "cashier-1", role: "SALES", storeId: "store-main" });
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
+    const response = await POST(request([offlineTx({
+      createdAt: new Date().toISOString(), customerId: "customer-1",
+      items: [{ productId: "product-1", name: "Product 1", price: 500, transactionPrice: 500, quantity: 1 }],
+      amountPaid: 500, originalSubtotal: 500, originalTotal: 500,
+    })]));
+
+    expect((await response.json()).results[0]).toMatchObject({ status: "PENDING_APPROVAL" });
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000 });
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
   it("keeps each repeated product price snapshot equal to its own final rounded custom price", async () => {
     setupAgenPricing();
+    customerFindFirstMock.mockResolvedValue({ id: "agen-1", type: "INDUSTRI" });
     roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
     const response = await POST(request([offlineTx({ customerId: "agen-1", createdAt: new Date().toISOString(),
       items: [
@@ -103,9 +380,10 @@ describe("POST /api/offline-sync/transactions", () => {
     { enabled: false, custom: 4050, expected: 4050 },
   ])("reprices offline amounts and snapshots with policy $enabled and custom $custom", async ({ enabled, custom, expected }) => {
     roundingSettingsMock.mockResolvedValue({ enabled, increment: 500, threshold: 50 });
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
     const original = (await productFindManyMock())[0];
     productFindManyMock.mockResolvedValue([{ ...original, price: 4049 }]);
-    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(),
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), customerId: "customer-1",
       items: [{ productId: "product-1", name: "Kertas", price: 4049, transactionPrice: custom, quantity: 2, discount: 100 }],
       amountPaid: 20000, originalSubtotal: 7998, originalTotal: 7998,
     })]));
@@ -132,7 +410,8 @@ describe("POST /api/offline-sync/transactions", () => {
   });
   it.each([-1, "500", null])("rejects invalid queued item discount %s", async (discount) => {
     const response = await POST(request([offlineTx({ items: [{ productId: "product-1", name: "Produk", price: 1000, quantity: 2, discount }] })]));
-    expect(response.status).toBe(422);
+    expect(response.status).toBe(200);
+    expect((await response.json()).results[0]).toMatchObject({ status: "FAILED_FINAL" });
     expect(transactionCreateMock).not.toHaveBeenCalled();
   });
   it("preserves the checkout tax when syncing a current offline sale", async () => {
@@ -149,6 +428,7 @@ describe("POST /api/offline-sync/transactions", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    canRolePerformActionMock.mockReset().mockReturnValue(true);
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: true });
     roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
     requirePermissionMock.mockResolvedValue({
@@ -175,6 +455,8 @@ describe("POST /api/offline-sync/transactions", () => {
     transactionCountMock.mockResolvedValue(0);
     transactionFindManyMock.mockReset().mockResolvedValue([]);
     transactionCreateMock.mockResolvedValue({ id: "tx-1" });
+    shiftUpdateManyMock.mockResolvedValue({ count: 1 });
+    shiftFindFirstMock.mockReset().mockResolvedValue(null);
     productCostFindManyMock.mockResolvedValue([
       { id: "product-1", costPrice: 500 },
     ]);
@@ -189,6 +471,7 @@ describe("POST /api/offline-sync/transactions", () => {
         product: { findMany: productCostFindManyMock },
         inventoryLog: { createMany: inventoryLogCreateManyMock },
         customer: { update: customerUpdateMock },
+        cashierShift: { updateMany: shiftUpdateManyMock, findFirst: shiftFindFirstMock },
       }),
     );
     applyProductStockDeltasMock.mockImplementation(
@@ -206,7 +489,7 @@ describe("POST /api/offline-sync/transactions", () => {
     // re-fetch finds the row created by the winner.
     transactionFindUniqueMock
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: "tx-race", status: "COMPLETED" });
+      .mockResolvedValueOnce({ id: "tx-race", status: "COMPLETED", storeId: "store-main", cashierId: "cashier-1", requestedById: null });
     dbTransactionMock.mockRejectedValueOnce({ code: "P2002" });
 
     const response = await POST(request([offlineTx()]));
@@ -244,7 +527,7 @@ describe("POST /api/offline-sync/transactions", () => {
   });
 
   it("uses the highest invoice sequence across stores even when numbering has gaps", async () => {
-    const prefix = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-`;
+    const prefix = "INV-20260622-";
     transactionFindManyMock.mockResolvedValue([{ invoiceNumber: `${prefix}0001` }, { invoiceNumber: `${prefix}0003` }]);
     await POST(request([offlineTx()]));
     expect(transactionCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ invoiceNumber: `${prefix}0004` }) }));
@@ -460,7 +743,7 @@ describe("POST /api/offline-sync/transactions", () => {
     );
   });
   it.each([[700, 4700], [800, 4800]])("uses current base modal %i for Rim price %i and preserves accounting cost", async (baseCost, rimPrice) => {
-    const rim = { id: "product-1", storeId: "store-main", name: "Kertas A4", price: 50000, costPrice: 9000, unit: "rim", stock: 10, stockGroupId: "paper", categoryId: "cat-paper", category: { name: "Kertas" }, brandId: null, brand: null };
+    const rim = { id: "product-1", storeId: "store-main", name: "Kertas A4", price: 50000, costPrice: 9000, unit: "rim", stock: 10, stockGroupId: "paper", unitMultiplierToBase: 1, stockGroup: { id: "paper", baseStock: 10, baseUnit: "pcs", storeId: "store-main" }, categoryId: "cat-paper", category: { name: "Kertas" }, brandId: null, brand: null };
     productFindManyMock.mockImplementation(async (args: any) => args.where.OR ? [{ ...rim, stockGroup: { baseUnit: "pcs", storeId: "store-main" } }, { ...rim, id: "base-pcs", unit: "pcs", costPrice: baseCost, stockGroup: { baseUnit: "pcs", storeId: "store-main" } }] : [rim]);
     pricingRuleFindManyMock.mockResolvedValue([{ id: "formula-paper", categoryId: "cat-paper", category: { name: "Kertas" }, customerType: "PEMERINTAH", customerTypes: ["UMUM", "AGEN"], unit: "rim", brandId: null, brand: null, mode: "COST_PLUS_FLAT", value: 4000, isActive: true }]);
     productCostFindManyMock.mockResolvedValue([{ id: "product-1", costPrice: 9000 }]);

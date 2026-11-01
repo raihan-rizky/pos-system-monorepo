@@ -99,6 +99,12 @@ export function ApproveModal({
   const [invoiceTime, setInvoiceTime] = useState("");
   const [invoiceDateReason, setInvoiceDateReason] = useState("");
   const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
+  const offlinePayload = tx.offlineOriginalPayload;
+  const offlineItems = offlinePayload && typeof offlinePayload === "object" && "items" in offlinePayload && Array.isArray(offlinePayload.items)
+    ? offlinePayload.items.filter((item: unknown): item is { name: string; quantity: number; price: number } =>
+      Boolean(item && typeof item === "object" && "name" in item && typeof item.name === "string" &&
+        "quantity" in item && typeof item.quantity === "number" && "price" in item && typeof item.price === "number"))
+    : [];
 
   const hasMultiPayment = tx.payments && tx.payments.length > 0;
   const multiPaymentTotal = hasMultiPayment
@@ -295,6 +301,18 @@ export function ApproveModal({
               sebelum memproses persetujuan.
             </span>
           </div>
+
+          {offlineItems.length > 0 && (
+            <section aria-labelledby="offline-price-heading" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <h3 id="offline-price-heading" className="font-bold">Harga saat offline</h3>
+              <p className="mt-1">Bandingkan dengan harga terbaru pada daftar produk sebelum menyetujui.</p>
+              <ul className="mt-2 space-y-1">
+                {offlineItems.map((item, index) => (
+                  <li key={`${item.name}-${index}`}>{item.name} · {item.quantity} × {formatRupiah(item.price)}</li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <div className="rounded-xl border border-surface-200 bg-white p-4 space-y-3.5 shadow-sm">
             <div className="flex justify-between items-center pb-2.5 border-b border-surface-100">

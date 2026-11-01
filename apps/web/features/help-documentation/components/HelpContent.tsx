@@ -998,11 +998,24 @@ const PRINTING_RECEIPT_GUIDE: Omit<AccordionItem, "id"> = {
   ],
 };
 
+const OFFLINE_SYNC_GUIDE: AccordionItem = {
+  id: "offline-sync",
+  title: "Menyiapkan dan memeriksa transaksi offline",
+  description: "Siapkan POS di perangkat dan periksa transaksi yang menunggu sinkronisasi.",
+  icon: <Database className="w-5 h-5 text-brand-600" />,
+  steps: [
+    { title: "Siapkan POS", description: "Saat online, masuk sebagai kasir yang akan bertransaksi, buka Kasir > Offline Sync, buat dan ulangi PIN offline, lalu pilih Siapkan POS offline. Siapkan kembali sedikitnya setiap tujuh hari dan setelah pembaruan aplikasi. PIN mengenkripsi halaman POS; katalog dan antrean transaksi belum terenkripsi.", icon: <ShoppingCart className="w-8 h-8" /> },
+    { title: "Buka saat offline", description: "Saat koneksi terputus, buka alamat POS, pilih akun, masukkan PIN, lalu pilih Buka POS offline. Transaksi tersimpan di perangkat dan masih memerlukan pemeriksaan server; jangan hapus data situs sebelum tersinkronisasi.", icon: <AlertTriangle className="w-8 h-8" /> },
+    { title: "Periksa setelah terhubung", description: "Masuk sebagai kasir asal, buka Kasir > Offline Sync, dan periksa status serta alasan kegagalan. Pilih Coba lagi jika tersedia. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi; asalnya tidak ditetapkan otomatis.", icon: <ShieldCheck className="w-8 h-8" /> },
+  ],
+};
+
 export const HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = Object.fromEntries(
   Object.entries(RAW_HELP_ROLE_CONTENT).map(([role, guides]) => [
     role,
     [...guides, ...(["OWNER", "ADMIN", "CASHIER", "SALES"].includes(role)
-      ? [{ ...PRINTING_RECEIPT_GUIDE, id: `${role.toLowerCase()}-printing-receipts` }]
+      ? [{ ...PRINTING_RECEIPT_GUIDE, id: `${role.toLowerCase()}-printing-receipts` },
+         { ...OFFLINE_SYNC_GUIDE, id: `${role.toLowerCase()}-offline-sync` }]
       : [])].map((guide) => ({
       ...guide,
       steps: guide.steps.map((step, stepIndex) => {

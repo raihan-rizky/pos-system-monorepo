@@ -73,4 +73,17 @@ describe("resolveCheckoutCustomer", () => {
     ).rejects.toThrow("Nama pelanggan wajib diisi");
     expect(createCustomer).not.toHaveBeenCalled();
   });
+
+  it("does not pause checkout trying to create a customer while offline", async () => {
+    const createCustomer = vi.fn().mockResolvedValue({ id: "customer-new", name: "Budi" });
+    vi.stubGlobal("navigator", { onLine: false });
+    try {
+      await expect(
+        resolveCheckoutCustomer({ kind: "new", name: "Budi" }, createCustomer),
+      ).rejects.toThrow("Pelanggan baru belum dapat disimpan saat offline");
+      expect(createCustomer).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

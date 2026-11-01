@@ -54,9 +54,11 @@ export const config = {
      * - favicon.ico (favicon file)
      * - manifest.json (PWA manifest)
      * - sw.js (Service worker)
+     * - offline.html (public offline fallback)
+     * - offline unlock scripts (public offline fallback dependencies)
      * - api/wa/webhook (WAHA webhook)
      * Feel free to modify this pattern to include more paths.
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|api/wa/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|json)).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|offline\\.html|offline-unlock\\.mjs|offline-vault\\.mjs|offline-prepare\\.mjs|api/wa/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|json)).*)",
   ],
 };

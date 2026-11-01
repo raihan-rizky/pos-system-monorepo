@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#0c98e9">
+    <title>Buka POS offline</title>
+    <style>
+      body { margin: 0; padding: 24px; font: 16px/1.6 system-ui, sans-serif; background: #f4f7fb; color: #172033; }
+      main { max-width: 36rem; margin: 10vh auto; padding: 28px; border: 1px solid #dce5ef; border-radius: 16px; background: white; }
+      h1 { margin-top: 0; font-size: 1.5rem; }
+      label { display: block; margin: 14px 0 4px; font-weight: 700; }
+      select, input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid #a8b7c8; border-radius: 8px; font: inherit; }
+      button, a { display: inline-flex; min-height: 44px; align-items: center; margin-top: 16px; padding: 0 18px; border: 0; border-radius: 8px; color: white; background: #086daa; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+      button:disabled { opacity: .6; cursor: default; }
+      [role="alert"] { color: #9f1239; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Koneksi terputus</h1>
+      <p>Buka POS dengan PIN yang dibuat saat perangkat disiapkan. Transaksi akan diperiksa server setelah koneksi kembali.</p>
+      <p id="offline-status" role="status">Memeriksa data perangkat...</p>
+      <form id="offline-unlock" hidden>
+        <label for="offline-account">Akun yang disiapkan</label>
+        <select id="offline-account" name="account" required></select>
+        <label for="offline-pin">PIN offline</label>
+        <input id="offline-pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{6,12}" minlength="6" maxlength="12" required>
+        <p id="offline-error" role="alert" hidden></p>
+        <button type="submit">Buka POS offline</button>
+      </form>
+      <p>Jika perangkat belum disiapkan atau PIN terlupa, hubungkan kembali dan siapkan POS. Jangan hapus data situs sebelum semua transaksi tersimpan di server.</p>
+      <a href="/pos">Coba kembali dengan koneksi</a>
+    </main>
+    <script type="module" src="/offline-unlock.mjs"></script>
+  </body>
+</html>

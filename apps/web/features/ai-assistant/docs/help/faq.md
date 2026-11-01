@@ -392,3 +392,9 @@ Kebijakan terakhir yang berhasil dimuat disimpan untuk tampilan offline. Jika ke
 **A:** Buka **Keuangan**, lalu pilih **Tambahkan Hutang** pada bagian Hutang Pemasok. Isi pemasok, nominal, dan tanggal hutang. Jatuh tempo, catatan, dan pembayaran awal bersifat opsional.
 
 Untuk pembayaran berikutnya, pilih **Catat pembayaran** pada hutang yang belum lunas. Pembayaran dapat sebagian atau sekaligus; nominal tidak boleh melebihi sisa hutang. Pencatatan awal memerlukan izin `expense:create`, dan pembayaran berikutnya memerlukan `expense:update`. Saldo yang dicatat masuk laporan bulanan sesuai tanggal; pembayaran hutang tidak otomatis menjadi pengeluaran.
+
+### Q45: Bagaimana cara menyiapkan dan memeriksa transaksi offline?
+
+1. Saat online, masuk sebagai kasir asal, buka **Kasir > Offline Sync**, buat dan ulangi PIN offline, lalu pilih **Siapkan POS offline**. Siapkan ulang sedikitnya setiap tujuh hari dan setelah pembaruan aplikasi. PIN mengenkripsi halaman POS; katalog dan antrean transaksi belum terenkripsi.
+2. Saat offline, buka alamat POS, pilih akun, masukkan PIN dan pilih **Buka POS offline**. Transaksi tetap diperiksa server; jangan hapus data situs sebelum sinkronisasi.
+3. Setelah terhubung, masuk sebagai kasir asal dan periksa **Offline Sync**. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi tanpa menetapkan asal otomatis.
