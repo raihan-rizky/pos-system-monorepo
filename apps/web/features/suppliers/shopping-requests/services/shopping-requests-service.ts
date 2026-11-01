@@ -1,4 +1,5 @@
 import { db } from "@pos/db";
+import { listMergedPurchases, type MergedPurchaseFilters } from "../../backdated-purchases/repositories/backdated-purchase-list";
 import {
   buildShoppingRequestNumber,
   sanitizeShoppingRequestItems,
@@ -9,15 +10,12 @@ import {
 } from "../helpers/shopping-request-name";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import {
-  countShoppingRequests,
   approveShoppingRequestItems,
   cancelShoppingRequestIfUndecided,
   createShoppingRequestWithItems,
   findShoppingRequestById,
-  listShoppingRequests,
   saveShoppingRequestApprovedQuantities as saveApprovedQuantitiesRepo,
   updateShoppingRequestWithItems,
-  type ShoppingRequestListFilters,
 } from "../repositories/shopping-requests-repository";
 import type {
   ApproveShoppingRequestInput,
@@ -40,13 +38,9 @@ export type ProductSnapshot = {
 };
 
 export async function listShoppingRequestsPage(
-  filters: ShoppingRequestListFilters,
-): Promise<{ total: number; requests: Awaited<ReturnType<typeof listShoppingRequests>> }> {
-  const [total, requests] = await Promise.all([
-    countShoppingRequests(filters),
-    listShoppingRequests(filters),
-  ]);
-  return { total, requests };
+  filters: MergedPurchaseFilters,
+) {
+  return listMergedPurchases(filters);
 }
 
 export async function createShoppingRequest(

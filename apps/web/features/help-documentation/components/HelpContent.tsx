@@ -276,6 +276,18 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "owner-backdated-purchases",
+      title: "Mencatat Belanja Terdahulu",
+      description: "Catat pembelian bulan sebelumnya dan pantau pembayaran yang belum lunas tanpa mengubah stok.",
+      icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka formulir", description: "Buka Supplier > Daftar Belanja lalu pilih Catat Belanja Terdahulu. Pembuatan memerlukan izin supplier:create dan expense:create.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Isi pembelian", description: "Isi tanggal pembelian dari bulan sebelumnya, metode Giro atau Transfer, tanggal jatuh tempo, nomor Giro atau transaksi, dan nominal. Tambahkan nominal serta tanggal untuk setiap pembayaran yang sudah dilakukan, lalu simpan.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Catat pembayaran berikutnya", description: "Cari nomor atau gunakan filter jenis catatan dan status pembayaran. Buka Riwayat pembayaran, isi nominal dan tanggal, lalu simpan. Pencatatan pembayaran memerlukan izin expense:update.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Pahami pengeluaran", description: "Pembayaran pada atau sebelum jatuh tempo masuk ke Keuangan pada tanggal pembayaran. Sisa tagihan pada tanggal jatuh tempo masuk otomatis; pembayaran setelahnya mengurangi tagihan tanpa mencatat pengeluaran dua kali.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ],
+    },
+    {
       id: "owner-categories",
       title: "Mengelola Kategori dan Memindahkan Produk",
       description: "Tambah atau ubah kategori sekaligus, pindahkan produk pilihan, dan tinjau dampak penghapusan kategori terhadap seluruh toko serta harga pelanggan.",

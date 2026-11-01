@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { db } from "@pos/db";
+import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { buildFinancialReport } from "@/features/financial-report/helpers/report-core";
 import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
 import { roundSellingPrice, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
@@ -200,6 +201,7 @@ export async function getFinancialReportAnalysis({
         storeId,
         deletedAt: null,
         occurredAt: dateBounds,
+        ...recognizedExpenseFilter(),
       },
       _sum: { amount: true, changeAmount: true },
       _count: { _all: true },
@@ -209,6 +211,7 @@ export async function getFinancialReportAnalysis({
         storeId,
         deletedAt: null,
         occurredAt: dateBounds,
+        ...recognizedExpenseFilter(),
         hasMissingCostSnapshot: true,
       },
     }),

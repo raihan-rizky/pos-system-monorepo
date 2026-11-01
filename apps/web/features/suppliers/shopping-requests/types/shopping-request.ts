@@ -23,6 +23,7 @@ export interface ShoppingRequestKpiSummary {
 }
 
 export interface ShoppingRequestListItem {
+  kind?: "SHOPPING_REQUEST";
   id: string;
   purchase?: {
     id: string;
@@ -55,6 +56,23 @@ export interface ShoppingRequestListItem {
   note: string | null;
   stockAppliedAt: string | null;
 }
+
+export interface BackdatedPurchaseListItem {
+  kind: "BACKDATED_PURCHASE";
+  id: string;
+  purchaseDate: string;
+  dueDate: string;
+  paymentMethod: "GIRO" | "TRANSFER";
+  reference: string;
+  amountCents: number;
+  paidCents: number;
+  remainingCents: number;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
+  createdAt: string;
+  payments: Array<{ id: string; paidAt: string; amountCents: number; createdAt: string }>;
+}
+
+export type ShoppingListRecord = ShoppingRequestListItem | BackdatedPurchaseListItem;
 
 export interface ShoppingRequestItemRecord {
   id: string;

@@ -1,4 +1,5 @@
 import { db } from '@pos/db';
+import { recognizedExpenseFilter } from '@/features/keuangan/helpers/recognized-expense-filter';
 import { buildMonthlyPeriod, buildMonthlyReport } from '../helpers/monthly-report-core';
 import { getMonthlyBalances } from './monthly-balances';
 
@@ -25,10 +26,12 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
       },
     }),
     db.expense.findMany({
-      where: { storeId, deletedAt: null, occurredAt: bounds },
+      where: { storeId, deletedAt: null, occurredAt: bounds, ...recognizedExpenseFilter(now) },
       select: { id: true, occurredAt: true, category: true, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true,
         shoppingRequest: { select: { status: true } },
-        goodsPurchase: { select: { number: true, status: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true } } },
+        goodsPurchase: { select: { number: true, status: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true } },
+        backdatedPurchaseDue: { select: { reference: true, paymentMethod: true, dueDate: true } },
+        backdatedPurchasePayment: { select: { purchase: { select: { reference: true, paymentMethod: true, dueDate: true } } } } },
     }),
     db.customerReceivable.findMany({
       where: { storeId, OR: [{ debtDate: { lte: new Date(`${period.to}T00:00:00Z`) } }, { payments: { some: { createdAt: bounds } } }] },

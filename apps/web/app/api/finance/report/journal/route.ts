@@ -1,4 +1,5 @@
 import { db } from "@pos/db";
+import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import {
   buildReportRows,
@@ -48,7 +49,8 @@ export async function GET(request: Request) {
     const range = buildReportPeriodRange(periodParam);
     const { start, end } = toJakartaBounds(range.from, range.to);
 
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const [sales, expenses] = await Promise.all([
       db.transaction.findMany({
         where: {
@@ -83,6 +85,7 @@ export async function GET(request: Request) {
           deletedAt: null,
           storeId,
           occurredAt: { gte: start, lt: end },
+          ...recognizedExpenseFilter(),
         },
         orderBy: { occurredAt: "asc" },
         select: {

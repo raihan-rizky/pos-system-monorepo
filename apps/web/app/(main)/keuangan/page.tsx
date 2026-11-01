@@ -411,6 +411,8 @@ export default function KeuanganDashboardPage() {
                   const sourceLabel =
                     item.source.type === "GOODS_PURCHASE"
                       ? "Pembelian Barang"
+                      : item.source.type === "BACKDATED_PURCHASE"
+                        ? "Belanja Terdahulu"
                       : item.source.type === "SHOPPING_REQUEST"
                         ? "Daftar Belanja (Legacy)"
                         : "Manual";

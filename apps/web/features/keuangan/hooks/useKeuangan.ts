@@ -42,6 +42,7 @@ export type ExpenseListItem = {
   source:
     | { type: "MANUAL" }
     | { type: "SHOPPING_REQUEST"; id: string; number: string }
+    | { type: "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };
 };

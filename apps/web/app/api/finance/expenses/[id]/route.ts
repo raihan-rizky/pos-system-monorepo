@@ -18,7 +18,8 @@ export async function PATCH(
 ) {
   try {
     const user = await requirePermission("expense", "update");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const { id } = await params;
 
     const existing = await db.expense.findFirst({
@@ -28,6 +29,8 @@ export async function PATCH(
         deletedAt: true,
         shoppingRequestId: true,
         goodsPurchaseId: true,
+        backdatedPurchaseDueId: true,
+        backdatedPurchasePaymentId: true,
       },
     });
     if (!existing || existing.deletedAt) {
@@ -124,7 +127,8 @@ export async function DELETE(
 ) {
   try {
     const user = await requirePermission("expense", "delete");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const { id } = await params;
     const existing = await db.expense.findFirst({
       where: { id, storeId },
@@ -133,6 +137,8 @@ export async function DELETE(
         deletedAt: true,
         shoppingRequestId: true,
         goodsPurchaseId: true,
+        backdatedPurchaseDueId: true,
+        backdatedPurchasePaymentId: true,
       },
     });
     if (!existing) {

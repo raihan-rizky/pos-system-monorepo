@@ -158,7 +158,7 @@ export function syncShoppingRequestApprovalCaches(
       return {
         ...current,
         data: current.data.map((row) =>
-          row.id === detail.id
+          row.kind !== "BACKDATED_PURCHASE" && row.id === detail.id
             ? {
                 ...row,
                 status: detail.status,

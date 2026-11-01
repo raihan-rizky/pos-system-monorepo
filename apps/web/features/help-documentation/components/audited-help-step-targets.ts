@@ -39,6 +39,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "owner-export-reports": [["finance", "finance-primary"], ["finance", "finance-export"], ["finance", "finance-export"], ["finance", "finance-export"], ["finance", "finance-export"]],
   "owner-expenses": [["finance", "finance-primary"], ["finance", "finance-expense-create"], ["finance", "finance-proof-url"], ["finance", "finance-save"], ["finance", "finance-proof-url"]],
   "owner-shopping-request": [["suppliers", "suppliers-shopping-tab"], ["suppliers", "suppliers-create-request"], ["suppliers", "suppliers-add-products"], ["suppliers", "suppliers-request-quantity"]],
+  "owner-backdated-purchases": [["suppliers", "suppliers-shopping-tab"], ["suppliers", "suppliers-shopping-tab"], ["suppliers", "suppliers-shopping-tab"], ["finance", "finance-primary"]],
   "owner-change-price": [["products", "products-primary"], ["products", "products-price-action"], ["products", "products-edit-action"], ["products", "products-price-history-tab"]],
   "owner-change-stock-individual": [["products", "products-primary"], ["products", "products-table"], ["products", "products-edit-action"], ["products", "products-stock-field"], ["products", "products-edit-action"]],
   "owner-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],

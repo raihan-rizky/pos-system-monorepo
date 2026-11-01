@@ -33,6 +33,12 @@ Klik **Setujui dan Catat Pembelian** sekali. Sistem menyetujui Daftar Belanja, m
 
 Persetujuan tidak mengubah stok. Setelah barang datang, pilih **Catat Penerimaan** pada kartu pembelian yang disetujui. Riwayat dan perbandingan penerimaan ada di **Tindakan lainnya**. Stok baru bertambah ketika penerimaan disetujui.
 
+## Belanja terdahulu
+
+Di **Daftar Belanja**, pilih **Catat Belanja Terdahulu** untuk pembelian dari bulan sebelumnya. Isi tanggal pembelian, metode Giro atau Transfer, tanggal jatuh tempo, nomor, nominal, serta pembayaran yang sudah dilakukan beserta tanggalnya. Catatan ini tidak mengubah stok. Gunakan filter jenis catatan atau status pembayaran dan buka **Riwayat pembayaran** untuk mencatat pembayaran berikutnya.
+
+Pembayaran pada atau sebelum jatuh tempo masuk ke Keuangan pada tanggal pembayaran. Sisa pada jatuh tempo masuk otomatis pada tanggal tersebut; pembayaran setelah jatuh tempo mengurangi tagihan tanpa mencatat pengeluaran kedua. Pembuatan memerlukan `supplier:create` dan `expense:create`; pembayaran berikutnya memerlukan `supplier:read` dan `expense:update`.
+
 ## Dokumen lama
 
 Daftar dan Pembelian Barang lama tetap terlihat di Daftar Belanja. Pembelian lama yang masih menunggu bisa diproses dengan alur review lama dari kartunya. Daftar lama yang sudah disetujui tanpa pembelian menampilkan **Lengkapi Pembelian Lama**; jika ada Pengeluaran lama, sistem menggantinya saat pembelian baru selesai agar tidak dihitung dua kali. Permohonan lama yang sedang diputuskan per item tetap memakai tindakan dan izin lamanya.
