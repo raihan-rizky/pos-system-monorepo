@@ -40,6 +40,7 @@ export const DATABASE_RESET_SUBDATA_DEPENDENCIES: SubdataDependency[] = [
   { source: "PrintingService", target: "Transaction", reference: "TransactionItem", where: storeId => ({ transaction: { storeId }, printingServiceId: { not: null } }) },
   { source: "Customer", target: "Transaction", reference: "Transaction", where: storeId => ({ storeId, customerId: { not: null } }) },
   { source: "Transaction", target: "InventoryLog", reference: "InventoryLog", where: storeId => ({ product: { storeId }, transactionId: { not: null } }) },
+  { source: "Transaction", target: "PrintingReceipt", reference: "PrintingReceipt", where: storeId => ({ storeId, transactionId: { not: null } }) },
   { source: "Transaction", target: "SuratJalan", reference: "SuratJalanItem" },
   { source: "ShoppingRequest", target: "GoodsPurchase", reference: "GoodsPurchase" },
   { source: "ShoppingRequest", target: "Expense", reference: "Expense", where: storeId => ({ storeId, shoppingRequestId: { not: null } }) },

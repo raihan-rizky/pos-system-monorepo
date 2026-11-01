@@ -299,6 +299,8 @@ describe('HelpContent', () => {
     expect(html).toContain('data terkait yang wajib ikut terhapus');
     expect(html).toContain('Katalog Produk &gt; Riwayat Harga');
     expect(html).toContain('Hapus Semua Pilihan');
+    expect(html).toContain('pilih juga Penjualan &amp; Keuangan &gt; Nota Percetakan');
+    expect(html).toContain('Memilih Nota Percetakan saja mempertahankan transaksi');
     expect(html).toContain('Mengubah pilihan membatalkan preview dan teks konfirmasi');
     expect(html).toContain('tidak ada seed otomatis');
   });

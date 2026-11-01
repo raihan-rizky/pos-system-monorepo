@@ -9,6 +9,8 @@ describe("FAQ workflow catalog", () => {
     expect(reset).toMatchObject({ route: "/settings", allowedRoles: ["OWNER"] });
     const text = JSON.stringify(reset);
     for (const phrase of ["Riwayat Harga", "Hapus Semua Pilihan", "RESET DATABASE", "harga saat ini", "Lihat Dampak Reset"]) expect(text).toContain(phrase);
+    expect(text).toContain("pilih juga Penjualan & Keuangan > Nota Percetakan");
+    expect(text).toContain("Memilih Nota Percetakan saja mempertahankan transaksi");
   });
   it("mempertahankan urutan nomor FAQ saat panduan pembulatan ditambahkan", () => {
     expect(FAQ_WORKFLOWS.map(workflow => workflow.faqNumber)).toEqual(

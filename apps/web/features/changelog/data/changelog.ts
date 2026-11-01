@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "database-reset-printing-receipts", date: "2026-11-02", revision: 1,
+    highlight: { title: "Reset Nota Percetakan", summary: "Pilih Nota Percetakan agar reset transaksi terkait dapat dilanjutkan." },
+    title: "Nota Percetakan tersedia di Reset Database.",
+    summary: "Owner dapat memilih Nota Percetakan secara terpisah atau bersama Transaksi Penjualan. Dependensi nota kini dapat dipenuhi agar reset transaksi terkait tidak lagi terhalang.",
+    kind: "fix", area: "Pengaturan", href: "/settings", visual: "categories",
+    steps: [
+      { title: "Pilih nota", detail: "Buka Pengaturan > Reset Database, lalu centang Penjualan & Keuangan > Nota Percetakan. Centang juga Transaksi Penjualan jika ingin menghapus transaksi terkait." },
+      { title: "Periksa dampak", detail: "Klik Lihat Dampak Reset dan lengkapi dependensi yang ditampilkan. Nota dihapus lebih dulu; urutan nomor nota tetap berlanjut." },
+      { title: "Konfirmasi reset", detail: "Pastikan shift, import, dan batch selesai. Ketik RESET DATABASE persis, lalu klik Reset Data Terpilih." },
+    ],
+  },
+  {
     id: "database-reset-subdata", date: "2026-11-02", revision: 1,
     highlight: { title: "Reset sub-data sesuai kebutuhan", summary: "Hapus Riwayat Harga saja tanpa menghapus produk atau harga saat ini." },
     title: "Pilih sub-data yang ingin di-reset.",

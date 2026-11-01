@@ -20,6 +20,7 @@ export const DATABASE_RESET_OPTIONS: Array<{
   ] },
   { id: "salesFinance", label: "Penjualan & Keuangan", description: "Pilih transaksi, pengeluaran, atau riwayat operasional.", items: [
     { model: "Transaction", label: "Transaksi Penjualan" },
+    { model: "PrintingReceipt", label: "Nota Percetakan" },
     { model: "CashierShift", label: "Shift Kasir" },
     { model: "Expense", label: "Pengeluaran" },
     { model: "DebtPaymentLog", label: "Riwayat Pembayaran Piutang" },

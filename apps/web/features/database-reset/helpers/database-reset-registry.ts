@@ -46,6 +46,7 @@ export const DATABASE_RESET_MODELS: Record<DatabaseResetModel, DatabaseResetMode
   ProductStockGroupActivity: { model: "ProductStockGroupActivity", delegate: "productStockGroupActivity", priority: 10, where: (storeId) => ({ stockGroup: { storeId } }) },
   Customer: { model: "Customer", delegate: "customer", priority: 100, where: storeWhere },
   Transaction: { model: "Transaction", delegate: "transaction", priority: 100, where: storeWhere },
+  PrintingReceipt: { model: "PrintingReceipt", delegate: "printingReceipt", priority: 90, where: storeWhere },
   TransactionItem: { model: "TransactionItem", delegate: "transactionItem", priority: 10, where: transactionWhere },
   TransactionPayment: { model: "TransactionPayment", delegate: "transactionPayment", priority: 10, where: transactionWhere },
   DebtPaymentLog: { model: "DebtPaymentLog", delegate: "debtPaymentLog", priority: 10, where: storeWhere },
@@ -98,6 +99,7 @@ export const DATABASE_RESET_DOMAINS: Record<DatabaseResetDomain, DatabaseResetDo
   customers: [selected("Customer", "Data pelanggan toko")],
   salesFinance: [
     selected("Transaction", "Transaksi penjualan toko"),
+    selected("PrintingReceipt", "Nota Percetakan toko"),
     cascade("TransactionItem", "Item transaksi ikut terhapus bersama transaksi"),
     cascade("TransactionPayment", "Pembayaran transaksi ikut terhapus bersama transaksi"),
     cascade("DebtPaymentLog", "Riwayat pembayaran piutang ikut terhapus"),
@@ -165,6 +167,7 @@ export const PRESERVED_DATABASE_RESET_DATA = [
   { model: "StoreSettings", reason: "Informasi toko tidak termasuk data operasional reset." },
   { model: "RolePermission", reason: "Konfigurasi RBAC harus tetap aman." },
   { model: "Piutang manual dan pembayaran", reason: "Riwayat piutang manual dilindungi; pelanggan terkait tidak dapat di-reset." },
-  { model: "Nota Percetakan", reason: "Nota tetap dipertahankan; transaksi yang masih terhubung tidak dapat di-reset." },
+  { model: "Nota Percetakan", reason: "Nota tetap dipertahankan jika sub-data Nota Percetakan tidak dipilih." },
+  { model: "Penomoran Nota Percetakan", reason: "Urutan nomor nota tetap disimpan agar nomor yang sudah digunakan tidak terulang." },
   { model: "Assistant chat/vector/legacy tables", reason: "Data ini shared dan tidak memiliki current-store ownership." },
 ] as const;

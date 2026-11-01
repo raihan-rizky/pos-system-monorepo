@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { DATABASE_RESET_OPTIONS, DATABASE_RESET_SELECTABLE_MODELS, toggleDatabaseResetCategory } from "../database-reset-options";
 
 describe("database reset category selection", () => {
+  it("offers printing receipts as independent sales and finance sub-data", () => {
+    expect(DATABASE_RESET_OPTIONS.find(option => option.id === "salesFinance")?.items)
+      .toContainEqual({ model: "PrintingReceipt", label: "Nota Percetakan" });
+    expect(DATABASE_RESET_SELECTABLE_MODELS).toContain("PrintingReceipt");
+  });
+
   it("selects a partial category completely without touching another category", () => {
     const selection = toggleDatabaseResetCategory(["ProductPriceLog", "Expense"], "productCatalog");
     expect(selection).toEqual(expect.arrayContaining(DATABASE_RESET_OPTIONS[0].items.map(item => item.model)));

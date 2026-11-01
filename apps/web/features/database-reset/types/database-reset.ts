@@ -21,6 +21,7 @@ export type DatabaseResetModel =
   | "ProductStockGroupActivity"
   | "Customer"
   | "Transaction"
+  | "PrintingReceipt"
   | "TransactionItem"
   | "TransactionPayment"
   | "DebtPaymentLog"

@@ -5,7 +5,7 @@ Tanggal: 2026-11-01 (Asia/Jakarta).
 ## Perilaku pengguna
 
 - Owner membuka **Pengaturan > Reset Database**.
-- Tujuh kategori berisi 30 pilihan sub-data. Checkbox kategori memilih atau melepas semua sub-data pada kategori itu; indikator sebagian muncul ketika hanya beberapa sub-data dipilih.
+- Tujuh kategori berisi 31 pilihan sub-data, termasuk **Penjualan & Keuangan > Nota Percetakan**. Checkbox kategori memilih atau melepas semua sub-data pada kategori itu; indikator sebagian muncul ketika hanya beberapa sub-data dipilih.
 - **Pilih Semua** mencentang semua sub-data. **Hapus Semua Pilihan** mengosongkan pilihan dan menonaktifkan preview.
 - Contoh: centang hanya **Katalog Produk > Riwayat Harga** untuk menghapus `ProductPriceLog` toko aktif. Produk, stok, dan harga produk saat ini tetap tersimpan.
 - **Lihat Dampak Reset** menampilkan jumlah data, data terkait yang wajib ikut terhapus dengan ikon kunci, dependensi yang masih perlu dipilih, dan data yang dipertahankan.
@@ -33,7 +33,7 @@ Data cascade disusun berdasarkan hubungan induk dan anak serta dihapus sebelum i
 
 Predicate yang lebih sempit melindungi data yang tidak terkait: cascade Pelanggan hanya mencakup log piutang pelanggan toko tersebut; cascade Produk hanya mencakup aktivitas grup yang berhubungan dengan produk; cascade Supplier mengikuti kepemilikan supplier. Pilihan langsung atas sub-data tetap berlaku untuk seluruh sub-data milik toko.
 
-Piutang manual dan pembayaran serta Nota Percetakan tetap dilindungi. Pelanggan yang masih memiliki riwayat piutang manual dan transaksi yang terhubung ke Nota Percetakan menghalangi reset data induknya. Penghapusan berjalan dalam satu transaction database.
+Piutang manual dan pembayaran tetap dilindungi. Pelanggan yang masih memiliki riwayat piutang manual menghalangi reset data induknya. Untuk transaksi yang terhubung ke Nota Percetakan, pilih juga sub-data **Nota Percetakan**; nota dihapus lebih dulu dalam transaction database yang sama. Memilih Nota Percetakan saja mempertahankan transaksi penjualan. Urutan nomor nota tetap berlanjut. Nota yang tidak dipilih tetap dipertahankan.
 
 ## Bantuan dan pengumuman
 

@@ -128,9 +128,6 @@ export async function createDatabaseResetPlan(input: {
   if (operations.has("Customer") && await input.db.customerReceivable.count({ where: { storeId: input.storeId } }) > 0) {
     requiredDependencies.push({ domain: "customers", model: "Customer", blocking: true, reason: "Pelanggan masih memiliki riwayat piutang manual yang dilindungi, termasuk yang sudah lunas. Data pelanggan ini tidak dapat di-reset." });
   }
-  if (operations.has("Transaction") && await input.db.printingReceipt.count({ where: { storeId: input.storeId, transactionId: { not: null } } }) > 0) {
-    requiredDependencies.push({ domain: "salesFinance", model: "Transaction", blocking: true, reason: "Transaksi masih terhubung ke nota Percetakan yang dilindungi. Data transaksi ini tidak dapat di-reset." });
-  }
 
   const prioritizedOperations = [...operations.values()].sort((left, right) => {
     const priorityDifference = DATABASE_RESET_MODELS[left.model].priority - DATABASE_RESET_MODELS[right.model].priority;
@@ -161,7 +158,7 @@ export async function createDatabaseResetPlan(input: {
     operations: sortedOperations,
     cascades,
     requiredDependencies,
-    preserved: [...PRESERVED_DATABASE_RESET_DATA],
+    preserved: PRESERVED_DATABASE_RESET_DATA.filter(item => item.model !== "Nota Percetakan" || !operations.has("PrintingReceipt")),
     canExecute: operations.size > 0 && requiredDependencies.every((dependency) => !dependency.blocking),
   };
 }

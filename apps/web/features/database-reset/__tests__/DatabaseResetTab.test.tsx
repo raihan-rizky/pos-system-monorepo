@@ -48,6 +48,7 @@ describe("DatabaseResetView", () => {
     expect(html).toContain("Pilih Semua");
     expect(html).toContain("Hapus Semua Pilihan");
     expect(html).toContain('aria-label="Riwayat Harga"');
+    expect(html).toContain('aria-label="Nota Percetakan"');
   });
 
   it("disables preview when no sub-data is selected", () => {

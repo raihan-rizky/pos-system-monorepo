@@ -90,11 +90,11 @@ describe("POST /api/settings/database-reset/preview", () => {
     expect(createDatabaseResetPlanMock).not.toHaveBeenCalled();
   });
 
-  it("previews a single sub-data choice without expanding it into its category", async () => {
+  it.each(["ProductPriceLog", "PrintingReceipt"])("previews %s without expanding it into its category", async model => {
     requireRoleMock.mockResolvedValue({ id: "owner-1", role: "OWNER", storeId: "store-a" });
-    const response = await POST(requestWith({ models: ["ProductPriceLog"], storeId: "other-store" }));
+    const response = await POST(requestWith({ models: [model], storeId: "other-store" }));
     expect(response.status).toBe(200);
-    expect(createDatabaseResetPlanMock).toHaveBeenCalledWith({ db: {}, storeId: "store-a", models: ["ProductPriceLog"] });
+    expect(createDatabaseResetPlanMock).toHaveBeenCalledWith({ db: {}, storeId: "store-a", models: [model] });
   });
 
   it("rejects empty, unknown, unsafe child, and ambiguous selections", async () => {

@@ -87,10 +87,46 @@ describe("database reset planner", () => {
     expect(plan.requiredDependencies).toContainEqual(expect.objectContaining({ blocking: true, reason: expect.stringContaining("piutang manual") }));
   });
 
-  it("blocks deletion of transactions linked to protected printing receipts", async () => {
+  it("requires selecting printing receipts before deleting their linked transactions", async () => {
     const plan = await createDatabaseResetPlan({ db: createFakeDb({ counts: { printingReceipt: 1 } }), storeId: "store-a", models: ["Transaction"] });
     expect(plan.canExecute).toBe(false);
-    expect(plan.requiredDependencies).toContainEqual(expect.objectContaining({ blocking: true, reason: expect.stringContaining("nota Percetakan") }));
+    expect(plan.requiredDependencies).toContainEqual(expect.objectContaining({ model: "PrintingReceipt", domain: "salesFinance", blocking: true, reason: expect.stringContaining("Nota Percetakan") }));
+    expect(plan.operations.map(operation => operation.model)).not.toContain("PrintingReceipt");
+    expect(plan.preserved).toContainEqual(expect.objectContaining({ model: "Nota Percetakan" }));
+  });
+
+  it("deletes printing receipts alone only in the current store while preserving transactions and numbering", async () => {
+    const printingReceipt = {
+      count: vi.fn().mockResolvedValue(2),
+      deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
+    };
+    const db = { printingReceipt } as unknown as DatabaseResetReadClient;
+    const plan = await createDatabaseResetPlan({ db, storeId: "store-a", models: ["PrintingReceipt"] });
+
+    expect(plan.canExecute).toBe(true);
+    expect(plan.requiredDependencies).toEqual([]);
+    expect(plan.operations).toEqual([expect.objectContaining({ model: "PrintingReceipt", mode: "selected", count: 2, where: { storeId: "store-a" } })]);
+    expect(plan.preserved).not.toContainEqual(expect.objectContaining({ model: "Nota Percetakan" }));
+    expect(plan.preserved).toContainEqual(expect.objectContaining({ model: "Penomoran Nota Percetakan" }));
+    await executeDatabaseResetPlan(db, plan);
+    expect(printingReceipt.deleteMany).toHaveBeenCalledExactlyOnceWith({ where: { storeId: "store-a" } });
+  });
+
+  it.each([
+    { models: ["Transaction", "PrintingReceipt"] as const },
+    { domains: ["salesFinance"] as const },
+  ])("allows explicitly selected printing receipts to be deleted before transactions (%j)", async selection => {
+    const deleteOrder: string[] = [];
+    const db = createFakeDb({ counts: { printingReceipt: 2, transaction: 2 }, deleteOrder });
+    const plan = await createDatabaseResetPlan({ db, storeId: "store-a", ...selection });
+
+    expect(plan.canExecute).toBe(true);
+    expect(plan.requiredDependencies.every(dependency => !dependency.blocking)).toBe(true);
+    expect(plan.operations.find(operation => operation.model === "PrintingReceipt")?.where).toEqual({ storeId: "store-a" });
+    expect(plan.preserved).not.toContainEqual(expect.objectContaining({ model: "Nota Percetakan" }));
+    await executeDatabaseResetPlan(db, plan);
+    expect(deleteOrder.indexOf("printingReceipt")).toBeGreaterThanOrEqual(0);
+    expect(deleteOrder.indexOf("printingReceipt")).toBeLessThan(deleteOrder.indexOf("transaction"));
   });
 
   it("scopes customer cascade logs to registered customers, preserving unrelated logs", async () => {

@@ -134,11 +134,11 @@ describe("POST /api/settings/database-reset/execute", () => {
     expect(response.status).toBe(500);
   });
 
-  it("executes the exact sub-data selection for the owner store", async () => {
+  it.each(["ProductPriceLog", "PrintingReceipt"])("executes the exact %s selection for the owner store", async model => {
     dbMock.$transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => callback({}));
-    const response = await POST(requestWith({ models: ["ProductPriceLog"], confirmation: "RESET DATABASE", storeId: "other-store" }));
+    const response = await POST(requestWith({ models: [model], confirmation: "RESET DATABASE", storeId: "other-store" }));
     expect(response.status).toBe(200);
-    expect(createDatabaseResetPlanMock).toHaveBeenCalledWith({ db: dbMock, storeId: "store-a", models: ["ProductPriceLog"] });
+    expect(createDatabaseResetPlanMock).toHaveBeenCalledWith({ db: dbMock, storeId: "store-a", models: [model] });
   });
 
   it("rejects an empty or ambiguous sub-data selection before deleting anything", async () => {
