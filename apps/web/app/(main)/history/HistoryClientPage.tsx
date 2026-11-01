@@ -1614,18 +1614,18 @@ export default function HistoryClientPage() {
                               className="py-3.5 px-4 text-right"
                               onClick={(event) => event.stopPropagation()}
                             >
-                              <div className="flex flex-wrap items-center justify-end gap-2">
+                              <div className="ml-auto grid w-[184px] max-w-full grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-1.5">
                                 {!isBundled && (
                                   <Button
                                     variant="secondary"
                                     onClick={(e) => { e.stopPropagation(); openTransactionDetail(tx); }}
-                                    className="!py-1.5 !px-3 text-sm h-auto whitespace-nowrap"
+                                    className="col-start-1 row-start-1 min-h-[34px] h-auto !justify-start !border-brand-100 !bg-brand-50 !px-3 !py-1.5 !text-xs !text-brand-700 hover:!bg-brand-100 whitespace-nowrap"
                                   >
                                     Lihat Struk
                                   </Button>
                                 )}
                                 {!isBundled && canEditProcessedReceipt && tx.printingReceipt?.id && ["COMPLETED", "DP", "PENDING_APPROVAL"].includes(tx.status) && (
-                                  <Button variant="danger" onClick={(e) => { e.stopPropagation(); printingEditTrigger.current = e.currentTarget; setEditingPrintingTransaction(tx); }} className="!py-1.5 !px-3 text-sm h-auto whitespace-nowrap">
+                                  <Button variant="secondary" onClick={(e) => { e.stopPropagation(); printingEditTrigger.current = e.currentTarget; setEditingPrintingTransaction(tx); }} className="col-span-3 row-start-2 min-h-[34px] h-auto !justify-start !border-amber-200 !bg-amber-50 !px-3 !py-1.5 !text-xs !text-amber-800 hover:!bg-amber-100 whitespace-nowrap">
                                     Edit nota diproses
                                   </Button>
                                 )}
@@ -1633,17 +1633,17 @@ export default function HistoryClientPage() {
                                   <Button
                                     variant="secondary"
                                     onClick={(e) => { e.stopPropagation(); setEditingTransaction(tx); }}
-                                    className="!py-1.5 !px-3 text-sm h-auto whitespace-nowrap"
+                                    className="col-start-2 row-start-1 min-h-[34px] h-auto !px-3 !py-1.5 !text-xs whitespace-nowrap"
                                   >
                                     Ubah
                                   </Button>
                                 )}
                                 {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
-                                  <div className="flex gap-2">
+                                  <div className="col-span-3 flex gap-1.5">
                                     {canApproveTransactions && (
                                       <Button
                                         onClick={(e) => { e.stopPropagation(); setApprovingTransaction(tx); }}
-                                        className="!py-1.5 !px-3 text-sm h-auto bg-blue-600 hover:bg-blue-700 text-white"
+                                        className="flex-1 !py-1.5 !px-3 !text-xs h-auto bg-blue-600 hover:bg-blue-700 text-white"
                                       >
                                         Setujui
                                       </Button>
@@ -1651,7 +1651,7 @@ export default function HistoryClientPage() {
                                     {canRejectTransactions && (
                                       <Button
                                         onClick={(e) => { e.stopPropagation(); setRejectingTransaction(tx); }}
-                                        className="!py-1.5 !px-3 text-sm h-auto bg-red-600 hover:bg-red-700 text-white border-transparent"
+                                        className="flex-1 !py-1.5 !px-3 !text-xs h-auto bg-red-600 hover:bg-red-700 text-white border-transparent"
                                       >
                                         Tolak
                                       </Button>
@@ -1661,31 +1661,33 @@ export default function HistoryClientPage() {
                                 {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
                                   <Button
                                     onClick={(e) => { e.stopPropagation(); setApprovingDraft(tx); }}
-                                    className="!py-1.5 !px-3 text-sm h-auto bg-amber-600 hover:bg-amber-700 text-white"
+                                    className="col-span-3 !py-1.5 !px-3 !text-xs h-auto bg-amber-600 hover:bg-amber-700 text-white"
                                   >
                                     Setujui Draft
                                   </Button>
                                 )}
-                                <TransactionActionMenu
-                                  tx={tx}
-                                  isSalesRole={isSalesRole}
-                                  canUpdateTransactions={canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory}
-                                  canDeleteTransactions={canDeleteTransactions && !tx.printingReceipt && !tx.printingSubcategory}
-                                  canApproveTransactions={canApproveTransactions}
-                                  canRejectTransactions={canRejectTransactions}
-                                  canApproveDrafts={canApproveDrafts}
-                                  canVoid={canVoid}
-                                  canChangeInvoiceDate={canChangeInvoiceDate && !tx.printingReceipt && !tx.printingSubcategory}
-                                  isPending={isPending}
-                                  isBundled={isBundled}
-                                  onEditInvoiceDate={() => setEditingInvoiceDateTransaction(tx)}
-                                  onDelete={() => setDeletingTransaction(tx)}
-                                  onApprove={() => setApprovingTransaction(tx)}
-                                  onReject={() => setRejectingTransaction(tx)}
-                                  onApproveDraft={() => setApprovingDraft(tx)}
-                                  onVoid={() => setVoidingTransaction(tx)}
-                                  showUpward={idx >= transactions.length - 2 && transactions.length > 1}
-                                />
+                                <div className="col-start-3 row-start-1 rounded-lg border border-surface-200 bg-white empty:hidden">
+                                  <TransactionActionMenu
+                                    tx={tx}
+                                    isSalesRole={isSalesRole}
+                                    canUpdateTransactions={canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory}
+                                    canDeleteTransactions={canDeleteTransactions && !tx.printingReceipt && !tx.printingSubcategory}
+                                    canApproveTransactions={canApproveTransactions}
+                                    canRejectTransactions={canRejectTransactions}
+                                    canApproveDrafts={canApproveDrafts}
+                                    canVoid={canVoid}
+                                    canChangeInvoiceDate={canChangeInvoiceDate && !tx.printingReceipt && !tx.printingSubcategory}
+                                    isPending={isPending}
+                                    isBundled={isBundled}
+                                    onEditInvoiceDate={() => setEditingInvoiceDateTransaction(tx)}
+                                    onDelete={() => setDeletingTransaction(tx)}
+                                    onApprove={() => setApprovingTransaction(tx)}
+                                    onReject={() => setRejectingTransaction(tx)}
+                                    onApproveDraft={() => setApprovingDraft(tx)}
+                                    onVoid={() => setVoidingTransaction(tx)}
+                                    showUpward={idx >= transactions.length - 2 && transactions.length > 1}
+                                  />
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -1860,20 +1862,20 @@ export default function HistoryClientPage() {
 
                         {!isBundled && (
                           <div
-                            className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-surface-100"
+                            className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-2 pt-3 border-t border-surface-100"
                             onClick={(event) => event.stopPropagation()}
                           >
                             {!isBundled && (
                               <Button
                                 variant="secondary"
                                 onClick={(e) => { e.stopPropagation(); openTransactionDetail(tx); }}
-                                className="flex-1 !py-2 !px-3 text-xs h-auto whitespace-nowrap"
+                                className="col-start-1 row-start-1 min-h-10 h-auto !justify-start !border-brand-100 !bg-brand-50 !px-3 !py-2 !text-sm !text-brand-700 hover:!bg-brand-100 whitespace-nowrap"
                               >
                                 Lihat Struk
                               </Button>
                             )}
                             {canEditProcessedReceipt && tx.printingReceipt?.id && ["COMPLETED", "DP", "PENDING_APPROVAL"].includes(tx.status) && (
-                              <Button variant="danger" onClick={(e) => { e.stopPropagation(); printingEditTrigger.current = e.currentTarget; setEditingPrintingTransaction(tx); }} className="flex-1 !py-2 !px-3 text-xs h-auto whitespace-nowrap">
+                              <Button variant="secondary" onClick={(e) => { e.stopPropagation(); printingEditTrigger.current = e.currentTarget; setEditingPrintingTransaction(tx); }} className="col-span-3 row-start-2 min-h-10 h-auto !justify-start !border-amber-200 !bg-amber-50 !px-3 !py-2 !text-sm !text-amber-800 hover:!bg-amber-100 whitespace-nowrap">
                                 Edit nota diproses
                               </Button>
                             )}
@@ -1881,13 +1883,13 @@ export default function HistoryClientPage() {
                               <Button
                                 variant="secondary"
                                 onClick={(e) => { e.stopPropagation(); setEditingTransaction(tx); }}
-                                className="flex-1 !py-2 !px-3 text-xs h-auto whitespace-nowrap"
+                                className="col-start-2 row-start-1 min-h-10 h-auto !px-3 !py-2 !text-sm whitespace-nowrap"
                               >
                                 Ubah
                               </Button>
                             )}
                             {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
-                              <>
+                              <div className="col-span-3 flex gap-2">
                                 {canApproveTransactions && (
                                   <Button
                                     onClick={(e) => { e.stopPropagation(); setApprovingTransaction(tx); }}
@@ -1904,36 +1906,38 @@ export default function HistoryClientPage() {
                                     Tolak
                                   </Button>
                                 )}
-                              </>
+                              </div>
                             )}
                             {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
                               <Button
                                 onClick={(e) => { e.stopPropagation(); setApprovingDraft(tx); }}
-                                className="flex-1 !py-2 !px-3 text-xs h-auto bg-amber-600 hover:bg-amber-700 text-white"
+                                className="col-span-3 !py-2 !px-3 text-xs h-auto bg-amber-600 hover:bg-amber-700 text-white"
                               >
                                 Setujui Draft
                               </Button>
                             )}
-                            <TransactionActionMenu
-                              tx={tx}
-                              isSalesRole={isSalesRole}
-                              canUpdateTransactions={canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory}
-                              canDeleteTransactions={canDeleteTransactions && !tx.printingReceipt && !tx.printingSubcategory}
-                              canApproveTransactions={canApproveTransactions}
-                              canRejectTransactions={canRejectTransactions}
-                              canApproveDrafts={canApproveDrafts}
-                              canVoid={canVoid}
-                              canChangeInvoiceDate={canChangeInvoiceDate && !tx.printingReceipt && !tx.printingSubcategory}
-                              isPending={isPending}
-                              isBundled={isBundled}
-                              onEditInvoiceDate={() => setEditingInvoiceDateTransaction(tx)}
-                              onDelete={() => setDeletingTransaction(tx)}
-                              onApprove={() => setApprovingTransaction(tx)}
-                              onReject={() => setRejectingTransaction(tx)}
-                              onApproveDraft={() => setApprovingDraft(tx)}
-                              onVoid={() => setVoidingTransaction(tx)}
-                              showUpward={idx >= transactions.length - 2 && transactions.length > 1}
-                            />
+                            <div className="col-start-3 row-start-1 rounded-lg border border-surface-200 bg-white p-[3px] empty:hidden">
+                              <TransactionActionMenu
+                                tx={tx}
+                                isSalesRole={isSalesRole}
+                                canUpdateTransactions={canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory}
+                                canDeleteTransactions={canDeleteTransactions && !tx.printingReceipt && !tx.printingSubcategory}
+                                canApproveTransactions={canApproveTransactions}
+                                canRejectTransactions={canRejectTransactions}
+                                canApproveDrafts={canApproveDrafts}
+                                canVoid={canVoid}
+                                canChangeInvoiceDate={canChangeInvoiceDate && !tx.printingReceipt && !tx.printingSubcategory}
+                                isPending={isPending}
+                                isBundled={isBundled}
+                                onEditInvoiceDate={() => setEditingInvoiceDateTransaction(tx)}
+                                onDelete={() => setDeletingTransaction(tx)}
+                                onApprove={() => setApprovingTransaction(tx)}
+                                onReject={() => setRejectingTransaction(tx)}
+                                onApproveDraft={() => setApprovingDraft(tx)}
+                                onVoid={() => setVoidingTransaction(tx)}
+                                showUpward={idx >= transactions.length - 2 && transactions.length > 1}
+                              />
+                            </div>
                           </div>
                         )}
                       </div>

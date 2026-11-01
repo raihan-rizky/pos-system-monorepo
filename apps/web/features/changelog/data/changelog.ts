@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "history-actions-layout", date: "2026-11-01", revision: 1,
+    highlight: { title: "Aksi Riwayat lebih rapi", summary: "Temukan struk dan pilihan transaksi dengan lebih mudah." },
+    title: "Aksi transaksi lebih mudah ditemukan.",
+    summary: "Tombol struk dan pilihan transaksi kini tersusun rapi. Koreksi nota diproses ditampilkan terpisah agar mudah dikenali.",
+    kind: "improvement", area: "Riwayat", href: "/history", visual: "history-table",
+    steps: [
+      { title: "Cari transaksi", detail: "Buka Riwayat lalu cari transaksi yang diperlukan." },
+      { title: "Buka struk", detail: "Pilih Lihat Struk untuk memeriksa detail transaksi." },
+      { title: "Pilih tindakan", detail: "Gunakan Ubah, Edit nota diproses, atau menu tiga titik sesuai izin dan jenis transaksi." },
+    ],
+  },
+  {
     id: "inbound-payment-all-unit-prices", date: "2026-11-01", revision: 1,
     highlight: { title: "Pembayaran saat penerimaan", summary: "Pilih pembayaran dan periksa harga seluruh satuan saat menerima barang." },
     title: "Periksa pembayaran dan harga saat menerima barang.",
