@@ -76,22 +76,26 @@ test("owner can pause and resume Shift Kasir from settings", async ({ appPage: p
 
 test("owner can preview and confirm a selective database reset without a real wipe", async ({ appPage: page }) => {
   let executeBody: Record<string, unknown> | null = null;
+  const previewBodies: Array<{ models: string[] }> = [];
 
   await page.route("**/api/settings/database-reset/preview", async (route) => {
-    const body = JSON.parse(route.request().postData() || "{}") as { domains?: string[] };
-    const blocked = !(body.domains || []).includes("salesFinance");
+    const body = JSON.parse(route.request().postData() || "{}") as { models: string[] };
+    previewBodies.push(body);
+    const blocked = !body.models.includes("Transaction");
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         storeId: "store-main",
-        domains: body.domains || [],
+        domains: blocked ? ["productCatalog"] : ["productCatalog", "salesFinance"],
+        models: body.models,
         operations: [
           { model: "Product", domain: "productCatalog", mode: "selected", reason: "catalog", count: 2, where: {} },
           { model: "ProductSupplier", domain: "productCatalog", mode: "cascade", reason: "Link supplier ikut terhapus", count: 1, where: {} },
+          ...(!blocked ? [{ model: "Transaction", domain: "salesFinance", mode: "selected", reason: "sales", count: 1, where: {} }] : []),
         ],
         cascades: [{ model: "ProductSupplier", count: 1, reason: "Link supplier ikut terhapus", sourceDomain: "productCatalog" }],
-        requiredDependencies: blocked ? [{ domain: "salesFinance", reason: "Transaksi mereferensikan produk", blocking: true }] : [],
+        requiredDependencies: [{ domain: "salesFinance", model: "Transaction", reason: "Transaksi mereferensikan produk", blocking: blocked }],
         preserved: [{ model: "Category", reason: "Kategori global dipertahankan" }],
         canExecute: !blocked,
       }),
@@ -113,20 +117,25 @@ test("owner can preview and confirm a selective database reset without a real wi
   await page.getByRole("button", { name: "Reset Database" }).click();
   await expect(page.locator("h2").filter({ hasText: "Reset Database" })).toBeVisible();
 
-  await page.getByRole("checkbox").first().check();
+  await page.getByRole("checkbox", { name: "Produk", exact: true }).check();
   await page.getByRole("button", { name: "Lihat Dampak Reset" }).click();
   await expect(page.getByText("Cascade", { exact: true })).toBeVisible();
   await expect(page.getByText("Wajib dipilih")).toBeVisible();
   await expect(page.getByRole("button", { name: "Reset Data Terpilih" })).toBeDisabled();
 
-  await page.getByText("Penjualan & Keuangan", { exact: true }).click();
+  await page.getByRole("checkbox", { name: "Transaksi Penjualan", exact: true }).check();
   await page.getByRole("button", { name: "Lihat Dampak Reset" }).click();
   await page.getByLabel("Ketik RESET DATABASE").fill("RESET DATABASE");
+  await expect(page.getByRole("button", { name: "Reset Data Terpilih" })).toBeEnabled();
   await page.getByRole("button", { name: "Reset Data Terpilih" }).click();
 
   await expect(page.getByText("Reset berhasil")).toBeVisible();
+  expect(previewBodies).toEqual([
+    { models: ["Product"] },
+    { models: ["Product", "Transaction"] },
+  ]);
   expect(executeBody).toEqual({
-    domains: ["productCatalog", "salesFinance"],
+    models: ["Product", "Transaction"],
     confirmation: "RESET DATABASE",
   });
 });
