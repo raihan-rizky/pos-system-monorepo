@@ -92,9 +92,10 @@ test("owner can preview and confirm a selective database reset without a real wi
         operations: [
           { model: "Product", domain: "productCatalog", mode: "selected", reason: "catalog", count: 2, where: {} },
           { model: "ProductSupplier", domain: "productCatalog", mode: "cascade", reason: "Link supplier ikut terhapus", count: 1, where: {} },
+          ...(!blocked ? [{ model: "Transaction", domain: "salesFinance", mode: "selected", reason: "sales", count: 1, where: {} }] : []),
         ],
         cascades: [{ model: "ProductSupplier", count: 1, reason: "Link supplier ikut terhapus", sourceDomain: "productCatalog" }],
-        requiredDependencies: blocked ? [{ domain: "salesFinance", model: "Transaction", reason: "Transaksi mereferensikan produk", blocking: true }] : [],
+        requiredDependencies: [{ domain: "salesFinance", model: "Transaction", reason: "Transaksi mereferensikan produk", blocking: blocked }],
         preserved: [{ model: "Category", reason: "Kategori global dipertahankan" }],
         canExecute: !blocked,
       }),
