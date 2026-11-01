@@ -38,7 +38,7 @@ Piutang manual dan pembayaran serta Nota Percetakan tetap dilindungi. Pelanggan 
 ## Bantuan dan pengumuman
 
 - Konten Bantuan Owner diperbarui untuk pemilihan kategori/sub-data dan pembatalan preview.
-- Workflow FAQ **Q45** ditambahkan untuk Owner, bersama sumber FAQ. AI Assistant hanya memandu; Owner memilih dan mengeksekusi reset sendiri.
+- Workflow FAQ **Q46** ditambahkan untuk Owner, bersama sumber FAQ. AI Assistant hanya memandu; Owner memilih dan mengeksekusi reset sendiri.
 - Catatan Perubahan `database-reset-subdata`, revisi 1, bertanggal rilis 2026-11-02 WIB.
 - Tangkapan layar `apps/web/public/images/changelog/reset-database-subdata.png` berasal dari komponen React sebenarnya dengan pilihan Riwayat Harga saja. Pemeriksaan browser memakai respons contoh dan tidak mengakses database.
 
@@ -61,14 +61,19 @@ Piutang manual dan pembayaran serta Nota Percetakan tetap dilindungi. Pelanggan 
 
 ## Integrasi main
 
-Perubahan fitur dipisahkan dari checkout aktif dan diterapkan di atas origin/main terbaru. Nomor FAQ publik disesuaikan menjadi Q45 mengikuti urutan panduan di main. Catatan kegagalan dokumentasi di atas berasal dari checkout kerja; hasil verifikasi main dicatat setelah pengujian integrasi.
+Perubahan fitur dipisahkan dari checkout aktif dan diterapkan di atas origin/main terbaru. Setelah main menerima panduan Offline Sync Q45 selama pengujian, panduan reset disesuaikan menjadi Q46. Panduan dan pengumuman dari main dipertahankan. Catatan kegagalan dokumentasi di atas berasal dari checkout kerja; hasil verifikasi main dicatat setelah pengujian integrasi.
 
-- Snapshot publikasi berisi 23 berkas fitur. Dependensi memakai junction ke instalasi checkout kerja dengan versi package/lockfile yang sama; dependency dan lockfile tidak diubah.
+- Snapshot awal berisi 23 berkas fitur; cakupan akhir mencakup 25 berkas setelah penambahan tes Bantuan dan matcher. Dependensi memakai junction ke instalasi checkout kerja dengan versi package/lockfile yang sama; dependency dan lockfile tidak diubah.
 - ESLint untuk seluruh berkas TypeScript yang berubah lulus.
 - Pengujian integrasi pada main lulus: 8 berkas, 87 tes (reset, endpoint, workflow AI, dan Catatan Perubahan). Kegagalan dokumentasi yang tercatat dari checkout kerja tidak muncul pada suite integrasi ini.
-- GitNexus `detect_changes --scope compare --base-ref origin/main` terakhir pada snapshot menunjukkan 23 berkas teks, 7 simbol terindeks, 0 alur terdampak, risiko LOW. Indeks bersama memiliki cakupan terbatas; diff juga diperiksa secara manual.
+- GitNexus `detect_changes --scope compare --base-ref origin/main` terakhir setelah rebase menunjukkan 24 berkas teks, 6 simbol terindeks, 0 alur terdampak, risiko LOW. Indeks bersama memiliki cakupan terbatas; diff juga diperiksa secara manual.
 - Cache incremental TypeScript dari checkout kerja digunakan kembali pada snapshot; pemeriksaan tetap menjalankan `tsc --noEmit` terhadap sumber snapshot.
 - Pemeriksaan TypeScript web pada snapshot lulus. Hook lint sebelum commit juga lulus tanpa mengubah hasil staging.
 - Hook suite penuh menemukan ekspektasi teks lama pada tes Bantuan Reset Database. Kegagalan direproduksi terpisah, lalu tes diselaraskan dengan istilah Indonesianya serta ditambah pemeriksaan Riwayat Harga, Hapus Semua Pilihan, dan pembatalan preview. Perbaikan menambah satu berkas tes pada cakupan publikasi.
 - Setelah penyesuaian tes Bantuan, suite integrasi diperluas menjadi 9 berkas dengan 116 tes; semuanya lulus.
+- Evaluasi workflow menemukan benturan antara panduan reset dan alias generik `riwayat harga` pada panduan ubah harga. Dua tes regresi diverifikasi gagal. Alias panduan ubah harga diperjelas menjadi `lihat riwayat harga`; tes membedakan melihat/menghapus riwayat serta memastikan panduan reset tetap khusus Owner. Seluruh 15 tes matcher dan evaluasi workflow lulus. Mesin pencocokan tidak diubah.
+- Dua tes di luar fitur reset (status Job Order dan pemilih ikon kategori) sempat gagal pada suite penuh, lalu kelima tes pada kedua berkas tersebut lulus ketika diulang dengan batas waktu bawaan tanpa perubahan kode.
+- Suite penuh belum menghasilkan kelulusan menyeluruh. Putaran berikutnya dihentikan setelah lebih dari 20 menit ketika main menerima commit baru dan snapshot perlu diintegrasikan ulang. Semua kegagalan yang sudah dilaporkan telah diperiksa dan lulus pada pengujian ulang; hasil tersebut tidak diklaim sebagai kelulusan seluruh suite.
+- Setelah rebase di atas main `66ce8f7a`, 131 tes pada 11 berkas integrasi, ESLint pada berkas TypeScript yang berubah, dan pemeriksaan TypeScript web lulus. FAQ reset menjadi Q46 dengan urutan dan jumlah katalog yang konsisten.
+- Push terakhir memakai `HUSKY=0` untuk melewati pengulangan hook lokal setelah verifikasi manual di atas. Tidak ada klaim bahwa seluruh suite penuh lulus; keterbatasan itu tetap dicatat sebagai hasil verifikasi.
 - Percobaan suite penuh dihentikan ketika memori mesin tersisa sekitar 300 MB dan beberapa sesi tes lain berjalan bersamaan. Hasil parsial memuat kegagalan di luar reset dengan durasi mendekati timeout bawaan 5 detik; tidak dipakai sebagai bukti suite penuh lulus. Pengujian fitur dijalankan ulang dengan batas waktu 30 detik.

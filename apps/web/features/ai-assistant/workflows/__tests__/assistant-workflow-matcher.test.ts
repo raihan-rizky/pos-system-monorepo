@@ -6,6 +6,20 @@ import { matchAssistantWorkflow } from "../assistant-workflow-matcher";
 describe("assistant workflow matcher", () => {
   const permissions = buildDefaultRolePermissions();
 
+  it.each([
+    ["hapus riwayat harga", "faq-q46-reset-database-subdata"],
+    ["Bagaimana cara mereset hanya riwayat harga atau sub-data tertentu?", "faq-q46-reset-database-subdata"],
+    ["lihat riwayat harga", "faq-q02-change-product-price"],
+  ])("routes price-history requests by action: %s", (message, workflowId) => {
+    expect(matchAssistantWorkflow({ message, role: "OWNER", permissions }))
+      .toMatchObject({ kind: "matched", workflow: { id: workflowId } });
+  });
+
+  it("keeps deleting price history restricted to the owner guide", () => {
+    expect(matchAssistantWorkflow({ message: "hapus riwayat harga", role: "ADMIN", permissions }))
+      .toMatchObject({ kind: "denied", workflow: { id: "faq-q46-reset-database-subdata" } });
+  });
+
   it("allows the printing receipt guide for SALES with request create permission", () => {
     expect(matchAssistantWorkflow({ message: "buat nota percetakan", role: "SALES", permissions }))
       .toMatchObject({ kind: "matched", workflow: { id: "faq-q40-printing-receipts" } });

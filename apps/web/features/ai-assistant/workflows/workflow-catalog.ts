@@ -87,7 +87,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     faqNumber: 2,
     slug: "change-product-price",
     title: "Bagaimana cara mengubah harga jual produk agar tercatat di riwayat?",
-    aliases: ["ubah harga produk", "ganti harga jual", "riwayat harga", "ubah harga jual produk", "ubah harga agen", "ubah harga dinas", "ubah kategori", "hapus kategori", "pindahkan kategori"],
+    aliases: ["ubah harga produk", "ganti harga jual", "lihat riwayat harga", "ubah harga jual produk", "ubah harga agen", "ubah harga dinas", "ubah kategori", "hapus kategori", "pindahkan kategori"],
     route: "/products",
     actionLabel: "Buka Produk",
     iconKey: "dollar-sign",
