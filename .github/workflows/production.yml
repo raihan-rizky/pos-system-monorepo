@@ -62,14 +62,14 @@ jobs:
       - name: Type check
         run: pnpm type-check
 
+      - name: Install Playwright browsers
+        run: pnpm --filter @pos/web exec playwright install --with-deps chromium
+
       - name: Unit tests
         run: pnpm test
 
       - name: Build production bundle
         run: pnpm build
-
-      - name: Install Playwright browsers
-        run: pnpm --filter @pos/web exec playwright install --with-deps chromium
 
       - name: E2E tests
         run: pnpm e2e

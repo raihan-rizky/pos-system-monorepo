@@ -1,5 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { ExpenseFormModal } from "@/features/keuangan/components/ExpenseFormModal";
 import TransactionBuktiModal from "@/features/transaction-history/components/TransactionBuktiModal";
@@ -28,7 +29,9 @@ const summary = {
 describe("R2 proof workflow integration", () => {
   it("uses the expense proof context", () => {
     const html = renderToStaticMarkup(
-      <ExpenseFormModal open onClose={vi.fn()} onSaved={vi.fn()} mode="create" />,
+      <QueryClientProvider client={new QueryClient()}>
+        <ExpenseFormModal open onClose={vi.fn()} onSaved={vi.fn()} mode="create" />
+      </QueryClientProvider>,
     );
     expect(html).toContain('data-proof-context="expense"');
   });
@@ -51,10 +54,12 @@ describe("R2 proof workflow integration", () => {
       <TransactionBuktiModal open onClose={vi.fn()} onSaved={vi.fn()} transactionId="tx-1" initialUrls={["https://prnt.sc/a"]} />,
     );
     const expense = renderToStaticMarkup(
-      <ExpenseFormModal
-        open onClose={vi.fn()} onSaved={vi.fn()} mode="edit"
-        initial={{ id: "expense-1", applicantName: "Budi", category: "SUPPLIES", description: null, amount: 1, changeAmount: 0, occurredAt: "2026-07-18T00:00:00Z", transactionId: null, attachmentUrl: "https://prnt.sc/a" }}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <ExpenseFormModal
+          open onClose={vi.fn()} onSaved={vi.fn()} mode="edit"
+          initial={{ id: "expense-1", applicantName: "Budi", category: "SUPPLIES", description: null, amount: 1, changeAmount: 0, occurredAt: "2026-07-18T00:00:00Z", transactionId: null, attachmentUrl: "https://prnt.sc/a" }}
+        />
+      </QueryClientProvider>,
     );
     expect(transaction).toContain('data-has-delete="true"');
     expect(expense).toContain('data-has-delete="true"');
