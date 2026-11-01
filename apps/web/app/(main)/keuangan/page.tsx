@@ -14,15 +14,18 @@ import {
   useIncomeSummary,
   useExpenseSummary,
   useExpenseList,
+  useCustomExpenseCategories,
   type ExpenseListItem,
 } from "@/features/keuangan/hooks/useKeuangan";
 import {
   EXPENSE_CATEGORIES,
-  type ExpenseCategory,
+  type ExpenseCategoryKey,
 } from "@/features/keuangan/helpers/keuangan-core";
 import {
-  CATEGORY_COLORS,
   CATEGORY_LABELS_ID,
+  customExpenseCategoryKey,
+  expenseCategoryColor,
+  expenseCategoryLabel,
 } from "@/features/keuangan/helpers/category-meta";
 import type { ExpenseFormInitial } from "@/features/keuangan/components/ExpenseFormModal";
 import { DeferredCashFlowChart } from "@/features/keuangan/components/DeferredCashFlowChart";
@@ -98,12 +101,14 @@ export default function KeuanganDashboardPage() {
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editing, setEditing] = useState<ExpenseFormInitial | undefined>();
   const [page, setPage] = useState(1);
-  const [filterCategory, setFilterCategory] = useState<ExpenseCategory | null>(null);
+  const [filterCategory, setFilterCategory] = useState<ExpenseCategoryKey | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   const pemasukan = useIncomeSummary(month);
   const pengeluaran = useExpenseSummary(month);
   const list = useExpenseList(month, page, filterCategory);
+  const categoryQuery = useCustomExpenseCategories();
+  const customCategories = categoryQuery.data?.data ?? [];
 
   const refresh = useCallback(
     () => queryClient.invalidateQueries({ queryKey: ["finance"] }),
@@ -331,15 +336,15 @@ export default function KeuanganDashboardPage() {
                         setFilterCategory((cur) => (cur === c.category ? null : c.category));
                         setPage(1);
                       }}
-                      title={`${CATEGORY_LABELS_ID[c.category]} — ${formatRupiah(c.total)}`}
+                      title={`${expenseCategoryLabel(c.category, customCategories)} — ${formatRupiah(c.total)}`}
                       style={{
                         width: `${c.pct}%`,
                         minWidth: c.pct > 0 ? "10px" : 0,
-                        backgroundColor: CATEGORY_COLORS[c.category],
+                        backgroundColor: expenseCategoryColor(c.category),
                         opacity: filterCategory === null || filterCategory === c.category ? 1 : 0.3,
                       }}
                       className="transition-opacity cursor-pointer hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
-                      aria-label={`Filter ${CATEGORY_LABELS_ID[c.category]}`}
+                      aria-label={`Filter ${expenseCategoryLabel(c.category, customCategories)}`}
                       aria-pressed={filterCategory === c.category}
                     />
                   ))}
@@ -347,8 +352,8 @@ export default function KeuanganDashboardPage() {
                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-surface-600">
                   {stripeData.map((c) => (
                     <span key={c.category} className="inline-flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[c.category] }} />
-                      {CATEGORY_LABELS_ID[c.category]} · {c.pct.toFixed(0)}%
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: expenseCategoryColor(c.category) }} />
+                      {expenseCategoryLabel(c.category, customCategories)} · {c.pct.toFixed(0)}%
                     </span>
                   ))}
                   {filterCategory && (
@@ -376,7 +381,7 @@ export default function KeuanganDashboardPage() {
               id="expense-category-filter"
               value={filterCategory ?? ""}
               onChange={(event) => {
-                setFilterCategory((event.target.value || null) as ExpenseCategory | null);
+                setFilterCategory((event.target.value || null) as ExpenseCategoryKey | null);
                 setPage(1);
               }}
               className="min-h-12 w-full sm:max-w-xs rounded-lg border border-surface-300 bg-white px-3 text-base sm:text-sm text-surface-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
@@ -387,7 +392,11 @@ export default function KeuanganDashboardPage() {
                   {CATEGORY_LABELS_ID[category]}
                 </option>
               ))}
+              {customCategories.map((category) => (
+                <option key={category.id} value={customExpenseCategoryKey(category.id)}>{category.name}</option>
+              ))}
             </select>
+            {categoryQuery.isError && <p role="alert" className="mt-1 text-xs text-red-700">Kategori khusus belum dapat dimuat. <button type="button" onClick={() => void categoryQuery.refetch()} className="underline">Coba lagi</button></p>}
           </div>
 
           {list.isLoading ? (
@@ -399,7 +408,7 @@ export default function KeuanganDashboardPage() {
           ) : !list.data || list.data.data.length === 0 ? (
             <div className="px-3 sm:px-4 py-10 text-center text-sm text-surface-500">
               {filterCategory
-                ? `Belum ada pengeluaran ${CATEGORY_LABELS_ID[filterCategory]}`
+                ? `Belum ada pengeluaran ${expenseCategoryLabel(filterCategory, customCategories)}`
                 : "Belum ada pengeluaran bulan ini"}
             </div>
           ) : (
@@ -411,6 +420,8 @@ export default function KeuanganDashboardPage() {
                   const sourceLabel =
                     item.source.type === "GOODS_PURCHASE"
                       ? "Pembelian Barang"
+                      : item.source.type === "BACKDATED_PURCHASE"
+                        ? "Belanja Terdahulu"
                       : item.source.type === "SHOPPING_REQUEST"
                         ? "Daftar Belanja (Legacy)"
                         : "Manual";
@@ -430,7 +441,7 @@ export default function KeuanganDashboardPage() {
                       style={{
                         backgroundColor: isAutomaticExpense
                           ? "#7C3AED"
-                          : CATEGORY_COLORS[item.category],
+                          : expenseCategoryColor(item.category),
                       }}
                     />
                     <div className="flex-1 min-w-0">
@@ -441,11 +452,11 @@ export default function KeuanganDashboardPage() {
                         <span
                           className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
                           style={{
-                            backgroundColor: `${CATEGORY_COLORS[item.category]}20`,
-                            color: CATEGORY_COLORS[item.category],
+                            backgroundColor: `${expenseCategoryColor(item.category)}20`,
+                            color: expenseCategoryColor(item.category),
                           }}
                         >
-                          {CATEGORY_LABELS_ID[item.category]}
+                          {expenseCategoryLabel(item.category, customCategories)}
                         </span>
                         <span
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${
@@ -570,6 +581,7 @@ export default function KeuanganDashboardPage() {
           onSaved={refresh}
           initial={editing}
           mode={modalMode}
+          canCreateCategory={canCreate}
         />
       )}
 

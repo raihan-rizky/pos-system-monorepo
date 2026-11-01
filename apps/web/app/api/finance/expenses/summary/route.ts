@@ -1,11 +1,12 @@
 import { db } from "@pos/db";
+import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import {
   bucketExpensesByCategory,
   bucketExpensesByDay,
   buildKeuanganMonthRange,
-  type ExpenseCategory,
 } from "@/features/keuangan/helpers/keuangan-core";
+import { customExpenseCategoryKey } from "@/features/keuangan/helpers/category-meta";
 import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
@@ -28,7 +29,8 @@ function currentJakartaMonth(): string {
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("expense", "read");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");
     if (monthParam && !MONTH_PATTERN.test(monthParam)) {
@@ -42,6 +44,7 @@ export async function GET(request: Request) {
     const [expenses, transactions] = await Promise.all([
       db.expense.findMany({
         where: {
+          ...recognizedExpenseFilter(),
           deletedAt: null,
           storeId,
           occurredAt: { gte: range.start, lt: range.end },
@@ -51,6 +54,7 @@ export async function GET(request: Request) {
           amount: true,
           changeAmount: true,
           category: true,
+          customCategoryId: true,
         },
       }),
       db.transaction.findMany({
@@ -67,7 +71,7 @@ export async function GET(request: Request) {
       occurredAt: e.occurredAt,
       amount: e.amount.toString(),
       changeAmount: e.changeAmount.toString(),
-      category: e.category as ExpenseCategory,
+      category: e.customCategoryId ? customExpenseCategoryKey(e.customCategoryId) : e.category,
     }));
 
     const daily = bucketExpensesByDay(expenseRows);

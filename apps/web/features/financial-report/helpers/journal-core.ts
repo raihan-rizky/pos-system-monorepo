@@ -76,6 +76,7 @@ export type ReportExpenseInput = {
   occurredAt: Date;
   applicantName: string;
   category: ExpenseCategory;
+  customCategoryName?: string | null;
   description: string | null;
   amount: Decimalish;
   changeAmount: Decimalish;
@@ -130,7 +131,7 @@ function saleToRow(sale: ReportSaleInput): ReportRow {
 }
 
 function expenseToRow(expense: ReportExpenseInput): ReportRow {
-  const categoryLabel = CATEGORY_LABELS_ID[expense.category];
+  const categoryLabel = expense.customCategoryName || CATEGORY_LABELS_ID[expense.category];
   const sourceLabel = expense.goodsPurchaseNumber
     ? `Pembelian Barang ${expense.goodsPurchaseNumber}`
     : expense.shoppingRequestNumber

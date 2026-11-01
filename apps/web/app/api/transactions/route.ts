@@ -35,6 +35,7 @@ import {
   StockMutationError,
 } from "@/features/product-stock-groups/stock-mutations";
 import { fetchTransactionsAndCount } from "@/features/transaction-history/helpers/fetch-transactions";
+import { TRANSACTION_HISTORY_PAYMENT_METHODS } from "@/features/transaction-history/helpers/history-params";
 import {
   priceProductForCustomerType,
   resolveCustomPricedLine,
@@ -199,6 +200,10 @@ export async function GET(request: Request) {
     const transactionCategory = searchParams.get("transactionCategory");
     const printingSubcategory = searchParams.get("printingSubcategory");
     const status = searchParams.get("status");
+    const rawPaymentMethod = searchParams.get("paymentMethod");
+    const paymentMethod = TRANSACTION_HISTORY_PAYMENT_METHODS.find(
+      (method) => method === rawPaymentMethod,
+    );
     const salespersonId = searchParams.get("salespersonId");
     const suratJalan = searchParams.get("suratJalan");
     const customerType = searchParams.get("customerType");
@@ -260,6 +265,15 @@ export async function GET(request: Request) {
       if (printingSubcategory && PRINTING_SUBCATEGORIES.includes(printingSubcategory as (typeof PRINTING_SUBCATEGORIES)[number])) {
         andConditions.push({ printingSubcategory });
       }
+    }
+
+    if (paymentMethod) {
+      andConditions.push({
+        OR: [
+          { paymentMethod },
+          { payments: { some: { method: paymentMethod } } },
+        ],
+      });
     }
 
     // Status filter. The history "Pending" tab also tracks regular invoices

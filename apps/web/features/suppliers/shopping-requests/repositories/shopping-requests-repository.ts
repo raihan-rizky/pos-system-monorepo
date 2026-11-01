@@ -19,6 +19,7 @@ export type ShoppingRequestListFilters = {
   paymentMethod?: ShoppingRequestPaymentMethod;
   paymentDueDate?: string;
   supplierId?: string;
+  ids?: string[];
   skip: number;
   take: number;
 };
@@ -57,6 +58,7 @@ export function buildShoppingRequestWhere(
   filters: ShoppingRequestListFilters,
 ): Prisma.ShoppingRequestWhereInput {
   const where: Prisma.ShoppingRequestWhereInput = { storeId: filters.storeId };
+  if (filters.ids) where.id = { in: filters.ids };
   if (filters.status) where.status = filters.status;
   if (filters.supplierId) where.supplierId = filters.supplierId;
   if (filters.fulfillmentStatus || filters.paymentMethod || filters.paymentDueDate) {

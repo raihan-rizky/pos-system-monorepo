@@ -11,6 +11,7 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+export type ExpenseCategoryKey = ExpenseCategory | `custom:${string}`;
 
 type DecimalLike = number | string;
 
@@ -49,13 +50,13 @@ export type ExpenseRow = {
   occurredAt: Date;
   amount: DecimalLike;
   changeAmount: DecimalLike;
-  category: ExpenseCategory;
+  category: ExpenseCategoryKey;
 };
 
 export type DailyBucket = {
   date: string;
   total: number;
-  byCategory: Partial<Record<ExpenseCategory, number>>;
+  byCategory: Partial<Record<ExpenseCategoryKey, number>>;
 };
 
 export function bucketExpensesByDay(rows: ExpenseRow[]): DailyBucket[] {
@@ -76,12 +77,12 @@ export function bucketExpensesByDay(rows: ExpenseRow[]): DailyBucket[] {
   return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export type CategoryBucket = { category: ExpenseCategory; total: number };
+export type CategoryBucket = { category: ExpenseCategoryKey; total: number };
 
 export function bucketExpensesByCategory(
   rows: Pick<ExpenseRow, "amount" | "changeAmount" | "category">[],
 ): CategoryBucket[] {
-  const totals = new Map<ExpenseCategory, number>();
+  const totals = new Map<ExpenseCategoryKey, number>();
   for (const row of rows) {
     const net = computeNetExpense(row.amount, row.changeAmount);
     totals.set(row.category, (totals.get(row.category) ?? 0) + net);

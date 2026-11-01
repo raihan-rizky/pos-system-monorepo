@@ -73,6 +73,10 @@ export async function GET(request: Request) {
     const paymentDueDate = rawPaymentDueDate && z.iso.date().safeParse(rawPaymentDueDate).success
       ? rawPaymentDueDate
       : undefined;
+    const rawRecordType = searchParams.get("recordType");
+    const recordType = rawRecordType === "SHOPPING_REQUEST" || rawRecordType === "BACKDATED_PURCHASE" ? rawRecordType : undefined;
+    const rawPaymentStatus = searchParams.get("paymentStatus");
+    const paymentStatus = rawPaymentStatus === "UNPAID" || rawPaymentStatus === "PARTIAL" || rawPaymentStatus === "PAID" ? rawPaymentStatus : undefined;
 
     const result = await listShoppingRequestsPage({
       storeId: user.storeId,
@@ -82,6 +86,8 @@ export async function GET(request: Request) {
       fulfillmentStatus,
       paymentMethod,
       paymentDueDate,
+      recordType,
+      paymentStatus,
       skip,
       take: limit,
     });

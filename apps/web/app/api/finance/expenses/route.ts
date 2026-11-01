@@ -15,6 +15,8 @@ import {
   parsePagination,
 } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
+import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
+import { customExpenseCategoryId, customExpenseCategoryKey } from "@/features/keuangan/helpers/category-meta";
 
 const log = getLogger("api:finance:expenses");
 export const dynamic = "force-dynamic";
@@ -38,7 +40,8 @@ function isCategory(v: string | null): v is ExpenseCategory {
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("expense", "read");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");
     if (monthParam && !MONTH_PATTERN.test(monthParam)) {
@@ -55,12 +58,17 @@ export async function GET(request: Request) {
     });
     const categoryParam = searchParams.get("category");
     const category = isCategory(categoryParam) ? categoryParam : null;
+    const customCategoryId = categoryParam ? customExpenseCategoryId(categoryParam) : null;
+    if (categoryParam && !category && !customCategoryId) {
+      return apiError("Kategori tidak valid.", 422, { code: "ValidationError" });
+    }
 
     const where = {
       deletedAt: null,
       storeId,
+      ...recognizedExpenseFilter(),
       occurredAt: { gte: range.start, lt: range.end },
-      ...(category ? { category } : {}),
+      ...(customCategoryId ? { customCategoryId } : category ? { category, customCategoryId: null } : {}),
     } as const;
 
     const [items, total] = await Promise.all([
@@ -73,6 +81,7 @@ export async function GET(request: Request) {
           id: true,
           applicantName: true,
           category: true,
+          customCategoryId: true,
           description: true,
           amount: true,
           changeAmount: true,
@@ -83,6 +92,8 @@ export async function GET(request: Request) {
           hasMissingCostSnapshot: true,
           shoppingRequest: { select: { id: true, number: true } },
           goodsPurchase: { select: { id: true, number: true } },
+          backdatedPurchaseDue: { select: { id: true, reference: true } },
+          backdatedPurchasePayment: { select: { purchase: { select: { id: true, reference: true } } } },
           recordedBy: { select: { id: true, name: true } },
         },
       }),
@@ -95,7 +106,7 @@ export async function GET(request: Request) {
       return {
         id: row.id,
         applicantName: row.applicantName,
-        category: row.category,
+        category: row.customCategoryId ? customExpenseCategoryKey(row.customCategoryId) : row.category,
         description: row.description,
         amount,
         changeAmount,
@@ -105,7 +116,13 @@ export async function GET(request: Request) {
         transactionId: row.transactionId,
         attachmentUrl: row.attachmentUrl,
         hasMissingCostSnapshot: row.hasMissingCostSnapshot,
-        source: row.goodsPurchase
+        source: row.backdatedPurchaseDue || row.backdatedPurchasePayment
+          ? {
+              type: "BACKDATED_PURCHASE" as const,
+              id: (row.backdatedPurchaseDue ?? row.backdatedPurchasePayment!.purchase).id,
+              number: (row.backdatedPurchaseDue ?? row.backdatedPurchasePayment!.purchase).reference,
+            }
+          : row.goodsPurchase
           ? {
               type: "GOODS_PURCHASE" as const,
               id: row.goodsPurchase.id,
@@ -134,7 +151,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requirePermission("expense", "create");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const body = await request.json();
     const result = validateExpensePayload(body, { now: new Date() });
     if (!result.success) {
@@ -166,6 +184,14 @@ export async function POST(request: Request) {
     }
 
     const data = result.data;
+    const customCategoryId = body.customCategoryId ?? null;
+    if (customCategoryId !== null) {
+      if (typeof customCategoryId !== "string" || !customCategoryId || data.category !== "OTHER") {
+        return apiError("Kategori tidak valid.", 422, { code: "ValidationError" });
+      }
+      const exists = await db.customExpenseCategory.findFirst({ where: { id: customCategoryId, storeId }, select: { id: true } });
+      if (!exists) return apiError("Kategori tidak ditemukan.", 422, { code: "ValidationError" });
+    }
     const occurredAt = new Date(`${data.occurredAt}T00:00:00+07:00`);
 
     const created = await db.expense.create({
@@ -174,6 +200,7 @@ export async function POST(request: Request) {
         recordedById: user.id,
         applicantName: data.applicantName.trim(),
         category: data.category,
+        customCategoryId,
         description: data.description?.trim() || null,
         amount: data.amount,
         changeAmount: data.changeAmount,
@@ -185,6 +212,7 @@ export async function POST(request: Request) {
         id: true,
         applicantName: true,
         category: true,
+        customCategoryId: true,
         description: true,
         amount: true,
         changeAmount: true,
@@ -199,6 +227,7 @@ export async function POST(request: Request) {
       {
         data: {
           ...created,
+          category: created.customCategoryId ? customExpenseCategoryKey(created.customCategoryId) : created.category,
           amount: Number(created.amount.toString()),
           changeAmount: Number(created.changeAmount.toString()),
           netAmount: computeNetExpense(

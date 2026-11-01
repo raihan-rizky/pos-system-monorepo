@@ -231,7 +231,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Owner dan Admin bisa mengatur tanggal bisnis invoice tanpa mengubah waktu audit sistem. Alasan perubahan tercatat di riwayat, lalu cetak ulang invoice final setelah nomor atau tanggal berubah.",
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Riwayat", description: "Masuk ke menu 'Riwayat'. Tanggal utama di tabel adalah Tanggal Invoice, sedangkan label 'Dibuat' menunjukkan waktu record dibuat sistem.", icon: <History className="w-8 h-8" /> },
+        { title: "Buka Riwayat", description: "Masuk ke menu 'Riwayat'. Tanggal utama di tabel adalah Tanggal Invoice, sedangkan label 'Dibuat' menunjukkan waktu record dibuat sistem. Gunakan filter Metode pembayaran untuk mencari transaksi; transaksi dengan beberapa metode berbeda memiliki badge Multi-payment.", icon: <History className="w-8 h-8" /> },
         { title: "Pilih Ubah Tanggal Invoice", description: "Klik menu titik tiga pada transaksi target, lalu pilih 'Ubah Tanggal Invoice'. Menu ini hanya muncul untuk Owner/Admin.", icon: <Settings className="w-8 h-8" /> },
         { title: "Isi Tanggal, Jam, dan Alasan", description: "Pilih tanggal invoice baru. Jam boleh dikosongkan agar sistem mempertahankan jam invoice sebelumnya. Tulis alasan perubahan sebelum menyimpan.", icon: <FileText className="w-8 h-8" /> },
         { title: "Cetak Ulang Invoice", description: "Setelah disimpan, nomor invoice/draft akan disesuaikan dengan tanggal baru. Buka detail transaksi untuk melihat timeline perubahan, lalu cetak ulang invoice final.", icon: <ShieldCheck className="w-8 h-8" /> },
@@ -257,7 +257,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Menu Keuangan", description: "Dari sidebar kiri, buka menu 'Keuangan' (di bawah kategori Keuangan). Pada bagian Pengeluaran, pilih Filter kategori untuk menyaring daftar, atau Semua kategori untuk menampilkan semuanya. Jumlah dan grafik tetap mencakup seluruh bulan.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Tambah Pengeluaran", description: "Klik tombol 'Tambah Pengeluaran' di bagian atas. Isi nama pemohon, pilih kategori, jumlah nominal, dan deskripsi tambahan.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Tambah Pengeluaran", description: "Klik 'Tambah Pengeluaran', lalu isi pemohon dan nominal. Pilih kategori yang tersedia atau klik Tambah kategori, isi namanya, dan simpan untuk digunakan kembali.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', lalu gunakan 'Putar kiri' atau 'Putar kanan' sampai orientasinya benar. Klik 'Unggah foto' untuk menyimpan hasilnya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
         { title: "Kompresi & Hapus Foto", description: "Gambar otomatis dikompresi sebelum masuk R2. OWNER dapat memakai 'Hapus foto'; role lain memerlukan izin proof_upload:delete dari pengaturan RBAC. Foto R2 dihapus permanen, sedangkan prnt.sc hanya dikosongkan tautannya.", icon: <ShieldCheck className="w-8 h-8" /> },
@@ -274,6 +274,18 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Tambah Produk", description: "Cari produk melalui nama atau SKU, lalu isi jumlah kebutuhan. Setelah barang masuk daftar, pilihan Satuan dapat diganti ke varian dalam grup stok yang sama. Angka jumlah tetap, misalnya 12 pcs menjadi 12 dus.", icon: <Package className="w-8 h-8" /> },
         { title: "Isi Kebutuhan & Simpan", description: "Nama default mengikuti nomor dokumen; Anda dapat menggantinya dengan nama unik di toko. Klik Simpan Daftar Belanja untuk mengajukan. Gunakan Tindakan lainnya untuk edit, batal, atau cetak. Harga beli dan Pengeluaran ditetapkan saat persetujuan final; stok belum berubah.", icon: <Settings className="w-8 h-8" /> },
       ]
+    },
+    {
+      id: "owner-backdated-purchases",
+      title: "Mencatat Belanja Terdahulu",
+      description: "Catat pembelian bulan sebelumnya dan pantau pembayaran yang belum lunas tanpa mengubah stok.",
+      icon: <ShoppingCart className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka formulir", description: "Buka Supplier > Daftar Belanja lalu pilih Catat Belanja Terdahulu. Pembuatan memerlukan izin supplier:create dan expense:create.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Isi pembelian", description: "Isi tanggal pembelian dari bulan sebelumnya, metode Giro atau Transfer, tanggal jatuh tempo, nomor Giro atau transaksi, dan nominal. Tambahkan nominal serta tanggal untuk setiap pembayaran yang sudah dilakukan, lalu simpan.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Catat pembayaran berikutnya", description: "Cari nomor atau gunakan filter jenis catatan dan status pembayaran. Buka Riwayat pembayaran, isi nominal dan tanggal, lalu simpan. Pencatatan pembayaran memerlukan izin expense:update.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Pahami pengeluaran", description: "Pembayaran pada atau sebelum jatuh tempo masuk ke Keuangan pada tanggal pembayaran. Sisa tagihan pada tanggal jatuh tempo masuk otomatis; pembayaran setelahnya mengurangi tagihan tanpa mencatat pengeluaran dua kali.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ],
     },
     {
       id: "owner-categories",
@@ -439,7 +451,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <DollarSign className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Halaman Keuangan", description: "Buka menu 'Keuangan' di sidebar kiri. Pada bagian Pengeluaran, pilih Filter kategori untuk menyaring daftar, atau Semua kategori untuk menampilkan semuanya. Jumlah dan grafik tetap mencakup seluruh bulan. Untuk mencatat biaya, klik tombol 'Tambah Pengeluaran' di bagian atas.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Isi Data Pengeluaran", description: "Ketik nama pemohon, pilih kategori pengeluaran, masukkan jumlah nominal, dan keterangan pengeluaran.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Isi Data Pengeluaran", description: "Ketik nama pemohon dan nominal. Pilih kategori atau gunakan Tambah kategori untuk menyimpan kategori baru; kategori tersebut juga tersedia di Filter kategori.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', atur orientasi dengan 'Putar kiri' atau 'Putar kanan', lalu klik 'Unggah foto' untuk menyimpannya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Periksa pratinjau. Jika R2 gagal, gunakan input prnt.sc yang muncul, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
         { title: "Kenali Badge Sumber", description: "Badge Manual berasal dari form pengeluaran. Badge Pembelian Barang dibuat otomatis setelah seluruh produknya disetujui dan tidak dapat diedit atau dihapus dari halaman Keuangan. Badge Daftar Belanja (Legacy) hanya menandai data lama.", icon: <ShieldCheck className="w-8 h-8" /> },
@@ -451,7 +463,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Admin bisa mengatur tanggal bisnis invoice tanpa mengubah waktu audit sistem. Alasan perubahan tercatat di riwayat, lalu cetak ulang invoice final setelah nomor atau tanggal berubah.",
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Riwayat", description: "Masuk ke menu 'Riwayat'. Tanggal utama di tabel adalah Tanggal Invoice, sedangkan label 'Dibuat' menunjukkan waktu record dibuat sistem.", icon: <History className="w-8 h-8" /> },
+        { title: "Buka Riwayat", description: "Masuk ke menu 'Riwayat'. Tanggal utama di tabel adalah Tanggal Invoice, sedangkan label 'Dibuat' menunjukkan waktu record dibuat sistem. Gunakan filter Metode pembayaran untuk mencari transaksi; transaksi dengan beberapa metode berbeda memiliki badge Multi-payment.", icon: <History className="w-8 h-8" /> },
         { title: "Pilih Ubah Tanggal Invoice", description: "Klik menu titik tiga pada transaksi target, lalu pilih 'Ubah Tanggal Invoice'. Menu ini hanya muncul untuk Owner/Admin.", icon: <Settings className="w-8 h-8" /> },
         { title: "Isi Tanggal, Jam, dan Alasan", description: "Pilih tanggal invoice baru. Jam boleh dikosongkan agar sistem mempertahankan jam invoice sebelumnya. Tulis alasan perubahan sebelum menyimpan.", icon: <FileText className="w-8 h-8" /> },
         { title: "Cetak Ulang Invoice", description: "Setelah disimpan, nomor invoice/draft akan disesuaikan dengan tanggal baru. Buka detail transaksi untuk melihat timeline perubahan, lalu cetak ulang invoice final.", icon: <ShieldCheck className="w-8 h-8" /> },
@@ -668,7 +680,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Mulai Shift Kasir", description: "Buka menu 'Shift Kasir' di sidebar kiri -> kategori 'Lainnya'. Ketik jumlah modal kas awal di laci fisik, lalu klik tombol hitam 'Mulai Shift'.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Layani Transaksi POS", description: "Masuk ke menu 'Kasir' (POS) di sidebar kiri -> kategori 'Operasi'. Pilih produk pesanan pelanggan, klik 'Bayar', input uang diterima, lalu cetak struk.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Catat Pengeluaran Laci", description: "Jika ada pengeluaran kas dadakan, klik ikon dompet 'Pengeluaran' di bar atas layar POS, isi nominal dan alasan pengeluaran, lalu klik 'Simpan'.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Memeriksa Pending Transaksi", description: "Buka menu 'Riwayat' di sidebar kiri. Pada baris filter status di atas tabel, klik opsi 'Pending' untuk memfilter daftar transaksi yang membutuhkan persetujuan Anda.", icon: <Search className="w-8 h-8" /> },
+        { title: "Memeriksa Pending Transaksi", description: "Buka menu 'Riwayat' di sidebar kiri. Pada baris filter status di atas tabel, klik opsi 'Pending' untuk memfilter daftar transaksi yang membutuhkan persetujuan Anda. Gunakan filter Metode pembayaran untuk mencari transaksi berdasarkan metode yang tercatat; transaksi dengan beberapa metode berbeda memiliki badge Multi-payment.", icon: <Search className="w-8 h-8" /> },
         { title: "Menyetujui Pending Transaksi", description: "Pada baris transaksi pending yang sesuai, klik ikon titik tiga ('Aksi Lainnya') di ujung kanan, pilih 'Setujui', lalu pada modal yang muncul tentukan metode pembayaran dan jumlah bayar sebelum mengklik tombol hijau 'Setujui'.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Tutup Shift", description: "Di akhir hari, klik profil Anda di pojok kanan atas, klik 'Tutup Shift'. Hitung dan ketik nominal uang fisik di laci saat itu, lalu klik tombol merah 'Konfirmasi Akhiri Shift'.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
@@ -716,7 +728,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Cetak invoice atau nota tagihan belanja untuk diserahkan ke pembeli sebagai bukti transaksi.",
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka Riwayat Transaksi", description: "Buka menu samping (sidebar) sebelah kiri, pilih kategori 'Operasi', dan klik menu 'Riwayat'.", icon: <History className="w-8 h-8" /> },
+        { title: "Buka Riwayat Transaksi", description: "Buka menu samping (sidebar) sebelah kiri, pilih kategori 'Operasi', dan klik menu 'Riwayat'. Gunakan filter Metode pembayaran untuk mencari transaksi yang memuat Tunai, Transfer, QRIS, Debit, Kartu Kredit, atau Tempo/Tagihan. Transaksi dengan lebih dari satu metode berbeda menampilkan badge Multi-payment dan badge setiap metodenya.", icon: <History className="w-8 h-8" /> },
         { title: "Pilih Transaksi", description: "Cari transaksi di tabel, lalu klik Lihat Struk untuk membuka invoice. Untuk mengubah invoice reguler, klik Ubah di samping Lihat Struk jika memiliki izin; aksi tidak tersedia untuk Sales atau transaksi gabungan. Pada produk, buka Harga, diskon & satuan untuk mengisi harga transaksi, diskon rupiah atau persen per baris, serta memilih satuan lain dalam grup stok. Harga satuan baru mengikuti harga jual dan pembulatan toko, lalu dapat diubah lagi. Pada transaksi menunggu persetujuan atau sementara, harga dihitung ulang saat persetujuan dan harga yang diubah bisa berubah; periksa harga dan total sebelum menyetujui. Periksa total sebelum menyimpan; status dan saldo pembayaran mengikuti total baru. Transaksi tanpa pelanggan terdaftar tidak dapat menyisakan tagihan setelah total dinaikkan. Produk pada Surat Jalan tidak dapat dihapus atau diubah jumlah dan satuannya. Jika riwayat stok lama belum dapat dibuktikan, jumlah dan satuan perlu diperiksa sebelum diubah.", icon: <Search className="w-8 h-8" /> },
         { title: "Cetak Invoice", description: "Pada rincian transaksi, klik ikon printer atau tombol Cetak Invoice. Nota biasa menampilkan Pajak sebagai persen di bagian atas nota dan PDF. Tarif dapat diisi sejak modal Pembayaran. Pada Cetak Nota Penawaran, PPN (%) dihitung dari DPP Nilai Lain (11/12 jumlah setelah diskon), lalu DPP dan PPN dicetak sebagai nominal rupiah. Pengguna dengan izin edit transaksi/draft dapat mengisi 0–100% dengan maksimal dua desimal. Simpan Pajak atau cetak untuk menyimpan perubahan ke total dan sisa tagihan. Metode pajak penawaran dipertahankan saat dilanjutkan ke pembayaran. Jika penyimpanan gagal, input tetap tersimpan di layar; coba lagi atau buka kembali nota bila transaksi berubah.", icon: <FileText className="w-8 h-8" /> },
       ]

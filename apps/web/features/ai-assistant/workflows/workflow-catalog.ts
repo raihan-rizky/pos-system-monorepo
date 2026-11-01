@@ -406,6 +406,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Setujui sekaligus", description: "Klik Setujui dan Catat Pembelian. Daftar Belanja dan Pembelian Barang disetujui dalam satu proses; satu Pengeluaran kategori Bahan sebesar total pembelian penuh dicatat saat penerimaan pertama yang berisi barang disetujui, termasuk penerimaan sebagian. Persetujuan belanja belum mengubah stok." },
       { title: "Pilih pembayaran saat menerima", description: "Pada Penerimaan Barang, pilih Transfer atau Giro dan isi tanggal jatuh tempo untuk Giro. Metode yang ditetapkan pada penerimaan pertama yang berisi barang dipakai untuk seluruh pembelian." },
       { title: "Cari pembayaran belanja", description: "Di Daftar Belanja, pilih filter metode pembayaran Transfer atau Giro. Untuk Giro, isi tanggal jatuh tempo bila ingin mencari tanggal tertentu. Tanggal yang tercatat tampil sebagai badge pada kartu; pilih Hapus filter untuk menampilkan semua daftar kembali." },
+      { title: "Catat belanja terdahulu", description: "Dengan izin supplier:create dan expense:create, pilih Catat Belanja Terdahulu. Isi tanggal pembelian bulan sebelumnya, metode, tanggal jatuh tempo, nomor Giro atau transaksi, nominal, serta pembayaran sebelumnya jika ada. Catatan ini tidak mengubah stok." },
+      { title: "Pantau dan catat pembayaran", description: "Gunakan filter jenis catatan atau status pembayaran, lalu buka Riwayat pembayaran. Pemegang izin expense:update dapat memasukkan nominal dan tanggal pembayaran berikutnya. Pembayaran sampai jatuh tempo masuk ke Keuangan pada tanggal pembayaran; sisanya dicatat saat jatuh tempo, dan pembayaran setelah itu tidak menjadi pengeluaran kedua." },
       { title: "Tolak bila perlu", description: "Pemegang izin supplier.goods_purchase.reject:update dapat menolak seluruh daftar dengan alasan. Penolakan tidak membuat Pembelian Barang atau Pengeluaran." },
     ],
   }),
@@ -421,11 +423,11 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Keuangan", description: "Masuk ke sidebar Keuangan, lalu buka halaman Keuangan." },
       { title: "Tambah pengeluaran", description: "Klik tombol Tambah Pengeluaran untuk membuka form." },
-      { title: "Isi nominal dan kategori", description: "Masukkan nominal, kategori, dan catatan pendukung bila diperlukan." },
+      { title: "Isi nominal dan kategori", description: "Masukkan nama pemohon dan nominal. Pilih kategori yang tersedia atau klik Tambah kategori, isi nama, lalu pilih Simpan kategori agar dapat digunakan kembali." },
       { title: "Pilih gambar bukti", description: "Jika ada foto nota, klik Pilih gambar bukti untuk mengunggahnya ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul sebagai fallback." },
       { title: "Simpan pengeluaran", description: "Periksa pratinjau lampiran dan klik Simpan." },
-      { title: "Kenali sumber pengeluaran", description: "Badge Manual menandai input dari form. Badge Pembelian Barang menandai entri otomatis baru yang tidak dapat diedit atau dihapus dari Keuangan. Badge Daftar Belanja (Legacy) hanya dipakai untuk data lama." },
-      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori di Filter kategori untuk menyaring daftar. Pilih Semua kategori untuk menampilkan semua pengeluaran bulan tersebut. Jumlah dan grafik tetap mencakup seluruh bulan." },
+      { title: "Kenali sumber pengeluaran", description: "Badge Manual menandai input dari form. Badge Pembelian Barang, Belanja Terdahulu, dan Daftar Belanja (Legacy) menandai entri otomatis yang tidak dapat diedit atau dihapus dari Keuangan." },
+      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori bawaan atau kategori yang dibuat sendiri di Filter kategori untuk menyaring daftar. Pilih Semua kategori untuk menampilkan semua pengeluaran bulan tersebut. Jumlah dan grafik tetap mencakup seluruh bulan." },
     ],
   }),
   workflow({

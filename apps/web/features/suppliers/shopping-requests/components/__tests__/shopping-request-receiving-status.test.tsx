@@ -21,6 +21,9 @@ vi.mock("../../hooks/useShoppingRequests", () => ({
 }));
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canPerform: () => true }) }));
 vi.mock("@pos/ui", () => ({ Button: () => null, Modal: () => null }));
+vi.mock("../../../backdated-purchases/components/BackdatedPurchaseModals", () => ({
+  BackdatedPurchaseCard: () => null, BackdatedPurchaseCreateModal: () => null, BackdatedPurchasePaymentsModal: () => null,
+}));
 vi.mock("../ShoppingRequestPrintModal", () => ({ ShoppingRequestPrintModal: () => null }));
 vi.mock("../ShoppingRequestApproveModal", () => ({ ShoppingRequestApproveModal: () => null }));
 vi.mock("../ShoppingRequestEditModal", () => ({ ShoppingRequestEditModal: () => null }));
@@ -103,7 +106,7 @@ describe("status penerimaan di Daftar Belanja", () => {
     let tree = render();
     const controls = elements(tree);
     const search = controls.find((node) => node.type === "input")!;
-    const approval = controls.find((node) => node.type === "select")!;
+    const approval = controls.find((node) => node.type === "select" && node.props["aria-label"] === "Status persetujuan")!;
     search.props.onChange({ target: { value: "Data Print" } });
     approval.props.onChange({ target: { value: "APPROVED" } });
     state.values[0] = 3;

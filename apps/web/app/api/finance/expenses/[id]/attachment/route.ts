@@ -14,7 +14,8 @@ export async function DELETE(
 ) {
   try {
     const user = await requirePermission("proof_upload", "delete");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return NextResponse.json({ message: "Toko pengguna belum tersedia." }, { status: 403 });
+    const storeId = user.storeId;
     const { id } = await params;
     const expense = await db.expense.findFirst({
       where: { id, storeId },
@@ -24,6 +25,8 @@ export async function DELETE(
         deletedAt: true,
         shoppingRequestId: true,
         goodsPurchaseId: true,
+        backdatedPurchaseDueId: true,
+        backdatedPurchasePaymentId: true,
       },
     });
     if (!expense || expense.deletedAt || !expense.attachmentUrl) {

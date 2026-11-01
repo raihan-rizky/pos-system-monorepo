@@ -15,6 +15,42 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "history-payment-method-filter", date: "2026-11-01", revision: 1,
+    highlight: { title: "Filter metode pembayaran", summary: "Temukan transaksi menurut metode dan kenali pembayaran gabungan." },
+    title: "Saring Riwayat menurut metode pembayaran.",
+    summary: "Temukan transaksi yang memakai metode tertentu dan kenali pembayaran gabungan lewat badge Multi-payment.",
+    kind: "improvement", area: "Riwayat Transaksi", href: "/history", visual: "history-table",
+    steps: [
+      { title: "Buka Riwayat", detail: "Buka Riwayat Transaksi dari menu Operasi." },
+      { title: "Pilih metode", detail: "Gunakan Metode pembayaran untuk menampilkan transaksi dengan Tunai, Transfer, QRIS, Debit, Kartu Kredit, atau Tempo/Tagihan." },
+      { title: "Kenali pembayaran gabungan", detail: "Transaksi dengan lebih dari satu metode berbeda menampilkan badge Multi-payment dan badge tiap metode." },
+    ],
+  },
+  {
+    id: "backdated-purchase-payments", date: "2026-11-01", revision: 1,
+    highlight: { title: "Belanja terdahulu", summary: "Catat belanja bulan sebelumnya dan pantau pembayaran bertahap." },
+    title: "Pantau pembayaran belanja terdahulu.",
+    summary: "Catat Giro atau Transfer dari bulan sebelumnya dan pembayaran yang belum lunas. Sisa pada jatuh tempo masuk ke Keuangan secara otomatis.",
+    kind: "feature", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "shopping",
+    steps: [
+      { title: "Buka formulir", detail: "Di Supplier > Daftar Belanja, pilih Catat Belanja Terdahulu." },
+      { title: "Isi pembelian", detail: "Isi tanggal, metode, jatuh tempo, nomor dan nominal, serta pembayaran sebelumnya jika ada." },
+      { title: "Pantau pembayaran", detail: "Gunakan filter status dan buka Riwayat pembayaran untuk mencatat pembayaran berikutnya." },
+    ],
+  },
+  {
+    id: "finance-custom-expense-categories", date: "2026-11-01", revision: 1,
+    highlight: { title: "Kategori pengeluaran sendiri", summary: "Buat dan filter kategori pengeluaran sesuai kebutuhan toko." },
+    title: "Buat kategori pengeluaran sesuai kebutuhan.",
+    summary: "Simpan kategori sendiri untuk dipakai kembali dan temukan pengeluarannya lewat filter. Form hutang juga menampilkan sisa setelah pembayaran awal.",
+    kind: "feature", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka pengeluaran", detail: "Di Keuangan, pilih Tambah Pengeluaran." },
+      { title: "Buat kategori", detail: "Pilih Tambah kategori, isi nama, lalu klik Simpan kategori dan simpan pengeluaran." },
+      { title: "Gunakan filter", detail: "Di bagian Pengeluaran, pilih kategori tersebut pada Filter kategori." },
+    ],
+  },
+  {
     id: "history-actions-layout", date: "2026-11-01", revision: 1,
     highlight: { title: "Aksi Riwayat lebih rapi", summary: "Temukan struk dan pilihan transaksi dengan lebih mudah." },
     title: "Aksi transaksi lebih mudah ditemukan.",

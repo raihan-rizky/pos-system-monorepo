@@ -1,6 +1,6 @@
 import type {
   ShoppingRequestDetail,
-  ShoppingRequestListItem,
+  ShoppingListRecord,
   ShoppingRequestStatus,
   ShoppingRequestKpiSummary,
   CreateShoppingRequestInput,
@@ -20,12 +20,14 @@ export type ShoppingRequestListParams = {
   paymentMethod?: ShoppingRequestPaymentMethod;
   paymentDueDate?: string;
   supplierId?: string;
+  recordType?: "SHOPPING_REQUEST" | "BACKDATED_PURCHASE";
+  paymentStatus?: "UNPAID" | "PARTIAL" | "PAID";
   page?: number;
   limit?: number;
 };
 
 export type ShoppingRequestListResponse = {
-  data: ShoppingRequestListItem[];
+  data: ShoppingListRecord[];
   pagination: {
     total: number;
     page: number;
@@ -46,6 +48,8 @@ export async function listShoppingRequests(
   if (params.paymentMethod) searchParams.set("paymentMethod", params.paymentMethod);
   if (params.paymentDueDate) searchParams.set("paymentDueDate", params.paymentDueDate);
   if (params.supplierId) searchParams.set("supplierId", params.supplierId);
+  if (params.recordType) searchParams.set("recordType", params.recordType);
+  if (params.paymentStatus) searchParams.set("paymentStatus", params.paymentStatus);
   if (params.page) searchParams.set("page", String(params.page));
   if (params.limit) searchParams.set("limit", String(params.limit));
 

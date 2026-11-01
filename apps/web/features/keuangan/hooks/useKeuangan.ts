@@ -2,9 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type {
-  ExpenseCategory,
+  ExpenseCategoryKey,
   CategoryBucket,
 } from "@/features/keuangan/helpers/keuangan-core";
+import type { CustomExpenseCategory } from "@/features/keuangan/helpers/category-meta";
 
 export type IncomeSummary = {
   month: string;
@@ -21,7 +22,7 @@ export type ExpenseSummary = {
   daily: {
     date: string;
     total: number;
-    byCategory: Partial<Record<ExpenseCategory, number>>;
+    byCategory: Partial<Record<ExpenseCategoryKey, number>>;
   }[];
   netCashFlow: { income: number; expense: number; net: number };
 };
@@ -29,7 +30,7 @@ export type ExpenseSummary = {
 export type ExpenseListItem = {
   id: string;
   applicantName: string;
-  category: ExpenseCategory;
+  category: ExpenseCategoryKey;
   description: string | null;
   amount: number;
   changeAmount: number;
@@ -42,6 +43,7 @@ export type ExpenseListItem = {
   source:
     | { type: "MANUAL" }
     | { type: "SHOPPING_REQUEST"; id: string; number: string }
+    | { type: "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };
 };
@@ -85,10 +87,18 @@ export function useExpenseSummary(month: string) {
   });
 }
 
+export function useCustomExpenseCategories() {
+  return useQuery({
+    queryKey: ["finance", "expense-categories"],
+    queryFn: () => getJSON<{ data: CustomExpenseCategory[] }>("/api/finance/expense-categories"),
+    staleTime: 30_000,
+  });
+}
+
 export function useExpenseList(
   month: string,
   page: number,
-  category?: ExpenseCategory | null,
+  category?: ExpenseCategoryKey | null,
 ) {
   const params = new URLSearchParams({ month, page: String(page) });
   if (category) params.set("category", category);

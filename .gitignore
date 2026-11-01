@@ -59,6 +59,9 @@ test_rls.js
 
 #MD Files
 markdown-files/
+!markdown-files/
+markdown-files/*
+!markdown-files/riwayat-metode-pembayaran-2026-11-01.md
 
 # AI settings and configurations
 .serena/

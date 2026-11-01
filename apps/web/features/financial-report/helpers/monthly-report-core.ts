@@ -15,10 +15,12 @@ export type MonthlyTransactionInput = {
 };
 export type MonthlyExpenseInput = {
   id: string; occurredAt: Date; category: string; amount: Money; changeAmount: Money;
-  description: string | null; deletedAt?: Date | null;
+  description: string | null; deletedAt?: Date | null; customCategory?: { name: string } | null;
   hasMissingCostSnapshot?: boolean;
   shoppingRequest?: { status: string } | null;
   goodsPurchase?: { number: string; status: string; paymentMethod: string | null; paymentDueDate: Date | null; supplierNameSnapshot: string } | null;
+  backdatedPurchaseDue?: { reference: string; paymentMethod: string; dueDate: Date } | null;
+  backdatedPurchasePayment?: { purchase: { reference: string; paymentMethod: string; dueDate: Date } } | null;
 };
 export type MonthlyManualReceivableInput = {
   id: string; debtDate: Date; dueDate: Date; amount: Money; note: string | null;
@@ -145,8 +147,9 @@ export function buildMonthlyReport(input: {
   for (const expense of [...new Map(input.expenses.map(row => [row.id, row])).values()]) {
     if (expense.deletedAt || !inPeriod(expense.occurredAt) || (expense.goodsPurchase && expense.goodsPurchase.status !== 'APPROVED') || (expense.shoppingRequest && expense.shoppingRequest.status !== 'APPROVED')) continue;
     const purchase = expense.goodsPurchase;
+    const backdated = expense.backdatedPurchaseDue ?? expense.backdatedPurchasePayment?.purchase;
     if (expense.hasMissingCostSnapshot && !report.warnings.some(warning => warning.includes('snapshot biaya'))) report.warnings.push('Sebagian pengeluaran belum memiliki snapshot biaya lengkap; total pengeluaran dapat belum lengkap.');
-    report.expenses.push({ id: expense.id, date: dateKey(expense.occurredAt), description: expense.description || 'Pengeluaran', amount: Math.max(0, cents(expense.amount) - cents(expense.changeAmount)) / 100, group: expense.category === 'SALARY' ? 'SALARY' : 'OTHER', ...(purchase ? { purchase: { reference: purchase.number, method: purchase.paymentMethod, dueDate: purchase.paymentDueDate ? calendarKey(purchase.paymentDueDate) : null, supplier: purchase.supplierNameSnapshot } } : {}) });
+    report.expenses.push({ id: expense.id, date: dateKey(expense.occurredAt), description: expense.description || 'Pengeluaran', categoryName: expense.customCategory?.name ?? null, amount: Math.max(0, cents(expense.amount) - cents(expense.changeAmount)) / 100, group: expense.category === 'SALARY' ? 'SALARY' : 'OTHER', ...(purchase ? { purchase: { reference: purchase.number, method: purchase.paymentMethod, dueDate: purchase.paymentDueDate ? calendarKey(purchase.paymentDueDate) : null, supplier: purchase.supplierNameSnapshot } } : backdated ? { purchase: { reference: backdated.reference, method: backdated.paymentMethod, dueDate: calendarKey(backdated.dueDate), supplier: 'Tidak dicatat' } } : {}) });
   }
   if (report.income.some(row => row.amounts.UNMAPPED > 0)) report.warnings.push('Sebagian penerimaan perlu pemetaan kategori, termasuk piutang manual; nilainya tetap masuk total.');
   if (report.expenses.some(row => row.purchase)) report.warnings.push('Kategori belanja tanpa snapshot terverifikasi ditampilkan sebagai Lain-lain.');

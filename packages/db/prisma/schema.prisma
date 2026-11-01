@@ -71,6 +71,7 @@ model Store {
   customerCategoryPricingRules CategoryCustomerPricingRule[]
   customers                    Customer[]
   customerReceivables           CustomerReceivable[]
+  backdatedPurchases            BackdatedPurchase[]
   supplierPayables              SupplierPayable[]
   inventoryValuationBaseline    InventoryValuationBaseline?
   inventoryValuationChanges     InventoryValuationChange[]
@@ -96,6 +97,7 @@ model Store {
   shoppingRequests             ShoppingRequest[]
   goodsPurchases               GoodsPurchase[]
   expenses                     Expense[]
+  expenseCategories            CustomExpenseCategory[]
   suratJalan                   SuratJalan[]
   transactions                 Transaction[]
   users                        User[]
@@ -181,6 +183,46 @@ model SupplierPayablePayment {
 
   @@index([payableId, paidAt])
   @@map("pos_supplier_payable_payments")
+}
+
+model BackdatedPurchase {
+  id             String                     @id @default(cuid())
+  storeId        String
+  purchaseDate   DateTime                   @db.Date
+  paymentMethod  PurchasePaymentMethod      @default(GIRO)
+  dueDate        DateTime                   @db.Date
+  reference      String                     @db.VarChar(160)
+  amount         Decimal                    @db.Decimal(12, 2)
+  requestId      String                     @db.VarChar(100)
+  requestFingerprint String                 @db.VarChar(64)
+  createdById    String
+  createdByName  String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  store          Store                      @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  payments       BackdatedPurchasePayment[]
+  dueExpense     Expense?                   @relation("backdated_purchase_due_expense")
+
+  @@unique([storeId, requestId])
+  @@index([storeId, createdAt])
+  @@index([storeId, paymentMethod, dueDate])
+  @@map("pos_backdated_purchases")
+}
+
+model BackdatedPurchasePayment {
+  id           String            @id @default(cuid())
+  purchaseId   String
+  requestId    String            @db.VarChar(100)
+  amount       Decimal           @db.Decimal(12, 2)
+  paidAt       DateTime          @db.Date
+  createdById  String
+  createdAt    DateTime          @default(now())
+  purchase     BackdatedPurchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+  expense      Expense?          @relation("backdated_purchase_payment_expense")
+
+  @@unique([purchaseId, requestId])
+  @@index([purchaseId, paidAt])
+  @@map("pos_backdated_purchase_payments")
 }
 
 model Product {
@@ -1600,12 +1642,27 @@ model RolePermission {
   @@map("pos_role_permissions")
 }
 
+model CustomExpenseCategory {
+  id             String    @id @default(cuid())
+  storeId        String
+  name           String
+  normalizedName String
+  createdAt      DateTime  @default(now())
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  expenses       Expense[]
+
+  @@unique([storeId, normalizedName])
+  @@unique([id, storeId])
+  @@map("pos_expense_categories")
+}
+
 model Expense {
   id                     String           @id @default(cuid())
   storeId                String
   recordedById           String
   applicantName          String
   category               ExpenseCategory
+  customCategoryId       String?
   description            String?
   amount                 Decimal          @db.Decimal(12, 2)
   changeAmount           Decimal          @default(0) @db.Decimal(12, 2)
@@ -1615,6 +1672,8 @@ model Expense {
   transactionId          String?
   shoppingRequestId      String?          @unique
   goodsPurchaseId        String?          @unique
+  backdatedPurchaseDueId String?          @unique
+  backdatedPurchasePaymentId String?      @unique
   hasMissingCostSnapshot Boolean          @default(false)
   attachmentUrl          String?
   deletedAt              DateTime?
@@ -1623,11 +1682,15 @@ model Expense {
   transaction            Transaction?     @relation(fields: [transactionId], references: [id])
   shoppingRequest        ShoppingRequest? @relation(fields: [shoppingRequestId], references: [id], onDelete: Restrict)
   goodsPurchase          GoodsPurchase?   @relation(fields: [goodsPurchaseId], references: [id], onDelete: Restrict)
+  backdatedPurchaseDue   BackdatedPurchase? @relation("backdated_purchase_due_expense", fields: [backdatedPurchaseDueId], references: [id], onDelete: Restrict)
+  backdatedPurchasePayment BackdatedPurchasePayment? @relation("backdated_purchase_payment_expense", fields: [backdatedPurchasePaymentId], references: [id], onDelete: Restrict)
+  customCategory         CustomExpenseCategory? @relation(fields: [customCategoryId, storeId], references: [id, storeId], onDelete: Restrict)
 
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([storeId, deletedAt, occurredAt(sort: Desc)])
   @@index([occurredAt])
   @@index([category])
+  @@index([storeId, customCategoryId])
   @@index([recordedById])
   @@index([deletedAt])
   @@index([transactionId])

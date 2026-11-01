@@ -34,6 +34,8 @@ import type {
   ShoppingRequestKpiSummary,
 } from "../types/shopping-request";
 import { useRole } from "@/components/providers/RoleProvider";
+import { BackdatedPurchaseCard, BackdatedPurchaseCreateModal, BackdatedPurchasePaymentsModal } from "../../backdated-purchases/components/BackdatedPurchaseModals";
+import type { BackdatedPurchaseListItem } from "../types/shopping-request";
 
 const STATUS_LABELS = {
   REQUESTED: { label: "Diajukan", className: "bg-amber-50 text-amber-700 border-amber-200" },
@@ -89,6 +91,11 @@ export function ShoppingRequestList({
   const [fulfillmentFilter, setFulfillmentFilter] = useState<GoodsPurchaseFulfillmentStatus | "">("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<ShoppingRequestPaymentMethod | "">("");
   const [paymentDueDateFilter, setPaymentDueDateFilter] = useState("");
+  const [recordTypeFilter, setRecordTypeFilter] = useState<"" | "SHOPPING_REQUEST" | "BACKDATED_PURCHASE">("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<"" | "UNPAID" | "PARTIAL" | "PAID">("");
+  const [backdatedOpen, setBackdatedOpen] = useState(false);
+  const [paymentTarget, setPaymentTarget] = useState<BackdatedPurchaseListItem | null>(null);
+  const [paymentDrafts, setPaymentDrafts] = useState<Record<string, BackdatedPurchaseListItem>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [printTarget, setPrintTarget] = useState<ShoppingRequestDetail | null>(null);
   const [approveTarget, setApproveTarget] = useState<ShoppingRequestDetail | null>(null);
@@ -125,6 +132,8 @@ export function ShoppingRequestList({
     fulfillmentStatus: fulfillmentFilter || undefined,
     paymentMethod: paymentMethodFilter || undefined,
     paymentDueDate: paymentDueDateFilter || undefined,
+    recordType: recordTypeFilter || undefined,
+    paymentStatus: paymentStatusFilter || undefined,
     ...(statusFilter ? { status: statusFilter as "REQUESTED" | "APPROVED" | "CANCELLED" | "REJECTED" } : {}),
   });
   const summary = useShoppingRequestSummary();
@@ -152,6 +161,22 @@ export function ShoppingRequestList({
           }}
           className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:min-w-56 sm:flex-1"
         />
+        <select
+          aria-label="Jenis catatan"
+          value={recordTypeFilter}
+          onChange={e => { setRecordTypeFilter(e.target.value as typeof recordTypeFilter); setPage(1); }}
+          className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:w-auto"
+        >
+          <option value="">Semua jenis catatan</option><option value="SHOPPING_REQUEST">Daftar Belanja</option><option value="BACKDATED_PURCHASE">Belanja terdahulu</option>
+        </select>
+        <select
+          aria-label="Status pembayaran"
+          value={paymentStatusFilter}
+          onChange={e => { setPaymentStatusFilter(e.target.value as typeof paymentStatusFilter); setPage(1); }}
+          className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm sm:w-auto"
+        >
+          <option value="">Semua pembayaran</option><option value="UNPAID">Belum dibayar</option><option value="PARTIAL">Dibayar sebagian</option><option value="PAID">Lunas</option>
+        </select>
         <select
           aria-label="Status persetujuan"
           value={statusFilter}
@@ -207,7 +232,7 @@ export function ShoppingRequestList({
             className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm sm:flex-none"
           />
         </label>
-        {(searchQuery || statusFilter || fulfillmentFilter || paymentMethodFilter || paymentDueDateFilter) && (
+        {(searchQuery || statusFilter || fulfillmentFilter || paymentMethodFilter || paymentDueDateFilter || recordTypeFilter || paymentStatusFilter) && (
           <button
             type="button"
             onClick={() => {
@@ -216,6 +241,8 @@ export function ShoppingRequestList({
               setFulfillmentFilter("");
               setPaymentMethodFilter("");
               setPaymentDueDateFilter("");
+              setRecordTypeFilter("");
+              setPaymentStatusFilter("");
               setPage(1);
             }}
             className="min-h-11 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
@@ -223,6 +250,7 @@ export function ShoppingRequestList({
             Hapus filter
           </button>
         )}
+        {canCreatePurchase && canPerform("expense", "create") && <Button type="button" variant="secondary" onClick={() => setBackdatedOpen(true)} className="w-full sm:w-auto">Catat Belanja Terdahulu</Button>}
         <Button
           type="button"
           onClick={onCreateClick}
@@ -238,15 +266,18 @@ export function ShoppingRequestList({
           <Loader2 className="mr-2 h-5 w-5 animate-spin text-slate-400" />
           Memuat daftar belanja...
         </div>
+      ) : list.isError ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Daftar belanja gagal dimuat. Coba lagi.</div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500">
-          {searchQuery || statusFilter || fulfillmentFilter || paymentMethodFilter || paymentDueDateFilter
+          {searchQuery || statusFilter || fulfillmentFilter || paymentMethodFilter || paymentDueDateFilter || recordTypeFilter || paymentStatusFilter
             ? "Tidak ada daftar belanja yang cocok dengan filter."
             : "Belum ada daftar belanja"}
         </div>
       ) : (
         <div className="grid gap-3">
           {rows.map((row) => {
+          if (row.kind === "BACKDATED_PURCHASE") return <BackdatedPurchaseCard key={`backdated-${row.id}`} purchase={row} onPayments={() => { setPaymentDrafts(drafts => ({ ...drafts, [row.id]: row })); setPaymentTarget(row); }} />;
             const status = STATUS_LABELS[row.status];
             const fulfillment = row.purchase?.status === "APPROVED"
               ? FULFILLMENT_STATUS_LABELS[row.purchase.fulfillmentStatus]
@@ -379,6 +410,15 @@ export function ShoppingRequestList({
         </div>
       )}
 
+      {backdatedOpen && <BackdatedPurchaseCreateModal open onClose={() => setBackdatedOpen(false)} />}
+      {Object.values(paymentDrafts).map(draft => (
+        <BackdatedPurchasePaymentsModal
+          key={draft.id}
+          purchase={paymentTarget?.id === draft.id ? (rows.find(row => row.kind === "BACKDATED_PURCHASE" && row.id === draft.id) as BackdatedPurchaseListItem | undefined) ?? draft : null}
+          canPay={canPerform("expense", "update")}
+          onClose={() => setPaymentTarget(current => current?.id === draft.id ? null : current)}
+        />
+      ))}
       <ShoppingRequestPrintModal
         detail={printTarget}
         open={printTarget !== null}

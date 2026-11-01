@@ -1,4 +1,5 @@
 import { db } from "@pos/db";
+import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import {
@@ -66,7 +67,8 @@ function toNumber(value: unknown): number {
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("financial-report", "read");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const { searchParams } = new URL(request.url);
     const requestedPreset = searchParams.get("preset");
     const preset = isPreset(requestedPreset) ? requestedPreset : "month";
@@ -183,6 +185,7 @@ export async function GET(request: Request) {
           storeId,
           deletedAt: null,
           occurredAt: dateBounds,
+          ...recognizedExpenseFilter(),
         },
         _sum: { amount: true, changeAmount: true },
         _count: { _all: true },
@@ -192,6 +195,7 @@ export async function GET(request: Request) {
           storeId,
           deletedAt: null,
           occurredAt: dateBounds,
+          ...recognizedExpenseFilter(),
           hasMissingCostSnapshot: true,
         },
       }),
