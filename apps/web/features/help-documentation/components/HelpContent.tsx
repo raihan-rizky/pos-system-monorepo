@@ -381,12 +381,12 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-database-reset",
       title: "Reset Database",
-      description: "Fitur Reset Database hanya untuk Owner dan hanya bekerja pada store yang sedang login. Pilih domain operasional yang ingin dibersihkan, lalu review data cascade dan dependency sebelum eksekusi.",
+      description: "Reset Database hanya untuk Owner dan berlaku pada toko yang sedang login. Pilih kategori atau sub-data tertentu, misalnya hanya Riwayat Harga tanpa menghapus produk, stok, atau harga saat ini.",
       icon: <Database className="w-5 h-5 text-danger-600" />,
       steps: [
         { title: "Buka Tab Reset Database", description: "Masuk ke Pengaturan lalu pilih tab Reset Database. Tab ini hanya terlihat oleh Owner.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Pilih Domain Data", description: "Pilih Katalog Produk, Pelanggan, Penjualan & Keuangan, Supplier & Pengadaan, Inventaris & Operasional, Import & Batch Jobs, atau Notifikasi Store sesuai kebutuhan.", icon: <Database className="w-8 h-8" /> },
-        { title: "Review Dampak", description: "Klik Lihat Dampak Reset. Data cascade akan ikut terhapus dan dependency yang wajib dipilih akan ditandai. Data shared seperti kategori global dan chat assistant tetap dipertahankan.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Pilih Kategori atau Sub-data", description: "Centang kategori untuk memilih semua sub-data, atau centang sub-data satu per satu. Tanda sebagian menunjukkan beberapa sub-data dipilih. Pilih Semua mencentang semuanya; Hapus Semua Pilihan mengosongkan pilihan. Untuk menghapus riwayat harga saja, centang hanya Katalog Produk > Riwayat Harga.", icon: <Database className="w-8 h-8" /> },
+        { title: "Review Dampak", description: "Klik Lihat Dampak Reset. Periksa jumlah data dan ikon kunci untuk data terkait yang wajib ikut terhapus. Pilih sub-data yang diwajibkan bila ada dependensi. Pelanggan dengan piutang manual dan transaksi terkait nota Percetakan dilindungi. Mengubah pilihan membatalkan preview dan teks konfirmasi; lihat dampak lagi. Kategori global, akun pengguna, pengaturan toko, RBAC, dan chat assistant tetap dipertahankan.", icon: <FileText className="w-8 h-8" /> },
         { title: "Pastikan Operasional Aman", description: "Tutup shift kasir dan tunggu proses import atau batch selesai. Reset tidak berjalan jika masih ada proses aktif.", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Konfirmasi dengan Phrase", description: "Baca preview sekali lagi, lalu ketik RESET DATABASE persis. Reset bersifat irreversible, tidak ada seed otomatis, dan jika gagal semua perubahan di-rollback.", icon: <AlertTriangle className="w-8 h-8" /> },
       ]

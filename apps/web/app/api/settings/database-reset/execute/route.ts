@@ -4,26 +4,15 @@ import { db } from "@pos/db";
 import { executeDatabaseResetPlan, createDatabaseResetPlan } from "@/features/database-reset/helpers/database-reset-plan";
 import {
   DATABASE_RESET_CONFIRMATION,
-  type DatabaseResetDomain,
 } from "@/features/database-reset/types/database-reset";
 import { handleAuthError, requireRole } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
+import { databaseResetSelectionSchema } from "@/features/database-reset/helpers/database-reset-selection-schema";
 
 const log = getLogger("api:settings:database-reset");
 export const dynamic = "force-dynamic";
 
-const domainSchema = z.enum([
-  "productCatalog",
-  "customers",
-  "salesFinance",
-  "supplierProcurement",
-  "inventoryOperations",
-  "importBatchJobs",
-  "storeNotifications",
-]);
-
-const executeSchema = z.object({
-  domains: z.array(domainSchema).min(1),
+const executeSchema = databaseResetSelectionSchema.safeExtend({
   confirmation: z.string(),
 });
 
@@ -57,8 +46,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: `Ketik ${DATABASE_RESET_CONFIRMATION} persis untuk melanjutkan.` }, { status: 422 });
     }
 
-    const domains = parsed.data.domains as DatabaseResetDomain[];
-    const plan = await createDatabaseResetPlan({ db, storeId: user.storeId, domains });
+    const { confirmation: _confirmation, ...selection } = parsed.data;
+    const plan = await createDatabaseResetPlan({ db, storeId: user.storeId, ...selection });
     if (!plan.canExecute) {
       return NextResponse.json(
         { message: "Pilih semua data yang diwajibkan sebelum reset.", requiredDependencies: plan.requiredDependencies },

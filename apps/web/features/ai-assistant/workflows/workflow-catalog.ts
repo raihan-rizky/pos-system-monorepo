@@ -911,6 +911,22 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Periksa hasil sync", description: "Setelah terhubung, masuk sebagai kasir asal dan periksa Offline Sync. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi tanpa menetapkan asal secara otomatis." },
     ],
   }),
+  workflow({
+    faqNumber: 46,
+    slug: "reset-database-subdata",
+    title: "Bagaimana cara mereset hanya riwayat harga atau sub-data tertentu?",
+    aliases: ["reset database", "hapus riwayat harga", "reset sub-data", "hapus semua pilihan reset"],
+    route: "/settings",
+    actionLabel: "Buka Pengaturan",
+    iconKey: "database",
+    allowedRoles: ["OWNER"],
+    requiredCapabilities: [{ resource: "settings", action: "read" }],
+    steps: [
+      { title: "Pilih sub-data", description: "Sebagai Owner, buka Pengaturan > Reset Database. Klik Hapus Semua Pilihan bila perlu, lalu centang hanya Katalog Produk > Riwayat Harga. Produk, stok, dan harga saat ini tetap tersimpan. Checkbox kategori memilih atau melepas seluruh sub-data; tanda sebagian berarti hanya beberapa sub-data dipilih. Pilih Semua mencentang semua pilihan." },
+      { title: "Periksa dampak", description: "Klik Lihat Dampak Reset. Periksa jumlah data, data terkait yang wajib ikut terhapus (ikon kunci), dan dependensi yang harus dipilih. Memilih sub-data lain membatalkan preview serta teks konfirmasi; lihat dampak lagi. Data pelanggan dengan piutang manual dan transaksi yang terhubung nota Percetakan dilindungi dan tidak dapat di-reset." },
+      { title: "Konfirmasi reset", description: "Tutup shift kasir dan tunggu proses import atau batch selesai. Ketik RESET DATABASE persis, lalu klik Reset Data Terpilih. Penghapusan tidak dapat dikembalikan dan hanya berlaku pada toko yang sedang login. Pak Teladan hanya menjelaskan langkah; pemilihan, konfirmasi, dan eksekusi dilakukan sendiri oleh Owner." },
+    ],
+  })
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {

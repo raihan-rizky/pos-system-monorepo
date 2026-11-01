@@ -53,6 +53,7 @@ export const DATABASE_RESET_MODELS: Record<DatabaseResetModel, DatabaseResetMode
   Expense: { model: "Expense", delegate: "expense", priority: 30, where: storeWhere },
   InvoiceDateChangeLog: { model: "InvoiceDateChangeLog", delegate: "invoiceDateChangeLog", priority: 20, where: storeWhere },
   ProductionActivityLog: { model: "ProductionActivityLog", delegate: "productionActivityLog", priority: 20, where: storeWhere },
+  TransactionLifecycleAudit: { model: "TransactionLifecycleAudit", delegate: "transactionLifecycleAudit", priority: 20, where: storeWhere },
   Supplier: { model: "Supplier", delegate: "supplier", priority: 100, where: storeWhere },
   ShoppingRequest: { model: "ShoppingRequest", delegate: "shoppingRequest", priority: 100, where: storeWhere },
   ShoppingRequestItem: { model: "ShoppingRequestItem", delegate: "shoppingRequestItem", priority: 10, where: shoppingRequestWhere },
@@ -103,6 +104,7 @@ export const DATABASE_RESET_DOMAINS: Record<DatabaseResetDomain, DatabaseResetDo
     selected("CashierShift", "Shift kasir toko"),
     selected("Expense", "Pengeluaran toko"),
     cascade("InvoiceDateChangeLog", "Riwayat perubahan invoice ikut terhapus"),
+    cascade("TransactionLifecycleAudit", "Audit perubahan transaksi ikut terhapus"),
     cascade("ProductionActivityLog", "Aktivitas produksi ikut terhapus"),
   ],
   supplierProcurement: [
@@ -162,5 +164,7 @@ export const PRESERVED_DATABASE_RESET_DATA = [
   { model: "User", reason: "Akun login dan owner harus tetap tersedia." },
   { model: "StoreSettings", reason: "Informasi toko tidak termasuk data operasional reset." },
   { model: "RolePermission", reason: "Konfigurasi RBAC harus tetap aman." },
+  { model: "Piutang manual dan pembayaran", reason: "Riwayat piutang manual dilindungi; pelanggan terkait tidak dapat di-reset." },
+  { model: "Nota Percetakan", reason: "Nota tetap dipertahankan; transaksi yang masih terhubung tidak dapat di-reset." },
   { model: "Assistant chat/vector/legacy tables", reason: "Data ini shared dan tidak memiliki current-store ownership." },
 ] as const;

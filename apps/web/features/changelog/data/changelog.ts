@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "database-reset-subdata", date: "2026-11-02", revision: 1,
+    highlight: { title: "Reset sub-data sesuai kebutuhan", summary: "Hapus Riwayat Harga saja tanpa menghapus produk atau harga saat ini." },
+    title: "Pilih sub-data yang ingin di-reset.",
+    summary: "Owner kini dapat memilih sub-data satu per satu, termasuk hanya Riwayat Harga. Pilih semua atau kosongkan pilihan, lalu periksa dampaknya sebelum reset.",
+    kind: "improvement", area: "Pengaturan", href: "/settings", visual: "categories",
+    screenshot: { src: "/images/changelog/reset-database-subdata.png", alt: "Katalog Produk dengan hanya Riwayat Harga dicentang dan checkbox kategori menunjukkan pilihan sebagian." },
+    steps: [
+      { title: "Pilih sub-data", detail: "Sebagai Owner, buka Pengaturan > Reset Database. Klik Hapus Semua Pilihan bila perlu, lalu centang sub-data seperti Katalog Produk > Riwayat Harga." },
+      { title: "Periksa dampak", detail: "Klik Lihat Dampak Reset, periksa jumlah data dan data terkait yang wajib ikut terhapus, lalu lengkapi pilihan yang diwajibkan." },
+      { title: "Konfirmasi reset", detail: "Pastikan shift, import, dan operasi batch sudah selesai. Ketik RESET DATABASE persis, lalu klik Reset Data Terpilih." },
+    ],
+  },
+  {
     id: "pos-offline-sync-recovery", date: "2026-11-01", revision: 1,
     highlight: { title: "Siapkan POS offline", summary: "Siapkan PIN dan periksa transaksi yang menunggu sinkronisasi." },
     title: "Siapkan dan periksa POS offline.",

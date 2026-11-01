@@ -398,3 +398,11 @@ Untuk pembayaran berikutnya, pilih **Catat pembayaran** pada hutang yang belum l
 1. Saat online, masuk sebagai kasir asal, buka **Kasir > Offline Sync**, buat dan ulangi PIN offline, lalu pilih **Siapkan POS offline**. Siapkan ulang sedikitnya setiap tujuh hari dan setelah pembaruan aplikasi. PIN mengenkripsi halaman POS; katalog dan antrean transaksi belum terenkripsi.
 2. Saat offline, buka alamat POS, pilih akun, masukkan PIN dan pilih **Buka POS offline**. Transaksi tetap diperiksa server; jangan hapus data situs sebelum sinkronisasi.
 3. Setelah terhubung, masuk sebagai kasir asal dan periksa **Offline Sync**. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi tanpa menetapkan asal otomatis.
+
+### Q46: Bagaimana cara mereset hanya riwayat harga atau sub-data tertentu?
+
+**A:** Fitur ini hanya untuk Owner dan hanya menghapus data toko yang sedang login. Penghapusan tidak dapat dikembalikan.
+
+1. Buka **Pengaturan > Reset Database**. Klik **Hapus Semua Pilihan** bila perlu, lalu centang hanya **Katalog Produk > Riwayat Harga**. Produk, stok, dan harga saat ini tetap tersimpan. Checkbox kategori memilih atau melepas seluruh sub-data; tanda sebagian berarti beberapa sub-data dipilih. **Pilih Semua** mencentang semua pilihan.
+2. Klik **Lihat Dampak Reset** dan periksa jumlah data serta data terkait dengan ikon kunci yang wajib ikut terhapus. Pilih sub-data dependensi yang diwajibkan. Pelanggan dengan piutang manual dan transaksi terkait nota Percetakan dilindungi dan tidak dapat di-reset. Mengubah pilihan membatalkan preview serta teks konfirmasi; lihat dampak kembali.
+3. Tutup shift kasir dan tunggu import atau operasi batch selesai. Ketik **RESET DATABASE** persis, lalu klik **Reset Data Terpilih**. Akun pengguna, pengaturan toko, RBAC, kategori global, dan chat assistant tetap dipertahankan. Pak Teladan hanya memandu; Owner memilih dan menjalankan reset sendiri.

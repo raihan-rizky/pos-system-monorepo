@@ -7,22 +7,14 @@ import { useDatabaseResetExecute, useDatabaseResetPreview } from "@/hooks/useDat
 import {
   DATABASE_RESET_CONFIRMATION,
   type DatabaseResetDomain,
+  type DatabaseResetModel,
   type DatabaseResetPreview,
   type DatabaseResetSummary,
 } from "@/features/database-reset/types/database-reset";
-
-const DOMAIN_OPTIONS: Array<{ id: DatabaseResetDomain; label: string; description: string }> = [
-  { id: "productCatalog", label: "Katalog Produk", description: "Produk, brand, grup stok, dan riwayat harga." },
-  { id: "customers", label: "Pelanggan", description: "Data pelanggan di store ini." },
-  { id: "salesFinance", label: "Penjualan & Keuangan", description: "Transaksi, pembayaran, shift, dan pengeluaran." },
-  { id: "supplierProcurement", label: "Supplier & Pengadaan", description: "Supplier, daftar belanja, pembelian, dan penerimaan." },
-  { id: "inventoryOperations", label: "Inventaris & Operasional", description: "Log stok, surat jalan, task, dan koreksi." },
-  { id: "importBatchJobs", label: "Import & Batch Jobs", description: "Riwayat import dan operasi batch." },
-  { id: "storeNotifications", label: "Notifikasi Store", description: "Notifikasi dan push subscription store ini." },
-];
+import { DATABASE_RESET_MODEL_LABELS, DATABASE_RESET_OPTIONS, DATABASE_RESET_SELECTABLE_MODELS, toggleDatabaseResetCategory } from "@/features/database-reset/helpers/database-reset-options";
 
 export interface DatabaseResetViewProps {
-  selectedDomains: DatabaseResetDomain[];
+  selectedModels: DatabaseResetModel[];
   preview: DatabaseResetPreview | null;
   confirmation: string;
   isPreviewing: boolean;
@@ -30,13 +22,16 @@ export interface DatabaseResetViewProps {
   error: string | null;
   success: DatabaseResetSummary | null;
   onToggleDomain: (domain: DatabaseResetDomain) => void;
+  onToggleModel: (model: DatabaseResetModel) => void;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
   onPreview: () => void;
   onConfirmationChange: (value: string) => void;
   onExecute: () => void;
 }
 
 export function DatabaseResetView({
-  selectedDomains,
+  selectedModels,
   preview,
   confirmation,
   isPreviewing,
@@ -44,6 +39,9 @@ export function DatabaseResetView({
   error,
   success,
   onToggleDomain,
+  onToggleModel,
+  onSelectAll,
+  onClearSelection,
   onPreview,
   onConfirmationChange,
   onExecute,
@@ -51,10 +49,11 @@ export function DatabaseResetView({
   const blockingDependencies = preview?.requiredDependencies.filter((dependency) => dependency.blocking) ?? [];
   const canExecute = Boolean(
     preview?.canExecute &&
-      selectedDomains.length > 0 &&
+      selectedModels.length > 0 &&
       confirmation === DATABASE_RESET_CONFIRMATION &&
-      !isExecuting,
+      !isExecuting && !isPreviewing && !success,
   );
+  const selectionDisabled = isPreviewing || isExecuting;
 
   return (
     <div className="space-y-6">
@@ -74,34 +73,55 @@ export function DatabaseResetView({
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
           <div>
-            <p className="font-bold">Aksi ini irreversible.</p>
-            <p className="mt-1">Pilih data dengan teliti. User, store settings, RBAC, dan data shared tetap dipertahankan.</p>
+            <p className="font-bold">Data yang dihapus tidak dapat dikembalikan.</p>
+            <p className="mt-1">Pilih data dengan teliti. Akun pengguna, pengaturan toko, RBAC, dan data bersama tetap dipertahankan.</p>
           </div>
         </div>
       </div>
 
       <section aria-labelledby="reset-domain-heading">
         <h3 id="reset-domain-heading" className="text-sm font-bold text-surface-900">Pilih data yang mau di-reset</h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {DOMAIN_OPTIONS.map((option) => (
-            <label key={option.id} className="flex cursor-pointer gap-3 rounded-xl border border-surface-200 p-4 hover:border-brand-300">
-              <input
-                type="checkbox"
-                checked={selectedDomains.includes(option.id)}
-                onChange={() => onToggleDomain(option.id)}
-                className="mt-1 h-4 w-4 accent-brand-600"
-              />
-              <span>
-                <span className="block text-sm font-semibold text-surface-900">{option.label}</span>
-                <span className="mt-1 block text-xs text-surface-500">{option.description}</span>
-              </span>
-            </label>
-          ))}
+        <p className="mt-1 text-xs text-surface-500">Centang kategori untuk memilih semua sub-data, atau pilih sub-data satu per satu.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button type="button" variant="secondary" onClick={onSelectAll} disabled={selectionDisabled || selectedModels.length === DATABASE_RESET_SELECTABLE_MODELS.length}>Pilih Semua</Button>
+          <Button type="button" variant="secondary" onClick={onClearSelection} disabled={selectionDisabled || selectedModels.length === 0}>Hapus Semua Pilihan</Button>
+          <span className="text-xs text-surface-500" role="status">{selectedModels.length} sub-data dipilih</span>
         </div>
+        <div className="mt-3 grid items-start gap-3 md:grid-cols-2">
+          {DATABASE_RESET_OPTIONS.map((option) => {
+            const count = option.items.filter(item => selectedModels.includes(item.model)).length;
+            const partial = count > 0 && count < option.items.length;
+            return (
+              <fieldset key={option.id} disabled={selectionDisabled} aria-label={option.label} className="min-w-0 rounded-xl border border-surface-200 disabled:opacity-60">
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 border-b border-surface-100 p-4">
+                  <input type="checkbox" aria-label={option.label} checked={count === option.items.length} aria-checked={partial ? "mixed" : count === option.items.length}
+                    ref={node => { if (node) node.indeterminate = partial; }}
+                    onChange={() => onToggleDomain(option.id)} className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-surface-900">{option.label}</span>
+                    <span className="mt-1 block text-xs text-surface-500">{option.description}</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-surface-500">{count}/{option.items.length}</span>
+                </label>
+                <div className="px-4 py-2">
+                  {option.items.map(item => (
+                    <label key={item.model} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-surface-50">
+                      <input type="checkbox" aria-label={item.label} checked={selectedModels.includes(item.model)} onChange={() => onToggleModel(item.model)} className="h-4 w-4 shrink-0 accent-brand-600" />
+                      <span className="text-sm text-surface-700">{item.label}
+                        {item.model === "ProductPriceLog" && <span className="mt-0.5 block text-xs text-surface-500">Harga produk saat ini tetap tersimpan.</span>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-xs text-surface-500">Data terkait yang wajib ikut terhapus ditampilkan pada preview dampak reset.</p>
         <p className="mt-3 text-xs text-surface-500">Kategori global dipertahankan karena dapat dipakai lintas store. Chat assistant dan data shared juga tidak ikut di-reset.</p>
       </section>
 
-      <Button type="button" onClick={onPreview} loading={isPreviewing} disabled={selectedDomains.length === 0 || isExecuting}>
+      <Button type="button" onClick={onPreview} loading={isPreviewing} disabled={selectedModels.length === 0 || selectionDisabled}>
         Lihat Dampak Reset
       </Button>
 
@@ -109,15 +129,15 @@ export function DatabaseResetView({
         <section aria-labelledby="reset-impact-heading" className="space-y-4 rounded-xl border border-surface-200 bg-surface-50 p-4">
           <div>
             <h3 id="reset-impact-heading" className="text-sm font-bold text-surface-900">Preview Dampak Reset</h3>
-            <p className="mt-1 text-xs text-surface-500">Data cascade otomatis ikut terhapus dan tidak bisa di-uncheck.</p>
+            <p className="mt-1 text-xs text-surface-500">Data cascade wajib ikut terhapus bersama data induknya dan ditandai dengan ikon kunci.</p>
           </div>
 
           <div className="space-y-2">
             {preview.operations.map((operation) => (
               <div key={operation.model} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm">
                 <span className="flex items-center gap-2 text-surface-700">
-                  {operation.mode === "cascade" && <Lock className="h-3.5 w-3.5 text-surface-400" aria-hidden="true" />}
-                  {operation.model}
+                  {(operation.mode === "cascade" || preview.cascades.some(cascade => cascade.model === operation.model)) && <Lock className="h-3.5 w-3.5 text-surface-400" aria-hidden="true" />}
+                  {DATABASE_RESET_MODEL_LABELS[operation.model]}
                 </span>
                 <span className="font-semibold text-surface-900">{operation.count}</span>
               </div>
@@ -127,15 +147,15 @@ export function DatabaseResetView({
           {preview.cascades.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <p className="font-bold">Cascade</p>
-              {preview.cascades.map((cascade) => <p key={`${cascade.sourceDomain}-${cascade.model}`} className="mt-1">{cascade.model}: {cascade.reason} ({cascade.count})</p>)}
+              {preview.cascades.map((cascade) => <p key={`${cascade.sourceDomain}-${cascade.model}`} className="mt-1">{DATABASE_RESET_MODEL_LABELS[cascade.model]}: {cascade.reason} ({cascade.count})</p>)}
             </div>
           )}
 
           {blockingDependencies.length > 0 && (
             <div className="rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-800">
               <p className="font-bold">Wajib dipilih</p>
-              <p className="mt-1">Pilih domain yang diwajibkan terlebih dahulu.</p>
-              {blockingDependencies.map((dependency) => <p key={dependency.domain} className="mt-1">{dependency.domain}: {dependency.reason}</p>)}
+              <p className="mt-1">Pilih sub-data yang diwajibkan terlebih dahulu, lalu lihat dampak reset lagi.</p>
+              {blockingDependencies.map((dependency, index) => <p key={`${dependency.domain}-${dependency.model ?? index}`} className="mt-1">{dependency.model ? DATABASE_RESET_MODEL_LABELS[dependency.model] : DATABASE_RESET_OPTIONS.find(option => option.id === dependency.domain)?.label}: {dependency.reason}</p>)}
             </div>
           )}
 
@@ -149,6 +169,7 @@ export function DatabaseResetView({
             <input
               id="database-reset-confirmation"
               value={confirmation}
+              disabled={selectionDisabled || Boolean(success)}
               onChange={(event) => onConfirmationChange(event.target.value)}
               placeholder={DATABASE_RESET_CONFIRMATION}
               className="w-full rounded-lg border border-surface-200 px-3 py-2 text-sm outline-none focus:border-danger-400 focus:ring-2 focus:ring-danger-100"
@@ -165,7 +186,7 @@ export function DatabaseResetView({
       {success && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
           <div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /> Reset berhasil</div>
-          <div className="mt-2 space-y-1">{success.deleted.map((item) => <p key={item.model}>{item.model}: {item.count}</p>)}</div>
+          <div className="mt-2 space-y-1">{success.deleted.map((item) => <p key={item.model}>{DATABASE_RESET_MODEL_LABELS[item.model]}: {item.count}</p>)}</div>
         </div>
       )}
     </div>
@@ -173,33 +194,38 @@ export function DatabaseResetView({
 }
 
 export default function DatabaseResetTab() {
-  const [selectedDomains, setSelectedDomains] = useState<DatabaseResetDomain[]>([]);
+  const [selectedModels, setSelectedModels] = useState<DatabaseResetModel[]>([]);
   const [preview, setPreview] = useState<DatabaseResetPreview | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [success, setSuccess] = useState<DatabaseResetSummary | null>(null);
   const previewMutation = useDatabaseResetPreview();
   const executeMutation = useDatabaseResetExecute();
 
-  const toggleDomain = (domain: DatabaseResetDomain) => {
-    setSelectedDomains((current) => current.includes(domain) ? current.filter((item) => item !== domain) : [...current, domain]);
+  const changeSelection = (update: (current: DatabaseResetModel[]) => DatabaseResetModel[]) => {
+    setSelectedModels(update);
     setPreview(null);
     setSuccess(null);
     setConfirmation("");
+    previewMutation.reset();
+    executeMutation.reset();
   };
 
   return (
     <DatabaseResetView
-      selectedDomains={selectedDomains}
+      selectedModels={selectedModels}
       preview={preview}
       confirmation={confirmation}
       isPreviewing={previewMutation.isPending}
       isExecuting={executeMutation.isPending}
       error={previewMutation.error?.message ?? executeMutation.error?.message ?? null}
       success={success}
-      onToggleDomain={toggleDomain}
-      onPreview={() => { setSuccess(null); previewMutation.mutate(selectedDomains, { onSuccess: setPreview }); }}
+      onToggleDomain={domain => changeSelection(current => toggleDatabaseResetCategory(current, domain))}
+      onToggleModel={model => changeSelection(current => current.includes(model) ? current.filter(item => item !== model) : [...current, model])}
+      onSelectAll={() => changeSelection(() => [...DATABASE_RESET_SELECTABLE_MODELS])}
+      onClearSelection={() => changeSelection(() => [])}
+      onPreview={() => { setSuccess(null); setPreview(null); setConfirmation(""); previewMutation.mutate({ models: selectedModels }, { onSuccess: setPreview }); }}
       onConfirmationChange={setConfirmation}
-      onExecute={() => executeMutation.mutate({ domains: selectedDomains, confirmation }, { onSuccess: setSuccess })}
+      onExecute={() => executeMutation.mutate({ models: selectedModels, confirmation }, { onSuccess: summary => { setSuccess(summary); setPreview(null); setConfirmation(""); } })}
     />
   );
 }

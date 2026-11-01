@@ -28,6 +28,7 @@ export type DatabaseResetModel =
   | "Expense"
   | "InvoiceDateChangeLog"
   | "ProductionActivityLog"
+  | "TransactionLifecycleAudit"
   | "Supplier"
   | "ShoppingRequest"
   | "ShoppingRequestItem"
@@ -75,6 +76,7 @@ export interface DatabaseResetCascade {
 
 export interface DatabaseResetDependency {
   domain: DatabaseResetDomain;
+  model?: DatabaseResetModel;
   reason: string;
   blocking: boolean;
 }
@@ -87,6 +89,7 @@ export interface DatabaseResetPreserved {
 export interface DatabaseResetPlan {
   storeId: string;
   domains: DatabaseResetDomain[];
+  models?: DatabaseResetModel[];
   operations: DatabaseResetOperation[];
   cascades: DatabaseResetCascade[];
   requiredDependencies: DatabaseResetDependency[];
@@ -95,6 +98,10 @@ export interface DatabaseResetPlan {
 }
 
 export type DatabaseResetPreview = DatabaseResetPlan;
+
+export type DatabaseResetSelection =
+  | { models: DatabaseResetModel[]; domains?: never }
+  | { domains: DatabaseResetDomain[]; models?: never };
 
 export interface DatabaseResetSummary {
   deleted: Array<{ model: DatabaseResetModel; count: number }>;

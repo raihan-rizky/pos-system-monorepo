@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
-  DatabaseResetDomain,
+  DatabaseResetSelection,
   DatabaseResetPreview,
   DatabaseResetSummary,
 } from "@/features/database-reset/types/database-reset";
@@ -13,12 +13,12 @@ async function readError(response: Response, fallback: string) {
 }
 
 export function useDatabaseResetPreview() {
-  return useMutation<DatabaseResetPreview, Error, DatabaseResetDomain[]>({
-    mutationFn: async (domains) => {
+  return useMutation<DatabaseResetPreview, Error, DatabaseResetSelection>({
+    mutationFn: async (selection) => {
       const response = await fetch("/api/settings/database-reset/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domains }),
+        body: JSON.stringify(selection),
       });
       if (!response.ok) throw await readError(response, "Gagal menyiapkan preview reset.");
       return response.json() as Promise<DatabaseResetPreview>;
@@ -28,7 +28,7 @@ export function useDatabaseResetPreview() {
 
 export function useDatabaseResetExecute() {
   const queryClient = useQueryClient();
-  return useMutation<DatabaseResetSummary, Error, { domains: DatabaseResetDomain[]; confirmation: string }>({
+  return useMutation<DatabaseResetSummary, Error, DatabaseResetSelection & { confirmation: string }>({
     mutationFn: async (payload) => {
       const response = await fetch("/api/settings/database-reset/execute", {
         method: "POST",
@@ -39,15 +39,7 @@ export function useDatabaseResetExecute() {
       return response.json() as Promise<DatabaseResetSummary>;
     },
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["products"] }),
-        queryClient.invalidateQueries({ queryKey: ["transactions"] }),
-        queryClient.invalidateQueries({ queryKey: ["customers"] }),
-        queryClient.invalidateQueries({ queryKey: ["suppliers"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-        queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-      ]);
+      await queryClient.invalidateQueries();
     },
   });
 }

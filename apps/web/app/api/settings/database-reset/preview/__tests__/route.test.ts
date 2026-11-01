@@ -89,4 +89,19 @@ describe("POST /api/settings/database-reset/preview", () => {
     expect(unknownResponse.status).toBe(422);
     expect(createDatabaseResetPlanMock).not.toHaveBeenCalled();
   });
+
+  it("previews a single sub-data choice without expanding it into its category", async () => {
+    requireRoleMock.mockResolvedValue({ id: "owner-1", role: "OWNER", storeId: "store-a" });
+    const response = await POST(requestWith({ models: ["ProductPriceLog"], storeId: "other-store" }));
+    expect(response.status).toBe(200);
+    expect(createDatabaseResetPlanMock).toHaveBeenCalledWith({ db: {}, storeId: "store-a", models: ["ProductPriceLog"] });
+  });
+
+  it("rejects empty, unknown, unsafe child, and ambiguous selections", async () => {
+    requireRoleMock.mockResolvedValue({ id: "owner-1", role: "OWNER", storeId: "store-a" });
+    for (const body of [{ models: [] }, { models: ["User"] }, { models: ["TransactionItem"] }, { domains: ["productCatalog"], models: ["ProductPriceLog"] }]) {
+      expect((await POST(requestWith(body))).status).toBe(422);
+    }
+    expect(createDatabaseResetPlanMock).not.toHaveBeenCalled();
+  });
 });

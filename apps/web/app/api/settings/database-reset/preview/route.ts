@@ -1,24 +1,12 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { db } from "@pos/db";
 import { createDatabaseResetPlan } from "@/features/database-reset/helpers/database-reset-plan";
 import { handleAuthError, requireRole } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
+import { databaseResetSelectionSchema } from "@/features/database-reset/helpers/database-reset-selection-schema";
 
 const log = getLogger("api:settings:database-reset");
 export const dynamic = "force-dynamic";
-
-const domainSchema = z.enum([
-  "productCatalog",
-  "customers",
-  "salesFinance",
-  "supplierProcurement",
-  "inventoryOperations",
-  "importBatchJobs",
-  "storeNotifications",
-]);
-
-const previewSchema = z.object({ domains: z.array(domainSchema).min(1) });
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Store pengguna tidak ditemukan." }, { status: 409 });
     }
 
-    const parsed = previewSchema.safeParse(await request.json());
+    const parsed = databaseResetSelectionSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
         { message: "Pilih minimal satu data reset yang valid.", errors: parsed.error.flatten().fieldErrors },
@@ -38,7 +26,7 @@ export async function POST(request: Request) {
     const plan = await createDatabaseResetPlan({
       db,
       storeId: user.storeId,
-      domains: parsed.data.domains,
+      ...parsed.data,
     });
 
     return NextResponse.json(plan);

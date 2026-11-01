@@ -4,9 +4,15 @@ import { readFileSync } from "node:fs";
 import { FAQ_WORKFLOWS } from "../workflow-catalog";
 
 describe("FAQ workflow catalog", () => {
+  it("guides owners to reset only price history without deleting the product catalog", () => {
+    const reset = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 46);
+    expect(reset).toMatchObject({ route: "/settings", allowedRoles: ["OWNER"] });
+    const text = JSON.stringify(reset);
+    for (const phrase of ["Riwayat Harga", "Hapus Semua Pilihan", "RESET DATABASE", "harga saat ini", "Lihat Dampak Reset"]) expect(text).toContain(phrase);
+  });
   it("mempertahankan urutan nomor FAQ saat panduan pembulatan ditambahkan", () => {
     expect(FAQ_WORKFLOWS.map(workflow => workflow.faqNumber)).toEqual(
-      Array.from({ length: 45 }, (_, index) => index + 1),
+      Array.from({ length: 46 }, (_, index) => index + 1),
     );
   });
 

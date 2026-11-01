@@ -32,6 +32,93 @@ describe("database reset planner", () => {
     vi.restoreAllMocks();
   });
 
+  it("resets only price history without deleting products or requiring their dependencies", async () => {
+    const deleteOrder: string[] = [];
+    const db = createFakeDb({ counts: { productPriceLog: 7, product: 3, transactionItem: 4, inventoryLog: 2 }, deleteOrder });
+    const plan = await createDatabaseResetPlan({ db, storeId: "store-a", models: ["ProductPriceLog"] });
+
+    expect(plan.canExecute).toBe(true);
+    expect(plan.requiredDependencies).toEqual([]);
+    expect(plan.operations).toEqual([expect.objectContaining({ model: "ProductPriceLog", mode: "selected", count: 7, where: { storeId: "store-a" } })]);
+    await executeDatabaseResetPlan(db, plan);
+    expect(deleteOrder).toEqual(["productPriceLog"]);
+  });
+
+  it("does not permit execution after all sub-data is unchecked", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: [] });
+    expect(plan.operations).toEqual([]);
+    expect(plan.canExecute).toBe(false);
+  });
+
+  it("does not treat an unrelated finance sub-data choice as a transaction dependency", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb({ counts: { transactionItem: 2 } }), storeId: "store-a", models: ["Product", "Expense"] });
+    expect(plan.canExecute).toBe(false);
+    expect(plan.requiredDependencies).toContainEqual(expect.objectContaining({ model: "Transaction", blocking: true }));
+  });
+
+  it("allows expenses alone without deleting transactions or requiring stock history", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb({ counts: { expense: 2, inventoryLog: 4, suratJalanItem: 3 } }), storeId: "store-a", models: ["Expense"] });
+    expect(plan.canExecute).toBe(true);
+    expect(plan.operations.map(item => item.model)).toEqual(["Expense"]);
+  });
+
+  it("includes mandatory transaction children and deletes them before the parent", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: ["Transaction"] });
+    expect(plan.operations.map(item => item.model)).toContain("TransactionPayment");
+    expect(plan.cascades).toContainEqual(expect.objectContaining({ model: "TransactionItem" }));
+    expect(plan.operations.findIndex(item => item.model === "TransactionItem")).toBeLessThan(plan.operations.findIndex(item => item.model === "Transaction"));
+    expect(plan.operations.map(item => item.model)).not.toContain("CashierShift");
+  });
+
+  it("includes import jobs and their rows when batch operations cascade", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: ["BatchOperation"] });
+    expect(plan.operations.map(item => item.model)).toEqual(expect.arrayContaining(["BatchOperation", "BatchOperationItem", "ProductImportJob", "ProductImportJobRow", "ProductImportPlannedRow"]));
+    expect(plan.operations.findIndex(item => item.model === "ProductImportJob")).toBeLessThan(plan.operations.findIndex(item => item.model === "BatchOperation"));
+  });
+
+  it("deduplicates a sub-data choice that is also required by its parent", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: ["Product", "ProductPriceLog", "ProductPriceLog"] });
+    expect(plan.operations.filter(item => item.model === "ProductPriceLog")).toHaveLength(1);
+  });
+
+  it.each([{ models: ["Customer"] as const }, { domains: ["customers"] as const }])("preserves customers with protected manual receivables (%j)", async selection => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb({ counts: { customerReceivable: 1 } }), storeId: "store-a", ...selection });
+    expect(plan.canExecute).toBe(false);
+    expect(plan.requiredDependencies).toContainEqual(expect.objectContaining({ blocking: true, reason: expect.stringContaining("piutang manual") }));
+  });
+
+  it("blocks deletion of transactions linked to protected printing receipts", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb({ counts: { printingReceipt: 1 } }), storeId: "store-a", models: ["Transaction"] });
+    expect(plan.canExecute).toBe(false);
+    expect(plan.requiredDependencies).toContainEqual(expect.objectContaining({ blocking: true, reason: expect.stringContaining("nota Percetakan") }));
+  });
+
+  it("scopes customer cascade logs to registered customers, preserving unrelated logs", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: ["Customer"] });
+    expect(plan.operations.find(item => item.model === "DebtPaymentLog")?.where).toEqual({ storeId: "store-a", customer: { storeId: "store-a" } });
+  });
+
+  it("preserves product-less stock group activity when only products are reset", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: ["Product"] });
+    expect(plan.operations.find(item => item.model === "ProductStockGroupActivity")?.where).toEqual({ product: { storeId: "store-a" } });
+  });
+
+  it("includes both parent predicates when product and stock-group activity cascade together", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: ["Product", "ProductStockGroup"] });
+    expect(plan.operations.find(item => item.model === "ProductStockGroupActivity")?.where).toEqual({ OR: [{ product: { storeId: "store-a" } }, { stockGroup: { storeId: "store-a" } }] });
+  });
+
+  it("includes empty delivery document headers in a transaction cascade preview", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb({ counts: { suratJalan: 1, suratJalanItem: 0 } }), storeId: "store-a", models: ["Transaction"] });
+    expect(plan.cascades).toContainEqual(expect.objectContaining({ model: "SuratJalan", count: 1 }));
+    expect(plan.operations.findIndex(item => item.model === "SuratJalan")).toBeLessThan(plan.operations.findIndex(item => item.model === "Transaction"));
+  });
+
+  it("scopes supplier cascade links to suppliers in the current store", async () => {
+    const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: ["Supplier"] });
+    expect(plan.operations.find(item => item.model === "ProductSupplier")?.where).toEqual({ supplier: { storeId: "store-a" } });
+  });
+
   it("keeps shared models out of a current-store plan", async () => {
     const plan = await createDatabaseResetPlan({
       db: createFakeDb({ counts: { product: 2 } }),
