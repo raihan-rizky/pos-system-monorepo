@@ -597,6 +597,59 @@ describe("bulkStockImportRepository", () => {
   });
 });
 
+describe("unchanged stock at commit time", () => {
+  it.each(["OWNER", "ADMIN"])("does not create a batch or stock log for an unchanged %s import", async (role) => {
+    const tx = {
+      product: { findMany: vi.fn().mockResolvedValue([product("prod-a", "SKU-A", 10)]) },
+      batchOperation: { create: vi.fn().mockResolvedValue({ id: "batch-1" }), update: vi.fn() },
+      inventoryLog: { createMany: vi.fn() },
+      batchOperationItem: { createMany: vi.fn() },
+      $queryRaw: vi.fn().mockResolvedValue([{ id: "prod-a" }]),
+    };
+    dbTransactionMock.mockImplementation(async (callback) => callback(tx));
+
+    const result = await bulkStockImportRepository.commitStockImport({
+      storeId: "store-1", user: { id: "user-1", role, storeId: "store-1" },
+      mode: "SET", supplier: null, note: "uji",
+      impacts: [{ productId: "prod-a", sku: "SKU-A", quantity: 10, delta: 5, beforeStock: 5, afterStock: 10, sourceRowNumbers: [2] }],
+    });
+
+    expect(result).toEqual({ updatedProductCount: 0, inventoryLogCount: 0, batchOperationId: null,
+      status: "COMMITTED", pendingApproval: false, undoAvailable: false });
+    expect(tx.batchOperation.create).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.createMany).not.toHaveBeenCalled();
+    expect(tx.batchOperationItem.createMany).not.toHaveBeenCalled();
+  });
+
+  it("counts and logs only products whose locked stock differs from the target", async () => {
+    const currentProducts = [product("prod-a", "SKU-A", 10), product("prod-b", "SKU-B", 4)];
+    const tx = {
+      product: { findMany: vi.fn().mockResolvedValue(currentProducts) },
+      batchOperation: { create: vi.fn().mockResolvedValue({ id: "batch-1" }), update: vi.fn() },
+      inventoryLog: { createMany: vi.fn() }, batchOperationItem: { createMany: vi.fn() },
+      $queryRaw: vi.fn().mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) =>
+        strings.join("").includes("FOR UPDATE") ? [{ id: values[0] }] : [{ id: "prod-b" }]),
+    };
+    dbTransactionMock.mockImplementation(async (callback) => callback(tx));
+
+    const result = await bulkStockImportRepository.commitStockImport({
+      storeId: "store-1", user: { id: "owner-1", role: "OWNER", storeId: "store-1" },
+      mode: "SET", supplier: null, note: "uji",
+      impacts: [
+        { productId: "prod-a", sku: "SKU-A", quantity: 10, delta: 5, beforeStock: 5, afterStock: 10, sourceRowNumbers: [2] },
+        { productId: "prod-b", sku: "SKU-B", quantity: 7, delta: 3, beforeStock: 4, afterStock: 7, sourceRowNumbers: [3] },
+      ],
+    });
+
+    expect(result.updatedProductCount).toBe(1);
+    expect(result.inventoryLogCount).toBe(1);
+    expect(tx.inventoryLog.createMany.mock.calls[0][0].data.map((row: { productId: string }) => row.productId)).toEqual(["prod-b"]);
+    expect(tx.batchOperation.update).toHaveBeenCalledWith(expect.objectContaining({ data: {
+      summary: expect.objectContaining({ totalCount: 1, approvedCount: 1, inventoryLogCount: 1 }),
+    } }));
+  });
+});
+
 function product(
   id: string,
   sku: string,

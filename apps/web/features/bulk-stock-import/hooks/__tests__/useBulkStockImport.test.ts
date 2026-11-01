@@ -5,6 +5,7 @@ import {
   startBulkStockImportCommitJob,
   getBulkStockImportCommitJob,
 } from "../useBulkStockImport";
+import * as importApi from "../useBulkStockImport";
 
 describe("formatBulkStockImportApiErrorMessage", () => {
   it("uses field errors when the API returns a generic validation message", () => {
@@ -80,5 +81,13 @@ describe("bulk stock import job API", () => {
     expect(fetch).toHaveBeenCalledWith(
       "/api/inventory/bulk/import/commit/jobs/job-1",
     );
+  });
+
+  it("recovers the active stock job after the import drawer has closed", async () => {
+    const job = { id: "job-1", status: "RUNNING", phase: "UPDATING_STOCK", totalRows: 10, processedRows: 4 };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, json: async () => ({ job }) } as Response);
+
+    expect(await importApi.getActiveBulkStockImportJob?.()).toEqual(job);
+    expect(fetch).toHaveBeenCalledWith("/api/inventory/bulk/import/commit/jobs/active");
   });
 });

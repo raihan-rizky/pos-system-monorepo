@@ -411,6 +411,28 @@ describe("bulk stock import core", () => {
     );
   });
 
+  it.each([
+    { mode: "SET" as const, quantities: [15, 10], skipped: 2, target: undefined },
+    { mode: "SET" as const, quantities: [10, 15], skipped: 0, target: 15 },
+    { mode: "ADD" as const, quantities: [0], skipped: 1, target: undefined },
+    { mode: "ADD" as const, quantities: [3, -3], skipped: 2, target: undefined },
+    { mode: "ADD" as const, quantities: [0, 5], skipped: 1, target: 15 },
+  ])("keeps preview and commit consistent for $mode $quantities", ({ mode, quantities, skipped, target }) => {
+    const normalized = normalizeBulkStockImportRows(
+      quantities.map((stock) => ({ name: "Kertas HVS A4", unit: "Rim", stock })),
+      products,
+    );
+    const projected = applyBulkStockImportStockChanges(normalized.rows, mode);
+    const preview = applyBulkStockImportSetModeSkips(projected, mode);
+    const submitted = preview.rows.filter((row) => row.status === "valid");
+    const impacts = buildBulkStockImportImpacts(submitted, products, mode);
+
+    expect(preview.summary.skippedRows).toBe(skipped);
+    expect(impacts.map((impact) => impact.afterStock)).toEqual(target === undefined ? [] : [target]);
+    expect(buildBulkStockImportImpacts(normalized.rows, products, mode).map((impact) => impact.afterStock))
+      .toEqual(target === undefined ? [] : [target]);
+  });
+
   it("omits zero-delta impacts for set mode after last-row-wins", () => {
     const preview = normalizeBulkStockImportRows(
       [

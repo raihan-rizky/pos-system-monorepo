@@ -56,6 +56,7 @@ import {
   useActiveProductImportJob,
   useProductImportJobStatus,
 } from "@/features/product-import/hooks/useProductImport";
+import { useBulkStockImportJobTracking } from "@/features/bulk-stock-import/hooks/useBulkStockImport";
 import { useProductSelection } from "./hooks/useProductSelection";
 import { useCustomerCategoryPricingRules } from "@/hooks/useCustomerCategoryPricingRules";
 import { mapCheckoutPricingRule } from "@/features/pos-checkout/helpers/checkout-pricing";
@@ -110,6 +111,11 @@ const ProductImportProgressModal = lazy(() =>
 const BulkStockImportDrawer = lazy(() =>
   import("@/features/bulk-stock-import/components/BulkStockImportDrawer").then(
     (mod) => ({ default: mod.BulkStockImportDrawer }),
+  ),
+);
+const BulkStockImportProgressModal = lazy(() =>
+  import("@/features/bulk-stock-import/components/BulkStockImportProgressModal").then(
+    (mod) => ({ default: mod.BulkStockImportProgressModal }),
   ),
 );
 const BulkStockDrawer = lazy(() =>
@@ -332,6 +338,8 @@ export default function ProductsClientPage() {
   const units = unitsQuery.data ?? [];
   const activeImportJobQuery = useActiveProductImportJob();
   const activeImportJob = activeImportJobQuery.data ?? null;
+  const stockImportTracking = useBulkStockImportJobTracking(canUpdateInventory);
+  const hasImportJob = Boolean(stockImportTracking.job || activeImportJob);
   const observedImportJobId = activeImportJob?.id ?? lastObservedImportJob?.id ?? null;
   const observedImportJobQuery = useProductImportJobStatus(
     observedImportJobId,
@@ -430,11 +438,17 @@ export default function ProductsClientPage() {
     activeImportJob ??
     (isImportProgressOpen ? lastObservedImportJob : null);
   const importButtonProgress =
-    activeImportJob && activeImportJob.totalRows > 0
+    stockImportTracking.job && stockImportTracking.job.totalRows > 0
+      ? `${stockImportTracking.job.processedRows}/${stockImportTracking.job.totalRows}`
+      : activeImportJob && activeImportJob.totalRows > 0
       ? `${activeImportJob.processedRows}/${activeImportJob.totalRows}`
       : null;
 
   const handleImportButtonClick = () => {
+    if (stockImportTracking.job) {
+      stockImportTracking.open();
+      return;
+    }
     if (activeImportJob) {
       setLastObservedImportJob(activeImportJob);
       setIsImportProgressOpen(true);
@@ -552,27 +566,27 @@ export default function ProductsClientPage() {
                 <button
                   onClick={handleImportButtonClick}
                   className={`group relative flex items-center justify-center gap-2 px-5 py-3.5 w-full md:w-auto rounded-2xl border font-bold text-sm shadow-sm transition-all duration-300 ${
-                    activeImportJob
+                    hasImportJob
                       ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                       : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
                   }`}
-                  aria-haspopup={!activeImportJob ? "menu" : undefined}
-                  aria-expanded={!activeImportJob ? isImportMenuOpen : undefined}
+                  aria-haspopup={!hasImportJob ? "menu" : undefined}
+                  aria-expanded={!hasImportJob ? isImportMenuOpen : undefined}
                 >
-                  {activeImportJob ? (
+                  {hasImportJob ? (
                     <LoaderCircle className="w-5 h-5 animate-spin" />
                   ) : (
                     <FileSpreadsheet className="w-5 h-5" />
                   )}
-                  <span>{activeImportJob ? "Impor sedang berjalan" : "Impor"}</span>
+                  <span>{stockImportTracking.job ? "Progres Impor Stok" : activeImportJob ? "Impor sedang berjalan" : "Impor"}</span>
                   {importButtonProgress && (
                     <span className="rounded-lg bg-white/80 px-2 py-0.5 text-xs font-black tabular-nums text-blue-700 ring-1 ring-blue-100">
                       {importButtonProgress}
                     </span>
                   )}
-                  {!activeImportJob && <ChevronDown className="h-4 w-4" />}
+                  {!hasImportJob && <ChevronDown className="h-4 w-4" />}
                 </button>
-                {isImportMenuOpen && !activeImportJob && (
+                {isImportMenuOpen && !hasImportJob && (
                   <div
                     role="menu"
                     className="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
@@ -1353,11 +1367,22 @@ export default function ProductsClientPage() {
         {isBulkStockImportOpen && canUpdateInventory && (
           <BulkStockImportDrawer
             open={isBulkStockImportOpen}
+            onJobStarted={stockImportTracking.onJobStarted}
             onClose={() => {
               setIsBulkStockImportOpen(false);
               productsQuery.refetch();
               statsQuery.refetch();
             }}
+          />
+        )}
+        {stockImportTracking.isOpen && canUpdateInventory && (
+          <BulkStockImportProgressModal
+            open={stockImportTracking.isOpen}
+            job={stockImportTracking.job}
+            isRefreshing={stockImportTracking.isRefreshing}
+            refreshError={stockImportTracking.refreshError}
+            onRefresh={stockImportTracking.refresh}
+            onClose={stockImportTracking.close}
           />
         )}
         {isImportProgressOpen && (

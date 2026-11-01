@@ -97,7 +97,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "inventory-tugas-harian": [["inventory", "inventory-tasks"], ["inventory", "inventory-matching"], ["inventory", "inventory-damaged"], ["inventory", "inventory-out-log"], ["inventory", "inventory-day-session"]],
   "inventory-tugas-mingguan": [["inventory", "inventory-tasks"], ["inventory", "inventory-weekly-proof"], ["inventory", "inventory-update-stock"]],
   "inventory-production": [["production", "production-primary"], ["production", "production-status-column"], ["production", "production-whatsapp"], ["production", "production-kanban"]],
-  "inventory-bulk-stock-import": same("products", "products-import", 4),
+  "inventory-bulk-stock-import": same("products", "products-import", 5),
   "inventory-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],
   "inventory-stock-group": [["products", "products-table"], ["products", "products-primary"], ["products", "products-primary"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["products", "products-stock-group-tab"], ["inventory", "inventory-update-stock"]],
 

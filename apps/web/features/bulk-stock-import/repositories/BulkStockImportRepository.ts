@@ -32,7 +32,7 @@ export interface BulkStockImportSupplier {
 export interface BulkStockImportCommitResult {
   updatedProductCount: number;
   inventoryLogCount: number;
-  batchOperationId: string;
+  batchOperationId: string | null;
   status: "PENDING" | "COMMITTED";
   pendingApproval: boolean;
   undoAvailable: boolean;
@@ -417,6 +417,24 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
         }
       }
       const productsById = new Map(products.map((product) => [product.id, product]));
+      const changedImpacts = input.impacts.filter((impact) => {
+        const product = productsById.get(impact.productId);
+        if (!product) throw new Error("PRODUCT_NOT_FOUND");
+        return input.mode === "ADD"
+          ? impact.delta !== 0
+          : impact.afterStock !== resolveProductDisplayStock(product);
+      });
+
+      if (changedImpacts.length === 0) {
+        return {
+          updatedProductCount: 0,
+          inventoryLogCount: 0,
+          batchOperationId: null,
+          status: "COMMITTED" as const,
+          pendingApproval: false,
+          undoAvailable: false,
+        };
+      }
 
       const batch = await tx.batchOperation.create({
         data: {
@@ -427,9 +445,9 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
           summary: {
             source: "BULK_STOCK_IMPORT",
             mode: input.mode,
-            totalCount: input.impacts.length,
-            pendingCount: pendingApproval ? input.impacts.length : 0,
-            approvedCount: isOwner ? input.impacts.length : 0,
+            totalCount: changedImpacts.length,
+            pendingCount: pendingApproval ? changedImpacts.length : 0,
+            approvedCount: isOwner ? changedImpacts.length : 0,
             rejectedCount: 0,
             pendingApproval,
             supplierId: input.supplier?.id ?? null,
@@ -447,7 +465,7 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
       const groupDeltas = new Map<string, GroupStockUpdate>();
       const allowNegative = input.allowNegativeStock === true;
 
-      for (const impact of input.impacts) {
+      for (const impact of changedImpacts) {
         const product = productsById.get(impact.productId);
         if (!product) throw new Error("PRODUCT_NOT_FOUND");
         const currentStock = resolveProductDisplayStock(product);
@@ -562,11 +580,11 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
           summary: {
             source: "BULK_STOCK_IMPORT",
             mode: input.mode,
-            updatedProductCount: isOwner ? input.impacts.length : 0,
+            updatedProductCount: isOwner ? changedImpacts.length : 0,
             inventoryLogCount,
-            totalCount: input.impacts.length,
-            pendingCount: pendingApproval ? input.impacts.length : 0,
-            approvedCount: isOwner ? input.impacts.length : 0,
+            totalCount: changedImpacts.length,
+            pendingCount: pendingApproval ? changedImpacts.length : 0,
+            approvedCount: isOwner ? changedImpacts.length : 0,
             rejectedCount: 0,
             pendingApproval,
             supplierId: input.supplier?.id ?? null,
@@ -577,7 +595,7 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
       });
 
       return {
-        updatedProductCount: isOwner ? input.impacts.length : 0,
+        updatedProductCount: isOwner ? changedImpacts.length : 0,
         inventoryLogCount,
         batchOperationId: batch.id,
         status,

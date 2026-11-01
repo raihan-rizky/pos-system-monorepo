@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "bulk-stock-import-progress-unchanged", date: "2026-11-02", revision: 1,
+    highlight: { title: "Pantau progres impor stok", summary: "Tutup panel impor dan pantau job; stok yang sama otomatis dilewati." },
+    title: "Pantau impor stok setelah panel ditutup.",
+    summary: "Buka kembali progres impor stok dari halaman Produk meskipun panel impor sudah ditutup. Stok sebelum dan sesudah yang sama dilewati tanpa membuat riwayat atau persetujuan baru.",
+    kind: "improvement", area: "Produk & Stok", href: "/products", visual: "stock-groups",
+    screenshot: { src: "/images/changelog/progres-impor-stok.png", alt: "Panel Progres Impor Stok menampilkan impor berjalan pada 50 persen, dengan satu dari dua baris diproses." },
+    steps: [
+      { title: "Periksa pratinjau", detail: "Buka Produk > Impor > Impor Stok Massal, unggah file, lalu periksa stok sebelum dan sesudah. Stok yang sama otomatis dilewati." },
+      { title: "Jalankan impor", detail: "Klik Terapkan Impor Stok. Panel impor boleh ditutup selama job berjalan." },
+      { title: "Buka progres kembali", detail: "Klik Progres Impor Stok di halaman Produk untuk memantau progres dan hasilnya. Job yang masih berjalan juga ditemukan setelah halaman dimuat ulang." },
+    ],
+  },
+  {
     id: "database-reset-printing-receipts", date: "2026-11-02", revision: 1,
     highlight: { title: "Reset Nota Percetakan", summary: "Pilih Nota Percetakan agar reset transaksi terkait dapat dilanjutkan." },
     title: "Nota Percetakan tersedia di Reset Database.",

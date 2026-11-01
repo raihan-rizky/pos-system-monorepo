@@ -37,6 +37,7 @@ import {
   getBulkStockImportJobStatus,
   processBulkStockImportJob,
 } from "../bulk-stock-import-job-service";
+import * as jobService from "../bulk-stock-import-job-service";
 
 const user = {
   id: "owner-1",
@@ -122,6 +123,19 @@ describe("bulk stock import job service", () => {
     expect(job?.id).toBe("job-1");
     expect(dbMock.bulkStockImportJob.findFirst).toHaveBeenCalledWith({
       where: { id: "job-1", storeId: "store-1" },
+    });
+  });
+
+  it("recovers an active stock import from the database without a drawer job id", async () => {
+    const activeJob = { id: "job-running", storeId: "store-1", status: "RUNNING", phase: "UPDATING_STOCK" };
+    dbMock.bulkStockImportJob.findFirst.mockResolvedValue(activeJob);
+
+    const job = await jobService.getActiveBulkStockImportJob?.(user);
+
+    expect(job).toEqual(activeJob);
+    expect(dbMock.bulkStockImportJob.findFirst).toHaveBeenCalledWith({
+      where: { storeId: "store-1", status: { in: ["PENDING", "RUNNING"] } },
+      orderBy: { createdAt: "asc" },
     });
   });
 

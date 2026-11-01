@@ -307,19 +307,13 @@ export function applyBulkStockImportSetModeSkips(
   rows: BulkStockImportRow[],
   mode: BulkStockImportMode,
 ) {
-  if (mode !== "SET") {
-    return {
-      rows,
-      summary: summarizeBulkStockImportRows(rows),
-    };
-  }
-
-  const resolvedRows = rows.map((row) => {
+  const projectedRows = applyBulkStockImportStockChanges(rows, mode);
+  const resolvedRows = projectedRows.map((row) => {
     if (
       row.status !== "valid" ||
       !row.productId ||
       row.currentStock === undefined ||
-      row.stock !== row.currentStock
+      (row.beforeStock !== row.afterStock && !(mode === "ADD" && row.stock === 0))
     ) {
       return row;
     }
@@ -409,6 +403,7 @@ export function buildBulkStockImportImpacts(
 
     if (mode === "ADD") {
       const quantity = productRows.reduce((sum, row) => sum + row.stock, 0);
+      if (quantity === 0) return [];
       return [
         {
           productId,

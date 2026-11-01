@@ -199,9 +199,11 @@ describe("BulkStockImportPreviewPanel", () => {
       />,
     );
 
-    expect(html).toContain("Commit progress");
-    expect(html).toContain("Updating stock");
-    expect(html).toContain("4 / 10 rows");
+    expect(html).toContain("Progres impor stok");
+    expect(html).toContain("Memperbarui stok");
+    expect(html).toContain("4 / 10 baris");
     expect(html).toContain("40%");
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain('aria-valuenow="40"');
   });
 });

@@ -120,6 +120,16 @@ export async function createBulkStockImportJob(
   return job;
 }
 
+export async function getActiveBulkStockImportJob(user: BulkStockImportUser) {
+  return db.bulkStockImportJob.findFirst({
+    where: {
+      storeId: storeIdFor(user),
+      status: { in: ["PENDING", "RUNNING"] },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
 export async function getBulkStockImportJobStatus(
   jobId: string,
   user: BulkStockImportUser,

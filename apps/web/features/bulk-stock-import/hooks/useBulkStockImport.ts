@@ -1,12 +1,14 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   BulkStockImportMode,
   BulkStockImportRow,
 } from "../helpers/import-core";
+
+export const BULK_STOCK_IMPORT_ACTIVE_JOB_QUERY_KEY = ["bulk-stock-import-active-job"] as const;
 
 export interface BulkStockImportPreviewResponse {
   rows: BulkStockImportRow[];
@@ -53,7 +55,7 @@ export interface BulkStockImportJobResponse {
   result: {
     updatedProductCount: number;
     inventoryLogCount: number;
-    batchOperationId: string;
+    batchOperationId: string | null;
     status: "PENDING" | "COMMITTED";
     pendingApproval: boolean;
     undoAvailable: boolean;
@@ -126,7 +128,7 @@ async function commitBulkStockImport(input: BulkStockImportCommitInput) {
   return payload as {
     updatedProductCount: number;
     inventoryLogCount: number;
-    batchOperationId: string;
+    batchOperationId: string | null;
     status: "PENDING" | "COMMITTED";
     pendingApproval: boolean;
     undoAvailable: boolean;
@@ -173,6 +175,24 @@ export async function getBulkStockImportCommitJob(jobId: string) {
   return payload as BulkStockImportJobResponse;
 }
 
+export async function getActiveBulkStockImportJob(): Promise<BulkStockImportJobResponse | null> {
+  const res = await fetch("/api/inventory/bulk/import/commit/jobs/active");
+  const payload = await res.json();
+  if (!res.ok) {
+    throw new Error(formatBulkStockImportApiErrorMessage(payload, "Gagal memuat impor stok yang berjalan"));
+  }
+  return payload.job;
+}
+
+export function useActiveBulkStockImportJob(enabled = true) {
+  return useQuery({
+    queryKey: BULK_STOCK_IMPORT_ACTIVE_JOB_QUERY_KEY,
+    queryFn: getActiveBulkStockImportJob,
+    enabled,
+    refetchInterval: 5_000,
+  });
+}
+
 export function useBulkStockImportPreview() {
   return useMutation({ mutationFn: previewBulkStockImport });
 }
@@ -193,7 +213,8 @@ export function useBulkStockImportCommitJob() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: startBulkStockImportCommitJob,
-    onSuccess: () => {
+    onSuccess: (job) => {
+      queryClient.setQueryData(BULK_STOCK_IMPORT_ACTIVE_JOB_QUERY_KEY, job);
       queryClient.invalidateQueries({ queryKey: ["bulk-stock-import-job"] });
     },
   });
@@ -206,7 +227,66 @@ export function useBulkStockImportCommitJobStatus(jobId: string | null) {
     enabled: Boolean(jobId),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === "PENDING" || status === "RUNNING" ? 1500 : false;
+      return !status || status === "PENDING" || status === "RUNNING" ? 1500 : false;
     },
   });
+}
+
+export function useBulkStockImportJobTracking(enabled = true) {
+  const queryClient = useQueryClient();
+  const [lastJob, setLastJob] = useState<BulkStockImportJobResponse | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const invalidatedJobId = useRef<string | null>(null);
+  const activeQuery = useActiveBulkStockImportJob(enabled);
+  const trackedJob = lastJob ?? activeQuery.data ?? null;
+  const jobId = enabled ? trackedJob?.id ?? null : null;
+  const detailQuery = useBulkStockImportCommitJobStatus(jobId);
+  const job = enabled ? detailQuery.data ?? trackedJob : null;
+
+  useEffect(() => {
+    if (job) setLastJob(job);
+  }, [job]);
+
+  useEffect(() => {
+    if (!job || job.status === "PENDING" || job.status === "RUNNING" || invalidatedJobId.current === job.id) return;
+    invalidatedJobId.current = job.id;
+    void queryClient.invalidateQueries({ queryKey: BULK_STOCK_IMPORT_ACTIVE_JOB_QUERY_KEY });
+    if (job.status !== "FAILED") {
+      for (const key of ["products", "product-stats", "inventory-logs", "dashboard"]) {
+        void queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    }
+  }, [job, queryClient]);
+
+  const onJobStarted = useCallback((createdJob: BulkStockImportJobResponse) => {
+    setLastJob(createdJob);
+    queryClient.setQueryData(BULK_STOCK_IMPORT_ACTIVE_JOB_QUERY_KEY, createdJob);
+  }, [queryClient]);
+
+  const close = () => {
+    setIsOpen(false);
+    if (job && job.status !== "PENDING" && job.status !== "RUNNING") {
+      setLastJob(null);
+      queryClient.setQueryData<BulkStockImportJobResponse | null>(
+        BULK_STOCK_IMPORT_ACTIVE_JOB_QUERY_KEY,
+        (activeJob) => activeJob?.id === job.id ? null : activeJob,
+      );
+      void queryClient.invalidateQueries({ queryKey: BULK_STOCK_IMPORT_ACTIVE_JOB_QUERY_KEY });
+    }
+  };
+
+  return {
+    job,
+    isOpen,
+    open: () => setIsOpen(true),
+    close,
+    onJobStarted,
+    isRefreshing: activeQuery.isFetching || detailQuery.isFetching,
+    refreshError: detailQuery.error ?? activeQuery.error,
+    refresh: async () => {
+      const result = await activeQuery.refetch();
+      if (jobId) await detailQuery.refetch();
+      return result;
+    },
+  };
 }

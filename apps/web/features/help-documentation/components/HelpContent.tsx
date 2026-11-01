@@ -831,7 +831,8 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Menu Import", description: "Di halaman Produk, klik tombol 'Import' (dropdown) di pojok kanan atas layar.", icon: <Settings className="w-8 h-8" /> },
         { title: "Pilih Impor Stok Massal", description: "Pilih 'Impor Stok Massal' untuk masuk ke halaman penyesuaian kuantitas stok dari berkas Excel atau CSV.", icon: <FileText className="w-8 h-8" /> },
         { title: "Upload File", description: "Pilih file .xlsx atau .csv dengan kolom nama barang, stok, dan satuan, maksimal 5 MB. Kategori/jenis tidak diperlukan dan tidak dipakai untuk pencocokan. File katalog lama dengan kolom kategori tetap bisa diunggah.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Mapping & Selesai", description: "Petakan kolom dan periksa pratinjau. Produk dicocokkan dari nama dan satuan. Jika beberapa produk cocok, pilih produk yang benar; produk yang tidak ditemukan dilewati. Periksa perubahan stok sebelum menerapkan impor.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Periksa perubahan stok", description: "Petakan kolom dan periksa pratinjau. Produk dicocokkan dari nama dan satuan. Jika beberapa produk cocok, pilih produk yang benar. Produk yang tidak ditemukan dan stok sebelum/sesudah yang sama dilewati. Mode Tambah menjumlahkan baris duplikat, sedangkan mode Set memakai baris terakhir.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Terapkan dan pantau progres", description: "Klik Terapkan Impor Stok. Kamu boleh menutup panel impor; tombol Impor berubah menjadi Progres Impor Stok untuk membuka kembali progres dan hasilnya. Muat ulang halaman saat job masih berjalan untuk melanjutkan pemantauan. Perubahan stok dari Admin tetap menunggu persetujuan Owner.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {

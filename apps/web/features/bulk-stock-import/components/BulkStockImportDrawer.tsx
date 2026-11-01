@@ -35,9 +35,11 @@ import type { SupplierListItem } from "@/features/suppliers/types/supplier";
 export function BulkStockImportDrawer({
   open,
   onClose,
+  onJobStarted,
 }: {
   open: boolean;
   onClose: () => void;
+  onJobStarted?: (job: BulkStockImportJobResponse) => void;
 }) {
   const preview = useBulkStockImportPreview();
   const commit = useBulkStockImportCommit();
@@ -124,6 +126,7 @@ export function BulkStockImportDrawer({
       allowNegativeStock,
     });
     setActiveJobId(job.id);
+    onJobStarted?.(job);
   };
 
   const close = () => {
@@ -306,12 +309,14 @@ export function BulkStockImportDrawer({
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
                   <div>
                     <p className="font-black">
-                      {activeJob.data.result.pendingApproval
-                        ? "Import submitted for approval"
-                        : "Stock import committed"}
+                      {activeJob.data.result.inventoryLogCount === 0
+                        ? "Tidak ada perubahan stok"
+                        : activeJob.data.result.pendingApproval
+                          ? "Impor diajukan untuk persetujuan"
+                          : "Impor stok selesai"}
                     </p>
                     <p className="mt-1">
-                      {activeJob.data.result.inventoryLogCount} stock logs created.
+                      {activeJob.data.result.inventoryLogCount} catatan stok dibuat.
                     </p>
                   </div>
                 </div>
@@ -326,7 +331,9 @@ export function BulkStockImportDrawer({
               <div className="sticky bottom-0 -mx-6 -mb-4 border-t border-slate-200 bg-white/95 px-6 py-3 backdrop-blur">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs font-semibold text-slate-500">
-                    Skipped rows will not be committed. Error rows must be fixed first.
+                    {resolvedPreview?.summary.validRows === 0 && resolvedPreview?.summary.errorRows === 0
+                      ? "Tidak ada perubahan stok untuk diproses. Semua baris dilewati."
+                      : "Baris yang dilewati tidak diproses. Perbaiki baris bermasalah sebelum melanjutkan."}
                   </p>
                   <Button
                     type="button"
@@ -334,7 +341,7 @@ export function BulkStockImportDrawer({
                     loading={commit.isPending || commitJob.isPending || isActiveCommitJob(activeJob.data)}
                     disabled={!canCommit}
                   >
-                    Commit Stock Import
+                    Terapkan Impor Stok
                   </Button>
                 </div>
               </div>
@@ -566,21 +573,22 @@ export function BulkStockImportProgressPanel({
     <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="font-black">Commit progress</p>
+          <p className="font-black">Progres impor stok</p>
           <p className="mt-1 text-xs font-semibold text-blue-800/80">
             {formatBulkStockImportPhase(job.phase)}
           </p>
         </div>
         <span className="text-xs font-black tabular-nums">{percent}%</span>
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white"
+        role="progressbar" aria-label="Progres impor stok" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
         <div
           className="h-full rounded-full bg-blue-600"
           style={{ width: `${percent}%` }}
         />
       </div>
       <p className="mt-2 text-xs font-semibold text-blue-800/80">
-        {processedRows} / {totalRows} rows
+        {processedRows} / {totalRows} baris
       </p>
       {job.errorMessage && (
         <p className="mt-2 text-xs font-semibold text-red-700">
@@ -597,14 +605,14 @@ function isActiveCommitJob(job: BulkStockImportJobResponse | null | undefined) {
 
 function formatBulkStockImportPhase(phase: string) {
   const labels: Record<string, string> = {
-    QUEUED: "Queued",
-    VALIDATING: "Validating",
-    BUILDING_IMPACTS: "Building stock changes",
-    UPDATING_STOCK: "Updating stock",
-    CREATING_LOGS: "Creating stock logs",
-    FINALIZING: "Finalizing",
-    DONE: "Done",
-    FAILED: "Failed",
+    QUEUED: "Menunggu antrean",
+    VALIDATING: "Memeriksa data impor",
+    BUILDING_IMPACTS: "Menghitung perubahan stok",
+    UPDATING_STOCK: "Memperbarui stok",
+    CREATING_LOGS: "Mencatat perubahan stok",
+    FINALIZING: "Menyelesaikan impor",
+    DONE: "Selesai",
+    FAILED: "Gagal",
   };
   return labels[phase] ?? phase;
 }
