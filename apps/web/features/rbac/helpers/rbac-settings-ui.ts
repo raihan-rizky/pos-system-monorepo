@@ -344,7 +344,7 @@ export function buildModuleWarnings(
         moduleId: permissionModule.id,
         moduleLabel: permissionModule.label,
         severity: "warning",
-        message: `${permissionModule.label}: actions may work through API calls, but the page is hidden.`,
+        message: `${permissionModule.label}: beberapa tindakannya masih bisa dilakukan meski halamannya belum bisa dibuka. Coba cek lagi hak aksesnya, ya.`,
       });
     }
 
@@ -354,7 +354,7 @@ export function buildModuleWarnings(
         moduleId: permissionModule.id,
         moduleLabel: permissionModule.label,
         severity: "warning",
-        message: `${permissionModule.label}: the page may open, but data or actions may be blocked.`,
+        message: `${permissionModule.label}: halamannya bisa dibuka, tapi beberapa data atau tindakan mungkin belum bisa dipakai. Coba cek lagi hak aksesnya, ya.`,
       });
     }
   }

@@ -279,7 +279,23 @@ describe("RBAC settings UI helpers", () => {
         expect.objectContaining({
           moduleId: "products",
           severity: "warning",
-          message: expect.stringContaining("page is hidden"),
+          message:
+            "Produk: beberapa tindakannya masih bisa dilakukan meski halamannya belum bisa dibuka. Coba cek lagi hak aksesnya, ya.",
+        }),
+      ]),
+    );
+
+    const pageOnlyPermissions = buildDefaultRolePermissions();
+    pageOnlyPermissions.ADMIN.resources.product.read = false;
+    const pageOnlyWarnings = buildModuleWarnings("ADMIN", pageOnlyPermissions);
+
+    expect(pageOnlyWarnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleId: "products",
+          severity: "warning",
+          message:
+            "Produk: halamannya bisa dibuka, tapi beberapa data atau tindakan mungkin belum bisa dipakai. Coba cek lagi hak aksesnya, ya.",
         }),
       ]),
     );
