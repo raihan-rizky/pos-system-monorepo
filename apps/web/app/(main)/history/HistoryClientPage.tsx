@@ -42,6 +42,7 @@ import {
   buildTransactionHistoryQuickDateRange,
   type TransactionHistoryQuickDateFilter,
 } from "@/features/transaction-history/helpers/date-range";
+import type { TransactionHistoryPaymentMethod } from "@/features/transaction-history/helpers/history-params";
 import { invalidateTransactionViews } from "@/features/transaction-history/helpers/invalidate";
 import {
   useTransactionHistory,
@@ -177,6 +178,16 @@ const STATUS_FILTERS = [
   { value: "DRAFT", label: "Sementara" },
   { value: "VOIDED", label: "Void" },
   { value: "REFUNDED", label: "Refund" },
+];
+
+const PAYMENT_METHOD_FILTERS = [
+  { value: "", label: "Semua Metode" },
+  { value: "CASH", label: "Tunai" },
+  { value: "TRANSFER", label: "Transfer" },
+  { value: "QRIS", label: "QRIS" },
+  { value: "DEBIT", label: "Debit" },
+  { value: "CREDIT", label: "Kartu Kredit" },
+  { value: "TEMPO", label: "Tempo/Tagihan" },
 ];
 
 const QUICK_DATE_FILTERS: Array<{
@@ -1090,6 +1101,7 @@ export default function HistoryClientPage() {
   const [transactionCategory, setTransactionCategory] = useState<"" | "ATK" | "PERCETAKAN">("");
   const [printingSubcategory, setPrintingSubcategory] = useState<"" | PrintingSubcategory>("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<"" | TransactionHistoryPaymentMethod>("");
   const [suratJalanOnly, setSuratJalanOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
@@ -1135,6 +1147,7 @@ export default function HistoryClientPage() {
     transactionCategory: transactionCategory || undefined,
     printingSubcategory: printingSubcategory || undefined,
     status: statusFilter || undefined,
+    paymentMethod: paymentMethodFilter || undefined,
     suratJalan: suratJalanOnly ? "bundled" : undefined,
     page,
   });
@@ -1156,7 +1169,7 @@ export default function HistoryClientPage() {
     : null;
 
   const hasActiveFilters =
-    debouncedSearch || dateFrom || dateTo || transactionCategory || categoryId || printingSubcategory || statusFilter || suratJalanOnly;
+    debouncedSearch || dateFrom || dateTo || transactionCategory || categoryId || printingSubcategory || statusFilter || paymentMethodFilter || suratJalanOnly;
 
   const openTransactionDetail = useCallback((tx: Transaction) => {
     if (isSuratJalanBundle(tx)) {
@@ -1177,6 +1190,7 @@ export default function HistoryClientPage() {
     setTransactionCategory("");
     setPrintingSubcategory("");
     setStatusFilter("");
+    setPaymentMethodFilter("");
     setSuratJalanOnly(false);
     setPage(1);
   };
@@ -1280,6 +1294,25 @@ export default function HistoryClientPage() {
                 {STATUS_FILTERS.map((status) => (
                   <option key={status.value || "all"} value={status.value}>
                     {status.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                id="history-payment-method-filter"
+                aria-label="Metode pembayaran"
+                value={paymentMethodFilter}
+                onChange={(event) => {
+                  setPaymentMethodFilter(event.target.value as typeof paymentMethodFilter);
+                  setPage(1);
+                }}
+                className="px-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all
+                    min-w-[180px]"
+              >
+                {PAYMENT_METHOD_FILTERS.map((method) => (
+                  <option key={method.value || "all"} value={method.value}>
+                    {method.label}
                   </option>
                 ))}
               </select>
@@ -1452,6 +1485,9 @@ export default function HistoryClientPage() {
                         const isVoided = tx.status === "VOIDED";
                         const isRefunded = tx.status === "REFUNDED";
                         const isPending = needsCashierApproval(tx);
+                        const hasMultiplePaymentMethods = new Set(
+                          (tx.payments ?? []).map((payment) => payment.method),
+                        ).size > 1;
                         const isDraft = tx.status === "DRAFT";
                         const isBundled = isSuratJalanBundle(tx);
                         const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
@@ -1593,6 +1629,11 @@ export default function HistoryClientPage() {
                             </td>
                             <td className="py-3.5 px-4">
                               <div className="flex flex-wrap items-center gap-2">
+                                {hasMultiplePaymentMethods && (
+                                  <span className="inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700">
+                                    Multi-payment
+                                  </span>
+                                )}
                                 {tx.payments && tx.payments.length > 0 ? (
                                   tx.payments.map((p, idx) => (
                                     <PaymentBadge key={idx} method={p.method} />
@@ -1704,6 +1745,9 @@ export default function HistoryClientPage() {
                     const isVoided = tx.status === "VOIDED";
                     const isRefunded = tx.status === "REFUNDED";
                     const isPending = needsCashierApproval(tx);
+                    const hasMultiplePaymentMethods = new Set(
+                      (tx.payments ?? []).map((payment) => payment.method),
+                    ).size > 1;
                     const isDraft = tx.status === "DRAFT";
                     const isBundled = isSuratJalanBundle(tx);
                     const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
@@ -1841,6 +1885,11 @@ export default function HistoryClientPage() {
                           )}
                           <div className="flex flex-wrap justify-between items-start gap-3 mt-2 pt-2 border-t border-surface-100">
                             <div className="flex flex-wrap items-center gap-2">
+                              {hasMultiplePaymentMethods && (
+                                <span className="inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700">
+                                  Multi-payment
+                                </span>
+                              )}
                               {tx.payments && tx.payments.length > 0 ? (
                                 tx.payments.map((p, idx) => (
                                   <PaymentBadge key={idx} method={p.method} />

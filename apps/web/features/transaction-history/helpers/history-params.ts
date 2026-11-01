@@ -1,3 +1,15 @@
+export const TRANSACTION_HISTORY_PAYMENT_METHODS = [
+  "CASH",
+  "DEBIT",
+  "CREDIT",
+  "QRIS",
+  "TRANSFER",
+  "TEMPO",
+] as const;
+
+export type TransactionHistoryPaymentMethod =
+  (typeof TRANSACTION_HISTORY_PAYMENT_METHODS)[number];
+
 export interface TransactionHistorySearchParamsInput {
   search?: string;
   dateFrom?: string;
@@ -6,6 +18,7 @@ export interface TransactionHistorySearchParamsInput {
   transactionCategory?: "ATK" | "PERCETAKAN";
   printingSubcategory?: string;
   status?: string;
+  paymentMethod?: TransactionHistoryPaymentMethod;
   suratJalan?: "bundled";
   page?: number;
   customerType?: string;
@@ -26,6 +39,7 @@ export function buildTransactionHistorySearchParams(
     searchParams.set("printingSubcategory", params.printingSubcategory);
   }
   if (params.status) searchParams.set("status", params.status);
+  if (params.paymentMethod) searchParams.set("paymentMethod", params.paymentMethod);
   if (params.suratJalan) searchParams.set("suratJalan", params.suratJalan);
   if (params.customerType) searchParams.set("customerType", params.customerType);
   searchParams.set("page", String(params.page || 1));

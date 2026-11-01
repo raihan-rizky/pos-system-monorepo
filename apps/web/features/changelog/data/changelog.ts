@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "history-payment-method-filter", date: "2026-11-01", revision: 1,
+    highlight: { title: "Filter metode pembayaran", summary: "Temukan transaksi menurut metode dan kenali pembayaran gabungan." },
+    title: "Saring Riwayat menurut metode pembayaran.",
+    summary: "Temukan transaksi yang memakai metode tertentu dan kenali pembayaran gabungan lewat badge Multi-payment.",
+    kind: "improvement", area: "Riwayat Transaksi", href: "/history", visual: "history-table",
+    steps: [
+      { title: "Buka Riwayat", detail: "Buka Riwayat Transaksi dari menu Operasi." },
+      { title: "Pilih metode", detail: "Gunakan Metode pembayaran untuk menampilkan transaksi dengan Tunai, Transfer, QRIS, Debit, Kartu Kredit, atau Tempo/Tagihan." },
+      { title: "Kenali pembayaran gabungan", detail: "Transaksi dengan lebih dari satu metode berbeda menampilkan badge Multi-payment dan badge tiap metode." },
+    ],
+  },
+  {
     id: "backdated-purchase-payments", date: "2026-11-01", revision: 1,
     highlight: { title: "Belanja terdahulu", summary: "Catat belanja bulan sebelumnya dan pantau pembayaran bertahap." },
     title: "Pantau pembayaran belanja terdahulu.",

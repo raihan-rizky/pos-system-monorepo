@@ -9,7 +9,10 @@ import {
   scheduleTransactionViewInvalidation,
   updateTransactionInHistoryCaches,
 } from "@/features/transaction-history/helpers/invalidate";
-import { buildTransactionHistorySearchParams } from "@/features/transaction-history/helpers/history-params";
+import {
+  buildTransactionHistorySearchParams,
+  type TransactionHistoryPaymentMethod,
+} from "@/features/transaction-history/helpers/history-params";
 import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import type { PrintingSubcategory } from "@/features/printing-receipts/types";
 import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
@@ -126,6 +129,7 @@ export interface TransactionHistoryParams {
   transactionCategory?: "ATK" | "PERCETAKAN";
   printingSubcategory?: PrintingSubcategory;
   status?: string;
+  paymentMethod?: TransactionHistoryPaymentMethod;
   suratJalan?: "bundled";
   page?: number;
   customerType?: string;
