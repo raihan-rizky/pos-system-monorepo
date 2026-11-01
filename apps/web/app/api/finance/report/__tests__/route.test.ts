@@ -211,14 +211,15 @@ describe("GET /api/finance/report", () => {
     const body = await response.json();
 
     expect(expenseAggregateMock).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         storeId: "store-main",
         deletedAt: null,
         occurredAt: {
           gte: new Date("2026-04-30T17:00:00.000Z"),
           lt: new Date("2026-05-31T17:00:00.000Z"),
         },
-      },
+        OR: expect.arrayContaining([expect.objectContaining({ backdatedPurchaseDueId: null })]),
+      }),
       _sum: { amount: true, changeAmount: true },
       _count: { _all: true },
     });

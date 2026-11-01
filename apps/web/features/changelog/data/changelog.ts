@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "backdated-purchase-payments", date: "2026-11-01", revision: 1,
+    highlight: { title: "Belanja terdahulu", summary: "Catat belanja bulan sebelumnya dan pantau pembayaran bertahap." },
+    title: "Pantau pembayaran belanja terdahulu.",
+    summary: "Catat Giro atau Transfer dari bulan sebelumnya dan pembayaran yang belum lunas. Sisa pada jatuh tempo masuk ke Keuangan secara otomatis.",
+    kind: "feature", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "shopping",
+    steps: [
+      { title: "Buka formulir", detail: "Di Supplier > Daftar Belanja, pilih Catat Belanja Terdahulu." },
+      { title: "Isi pembelian", detail: "Isi tanggal, metode, jatuh tempo, nomor dan nominal, serta pembayaran sebelumnya jika ada." },
+      { title: "Pantau pembayaran", detail: "Gunakan filter status dan buka Riwayat pembayaran untuk mencatat pembayaran berikutnya." },
+    ],
+  },
+  {
     id: "history-actions-layout", date: "2026-11-01", revision: 1,
     highlight: { title: "Aksi Riwayat lebih rapi", summary: "Temukan struk dan pilihan transaksi dengan lebih mudah." },
     title: "Aksi transaksi lebih mudah ditemukan.",

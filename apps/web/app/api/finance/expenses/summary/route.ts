@@ -1,4 +1,5 @@
 import { db } from "@pos/db";
+import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import {
   bucketExpensesByCategory,
@@ -28,7 +29,8 @@ function currentJakartaMonth(): string {
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("expense", "read");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");
     if (monthParam && !MONTH_PATTERN.test(monthParam)) {
@@ -42,6 +44,7 @@ export async function GET(request: Request) {
     const [expenses, transactions] = await Promise.all([
       db.expense.findMany({
         where: {
+          ...recognizedExpenseFilter(),
           deletedAt: null,
           storeId,
           occurredAt: { gte: range.start, lt: range.end },

@@ -15,6 +15,7 @@ import {
   parsePagination,
 } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
+import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 
 const log = getLogger("api:finance:expenses");
 export const dynamic = "force-dynamic";
@@ -38,7 +39,8 @@ function isCategory(v: string | null): v is ExpenseCategory {
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("expense", "read");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");
     if (monthParam && !MONTH_PATTERN.test(monthParam)) {
@@ -59,6 +61,7 @@ export async function GET(request: Request) {
     const where = {
       deletedAt: null,
       storeId,
+      ...recognizedExpenseFilter(),
       occurredAt: { gte: range.start, lt: range.end },
       ...(category ? { category } : {}),
     } as const;
@@ -83,6 +86,8 @@ export async function GET(request: Request) {
           hasMissingCostSnapshot: true,
           shoppingRequest: { select: { id: true, number: true } },
           goodsPurchase: { select: { id: true, number: true } },
+          backdatedPurchaseDue: { select: { id: true, reference: true } },
+          backdatedPurchasePayment: { select: { purchase: { select: { id: true, reference: true } } } },
           recordedBy: { select: { id: true, name: true } },
         },
       }),
@@ -105,7 +110,13 @@ export async function GET(request: Request) {
         transactionId: row.transactionId,
         attachmentUrl: row.attachmentUrl,
         hasMissingCostSnapshot: row.hasMissingCostSnapshot,
-        source: row.goodsPurchase
+        source: row.backdatedPurchaseDue || row.backdatedPurchasePayment
+          ? {
+              type: "BACKDATED_PURCHASE" as const,
+              id: (row.backdatedPurchaseDue ?? row.backdatedPurchasePayment!.purchase).id,
+              number: (row.backdatedPurchaseDue ?? row.backdatedPurchasePayment!.purchase).reference,
+            }
+          : row.goodsPurchase
           ? {
               type: "GOODS_PURCHASE" as const,
               id: row.goodsPurchase.id,
@@ -134,7 +145,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requirePermission("expense", "create");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
     const body = await request.json();
     const result = validateExpensePayload(body, { now: new Date() });
     if (!result.success) {
