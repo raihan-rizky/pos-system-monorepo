@@ -1001,8 +1001,8 @@ describe("inbound receipt service", () => {
     expect(result).toMatchObject({
       data: { id: "receipt-1", status: "APPROVED" },
       finalized: true,
-      bundle: { id: "bundle-1" },
     });
+    expect(result.bundle).toBeUndefined();
     expect(repository.approveReceiptLine).toHaveBeenCalledWith(
       transaction,
       expect.anything(),
@@ -1011,13 +1011,10 @@ describe("inbound receipt service", () => {
       transaction,
       expect.objectContaining({ goodsPurchaseId: "gp-1" }),
     );
-    expect(repository.createReceiptStockBundle).toHaveBeenCalledWith(
-      transaction,
-      expect.anything(),
-    );
+    expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
     expect(repository.markReceiptApproved).toHaveBeenCalledWith(
       transaction,
-      expect.objectContaining({ stockBundleId: "bundle-1" }),
+      expect.objectContaining({ zeroQuantityGoodsPurchaseId: "gp-1" }),
     );
   });
 
@@ -2341,6 +2338,59 @@ describe("inbound receipt service", () => {
         where: expect.objectContaining({ goodsPurchaseId: null }),
       }),
     );
+  });
+
+  it("approves a no-bundle purchase receipt only when its lines all have zero quantity", async () => {
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+
+    await repository.markReceiptApproved(
+      {
+        inventoryInboundReceipt: { updateMany },
+        inventoryInboundReceiptLine: { updateMany: vi.fn(async () => ({ count: 1 })) },
+      } as never,
+      {
+        storeId: "store-main",
+        receiptId: "receipt-empty",
+        approvedBy: "owner-1",
+        approvedAt: new Date("2026-07-24T00:00:00.000Z"),
+        zeroQuantityGoodsPurchaseId: "purchase-1",
+        lineLogIds: [],
+      } as never,
+    );
+
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: "receipt-empty",
+        storeId: "store-main",
+        status: "SUBMITTED",
+        goodsPurchaseId: "purchase-1",
+        stockBundleId: null,
+        lines: { some: {}, every: { receivedQuantity: 0 } },
+      }),
+    }));
+  });
+
+  it("rejects a zero-quantity approval if the guarded receipt no longer matches", async () => {
+    const repository = new ConcreteInventoryInboundReceiptRepository();
+    const updateMany = vi.fn(async () => ({ count: 0 }));
+    const updateLine = vi.fn(async () => ({ count: 1 }));
+
+    await expect(repository.markReceiptApproved(
+      {
+        inventoryInboundReceipt: { updateMany },
+        inventoryInboundReceiptLine: { updateMany: updateLine },
+      } as never,
+      {
+        storeId: "store-main",
+        receiptId: "receipt-empty",
+        approvedBy: "owner-1",
+        approvedAt: new Date("2026-07-24T00:00:00.000Z"),
+        zeroQuantityGoodsPurchaseId: "purchase-1",
+        lineLogIds: [],
+      },
+    )).rejects.toThrow("INBOUND_RECEIPT_CONFLICT");
+    expect(updateLine).not.toHaveBeenCalled();
   });
 
   it("persists the full canonical and variant payload for one inbound receipt bundle", async () => {

@@ -573,7 +573,7 @@ export function InboundReceiptModal({
                 className="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100" />
             </label>}
           </div>
-          <p className="mt-2 text-xs text-slate-500">Pengeluaran pembelian dicatat saat penerimaan pertama disetujui.</p>
+          <p className="mt-2 text-xs text-slate-500">Jumlah 0 berarti barang belum diterima. Pengeluaran dicatat saat penerimaan pertama yang berisi barang disetujui.</p>
         </fieldset>}
 
         <label className="block text-xs font-bold text-slate-600">

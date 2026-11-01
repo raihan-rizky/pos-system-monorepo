@@ -217,25 +217,27 @@ async function executeFinalization(
     conflict("Sumber Pembelian Barang berubah saat finalisasi");
   }
 
-  if (typeof input.repository.settleGoodsPurchasePayment !== "function") {
-    conflict("Pembayaran pembelian belum dapat dicatat.");
-  }
-  try {
-    await input.repository.settleGoodsPurchasePayment(input.tx, {
-      storeId,
-      goodsPurchaseId: lockedReceipt.goodsPurchaseId,
-      paymentMethod: receipt.paymentMethod ?? null,
-      paymentDueDate: receipt.paymentDueDate ?? null,
-      actor: input.user,
-      now: input.now,
-    });
-  } catch (error) {
-    conflict(error instanceof Error ? error.message : "Pembayaran pembelian belum dapat dicatat.");
-  }
-
   const positiveLines = receipt.lines.filter(
     (line) => line.receivedQuantity > 0,
   );
+  if (positiveLines.length > 0) {
+    if (typeof input.repository.settleGoodsPurchasePayment !== "function") {
+      conflict("Pembayaran pembelian belum dapat dicatat.");
+    }
+    try {
+      await input.repository.settleGoodsPurchasePayment(input.tx, {
+        storeId,
+        goodsPurchaseId: lockedReceipt.goodsPurchaseId,
+        paymentMethod: receipt.paymentMethod ?? null,
+        paymentDueDate: receipt.paymentDueDate ?? null,
+        actor: input.user,
+        now: input.now,
+      });
+    } catch (error) {
+      conflict(error instanceof Error ? error.message : "Pembayaran pembelian belum dapat dicatat.");
+    }
+  }
+
   const grouped = new Map<string, GroupedReceiptLines>();
   for (const line of positiveLines) {
     if (!line.stockGroupId) continue;
@@ -505,7 +507,7 @@ async function executeFinalization(
     );
   }
 
-  const bundle = await input.repository.createReceiptStockBundle(input.tx, {
+  const bundle = positiveLines.length > 0 ? await input.repository.createReceiptStockBundle(input.tx, {
     type: "INBOUND_RECEIPT",
     status: "COMMITTED",
     storeId,
@@ -520,14 +522,16 @@ async function executeFinalization(
     supplierName: receipt.supplierName,
     canonicalImpacts,
     variantImpacts,
-  });
+  }) : null;
 
   const data = await input.repository.markReceiptApproved(input.tx, {
     storeId,
     receiptId: receipt.id,
     approvedBy: input.user.id,
     approvedAt: input.now,
-    stockBundleId: bundle.id,
+    ...(bundle
+      ? { stockBundleId: bundle.id }
+      : { zeroQuantityGoodsPurchaseId: receipt.goodsPurchaseId as string }),
     lineLogIds,
   });
 
@@ -547,14 +551,14 @@ async function executeFinalization(
   return {
     data,
     finalized: true,
-    bundle: {
+    ...(bundle ? { bundle: {
       id: bundle.id,
       type: "INBOUND_RECEIPT",
       title: receipt.supplierName,
       stockGroupCount: grouped.size,
       canonicalImpacts,
       variantImpacts,
-    },
+    } } : {}),
   };
 }
 

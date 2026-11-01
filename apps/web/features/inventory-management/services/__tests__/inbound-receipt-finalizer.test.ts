@@ -194,12 +194,58 @@ describe("inbound receipt finalizer", () => {
     vi.clearAllMocks();
   });
 
-  it("settles payment on approval even when no goods arrived", async () => {
+  it("approves a zero-quantity receipt without settling payment or receiving goods", async () => {
     const repository = createRepository(receipt({ paymentMethod: "TRANSFER", lines: [line({ receivedQuantity: 0 })] }));
+    repository.listGoodsPurchaseFulfillmentItems.mockResolvedValueOnce([{ orderedQuantity: 10, approvedReceivedQuantity: 0 }]);
     await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).resolves.toMatchObject({ finalized: true });
-    expect(repository.settleGoodsPurchasePayment).toHaveBeenCalledTimes(1);
+    expect(repository.settleGoodsPurchasePayment).not.toHaveBeenCalled();
     expect(repository.incrementStockGroupBase).not.toHaveBeenCalled();
+    expect(repository.incrementStandaloneProductStock).not.toHaveBeenCalled();
+    expect(repository.createCanonicalInventoryLog).not.toHaveBeenCalled();
+    expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
     expect(repository.markReceiptApproved).toHaveBeenCalledTimes(1);
+    expect(repository.updateGoodsPurchaseFulfillment).toHaveBeenCalledWith(tx, expect.objectContaining({ fulfillmentStatus: "NOT_RECEIVED" }));
+  });
+
+  it("keeps earlier received goods when a later receipt has zero quantity", async () => {
+    const repository = createRepository(receipt({ paymentMethod: "TRANSFER", lines: [line({ receivedQuantity: 0 })] }));
+    await finalizeInboundReceiptIfReady(finalizerInput(repository));
+    expect(repository.settleGoodsPurchasePayment).not.toHaveBeenCalled();
+    expect(repository.updateGoodsPurchaseFulfillment).toHaveBeenCalledWith(tx, expect.objectContaining({ fulfillmentStatus: "PARTIALLY_RECEIVED" }));
+  });
+
+  it("uses the payment from the first receipt with goods after a zero-quantity receipt", async () => {
+    const settleGoodsPurchasePayment = vi.fn().mockResolvedValue(undefined);
+    const empty = { ...createRepository(receipt({ paymentMethod: "TRANSFER", lines: [line({ receivedQuantity: 0 })] })), settleGoodsPurchasePayment };
+    const dueDate = new Date("2026-11-02T00:00:00.000Z");
+    const received = { ...createRepository(receipt({ paymentMethod: "GIRO", paymentDueDate: dueDate })), settleGoodsPurchasePayment };
+
+    await finalizeInboundReceiptIfReady(finalizerInput(empty));
+    expect(settleGoodsPurchasePayment).not.toHaveBeenCalled();
+    await finalizeInboundReceiptIfReady(finalizerInput(received));
+    expect(settleGoodsPurchasePayment).toHaveBeenCalledTimes(1);
+    expect(settleGoodsPurchasePayment).toHaveBeenCalledWith(tx, expect.objectContaining({
+      goodsPurchaseId: "purchase-1", paymentMethod: "GIRO", paymentDueDate: dueDate,
+    }));
+  });
+
+  it("settles a mixed receipt and changes stock only for the line with goods", async () => {
+    const pcs = product("pcs", { stockGroupId: "group-1", unitMultiplierToBase: 1 });
+    const repository = createRepository(receipt({
+      paymentMethod: "TRANSFER",
+      lines: [
+        line({ receivedQuantity: 0 }),
+        line({
+          id: "line-pcs", productId: pcs.id, product: pcs, unitMultiplierToBase: 1,
+          goodsPurchaseItem: { id: "gpi-pcs", goodsPurchaseId: "purchase-1", productId: pcs.id, quantity: 10, latestUnitPrice: 5000 },
+        }),
+      ],
+    }));
+
+    await finalizeInboundReceiptIfReady(finalizerInput(repository));
+    expect(repository.settleGoodsPurchasePayment).toHaveBeenCalledTimes(1);
+    expect(repository.createCanonicalInventoryLog).toHaveBeenCalledTimes(1);
+    expect(repository.createCanonicalInventoryLog).toHaveBeenCalledWith(tx, expect.objectContaining({ productId: "pcs", quantity: 2 }));
   });
 
   it("locks the purchase and stops before stock changes if payment conflicts", async () => {
@@ -810,15 +856,12 @@ describe("inbound receipt finalizer", () => {
     expect(result).toMatchObject({
       data: { id: "receipt-1", status: "APPROVED" },
       finalized: true,
-      bundle: {
-        canonicalImpacts: [],
-        variantImpacts: [],
-      },
     });
+    expect(result.bundle).toBeUndefined();
     expect(repository.incrementStockGroupBase).not.toHaveBeenCalled();
     expect(repository.incrementStandaloneProductStock).not.toHaveBeenCalled();
     expect(repository.createCanonicalInventoryLog).not.toHaveBeenCalled();
-    expect(repository.createReceiptStockBundle).toHaveBeenCalledTimes(1);
+    expect(repository.createReceiptStockBundle).not.toHaveBeenCalled();
     expect(repository.updateGoodsPurchaseFulfillment).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({ fulfillmentStatus: "NOT_RECEIVED" }),

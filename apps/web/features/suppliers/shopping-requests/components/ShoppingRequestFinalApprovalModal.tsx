@@ -221,7 +221,7 @@ export function ShoppingRequestFinalApprovalModal({ requestId, onClose }: { requ
       <div ref={contentRef}>
       {!request.data ? <p className="p-6 text-sm text-slate-500">{request.isError ? "Daftar belanja belum bisa dimuat." : "Memuat daftar belanja..."}</p> : (
         <form onSubmit={submit} className="space-y-4">
-          <p className="text-sm text-slate-600">Periksa jumlah dan harga beli. Pengeluaran dicatat setelah penerimaan pertama disetujui.</p>
+          <p className="text-sm text-slate-600">Periksa jumlah dan harga beli. Pengeluaran dicatat saat penerimaan pertama yang berisi barang disetujui.</p>
           <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
             {lines.map((line) => (
               <article key={line.key} className="rounded-2xl border border-sky-200 bg-white p-4 [&_select]:h-12 [&_select]:text-base">

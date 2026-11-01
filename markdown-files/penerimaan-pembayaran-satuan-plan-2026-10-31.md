@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` to implement the tasks in this checkout. Preserve existing uncommitted changes.
 
-**Goal:** Capture one purchase payment method at receiving, record its expense when the first receipt is approved, and display pricing for all product units together.
+**Goal:** Capture one purchase payment method at receiving, record its expense when the first receipt containing goods is approved, and display pricing for all product units together.
 
 **Architecture:** Persist pending payment information on each receipt and establish it on the purchase during locked receipt finalization. Store a versioned collection of unit-pricing snapshots while accepting legacy single-unit snapshots. Keep stock, pricing, payment and expense writes atomic.
 
@@ -58,3 +58,5 @@
 ## Execution note (2026-11-01 WIB)
 
 The implementation and scoped checks are complete. Database migrations were applied and verified in development and production. The GitNexus index remained stale because its parser worker could not start; impact and staged-change reports were reviewed with that limitation.
+
+The user clarified that a receipt with all quantities at zero can be approved as a record that goods have not arrived. Such a receipt does not establish payment, record an expense, or create a stock bundle; payment is established by the first approved receipt containing goods.

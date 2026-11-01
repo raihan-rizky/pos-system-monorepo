@@ -182,6 +182,8 @@ describe("InboundReceiptModal", () => {
     expect(html).toContain('name="paymentMethod"');
     expect(html).toContain("Transfer");
     expect(html).toContain("Giro");
+    expect(html).toContain("Jumlah 0 berarti barang belum diterima");
+    expect(html).toContain("penerimaan pertama yang berisi barang disetujui");
   });
 
   it("identifies the selected purchase and explains quantities before entry", () => {

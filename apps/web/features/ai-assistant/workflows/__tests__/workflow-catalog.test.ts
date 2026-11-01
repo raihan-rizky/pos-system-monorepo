@@ -363,8 +363,9 @@ describe("FAQ workflow catalog", () => {
     const shopping = JSON.stringify(FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19));
     const inbound = JSON.stringify(FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 18));
     expect(shopping).toContain("tercentang secara default");
-    expect(shopping).toContain("penerimaan pertama disetujui");
+    expect(shopping).toContain("penerimaan pertama yang berisi barang disetujui");
     expect(inbound).toContain("seluruh satuan");
+    expect(inbound).toContain("jumlah 0");
     expect(inbound).toContain("Transfer atau Giro");
     expect(inbound).toContain("total pembelian penuh");
   });

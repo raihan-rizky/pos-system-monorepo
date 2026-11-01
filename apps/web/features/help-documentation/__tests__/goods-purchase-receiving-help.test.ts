@@ -20,9 +20,11 @@ describe("Bantuan penerimaan Pembelian Barang", () => {
     const faq = readWebFile("features/ai-assistant/docs/help/faq.md");
     const entry = CHANGELOG.find((change) => change.id === "inbound-payment-all-unit-prices");
     expect(shopping).toContain("tercentang secara default");
-    expect(shopping).toContain("penerimaan pertama disetujui");
+    expect(shopping).toContain("penerimaan pertama yang berisi barang disetujui");
     expect(inventory).toContain("seluruh satuan");
+    expect(inventory).toContain("jumlah 0");
     expect(faq).toContain("total pembelian penuh");
+    expect(faq).toContain("jumlah 0");
     expect(entry?.steps).toHaveLength(3);
     expect(entry?.href).toBe("/inventory?tab=transactions&subtab=inbound");
   });

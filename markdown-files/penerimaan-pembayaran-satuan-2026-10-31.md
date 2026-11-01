@@ -12,7 +12,8 @@ Pindahkan pemilihan metode pembayaran dari persetujuan Daftar Belanja ke Penerim
 
 - Persetujuan Daftar Belanja membuat dan menyetujui pembelian, tetapi belum mencatat pengeluaran baru.
 - Metode pembayaran dipilih pada Penerimaan Barang. Pilihan tetap Transfer atau Giro; Giro memerlukan tanggal jatuh tempo yang valid.
-- Ketika penerimaan pertama untuk pembelian disetujui, catat satu pengeluaran sebesar total pembelian penuh, termasuk saat barang datang sebagian. Tanggal pengeluaran mengikuti waktu persetujuan penerimaan tersebut.
+- Ketika penerimaan pertama yang berisi barang disetujui, catat satu pengeluaran sebesar total pembelian penuh, termasuk saat barang datang sebagian. Tanggal pengeluaran mengikuti waktu persetujuan penerimaan tersebut.
+- Jumlah nol berarti barang pada baris tersebut belum diterima. Penerimaan yang seluruh jumlahnya nol tetap dapat disetujui sebagai catatan, tanpa menetapkan pembayaran, mencatat pengeluaran, atau membuat mutasi dan bundle stok.
 - Satu metode pembayaran berlaku untuk seluruh pembelian. Penerimaan berikutnya menggunakan metode dan tanggal jatuh tempo yang telah ditetapkan.
 - Opsi Perbarui HPP pada persetujuan Daftar Belanja tercentang secara default dan dapat dinonaktifkan. Jika dipilih, harga beli disarankan pada penerimaan; HPP master baru diperbarui setelah penerimaan barang yang sesuai disetujui.
 - Pada barang yang belum pernah diterima sesuai, saran HPP mengikuti harga beli yang disetujui. Jika beberapa saran dalam satu grup berbeda atau konversinya tidak dapat diwakili tepat dalam dua desimal, pengguna memeriksa dan mengisi HPP satuan acuan.
@@ -23,10 +24,10 @@ Pindahkan pemilihan metode pembayaran dari persetujuan Daftar Belanja ke Penerim
 
 1. Pada dialog persetujuan Daftar Belanja, pengguna memeriksa jumlah dan harga beli tanpa memilih metode pembayaran. Pembelian disetujui dan masuk antrean penerimaan tanpa membuat pengeluaran baru.
 2. Pada formulir Penerimaan Barang pertama, pengguna memilih metode pembayaran. Tanggal jatuh tempo ditampilkan dan wajib diisi untuk Giro. Isian disimpan sebagai bagian dari penerimaan yang diajukan agar dapat diperiksa pemilik sebelum disetujui.
-3. Saat seluruh pemeriksaan penerimaan selesai dan penerimaan disetujui, sistem menetapkan metode pembayaran pada pembelian dan membuat pengeluaran sebesar total pembelian dalam transaksi basis data yang sama dengan finalisasi penerimaan.
+3. Saat seluruh pemeriksaan penerimaan selesai dan penerimaan pertama yang berisi barang disetujui, sistem menetapkan metode pembayaran pada pembelian dan membuat pengeluaran sebesar total pembelian dalam transaksi basis data yang sama dengan finalisasi penerimaan. Penerimaan dengan seluruh jumlah nol tidak menetapkan keduanya.
 4. Pada penerimaan berikutnya, metode dan tanggal jatuh tempo yang sudah ditetapkan ditampilkan sebagai informasi pembelian dan digunakan kembali. Penolakan atau pembatalan penerimaan tidak mencatat pengeluaran atau menetapkan metode baru.
 
-Penerimaan yang sudah diajukan tetapi belum disetujui tidak boleh mengubah informasi pembayaran pembelian secara permanen. Jika beberapa penerimaan diajukan bersamaan, penerimaan pertama yang berhasil disetujui menetapkan metode. Penerimaan lain yang menyimpan metode berbeda harus menampilkan konflik yang dapat diperbaiki, bukan menimpa metode tersebut atau mencatat pengeluaran kedua.
+Penerimaan yang sudah diajukan tetapi belum disetujui tidak boleh mengubah informasi pembayaran pembelian secara permanen. Jika beberapa penerimaan diajukan bersamaan, penerimaan pertama yang berisi barang dan berhasil disetujui menetapkan metode. Penerimaan lain yang menyimpan metode berbeda harus menampilkan konflik yang dapat diperbaiki, bukan menimpa metode tersebut atau mencatat pengeluaran kedua.
 
 Gunakan penguncian pembelian dan batasan keunikan pengeluaran yang sudah ada untuk menjaga satu pengeluaran per pembelian. Apabila pembelian lama sudah memiliki pengeluaran, finalisasi penerimaan tidak boleh membuat ulang, menghapus, atau mengubah tanggal pengeluaran tersebut. Metode pembayaran lama yang telah tersimpan harus tetap tersedia.
 
@@ -54,14 +55,14 @@ Validasi server harus memastikan setiap satuan milik produk dan toko yang benar,
 - Dialog persetujuan Daftar Belanja dan proses pembuatan serta persetujuan pembelian.
 - Formulir, API, penyimpanan, pemeriksaan, dan finalisasi Penerimaan Barang.
 - Penghitungan harga kelompok satuan dan riwayat perubahan harga.
-- Tampilan metode pembayaran pada pembelian serta laporan pengeluaran setelah penerimaan pertama disetujui.
+- Tampilan metode pembayaran pada pembelian serta laporan pengeluaran setelah penerimaan pertama yang berisi barang disetujui.
 - Bantuan, katalog alur kerja Asisten AI, catatan perubahan, dan dokumentasi fitur.
 
 Alur, izin, dan data historis yang sudah ada tetap perlu didukung. Analisis dampak GitNexus harus dijalankan sebelum mengubah simbol; indeks saat penyusunan desain ini terdeteksi tidak mutakhir sehingga hasilnya perlu ditinjau bersama kode terbaru.
 
 ## Verifikasi yang direncanakan
 
-- Tulis pengujian yang gagal terlebih dahulu untuk lokasi metode pembayaran, validasi Giro, dan penundaan pengeluaran hingga persetujuan penerimaan pertama.
+- Tulis pengujian yang gagal terlebih dahulu untuk lokasi metode pembayaran, validasi Giro, dan penundaan pengeluaran hingga persetujuan penerimaan pertama yang berisi barang.
 - Periksa penerimaan sebagian, penerimaan berikutnya, persetujuan bersamaan, penolakan, kegagalan transaksi, dan pembelian lama yang sudah memiliki pengeluaran.
 - Periksa tampilan dan penyimpanan beberapa satuan, nilai kosong, harga manual dan otomatis, konflik konfigurasi, kelompok produk yang berulang, serta snapshot historis.
 - Periksa pembuatan dan pemeriksaan penerimaan melalui keyboard dan pada ukuran layar kecil, serta pembaruan Bantuan, katalog alur kerja, dan catatan perubahan.
@@ -69,7 +70,8 @@ Alur, izin, dan data historis yang sudah ada tetap perlu didukung. Analisis damp
 
 ## Catatan implementasi (2026-11-01 WIB)
 
-- Persetujuan akhir Penerimaan Barang mengharuskan penyelesaian pembayaran tersedia sebelum stok dan status penerimaan diperbarui. Pembelian yang sudah memiliki pengeluaran tetap memakai catatan sebelumnya.
+- Persetujuan akhir Penerimaan Barang yang berisi barang mengharuskan penyelesaian pembayaran tersedia sebelum stok dan status penerimaan diperbarui. Pembelian yang sudah memiliki pengeluaran tetap memakai catatan sebelumnya.
+- Klarifikasi 2026-11-01: penerimaan seluruhnya nol dapat disetujui sebagai catatan barang belum diterima. Pembelian tetap belum diterima jika belum ada penerimaan positif, dan pembayaran serta pengeluaran menunggu penerimaan pertama yang berisi barang. Status penerimaan sebagian sebelumnya tetap dipertahankan.
 - Pemrosesan Pembelian Barang lama tetap mengikuti alur lama, termasuk pencatatan atau penggantian pengeluaran saat pembelian disetujui. Aturan penundaan pengeluaran berlaku untuk Daftar Belanja baru.
 - Migrasi `20261031010000_inbound_receipt_payment` menambahkan metode pembayaran dan tanggal jatuh tempo pada penerimaan serta penanda penundaan HPP pada pembelian. Migrasi telah diterapkan pada basis data pengembangan dan produksi; riwayat, checksum dengan normalisasi akhir baris, dan tipe kolom diperiksa setelahnya.
 - Pemeriksaan meliputi pengujian Vitest untuk alur pembelian dan penerimaan, harga satuan, kompatibilitas data lama, Bantuan, katalog alur kerja, dan catatan perubahan; pemeriksaan TypeScript web, ESLint terarah, validasi skema Prisma, dan whitespace juga dijalankan.

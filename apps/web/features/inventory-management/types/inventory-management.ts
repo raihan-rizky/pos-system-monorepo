@@ -459,6 +459,7 @@ export interface InventoryInboundReceiptRepository {
       approvedBy: string;
       approvedAt: Date;
       stockBundleId?: string;
+      zeroQuantityGoodsPurchaseId?: string;
       legacyOnly?: boolean;
       lineLogIds: Array<{
         lineId: string;

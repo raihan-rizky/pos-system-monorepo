@@ -996,6 +996,7 @@ export class InventoryInboundReceiptRepository
       approvedBy: string;
       approvedAt: Date;
       stockBundleId?: string;
+      zeroQuantityGoodsPurchaseId?: string;
       legacyOnly?: boolean;
       lineLogIds: Array<{
         lineId: string;
@@ -1009,9 +1010,15 @@ export class InventoryInboundReceiptRepository
         id: input.receiptId,
         storeId: input.storeId,
         status: "SUBMITTED",
-        ...(input.legacyOnly || !input.stockBundleId
+        ...(input.legacyOnly || (!input.stockBundleId && !input.zeroQuantityGoodsPurchaseId)
           ? { goodsPurchaseId: null }
-          : {}),
+          : !input.stockBundleId && input.zeroQuantityGoodsPurchaseId
+            ? {
+                goodsPurchaseId: input.zeroQuantityGoodsPurchaseId,
+                stockBundleId: null,
+                lines: { some: {}, every: { receivedQuantity: 0 } },
+              }
+            : {}),
       },
       data: {
         status: "APPROVED",
