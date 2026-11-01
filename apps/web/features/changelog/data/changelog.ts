@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "inbound-payment-all-unit-prices", date: "2026-11-01", revision: 1,
+    highlight: { title: "Pembayaran saat penerimaan", summary: "Pilih pembayaran dan periksa harga seluruh satuan saat menerima barang." },
+    title: "Periksa pembayaran dan harga saat menerima barang.",
+    summary: "Pilih Transfer atau Giro di Penerimaan Barang dan lihat harga seluruh satuan bersama. Pengeluaran pembelian dicatat saat penerimaan pertama disetujui.",
+    kind: "improvement", area: "Supplier & Inventaris", href: "/inventory?tab=transactions&subtab=inbound", visual: "units",
+    steps: [
+      { title: "Setujui belanja", detail: "Periksa jumlah, harga beli, dan pilihan Perbarui HPP, lalu setujui Daftar Belanja." },
+      { title: "Isi penerimaan", detail: "Pilih pembelian, isi jumlah, periksa harga setiap satuan, lalu pilih Transfer atau Giro. Isi jatuh tempo untuk Giro." },
+      { title: "Ajukan dan setujui", detail: "Ajukan ke Owner lalu setujui setiap produk. Penerimaan pertama mencatat pengeluaran total pembelian." },
+    ],
+  },
+  {
     id: "financial-report-inventory-supplier-debt", date: "2026-11-01", revision: 1,
     highlight: { title: "Saldo laporan otomatis", summary: "Gunakan inventaris dan hutang tercatat dalam laporan bulanan." },
     title: "Isi saldo laporan bulanan secara otomatis.",

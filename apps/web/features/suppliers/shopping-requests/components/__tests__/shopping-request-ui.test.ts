@@ -14,6 +14,11 @@ function featureSource(file: string) {
 }
 
 describe("Daftar Belanja UI", () => {
+  it("does not ask for payment during final shopping-list approval", () => {
+    const content = source("ShoppingRequestFinalApprovalModal.tsx");
+    expect(content).not.toContain("Metode Pembayaran");
+    expect(content).not.toContain('name="paymentMethod"');
+  });
   it("keeps unit choices beside quantities and finalizes the new flow in one modal", () => {
     expect(source("ShoppingRequestCreateModal.tsx")).toContain("ShoppingRequestUnitSelect");
     expect(source("ShoppingRequestEditModal.tsx")).toContain("ShoppingRequestUnitSelect");

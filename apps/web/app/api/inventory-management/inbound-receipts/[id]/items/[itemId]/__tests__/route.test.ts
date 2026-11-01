@@ -145,6 +145,13 @@ describe("/api/inventory-management/inbound-receipts/[id]/items/[itemId]", () =>
     expect(editInboundReceiptItemMock).not.toHaveBeenCalled();
   });
 
+  it("PATCH passes all-unit pricing to the review service", async () => {
+    const pricing = { version: 2, units: [{ productId: "pcs", costPrice: null, price: 150, hargaAgen: null, hargaDinas: null, priceEdited: true }] };
+    const response = await patch({ matchStatus: "MATCHED", receivedQuantity: 4, pricing });
+    expect(response.status).toBe(200);
+    expect(editInboundReceiptItemMock).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ pricing }) }));
+  });
+
   it("DELETE uses the exact edit permission and removes only the route item", async () => {
     const response = await remove();
 
@@ -159,5 +166,16 @@ describe("/api/inventory-management/inbound-receipts/[id]/items/[itemId]", () =>
         itemId: "line-1",
       }),
     );
+  });
+
+  it("DELETE passes the displayed line version to the service", async () => {
+    const response = await DELETE(new Request(
+      "http://localhost/api/inventory-management/inbound-receipts/receipt-1/items/line-1",
+      { method: "DELETE", body: JSON.stringify({ expectedUpdatedAt: "2026-10-31T11:00:00.000Z" }) },
+    ), context);
+    expect(response.status).toBe(200);
+    expect(removeInboundReceiptItemMock).toHaveBeenCalledWith(expect.objectContaining({
+      expectedUpdatedAt: "2026-10-31T11:00:00.000Z",
+    }));
   });
 });

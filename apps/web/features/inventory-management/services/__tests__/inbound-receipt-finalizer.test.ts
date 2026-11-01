@@ -138,6 +138,7 @@ function createRepository(finalizableReceipt = receipt()) {
   let logSequence = 0;
 
   return {
+    settleGoodsPurchasePayment: vi.fn(async () => undefined),
     lockSubmittedReceipt: vi.fn(async () => finalizableReceipt),
     lockGoodsPurchase: vi.fn(async () => true),
     findReceiptForFinalization: vi.fn(async () => finalizableReceipt),
@@ -191,6 +192,46 @@ function finalizerInput(repository: ReturnType<typeof createRepository>) {
 describe("inbound receipt finalizer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("settles payment on approval even when no goods arrived", async () => {
+    const repository = createRepository(receipt({ paymentMethod: "TRANSFER", lines: [line({ receivedQuantity: 0 })] }));
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).resolves.toMatchObject({ finalized: true });
+    expect(repository.settleGoodsPurchasePayment).toHaveBeenCalledTimes(1);
+    expect(repository.incrementStockGroupBase).not.toHaveBeenCalled();
+    expect(repository.markReceiptApproved).toHaveBeenCalledTimes(1);
+  });
+
+  it("locks the purchase and stops before stock changes if payment conflicts", async () => {
+    const repository = Object.assign(createRepository(receipt({ paymentMethod: "GIRO", paymentDueDate: new Date("2026-11-02T00:00:00Z") })), {
+      settleGoodsPurchasePayment: vi.fn(async () => { throw new Error("Metode pembayaran telah berubah"); }),
+    });
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(repository.lockGoodsPurchase.mock.invocationCallOrder[0]).toBeLessThan(repository.settleGoodsPurchasePayment.mock.invocationCallOrder[0]);
+    expect(repository.incrementStockGroupBase).not.toHaveBeenCalled();
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+  });
+
+  it("does not approve a payment proposal if payment settlement is unavailable", async () => {
+    const repository = createRepository(receipt({ paymentMethod: "TRANSFER" }));
+    Reflect.deleteProperty(repository, "settleGoodsPurchasePayment");
+    await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(repository.markReceiptApproved).not.toHaveBeenCalled();
+  });
+
+  it("settles purchase payment in the same transaction when a receipt is approved", async () => {
+    const dueDate = new Date("2026-11-02T00:00:00.000Z");
+    const repository = {
+      ...createRepository(receipt({ paymentMethod: "GIRO", paymentDueDate: dueDate })),
+      settleGoodsPurchasePayment: vi.fn().mockResolvedValue(undefined),
+    };
+    await finalizeInboundReceiptIfReady(finalizerInput(repository));
+    expect(repository.settleGoodsPurchasePayment).toHaveBeenCalledWith(tx, expect.objectContaining({
+      storeId: "store-main", goodsPurchaseId: "purchase-1", paymentMethod: "GIRO", paymentDueDate: dueDate, now,
+    }));
+    expect(repository.settleGoodsPurchasePayment.mock.invocationCallOrder[0]).toBeLessThan(
+      repository.markReceiptApproved.mock.invocationCallOrder[0],
+    );
   });
 
   it("returns without stock movement while another line is pending", async () => {
@@ -836,8 +877,8 @@ describe("pricing during receipt finalization", () => {
     }
   });
 
-  it("rejects duplicate selected pricing units before writing stock", async () => {
-    const repository = withPricing(receipt({ lines: [line({ pricingSnapshot: pricing }), line({ id: "line-2", pricingSnapshot: pricing })] }));
+  it("rejects conflicting prices for the same unit before writing stock", async () => {
+    const repository = withPricing(receipt({ lines: [line({ pricingSnapshot: pricing }), line({ id: "line-2", pricingSnapshot: { ...pricing, price: 999 } })] }));
     await expect(finalizeInboundReceiptIfReady(finalizerInput(repository))).rejects.toMatchObject({ code: "CONFLICT" });
     expect(repository.incrementStockGroupBase).not.toHaveBeenCalled();
     expect(repository.applyInboundPricing).not.toHaveBeenCalled();

@@ -1000,6 +1000,7 @@ model GoodsPurchase {
   status                   GoodsPurchaseStatus            @default(PENDING)
   fulfillmentStatus        GoodsPurchaseFulfillmentStatus @default(NOT_RECEIVED)
   totalAmount              Decimal                        @db.Decimal(12, 2)
+  deferMasterHppToReceipt  Boolean                        @default(false)
   paymentMethod            PurchasePaymentMethod?
   paymentDueDate           DateTime?                      @db.Date
   createdById              String
@@ -1073,6 +1074,8 @@ model InventoryInboundReceipt {
   storeId           String
   shoppingRequestId String?
   goodsPurchaseId   String?
+  paymentMethod     PurchasePaymentMethod?
+  paymentDueDate    DateTime?                     @db.Date
   stockBundleId     String?                       @unique
   supplierId        String?
   status            InventoryInboundReceiptStatus @default(DRAFT)

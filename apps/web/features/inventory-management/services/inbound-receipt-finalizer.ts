@@ -115,13 +115,18 @@ function validateFinalizableReceipt(
     conflict("Masih ada produk Penerimaan Barang yang belum disetujui");
   }
 
-  const priceUnits = new Set<string>();
+  const priceUnits = new Map<string, string>();
   for (const line of receipt.lines) {
-    if (line.matchStatus !== "MATCHED" || !line.pricingSnapshot?.productId) continue;
-    if (priceUnits.has(line.pricingSnapshot.productId)) {
-      conflict("Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.");
+    if (line.receivedQuantity <= 0 || line.matchStatus !== "MATCHED" || !line.pricingSnapshot) continue;
+    const prices = line.pricingSnapshot.version === 2 ? line.pricingSnapshot.units : [line.pricingSnapshot];
+    for (const pricing of prices) {
+      if (!pricing.productId) continue;
+      const value = JSON.stringify([pricing.costPrice, pricing.price, pricing.hargaAgen, pricing.hargaDinas]);
+      if (priceUnits.has(pricing.productId) && priceUnits.get(pricing.productId) !== value) {
+        conflict("Harga satuan yang sama berbeda pada penerimaan ini. Periksa kembali harga produk.");
+      }
+      priceUnits.set(pricing.productId, value);
     }
-    priceUnits.add(line.pricingSnapshot.productId);
   }
 
   for (const line of receipt.lines) {
@@ -210,6 +215,22 @@ async function executeFinalization(
   validateFinalizableReceipt(receipt);
   if (receipt.goodsPurchaseId !== lockedReceipt.goodsPurchaseId) {
     conflict("Sumber Pembelian Barang berubah saat finalisasi");
+  }
+
+  if (typeof input.repository.settleGoodsPurchasePayment !== "function") {
+    conflict("Pembayaran pembelian belum dapat dicatat.");
+  }
+  try {
+    await input.repository.settleGoodsPurchasePayment(input.tx, {
+      storeId,
+      goodsPurchaseId: lockedReceipt.goodsPurchaseId,
+      paymentMethod: receipt.paymentMethod ?? null,
+      paymentDueDate: receipt.paymentDueDate ?? null,
+      actor: input.user,
+      now: input.now,
+    });
+  } catch (error) {
+    conflict(error instanceof Error ? error.message : "Pembayaran pembelian belum dapat dicatat.");
   }
 
   const positiveLines = receipt.lines.filter(
@@ -404,7 +425,7 @@ async function executeFinalization(
   }
 
   const pricedLines = receipt.lines.flatMap((line) =>
-    line.matchStatus === "MATCHED" && line.pricingSnapshot
+    line.receivedQuantity > 0 && line.matchStatus === "MATCHED" && line.pricingSnapshot
       ? [{ productId: line.productId, stockGroupId: line.stockGroupId, pricing: line.pricingSnapshot }]
       : [],
   );

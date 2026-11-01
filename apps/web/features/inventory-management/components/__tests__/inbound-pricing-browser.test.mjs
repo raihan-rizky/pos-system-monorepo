@@ -14,17 +14,18 @@ const bundle = await build({
     contents: `
       import React, { useState } from 'react';
       import { createRoot } from 'react-dom/client';
-      import { InboundPricingFields, pricingDraftForUnit, inboundPricingInputFromDraft } from './features/inventory-management/components/InboundPricingFields';
+      import { InboundPricingFields, pricingDraftForUnit, inboundPricingInputFromDrafts } from './features/inventory-management/components/InboundPricingFields';
       const units = [
-        { productId: 'pcs', unit: 'pcs', unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: 140, hargaDinas: 130 },
-        { productId: 'box', unit: 'box', unitMultiplierToBase: 12, costPrice: 1200, price: 1800, hargaAgen: 1700, hargaDinas: 1600 },
+        { productId: 'pcs', unit: 'pcs', unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: 140, hargaDinas: 130, pricingMode: 'AUTO', pricingSourceProductId: 'pcs' },
+        { productId: 'box', unit: 'box', unitMultiplierToBase: 12, costPrice: 1200, price: 1350, hargaAgen: 1700, hargaDinas: null, pricingMode: 'AUTO', pricingSourceProductId: 'pcs', pricingFactor: { numerator: '3', denominator: '4' } },
+        { productId: 'old', unit: 'karton', unitMultiplierToBase: 24, costPrice: null, price: 2500, hargaAgen: null, hargaDinas: null, isActive: false },
       ];
       function App() {
-        const [value, setValue] = useState(pricingDraftForUnit(units[0]));
+        const [value, setValue] = useState(units.map(pricingDraftForUnit));
         const [required, setRequired] = useState(true);
         return <><label><input type="checkbox" checked={required} onChange={event => setRequired(event.target.checked)} />Sesuai</label>
           <InboundPricingFields units={units} value={value} onChange={setValue} required={required} namePrefix="line" />
-          <output data-testid="payload">{JSON.stringify(inboundPricingInputFromDraft(value))}</output></>;
+          <output data-testid="payload" hidden>{JSON.stringify(inboundPricingInputFromDrafts(units, value))}</output></>;
       }
       createRoot(document.getElementById('root')).render(<App />);
     `,
@@ -44,32 +45,32 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.setContent('<div id="root"></div>');
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
-  const unit = page.locator('[name="line.productId"]');
-  const cost = page.locator('[name="line.costPrice"]');
-  const price = page.locator('[name="line.price"]');
-  await unit.waitFor();
-  assert.equal(await cost.inputValue(), "100");
-  assert.equal(await cost.getAttribute("required"), "");
+  const cost = page.locator('[name="line.pcs.costPrice"]');
+  const price = page.locator('[name="line.pcs.price"]');
+  const boxCost = page.locator('[name="line.box.costPrice"]');
+  const boxPrice = page.locator('[name="line.box.price"]');
+  await cost.waitFor();
+  assert.equal(await page.locator("select").count(), 0);
+  assert.equal(await boxCost.isDisabled(), true);
+  assert.equal(await page.locator('[name="line.old.price"]').isDisabled(), true);
+  assert.equal(await price.getAttribute("required"), "");
+  await cost.focus();
+  await page.keyboard.press("Tab");
+  assert.equal(await price.evaluate((element) => element === document.activeElement), true);
   await cost.fill("125");
-  await price.fill("175");
-  await unit.selectOption("box");
-  assert.equal(await cost.inputValue(), "1200");
-  await cost.fill("1500");
-  await unit.selectOption("pcs");
-  assert.equal(await cost.inputValue(), "125");
-  assert.equal(await price.inputValue(), "175");
-  await unit.selectOption("box");
-  assert.equal(await cost.inputValue(), "1500");
-  assert.deepEqual(JSON.parse(await page.getByTestId("payload").innerText()), {
-    productId: "box", costPrice: 1500, price: 1800, hargaAgen: 1700, hargaDinas: 1600,
+  assert.equal(await boxCost.inputValue(), "1500");
+  await price.fill("200");
+  assert.equal(await boxPrice.inputValue(), "1800");
+  await boxPrice.fill("1900");
+  assert.deepEqual(JSON.parse(await page.getByTestId("payload").textContent()), {
+    version: 2, units: [
+      { productId: "pcs", costPrice: 125, price: 200, hargaAgen: 140, hargaDinas: 130, priceEdited: true },
+      { productId: "box", costPrice: 1500, price: 1900, hargaAgen: 1700, hargaDinas: null, priceEdited: true },
+    ],
   });
   await page.getByLabel("Sesuai", { exact: true }).uncheck();
-  assert.equal(await cost.getAttribute("required"), null);
-  await unit.selectOption("");
-  assert.equal(await cost.isDisabled(), true);
-  assert.deepEqual(JSON.parse(await page.getByTestId("payload").innerText()), {
-    productId: null, costPrice: null, price: null, hargaAgen: null, hargaDinas: null,
-  });
+  assert.equal(await price.getAttribute("required"), null);
+  assert.equal(await page.evaluate(() => innerWidth), 390);
   console.log("Inbound pricing browser interaction passed.");
 } finally {
   await browser.close();

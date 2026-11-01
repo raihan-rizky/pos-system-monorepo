@@ -86,50 +86,39 @@ describe("final approval session", () => {
     hooks.data = request("A");
   });
 
-  it("defaults to transfer and submits without a due date", async () => {
+  it("submits without payment details and keeps the HPP update selected by default", async () => {
     const tree = render("A");
-    expect(find(tree, (node) => node.type === "select" && node.props.name === "paymentMethod").props.value).toBe("TRANSFER");
+    expect(() => find(tree, (node) => node.type === "select" && node.props.name === "paymentMethod")).toThrow();
     expect(() => find(tree, (node) => node.type === "input" && node.props.type === "date")).toThrow();
+    expect(find(tree, (node) => node.type === "input" && node.props.type === "checkbox" && Boolean(node.props.className)).props.checked).toBe(true);
     await find(tree, (node) => node.type === "form").props.onSubmit({ preventDefault: vi.fn() });
     expect(finalizePayment).toHaveBeenCalledWith(expect.objectContaining({
-      input: expect.objectContaining({ paymentMethod: "TRANSFER", paymentDueDate: null }),
+      input: expect.objectContaining({ items: [expect.objectContaining({ updateMasterHpp: true })] }),
+    }));
+    const submitted = (finalizePayment.mock.calls as any[][])[0][0].input;
+    expect(submitted).not.toHaveProperty("paymentMethod");
+    expect(submitted).not.toHaveProperty("paymentDueDate");
+  });
+
+  it("submits the HPP update choice when the user clears it", async () => {
+    let tree = render("A");
+    find(tree, (node) => node.type === "input" && node.props.type === "checkbox" && Boolean(node.props.className)).props.onChange({ target: { checked: false } });
+    tree = render("A");
+    await find(tree, (node) => node.type === "form").props.onSubmit({ preventDefault: vi.fn() });
+    expect(finalizePayment).toHaveBeenCalledWith(expect.objectContaining({
+      input: expect.objectContaining({ items: [expect.objectContaining({ updateMasterHpp: false })] }),
     }));
   });
 
-  it("requires a due date for giro and includes it in the approval", async () => {
-    let tree = render("A");
-    find(tree, (node) => node.type === "select" && node.props.name === "paymentMethod").props.onChange({ target: { value: "GIRO" } });
-    tree = render("A");
-    expect(approve(tree).props.disabled).toBe(true);
-    await find(tree, (node) => node.type === "form").props.onSubmit({ preventDefault: vi.fn() });
-    expect(finalizePayment).not.toHaveBeenCalled();
-    const date = find(tree, (node) => node.type === "input" && node.props.type === "date");
-    expect(date.props.required).toBe(true);
-    date.props.onChange({ target: { value: "2026-11-02" } });
-    tree = render("A");
-    expect(approve(tree).props.disabled).toBe(false);
-    await find(tree, (node) => node.type === "form").props.onSubmit({ preventDefault: vi.fn() });
-    expect(finalizePayment).toHaveBeenCalledWith(expect.objectContaining({
-      input: expect.objectContaining({ paymentMethod: "GIRO", paymentDueDate: "2026-11-02" }),
-    }));
-  });
-
-  it("clears the giro date when switching to transfer and resets payment on reopening", () => {
-    let tree = render("A");
-    const method = (current: ReactElement<any>) => find(current, (node) => node.type === "select" && node.props.name === "paymentMethod");
-    method(tree).props.onChange({ target: { value: "GIRO" } });
-    tree = render("A");
-    find(tree, (node) => node.type === "input" && node.props.type === "date").props.onChange({ target: { value: "2026-11-02" } });
-    tree = render("A");
-    method(tree).props.onChange({ target: { value: "TRANSFER" } });
-    tree = render("A");
-    method(tree).props.onChange({ target: { value: "GIRO" } });
-    tree = render("A");
-    expect(find(tree, (node) => node.type === "input" && node.props.type === "date").props.value).toBe("");
+  it("resets the HPP update choice when reopening", () => {
+    const tree = render("A");
+    const hpp = (current: ReactElement<any>) => find(current, (node) => node.type === "input" && node.props.type === "checkbox" && Boolean(node.props.className));
+    hpp(tree).props.onChange({ target: { checked: false } });
+    expect(hpp(render("A")).props.checked).toBe(false);
     hooks.data = null;
     render(null);
     hooks.data = request("A");
-    expect(method(render("A")).props.value).toBe("TRANSFER");
+    expect(hpp(render("A")).props.checked).toBe(true);
   });
 
   function confirmAndEnterReason() {

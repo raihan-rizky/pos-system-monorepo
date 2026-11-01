@@ -85,6 +85,12 @@ describe("FAQ workflow catalog", () => {
     expect(JSON.stringify(shopping)).toContain("supplier.goods_purchase.approve:update");
     expect(purchase?.route).toBe("/suppliers?tab=shopping-requests");
   });
+
+  it("places shopping approval before payment at receipt", () => {
+    const titles = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19)?.steps.map((step) => step.title) ?? [];
+    expect(titles.indexOf("Setujui sekaligus")).toBeGreaterThanOrEqual(0);
+    expect(titles.indexOf("Pilih pembayaran saat menerima")).toBeGreaterThan(titles.indexOf("Setujui sekaligus"));
+  });
   it("keeps Surat Jalan creation aligned with transaction-owned stock", () => {
     const deliveryOrder = FAQ_WORKFLOWS.find(
       (workflow) => workflow.faqNumber === 8,
@@ -153,7 +159,7 @@ describe("FAQ workflow catalog", () => {
     for (const label of ["HPP Unit", "Harga Jual", "Harga Jual Agen", "Harga Jual Dinas"]) {
       expect(inbound).toContain(label);
     }
-    expect(inbound).toContain("satuan dan harga bersifat opsional");
+    expect(inbound).toContain("harga bersifat opsional");
     expect(inbound).toContain("memperbarui HPP dan harga jual produk");
     expect(inbound).toContain("HPP satuan acuan");
   });
@@ -338,7 +344,7 @@ describe("FAQ workflow catalog", () => {
     expect(serialized).toContain("HPP Unit");
     expect(serialized).toContain("Harga Jual Agen");
     expect(serialized).toContain("Harga Jual Dinas");
-    expect(serialized).toContain("satuan dan harga bersifat opsional");
+    expect(serialized).toContain("harga bersifat opsional");
     expect(serialized).toContain("Harga disimpan sebagai snapshot");
     expect(serialized).toContain("stok dan harga satuan pada barang Sesuai diperbarui bersama");
   });
@@ -351,5 +357,15 @@ describe("FAQ workflow catalog", () => {
     expect(serialized).toContain("Setujui dan Catat Pembelian");
     expect(serialized).toContain("supplier.shopping_request.edit:update");
     expect(serialized).toContain("supplier.goods_purchase.approve:update");
+  });
+
+  it("guides payment and all unit prices through receipt approval", () => {
+    const shopping = JSON.stringify(FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 19));
+    const inbound = JSON.stringify(FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 18));
+    expect(shopping).toContain("tercentang secara default");
+    expect(shopping).toContain("penerimaan pertama disetujui");
+    expect(inbound).toContain("seluruh satuan");
+    expect(inbound).toContain("Transfer atau Giro");
+    expect(inbound).toContain("total pembelian penuh");
   });
 });

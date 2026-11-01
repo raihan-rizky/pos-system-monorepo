@@ -14,6 +14,12 @@ export interface InboundPricingUnit {
   price: number;
   hargaAgen: number | null;
   hargaDinas: number | null;
+  isActive?: boolean;
+  conversionNeedsReview?: boolean;
+  pricingMode?: "AUTO" | "MANUAL";
+  pricingSourceProductId?: string | null;
+  pricingFactor?: { numerator: string; denominator: string } | null;
+  pricingConfigRevision?: number | null;
 }
 
 export interface InboundPricingInput {
@@ -24,12 +30,51 @@ export interface InboundPricingInput {
   hargaDinas: number | null;
 }
 
-export interface InboundPricingSnapshot extends InboundPricingInput {
+export interface InboundPricingSingleSnapshot extends InboundPricingInput {
   version: 1;
   unit: string | null;
   unitMultiplierToBase: number | null;
   orderedUnitMultiplierToBase: number;
 }
+
+export interface InboundPricingCollectionInput {
+  version: 2;
+  units: Array<InboundPricingInput & {
+    priceEdited?: boolean;
+    baseline?: {
+      unit: string;
+      unitMultiplierToBase: number;
+      costPrice: number | null;
+      price: number;
+      hargaAgen: number | null;
+      hargaDinas: number | null;
+      pricingMode: "AUTO" | "MANUAL";
+      pricingSourceProductId: string | null;
+      pricingConfigRevision: number | null;
+    };
+  }>;
+}
+
+export type InboundPricingPayload = InboundPricingInput | InboundPricingCollectionInput;
+
+export interface InboundPricingCollectionUnit extends InboundPricingInput {
+  productId: string;
+  unit: string;
+  unitMultiplierToBase: number;
+  priceEdited: boolean;
+  original: Omit<InboundPricingInput, "productId">;
+  pricingMode: "AUTO" | "MANUAL";
+  pricingSourceProductId: string | null;
+  pricingConfigRevision: number | null;
+}
+
+export interface InboundPricingCollectionSnapshot {
+  version: 2;
+  orderedUnitMultiplierToBase: number;
+  units: InboundPricingCollectionUnit[];
+}
+
+export type InboundPricingSnapshot = InboundPricingSingleSnapshot | InboundPricingCollectionSnapshot;
 
 export interface InventoryManagementUser {
   id: string;
@@ -164,6 +209,7 @@ export interface InboundReceiptStockBundleResult {
 
 export interface LockedSubmittedInboundReceiptLine {
   id: string;
+  updatedAt?: Date;
   productId: string;
   status: InboundReceiptLineStatus;
   expectedQuantity: number;
@@ -197,6 +243,8 @@ export interface LockedSubmittedInboundReceipt {
   storeId: string;
   status: "SUBMITTED";
   goodsPurchaseId: string | null;
+  paymentMethod?: "TRANSFER" | "GIRO" | null;
+  paymentDueDate?: Date | null;
   goodsPurchaseNumber: string | null;
   stockBundleId: string | null;
   supplierId: string | null;
@@ -264,6 +312,8 @@ export interface ReceivingQueueRepositoryRow {
   shoppingRequestName?: string | null;
   supplierId: string | null;
   supplierName: string;
+  paymentMethod?: "TRANSFER" | "GIRO" | null;
+  paymentDueDate?: string | null;
   fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
   itemId: string;
   productId: string;
@@ -271,6 +321,7 @@ export interface ReceivingQueueRepositoryRow {
   sku: string;
   unit: string | null;
   currentCostPrice: number | null;
+  suggestedCostPrice?: number | null;
   pricingUnits?: InboundPricingUnit[];
   orderedQuantity: number;
   approvedReceivedQuantity: number;
@@ -302,6 +353,8 @@ export interface ReceivingQueuePurchase {
   shoppingRequestName?: string | null;
   supplierId: string | null;
   supplierName: string;
+  paymentMethod?: "TRANSFER" | "GIRO" | null;
+  paymentDueDate?: string | null;
   fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
   pendingReceiptCount: number;
   items: ReceivingQueuePurchaseItem[];
@@ -314,6 +367,7 @@ export interface ReceivingQueuePurchaseItem {
   sku: string;
   unit: string | null;
   currentCostPrice: number | null;
+  suggestedCostPrice?: number | null;
   pricingUnits: InboundPricingUnit[];
   orderedQuantity: number;
   approvedReceivedQuantity: number;
@@ -365,6 +419,17 @@ export interface InboundReceiptForEdit {
 }
 
 export interface InventoryInboundReceiptRepository {
+  settleGoodsPurchasePayment(
+    tx: unknown,
+    input: {
+      storeId: string;
+      goodsPurchaseId: string;
+      paymentMethod: "TRANSFER" | "GIRO" | null;
+      paymentDueDate: Date | null;
+      actor: { id: string; name?: string | null };
+      now: Date;
+    },
+  ): Promise<void>;
   runInTransaction<T>(callback: (tx: unknown) => Promise<T>): Promise<T>;
   findReceiptForApproval(
     tx: unknown,

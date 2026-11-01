@@ -54,10 +54,10 @@ Penerimaan Barang selalu dimulai dari **Pembelian Barang yang sudah APPROVED**, 
 
 1. Buka **Transaksi > Penerimaan Barang**, klik **Terima barang**, lalu **Pilih Pembelian Barang**.
 2. Periksa jumlah dipesan, jumlah yang sudah diterima, qty pada penerimaan lain yang masih PENDING, dan sisa pesanan. Pembelian berstatus **BARANG DITERIMA SEBAGIAN** dapat dipilih lagi hanya untuk sisa tersebut.
-3. Pada setiap produk, pilih **Sesuai** atau **Tidak Sesuai** dan isi jumlah diterima. Qty tidak boleh melebihi sisa pesanan. Catatan wajib jika jumlah berbeda dari jumlah dipesan yang tersedia; bila sama, catatan opsional.
-4. Klik **Ajukan ke Owner**. Pengajuan masuk riwayat dengan status PENDING dan belum mengubah stok.
+3. Pada setiap produk, pilih **Sesuai** atau **Tidak Sesuai**, isi jumlah diterima, dan periksa seluruh satuan beserta HPP dan harga jual. Harga untuk barang Tidak Sesuai bersifat opsional. Qty tidak boleh melebihi sisa pesanan; catatan wajib jika jumlah berbeda.
+4. Pilih Transfer atau Giro dan isi tanggal jatuh tempo untuk Giro bila pembayaran belum ditetapkan, lalu klik **Ajukan ke Owner**. Pengajuan masuk riwayat dengan status PENDING dan belum mengubah stok. Metode yang ditetapkan pada penerimaan pertama berlaku untuk penerimaan berikutnya.
 5. Approver memproses tiap produk: status kesesuaian masih dapat diedit, begitu juga qty dan catatan; produk juga dapat dihapus. Dokumen tetap PENDING selama ada produk **Belum Ada Aksi**. Penolakan berlaku untuk seluruh dokumen dan membutuhkan alasan.
-6. Setelah semua produk disetujui, penerimaan otomatis APPROVED. Stok bertambah secara atomik sesuai qty final. Pada mode **stok bersama**, stok canonical dan seluruh variannya ikut berubah dan dicatat sebagai satu **bundle** di Log Stok.
+6. Setelah semua produk disetujui, penerimaan otomatis APPROVED dan stok bertambah sesuai qty final. Untuk Daftar Belanja baru, penerimaan pertama mencatat satu Pengeluaran sebesar total pembelian penuh, termasuk penerimaan sebagian. Pada mode **stok bersama**, stok canonical dan seluruh variannya dicatat sebagai satu **bundle** di Log Stok.
 
 Daftar Log Stok memakai nama supplier sebagai judul penerimaan. Nomor **PB-...** hanya muncul di detail bundle. Di halaman Supplier, tombol **Barang Sudah Diterima?** membuka modal yang sama dengan PB sudah terpilih, sedangkan **Lihat Riwayat Penerimaan Barang** membuka riwayat terfilter. Klik Pembelian Barang berstatus **BARANG DITERIMA SEBAGIAN** atau **BARANG DITERIMA** untuk melihat perbandingan jumlah dipesan, diterima, pending, dan sisa.
 

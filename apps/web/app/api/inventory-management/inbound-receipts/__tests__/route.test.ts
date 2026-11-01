@@ -77,6 +77,9 @@ describe("/api/inventory-management/inbound-receipts", () => {
   });
 
   it("creates and submits a goods purchase receipt through the service", async () => {
+    const pricing = { version: 2, units: [{ productId: "pcs", costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null,
+      baseline: { unit: "pcs", unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null,
+        pricingMode: "MANUAL", pricingSourceProductId: null, pricingConfigRevision: null } }] };
     const response = await POST(
       new Request("http://localhost/api/inventory-management/inbound-receipts", {
         method: "POST",
@@ -88,6 +91,7 @@ describe("/api/inventory-management/inbound-receipts", () => {
               goodsPurchaseItemId: "gpi-1",
               matchStatus: "MATCHED",
               receivedQuantity: 8,
+              pricing,
             },
           ],
         }),
@@ -111,6 +115,7 @@ describe("/api/inventory-management/inbound-receipts", () => {
               goodsPurchaseItemId: "gpi-1",
               matchStatus: "MATCHED",
               receivedQuantity: 8,
+              pricing,
             },
           ],
         },
@@ -121,41 +126,31 @@ describe("/api/inventory-management/inbound-receipts", () => {
     expect(body.data.status).toBe("SUBMITTED");
   });
 
-  it("accepts and forwards pricing for the selected unit", async () => {
-    const pricing = { productId: "unit-1", costPrice: 100, price: 150, hargaAgen: 140, hargaDinas: 130 };
-    const line = { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 8, pricing };
-    const response = await POST(new Request("http://localhost/api/inventory-management/inbound-receipts", {
-      method: "POST", body: JSON.stringify({ goodsPurchaseId: "gp-1", lines: [line] }),
-    }));
-
+  it("passes the payment proposal and all-unit pricing to the service", async () => {
+    const pricing = { version: 2, units: [
+      { productId: "pcs", costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null, priceEdited: false,
+        baseline: { unit: "pcs", unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null, pricingMode: "MANUAL", pricingSourceProductId: null, pricingConfigRevision: null } },
+      { productId: "box", costPrice: 1200, price: 1800, hargaAgen: 1700, hargaDinas: null, priceEdited: true,
+        baseline: { unit: "box", unitMultiplierToBase: 12, costPrice: 1200, price: 1800, hargaAgen: 1700, hargaDinas: null, pricingMode: "MANUAL", pricingSourceProductId: null, pricingConfigRevision: null } },
+    ] };
+    const response = await POST(new Request("http://localhost/api/inventory-management/inbound-receipts", { method: "POST", body: JSON.stringify({
+      goodsPurchaseId: "gp-1", paymentMethod: "GIRO", paymentDueDate: "2026-11-02",
+      lines: [{ goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 8, pricing }],
+    }) }));
     expect(response.status).toBe(201);
-    expect(createAndSubmitGoodsPurchaseReceiptMock).toHaveBeenCalledWith(expect.objectContaining({
-      input: { goodsPurchaseId: "gp-1", lines: [line] },
-    }));
-  });
-
-  it("accepts omitted optional mismatch prices as null", async () => {
-    const response = await POST(new Request("http://localhost/api/inventory-management/inbound-receipts", {
-      method: "POST", body: JSON.stringify({ goodsPurchaseId: "gp-1", lines: [
-        { goodsPurchaseItemId: "gpi-1", matchStatus: "MISMATCHED", receivedQuantity: 0, pricing: {} },
-      ] }),
-    }));
-
-    expect(response.status).toBe(201);
-    expect(createAndSubmitGoodsPurchaseReceiptMock.mock.calls[0][0].input.lines[0].pricing).toEqual({
-      productId: null, costPrice: null, price: null, hargaAgen: null, hargaDinas: null,
-    });
+    expect(createAndSubmitGoodsPurchaseReceiptMock).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({
+      paymentMethod: "GIRO", paymentDueDate: "2026-11-02", lines: [expect.objectContaining({ pricing })],
+    }) }));
   });
 
   it.each([
-    { productId: "unit-1", costPrice: -1 },
-    { productId: "unit-1", price: 10_000_000_000 },
-    { productId: "unit-1", unexpected: 1 },
-  ])("rejects malformed pricing before calling the service: %o", async (pricing) => {
+    { productId: "pcs", costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null },
+    undefined,
+    { version: 2, units: [{ productId: "pcs", costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null }] },
+  ])("rejects a new submission without an all-unit pricing baseline", async (pricing) => {
     const response = await POST(new Request("http://localhost/api/inventory-management/inbound-receipts", {
-      method: "POST", body: JSON.stringify({ goodsPurchaseId: "gp-1", lines: [
-        { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 8, pricing },
-      ] }),
+      method: "POST", body: JSON.stringify({ goodsPurchaseId: "gp-1", paymentMethod: "TRANSFER",
+        lines: [{ goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 8, pricing }] }),
     }));
     expect(response.status).toBe(422);
     expect(createAndSubmitGoodsPurchaseReceiptMock).not.toHaveBeenCalled();

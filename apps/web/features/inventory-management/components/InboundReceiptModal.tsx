@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "@pos/ui";
 import { AlertCircle, Loader2, CheckCircle2, PackageCheck, Clock3 } from "lucide-react";
+import { decimalToRatio, divideRatios, multiplyRatios, roundMoney } from "@/features/product-stock-groups/automatic-pricing";
 import {
   createInboundReceipt,
   fetchReceivingQueue,
@@ -19,8 +20,9 @@ import type {
 } from "../types/inventory-management";
 import {
   InboundPricingFields,
-  inboundPricingInputFromDraft,
-  isInboundPricingDraftValid,
+  inboundPricingInputFromDrafts,
+  isInboundPricingDraftsValid,
+  isUsablePricingUnit,
   pricingDraftForUnit,
   type InboundPricingDraft,
 } from "./InboundPricingFields";
@@ -37,7 +39,7 @@ type LineInput = {
   matchStatus: InboundReceiptMatchStatus;
   receivedQuantity: string;
   supplierCostPrice: string;
-  pricing: InboundPricingDraft;
+  pricing: InboundPricingDraft[];
   note: string;
 };
 
@@ -45,9 +47,92 @@ const EMPTY_LINE_INPUT: LineInput = {
   matchStatus: "MATCHED",
   receivedQuantity: "",
   supplierCostPrice: "",
-  pricing: pricingDraftForUnit(),
+  pricing: [],
   note: "",
 };
+
+function suggestedPricingDrafts(items: ReceivingQueuePurchaseItem[], suggestedItems: ReceivingQueuePurchaseItem[]): {
+  drafts: Record<string, InboundPricingDraft>;
+  conflicts: string[];
+} {
+  const units = new Map(items.flatMap((item) => item.pricingUnits.map((unit) => [unit.productId, unit] as const)));
+  const drafts = Object.fromEntries([...units.values()].map((unit) => [unit.productId, pricingDraftForUnit(unit)]));
+  const suggestions = new Map<string, string>();
+  const conflicts = new Set<string>();
+  for (const item of suggestedItems) {
+    if (item.suggestedCostPrice == null) continue;
+    const ordered = units.get(item.productId);
+    if (!ordered || !isUsablePricingUnit(ordered)) continue;
+    const sourceId = ordered.pricingMode === "AUTO" && ordered.pricingSourceProductId
+      ? ordered.pricingSourceProductId : ordered.productId;
+    const source = units.get(sourceId);
+    if (!source || !isUsablePricingUnit(source)) {
+      conflicts.add(sourceId);
+      continue;
+    }
+    try {
+      const suggested = roundMoney(multiplyRatios(decimalToRatio(item.suggestedCostPrice),
+        divideRatios(decimalToRatio(source.unitMultiplierToBase), decimalToRatio(ordered.unitMultiplierToBase))));
+      const representedCost = roundMoney(multiplyRatios(decimalToRatio(suggested),
+        divideRatios(decimalToRatio(ordered.unitMultiplierToBase), decimalToRatio(source.unitMultiplierToBase))));
+      if (representedCost !== roundMoney(decimalToRatio(item.suggestedCostPrice))) conflicts.add(sourceId);
+      if (suggestions.has(sourceId) && suggestions.get(sourceId) !== suggested) conflicts.add(sourceId);
+      else suggestions.set(sourceId, suggested);
+    } catch {
+      conflicts.add(sourceId);
+    }
+  }
+  for (const [sourceId, cost] of suggestions) {
+    const source = units.get(sourceId)!;
+    drafts[sourceId] = { ...drafts[sourceId], costPrice: String(Number(cost)) };
+    for (const follower of units.values()) {
+      if (follower.productId === sourceId || follower.pricingMode !== "AUTO" ||
+        follower.pricingSourceProductId !== sourceId || !isUsablePricingUnit(follower)) continue;
+      try {
+        const converted = roundMoney(multiplyRatios(decimalToRatio(cost),
+          divideRatios(decimalToRatio(follower.unitMultiplierToBase), decimalToRatio(source.unitMultiplierToBase))));
+        drafts[follower.productId] = { ...drafts[follower.productId], costPrice: String(Number(converted)) };
+      } catch {
+        conflicts.add(sourceId);
+      }
+    }
+  }
+  return { drafts, conflicts: [...conflicts] };
+}
+
+export function getInboundReceiptPricingDrafts(
+  items: ReceivingQueuePurchaseItem[],
+  lineInputs: Record<string, Pick<LineInput, "matchStatus" | "receivedQuantity">>,
+  overrides: Record<string, InboundPricingDraft>,
+): { byItem: Record<string, Record<string, InboundPricingDraft>>; conflicts: string[] } {
+  const activeItems = items.filter((item) => {
+    const line = lineInputs[item.goodsPurchaseItemId];
+    return (!line || line.matchStatus === "MATCHED") &&
+      Boolean(line?.receivedQuantity.trim()) && Number(line?.receivedQuantity) > 0;
+  });
+  const activeIds = new Set(activeItems.map((item) => item.goodsPurchaseItemId));
+  const active = suggestedPricingDrafts(items, activeItems);
+  const units = new Map(items.flatMap((item) => item.pricingUnits.map((unit) => [unit.productId, unit] as const)));
+  const conflicts = new Set(active.conflicts);
+  const byItem: Record<string, Record<string, InboundPricingDraft>> = {};
+
+  for (const item of items) {
+    const suggestion = !activeIds.has(item.goodsPurchaseItemId) && item.suggestedCostPrice != null
+      ? suggestedPricingDrafts(items, [item]) : active;
+    suggestion.conflicts.forEach((productId) => conflicts.add(productId));
+    const drafts = { ...suggestion.drafts };
+    for (const [productId, draft] of Object.entries(overrides)) {
+      const sourceId = units.get(productId)?.pricingSourceProductId;
+      const costEdited = draft.costEdited || (sourceId && overrides[sourceId]?.costEdited);
+      drafts[productId] = {
+        ...draft,
+        costPrice: costEdited ? draft.costPrice : suggestion.drafts[productId]?.costPrice ?? draft.costPrice,
+      };
+    }
+    byItem[item.goodsPurchaseItemId] = drafts;
+  }
+  return { byItem, conflicts: [...conflicts].filter((productId) => !overrides[productId]?.costEdited) };
+}
 
 function hasAvailableItem(purchase: ReceivingQueuePurchase): boolean {
   return purchase.items.some((item) => item.availableQuantity > 1e-9);
@@ -107,17 +192,19 @@ export function getInboundReceiptLineInput(input: {
   currentCostPrice: number | null;
   productId?: string;
   pricingUnits?: InboundPricingUnit[];
+  pricingDrafts?: Record<string, InboundPricingDraft>;
 }): LineInput {
-  return (
+  const line = (
     input.lineInputs[input.itemId] ?? {
       ...EMPTY_LINE_INPUT,
       supplierCostPrice:
         input.currentCostPrice === null
           ? ""
           : String(input.currentCostPrice),
-      pricing: pricingDraftForUnit(input.pricingUnits?.find((unit) => unit.productId === input.productId)),
+      pricing: [],
     }
   );
+  return { ...line, pricing: (input.pricingUnits ?? []).map((unit) => input.pricingDrafts?.[unit.productId] ?? pricingDraftForUnit(unit)) };
 }
 
 export function isInboundReceiptCostValid(input: {
@@ -150,7 +237,10 @@ export function InboundReceiptModal({
     initialGoodsPurchaseId ?? "",
   );
   const [lineInputs, setLineInputs] = useState<Record<string, LineInput>>({});
+  const [pricingDrafts, setPricingDrafts] = useState<Record<string, InboundPricingDraft>>({});
   const [note, setNote] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"TRANSFER" | "GIRO">("TRANSFER");
+  const [paymentDueDate, setPaymentDueDate] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -206,6 +296,8 @@ export function InboundReceiptModal({
   const visibleItems =
     selectedPurchase?.items.filter((item) => item.availableQuantity > 1e-9) ??
     [];
+  const pricingState = getInboundReceiptPricingDrafts(visibleItems, lineInputs, pricingDrafts);
+  const unresolvedHpp = pricingState.conflicts.length > 0;
   const allLinesValid =
     visibleItems.length > 0 &&
     visibleItems.every((item) => {
@@ -215,12 +307,15 @@ export function InboundReceiptModal({
         currentCostPrice: item.currentCostPrice,
         productId: item.productId,
         pricingUnits: item.pricingUnits,
+        pricingDrafts: pricingState.byItem[item.goodsPurchaseItemId],
       });
       return (
         isInboundReceiptLineValid({
           availableQuantity: item.availableQuantity,
           line,
-        }) && isInboundPricingDraftValid(line.pricing, line.matchStatus === "MATCHED", item.pricingUnits)
+        }) && isInboundPricingDraftsValid(item.pricingUnits, line.pricing, line.matchStatus === "MATCHED" && Number(line.receivedQuantity) > 0) &&
+        (Number(line.receivedQuantity) <= 0 ||
+          item.pricingUnits.some((unit) => unit.productId === item.productId && isUsablePricingUnit(unit)))
       );
     });
   const canSubmit = Boolean(selectedPurchase) && !isLoading && !isSubmitting;
@@ -229,6 +324,9 @@ export function InboundReceiptModal({
     item: ReceivingQueuePurchaseItem,
     patch: Partial<LineInput>,
   ) => {
+    if (patch.pricing) {
+      setPricingDrafts((current) => ({ ...current, ...Object.fromEntries(patch.pricing!.map((draft) => [draft.productId, draft])) }));
+    }
     setLineInputs((current) => ({
       ...current,
       [item.goodsPurchaseItemId]: {
@@ -238,6 +336,7 @@ export function InboundReceiptModal({
           currentCostPrice: item.currentCostPrice,
           productId: item.productId,
           pricingUnits: item.pricingUnits,
+          pricingDrafts: pricingState.byItem[item.goodsPurchaseItemId],
         }),
         ...patch,
       },
@@ -247,7 +346,10 @@ export function InboundReceiptModal({
 
   const selectPurchase = (purchaseId: string) => {
     setGoodsPurchaseId(purchaseId);
+    setPaymentMethod("TRANSFER");
+    setPaymentDueDate("");
     setLineInputs({});
+    setPricingDrafts({});
     setError(null);
   };
 
@@ -261,34 +363,29 @@ export function InboundReceiptModal({
       setError("Pembelian Barang ini tidak memiliki produk yang bisa diterima.");
       return;
     }
+    const selectedMethod = selectedPurchase.paymentMethod ?? paymentMethod;
+    const selectedDueDate = selectedPurchase.paymentMethod ? selectedPurchase.paymentDueDate ?? "" : paymentDueDate;
+    if (selectedMethod === "GIRO" && !selectedDueDate) {
+      setError("Isi tanggal jatuh tempo giro.");
+      return;
+    }
+    if (unresolvedHpp) {
+      setError("Harga beli untuk satuan acuan berbeda, belum tersedia, atau tidak dapat dikonversi tepat. Periksa dan isi HPP acuannya; jika satuan acuan tidak aktif atau konversinya bermasalah, perbaiki data produk terlebih dahulu.");
+      return;
+    }
     if (!allLinesValid) {
       setError(
         "Lengkapi jumlah, satuan, dan harga produk yang sesuai. Catatan wajib diisi jika jumlah berbeda dari sisa pesanan.",
       );
       return;
     }
-    const priceUnits = visibleItems.flatMap((item) => {
-      const line = getInboundReceiptLineInput({
-        lineInputs,
-        itemId: item.goodsPurchaseItemId,
-        currentCostPrice: item.currentCostPrice,
-        productId: item.productId,
-        pricingUnits: item.pricingUnits,
-      });
-      return line.matchStatus === "MATCHED" && line.pricing.productId
-        ? [line.pricing.productId]
-        : [];
-    });
-    if (new Set(priceUnits).size !== priceUnits.length) {
-      setError("Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.");
-      return;
-    }
-
     setIsSubmitting(true);
     setError(null);
     try {
       await createInboundReceipt({
         goodsPurchaseId: selectedPurchase.id,
+        paymentMethod: selectedMethod,
+        paymentDueDate: selectedMethod === "GIRO" ? selectedDueDate : null,
         note: note.trim() || null,
         lines: visibleItems.map((item) => {
           const input = getInboundReceiptLineInput({
@@ -297,18 +394,32 @@ export function InboundReceiptModal({
             currentCostPrice: item.currentCostPrice,
             productId: item.productId,
             pricingUnits: item.pricingUnits,
+            pricingDrafts: pricingState.byItem[item.goodsPurchaseItemId],
           });
+          const pricing = inboundPricingInputFromDrafts(item.pricingUnits, input.pricing);
           return {
             goodsPurchaseItemId: item.goodsPurchaseItemId,
             matchStatus: input.matchStatus,
             receivedQuantity: Number(input.receivedQuantity),
-            pricing: inboundPricingInputFromDraft(input.pricing),
+            pricing: {
+              ...pricing,
+              units: pricing.units.map((proposal) => {
+                const unit = item.pricingUnits.find((candidate) => candidate.productId === proposal.productId)!;
+                return { ...proposal, baseline: {
+                  unit: unit.unit, unitMultiplierToBase: unit.unitMultiplierToBase,
+                  costPrice: unit.costPrice, price: unit.price, hargaAgen: unit.hargaAgen, hargaDinas: unit.hargaDinas,
+                  pricingMode: unit.pricingMode ?? "MANUAL", pricingSourceProductId: unit.pricingSourceProductId ?? null,
+                  pricingConfigRevision: unit.pricingConfigRevision ?? null,
+                } };
+              }),
+            },
             note: input.note.trim() || null,
           };
         }),
       });
       onSuccess("Penerimaan barang berhasil diajukan ke owner.");
       setLineInputs({});
+      setPricingDrafts({});
       setNote("");
       setReceivingQueue(null);
       setGoodsPurchaseId(initialGoodsPurchaseId ?? "");
@@ -432,6 +543,7 @@ export function InboundReceiptModal({
                 currentCostPrice: item.currentCostPrice,
                 productId: item.productId,
                 pricingUnits: item.pricingUnits,
+                pricingDrafts: pricingState.byItem[item.goodsPurchaseItemId],
               })}
               onChange={(patch) =>
                 updateLine(
@@ -442,6 +554,27 @@ export function InboundReceiptModal({
             />
           ))}
         </section>
+
+        {selectedPurchase && <fieldset className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <legend className="px-1 text-xs font-bold text-slate-700">Pembayaran Pembelian</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-bold text-slate-600">Metode Pembayaran
+              <select name="paymentMethod" value={selectedPurchase.paymentMethod ?? paymentMethod}
+                disabled={Boolean(selectedPurchase.paymentMethod) || isSubmitting}
+                onChange={(event) => { setPaymentMethod(event.target.value as "TRANSFER" | "GIRO"); setPaymentDueDate(""); setError(null); }}
+                className="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100">
+                <option value="TRANSFER">Transfer</option>
+                <option value="GIRO">Giro</option>
+              </select>
+            </label>
+            {(selectedPurchase.paymentMethod ?? paymentMethod) === "GIRO" && <label className="text-xs font-bold text-slate-600">Tanggal Jatuh Tempo
+              <input type="date" name="paymentDueDate" required value={selectedPurchase.paymentMethod ? selectedPurchase.paymentDueDate ?? "" : paymentDueDate}
+                disabled={Boolean(selectedPurchase.paymentMethod) || isSubmitting} onChange={(event) => { setPaymentDueDate(event.target.value); setError(null); }}
+                className="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100" />
+            </label>}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Pengeluaran pembelian dicatat saat penerimaan pertama disetujui.</p>
+        </fieldset>}
 
         <label className="block text-xs font-bold text-slate-600">
           Catatan Penerimaan
@@ -578,9 +711,10 @@ function InboundReceiptLine({
         units={item.pricingUnits}
         value={input.pricing}
         onChange={(pricing) => onChange({ pricing })}
-        required={input.matchStatus === "MATCHED"}
+        required={input.matchStatus === "MATCHED" && receivedQuantity > 0}
         namePrefix={`inboundLines.${item.goodsPurchaseItemId}.pricing`}
       />
+      {item.suggestedCostPrice != null && <p className="mt-2 text-xs text-slate-600">HPP disarankan dari harga beli. Perubahan diterapkan setelah penerimaan disetujui.</p>}
     </article>
   );
 }

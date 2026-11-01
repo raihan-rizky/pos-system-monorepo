@@ -16,12 +16,15 @@ import type {
   InboundReceiptStatus,
   InventoryInboundReceiptRepository,
   InventoryManagementUser,
-  InboundPricingInput,
+  InboundPricingPayload,
+  InboundPricingCollectionInput,
   InboundPricingSnapshot,
   InboundPricingUnit,
+  LockedSubmittedInboundReceiptLine,
   ReceivingQueueResult,
 } from "../types/inventory-management";
-import { createInboundPricingSnapshot, inboundCostForOrderedUnit, inboundPricingReference } from "../helpers/inbound-pricing";
+import { createInboundPricingCollectionSnapshot, createInboundPricingSnapshot, inboundCostForOrderedUnit, inboundPricingReference } from "../helpers/inbound-pricing";
+import { shoppingRequestPaymentSchema } from "@/features/suppliers/shopping-requests/helpers/shopping-request-payment";
 import {
   finalizeInboundReceiptIfReady,
   InboundReceiptFinalizationError,
@@ -44,19 +47,54 @@ export class InventoryManagementError extends Error {
   }
 }
 
-function validateInboundReferenceCosts(
-  entries: Array<{ pricing: InboundPricingInput | null | undefined; units: InboundPricingUnit[] | undefined }>,
-  focusProductId?: string,
-): void {
-  const costs = new Map<string, string>();
-  for (const entry of entries) {
-    const reference = inboundPricingReference(entry.pricing, entry.units);
-    if (!reference || (focusProductId && reference.productId !== focusProductId)) continue;
-    const previous = costs.get(reference.productId);
-    if (previous !== undefined && previous !== reference.costPrice) {
-      throw new InventoryManagementError("VALIDATION_ERROR", `HPP acuan ${reference.unit} berbeda antar satuan. Periksa HPP pada produk terkait.`, 422);
+function isCollectionPricing(value: InboundPricingPayload | null | undefined): value is InboundPricingCollectionInput {
+  return Boolean(value && "version" in value && value.version === 2);
+}
+
+function requireUnchangedReceiptPricing(line: LockedSubmittedInboundReceiptLine): void {
+  const snapshot = line.pricingSnapshot;
+  if (snapshot?.version !== 2) return;
+
+  const units = line.pricingUnits.filter((unit) => unit.isActive !== false &&
+    !unit.conversionNeedsReview && Number.isFinite(unit.unitMultiplierToBase) && unit.unitMultiplierToBase > 0);
+  const unchanged = snapshot.orderedUnitMultiplierToBase === line.unitMultiplierToBase &&
+    snapshot.units.length === units.length && snapshot.units.every((saved) => {
+      const current = units.find((unit) => unit.productId === saved.productId);
+      return current && current.unit === saved.unit && current.unitMultiplierToBase === saved.unitMultiplierToBase &&
+        current.costPrice === saved.original.costPrice && current.price === saved.original.price &&
+        current.hargaAgen === saved.original.hargaAgen && current.hargaDinas === saved.original.hargaDinas &&
+        (current.pricingMode ?? "MANUAL") === saved.pricingMode &&
+        (current.pricingSourceProductId ?? null) === saved.pricingSourceProductId &&
+        (current.pricingConfigRevision ?? null) === saved.pricingConfigRevision;
+    });
+  if (!unchanged) {
+    throw new InventoryManagementError(
+      "CONFLICT",
+      "Harga atau satuan produk berubah. Tolak penerimaan ini dan buat kembali untuk memeriksa data terbaru.",
+      409,
+    );
+  }
+}
+
+function requireCurrentSubmissionPricing(pricing: InboundPricingCollectionInput, units: InboundPricingUnit[]): void {
+  for (const proposal of pricing.units) {
+    const current = units.find((unit) => unit.productId === proposal.productId);
+    const baseline = proposal.baseline;
+    if (!current || !baseline || current.unit !== baseline.unit ||
+      current.unitMultiplierToBase !== baseline.unitMultiplierToBase || current.costPrice !== baseline.costPrice ||
+      current.price !== baseline.price || current.hargaAgen !== baseline.hargaAgen || current.hargaDinas !== baseline.hargaDinas ||
+      (current.pricingMode ?? "MANUAL") !== baseline.pricingMode ||
+      (current.pricingSourceProductId ?? null) !== baseline.pricingSourceProductId ||
+      (current.pricingConfigRevision ?? null) !== baseline.pricingConfigRevision) {
+      throw new InventoryManagementError("CONFLICT", "Harga atau satuan produk berubah. Muat ulang dan periksa kembali sebelum mengajukan.", 409);
     }
-    costs.set(reference.productId, reference.costPrice);
+  }
+}
+
+function requireCurrentReceiptLine(line: LockedSubmittedInboundReceiptLine, expectedUpdatedAt?: string): void {
+  if (line.pricingSnapshot?.version !== 2) return;
+  if (!expectedUpdatedAt || !line.updatedAt || line.updatedAt.toISOString() !== expectedUpdatedAt) {
+    throw new InventoryManagementError("CONFLICT", "Produk penerimaan sudah berubah. Muat ulang halaman dan periksa data terbaru.", 409);
   }
 }
 
@@ -72,6 +110,7 @@ interface RejectInboundReceiptInput extends InboundReceiptServiceInput {
 
 interface InboundReceiptItemServiceInput extends InboundReceiptServiceInput {
   itemId: string;
+  expectedUpdatedAt?: string;
 }
 
 interface EditInboundReceiptItemInput extends InboundReceiptItemServiceInput {
@@ -79,7 +118,7 @@ interface EditInboundReceiptItemInput extends InboundReceiptItemServiceInput {
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
     supplierCostPrice?: number | null;
-    pricing?: InboundPricingInput | null;
+    pricing?: InboundPricingPayload | null;
     note?: string | null;
   };
 }
@@ -137,6 +176,8 @@ interface GoodsPurchaseForReceipt {
   shoppingRequestId: string;
   supplierId: string | null;
   supplierNameSnapshot: string;
+  paymentMethod?: "TRANSFER" | "GIRO" | null;
+  paymentDueDate?: Date | null;
   items: Array<{
     id: string;
     shoppingRequestItemId: string | null;
@@ -194,6 +235,8 @@ interface GoodsPurchaseReceiptRepository
       goodsPurchaseId: string;
       shoppingRequestId: string;
       supplierId: string | null;
+      paymentMethod: "TRANSFER" | "GIRO";
+      paymentDueDate: Date | null;
       submittedBy: string;
       submittedAt: Date;
       note: string | null;
@@ -207,13 +250,15 @@ export interface CreateGoodsPurchaseReceiptServiceInput {
   user: InventoryManagementUser & { name?: string | null };
   input: {
     goodsPurchaseId: string;
+    paymentMethod?: "TRANSFER" | "GIRO";
+    paymentDueDate?: string | null;
     note?: string | null;
     lines: Array<{
       goodsPurchaseItemId: string;
       matchStatus: InboundReceiptMatchStatus;
       receivedQuantity: number;
       supplierCostPrice?: number | null;
-      pricing?: InboundPricingInput | null;
+      pricing?: InboundPricingPayload | null;
       note?: string | null;
     }>;
   };
@@ -293,6 +338,8 @@ export async function getReceivingQueue(
           shoppingRequestName: row.shoppingRequestName ?? null,
           supplierId: row.supplierId,
           supplierName: row.supplierName,
+          paymentMethod: row.paymentMethod ?? null,
+          paymentDueDate: row.paymentDueDate ?? null,
           fulfillmentStatus: row.fulfillmentStatus,
           pendingReceiptCount: 0,
           items: [],
@@ -312,6 +359,7 @@ export async function getReceivingQueue(
       sku: row.sku,
       unit: row.unit,
       currentCostPrice: row.currentCostPrice,
+      suggestedCostPrice: row.suggestedCostPrice ?? null,
       pricingUnits: row.pricingUnits ?? [],
       ...availability,
     });
@@ -577,6 +625,7 @@ export async function approveInboundReceiptItem(
           404,
         );
       }
+      requireCurrentReceiptLine(line, input.expectedUpdatedAt);
       if (!line.goodsPurchaseItem) {
         throw new InventoryManagementError(
           "CONFLICT",
@@ -693,6 +742,7 @@ export async function editInboundReceiptItem(
           404,
         );
       }
+      requireCurrentReceiptLine(line, input.expectedUpdatedAt);
       if (!line.goodsPurchaseItem) {
         throw new InventoryManagementError(
           "CONFLICT",
@@ -702,6 +752,11 @@ export async function editInboundReceiptItem(
       }
 
       const note = input.input.note?.trim() || null;
+      requireUnchangedReceiptPricing(line);
+      if (line.pricingSnapshot && input.input.pricing !== undefined &&
+        (line.pricingSnapshot.version === 2) !== isCollectionPricing(input.input.pricing)) {
+        throw new InventoryManagementError("CONFLICT", "Format harga penerimaan berubah. Muat ulang dan periksa kembali.", 409);
+      }
       if (
         requiresInboundQuantityNote(
           line.expectedQuantity,
@@ -725,13 +780,11 @@ export async function editInboundReceiptItem(
       let supplierCostPrice: number | null;
       if (line.pricingSnapshot) {
         try {
-          pricingSnapshot = createInboundPricingSnapshot(
-            input.input.pricing === undefined ? line.pricingSnapshot : input.input.pricing,
-            line.pricingUnits,
-            input.input.matchStatus === "MATCHED",
-            line.unitMultiplierToBase,
-          );
-          supplierCostPrice = inboundCostForOrderedUnit(pricingSnapshot, line.unitMultiplierToBase);
+          const proposal: InboundPricingPayload | null = input.input.pricing === undefined ? line.pricingSnapshot : input.input.pricing;
+          pricingSnapshot = isCollectionPricing(proposal)
+            ? createInboundPricingCollectionSnapshot(proposal, line.pricingUnits, input.input.matchStatus === "MATCHED" && input.input.receivedQuantity > 0, line.unitMultiplierToBase)
+            : createInboundPricingSnapshot(proposal, line.pricingUnits, input.input.matchStatus === "MATCHED" && input.input.receivedQuantity > 0, line.unitMultiplierToBase);
+          supplierCostPrice = inboundCostForOrderedUnit(pricingSnapshot, line.unitMultiplierToBase, line.productId);
         } catch (error) {
           throw new InventoryManagementError("VALIDATION_ERROR", error instanceof Error ? error.message : "Harga produk tidak valid", 422);
         }
@@ -749,19 +802,20 @@ export async function editInboundReceiptItem(
         );
       }
 
-      if (input.input.matchStatus === "MATCHED" && pricingSnapshot) {
-        const otherMatched = receipt.lines.filter((other) => other.id !== line.id && other.matchStatus === "MATCHED");
-        const duplicate = pricingSnapshot.productId && otherMatched.some((other) =>
-          other.pricingSnapshot?.productId === pricingSnapshot!.productId,
+      if (input.input.matchStatus === "MATCHED" && pricingSnapshot?.version === 1) {
+        const singlePricing = pricingSnapshot;
+        const otherMatched = receipt.lines.filter((other) => other.id !== line.id && other.matchStatus === "MATCHED" && other.pricingSnapshot?.version === 1);
+        const duplicate = singlePricing.productId && otherMatched.some((other) =>
+          other.pricingSnapshot?.version === 1 && other.pricingSnapshot.productId === singlePricing.productId,
         );
-        const unchangedUnit = line.matchStatus === "MATCHED" && line.pricingSnapshot?.productId === pricingSnapshot.productId;
+        const unchangedUnit = line.matchStatus === "MATCHED" && line.pricingSnapshot?.version === 1 && line.pricingSnapshot.productId === singlePricing.productId;
         if (duplicate && !unchangedUnit) {
           throw new InventoryManagementError("VALIDATION_ERROR", "Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.", 422);
         }
-        const focus = inboundPricingReference(pricingSnapshot, line.pricingUnits);
-        const previous = line.matchStatus === "MATCHED" ? inboundPricingReference(line.pricingSnapshot, line.pricingUnits) : null;
+        const focus = inboundPricingReference(singlePricing, line.pricingUnits);
+        const previous = line.matchStatus === "MATCHED" && line.pricingSnapshot?.version === 1 ? inboundPricingReference(line.pricingSnapshot, line.pricingUnits) : null;
         if (focus) {
-          const others = otherMatched.map((other) => inboundPricingReference(other.pricingSnapshot, other.pricingUnits))
+          const others = otherMatched.map((other) => other.pricingSnapshot?.version === 1 ? inboundPricingReference(other.pricingSnapshot, other.pricingUnits) : null)
             .filter((reference) => reference?.productId === focus.productId);
           const newConflicts = others.filter((reference) => reference?.costPrice !== focus.costPrice).length;
           const oldConflicts = previous?.productId === focus.productId
@@ -788,6 +842,38 @@ export async function editInboundReceiptItem(
         approvedByName: null,
         approvedAt: null,
       });
+
+      if (pricingSnapshot?.version === 2 && isCollectionPricing(input.input.pricing) &&
+        input.input.matchStatus === "MATCHED" && input.input.receivedQuantity > 0) {
+        const signature = (snapshot: typeof pricingSnapshot) => JSON.stringify(snapshot.units.map((unit) =>
+          [unit.productId, unit.costPrice, unit.price, unit.hargaAgen, unit.hargaDinas, unit.priceEdited]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+        const pricesChanged = line.pricingSnapshot?.version !== 2 || signature(line.pricingSnapshot) !== signature(pricingSnapshot);
+        const activating = line.receivedQuantity <= 0 || line.matchStatus !== "MATCHED";
+        const conflictingSibling = activating && receipt.lines.some((sibling) => {
+          const sameGroup = line.stockGroupId ? sibling.stockGroupId === line.stockGroupId : sibling.productId === line.productId;
+          return sibling.id !== line.id && sameGroup && sibling.receivedQuantity > 0 && sibling.matchStatus === "MATCHED" &&
+            sibling.pricingSnapshot?.version === 2 && signature(sibling.pricingSnapshot) !== signature(pricingSnapshot);
+        });
+        if (pricesChanged || conflictingSibling) {
+          for (const sibling of receipt.lines) {
+            const sameGroup = line.stockGroupId ? sibling.stockGroupId === line.stockGroupId : sibling.productId === line.productId;
+            if (sibling.id === line.id || !sameGroup || sibling.receivedQuantity <= 0 || sibling.matchStatus !== "MATCHED" || sibling.pricingSnapshot?.version !== 2) continue;
+            requireUnchangedReceiptPricing(sibling);
+            let siblingPricing;
+            try {
+              siblingPricing = createInboundPricingCollectionSnapshot(input.input.pricing, sibling.pricingUnits, sibling.matchStatus === "MATCHED" && sibling.receivedQuantity > 0, sibling.unitMultiplierToBase);
+            } catch (error) {
+              throw new InventoryManagementError("VALIDATION_ERROR", error instanceof Error ? error.message : "Harga produk tidak valid", 422);
+            }
+            await input.repository.updateReceiptLine(tx, {
+              storeId, receiptId: receipt.id, itemId: sibling.id, matchStatus: sibling.matchStatus ?? "MATCHED",
+              receivedQuantity: sibling.receivedQuantity, note: sibling.note,
+              supplierCostPrice: inboundCostForOrderedUnit(siblingPricing, sibling.unitMultiplierToBase, sibling.productId),
+              pricingSnapshot: siblingPricing, reviewStatus: "PENDING", approvedById: null, approvedByName: null, approvedAt: null,
+            });
+          }
+        }
+      }
 
       return {
         data: { id: receipt.id, status: receipt.status },
@@ -825,13 +911,15 @@ export async function removeInboundReceiptItem(
           409,
         );
       }
-      if (!receipt.lines.some((line) => line.id === input.itemId)) {
+      const line = receipt.lines.find((item) => item.id === input.itemId);
+      if (!line) {
         throw new InventoryManagementError(
           "NOT_FOUND",
           "Produk Penerimaan Barang tidak ditemukan",
           404,
         );
       }
+      requireCurrentReceiptLine(line, input.expectedUpdatedAt);
       if (receipt.lines.length <= 1) {
         throw new InventoryManagementError(
           "VALIDATION_ERROR",
@@ -1120,6 +1208,19 @@ export async function createAndSubmitGoodsPurchaseReceipt(
       );
     }
 
+    const payment = shoppingRequestPaymentSchema.safeParse({
+      paymentMethod: input.input.paymentMethod ?? purchase.paymentMethod ?? undefined,
+      paymentDueDate: input.input.paymentDueDate ?? purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null,
+    });
+    if (!payment.success) {
+      throw new InventoryManagementError("VALIDATION_ERROR", payment.error.issues[0].message, 422);
+    }
+    const purchaseDueDate = purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null;
+    if (purchase.paymentMethod && (purchase.paymentMethod !== payment.data.paymentMethod ||
+      (purchase.paymentMethod === "GIRO" && purchaseDueDate !== payment.data.paymentDueDate))) {
+      throw new InventoryManagementError("CONFLICT", "Metode pembayaran pembelian telah berubah. Muat ulang data terbaru.", 409);
+    }
+
     const availableItems = purchase.items.flatMap((item) => {
       const approvedReceivedQuantity = item.inboundReceiptLines
         .filter((line) => line.receipt.status === "APPROVED")
@@ -1212,14 +1313,18 @@ export async function createAndSubmitGoodsPurchaseReceipt(
         if (!item.pricingUnits || item.unitMultiplierToBase === undefined) {
           throw new Error("Data satuan produk belum tersedia. Muat ulang dan coba lagi.");
         }
-        pricingSnapshot = createInboundPricingSnapshot(
-          line.pricing,
-          item.pricingUnits,
-          line.matchStatus === "MATCHED",
-          item.unitMultiplierToBase,
-        );
-        supplierCostPrice = inboundCostForOrderedUnit(pricingSnapshot, item.unitMultiplierToBase);
+        if (isCollectionPricing(line.pricing)) requireCurrentSubmissionPricing(line.pricing, item.pricingUnits);
+        if (isCollectionPricing(line.pricing) && line.receivedQuantity > 0 &&
+          !item.pricingUnits.some((unit) => unit.productId === item.productId && unit.isActive !== false &&
+            !unit.conversionNeedsReview && Number.isFinite(unit.unitMultiplierToBase) && unit.unitMultiplierToBase > 0)) {
+          throw new Error("Satuan pesanan tidak aktif atau konversinya perlu ditinjau.");
+        }
+        pricingSnapshot = isCollectionPricing(line.pricing)
+          ? createInboundPricingCollectionSnapshot(line.pricing, item.pricingUnits, line.matchStatus === "MATCHED" && line.receivedQuantity > 0, item.unitMultiplierToBase)
+          : createInboundPricingSnapshot(line.pricing, item.pricingUnits, line.matchStatus === "MATCHED" && line.receivedQuantity > 0, item.unitMultiplierToBase);
+        supplierCostPrice = inboundCostForOrderedUnit(pricingSnapshot, item.unitMultiplierToBase, item.productId);
       } catch (error) {
+        if (error instanceof InventoryManagementError) throw error;
         throw new InventoryManagementError("VALIDATION_ERROR", error instanceof Error ? error.message : "Harga produk tidak valid", 422);
       }
 
@@ -1259,25 +1364,27 @@ export async function createAndSubmitGoodsPurchaseReceipt(
       };
     });
 
-    const priceUnits = lines.flatMap((line) =>
-      line.matchStatus === "MATCHED" && line.pricingSnapshot.productId
-        ? [line.pricingSnapshot.productId]
-        : [],
-    );
-    if (new Set(priceUnits).size !== priceUnits.length) {
-      throw new InventoryManagementError("VALIDATION_ERROR", "Satuan harga yang sama hanya dapat digunakan sekali dalam satu penerimaan.", 422);
+    const priceUnits = new Map<string, string>();
+    for (const line of lines) {
+      if (line.receivedQuantity <= 0 || line.matchStatus !== "MATCHED") continue;
+      const prices = line.pricingSnapshot.version === 2 ? line.pricingSnapshot.units : [line.pricingSnapshot];
+      for (const price of prices) {
+        if (!price.productId) continue;
+        const value = JSON.stringify([price.costPrice, price.price, price.hargaAgen, price.hargaDinas]);
+        if (priceUnits.has(price.productId) && priceUnits.get(price.productId) !== value) {
+          throw new InventoryManagementError("VALIDATION_ERROR", "Harga satuan yang sama berbeda pada penerimaan ini.", 422);
+        }
+        priceUnits.set(price.productId, value);
+      }
     }
-
-    validateInboundReferenceCosts(lines.filter((line) => line.matchStatus === "MATCHED").map((line) => ({
-      pricing: line.pricingSnapshot,
-      units: purchase.items.find((item) => item.id === line.goodsPurchaseItemId)?.pricingUnits,
-    })));
 
     return input.repository.createSubmittedGoodsPurchaseReceipt(tx, {
       storeId,
       goodsPurchaseId: purchase.id,
       shoppingRequestId: purchase.shoppingRequestId,
       supplierId: purchase.supplierId,
+      paymentMethod: payment.data.paymentMethod,
+      paymentDueDate: payment.data.paymentDueDate ? new Date(`${payment.data.paymentDueDate}T00:00:00.000Z`) : null,
       submittedBy: input.user.id,
       submittedAt: new Date(),
       note: input.input.note?.trim() || null,

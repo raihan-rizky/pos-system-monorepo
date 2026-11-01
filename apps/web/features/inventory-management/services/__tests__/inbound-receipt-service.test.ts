@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createInboundPricingCollectionSnapshot } from "../../helpers/inbound-pricing";
 import { InventoryInboundReceiptRepository as ConcreteInventoryInboundReceiptRepository } from "../../repositories/InventoryInboundReceiptRepository";
 import {
   InventoryManagementError,
@@ -163,6 +164,7 @@ function createRepository(
 ) {
   return {
     runInTransaction: vi.fn(async (callback) => callback({ tx: true })),
+    settleGoodsPurchasePayment: vi.fn(async () => undefined),
     findReceiptForApproval: vi.fn(async () => receipt),
     createInboundStockLog: vi.fn(async (_tx, input) => ({
       id: `log-${input.productId}`,
@@ -556,7 +558,9 @@ describe("inbound receipt service", () => {
             skuSnapshot: "KD-1",
             unitSnapshot: "dus",
             quantity: 5,
-            product: { costPrice: { toString: () => "8500.00" } },
+            product: { id: "product-1", storeId: "store-main", unit: "dus", unitMultiplierToBase: 1,
+              isActive: true, conversionNeedsReview: false, stockGroupId: null, stockGroup: null,
+              costPrice: { toString: () => "8500.00" }, price: 10_000, hargaAgen: null, hargaDinas: null },
             inboundReceiptLines: [],
           },
         ],
@@ -1500,6 +1504,21 @@ describe("inbound receipt service", () => {
     );
     expect(repository.applyProductStockDelta).not.toHaveBeenCalled();
     expect(repository.createInboundStockLog).not.toHaveBeenCalled();
+  });
+
+  it("rejects deletion when an all-unit receipt line has changed since review", async () => {
+    const repository = createRepository();
+    const current = submittedReviewReceipt();
+    vi.mocked(repository.lockSubmittedReceipt).mockResolvedValueOnce(submittedReviewReceipt({
+      lines: [{ ...current.lines[0], updatedAt: new Date("2026-10-31T12:00:00.000Z"), pricingSnapshot: { version: 2, units: [] } }, current.lines[1]],
+    }));
+
+    await expect(removeInboundReceiptItem({
+      repository,
+      user: { id: "owner-1", name: "Owner", role: "OWNER", storeId: "store-main" },
+      receiptId: "receipt-1", itemId: "line-1", expectedUpdatedAt: "2026-10-31T11:00:00.000Z",
+    })).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+    expect(repository.removeReceiptLine).not.toHaveBeenCalled();
   });
 
 
@@ -2478,28 +2497,64 @@ describe("pricing on goods purchase receipt submission", () => {
   const user = { id: "inventory-1", name: "Ira", role: "INVENTORY" as const, storeId: "store-main" };
   const firstPrice = { productId: "product-1", costPrice: 118_000, price: 150_000, hargaAgen: 140_000, hargaDinas: 130_000 };
 
+  it("persists the complete versioned unit list and retains optional empty prices", async () => {
+    const repository = createRepository();
+    await createAndSubmitGoodsPurchaseReceipt({ repository, user, input: {
+      goodsPurchaseId: "gp-1", paymentMethod: "TRANSFER", lines: [
+        { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 5, pricing: {
+          version: 2, units: [{ ...firstPrice, hargaAgen: null, hargaDinas: null, priceEdited: false, baseline: {
+            unit: "dus", unitMultiplierToBase: 1, costPrice: 115_000, price: 150_000, hargaAgen: 140_000, hargaDinas: 130_000,
+            pricingMode: "MANUAL", pricingSourceProductId: null, pricingConfigRevision: null,
+          } }],
+        } },
+        { goodsPurchaseItemId: "gpi-2", matchStatus: "MISMATCHED", receivedQuantity: 4 },
+      ],
+    } });
+    expect(repository.createSubmittedGoodsPurchaseReceipt).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ lines: [
+      expect.objectContaining({ supplierCostPrice: 118_000, pricingSnapshot: expect.objectContaining({ version: 2, units: [
+        expect.objectContaining({ productId: "product-1", hargaAgen: null, hargaDinas: null }),
+      ] }) }), expect.anything(),
+    ] }));
+  });
+
+  it("allows a receipt documenting that no goods arrived", async () => {
+    const repository = createRepository();
+    await expect(createAndSubmitGoodsPurchaseReceipt({ repository, user, input: {
+      goodsPurchaseId: "gp-1", paymentMethod: "TRANSFER", lines: [
+        { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 0, pricing: firstPrice, note: "Belum tiba" },
+        { goodsPurchaseItemId: "gpi-2", matchStatus: "MISMATCHED", receivedQuantity: 0, note: "Belum tiba" },
+      ],
+    } })).resolves.toMatchObject({ status: "SUBMITTED" });
+    expect(repository.createSubmittedGoodsPurchaseReceipt).toHaveBeenCalled();
+  });
+
+  it("stores a giro proposal on the receipt without settling it during submission", async () => {
+    const repository = createRepository();
+    await createAndSubmitGoodsPurchaseReceipt({ repository, user, input: {
+      goodsPurchaseId: "gp-1", paymentMethod: "GIRO", paymentDueDate: "2026-11-02", lines: [
+        { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 5, pricing: firstPrice },
+        { goodsPurchaseItemId: "gpi-2", matchStatus: "MISMATCHED", receivedQuantity: 4 },
+      ],
+    } });
+    expect(repository.createSubmittedGoodsPurchaseReceipt).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      paymentMethod: "GIRO", paymentDueDate: new Date("2026-11-02T00:00:00.000Z"),
+    }));
+  });
+
+  it.each([null, "2026-02-30", "tidak-valid"])("requires a valid giro due date: %s", async (paymentDueDate) => {
+    const repository = createRepository();
+    await expect(createAndSubmitGoodsPurchaseReceipt({ repository, user, input: {
+      goodsPurchaseId: "gp-1", paymentMethod: "GIRO", paymentDueDate, lines: [],
+    } })).rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("tanggal jatuh tempo") });
+    expect(repository.createSubmittedGoodsPurchaseReceipt).not.toHaveBeenCalled();
+  });
+
   it("rejects incomplete pricing on a matched line before creating a receipt", async () => {
     const repository = createRepository();
     await expect(createAndSubmitGoodsPurchaseReceipt({ repository, user, input: { goodsPurchaseId: "gp-1", lines: [
       { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 5, pricing: { ...firstPrice, hargaDinas: null } },
       { goodsPurchaseItemId: "gpi-2", matchStatus: "MISMATCHED", receivedQuantity: 4 },
     ] } })).rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("lengkapi") });
-    expect(repository.createSubmittedGoodsPurchaseReceipt).not.toHaveBeenCalled();
-  });
-
-  it("rejects conflicting source HPP values across automatic units before creating a receipt", async () => {
-    const repository = createRepository();
-    const purchase = await repository.findGoodsPurchaseForReceipt();
-    purchase.items[0].pricingUnits = [{ productId: "product-1", unit: "pcs", unitMultiplierToBase: 1, costPrice: 10, price: 15, hargaAgen: 14, hargaDinas: 13 }];
-    const automaticBox = { productId: "product-2", unit: "box", unitMultiplierToBase: 12, costPrice: 120, price: 150, hargaAgen: 140, hargaDinas: 130,
-      autoCostSource: { productId: "product-1", unit: "pcs", unitMultiplierToBase: 1 } };
-    purchase.items[1].pricingUnits = [automaticBox];
-    purchase.items[1].unitMultiplierToBase = 12;
-    repository.findGoodsPurchaseForReceipt.mockResolvedValueOnce(purchase);
-    await expect(createAndSubmitGoodsPurchaseReceipt({ repository, user, input: { goodsPurchaseId: "gp-1", lines: [
-      { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 5, pricing: { ...firstPrice, costPrice: 10 } },
-      { goodsPurchaseItemId: "gpi-2", matchStatus: "MATCHED", receivedQuantity: 4, pricing: { productId: "product-2", costPrice: 240, price: 150, hargaAgen: 140, hargaDinas: 130 } },
-    ] } })).rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("HPP acuan") });
     expect(repository.createSubmittedGoodsPurchaseReceipt).not.toHaveBeenCalled();
   });
 
@@ -2525,7 +2580,7 @@ describe("pricing on goods purchase receipt submission", () => {
     expect(repository.createSubmittedGoodsPurchaseReceipt).not.toHaveBeenCalled();
   });
 
-  it("rejects two matched lines selecting the same pricing unit", async () => {
+  it("accepts two matched lines sharing identical unit prices", async () => {
     const repository = createRepository();
     const purchase = await repository.findGoodsPurchaseForReceipt();
     purchase.items[1].pricingUnits = purchase.items[0].pricingUnits;
@@ -2533,7 +2588,98 @@ describe("pricing on goods purchase receipt submission", () => {
     await expect(createAndSubmitGoodsPurchaseReceipt({ repository, user, input: { goodsPurchaseId: "gp-1", lines: [
       { goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 5, pricing: firstPrice },
       { goodsPurchaseItemId: "gpi-2", matchStatus: "MATCHED", receivedQuantity: 4, pricing: firstPrice },
-    ] } })).rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("hanya dapat digunakan sekali") });
-    expect(repository.createSubmittedGoodsPurchaseReceipt).not.toHaveBeenCalled();
+    ] } })).resolves.toMatchObject({ status: "SUBMITTED" });
+    expect(repository.createSubmittedGoodsPurchaseReceipt).toHaveBeenCalled();
+  });
+});
+
+describe("shared unit prices during receipt review", () => {
+  it.each(["legacy-to-collection", "collection-to-legacy"])("rejects a %s edit that changes snapshot format", async (direction) => {
+    const unit = { productId: "product-1", unit: "pcs", unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: 140, hargaDinas: 130 };
+    const single = { ...unit, orderedUnitMultiplierToBase: 1, version: 1 as const };
+    const collection = { version: 2 as const, units: [{ productId: unit.productId, costPrice: 100, price: 150, hargaAgen: 140, hargaDinas: 130 }] };
+    const current = submittedReviewReceipt();
+    const updatedAt = new Date("2026-10-31T10:00:00.000Z");
+    const line = { ...current.lines[0], productId: unit.productId, updatedAt, pricingUnits: [unit], unitMultiplierToBase: 1,
+      pricingSnapshot: direction === "legacy-to-collection" ? single : createInboundPricingCollectionSnapshot(collection, [unit], true, 1) };
+    const repository = createRepository();
+    repository.lockSubmittedReceipt.mockResolvedValueOnce(submittedReviewReceipt({ lines: [line] }));
+    await expect(editInboundReceiptItem({ repository, user: { id: "owner", role: "OWNER", storeId: "store-main" },
+      receiptId: "receipt-1", itemId: line.id, expectedUpdatedAt: updatedAt.toISOString(),
+      input: { matchStatus: "MATCHED", receivedQuantity: line.receivedQuantity, note: line.note,
+        pricing: direction === "legacy-to-collection" ? collection : unit },
+    })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(repository.updateReceiptLine).not.toHaveBeenCalled();
+  });
+
+  it.each(["zero", "mismatch"])("synchronizes a %s line's HPP when the owner marks it received and matched", async (kind) => {
+    const units = [
+      { productId: "product-1", unit: "dus", unitMultiplierToBase: 12, costPrice: 1200, price: 1500, hargaAgen: null, hargaDinas: null },
+      { productId: "product-2", unit: "pcs", unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null },
+    ];
+    const activePrices = { version: 2 as const, units: units.map(({ productId, costPrice, price, hargaAgen, hargaDinas }) => ({ productId, costPrice, price, hargaAgen, hargaDinas })) };
+    const dormantPrices = { ...activePrices, units: activePrices.units.map((unit) => unit.productId === "product-2" ? { ...unit, costPrice: 110 } : unit) };
+    const receipt = submittedReviewReceipt();
+    const updatedAt = new Date("2026-10-31T10:00:00.000Z");
+    receipt.lines = receipt.lines.map((line, index) => ({ ...line, updatedAt, stockGroupId: "group-1", pricingUnits: units,
+      unitMultiplierToBase: index ? 1 : 12,
+      pricingSnapshot: createInboundPricingCollectionSnapshot(index ? dormantPrices : activePrices, units, true, index ? 1 : 12),
+      ...(index ? { receivedQuantity: kind === "zero" ? 0 : 3, matchStatus: kind === "zero" ? "MATCHED" as const : "MISMATCHED" as const } : {}),
+    }));
+    const repository = createRepository();
+    repository.lockSubmittedReceipt.mockResolvedValueOnce(receipt);
+
+    await expect(editInboundReceiptItem({ repository, user: { id: "owner", role: "OWNER", storeId: "store-main" },
+      receiptId: "receipt-1", itemId: "line-2", expectedUpdatedAt: updatedAt.toISOString(),
+      input: { matchStatus: "MATCHED", receivedQuantity: 3, pricing: dormantPrices },
+    })).resolves.toMatchObject({ finalized: false });
+    expect(repository.updateReceiptLine).toHaveBeenCalledTimes(2);
+    expect(repository.updateReceiptLine).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      itemId: "line-1", reviewStatus: "PENDING", pricingSnapshot: expect.objectContaining({ version: 2,
+        units: expect.arrayContaining([expect.objectContaining({ productId: "product-2", costPrice: 110 })]) }),
+    }));
+  });
+
+  it("does not overwrite a dormant sibling's HPP suggestion when an active line's price is edited", async () => {
+    const units = [{ productId: "product-1", unit: "dus", unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null }];
+    const original = { version: 2 as const, units: [{ productId: "product-1", costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null }] };
+    const receipt = submittedReviewReceipt();
+    const updatedAt = new Date("2026-10-31T10:00:00.000Z");
+    receipt.lines = receipt.lines.map((line, index) => ({ ...line, productId: "product-1", updatedAt, stockGroupId: "group-1", pricingUnits: units,
+      unitMultiplierToBase: 1, receivedQuantity: index ? 0 : 5,
+      pricingSnapshot: createInboundPricingCollectionSnapshot(index ? { ...original, units: [{ ...original.units[0], costPrice: 120 }] } : original, units, true, 1),
+    }));
+    const repository = createRepository();
+    repository.lockSubmittedReceipt.mockResolvedValueOnce(receipt);
+    const pricing = { ...original, units: [{ ...original.units[0], costPrice: 110 }] };
+    await editInboundReceiptItem({ repository, user: { id: "owner", role: "OWNER", storeId: "store-main" },
+      receiptId: "receipt-1", itemId: "line-1", expectedUpdatedAt: updatedAt.toISOString(),
+      input: { matchStatus: "MATCHED", receivedQuantity: 5, pricing },
+    });
+    expect(repository.updateReceiptLine).toHaveBeenCalledTimes(1);
+    expect(repository.updateReceiptLine).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ itemId: "line-1" }));
+  });
+
+  it("updates matching product-group lines and returns them to pending in one transaction", async () => {
+    const units = [
+      { productId: "product-1", unit: "dus", unitMultiplierToBase: 12, costPrice: 1200, price: 1500, hargaAgen: null, hargaDinas: null },
+      { productId: "product-2", unit: "pcs", unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null },
+    ];
+    const original = { version: 2 as const, units: units.map(({ productId, costPrice, price, hargaAgen, hargaDinas }) => ({ productId, costPrice, price, hargaAgen, hargaDinas })) };
+    const receipt = submittedReviewReceipt();
+    const updatedAt = new Date("2026-10-31T10:00:00.000Z");
+    receipt.lines = receipt.lines.map((line, index) => ({ ...line, updatedAt, stockGroupId: "group-1", pricingUnits: units,
+      unitMultiplierToBase: index ? 1 : 12, pricingSnapshot: createInboundPricingCollectionSnapshot(original, units, true, index ? 1 : 12),
+      reviewStatus: index ? "APPROVED" : "PENDING" }));
+    const repository = createRepository();
+    repository.lockSubmittedReceipt.mockResolvedValueOnce(receipt);
+    const pricing = { ...original, units: original.units.map((unit) => unit.productId === "product-2" ? { ...unit, price: 175, priceEdited: true } : unit) };
+    await editInboundReceiptItem({ repository, user: { id: "owner", role: "OWNER", storeId: "store-main" }, receiptId: "receipt-1", itemId: "line-1", expectedUpdatedAt: updatedAt.toISOString(), input: {
+      matchStatus: "MATCHED", receivedQuantity: 5, pricing,
+    } });
+    expect(repository.updateReceiptLine).toHaveBeenCalledTimes(2);
+    expect(repository.updateReceiptLine).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      itemId: "line-2", reviewStatus: "PENDING", pricingSnapshot: expect.objectContaining({ version: 2 }),
+    }));
   });
 });

@@ -66,34 +66,50 @@ describe("finalizeShoppingRequestRecord", () => {
     expect(tx.goodsPurchase.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         activeShoppingRequestKey: "request-1",
-        paymentMethod: "TRANSFER",
-        paymentDueDate: null,
         items: { create: [expect.objectContaining({ productId: "dus", quantity: 12, reviewStatus: "APPROVED", latestUnitPrice: expect.anything() })] },
       }),
     }));
-    expect(finalizePurchase).toHaveBeenCalledWith(tx, "purchase-1", actor, expect.any(Date));
+    expect(tx.goodsPurchase.create.mock.calls[0][0].data).not.toHaveProperty("paymentMethod");
+    expect(tx.goodsPurchase.create.mock.calls[0][0].data).not.toHaveProperty("paymentDueDate");
+    expect(finalizePurchase).toHaveBeenCalledWith(tx, "purchase-1", actor, expect.any(Date), { deferExpense: true, deferMasterHpp: true });
   });
 
-  it("stores the giro method and due date with the approved purchase", async () => {
+  it("preserves the checked HPP choice when the current cost equals the purchase price", async () => {
+    const tx = makeTransaction();
+    tx.product.findMany.mockResolvedValueOnce([{
+      id: "dus", name: "Kertas Dus", sku: "KDS", unit: "dus", stock: 2,
+      stockGroupId: "group-1", stockGroup: null, unitMultiplierToBase: 12, costPrice: 1000, isActive: true,
+    }]);
+    transaction.mockImplementationOnce((callback: (tx: unknown) => Promise<unknown>) => callback(tx));
+
+    await finalizeShoppingRequestRecord("request-1", {
+      ...input,
+      items: [{ ...input.items[0], updateMasterHpp: true }],
+    }, actor);
+
+    expect(tx.goodsPurchase.create.mock.calls[0][0].data.items.create[0]).toMatchObject({
+      updateMasterHpp: true,
+    });
+  });
+
+  it("does not establish a giro method before the first receipt", async () => {
     const tx = makeTransaction();
     transaction.mockImplementationOnce((callback: (tx: unknown) => Promise<unknown>) => callback(tx));
     await finalizeShoppingRequestRecord("request-1", {
       ...input, paymentMethod: "GIRO", paymentDueDate: "2026-11-02",
     }, actor);
-    expect(tx.goodsPurchase.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ paymentMethod: "GIRO", paymentDueDate: new Date("2026-11-02T00:00:00.000Z") }),
-    }));
+    expect(tx.goodsPurchase.create.mock.calls[0][0].data).not.toHaveProperty("paymentMethod");
+    expect(tx.goodsPurchase.create.mock.calls[0][0].data).not.toHaveProperty("paymentDueDate");
   });
 
-  it("does not store a leftover giro date for a transfer", async () => {
+  it("does not establish a transfer method before the first receipt", async () => {
     const tx = makeTransaction();
     transaction.mockImplementationOnce((callback: (tx: unknown) => Promise<unknown>) => callback(tx));
     await finalizeShoppingRequestRecord("request-1", {
       ...input, paymentMethod: "TRANSFER", paymentDueDate: "2026-11-02",
     }, actor);
-    expect(tx.goodsPurchase.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ paymentMethod: "TRANSFER", paymentDueDate: null }),
-    }));
+    expect(tx.goodsPurchase.create.mock.calls[0][0].data).not.toHaveProperty("paymentMethod");
+    expect(tx.goodsPurchase.create.mock.calls[0][0].data).not.toHaveProperty("paymentDueDate");
   });
 
   it("propagates a financial failure from the transaction", async () => {

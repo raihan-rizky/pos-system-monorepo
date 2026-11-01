@@ -417,19 +417,22 @@ export function approveStockGroupBulk(
 
 export interface CreateInboundReceiptInput {
   goodsPurchaseId: string;
+  paymentMethod?: "TRANSFER" | "GIRO";
+  paymentDueDate?: string | null;
   note?: string | null;
   lines: Array<{
     goodsPurchaseItemId: string;
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
     supplierCostPrice?: number;
-    pricing?: import("../types/inventory-management").InboundPricingInput | null;
+    pricing?: import("../types/inventory-management").InboundPricingPayload | null;
     note?: string | null;
   }>;
 }
 
 export interface InboundReceiptListLine {
   id: string;
+  updatedAt?: string;
   productId: string;
   imageUrl?: string | null;
   goodsPurchaseItemId: string | null;
@@ -452,6 +455,8 @@ export interface InboundReceiptListItem {
   id: string;
   goodsPurchaseId: string | null;
   goodsPurchaseNumber: string | null;
+  paymentMethod?: "TRANSFER" | "GIRO" | null;
+  paymentDueDate?: string | null;
   status: InboundReceiptStatus;
   createdAt: string;
   submittedBy: string | null;
@@ -536,13 +541,14 @@ export async function fetchGoodsPurchaseReceivingComparison(
 export function approveInboundReceiptItem(
   id: string,
   itemId: string,
+  expectedUpdatedAt?: string,
 ): Promise<InboundReceiptMutationResult> {
   return mutateInventoryManagement<InboundReceiptMutationResult>(
     `/api/inventory-management/inbound-receipts/${id}/items/${itemId}/approval`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ expectedUpdatedAt }),
     },
   );
 }
@@ -554,8 +560,9 @@ export async function editInboundReceiptItem(
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
     supplierCostPrice?: number;
-    pricing?: import("../types/inventory-management").InboundPricingInput | null;
+    pricing?: import("../types/inventory-management").InboundPricingPayload | null;
     note?: string | null;
+    expectedUpdatedAt?: string;
   },
 ): Promise<InboundReceiptMutationResult> {
   return mutateInventoryManagement<InboundReceiptMutationResult>(
@@ -571,10 +578,11 @@ export async function editInboundReceiptItem(
 export async function deleteInboundReceiptItem(
   id: string,
   itemId: string,
+  expectedUpdatedAt?: string,
 ): Promise<InboundReceiptMutationResult> {
   return mutateInventoryManagement<InboundReceiptMutationResult>(
     `/api/inventory-management/inbound-receipts/${id}/items/${itemId}`,
-    { method: "DELETE" },
+    { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedUpdatedAt }) },
   );
 }
 

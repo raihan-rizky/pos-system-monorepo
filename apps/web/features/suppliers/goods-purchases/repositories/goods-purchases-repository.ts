@@ -608,6 +608,7 @@ export async function finalizeGoodsPurchaseIfReady(
   purchaseId: string,
   actor: GoodsPurchaseActor,
   now: Date,
+  options: { deferExpense?: boolean; deferMasterHpp?: boolean } = {},
 ): Promise<GoodsPurchaseMutationResult> {
   const purchase = await loadPendingGoodsPurchase(
     tx,
@@ -640,7 +641,7 @@ export async function finalizeGoodsPurchaseIfReady(
     throw new GoodsPurchaseRepositoryError("NOT_PENDING");
   }
 
-  const hppItems = purchase.items.filter((item) => item.updateMasterHpp);
+  const hppItems = options.deferMasterHpp ? [] : purchase.items.filter((item) => item.updateMasterHpp);
   if (hppItems.length > 0) {
     const productQuery = {
       where: {
@@ -745,28 +746,30 @@ export async function finalizeGoodsPurchaseIfReady(
     });
   }
 
-  await tx.expense.deleteMany({
-    where: {
-      shoppingRequestId: purchase.shoppingRequestId,
-      goodsPurchaseId: null,
-    },
-  });
+  if (!options.deferExpense) {
+    await tx.expense.deleteMany({
+      where: {
+        shoppingRequestId: purchase.shoppingRequestId,
+        goodsPurchaseId: null,
+      },
+    });
 
-  await tx.expense.create({
-    data: {
-      storeId: actor.storeId,
-      recordedById: actor.id,
-      shoppingRequestId: purchase.shoppingRequestId,
-      goodsPurchaseId: purchase.id,
-      applicantName: purchase.supplierNameSnapshot,
-      category: "SUPPLIES",
-      description: `Pembelian Barang ${purchase.number} - ${purchase.items.length} produk`,
-      amount: totalAmount,
-      changeAmount: 0,
-      occurredAt: now,
-      hasMissingCostSnapshot: false,
-    },
-  });
+    await tx.expense.create({
+      data: {
+        storeId: actor.storeId,
+        recordedById: actor.id,
+        shoppingRequestId: purchase.shoppingRequestId,
+        goodsPurchaseId: purchase.id,
+        applicantName: purchase.supplierNameSnapshot,
+        category: "SUPPLIES",
+        description: `Pembelian Barang ${purchase.number} - ${purchase.items.length} produk`,
+        amount: totalAmount,
+        changeAmount: 0,
+        occurredAt: now,
+        hasMissingCostSnapshot: false,
+      },
+    });
+  }
 
   return {
     data: await loadGoodsPurchaseDetail(

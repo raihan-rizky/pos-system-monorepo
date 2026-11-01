@@ -23,11 +23,12 @@ describe("inbound pricing fields", () => {
     });
   });
 
-  it("renders all required fields for a matched line", () => {
-    const html = renderToStaticMarkup(<InboundPricingFields units={[unit]} value={pricingDraftForUnit(unit)} onChange={vi.fn()} required namePrefix="line" />);
+  it("renders all unit prices with a required selling price for a matched line", () => {
+    const html = renderToStaticMarkup(<InboundPricingFields units={[unit]} value={[pricingDraftForUnit(unit)]} onChange={vi.fn()} required namePrefix="line" />);
     for (const label of ["Satuan", "HPP Unit", "Harga Jual", "Harga Jual Agen", "Harga Jual Dinas"]) expect(html).toContain(label);
-    expect(html.match(/required=""/g)).toHaveLength(5);
-    expect(html).toContain('value="box"');
+    expect(html.match(/required=""/g)).toHaveLength(1);
+    expect(html).toContain("Satuan box");
+    expect(html).not.toContain("<select");
   });
 
   it("allows an empty mismatched line and serializes blank values to null", () => {
@@ -35,25 +36,24 @@ describe("inbound pricing fields", () => {
     expect(isInboundPricingDraftValid(draft, false)).toBe(true);
     expect(isInboundPricingDraftValid(draft, true)).toBe(false);
     expect(inboundPricingInputFromDraft(draft)).toEqual({ productId: null, costPrice: null, price: null, hargaAgen: null, hargaDinas: null });
-    const html = renderToStaticMarkup(<InboundPricingFields units={[unit]} value={draft} onChange={vi.fn()} required={false} namePrefix="line" />);
+    const html = renderToStaticMarkup(<InboundPricingFields units={[unit]} value={[draft]} onChange={vi.fn()} required={false} namePrefix="line" />);
     expect(html).not.toContain('required=""');
-    expect(html.match(/disabled=""/g)).toHaveLength(4);
   });
 
   it("explains that mismatched prices are recorded without updating product prices", () => {
-    const html = renderToStaticMarkup(<InboundPricingFields units={[unit]} value={pricingDraftForUnit(unit)} onChange={vi.fn()} required={false} namePrefix="line" />);
+    const html = renderToStaticMarkup(<InboundPricingFields units={[unit]} value={[pricingDraftForUnit(unit)]} onChange={vi.fn()} required={false} namePrefix="line" />);
     expect(html).toContain("dicatat tanpa memperbarui harga produk");
     expect(html).not.toContain("diperbarui setelah penerimaan disetujui");
   });
 
-  it("shows an automatic-unit rounding error before submitting a matched item", () => {
-    const autoBox = { ...unit, autoCostSource: { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1 } };
+  it("retains legacy rounding validation and prevents editing an automatic follower HPP", () => {
+    const autoBox = { ...unit, pricingMode: "AUTO" as const, pricingSourceProductId: "pcs", autoCostSource: { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1 } };
     const draft = { ...pricingDraftForUnit(autoBox), costPrice: "100" };
     expect(isInboundPricingDraftValid(draft, true, [autoBox])).toBe(false);
     expect(isInboundPricingDraftValid(draft, false, [autoBox])).toBe(true);
-    const html = renderToStaticMarkup(<InboundPricingFields units={[autoBox]} value={draft} onChange={vi.fn()} required namePrefix="line" />);
-    expect(html).toContain("99,96");
-    expect(html).toContain("pcs");
+    const html = renderToStaticMarkup(<InboundPricingFields units={[autoBox]} value={[draft]} onChange={vi.fn()} required namePrefix="line" />);
+    expect(html).toContain("HPP Unit (otomatis)");
+    expect(html).toContain('disabled=""');
   });
 
   it("accepts zero and partial optional prices but rejects invalid and unitless values", () => {

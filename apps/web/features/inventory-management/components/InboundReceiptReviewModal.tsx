@@ -8,6 +8,7 @@ import {
   deleteInboundReceiptItem,
   editInboundReceiptItem,
   fetchGoodsPurchaseReceivingComparison,
+  fetchInboundReceipts,
   rejectInboundReceipt,
   type InboundReceiptListItem,
   type InboundReceiptListLine,
@@ -20,7 +21,9 @@ import type { InboundReceiptMatchStatus } from "../helpers/inbound-receipt-rules
 import {
   InboundPricingFields,
   inboundPricingInputFromDraft,
+  inboundPricingInputFromDrafts,
   isInboundPricingDraftValid,
+  isInboundPricingDraftsValid,
   pricingDraftForUnit,
   type InboundPricingDraft,
 } from "./InboundPricingFields";
@@ -65,6 +68,37 @@ export function getInboundReceiptLineConflict({
   };
 }
 
+export function hasActiveSharedPricing(input: {
+  line: InboundReceiptListLine;
+  lines: InboundReceiptListLine[];
+  matchStatus: InboundReceiptMatchStatus;
+  receivedQuantity: number;
+}) {
+  const { line, lines, matchStatus, receivedQuantity } = input;
+  if (line.pricingSnapshot?.version !== 2 || matchStatus !== "MATCHED" || receivedQuantity <= 0) return false;
+  return lines.some((sibling) =>
+    sibling.id !== line.id && sibling.matchStatus === "MATCHED" && sibling.receivedQuantity > 0 &&
+    sibling.pricingSnapshot?.version === 2 &&
+    (sibling.productId === line.productId || line.pricingUnits?.some((unit) => unit.productId === sibling.productId)),
+  );
+}
+
+export function receiptPricingUnitsForEdit(line: InboundReceiptListLine) {
+  const units = line.pricingUnits ?? [];
+  if (line.pricingSnapshot?.version !== 1) return units;
+  const selectedId = line.pricingSnapshot.productId ?? line.productId;
+  return units.filter((unit) => unit.productId === selectedId);
+}
+
+export function receiptPricingInputForEdit(line: InboundReceiptListLine, drafts: InboundPricingDraft[]) {
+  const units = receiptPricingUnitsForEdit(line);
+  if (line.pricingSnapshot?.version === 1) {
+    const selected = drafts.find((draft) => draft.productId === units[0]?.productId);
+    return inboundPricingInputFromDraft(selected ?? pricingDraftForUnit());
+  }
+  return inboundPricingInputFromDrafts(units, drafts);
+}
+
 export interface InboundReceiptReviewModalProps {
   open: boolean;
   receipt: InboundReceiptListItem;
@@ -78,10 +112,11 @@ export interface InboundReceiptReviewModalProps {
 }
 
 type EditInput = {
+  expectedUpdatedAt?: string;
   matchStatus: InboundReceiptMatchStatus;
   receivedQuantity: string;
   supplierCostPrice: string;
-  pricing: InboundPricingDraft;
+  pricing: InboundPricingDraft[];
   note: string;
 };
 
@@ -150,6 +185,14 @@ export function InboundReceiptReviewModal({
       onSuccess("Penerimaan Barang Telah Disetujui");
       return;
     }
+    try {
+      const refreshed = await fetchInboundReceipts({ goodsPurchaseId: receipt.goodsPurchaseId ?? undefined });
+      const current = refreshed.find((candidate) => candidate.id === receipt.id);
+      if (!current) throw new Error("Penerimaan tidak ditemukan.");
+      setLines(current.lines);
+    } catch {
+      throw new Error("Perubahan tersimpan, tetapi data terbaru belum dapat dimuat. Muat ulang halaman untuk melanjutkan.");
+    }
     if (onChanged) await onChanged();
     onSuccess(message);
   };
@@ -177,15 +220,8 @@ export function InboundReceiptReviewModal({
   const handleApprove = (line: InboundReceiptListLine) =>
     run(
       `${line.id}:approve`,
-      () => approveInboundReceiptItem(receipt.id, line.id),
+      () => approveInboundReceiptItem(receipt.id, line.id, line.updatedAt),
       async (result) => {
-        setLines((current) =>
-          current.map((candidate) =>
-            candidate.id === line.id
-              ? { ...candidate, reviewStatus: "APPROVED" }
-              : candidate,
-          ),
-        );
         await finishMutation(result, "Produk berhasil disetujui.");
       },
     );
@@ -201,18 +237,26 @@ export function InboundReceiptReviewModal({
     }
     setEditingId(line.id);
     setEditInput({
+      expectedUpdatedAt: line.updatedAt,
       matchStatus: line.matchStatus ?? "MATCHED",
       receivedQuantity: String(line.receivedQuantity),
       supplierCostPrice: String(
         line.supplierCostPrice ?? line.costPriceSnapshot ?? "",
       ),
-      pricing: line.pricingSnapshot ? {
-        productId: line.pricingSnapshot.productId ?? "",
-        costPrice: line.pricingSnapshot.costPrice == null ? "" : String(line.pricingSnapshot.costPrice),
-        price: line.pricingSnapshot.price == null ? "" : String(line.pricingSnapshot.price),
-        hargaAgen: line.pricingSnapshot.hargaAgen == null ? "" : String(line.pricingSnapshot.hargaAgen),
-        hargaDinas: line.pricingSnapshot.hargaDinas == null ? "" : String(line.pricingSnapshot.hargaDinas),
-      } : pricingDraftForUnit(),
+      pricing: (line.pricingUnits ?? []).map((unit) => {
+        const snapshot = line.pricingSnapshot;
+        const saved = snapshot?.version === 2 ? snapshot.units.find((candidate) => candidate.productId === unit.productId)
+          : snapshot?.productId === unit.productId ? snapshot : undefined;
+        if (!saved) return pricingDraftForUnit(unit);
+        return {
+          productId: unit.productId,
+          costPrice: saved.costPrice == null ? "" : String(saved.costPrice),
+          price: saved.price == null ? "" : String(saved.price),
+          hargaAgen: saved.hargaAgen == null ? "" : String(saved.hargaAgen),
+          hargaDinas: saved.hargaDinas == null ? "" : String(saved.hargaDinas),
+          priceEdited: "priceEdited" in saved ? saved.priceEdited : true,
+        };
+      }),
       note: line.note ?? "",
     });
   };
@@ -238,8 +282,13 @@ export function InboundReceiptReviewModal({
       setError("HPP unit wajib berupa angka valid.");
       return;
     }
-    if (line.pricingSnapshot && !isInboundPricingDraftValid(editInput.pricing, editInput.matchStatus === "MATCHED", line.pricingUnits)) {
-      setError("Pilih satuan dan lengkapi HPP unit serta semua harga jual untuk barang yang sesuai.");
+    const requiredPricing = editInput.matchStatus === "MATCHED" && receivedQuantity > 0;
+    const editUnits = receiptPricingUnitsForEdit(line);
+    const pricingValid = line.pricingSnapshot?.version === 1
+      ? isInboundPricingDraftValid(editInput.pricing.find((draft) => draft.productId === editUnits[0]?.productId) ?? pricingDraftForUnit(), requiredPricing, line.pricingUnits)
+      : isInboundPricingDraftsValid(editUnits, editInput.pricing, requiredPricing);
+    if (line.pricingSnapshot && !pricingValid) {
+      setError("Lengkapi harga jual setiap satuan aktif dan periksa nilai harga lainnya.");
       return;
     }
     if (
@@ -250,38 +299,24 @@ export function InboundReceiptReviewModal({
       return;
     }
 
+    if (hasActiveSharedPricing({ line, lines, matchStatus: editInput.matchStatus, receivedQuantity }) &&
+      !window.confirm("Harga satuan pada produk lain dalam grup yang sama dapat disamakan dengan harga yang Anda simpan. Persetujuan produk tersebut dapat diulang. Lanjutkan?")) {
+      return;
+    }
+
     void run(
       `${line.id}:edit`,
       () =>
         editInboundReceiptItem(receipt.id, line.id, {
           matchStatus: editInput.matchStatus,
           receivedQuantity,
+          expectedUpdatedAt: editInput.expectedUpdatedAt,
           ...(line.pricingSnapshot
-            ? { pricing: inboundPricingInputFromDraft(editInput.pricing) }
+            ? { pricing: receiptPricingInputForEdit(line, editInput.pricing) }
             : { supplierCostPrice }),
           note: editInput.note.trim() || null,
         }),
       async (result) => {
-        setLines((current) =>
-          current.map((candidate) =>
-            candidate.id === line.id
-              ? {
-                  ...candidate,
-                  matchStatus: editInput.matchStatus,
-                  receivedQuantity,
-                  supplierCostPrice: line.pricingSnapshot ? candidate.supplierCostPrice : supplierCostPrice,
-                  pricingSnapshot: line.pricingSnapshot ? {
-                    ...line.pricingSnapshot,
-                    ...inboundPricingInputFromDraft(editInput.pricing),
-                    unit: line.pricingUnits?.find((unit) => unit.productId === editInput.pricing.productId)?.unit ?? null,
-                    unitMultiplierToBase: line.pricingUnits?.find((unit) => unit.productId === editInput.pricing.productId)?.unitMultiplierToBase ?? null,
-                  } : null,
-                  note: editInput.note.trim() || null,
-                  reviewStatus: "PENDING",
-                }
-              : candidate,
-          ),
-        );
         setEditingId(null);
         setEditInput(null);
         if (result.conflict) {
@@ -302,11 +337,8 @@ export function InboundReceiptReviewModal({
     if (!window.confirm(message)) return;
     void run(
       `${line.id}:delete`,
-      () => deleteInboundReceiptItem(receipt.id, line.id),
+      () => deleteInboundReceiptItem(receipt.id, line.id, line.updatedAt),
       async (result) => {
-        setLines((current) =>
-          current.filter((candidate) => candidate.id !== line.id),
-        );
         await finishMutation(result, "Produk berhasil dihapus.");
       },
     );
@@ -346,6 +378,10 @@ export function InboundReceiptReviewModal({
               {receipt.goodsPurchaseNumber}
             </p>
           )}
+          {receipt.paymentMethod && <p className="mt-1 text-xs text-slate-600">
+            Metode pembayaran: {receipt.paymentMethod === "GIRO" ? "Giro" : "Transfer"}
+            {receipt.paymentMethod === "GIRO" && receipt.paymentDueDate ? ` · Jatuh tempo ${receipt.paymentDueDate.slice(0, 10)}` : ""}
+          </p>}
         </div>
 
         {error && (
@@ -358,7 +394,9 @@ export function InboundReceiptReviewModal({
           </div>
         )}
 
-        <div className="space-y-3">
+        {pendingAction && <div role="status" className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">Memproses dan memuat data terbaru...</div>}
+
+        <fieldset disabled={Boolean(pendingAction)} className="space-y-3">
           {lines.map((line) => {
             const conflict = getInboundReceiptLineConflict({
               line,
@@ -381,11 +419,18 @@ export function InboundReceiptReviewModal({
                     </p>
                     {line.pricingSnapshot ? (
                       <div className="mt-1 space-y-0.5 text-xs font-semibold text-slate-600">
-                        <p>Satuan harga: {line.pricingSnapshot.unit ?? "Belum dipilih"}</p>
-                        <p>HPP Unit: {formatCostPrice(line.pricingSnapshot.costPrice)}</p>
-                        <p>Harga Jual: {formatCostPrice(line.pricingSnapshot.price)}</p>
-                        <p>Harga Jual Agen: {formatCostPrice(line.pricingSnapshot.hargaAgen)}</p>
-                        <p>Harga Jual Dinas: {formatCostPrice(line.pricingSnapshot.hargaDinas)}</p>
+                        {(line.pricingSnapshot.version === 2 ? line.pricingSnapshot.units : [line.pricingSnapshot]).map((pricing, index) => <div key={pricing.productId ?? index} className="mt-2">
+                          <p>Satuan harga: {pricing.unit ?? "Belum dipilih"}</p>
+                          <p>HPP Unit: {formatCostPrice(pricing.costPrice)}</p>
+                          <p>Harga Jual: {formatCostPrice(pricing.price)}</p>
+                          <p>Harga Jual Agen: {formatCostPrice(pricing.hargaAgen)}</p>
+                          <p>Harga Jual Dinas: {formatCostPrice(pricing.hargaDinas)}</p>
+                        </div>)}
+                        {line.pricingSnapshot.version === 2 && (line.pricingUnits ?? []).filter((unit) =>
+                          line.pricingSnapshot?.version === 2 && !line.pricingSnapshot.units.some((saved) => saved.productId === unit.productId),
+                        ).map((unit) => <p key={unit.productId} className="mt-2 text-amber-800">
+                          Satuan {unit.unit}: {unit.isActive === false ? "tidak aktif" : "perlu diperiksa kembali"}; harga tidak diterapkan.
+                        </p>)}
                       </div>
                     ) : (
                       <p className="mt-1 text-xs font-semibold text-slate-600">HPP Unit: {formatCostPrice(line.supplierCostPrice)}</p>
@@ -501,11 +546,12 @@ export function InboundReceiptReviewModal({
                     </label>
                     {line.pricingSnapshot && (
                       <div className="md:col-span-2 xl:col-span-4">
+                        {line.pricingSnapshot.version === 1 && <p className="text-xs text-slate-600">Penerimaan lama menyimpan harga untuk satu satuan.</p>}
                         <InboundPricingFields
-                          units={line.pricingUnits ?? []}
+                          units={receiptPricingUnitsForEdit(line)}
                           value={editInput.pricing}
                           onChange={(pricing) => setEditInput({ ...editInput, pricing })}
-                          required={editInput.matchStatus === "MATCHED"}
+                          required={editInput.matchStatus === "MATCHED" && Number(editInput.receivedQuantity) > 0}
                           namePrefix={`reviewLines.${line.id}.pricing`}
                         />
                       </div>
@@ -568,7 +614,7 @@ export function InboundReceiptReviewModal({
               </div>
             );
           })}
-        </div>
+        </fieldset>
 
         {canReject && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">

@@ -64,6 +64,7 @@ function fixture() {
     goodsPurchase: {
       count: async () => 0,
       create: async ({ data }: { data: { items: { create: Array<ReturnType<typeof line>> } } }) => {
+        if (fail === "create") throw new Error("purchase create failed");
         Object.assign(state.purchase, data, { items: data.items.create.map((item, index) => ({ ...line(`created-${index}`, item.productId), ...item })) });
         state.createdPurchase = true;
         events.push("purchase:create");
@@ -280,7 +281,7 @@ describe("purchase master HPP automatic group pricing", () => {
     expect(transaction).not.toHaveBeenCalled(); expect(f.state.products[1].costPrice).toBe("25200.12");
   });
 
-  it("records an equal-HPP Auto supplier snapshot once without a master pricing mutation", async () => {
+  it("preserves a checked equal-HPP Auto supplier choice without a master pricing mutation", async () => {
     const f = autoFixture();
     f.state.products[1].costPrice = "24000";
     const initialized = initializeGroupPricing(groupPricingInputFromRow({ ...f.state.groups[0], products: f.state.products } as never));
@@ -305,12 +306,11 @@ describe("purchase master HPP automatic group pricing", () => {
     expect(f.state.purchase.status).toBe("APPROVED");
     expect(f.state.request.status).toBe("APPROVED");
     const recorded = f.state.purchase.items[0];
-    expect(recorded).toMatchObject({ productId: "b-pack", updateMasterHpp: false, reviewStatus: "APPROVED", unitSnapshot: "pak", unitMultiplierSnapshot: 12 });
+    expect(recorded).toMatchObject({ productId: "b-pack", updateMasterHpp: true, reviewStatus: "APPROVED", unitSnapshot: "pak", unitMultiplierSnapshot: 12 });
     expect(recorded.masterCostPriceSnapshot.toString()).toBe("24000.00");
     expect(recorded.latestUnitPrice.toString()).toBe("24000");
     expect(f.state.request.decision).toMatchObject({ costPriceSnapshot: decimal("24000") });
-    expect(f.state.expenses).toHaveLength(1);
-    expect(f.state.expenses[0]).toMatchObject({ amount: decimal("24000") });
+    expect(f.state.expenses).toHaveLength(0);
     expect(f.state.products).toEqual(beforeProducts);
     expect(f.state.groups[0].pricingConfig).toEqual(beforeConfig);
     expect(f.state.logs).toEqual([]); expect(f.state.activities).toEqual([]);
@@ -318,35 +318,42 @@ describe("purchase master HPP automatic group pricing", () => {
 
     await expect(finalizeShoppingRequestRecord("shopping", input, actor, now)).rejects.toMatchObject({ name: "FinalApprovalError", status: 409 });
     expect(f.events.filter(event => event === "purchase:create")).toHaveLength(1);
-    expect(f.state.expenses).toHaveLength(1);
+    expect(f.state.expenses).toHaveLength(0);
     expect(f.state.products).toEqual(beforeProducts);
     expect(f.state.groups[0].pricingConfig).toEqual(beforeConfig);
     expect(f.state.logs).toEqual([]); expect(f.state.activities).toEqual([]);
   });
 
-  it.each(["source", "auto", "log"])("keeps real shopping-request finalization atomic for %s with header-before-pricing locks", async (scenario) => {
+  it.each(["source", "auto"])("defers %s group pricing and expense when the shopping request is approved", async (scenario) => {
     const f = autoFixture();
-    if (scenario === "log") f.setFailure("log");
+    const beforeProducts = structuredClone(f.state.products);
+    const beforeConfig = structuredClone(f.state.groups[0].pricingConfig);
     const productId = scenario === "auto" ? "b-pack" : "a-source";
-    const result = finalizeShoppingRequestRecord("shopping", {
+    await expect(finalizeShoppingRequestRecord("shopping", {
       items: [{ shoppingRequestItemId: "requested", productId, approvedQty: 1, latestUnitPrice: 2100.005, updateMasterHpp: true }],
       extraItems: [],
-    }, actor, now);
-    if (scenario === "source") {
-      await expect(result).resolves.toMatchObject({ goodsPurchaseId: "purchase" });
-      expect(f.state.createdPurchase).toBe(true);
-      expect(f.state.products[1].costPrice).toBe("25200.12");
-      expect(f.state.request.status).toBe("APPROVED"); expect(f.state.expenses).toHaveLength(1);
-      const locks = f.events.filter(e => e.startsWith("lock:"));
-      expect(locks).toEqual(["lock:shopping", "lock:store", "lock:purchase:purchase", "lock:group:group", "lock:product:a-source", "lock:product:b-pack"]);
-      expect(f.events.indexOf("lock:product:b-pack")).toBeLessThan(f.events.findIndex(e => e.startsWith("write:product:")));
-    } else {
-      if (scenario === "auto") await expect(result).rejects.toMatchObject({ name: "FinalApprovalError", status: 422, message: expect.stringMatching(/acuan.*Manual/) });
-      else await expect(result).rejects.toThrow("log failed");
-      expect(f.state.request).toEqual({ status: "REQUESTED", decision: null });
-      expect(f.state.createdPurchase).toBe(false);
-      expect(f.state.purchase.status).toBe("PENDING"); expect(f.state.expenses).toEqual([]);
-      expect(f.state.logs).toEqual([]); expect(f.state.groups[0].pricingConfig).toEqual(configuredAutoGroup("a-source", "b-pack"));
-    }
+    }, actor, now)).resolves.toMatchObject({ goodsPurchaseId: "purchase" });
+    expect(f.state.createdPurchase).toBe(true);
+    expect(f.state.request.status).toBe("APPROVED");
+    expect(f.state.purchase.items[0].updateMasterHpp).toBe(true);
+    expect(f.state.products).toEqual(beforeProducts);
+    expect(f.state.groups[0].pricingConfig).toEqual(beforeConfig);
+    expect(f.state.expenses).toEqual([]);
+    expect(f.state.logs).toEqual([]);
+    expect(f.events.filter(e => e.startsWith("lock:"))).toEqual(["lock:shopping", "lock:store", "lock:purchase:purchase"]);
+  });
+
+  it("rolls back shopping approval if creating its deferred purchase fails", async () => {
+    const f = autoFixture();
+    f.setFailure("create");
+    await expect(finalizeShoppingRequestRecord("shopping", {
+      items: [{ shoppingRequestItemId: "requested", productId: "a-source", approvedQty: 1, latestUnitPrice: 2100, updateMasterHpp: true }],
+      extraItems: [],
+    }, actor, now)).rejects.toThrow("purchase create failed");
+    expect(f.state.request).toEqual({ status: "REQUESTED", decision: null });
+    expect(f.state.createdPurchase).toBe(false);
+    expect(f.state.purchase.status).toBe("PENDING");
+    expect(f.state.expenses).toEqual([]);
+    expect(f.state.logs).toEqual([]);
   });
 });

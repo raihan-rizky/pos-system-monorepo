@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   InboundReceiptReviewModal,
   getInboundReceiptLineConflict,
+  hasActiveSharedPricing,
+  receiptPricingUnitsForEdit,
+  receiptPricingInputForEdit,
 } from "../InboundReceiptReviewModal";
+import type { InboundReceiptListLine } from "../../api/inventory-management-api";
 
 vi.mock("@pos/ui", async (importOriginal) => {
   const actual = await importOriginal<any>();
@@ -99,6 +103,43 @@ const comparison = {
 };
 
 describe("InboundReceiptReviewModal", () => {
+  it("keeps an older single-unit snapshot single-unit when edited", () => {
+    const units = [
+      { productId: "product-1", unit: "dus", unitMultiplierToBase: 12, costPrice: 1200, price: 1500, hargaAgen: 1400, hargaDinas: 1300 },
+      { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1, costPrice: 100, price: 125, hargaAgen: 120, hargaDinas: 110 },
+    ];
+    const line = { ...receipt.lines[0], pricingUnits: units, pricingSnapshot: { version: 1, ...units[1], orderedUnitMultiplierToBase: 12 } } as InboundReceiptListLine;
+    const drafts = units.map((unit) => ({ productId: unit.productId, costPrice: String(unit.costPrice), price: String(unit.price), hargaAgen: String(unit.hargaAgen), hargaDinas: String(unit.hargaDinas) }));
+    expect(receiptPricingUnitsForEdit(line).map((unit) => unit.productId)).toEqual(["pcs"]);
+    expect(receiptPricingInputForEdit(line, drafts)).toEqual({ productId: "pcs", costPrice: 100, price: 125, hargaAgen: 120, hargaDinas: 110 });
+    const noUnit = { ...line, pricingSnapshot: { ...line.pricingSnapshot!, version: 1 as const, productId: null } } as InboundReceiptListLine;
+    expect(receiptPricingUnitsForEdit(noUnit).map((unit) => unit.productId)).toEqual(["product-1"]);
+  });
+
+  it("requires confirmation before saving prices that can affect another active line in the same group", () => {
+    const line = { ...receipt.lines[0], pricingSnapshot: { version: 2 }, pricingUnits: [{ productId: "product-1" }, { productId: "product-2" }] } as unknown as InboundReceiptListLine;
+    const sibling = { ...receipt.lines[1], matchStatus: "MATCHED", receivedQuantity: 4, pricingSnapshot: { version: 2 } } as unknown as InboundReceiptListLine;
+    const input = { line, lines: [line, sibling], matchStatus: "MATCHED" as const, receivedQuantity: 1 };
+
+    expect(hasActiveSharedPricing(input)).toBe(true);
+    expect(hasActiveSharedPricing({ ...input, receivedQuantity: 0 })).toBe(false);
+    expect(hasActiveSharedPricing({ ...input, matchStatus: "MISMATCHED" })).toBe(false);
+    expect(hasActiveSharedPricing({ ...input, lines: [line, { ...sibling, receivedQuantity: 0 }] })).toBe(false);
+    expect(hasActiveSharedPricing({ ...input, lines: [line, { ...sibling, productId: "another-group" }] })).toBe(false);
+  });
+
+  it("shows every saved unit on receipt review", () => {
+    const unit = { productId: "product-1", unit: "dus", unitMultiplierToBase: 12, costPrice: 1200, price: 1500, hargaAgen: null, hargaDinas: null,
+      priceEdited: false, original: { costPrice: 1200, price: 1500, hargaAgen: null, hargaDinas: null }, pricingMode: "MANUAL" as const, pricingSourceProductId: null, pricingConfigRevision: null };
+    const multiUnitReceipt = { ...receipt, lines: [{ ...receipt.lines[0], pricingSnapshot: { version: 2 as const, orderedUnitMultiplierToBase: 12,
+      units: [unit, { ...unit, productId: "pcs", unit: "pcs", unitMultiplierToBase: 1, costPrice: 100, price: 125 }] } }] };
+    const html = renderToStaticMarkup(<InboundReceiptReviewModal open receipt={multiUnitReceipt} comparison={comparison} canApprove canEdit canReject onClose={vi.fn()} onSuccess={vi.fn()} />);
+    expect(html).toContain("Satuan harga: ");
+    expect(html).toContain("dus");
+    expect(html).toContain("pcs");
+    expect(html).toContain("Rp 125");
+  });
+
   it("renders per-item approval, edit, remove, match, and conflict controls", () => {
     const html = renderToStaticMarkup(
       <InboundReceiptReviewModal

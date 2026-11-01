@@ -9,7 +9,9 @@ vi.mock("@pos/db", () => ({
 import { InventoryInboundReceiptRepository } from "../InventoryInboundReceiptRepository";
 
 describe("inbound receipt product thumbnails", () => {
-  it("loads only the related product image and exposes a flat nullable URL", async () => {
+  it("loads the related product image and exposes a flat nullable URL", async () => {
+    const product = { id: "product", storeId: "store-main", stockGroupId: null, stockGroup: null, unit: "pcs", unitMultiplierToBase: 1,
+      conversionNeedsReview: false, isActive: true, costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null };
     findMany.mockResolvedValueOnce([
       {
         id: "receipt-1",
@@ -17,13 +19,13 @@ describe("inbound receipt product thumbnails", () => {
         lines: [
           {
             id: "line-1",
-            product: { imageUrl: "/images/kertas_default.png" },
+            product: { ...product, imageUrl: "/images/kertas_default.png" },
             costPriceSnapshot: null,
             supplierCostPrice: null,
           },
           {
             id: "line-2",
-            product: { imageUrl: null },
+            product: { ...product, imageUrl: null },
             costPriceSnapshot: null,
             supplierCostPrice: null,
           },

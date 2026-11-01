@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { inboundPricingSchema } from "@/features/inventory-management/api/inbound-pricing-schema";
 import { InventoryInboundReceiptRepository } from "@/features/inventory-management/repositories/InventoryInboundReceiptRepository";
 import {
   InventoryManagementError,
@@ -22,8 +21,30 @@ const statusSchema = z.enum([
   "CANCELLED",
 ]);
 
+const pricingSchema = z.object({
+  productId: z.string().min(1).nullable(),
+  costPrice: z.number().min(0).max(9_999_999_999.99).nullable(),
+  price: z.number().min(0).max(9_999_999_999.99).nullable(),
+  hargaAgen: z.number().min(0).max(9_999_999_999.99).nullable(),
+  hargaDinas: z.number().min(0).max(9_999_999_999.99).nullable(),
+}).strict();
+
+const pricingBaselineSchema = z.object({
+  unit: z.string(),
+  unitMultiplierToBase: z.number().positive(),
+  costPrice: z.number().nullable(),
+  price: z.number(),
+  hargaAgen: z.number().nullable(),
+  hargaDinas: z.number().nullable(),
+  pricingMode: z.enum(["AUTO", "MANUAL"]),
+  pricingSourceProductId: z.string().nullable(),
+  pricingConfigRevision: z.number().int().nullable(),
+}).strict();
+
 const createSchema = z.object({
   goodsPurchaseId: z.string().min(1),
+  paymentMethod: z.enum(["TRANSFER", "GIRO"]).optional(),
+  paymentDueDate: z.string().nullable().optional(),
   note: z.string().trim().max(500).optional().nullable(),
   lines: z.array(
     z.object({
@@ -31,7 +52,7 @@ const createSchema = z.object({
       matchStatus: z.enum(["MATCHED", "MISMATCHED"]),
       receivedQuantity: z.number().min(0),
       supplierCostPrice: z.number().min(0).max(9_999_999_999.99).optional(),
-      pricing: inboundPricingSchema.nullable().optional(),
+      pricing: z.object({ version: z.literal(2), units: z.array(pricingSchema.extend({ priceEdited: z.boolean().optional(), baseline: pricingBaselineSchema })) }).strict(),
       note: z.string().trim().max(500).optional().nullable(),
     }).strict(),
   ).min(1),

@@ -11,13 +11,22 @@ import type { InventoryManagementUser } from "@/features/inventory-management/ty
 import { apiError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
+const pricingUnitSchema = z.object({
+  productId: z.string().min(1).nullable(),
+  costPrice: z.number().min(0).max(9_999_999_999.99).nullable(),
+  price: z.number().min(0).max(9_999_999_999.99).nullable(),
+  hargaAgen: z.number().min(0).max(9_999_999_999.99).nullable(),
+  hargaDinas: z.number().min(0).max(9_999_999_999.99).nullable(),
+}).strict();
+
 const editItemSchema = z
   .object({
     matchStatus: z.enum(["MATCHED", "MISMATCHED"]),
     receivedQuantity: z.number().min(0),
     supplierCostPrice: z.number().min(0).max(9_999_999_999.99).optional(),
-    pricing: inboundPricingSchema.nullable().optional(),
+    pricing: z.union([inboundPricingSchema, z.object({ version: z.literal(2), units: z.array(pricingUnitSchema.extend({ priceEdited: z.boolean().optional() })) }).strict()]).nullable().optional(),
     note: z.string().trim().max(500).optional().nullable(),
+    expectedUpdatedAt: z.string().datetime().optional(),
   })
   .strict();
 
@@ -62,6 +71,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       user: user as InventoryManagementUser & { name?: string | null },
       receiptId: id,
       itemId,
+      expectedUpdatedAt: input.expectedUpdatedAt,
       input,
     });
 
@@ -74,18 +84,21 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
   try {
     const user = await requirePermission(
       "inventory.inbound_receipt.edit",
       "update",
     );
+    const { expectedUpdatedAt } = z.object({ expectedUpdatedAt: z.string().datetime().optional() }).strict()
+      .parse(await request.json().catch(() => ({})));
     const { id, itemId } = await context.params;
     const result = await removeInboundReceiptItem({
       repository: new InventoryInboundReceiptRepository(),
       user: user as InventoryManagementUser & { name?: string | null },
       receiptId: id,
       itemId,
+      expectedUpdatedAt,
     });
 
     return NextResponse.json(result);

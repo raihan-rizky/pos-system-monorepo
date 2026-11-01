@@ -1,12 +1,10 @@
 import { db, Prisma } from "@pos/db";
 import { resolveProductDisplayStock } from "@/features/product-stock-groups/stock-display";
 import { finalizeGoodsPurchaseIfReady } from "@/features/suppliers/goods-purchases/repositories/goods-purchases-repository";
-import { hasMasterHppDifference } from "@/features/suppliers/goods-purchases/helpers/goods-purchase-core";
 import type { ShoppingRequestActor } from "../types/shopping-request";
 import type { FinalizeShoppingRequestInput } from "../services/finalize-shopping-request";
 import { validateFinalApproval } from "../services/finalize-shopping-request";
 import { FinalApprovalError } from "../services/final-approval-error";
-import { shoppingRequestPaymentSchema } from "../helpers/shopping-request-payment";
 import { GroupPricingError } from "@/features/product-stock-groups/group-pricing-service";
 import { isStockMutationConflict } from "@/features/product-stock-groups/stock-group-lock";
 
@@ -16,8 +14,6 @@ export async function finalizeShoppingRequestRecord(
   actor: ShoppingRequestActor,
   now = new Date(),
 ): Promise<{ shoppingRequestId: string; goodsPurchaseId: string }> {
-  const payment = shoppingRequestPaymentSchema.safeParse(input);
-  if (!payment.success) throw new FinalApprovalError(payment.error.issues[0].message);
   try {
     return await db.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string }>>`
@@ -115,7 +111,6 @@ export async function finalizeShoppingRequestRecord(
         const lineTotal = latestUnitPrice.mul(new Prisma.Decimal(String(item.quantity)))
           .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
         totalAmount = totalAmount.add(lineTotal);
-        const currentHpp = product.costPrice === null ? null : Number(product.costPrice.toString());
         return {
           shoppingRequestItemId: item.shoppingRequestItemId ?? null,
           productId: product.id,
@@ -127,7 +122,7 @@ export async function finalizeShoppingRequestRecord(
           masterCostPriceSnapshot: product.costPrice,
           latestUnitPrice,
           lineTotal,
-          updateMasterHpp: item.updateMasterHpp && hasMasterHppDifference(currentHpp, item.latestUnitPrice),
+          updateMasterHpp: item.updateMasterHpp,
           reviewStatus: "APPROVED" as const,
           approvedById: actor.id,
           approvedByName: actor.name,
@@ -150,15 +145,14 @@ export async function finalizeShoppingRequestRecord(
           supplierId: request.supplierId,
           supplierNameSnapshot: request.supplier.name,
           totalAmount: totalAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
-          paymentMethod: payment.data.paymentMethod,
-          paymentDueDate: payment.data.paymentDueDate ? new Date(`${payment.data.paymentDueDate}T00:00:00.000Z`) : null,
+          deferMasterHppToReceipt: true,
           createdById: actor.id,
           createdByName: actor.name,
           items: { create: createItems },
         },
         select: { id: true },
       });
-      await finalizeGoodsPurchaseIfReady(tx, purchase.id, actor, now);
+      await finalizeGoodsPurchaseIfReady(tx, purchase.id, actor, now, { deferExpense: true, deferMasterHpp: true });
       return { shoppingRequestId: id, goodsPurchaseId: purchase.id };
     }, { timeout: 15_000 });
   } catch (error) {

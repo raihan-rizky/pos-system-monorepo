@@ -6,6 +6,9 @@ import {
 } from "@/features/product-stock-groups/automatic-pricing";
 import type {
   InboundPricingInput,
+  InboundPricingCollectionInput,
+  InboundPricingCollectionSnapshot,
+  InboundPricingSingleSnapshot,
   InboundPricingSnapshot,
   InboundPricingUnit,
 } from "../types/inventory-management";
@@ -49,7 +52,7 @@ export function createInboundPricingSnapshot(
   units: InboundPricingUnit[],
   required: boolean,
   orderedUnitMultiplierToBase: number,
-): InboundPricingSnapshot {
+): InboundPricingSingleSnapshot {
   const productId = pricing?.productId || null;
   const unit = productId ? units.find((candidate) => candidate.productId === productId) : null;
   if (productId && !unit) {
@@ -86,10 +89,55 @@ export function createInboundPricingSnapshot(
   };
 }
 
+export function createInboundPricingCollectionSnapshot(
+  pricing: InboundPricingCollectionInput,
+  units: InboundPricingUnit[],
+  required: boolean,
+  orderedUnitMultiplierToBase: number,
+): InboundPricingCollectionSnapshot {
+  const eligible = units.filter((unit) => unit.isActive !== false && !unit.conversionNeedsReview &&
+    Number.isFinite(unit.unitMultiplierToBase) && unit.unitMultiplierToBase > 0);
+  const ids = pricing.units.map((unit) => unit.productId);
+  if ((required && eligible.length === 0) || ids.length !== eligible.length ||
+    new Set(ids).size !== ids.length || eligible.some((unit) => !ids.includes(unit.productId))) {
+    throw new Error("Daftar satuan produk berubah. Muat ulang dan periksa kembali.");
+  }
+  return {
+    version: 2,
+    orderedUnitMultiplierToBase,
+    units: eligible.map((unit) => {
+      const proposal = pricing.units.find((candidate) => candidate.productId === unit.productId)!;
+      const checked = createInboundPricingSnapshot(proposal, eligible, false, orderedUnitMultiplierToBase);
+      if (required && checked.price === null) throw new Error("Lengkapi harga jual setiap satuan aktif.");
+      return {
+        productId: unit.productId,
+        unit: unit.unit,
+        unitMultiplierToBase: unit.unitMultiplierToBase,
+        costPrice: checked.costPrice,
+        price: checked.price,
+        hargaAgen: checked.hargaAgen,
+        hargaDinas: checked.hargaDinas,
+        priceEdited: proposal.priceEdited ?? false,
+        original: { costPrice: unit.costPrice, price: unit.price, hargaAgen: unit.hargaAgen, hargaDinas: unit.hargaDinas },
+        pricingMode: unit.pricingMode ?? "MANUAL",
+        pricingSourceProductId: unit.pricingSourceProductId ?? null,
+        pricingConfigRevision: unit.pricingConfigRevision ?? null,
+      };
+    }),
+  };
+}
+
 export function inboundCostForOrderedUnit(
   pricing: InboundPricingSnapshot,
   orderedMultiplier: number,
+  orderedProductId?: string,
 ): number | null {
+  if (pricing.version === 2) {
+    const ordered = orderedProductId
+      ? pricing.units.find((unit) => unit.productId === orderedProductId)
+      : pricing.units.find((unit) => unit.unitMultiplierToBase === orderedMultiplier);
+    return ordered?.costPrice ?? null;
+  }
   if (pricing.costPrice === null || pricing.unitMultiplierToBase === null) return null;
   if (!Number.isFinite(orderedMultiplier) || orderedMultiplier <= 0 ||
     !Number.isFinite(pricing.unitMultiplierToBase) || pricing.unitMultiplierToBase <= 0) {

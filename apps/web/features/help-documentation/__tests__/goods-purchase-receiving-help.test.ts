@@ -1,11 +1,32 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { HELP_ROLE_CONTENT } from "../components/HelpContent";
+import { CHANGELOG } from "@/features/changelog/data/changelog";
 
 const readWebFile = (path: string) =>
   readFileSync(join(process.cwd(), path), "utf8");
 
 describe("Bantuan penerimaan Pembelian Barang", () => {
+  it("lists purchase approval before payment at receipt", () => {
+    const titles = HELP_ROLE_CONTENT.OWNER.find((guide) => guide.id === "owner-approval-belanja")?.steps.map((step) => step.title) ?? [];
+    expect(titles.indexOf("Setujui sekaligus")).toBeGreaterThanOrEqual(0);
+    expect(titles.indexOf("Pilih pembayaran saat menerima")).toBeGreaterThan(titles.indexOf("Setujui sekaligus"));
+  });
+
+  it("explains deferred HPP, payment, and all unit prices in the help and release notes", () => {
+    const shopping = JSON.stringify(HELP_ROLE_CONTENT.OWNER.find((guide) => guide.id === "owner-approval-belanja"));
+    const inventory = JSON.stringify(HELP_ROLE_CONTENT.INVENTORY);
+    const faq = readWebFile("features/ai-assistant/docs/help/faq.md");
+    const entry = CHANGELOG.find((change) => change.id === "inbound-payment-all-unit-prices");
+    expect(shopping).toContain("tercentang secara default");
+    expect(shopping).toContain("penerimaan pertama disetujui");
+    expect(inventory).toContain("seluruh satuan");
+    expect(faq).toContain("total pembelian penuh");
+    expect(entry?.steps).toHaveLength(3);
+    expect(entry?.href).toBe("/inventory?tab=transactions&subtab=inbound");
+  });
+
   it("documents the current receiving, approval, stock, and navigation workflow", () => {
     const helpContent = readWebFile(
       "features/help-documentation/components/HelpContent.tsx",

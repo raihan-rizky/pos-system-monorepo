@@ -176,6 +176,14 @@ describe("InboundReceiptModal", () => {
     vi.clearAllMocks();
   });
 
+  it("collects the purchase payment method in the receiving form", () => {
+    const html = renderModal("gp-1");
+    expect(html).toContain("Metode Pembayaran");
+    expect(html).toContain('name="paymentMethod"');
+    expect(html).toContain("Transfer");
+    expect(html).toContain("Giro");
+  });
+
   it("identifies the selected purchase and explains quantities before entry", () => {
     const html = renderModal("gp-2");
     expect(html).toContain("Dipilih");
@@ -290,6 +298,70 @@ describe("InboundReceiptModal", () => {
         currentCostPrice: null,
       }).supplierCostPrice,
     ).toBe("");
+  });
+
+  it("keeps each dormant line's suggested HPP without changing a received sibling", () => {
+    const build = (inboundReceiptModalModule as any).getInboundReceiptPricingDrafts;
+    expect(build).toBeTypeOf("function");
+    const base = receivingQueue.purchases[0].items[0];
+    const items = [
+      { ...base, goodsPurchaseItemId: "active", suggestedCostPrice: 14_000 },
+      { ...base, goodsPurchaseItemId: "zero", suggestedCostPrice: 16_000 },
+      { ...base, goodsPurchaseItemId: "mismatch", suggestedCostPrice: 17_000 },
+    ];
+    const state = build(items, {
+      active: { matchStatus: "MATCHED", receivedQuantity: "1" },
+      zero: { matchStatus: "MATCHED", receivedQuantity: "0" },
+      mismatch: { matchStatus: "MISMATCHED", receivedQuantity: "1" },
+    }, {});
+    expect(state.byItem.active[base.productId].costPrice).toBe("14000");
+    expect(state.byItem.zero[base.productId].costPrice).toBe("16000");
+    expect(state.byItem.mismatch[base.productId].costPrice).toBe("17000");
+    expect(state.conflicts).toEqual([]);
+  });
+
+  it("preserves a manual HPP override across dormant and received lines", () => {
+    const build = (inboundReceiptModalModule as any).getInboundReceiptPricingDrafts;
+    expect(build).toBeTypeOf("function");
+    const base = receivingQueue.purchases[0].items[0];
+    const items = [
+      { ...base, goodsPurchaseItemId: "active", suggestedCostPrice: 14_000 },
+      { ...base, goodsPurchaseItemId: "zero", suggestedCostPrice: 16_000 },
+    ];
+    const state = build(items, {
+      active: { matchStatus: "MATCHED", receivedQuantity: "1" },
+      zero: { matchStatus: "MATCHED", receivedQuantity: "0" },
+    }, { [base.productId]: { productId: base.productId, costPrice: "13500", price: "15000", hargaAgen: "14000", hargaDinas: "13000", costEdited: true } });
+    expect(state.byItem.active[base.productId].costPrice).toBe("13500");
+    expect(state.byItem.zero[base.productId].costPrice).toBe("13500");
+  });
+
+  it("requires an explicit HPP when a dormant suggestion cannot be converted exactly", () => {
+    const build = (inboundReceiptModalModule as any).getInboundReceiptPricingDrafts;
+    expect(build).toBeTypeOf("function");
+    const base = receivingQueue.purchases[0].items[0];
+    const units = [
+      { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1, costPrice: 1, price: 2 },
+      { productId: "box", unit: "box", unitMultiplierToBase: 12, costPrice: 12, price: 24, pricingMode: "AUTO", pricingSourceProductId: "pcs" },
+    ];
+    const state = build([{ ...base, productId: "box", goodsPurchaseItemId: "zero", pricingUnits: units, suggestedCostPrice: 1 }],
+      { zero: { matchStatus: "MATCHED", receivedQuantity: "0" } }, {});
+    expect(state.conflicts).toContain("pcs");
+  });
+
+  it.each(["zero", "mismatch"])("reports differing suggestions when a %s line becomes positive and matched", (id) => {
+    const build = (inboundReceiptModalModule as any).getInboundReceiptPricingDrafts;
+    expect(build).toBeTypeOf("function");
+    const base = receivingQueue.purchases[0].items[0];
+    const items = [
+      { ...base, goodsPurchaseItemId: "active", suggestedCostPrice: 14_000 },
+      { ...base, goodsPurchaseItemId: id, suggestedCostPrice: 16_000 },
+    ];
+    const state = build(items, {
+      active: { matchStatus: "MATCHED", receivedQuantity: "1" },
+      [id]: { matchStatus: "MATCHED", receivedQuantity: "1" },
+    }, {});
+    expect(state.conflicts).toContain(base.productId);
   });
 
   it("validates finite received quantities, bounds, and conditional notes", () => {

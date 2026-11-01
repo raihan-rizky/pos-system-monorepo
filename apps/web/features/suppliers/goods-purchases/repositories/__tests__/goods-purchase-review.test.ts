@@ -72,6 +72,7 @@ import {
   addGoodsPurchaseItemRecord,
   approveGoodsPurchaseItemRecord,
   editGoodsPurchaseItemRecord,
+  finalizeGoodsPurchaseIfReady,
   GoodsPurchaseRepositoryError,
   rejectGoodsPurchaseRecord,
   removeGoodsPurchaseItemRecord,
@@ -157,6 +158,22 @@ describe("goods purchase item review transaction", () => {
     tx.product.update.mockResolvedValue({});
     tx.productPriceLog.createMany.mockResolvedValue({ count: 1 });
     tx.$queryRaw.mockResolvedValue([{ id: "purchase-1" }]);
+  });
+
+  it("defers the expense when the shopping request is approved for receiving", async () => {
+    const approved = item("item-1", "product-1", "APPROVED");
+    tx.goodsPurchase.findFirst
+      .mockResolvedValueOnce(purchase([approved]))
+      .mockResolvedValueOnce(purchase([approved], "APPROVED"));
+
+    const finalize = finalizeGoodsPurchaseIfReady as (...args: unknown[]) => Promise<unknown>;
+    await finalize(tx, "purchase-1", actor, now, { deferExpense: true });
+
+    expect(tx.goodsPurchase.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "APPROVED" }),
+    }));
+    expect(tx.expense.create).not.toHaveBeenCalled();
+    expect(tx.expense.deleteMany).not.toHaveBeenCalled();
   });
 
   it("allows enough time for the goods-purchase approval transaction", async () => {

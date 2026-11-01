@@ -6,7 +6,6 @@ import {
 } from "@/features/product-stock-groups/stock-group-lock";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
 import {
-  groupPricingInputFromRow,
   prepareGroupPricingMutation,
   synchronizeGroupPricingMutation,
 } from "@/features/product-stock-groups/group-pricing-service";
@@ -16,6 +15,7 @@ import {
   initializeGroupPricing,
   multiplyRatios,
   roundMoney,
+  type GroupPricingConfig,
 } from "@/features/product-stock-groups/automatic-pricing";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import {
@@ -31,6 +31,8 @@ import type {
   InboundReceiptForApproval,
   InboundReceiptLineStatus,
   InboundPricingSnapshot,
+  InboundPricingSingleSnapshot,
+  InboundPricingCollectionUnit,
   InboundPricingUnit,
   InventoryInboundReceiptRepository as InventoryInboundReceiptRepositoryContract,
   LockedInboundStockGroup,
@@ -43,7 +45,6 @@ type Tx = Prisma.TransactionClient;
 const pricingUnitSelect = {
   id: true,
   storeId: true,
-  stockGroupId: true,
   unit: true,
   unitMultiplierToBase: true,
   conversionNeedsReview: true,
@@ -60,8 +61,6 @@ const pricingProductSelect = {
   imageUrl: true,
   stockGroup: {
     select: {
-      id: true,
-      storeId: true,
       baseUnit: true,
       pricingConfig: true,
       products: {
@@ -77,44 +76,105 @@ type PricingProduct = Prisma.ProductGetPayload<{ select: typeof pricingProductSe
 function pricingUnitsForProduct(product: PricingProduct | null): InboundPricingUnit[] {
   if (!product) return [];
   const candidates = product.stockGroupId ? product.stockGroup?.products ?? [] : [product];
-  let automaticSource: { id: string; unit: string; unitMultiplierToBase: number } | undefined;
-  let automaticMembers: Set<string> | undefined;
-  if (product.stockGroup) {
+  let config: GroupPricingConfig | null = null;
+  let invalidConfig = false;
+  if (product.stockGroupId && product.stockGroup?.baseUnit) {
     try {
-      const config = initializeGroupPricing(groupPricingInputFromRow(product.stockGroup)).config;
-      const source = candidates.find((candidate) => candidate.id === config.sourceProductId && candidate.isActive &&
-        !candidate.conversionNeedsReview && candidate.unitMultiplierToBase > 0);
-      if (source) {
-        automaticSource = source;
-        automaticMembers = new Set(candidates
-          .filter((candidate) => candidate.id !== source.id && (config.members[candidate.id]?.mode ?? "MANUAL") === "AUTO")
-          .map((candidate) => candidate.id));
-      }
+      config = initializeGroupPricing({
+        groupId: product.stockGroupId,
+        storeId: product.storeId,
+        baseUnit: product.stockGroup.baseUnit,
+        config: product.stockGroup.pricingConfig as GroupPricingConfig | null,
+        members: candidates.filter((candidate) => candidate.storeId === product.storeId).map((candidate) => ({
+          id: candidate.id, groupId: product.stockGroupId!, storeId: candidate.storeId,
+          unit: candidate.unit, unitMultiplierToBase: candidate.unitMultiplierToBase,
+          price: candidate.price.toString(), costPrice: candidate.costPrice?.toString() ?? null,
+          isActive: candidate.isActive, conversionNeedsReview: candidate.conversionNeedsReview,
+        })),
+      }).config;
     } catch {
-      // The finalization path will report invalid group configuration under its locks.
+      invalidConfig = true;
     }
   }
+  const automaticSource = candidates.find((candidate) => candidate.id === config?.sourceProductId && candidate.isActive &&
+    !candidate.conversionNeedsReview && Number.isFinite(candidate.unitMultiplierToBase) && candidate.unitMultiplierToBase > 0);
   return candidates
-    .filter((candidate) => candidate.storeId === product.storeId && candidate.isActive &&
-      !candidate.conversionNeedsReview && Number.isFinite(candidate.unitMultiplierToBase) &&
-      candidate.unitMultiplierToBase > 0)
+    .filter((candidate) => candidate.storeId === product.storeId)
     .map((candidate) => ({
       productId: candidate.id,
       unit: candidate.unit,
       unitMultiplierToBase: candidate.unitMultiplierToBase,
-      ...(automaticSource && automaticMembers?.has(candidate.id) ? {
+      ...(automaticSource && candidate.id !== automaticSource.id && config?.members[candidate.id]?.mode === "AUTO" ? {
         autoCostSource: { productId: automaticSource.id, unit: automaticSource.unit, unitMultiplierToBase: automaticSource.unitMultiplierToBase },
       } : {}),
       costPrice: candidate.costPrice === null ? null : Number(candidate.costPrice.toString()),
       price: Number(candidate.price.toString()),
       hargaAgen: candidate.hargaAgen === null ? null : Number(candidate.hargaAgen.toString()),
       hargaDinas: candidate.hargaDinas === null ? null : Number(candidate.hargaDinas.toString()),
+      isActive: candidate.isActive,
+      conversionNeedsReview: invalidConfig || candidate.conversionNeedsReview,
+      pricingMode: config?.members[candidate.id]?.mode ?? "MANUAL",
+      pricingSourceProductId: config?.sourceProductId ?? null,
+      pricingFactor: config?.members[candidate.id]?.factor ?? null,
+      pricingConfigRevision: (product.stockGroup?.pricingConfig as GroupPricingConfig | null)?.revision ?? null,
     }));
 }
 
 export class InventoryInboundReceiptRepository
   implements InventoryInboundReceiptRepositoryContract
 {
+  async settleGoodsPurchasePayment(
+    tx: Tx,
+    input: {
+      storeId: string;
+      goodsPurchaseId: string;
+      paymentMethod: "TRANSFER" | "GIRO" | null;
+      paymentDueDate: Date | null;
+      actor: { id: string; name?: string | null };
+      now: Date;
+    },
+  ): Promise<void> {
+    const purchase = await tx.goodsPurchase.findFirst({
+      where: { id: input.goodsPurchaseId, storeId: input.storeId, status: "APPROVED" },
+      select: {
+        id: true, number: true, shoppingRequestId: true, supplierNameSnapshot: true,
+        totalAmount: true, paymentMethod: true, paymentDueDate: true,
+        expense: { select: { id: true } },
+        shoppingRequest: { select: { expense: { select: { id: true } } } },
+        _count: { select: { items: true } },
+      },
+    });
+    if (!purchase) throw new Error("Pembelian Barang tidak tersedia.");
+    const existingExpense = purchase.expense ?? purchase.shoppingRequest?.expense;
+    if (!input.paymentMethod && !purchase.paymentMethod && !existingExpense) {
+      throw new Error("Metode pembayaran belum diisi pada penerimaan barang.");
+    }
+    if (purchase.paymentMethod && input.paymentMethod &&
+      (purchase.paymentMethod !== input.paymentMethod ||
+        (purchase.paymentMethod === "GIRO" &&
+          purchase.paymentDueDate?.toISOString().slice(0, 10) !== input.paymentDueDate?.toISOString().slice(0, 10)))) {
+      throw new Error("Metode pembayaran pembelian telah berubah. Tolak penerimaan ini dan buat kembali dengan metode terbaru.");
+    }
+    if (!purchase.paymentMethod && input.paymentMethod) {
+      await tx.goodsPurchase.update({
+        where: { id: purchase.id },
+        data: { paymentMethod: input.paymentMethod, paymentDueDate: input.paymentDueDate },
+      });
+    }
+    if (!existingExpense) {
+      await tx.expense.create({
+        data: {
+          storeId: input.storeId, recordedById: input.actor.id,
+          shoppingRequestId: purchase.shoppingRequestId, goodsPurchaseId: purchase.id,
+          applicantName: purchase.supplierNameSnapshot, category: "SUPPLIES",
+          description: `Pembelian Barang ${purchase.number} - ${purchase._count.items} produk`,
+          amount: purchase.totalAmount, changeAmount: 0, occurredAt: input.now,
+          hasMissingCostSnapshot: false,
+        },
+      });
+    }
+  }
+
   runInTransaction<T>(callback: (tx: Tx) => Promise<T>): Promise<T> {
     return db.$transaction((tx) => callback(tx), { timeout: 60_000 });
   }
@@ -151,6 +211,8 @@ export class InventoryInboundReceiptRepository
         storeId: true,
         status: true,
         goodsPurchaseId: true,
+        paymentMethod: true,
+        paymentDueDate: true,
         stockBundleId: true,
         supplierId: true,
         supplier: { select: { name: true } },
@@ -164,6 +226,7 @@ export class InventoryInboundReceiptRepository
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
+            updatedAt: true,
             productId: true,
             status: true,
             expectedQuantity: true,
@@ -177,7 +240,7 @@ export class InventoryInboundReceiptRepository
             costPriceSnapshot: true,
             supplierCostPrice: true,
             pricingSnapshot: true,
-            product: { include: { stockGroup: pricingProductSelect.stockGroup } },
+            product: { include: { stockGroup: { select: { id: true, storeId: true, baseUnit: true, pricingConfig: true, products: { select: pricingUnitSelect } } } } },
             goodsPurchaseItem: {
               select: {
                 id: true,
@@ -211,6 +274,8 @@ export class InventoryInboundReceiptRepository
       storeId: receipt.storeId,
       status: "SUBMITTED",
       goodsPurchaseId: receipt.goodsPurchaseId,
+      paymentMethod: receipt.paymentMethod,
+      paymentDueDate: receipt.paymentDueDate,
       goodsPurchaseNumber: receipt.goodsPurchase?.number ?? null,
       stockBundleId: receipt.stockBundleId,
       supplierId: receipt.supplierId,
@@ -220,6 +285,7 @@ export class InventoryInboundReceiptRepository
         "Supplier",
       lines: receipt.lines.map((line) => ({
         id: line.id,
+        updatedAt: line.updatedAt,
         productId: line.productId,
         status: line.status,
         expectedQuantity: line.expectedQuantity,
@@ -367,74 +433,104 @@ export class InventoryInboundReceiptRepository
       groupIds: groupedIds,
       extraProductIds: standaloneIds,
     });
-    const selected = new Map<string, InboundPricingSnapshot>();
-    const groupIntents = new Map<string, Map<string, { productId: string; price?: string; costPrice?: string }>>();
+    type Entry = { productId: string; stockGroupId: string | null; pricing: InboundPricingSingleSnapshot; collection?: InboundPricingCollectionUnit };
+    const entries: Entry[] = [];
+    for (const line of input.lines) {
+      if (line.pricing.version === 1) {
+        entries.push({ ...line, pricing: line.pricing });
+        continue;
+      }
+      const group = line.stockGroupId ? prepared.before.get(line.stockGroupId) : null;
+      const expected = group ? group.members.filter((member) => member.isActive && !member.conversionNeedsReview && Number(member.unitMultiplierToBase) > 0).map((member) => member.id) : [line.productId];
+      const actual = line.pricing.units.map((unit) => unit.productId);
+      if (actual.length !== expected.length || new Set(actual).size !== actual.length || expected.some((id) => !actual.includes(id))) {
+        throw new Error("Daftar satuan produk berubah. Periksa kembali penerimaan ini.");
+      }
+      for (const unit of line.pricing.units) entries.push({
+        productId: line.productId, stockGroupId: line.stockGroupId, collection: unit,
+        pricing: { version: 1, ...unit, orderedUnitMultiplierToBase: line.pricing.orderedUnitMultiplierToBase },
+      });
+    }
 
-    // Set the source price first so automatic follower factors use its new value.
-    const orderedLines = [...input.lines].sort((left, right) => {
-      const isSource = (line: typeof left) => {
+    const selected = new Map<string, Entry>();
+    const groupIntents = new Map<string, Map<string, { productId: string; price?: string; costPrice?: string | null }>>();
+    const orderedLines = entries.sort((left, right) => {
+      const isSource = (line: Entry) => {
         const group = line.stockGroupId ? prepared.before.get(line.stockGroupId) : null;
         return group && initializeGroupPricing(group).config.sourceProductId === line.pricing.productId ? 0 : 1;
       };
       return isSource(left) - isSource(right);
     });
     for (const line of orderedLines) {
-      const pricing = line.pricing;
-      if (pricing.version !== 1 || !pricing.productId || pricing.costPrice === null ||
-        pricing.price === null || pricing.hargaAgen === null || pricing.hargaDinas === null ||
-        pricing.unitMultiplierToBase === null) {
+      const { pricing, collection } = line;
+      if (!pricing.productId || pricing.price === null || pricing.unitMultiplierToBase === null ||
+        (!collection && (pricing.costPrice === null || pricing.hargaAgen === null || pricing.hargaDinas === null))) {
         throw new Error("Satuan dan harga produk belum lengkap.");
       }
-      const existing = selected.get(pricing.productId);
-      if (existing && (existing.costPrice !== pricing.costPrice || existing.price !== pricing.price ||
-        existing.hargaAgen !== pricing.hargaAgen || existing.hargaDinas !== pricing.hargaDinas)) {
-        throw new Error("Harga untuk satu satuan berbeda pada penerimaan ini.");
+
+      const before = await tx.product.findFirst({ where: { id: pricing.productId, storeId: input.storeId, isActive: true } });
+      if (!before) throw new Error("Satuan produk sudah tidak tersedia.");
+      const money = (value: unknown) => value === null ? null : Number(value);
+      if (collection && (money(before.costPrice) !== collection.original.costPrice || money(before.price) !== collection.original.price ||
+        money(before.hargaAgen) !== collection.original.hargaAgen || money(before.hargaDinas) !== collection.original.hargaDinas)) {
+        throw new Error("Harga produk berubah. Periksa kembali penerimaan ini.");
       }
-      selected.set(pricing.productId, pricing);
 
       if (!line.stockGroupId) {
-        if (pricing.productId !== line.productId || pricing.unitMultiplierToBase !== pricing.orderedUnitMultiplierToBase) {
-          throw new Error("Satuan produk berubah. Periksa kembali penerimaan ini.");
+        if (before.stockGroupId || pricing.productId !== line.productId || pricing.unitMultiplierToBase !== pricing.orderedUnitMultiplierToBase ||
+          before.unit !== pricing.unit || before.conversionNeedsReview || before.unitMultiplierToBase !== pricing.unitMultiplierToBase) {
+          throw new Error("Satuan atau konversi produk berubah. Periksa kembali penerimaan ini.");
         }
-        continue;
+      } else {
+        const group = prepared.before.get(line.stockGroupId);
+        const ordered = group?.members.find((member) => member.id === line.productId);
+        const member = group?.members.find((candidate) => candidate.id === pricing.productId);
+        if (!group || !ordered || !ordered.isActive || ordered.conversionNeedsReview || !member || !member.isActive || member.conversionNeedsReview ||
+          Number(member.unitMultiplierToBase) !== pricing.unitMultiplierToBase ||
+          Number(ordered.unitMultiplierToBase) !== pricing.orderedUnitMultiplierToBase || member.unit !== pricing.unit) {
+          throw new Error("Satuan atau konversi produk berubah. Periksa kembali penerimaan ini.");
+        }
+        const config = initializeGroupPricing(group).config;
+        const isFollower = config.sourceProductId !== member.id && config.members[member.id]?.mode === "AUTO";
+        if (collection && (collection.pricingConfigRevision !== (group.config?.revision ?? null) ||
+          collection.pricingMode !== (config.members[member.id]?.mode ?? "MANUAL") || collection.pricingSourceProductId !== config.sourceProductId)) {
+          throw new Error("Aturan harga produk berubah. Periksa kembali penerimaan ini.");
+        }
+        const source = group.members.find((candidate) => candidate.id === config.sourceProductId && candidate.isActive);
+        const costProduct = isFollower ? source : member;
+        if (!costProduct || costProduct.conversionNeedsReview || Number(costProduct.unitMultiplierToBase) <= 0) {
+          throw new Error("Acuan HPP otomatis perlu ditinjau sebelum penerimaan disetujui.");
+        }
+        const intents = groupIntents.get(group.groupId) ?? new Map();
+        if (!collection || (!isFollower && collection.costPrice !== collection.original.costPrice)) {
+          const costPrice = pricing.costPrice === null ? null : isFollower
+            ? roundMoney(multiplyRatios(decimalToRatio(pricing.costPrice), divideRatios(decimalToRatio(costProduct.unitMultiplierToBase), decimalToRatio(member.unitMultiplierToBase))))
+            : pricing.costPrice.toFixed(2);
+          const costIntent = intents.get(costProduct.id) ?? { productId: costProduct.id };
+          if (costIntent.costPrice !== undefined && costIntent.costPrice !== costPrice) throw new Error("HPP satuan otomatis pada penerimaan ini saling berbeda.");
+          costIntent.costPrice = costPrice;
+          intents.set(costProduct.id, costIntent);
+        }
+        if (!collection || collection.priceEdited) {
+          const memberIntent = intents.get(member.id) ?? { productId: member.id };
+          memberIntent.price = pricing.price.toFixed(2);
+          intents.set(member.id, memberIntent);
+        }
+        if (intents.size) groupIntents.set(group.groupId, intents);
       }
-      const group = prepared.before.get(line.stockGroupId);
-      const ordered = group?.members.find((member) => member.id === line.productId);
-      const member = group?.members.find((candidate) => candidate.id === pricing.productId);
-      if (!group || !ordered || !ordered.isActive || ordered.conversionNeedsReview || !member || !member.isActive || member.conversionNeedsReview ||
-        Number(member.unitMultiplierToBase) !== pricing.unitMultiplierToBase ||
-        Number(ordered.unitMultiplierToBase) !== pricing.orderedUnitMultiplierToBase || member.unit !== pricing.unit) {
-        throw new Error("Satuan atau konversi produk berubah. Periksa kembali penerimaan ini.");
+      const existing = selected.get(pricing.productId);
+      if (existing && (existing.pricing.costPrice !== pricing.costPrice || existing.pricing.price !== pricing.price ||
+        existing.pricing.hargaAgen !== pricing.hargaAgen || existing.pricing.hargaDinas !== pricing.hargaDinas ||
+        existing.collection?.priceEdited !== collection?.priceEdited)) {
+        throw new Error("Harga untuk satu satuan berbeda pada penerimaan ini.");
       }
-      const config = initializeGroupPricing(group).config;
-      const source = group.members.find((candidate) => candidate.id === config.sourceProductId && candidate.isActive);
-      const isFollower = config.sourceProductId !== member.id && (config.members[member.id]?.mode ?? "MANUAL") === "AUTO";
-      const costProduct = isFollower ? source : member;
-      if (!costProduct || costProduct.conversionNeedsReview || Number(costProduct.unitMultiplierToBase) <= 0) {
-        throw new Error("Acuan HPP otomatis perlu ditinjau sebelum penerimaan disetujui.");
-      }
-      const costPrice = isFollower
-        ? roundMoney(multiplyRatios(decimalToRatio(pricing.costPrice), divideRatios(
-            decimalToRatio(costProduct.unitMultiplierToBase), decimalToRatio(member.unitMultiplierToBase),
-          )))
-        : pricing.costPrice.toFixed(2);
-      const intents = groupIntents.get(group.groupId) ?? new Map();
-      const costIntent = intents.get(costProduct.id) ?? { productId: costProduct.id };
-      if (costIntent.costPrice !== undefined && costIntent.costPrice !== costPrice) {
-        throw new Error("HPP satuan otomatis pada penerimaan ini saling berbeda.");
-      }
-      costIntent.costPrice = costPrice;
-      intents.set(costProduct.id, costIntent);
-      const memberIntent = intents.get(member.id) ?? { productId: member.id };
-      memberIntent.price = pricing.price.toFixed(2);
-      intents.set(member.id, memberIntent);
-      groupIntents.set(group.groupId, intents);
+      selected.set(pricing.productId, line);
     }
 
     const note = `Penerimaan barang ${input.receiptId}`;
-    if (groupedIds.length) {
+    if (groupIntents.size) {
       await synchronizeGroupPricingMutation(tx, {
-        prepared,
+        prepared: { ...prepared, before: new Map([...prepared.before].filter(([id]) => groupIntents.has(id))) },
         changes: Object.fromEntries([...groupIntents].map(([groupId, intents]) => [groupId, { members: [...intents.values()] }])),
         actor: input.actor,
         source: "SYSTEM",
@@ -442,7 +538,8 @@ export class InventoryInboundReceiptRepository
       });
     }
 
-    for (const [productId, pricing] of selected) {
+    for (const [productId, selectedLine] of selected) {
+      const pricing = selectedLine.pricing;
       const before = await tx.product.findFirst({ where: { id: productId, storeId: input.storeId, isActive: true } });
       if (!before) throw new Error("Satuan produk sudah tidak tersedia.");
       if (!before.stockGroupId && (before.unit !== pricing.unit || before.conversionNeedsReview ||
@@ -450,7 +547,7 @@ export class InventoryInboundReceiptRepository
         throw new Error("Satuan atau konversi produk berubah. Periksa kembali penerimaan ini.");
       }
       if (before.stockGroupId) {
-        if (before.costPrice === null || Number(before.costPrice) !== pricing.costPrice) {
+        if ((before.costPrice === null ? null : Number(before.costPrice)) !== pricing.costPrice) {
           throw new Error("HPP satuan tidak dapat diwakili tepat oleh aturan harga otomatis. Periksa kembali nilainya.");
         }
         if (Number(before.price) !== pricing.price) {
@@ -1210,6 +1307,8 @@ export class InventoryInboundReceiptRepository
         shoppingRequestId: true,
         supplierId: true,
         supplierNameSnapshot: true,
+        paymentMethod: true,
+        paymentDueDate: true,
         items: {
           orderBy: { createdAt: "asc" },
           select: {
@@ -1263,6 +1362,8 @@ export class InventoryInboundReceiptRepository
       goodsPurchaseId: string;
       shoppingRequestId: string;
       supplierId: string | null;
+      paymentMethod: "TRANSFER" | "GIRO";
+      paymentDueDate: Date | null;
       submittedBy: string;
       submittedAt: Date;
       note: string | null;
@@ -1293,6 +1394,8 @@ export class InventoryInboundReceiptRepository
         goodsPurchaseId: input.goodsPurchaseId,
         shoppingRequestId: input.shoppingRequestId,
         supplierId: input.supplierId,
+        paymentMethod: input.paymentMethod,
+        paymentDueDate: input.paymentDueDate,
         status: "SUBMITTED",
         submittedBy: input.submittedBy,
         submittedAt: input.submittedAt,
@@ -1432,6 +1535,9 @@ export class InventoryInboundReceiptRepository
       select: {
         id: true,
         number: true,
+        paymentMethod: true,
+        paymentDueDate: true,
+        deferMasterHppToReceipt: true,
         supplierId: true,
         supplierNameSnapshot: true,
         shoppingRequest: { select: { name: true } },
@@ -1445,6 +1551,8 @@ export class InventoryInboundReceiptRepository
             skuSnapshot: true,
             unitSnapshot: true,
             quantity: true,
+            latestUnitPrice: true,
+            updateMasterHpp: true,
             product: { select: pricingProductSelect },
             inboundReceiptLines: {
               where: {
@@ -1456,6 +1564,7 @@ export class InventoryInboundReceiptRepository
               select: {
                 status: true,
                 receivedQuantity: true,
+                matchStatus: true,
                 receipt: { select: { id: true, status: true } },
               },
             },
@@ -1480,6 +1589,10 @@ export class InventoryInboundReceiptRepository
         const pendingLines = item.inboundReceiptLines.filter(
           (line) => line.receipt.status === "SUBMITTED",
         );
+        const hasReceivedMatchingItem = item.inboundReceiptLines.some((line) =>
+          line.receipt.status === "APPROVED" && line.matchStatus === "MATCHED" &&
+          getInboundStockQuantity({ status: line.status, receivedQuantity: line.receivedQuantity }) > 0,
+        );
         const pendingReservedQuantity = pendingLines.reduce(
           (sum, line) =>
             sum +
@@ -1496,6 +1609,8 @@ export class InventoryInboundReceiptRepository
           shoppingRequestName: purchase.shoppingRequest.name,
           supplierId: purchase.supplierId,
           supplierName: purchase.supplierNameSnapshot,
+          paymentMethod: purchase.paymentMethod,
+          paymentDueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null,
           fulfillmentStatus: purchase.fulfillmentStatus,
           itemId: item.id,
           productId: item.productId,
@@ -1506,6 +1621,8 @@ export class InventoryInboundReceiptRepository
             item.product?.costPrice == null
               ? null
               : Number(item.product.costPrice.toString()),
+          suggestedCostPrice: purchase.deferMasterHppToReceipt && item.updateMasterHpp && !hasReceivedMatchingItem
+            ? Number(item.latestUnitPrice.toString()) : null,
           pricingUnits: pricingUnitsForProduct(item.product),
           orderedQuantity: item.quantity,
           approvedReceivedQuantity,

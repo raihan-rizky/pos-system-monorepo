@@ -53,7 +53,7 @@ const inboundApi = inventoryApi as unknown as {
       note?: string | null;
     },
   ): Promise<unknown>;
-  deleteInboundReceiptItem(id: string, itemId: string): Promise<unknown>;
+  deleteInboundReceiptItem(id: string, itemId: string, expectedUpdatedAt?: string): Promise<unknown>;
   rejectInboundReceipt(id: string, rejectionReason: string): Promise<unknown>;
 };
 
@@ -380,6 +380,7 @@ describe("inventory management api", () => {
     const deletion = await inboundApi.deleteInboundReceiptItem(
       "receipt-1",
       "line-3",
+      "2026-10-31T11:00:00.000Z",
     );
     const rejection = await inboundApi.rejectInboundReceipt(
       "receipt-1",
@@ -421,7 +422,7 @@ describe("inventory management api", () => {
     expect(fetch).toHaveBeenNthCalledWith(
       4,
       "/api/inventory-management/inbound-receipts/receipt-1/items/line-3",
-      { method: "DELETE" },
+      expect.objectContaining({ method: "DELETE", body: JSON.stringify({ expectedUpdatedAt: "2026-10-31T11:00:00.000Z" }) }),
     );
     expect(fetch).toHaveBeenNthCalledWith(
       5,

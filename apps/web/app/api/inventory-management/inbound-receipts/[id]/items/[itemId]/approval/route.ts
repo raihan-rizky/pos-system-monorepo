@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { InventoryInboundReceiptRepository } from "@/features/inventory-management/repositories/InventoryInboundReceiptRepository";
 import {
   approveInboundReceiptItem,
@@ -9,7 +10,7 @@ import { apiError } from "@/lib/api/responses";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string; itemId: string }> },
 ) {
   try {
@@ -17,18 +18,22 @@ export async function POST(
       "inventory.inbound_receipt.approve",
       "update",
     );
+    const { expectedUpdatedAt } = z.object({ expectedUpdatedAt: z.string().datetime().optional() }).strict()
+      .parse(await request.json().catch(() => ({})));
     const { id, itemId } = await context.params;
     const result = await approveInboundReceiptItem({
       repository: new InventoryInboundReceiptRepository(),
       user: user as InventoryManagementUser & { name?: string | null },
       receiptId: id,
       itemId,
+      expectedUpdatedAt,
     });
 
     return NextResponse.json(result);
   } catch (error) {
     const authError = handleAuthError(error);
     if (authError) return authError;
+    if (error instanceof z.ZodError) return apiError("Data persetujuan tidak valid", 422, { code: "ValidationError" });
     if (error instanceof InventoryManagementError) {
       return apiError(error.message, error.status, {
         code:
