@@ -75,6 +75,9 @@ model Store {
   supplierPayables              SupplierPayable[]
   inventoryValuationBaseline    InventoryValuationBaseline?
   inventoryValuationChanges     InventoryValuationChange[]
+  inventoryValuationV2Baseline  InventoryValuationV2Baseline?
+  inventoryValuationV2Events    InventoryValuationV2Event[]
+  inventoryValuationV2Transactions InventoryValuationV2Transaction[]
   debtPaymentLogs              DebtPaymentLog[]
   printingServices             PrintingService[]
   printingReceipts              PrintingReceipt[]
@@ -155,9 +158,51 @@ model InventoryValuationChange {
   @@map("pos_inventory_valuation_changes")
 }
 
+model InventoryValuationV2Baseline {
+  storeId    String   @id
+  capturedAt DateTime @db.Timestamptz(6)
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("pos_inventory_valuation_v2_baselines")
+}
+
+model InventoryValuationV2Event {
+  id         BigInt   @id @default(autoincrement())
+  storeId    String
+  entityType String
+  entityId   String
+  occurredAt DateTime @db.Timestamptz(6)
+  snapshot   Json?
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, entityType, entityId, occurredAt(sort: Desc), id(sort: Desc)], map: "pos_inventory_v2_event_lookup_idx")
+  @@map("pos_inventory_valuation_v2_events")
+}
+
+model InventoryValuationV2Transaction {
+  storeId       String
+  transactionKey String   @db.Uuid
+  transactionId BigInt
+  capturedAt    DateTime  @db.Timestamptz(6)
+  observedAt    DateTime? @db.Timestamptz(6)
+  store         Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, transactionKey])
+  @@map("pos_inventory_valuation_v2_transactions")
+}
+
+model InventoryValuationV2Closure {
+  cutoff   DateTime @id @db.Timestamptz(6)
+  closedAt DateTime @db.Timestamptz(6)
+
+  @@map("pos_inventory_valuation_v2_closures")
+}
+
 model SupplierPayable {
   id           String                   @id
   storeId      String
+  goodsPurchaseId String?               @unique
+  giroHistoryVerifiedAt DateTime?       @db.Timestamptz(6)
   supplierName String
   amount       Decimal                  @db.Decimal(12, 2)
   debtDate     DateTime                 @db.Date
@@ -166,10 +211,32 @@ model SupplierPayable {
   createdById  String
   createdAt    DateTime                 @default(now())
   store        Store                    @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  goodsPurchase GoodsPurchase?          @relation(fields: [goodsPurchaseId], references: [id], onDelete: Restrict)
   payments     SupplierPayablePayment[]
+  manualLinks  SupplierPayableManualLink[]
 
   @@index([storeId, debtDate])
   @@map("pos_supplier_payables")
+}
+
+model SupplierPayableManualLink {
+  manualPayableId                   String          @id
+  giroPayableId                     String
+  storeId                           String
+  goodsPurchaseId                   String
+  linkedById                        String
+  linkedAt                          DateTime        @default(now()) @db.Timestamptz(6)
+  manualPayable                     Json
+  giroPayable                       Json
+  manualPayments                    Json
+  giroPayments                      Json
+  duplicatePayments                 Json
+  requestPayload                    Json
+  matchingPaymentsConfirmedDistinct Boolean
+  giro                              SupplierPayable @relation(fields: [giroPayableId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([giroPayableId])
+  @@map("pos_supplier_payable_manual_links")
 }
 
 model SupplierPayablePayment {
@@ -179,6 +246,8 @@ model SupplierPayablePayment {
   paidAt      DateTime        @db.Date
   createdById String
   createdAt   DateTime        @default(now())
+  requestScope String?        @unique
+  requestExpectedBalance Decimal? @db.Decimal(12, 2)
   payable     SupplierPayable @relation(fields: [payableId], references: [id], onDelete: Restrict)
 
   @@index([payableId, paidAt])
@@ -1064,6 +1133,7 @@ model GoodsPurchase {
   rejectedBy               User?                          @relation("goods_purchase_rejector", fields: [rejectedById], references: [id])
   items                    GoodsPurchaseItem[]
   expense                  Expense?
+  supplierPayable          SupplierPayable?
   inboundReceipts          InventoryInboundReceipt[]
 
   @@index([storeId, status, createdAt])
@@ -1689,6 +1759,7 @@ model Expense {
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([storeId, deletedAt, occurredAt(sort: Desc)])
   @@index([occurredAt])
+
   @@index([category])
   @@index([storeId, customCategoryId])
   @@index([recordedById])

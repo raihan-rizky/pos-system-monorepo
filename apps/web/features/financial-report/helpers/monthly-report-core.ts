@@ -1,5 +1,5 @@
 import { netInitialPayments } from '@/features/customer-debt/helpers/net-initial-payments';
-import type { IncomeGroup, MonthlyFinancialReport } from './monthly-report-types';
+import type { IncomeGroup, MonthlyExpense, MonthlyFinancialReport, MonthlyGiroPayment, MonthlySupplierDebt } from './monthly-report-types';
 
 export type MonthlyPeriod = { from: string; to: string; start: Date; end: Date };
 type Money = unknown;
@@ -16,15 +16,22 @@ export type MonthlyTransactionInput = {
 export type MonthlyExpenseInput = {
   id: string; occurredAt: Date; category: string; amount: Money; changeAmount: Money;
   description: string | null; deletedAt?: Date | null; customCategory?: { name: string } | null;
+  goodsPurchaseId?: string | null; shoppingRequestId?: string | null;
+  backdatedPurchaseDueId?: string | null; backdatedPurchasePaymentId?: string | null;
   hasMissingCostSnapshot?: boolean;
-  shoppingRequest?: { status: string } | null;
-  goodsPurchase?: { number: string; status: string; paymentMethod: string | null; paymentDueDate: Date | null; supplierNameSnapshot: string } | null;
-  backdatedPurchaseDue?: { reference: string; paymentMethod: string; dueDate: Date } | null;
-  backdatedPurchasePayment?: { purchase: { reference: string; paymentMethod: string; dueDate: Date } } | null;
+  purchaseAmountMismatch?: boolean;
+  ambiguousPurchaseDueDates?: Date[];
+  shoppingRequest?: { status: string; number?: string } | null;
+  goodsPurchase?: { number: string; status: string; totalAmount?: Money; paymentMethod: string | null; paymentDueDate: Date | null; supplierNameSnapshot: string;
+    supplierPayable?: { id: string; debtDate?: Date; giroHistoryVerifiedAt: Date | null; payments: { id: string; amount: Money; paidAt: Date }[] } | null } | null;
 };
 export type MonthlyManualReceivableInput = {
   id: string; debtDate: Date; dueDate: Date; amount: Money; note: string | null;
   customer: { name: string }; payments: Payment[];
+};
+export type MonthlyBackdatedPurchaseInput = {
+  id: string; purchaseDate: Date; dueDate: Date; reference: string; paymentMethod: string; amount: Money;
+  payments: { id: string; amount: Money; paidAt: Date }[];
 };
 
 const groups: IncomeGroup[] = ['CETAK', 'PLAT', 'STEMPEL', 'SPANDUK', 'ATK', 'PRINT', 'UNMAPPED'];
@@ -107,10 +114,11 @@ function transactionEvents(transaction: MonthlyTransactionInput) {
 export function buildMonthlyReport(input: {
   year: number; month: number; period: MonthlyPeriod; transactions: MonthlyTransactionInput[];
   expenses: MonthlyExpenseInput[]; manualReceivables: MonthlyManualReceivableInput[];
+  backdatedPurchases?: MonthlyBackdatedPurchaseInput[];
 }): MonthlyFinancialReport {
   const { year, month, period } = input;
   const report: MonthlyFinancialReport = {
-    year, month, from: period.from, to: period.to, income: [], expenses: [], receivables: [], inventoryBalance: null, supplierDebtBalance: null,
+    year, month, from: period.from, to: period.to, income: [], expenses: [], purchaseExpenses: [], giroPayments: [], cashIncomplete: false, supplierDebtIncomplete: false, receivables: [], inventoryBalance: null, supplierDebtBalance: null,
     warnings: ['Laporan menggunakan basis kas; hasil merupakan selisih penerimaan dan pengeluaran, bukan laba akrual lengkap.', 'Persediaan akhir dan hutang pemasok: Belum tersedia dari sistem.', 'Riwayat memakai ledger yang tersedia; pengembalian dana atau perubahan nominal tanpa riwayat tidak dapat direkonstruksi.'],
   };
   const inPeriod = (date: Date) => date >= period.start && date < period.end;
@@ -144,15 +152,108 @@ export function buildMonthlyReport(input: {
       if (outstanding > 0) report.receivables.push({ id: `manual:${receivable.id}`, date: calendarKey(receivable.debtDate), dueDate: calendarKey(receivable.dueDate), reference, description, customer: receivable.customer.name, amount: outstanding });
     }
   }
+  const purchases: MonthlyExpense[] = [];
+  const giroPayments: MonthlyGiroPayment[] = [];
+  const backdatedDebts: MonthlySupplierDebt[] = [];
   for (const expense of [...new Map(input.expenses.map(row => [row.id, row])).values()]) {
-    if (expense.deletedAt || !inPeriod(expense.occurredAt) || (expense.goodsPurchase && expense.goodsPurchase.status !== 'APPROVED') || (expense.shoppingRequest && expense.shoppingRequest.status !== 'APPROVED')) continue;
+    if (expense.backdatedPurchaseDueId || expense.backdatedPurchasePaymentId) continue;
+    if (expense.deletedAt || (expense.goodsPurchase && expense.goodsPurchase.status !== 'APPROVED') || (expense.shoppingRequest && expense.shoppingRequest.status !== 'APPROVED')) continue;
     const purchase = expense.goodsPurchase;
-    const backdated = expense.backdatedPurchaseDue ?? expense.backdatedPurchasePayment?.purchase;
-    if (expense.hasMissingCostSnapshot && !report.warnings.some(warning => warning.includes('snapshot biaya'))) report.warnings.push('Sebagian pengeluaran belum memiliki snapshot biaya lengkap; total pengeluaran dapat belum lengkap.');
-    report.expenses.push({ id: expense.id, date: dateKey(expense.occurredAt), description: expense.description || 'Pengeluaran', categoryName: expense.customCategory?.name ?? null, amount: Math.max(0, cents(expense.amount) - cents(expense.changeAmount)) / 100, group: expense.category === 'SALARY' ? 'SALARY' : 'OTHER', ...(purchase ? { purchase: { reference: purchase.number, method: purchase.paymentMethod, dueDate: purchase.paymentDueDate ? calendarKey(purchase.paymentDueDate) : null, supplier: purchase.supplierNameSnapshot } } : backdated ? { purchase: { reference: backdated.reference, method: backdated.paymentMethod, dueDate: calendarKey(backdated.dueDate), supplier: 'Tidak dicatat' } } : {}) });
+    const automatic = Boolean(expense.goodsPurchaseId || expense.shoppingRequestId || purchase || expense.shoppingRequest);
+    const receiptDate = dateKey(expense.occurredAt);
+    const payable = purchase?.supplierPayable;
+    const verifiedDebtDate = payable?.giroHistoryVerifiedAt && payable.debtDate ? calendarKey(payable.debtDate) : null;
+    const obligationDate = verifiedDebtDate && verifiedDebtDate < receiptDate ? verifiedDebtDate : receiptDate;
+    const obligationInScope = obligationDate <= period.to;
+    const ambiguousDueInMonth = expense.ambiguousPurchaseDueDates?.some(date => calendarKey(date).slice(0, 7) === period.from.slice(0, 7));
+    if (!obligationInScope && ambiguousDueInMonth && !report.warnings.some(warning => warning.includes('jadwal belanja lama'))) report.warnings.push('Sebagian jadwal belanja lama tidak dapat dipastikan karena hubungan pembelian ambigu.');
+    const row: MonthlyExpense = { id: expense.id, date: dateKey(expense.occurredAt), description: expense.description || 'Pengeluaran', categoryName: expense.customCategory?.name ?? null, amount: Math.max(0, cents(expense.amount) - cents(expense.changeAmount)) / 100, group: expense.category === 'SALARY' ? 'SALARY' : 'OTHER' };
+    if (!automatic) {
+      if (inPeriod(expense.occurredAt)) {
+        if (expense.hasMissingCostSnapshot && !report.warnings.some(warning => warning.includes('snapshot biaya'))) report.warnings.push('Sebagian pengeluaran belum memiliki snapshot biaya lengkap; total pengeluaran dapat belum lengkap.');
+        report.expenses.push(row);
+      }
+      continue;
+    }
+
+    row.purchase = { reference: purchase?.number || expense.shoppingRequest?.number || expense.id, method: purchase?.paymentMethod || null, dueDate: purchase?.paymentDueDate ? calendarKey(purchase.paymentDueDate) : null, supplier: purchase?.supplierNameSnapshot || 'Pemasok belum tersedia' };
+    if (expense.purchaseAmountMismatch) {
+      if (obligationInScope) {
+        report.cashIncomplete = true;
+        report.supplierDebtIncomplete = true;
+      }
+      if (!report.warnings.some(warning => warning.includes('nominal belanja'))) report.warnings.push('Sebagian nominal belanja tidak cocok dengan pembelian; periksa jadwal belanja.');
+    }
+    const method = row.purchase.method;
+    const monthPrefix = period.from.slice(0, 7);
+    if (method === 'GIRO') {
+      if (row.purchase.dueDate?.startsWith(monthPrefix)) purchases.push({ ...row, date: row.purchase.dueDate, amount: purchase?.totalAmount == null ? row.amount : cents(purchase.totalAmount) / 100 });
+      if (!row.purchase.dueDate && inPeriod(expense.occurredAt)) {
+        purchases.push({ ...row, amount: purchase?.totalAmount == null ? row.amount : cents(purchase.totalAmount) / 100 });
+        report.warnings.push(`Jatuh tempo giro ${row.purchase.reference} belum tersedia.`);
+      }
+      if (!obligationInScope) continue;
+      if (!payable?.giroHistoryVerifiedAt || expense.purchaseAmountMismatch) {
+        report.cashIncomplete = true;
+        report.supplierDebtIncomplete = true;
+        if (!report.warnings.some(warning => warning.includes('riwayat giro'))) report.warnings.push('Sebagian riwayat giro belum diperiksa; kas dan hutang belum lengkap.');
+      } else {
+        for (const payment of uniquePayments(payable.payments)) {
+          const date = calendarKey(payment.paidAt);
+          if (date >= obligationDate && date >= period.from && date <= period.to) giroPayments.push({ id: payment.id, date, amount: cents(payment.amount) / 100, reference: row.purchase.reference, supplier: row.purchase.supplier, group: row.group });
+        }
+      }
+    } else if (method === 'TRANSFER') {
+      if (inPeriod(expense.occurredAt)) purchases.push(row);
+    } else {
+      if (inPeriod(expense.occurredAt)) purchases.push(row);
+      if (obligationInScope) {
+        report.cashIncomplete = true;
+        report.supplierDebtIncomplete = true;
+        if (!report.warnings.some(warning => warning.includes('metode belanja'))) report.warnings.push('Sebagian metode belanja lama belum diketahui; kas dan hutang belum lengkap.');
+      }
+    }
+    if (expense.hasMissingCostSnapshot && inPeriod(expense.occurredAt) && !report.warnings.some(warning => warning.includes('snapshot biaya'))) report.warnings.push('Sebagian pengeluaran belum memiliki snapshot biaya lengkap; total pengeluaran dapat belum lengkap.');
   }
+  for (const purchase of input.backdatedPurchases ?? []) {
+    const validDates = Number.isFinite(purchase.purchaseDate.getTime()) && Number.isFinite(purchase.dueDate.getTime());
+    const purchaseDate = validDates ? calendarKey(purchase.purchaseDate) : '';
+    const dueDate = validDates ? calendarKey(purchase.dueDate) : '';
+    if (validDates && purchaseDate > period.to) continue;
+    const amount = Number(purchase.amount);
+    const validAmount = Number.isFinite(amount) && amount > 0 && Number.isSafeInteger(Math.round(amount * 100));
+    const supplier = 'Pemasok belum tersedia';
+    const id = `backdated:${purchase.id}`;
+    const row: MonthlyExpense = { id, date: dueDate, description: `Belanja terdahulu ${purchase.reference}`, amount: validAmount ? cents(amount) / 100 : 0, group: 'OTHER',
+      purchase: { reference: purchase.reference, method: purchase.paymentMethod, dueDate, supplier } };
+    if (validDates && validAmount && purchase.paymentMethod === 'GIRO' && dueDate.startsWith(period.from.slice(0, 7))) purchases.push(row);
+    const payments = uniquePayments(purchase.payments);
+    const paymentDatesValid = payments.every(payment => Number.isFinite(payment.paidAt.getTime()));
+    const asOf = paymentDatesValid ? payments.filter(payment => calendarKey(payment.paidAt) <= period.to) : [];
+    const paid = asOf.reduce((sum, payment) => sum + Math.round(Number(payment.amount) * 100), 0);
+    const validHistory = validDates && dueDate >= purchaseDate && validAmount && ['GIRO', 'TRANSFER'].includes(purchase.paymentMethod) && paymentDatesValid
+      && asOf.every(payment => payment.id && calendarKey(payment.paidAt) >= purchaseDate && Number.isFinite(Number(payment.amount)) && Number(payment.amount) > 0)
+      && Number.isSafeInteger(paid) && paid <= cents(amount);
+    if (!validHistory) {
+      report.cashIncomplete = true;
+      report.supplierDebtIncomplete = true;
+      if (!report.warnings.some(warning => warning.includes('riwayat belanja terdahulu'))) report.warnings.push('Sebagian riwayat belanja terdahulu tidak sesuai; kas dan hutang belum lengkap.');
+      continue;
+    }
+    for (const payment of asOf) {
+      const date = calendarKey(payment.paidAt);
+      if (date < period.from) continue;
+      if (purchase.paymentMethod === 'GIRO') giroPayments.push({ id: `${id}:${payment.id}`, date, amount: cents(payment.amount) / 100, reference: purchase.reference, supplier, group: 'OTHER' });
+      else purchases.push({ ...row, id: `${id}:${payment.id}`, date, amount: cents(payment.amount) / 100 });
+    }
+    const remaining = cents(amount) - paid;
+    if (remaining > 0) backdatedDebts.push({ id, date: purchaseDate, dueDate, supplier, note: `Belanja terdahulu ${purchase.reference}`, amount: remaining / 100 });
+  }
+  report.supplierDebts = backdatedDebts;
+  report.purchaseExpenses = purchases.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  report.giroPayments = giroPayments.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   if (report.income.some(row => row.amounts.UNMAPPED > 0)) report.warnings.push('Sebagian penerimaan perlu pemetaan kategori, termasuk piutang manual; nilainya tetap masuk total.');
-  if (report.expenses.some(row => row.purchase)) report.warnings.push('Kategori belanja tanpa snapshot terverifikasi ditampilkan sebagai Lain-lain.');
+  if (purchases.length) report.warnings.push('Kategori belanja tanpa snapshot terverifikasi ditampilkan sebagai Lain-lain.');
   report.income.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   report.expenses.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   report.receivables.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));

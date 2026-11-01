@@ -141,10 +141,23 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   const month = MONTHS[report.month - 1];
   const income = [...report.income].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const expenses = [...report.expenses].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const purchasedExpenses = report.purchaseExpenses ?? expenses.filter((entry) => entry.purchase);
+  const transfers = report.purchaseExpenses ? purchasedExpenses.filter((entry) => entry.purchase?.method === "TRANSFER") : [];
+  const cashPurchases = [
+    ...transfers.map((entry) => ({ id: entry.id, date: entry.date, group: entry.group, amount: entry.amount, description: `${entry.purchase?.reference} · ${entry.description} · Transfer` })),
+    ...(report.giroPayments ?? []).map((entry) => ({ ...entry, description: `${entry.reference} · ${entry.supplier} · Pembayaran giro` })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const cashIncomplete = report.cashIncomplete === true;
+  const methods = [...new Set(["GIRO", "TRANSFER", ...purchasedExpenses.map((entry) => entry.purchase!.method || "LAINNYA")])];
+  const cashPurchaseRow = 7 + methods.reduce((rows, method) => rows + 5 + Math.max(1, purchasedExpenses.filter((entry) => (entry.purchase!.method || "LAINNYA") === method).length), 0);
+  const cashFirst = cashPurchaseRow + 2;
+  const cashEnd = cashFirst + Math.max(1, cashPurchases.length) - 1;
   const incomeTotals = Object.fromEntries(INCOME.map((group) => [group, moneySum(income.map((row) => row.amounts[group]))])) as Record<IncomeGroup, number>;
-  const expenseTotals = Object.fromEntries(EXPENSE.map((group) => [group, moneySum(expenses.filter((row) => row.group === group).map((row) => row.amount))])) as Record<ExpenseGroup, number>;
+  const manualTotals = Object.fromEntries(EXPENSE.map((group) => [group, moneySum(expenses.filter((row) => row.group === group).map((row) => row.amount))])) as Record<ExpenseGroup, number>;
+  const expenseTotals = Object.fromEntries(EXPENSE.map((group) => [group, moneySum([manualTotals[group], ...cashPurchases.filter((row) => row.group === group).map((row) => row.amount)])])) as Record<ExpenseGroup, number>;
   const totalIncome = moneySum(Object.values(incomeTotals));
   const totalExpense = moneySum(Object.values(expenseTotals));
+  const totalManualExpense = moneySum(Object.values(manualTotals));
   const netAmount = moneySum([totalIncome, -totalExpense]);
   const totalReceivables = moneySum(report.receivables.map((row) => row.amount));
   const wb = XLSX.utils.book_new();
@@ -182,18 +195,20 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
     put(rp, row, 5, entry.group === "SALARY" ? entry.amount : 0);
     put(rp, row, 6, entry.amount, `SUM(D${row}:E${row})`);
     put(rp, row, 7, entry.categoryName || GROUP_LABELS[entry.group]);
+    put(rp, row, 8, GROUP_LABELS[entry.group]);
     rp["!rows"]![row - 1] = { hpt: Math.max(28, Math.ceil(entry.description.length / 45) * 14) };
   });
   if (!expenses.length) { put(rp, 7, 2, "Belum ada pengeluaran"); for (let col = 4; col <= 6; col++) put(rp, 7, col, 0); }
   const rpTotal = rpEnd + 2;
   put(rp, rpTotal, 1, "TOTAL PENGELUARAN");
-  sumFormula(rp, rpTotal, 4, 7, rpEnd, moneySum([totalExpense, -expenseTotals.SALARY]));
-  sumFormula(rp, rpTotal, 5, 7, rpEnd, expenseTotals.SALARY);
-  sumFormula(rp, rpTotal, 6, 7, rpEnd, totalExpense);
+  sumFormula(rp, rpTotal, 4, 7, rpEnd, moneySum([totalManualExpense, -manualTotals.SALARY]));
+  sumFormula(rp, rpTotal, 5, 7, rpEnd, manualTotals.SALARY);
+  sumFormula(rp, rpTotal, 6, 7, rpEnd, totalManualExpense);
   band(rp, rpTotal, 1, 7, COLORS.accent);
-  heading(rp, rpTotal + 2, "Belanja di sheet berikutnya adalah rincian biaya yang sama dan tidak dijumlahkan ulang.", 7, COLORS.soft);
+  heading(rp, rpTotal + 2, "RP memuat pengeluaran manual. Pembayaran belanja dirinci pada sheet belanja.", 7, COLORS.soft);
   rp["!rows"]![rpTotal + 1] = { hpt: 32 };
-  finish(rp, rpTotal + 2, 7);
+  finish(rp, rpTotal + 2, 8);
+  rp["!cols"]![7] = { hidden: true };
 
   const daily = makeSheet(`PENDAPATAN SEHARI-HARI BULAN ${month} ${report.year}`, report, [14, 13, 13, 13, 13, 13, 13, 14, 13, 13, 14, 16]);
   put(daily, 5, 1, "BULAN");
@@ -211,7 +226,9 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
       put(daily, row, index + 2, moneySum(income.filter((entry) => entry.date === date).map((entry) => entry.amounts[group])), `SUMIF(${quote(rcName)}!$A$7:$A$${rcEnd},$A${row},${quote(rcName)}!$${column}$7:$${column}$${rcEnd})`);
     });
     EXPENSE.forEach((group, index) => {
-      put(daily, row, index + 8, moneySum(expenses.filter((entry) => entry.date === date && entry.group === group).map((entry) => entry.amount)), `SUMIFS(${quote(rpName)}!$F$7:$F$${rpEnd},${quote(rpName)}!$A$7:$A$${rpEnd},$A${row},${quote(rpName)}!$G$7:$G$${rpEnd},"${GROUP_LABELS[group]}")`);
+      const manual = expenses.filter((entry) => entry.date === date && entry.group === group).map((entry) => entry.amount);
+      const shopping = cashPurchases.filter((entry) => entry.date === date && entry.group === group).map((entry) => entry.amount);
+      put(daily, row, index + 8, moneySum([...manual, ...shopping]), `SUMIFS(${quote(rpName)}!$F$7:$F$${rpEnd},${quote(rpName)}!$A$7:$A$${rpEnd},$A${row},${quote(rpName)}!$H$7:$H$${rpEnd},"${GROUP_LABELS[group]}")+SUMIFS(${quote(purchaseName)}!$E$${cashFirst}:$E$${cashEnd},${quote(purchaseName)}!$C$${cashFirst}:$C$${cashEnd},$A${row},${quote(purchaseName)}!$B$${cashFirst}:$B$${cashEnd},"${GROUP_LABELS[group]}")`);
     });
   }
   const dailyTotal = 9 + days;
@@ -222,10 +239,10 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   put(daily, dailyTotal + 2, 1, "Penerimaan perlu pemetaan"); merge(daily, dailyTotal + 2, 1, dailyTotal + 2, 5);
   put(daily, dailyTotal + 2, 7, incomeTotals.UNMAPPED, `${quote(rcName)}!H${rcTotal}`);
   heading(daily, dailyTotal + 5, "LABA / RUGI PENDAPATAN SEHARI-HARI", 12);
-  [["TOTAL PENDAPATAN", totalIncome, `${quote(rcName)}!I${rcTotal}`], ["TOTAL PENGELUARAN", totalExpense, `${quote(rpName)}!F${rpTotal}`], ["TOTAL AKHIR", netAmount, `J${dailyTotal + 7}-J${dailyTotal + 8}`]].forEach(([label, value, formula], index) => {
+  [["TOTAL PENDAPATAN", totalIncome, `${quote(rcName)}!I${rcTotal}`], ["TOTAL PENGELUARAN", cashIncomplete ? "" : totalExpense, cashIncomplete ? '""' : `SUM(H${dailyTotal}:L${dailyTotal})`], ["TOTAL AKHIR", cashIncomplete ? "" : netAmount, cashIncomplete ? '""' : `J${dailyTotal + 7}-J${dailyTotal + 8}`]].forEach(([label, value, formula], index) => {
     const row = dailyTotal + 7 + index;
     put(daily, row, 7, String(label)); merge(daily, row, 7, row, 9);
-    put(daily, row, 10, Number(value), String(formula)); merge(daily, row, 10, row, 12);
+    put(daily, row, 10, value, String(formula)); merge(daily, row, 10, row, 12);
   });
   finish(daily, dailyTotal + 10, 12, 9);
 
@@ -237,14 +254,14 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   const incomeRefs = [`SUM(${quote(dailyName)}!B${dailyTotal}:D${dailyTotal})`, `${quote(dailyName)}!E${dailyTotal}`, `${quote(dailyName)}!F${dailyTotal}`, `${quote(dailyName)}!G${dailyTotal}`];
   const incomeValues = [moneySum([incomeTotals.CETAK, incomeTotals.PLAT, incomeTotals.STEMPEL]), incomeTotals.SPANDUK, incomeTotals.ATK, incomeTotals.PRINT];
   incomeRefs.forEach((ref, index) => { put(net, 13, index + 2, incomeValues[index], ref); put(net, 15, index + 2, incomeValues[index], address(13, index + 2)); });
-  EXPENSE.forEach((group, index) => { put(net, 13, index + 6, expenseTotals[group], `${quote(dailyName)}!${address(dailyTotal, index + 8)}`); put(net, 15, index + 6, expenseTotals[group], address(13, index + 6)); });
+  EXPENSE.forEach((group, index) => { put(net, 13, index + 6, cashIncomplete ? "" : expenseTotals[group], cashIncomplete ? '""' : `${quote(dailyName)}!${address(dailyTotal, index + 8)}`); put(net, 15, index + 6, cashIncomplete ? "" : expenseTotals[group], cashIncomplete ? '""' : address(13, index + 6)); });
   put(net, 17, 2, "Perlu pemetaan"); merge(net, 17, 2, 17, 4);
   put(net, 17, 5, incomeTotals.UNMAPPED, `${quote(rcName)}!H${rcTotal}`);
   heading(net, 19, "LABA / RUGI PENDAPATAN SEHARI-HARI", 10);
   const summaryLine = (row: number, label: string, value: number | string, formula: string) => { put(net, row, 1, label); merge(net, row, 1, row, 4); put(net, row, 5, ":"); put(net, row, 6, value, formula); merge(net, row, 6, row, 8); };
   summaryLine(24, "TOTAL PENDAPATAN", totalIncome, "SUM(B15:E15)+E17");
-  summaryLine(25, "TOTAL PENGELUARAN", totalExpense, "SUM(F15:J15)");
-  summaryLine(27, "TOTAL AKHIR", netAmount, "F24-F25"); band(net, 27, 1, 8, COLORS.accent);
+  summaryLine(25, "TOTAL PENGELUARAN", cashIncomplete ? "" : totalExpense, cashIncomplete ? '""' : "SUM(F15:J15)");
+  summaryLine(27, "TOTAL AKHIR", cashIncomplete ? "" : netAmount, cashIncomplete ? '""' : "F24-F25"); band(net, 27, 1, 8, COLORS.accent);
 
   const balances = makeSheet(`PIUTANG & HUTANG · ${month} ${report.year}`, report, [7, 14, 14, 17, 30, 31, 18]);
   heading(balances, 1, "PIUTANG", 7);
@@ -289,7 +306,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   }
   const debtTotal = debtEnd + 2;
   put(balances, debtTotal, 1, "TOTAL HUTANG"); merge(balances, debtTotal, 1, debtTotal, 6);
-  put(balances, debtTotal, 7, report.supplierDebtBalance ?? "", `IF(COUNT(D${debtRow}:D${debtEnd})=0,"",SUM(D${debtRow}:D${debtEnd}))`); band(balances, debtTotal, 1, 7, COLORS.soft);
+  put(balances, debtTotal, 7, report.supplierDebtBalance ?? "", report.supplierDebtBalance === null ? '""' : `SUM(D${debtRow}:D${debtEnd})`); band(balances, debtTotal, 1, 7, COLORS.soft);
   finish(balances, debtTotal + 1, 7);
   summaryLine(32, "PIUTANG", totalReceivables, `${quote(balanceName)}!G${balanceTotal}`);
   summaryLine(34, "HUTANG", report.supplierDebtBalance ?? "", `IF(ISNUMBER(${quote(balanceName)}!G${debtTotal}),${quote(balanceName)}!G${debtTotal},"")`);
@@ -305,30 +322,28 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   const debt = report.supplierDebtBalance;
   const totalAssets = opening === null ? "" : moneySum([opening, totalReceivables]);
   const netAssets = typeof totalAssets !== "number" || debt === null || closing === null ? "" : moneySum([totalAssets, -debt, -closing]);
-  const capital = put(overview, 8, 4, opening ?? ""); capital.z = MONEY; comment(capital, opening === null ? "Nilai inventaris akhir bulan sebelumnya belum tersedia dari riwayat. Sel kosong bukan nol." : "Nilai inventaris akhir bulan sebelumnya, dihitung dari stok positif dan harga jual.");
+  const capital = put(overview, 8, 4, opening ?? ""); capital.z = MONEY; comment(capital, opening === null ? "Nilai inventaris akhir bulan sebelumnya belum tersedia. Riwayat atau satuan dasar grup stok mungkin belum lengkap; periksa satuan dasar di Produk. Sel kosong bukan nol." : "Nilai inventaris akhir bulan sebelumnya, dihitung dari stok positif dan harga jual.");
   put(overview, 9, 4, totalReceivables, `${quote(netName)}!F32`);
   put(overview, 11, 3, "TOTAL HARTA"); put(overview, 11, 6, totalAssets, 'IF(ISNUMBER(D8),SUM(D8:D9),"")');
   const debtRef = `${quote(netName)}!F34`;
-  comment(put(overview, 13, 4, debt ?? "", `IF(ISNUMBER(${debtRef}),${debtRef},"")`), "Saldo hutang yang dicatat di halaman Keuangan hingga akhir periode.");
+  comment(put(overview, 13, 4, debt ?? "", `IF(ISNUMBER(${debtRef}),${debtRef},"")`), "Saldo hutang pemasok dan sisa giro yang diketahui hingga akhir periode.");
   put(overview, 15, 3, "TOTAL HUTANG"); put(overview, 15, 6, debt ?? "", 'IF(ISNUMBER(D13),D13,"")');
-  const inventory = put(overview, 17, 4, closing ?? ""); inventory.z = MONEY; comment(inventory, closing === null ? "Nilai inventaris akhir periode belum tersedia dari riwayat. Sel kosong bukan nol." : "Nilai inventaris akhir periode, dihitung dari stok positif dan harga jual.");
+  const inventory = put(overview, 17, 4, closing ?? ""); inventory.z = MONEY; comment(inventory, closing === null ? "Nilai inventaris akhir periode belum tersedia. Riwayat atau satuan dasar grup stok mungkin belum lengkap; periksa satuan dasar di Produk. Sel kosong bukan nol." : "Nilai inventaris akhir periode, dihitung dari stok positif dan harga jual.");
   put(overview, 19, 3, `TOTAL INVENTORY ${month}`); put(overview, 19, 6, closing ?? "", 'IF(ISNUMBER(D17),D17,"")');
   put(overview, 21, 3, "JUMLAH HARTA"); merge(overview, 21, 3, 21, 5); put(overview, 21, 7, netAssets, 'IF(COUNT(F11,F15,F19)=3,F11-F15-F19,"")');
   put(overview, 24, 5, totalIncome, `${quote(netName)}!F24`);
-  put(overview, 26, 5, totalExpense, `${quote(netName)}!F25`);
-  put(overview, 29, 3, "PENGHASILAN BERSIH"); merge(overview, 29, 3, 29, 5); put(overview, 29, 7, netAmount, "E24-E26"); band(overview, 29, 3, 7, COLORS.accent);
-  put(overview, 32, 2, "KEKAYAAN BERSIH"); merge(overview, 32, 2, 33, 3); put(overview, 32, 4, typeof netAssets === "number" ? moneySum([netAssets, netAmount]) : "", 'IF(ISNUMBER(G21),G21+G29,"")'); merge(overview, 32, 4, 33, 7); band(overview, 32, 2, 7, COLORS.soft);
-  const notes = ["Modal awal dan stok akhir berasal dari nilai inventaris; hutang berasal dari Keuangan.", "Nilai historis yang belum tersedia dibiarkan kosong, bukan nol.", "Penerimaan/pengeluaran memakai basis kas.", ...report.warnings];
+  put(overview, 26, 5, cashIncomplete ? "" : totalExpense, cashIncomplete ? '""' : `${quote(netName)}!F25`);
+  put(overview, 29, 3, "PENGHASILAN BERSIH"); merge(overview, 29, 3, 29, 5); put(overview, 29, 7, cashIncomplete ? "" : netAmount, cashIncomplete ? '""' : "E24-E26"); band(overview, 29, 3, 7, COLORS.accent);
+  put(overview, 32, 2, "KEKAYAAN BERSIH"); merge(overview, 32, 2, 33, 3); put(overview, 32, 4, typeof netAssets === "number" && !cashIncomplete ? moneySum([netAssets, netAmount]) : "", 'IF(COUNT(G21,G29)=2,G21+G29,"")'); merge(overview, 32, 4, 33, 7); band(overview, 32, 2, 7, COLORS.soft);
+  const notes = ["Modal awal dan stok akhir berasal dari nilai inventaris; hutang mencakup sisa giro.", "Nilai historis yang belum tersedia dibiarkan kosong, bukan nol.", "Kas memakai pembayaran aktual; nilai giro jatuh tempo adalah jadwal belanja.", ...(cashIncomplete ? ["Ringkasan kas belum lengkap karena riwayat belanja atau giro belum diketahui."] : []), ...report.warnings];
   notes.forEach((note, index) => { const row = 36 + index * 2; put(overview, row, 2, note); merge(overview, row, 2, row + 1, 7); overview["!rows"]![row - 1] = { hpt: 20 }; });
   finish(overview, 37 + notes.length * 2, 7);
 
   const purchases = makeSheet(`PENGELUARAN BELANJA · ${month} ${report.year}`, report, [7, 17, 14, 14, 18, 58]);
   tableHeader(purchases, 5, ["No", "Pembayaran", "Tanggal", "Jatuh tempo", "Nilai", "Keterangan"]);
   let purchaseRow = 7;
-  const purchasedExpenses = expenses.filter((entry) => entry.purchase);
   const purchaseTotalCells: string[] = [];
   const purchaseSections: PurchaseColorSection[] = [];
-  const methods = [...new Set(["GIRO", "TRANSFER", ...purchasedExpenses.map((entry) => entry.purchase!.method || "LAINNYA")])];
   for (const method of methods) {
     heading(purchases, purchaseRow, method === "LAINNYA" ? "METODE LAIN / BELUM TERSEDIA" : `VIA ${method}`, 6);
     tableHeader(purchases, purchaseRow + 1, ["No", "Pembayaran", "Tanggal", "Jatuh tempo", "Nilai", "Keterangan"]);
@@ -351,18 +366,33 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
     purchaseSections.push({ firstRow: first, totalRow: total, method });
     purchaseRow = total + 3;
   }
-  heading(purchases, purchaseRow, "Rincian belanja sudah termasuk pengeluaran pada RP. Giro tidak otomatis berarti hutang.", 6, COLORS.soft);
-  purchases["!rows"]![purchaseRow - 1] = { hpt: 32 };
-  finish(purchases, purchaseRow + 1, 6);
+  heading(purchases, purchaseRow, "PEMBAYARAN BELANJA AKTUAL", 6);
+  tableHeader(purchases, purchaseRow + 1, ["No", "Kelompok", "Tanggal bayar", "", "Nilai", "Keterangan"]);
+  cashPurchases.forEach((entry, index) => {
+    const row = cashFirst + index;
+    put(purchases, row, 1, index + 1).z = "0";
+    put(purchases, row, 2, GROUP_LABELS[entry.group]);
+    dateCell(purchases, row, 3, entry.date);
+    put(purchases, row, 5, entry.amount);
+    put(purchases, row, 6, entry.description);
+  });
+  if (!cashPurchases.length) { put(purchases, cashFirst, 5, 0); put(purchases, cashFirst, 6, "Belum ada pembayaran belanja tercatat."); }
+  const cashTotal = cashEnd + 1;
+  put(purchases, cashTotal, 2, "TOTAL DICATAT");
+  sumFormula(purchases, cashTotal, 5, cashFirst, cashEnd, moneySum(cashPurchases.map((entry) => entry.amount)));
+  band(purchases, cashTotal, 1, 6, COLORS.soft);
+  heading(purchases, cashTotal + 2, cashIncomplete ? "Riwayat giro atau belanja belum lengkap; total kas belum tersedia." : "Jadwal giro tidak menambah kas; hanya pembayaran aktual yang dihitung.", 6, COLORS.soft);
+  purchases["!rows"]![cashTotal + 1] = { hpt: 32 };
+  finish(purchases, cashTotal + 3, 6);
 
   const currency = (amount: number) => amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const cashStatus = netAmount < 0 ? "Defisit kas" : netAmount > 0 ? "Surplus kas" : "Kas seimbang";
-  insight(overview, 6, 7, `${cashStatus}: Rp ${currency(netAmount)} · Modal awal: ${opening === null ? "belum tersedia" : `Rp ${currency(opening)}`}`, 'IF(G29<0,"Defisit kas",IF(G29>0,"Surplus kas","Kas seimbang"))&": Rp "&TEXT(G29,"#,##0.00")&" · Modal awal: "&IF(ISNUMBER(D8),"Rp "&TEXT(D8,"#,##0.00"),"belum tersedia")');
-  insight(net, 6, 10, totalIncome > 0 ? `Sisa kas: ${(netAmount / totalIncome * 100).toFixed(1)}% dari penerimaan · Basis kas` : "Belum ada penerimaan · Persentase sisa kas belum tersedia", 'IF(F24>0,"Sisa kas: "&TEXT(F27/F24,"0.0%")&" dari penerimaan · Basis kas","Belum ada penerimaan · Persentase sisa kas belum tersedia")');
-  insight(daily, 8, 12, `Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)} · Sudah termasuk total pendapatan`, `"Perlu pemetaan: Rp "&TEXT(G${dailyTotal + 2},"#,##0.00")&" · Sudah termasuk total pendapatan"`);
+  insight(overview, 6, 7, cashIncomplete ? "Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap" : `${cashStatus}: Rp ${currency(netAmount)} · Modal awal: ${opening === null ? "belum tersedia" : `Rp ${currency(opening)}`}`, cashIncomplete ? '"Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap"' : 'IF(G29<0,"Defisit kas",IF(G29>0,"Surplus kas","Kas seimbang"))&": Rp "&TEXT(G29,"#,##0.00")&" · Modal awal: "&IF(ISNUMBER(D8),"Rp "&TEXT(D8,"#,##0.00"),"belum tersedia")');
+  insight(net, 6, 10, cashIncomplete ? "Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap" : totalIncome > 0 ? `Sisa kas: ${(netAmount / totalIncome * 100).toFixed(1)}% dari penerimaan · Basis kas` : "Belum ada penerimaan · Persentase sisa kas belum tersedia", cashIncomplete ? '"Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap"' : 'IF(F24>0,"Sisa kas: "&TEXT(F27/F24,"0.0%")&" dari penerimaan · Basis kas","Belum ada penerimaan · Persentase sisa kas belum tersedia")');
+  insight(daily, 8, 12, cashIncomplete ? "Kas belum lengkap; rincian harian hanya memuat pembayaran yang diketahui." : `Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)} · Sudah termasuk total pendapatan`, cashIncomplete ? '"Kas belum lengkap; rincian harian hanya memuat pembayaran yang diketahui."' : `"Perlu pemetaan: Rp "&TEXT(G${dailyTotal + 2},"#,##0.00")&" · Sudah termasuk total pendapatan"`);
   insight(rc, 6, 9, `${income.length} penerimaan · Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)}`, `COUNT(A7:A${rcEnd})&" penerimaan · Perlu pemetaan: Rp "&TEXT(H${rcTotal},"#,##0.00")`);
-  insight(rp, 6, 7, `${expenses.length} pengeluaran · Gaji / mingguan: Rp ${currency(expenseTotals.SALARY)}`, `COUNT(A7:A${rpEnd})&" pengeluaran · Gaji / mingguan: Rp "&TEXT(E${rpTotal},"#,##0.00")`);
-  insight(purchases, 6, 6, `Belanja: Rp ${currency(moneySum(purchasedExpenses.map(entry => entry.amount)))} · Sudah termasuk RP`, `"Belanja: Rp "&TEXT(SUM(${purchaseTotalCells.join(",")}),"#,##0.00")&" · Sudah termasuk RP"`);
+  insight(rp, 6, 7, `${expenses.length} pengeluaran manual · Gaji / mingguan: Rp ${currency(manualTotals.SALARY)}`, `COUNT(A7:A${rpEnd})&" pengeluaran manual · Gaji / mingguan: Rp "&TEXT(E${rpTotal},"#,##0.00")`);
+  insight(purchases, 6, 6, `Jadwal belanja: Rp ${currency(moneySum(purchasedExpenses.map(entry => entry.amount)))} · Pembayaran aktual dirinci di bawah`, `"Jadwal belanja: Rp "&TEXT(SUM(${purchaseTotalCells.join(",")}),"#,##0.00")&" · Pembayaran aktual dirinci di bawah"`);
   insight(balances, 6, 7, `${report.receivables.length} nota piutang · ${report.supplierDebtBalance === null ? "Hutang belum tersedia" : `${supplierDebts.length} hutang tercatat`}`, `COUNT(B7:B${balanceEnd})&" nota piutang · "&IF(ISNUMBER(G${debtTotal}),COUNT(B${debtRow}:B${debtEnd})&" hutang tercatat","Hutang belum tersedia")`);
 
   const sheets = [overview, net, daily, rc, rp, purchases, balances];

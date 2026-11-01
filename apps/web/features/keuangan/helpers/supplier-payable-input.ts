@@ -32,3 +32,36 @@ export function parsePayable(input: unknown) {
   if (initialPayment !== null && (initialPayment > amount || !validDate(initialPaidAt) || initialPaidAt < debtDate || initialPaidAt > jakartaToday())) return null;
   return { supplierName, note: note || null, amount, debtDate, dueDate, initialPayment, initialPaidAt: initialPayment === null ? null : initialPaidAt as string };
 }
+
+export function parseGiroReview(input: unknown, today = jakartaToday()) {
+  if (!input || typeof input !== 'object' || !validDate(today)) return null;
+  const body = input as Record<string, unknown>;
+  if (body.historyComplete !== true || !Array.isArray(body.payments) || body.payments.length > 100) return null;
+  const payableId = body.payableId == null ? null : body.payableId;
+  if (payableId !== null && (typeof payableId !== 'string' || !payableId.trim() || payableId.length > 200)) return null;
+
+  const payments: { amount: number; paidAt: string }[] = [];
+  for (const entry of body.payments) {
+    if (!entry || typeof entry !== 'object') return null;
+    const payment = entry as Record<string, unknown>;
+    const amount = parseAmount(payment.amount);
+    if (!amount || !validDate(payment.paidAt) || payment.paidAt > today) return null;
+    payments.push({ amount, paidAt: payment.paidAt });
+  }
+  const expectedPayments: { amount: number; paidAt: string }[] = [];
+  if (body.expectedPayments !== undefined) {
+    if (!Array.isArray(body.expectedPayments)) return null;
+    for (const entry of body.expectedPayments) {
+      if (!entry || typeof entry !== 'object') return null;
+      const payment = entry as Record<string, unknown>;
+      const amount = parseAmount(payment.amount);
+      if (!amount || !validDate(payment.paidAt) || payment.paidAt > today) return null;
+      expectedPayments.push({ amount, paidAt: payment.paidAt });
+    }
+  }
+  return {
+    payableId: typeof payableId === 'string' ? payableId.trim() : null,
+    payments,
+    ...(body.expectedPayments !== undefined ? { expectedPayments } : {}),
+  };
+}

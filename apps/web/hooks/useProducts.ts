@@ -315,7 +315,7 @@ export interface ProductStats {
   totalProducts: number;
   lowStock: number;
   negativeStock: number;
-  inventoryValue: number;
+  inventoryValue: number | null;
 }
 
 async function fetchProductStats(

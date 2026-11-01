@@ -68,7 +68,7 @@ describe("DatabaseResetView", () => {
     expect(html).toContain("RESET DATABASE");
     expect(html).toContain("Kategori global dipertahankan");
     expect(html).toContain("Cascade");
-    expect(html).toContain("Wajib dipilih");
+    expect(html).toContain("Reset belum dapat dilanjutkan");
     expect(html).toContain("Katalog Produk");
     expect(html).toContain("Notifikasi Store");
   });
@@ -76,9 +76,16 @@ describe("DatabaseResetView", () => {
   it("does not enable execution while a required dependency is blocking", () => {
     const html = renderToStaticMarkup(<DatabaseResetView {...defaultProps} />);
 
-    expect(html).toContain("Pilih sub-data yang diwajibkan terlebih dahulu");
+    expect(html).toContain("Periksa alasan di bawah, lalu ubah pilihan dan lihat dampaknya lagi.");
     expect(html).toContain('disabled=""');
     expect(html).toContain("Reset Data Terpilih");
+  });
+
+  it("shows why protected giro data cannot be reset", () => {
+    const preview = { ...defaultProps.preview!, requiredDependencies: [{ domain: "salesFinance" as const, model: "Expense" as const, blocking: true, reason: "Pengeluaran giro dilindungi dan tidak dapat di-reset." }] };
+    const html = renderToStaticMarkup(<DatabaseResetView {...defaultProps} preview={preview} />);
+    expect(html).toContain("Pengeluaran giro dilindungi dan tidak dapat di-reset.");
+    expect(html).not.toContain("Pilih sub-data yang diwajibkan terlebih dahulu");
   });
 
   it("renders a successful deletion summary", () => {

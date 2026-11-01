@@ -60,11 +60,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: activeProcessMessage }, { status: 409 });
     }
 
-    const summary = await db.$transaction((tx) => executeDatabaseResetPlan(tx, plan));
-    return NextResponse.json(summary);
+    const needsLedgerGuard = plan.operations.some(operation => operation.model === "Expense" || operation.model === "GoodsPurchase");
+    const result = await db.$transaction(async (tx) => {
+      if (needsLedgerGuard) {
+        // Receipt settlement writes purchase, expense, then payable. EXCLUSIVE
+        // on purchases also waits for giro reconciliation's SELECT FOR UPDATE.
+        // Keep contention bounded for active stores.
+        await tx.$executeRaw`SET LOCAL lock_timeout = '3s'`;
+        await tx.$executeRaw`LOCK TABLE "pos_goods_purchases" IN EXCLUSIVE MODE`;
+        await tx.$executeRaw`LOCK TABLE "pos_expenses", "pos_supplier_payables" IN SHARE ROW EXCLUSIVE MODE`;
+        const currentPlan = await createDatabaseResetPlan({ db: tx, storeId: user.storeId!, ...selection });
+        if (!currentPlan.canExecute) return { requiredDependencies: currentPlan.requiredDependencies };
+        return { summary: await executeDatabaseResetPlan(tx, currentPlan) };
+      }
+      return { summary: await executeDatabaseResetPlan(tx, plan) };
+    }, { timeout: 30_000 });
+    if (result.requiredDependencies) {
+      return NextResponse.json({ message: "Data terkait telah berubah. Periksa kembali dampak reset.", requiredDependencies: result.requiredDependencies }, { status: 409 });
+    }
+    return NextResponse.json(result.summary);
   } catch (error) {
     const authError = handleAuthError(error);
     if (authError) return authError;
+
+    const databaseError = error as { code?: string; meta?: { code?: string } } | null;
+    if (databaseError?.code === "55P03" || (databaseError?.code === "P2010" && databaseError.meta?.code === "55P03")) {
+      return NextResponse.json({ message: "Data sedang digunakan. Tunggu sebentar, lalu coba reset kembali." }, { status: 409 });
+    }
 
     log.error("[POST /api/settings/database-reset/execute] Failed", error);
     return NextResponse.json({ message: "Reset database gagal dan tidak ada data yang dihapus." }, { status: 500 });

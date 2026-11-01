@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { db, Prisma } from "@pos/db";
 import {
   lockProductRow,
@@ -146,6 +147,7 @@ export class InventoryInboundReceiptRepository
     });
     if (!purchase) throw new Error("Pembelian Barang tidak tersedia.");
     const existingExpense = purchase.expense ?? purchase.shoppingRequest?.expense;
+    const isNewGiro = !existingExpense && !purchase.paymentMethod && input.paymentMethod === "GIRO";
     if (!input.paymentMethod && !purchase.paymentMethod && !existingExpense) {
       throw new Error("Metode pembayaran belum diisi pada penerimaan barang.");
     }
@@ -172,6 +174,23 @@ export class InventoryInboundReceiptRepository
           hasMissingCostSnapshot: false,
         },
       });
+      if (isNewGiro) {
+        const receiptDate = new Date(input.now.getTime() + 7 * 60 * 60 * 1000)
+          .toISOString().slice(0, 10);
+        await tx.supplierPayable.create({
+          data: {
+            id: randomUUID(),
+            storeId: input.storeId,
+            goodsPurchaseId: purchase.id,
+            giroHistoryVerifiedAt: input.now,
+            supplierName: purchase.supplierNameSnapshot,
+            amount: purchase.totalAmount,
+            debtDate: new Date(`${receiptDate}T00:00:00.000Z`),
+            dueDate: input.paymentDueDate,
+            createdById: input.actor.id,
+          },
+        });
+      }
     }
   }
 

@@ -302,6 +302,9 @@ describe('HelpContent', () => {
     expect(html).toContain('pilih juga Penjualan &amp; Keuangan &gt; Nota Percetakan');
     expect(html).toContain('Memilih Nota Percetakan saja mempertahankan transaksi');
     expect(html).toContain('Mengubah pilihan membatalkan preview dan teks konfirmasi');
+    expect(html).toContain('giro atau belanja terdahulu');
+    expect(html).toContain('giro yang belum memiliki catatan hutang');
+    expect(html).toContain('catatan hutang yang dilindungi');
     expect(html).toContain('tidak ada seed otomatis');
   });
 

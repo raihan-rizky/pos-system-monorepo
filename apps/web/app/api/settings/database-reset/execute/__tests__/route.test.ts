@@ -147,4 +147,42 @@ describe("POST /api/settings/database-reset/execute", () => {
     }
     expect(dbMock.$transaction).not.toHaveBeenCalled();
   });
+
+  it("checks the latest ledger state under locks before deleting expenses", async () => {
+    const selected = { ...executablePlan, models: ["Expense"], operations: [{ model: "Expense", domain: "salesFinance", mode: "selected", reason: "Pengeluaran", count: 1, where: { storeId: "store-a" } }] };
+    const blocked = { ...selected, canExecute: false, requiredDependencies: [{ domain: "salesFinance", model: "Expense", blocking: true, reason: "Pengeluaran terhubung giro yang dilindungi." }] };
+    const tx = { $executeRaw: vi.fn().mockResolvedValue(0) };
+    createDatabaseResetPlanMock.mockResolvedValueOnce(selected).mockResolvedValueOnce(blocked);
+    dbMock.$transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => callback(tx));
+
+    const response = await POST(requestWith({ models: ["Expense"], confirmation: "RESET DATABASE" }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).requiredDependencies).toEqual(blocked.requiredDependencies);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+    expect(tx.$executeRaw.mock.calls[0][0].join("")).toMatch(/lock_timeout.*3s/i);
+    expect(tx.$executeRaw.mock.calls[1][0].join("")).toMatch(/pos_goods_purchases.*EXCLUSIVE MODE/i);
+    expect(tx.$executeRaw.mock.calls[1][0].join("")).not.toMatch(/SHARE ROW EXCLUSIVE/i);
+    expect(tx.$executeRaw.mock.calls[2][0].join("")).toMatch(/pos_expenses.*pos_supplier_payables.*SHARE ROW EXCLUSIVE MODE/i);
+    expect(createDatabaseResetPlanMock).toHaveBeenLastCalledWith({ db: tx, storeId: "store-a", models: ["Expense"] });
+    expect(tx.$executeRaw.mock.invocationCallOrder[2]).toBeLessThan(createDatabaseResetPlanMock.mock.invocationCallOrder[1]);
+    expect(executeDatabaseResetPlanMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a clear conflict when acquiring the reset locks times out", async () => {
+    createDatabaseResetPlanMock.mockResolvedValue({ ...executablePlan, operations: [{ model: "Expense", domain: "salesFinance", mode: "selected", reason: "Pengeluaran", count: 1, where: { storeId: "store-a" } }] });
+    dbMock.$transaction.mockRejectedValue({ code: "P2010", meta: { code: "55P03" } });
+    const response = await POST(requestWith({ models: ["Expense"], confirmation: "RESET DATABASE" }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).message).toMatch(/sedang digunakan/i);
+    expect(executeDatabaseResetPlanMock).not.toHaveBeenCalled();
+  });
+
+  it("does not take ledger locks for unrelated reset selections", async () => {
+    const tx = { $executeRaw: vi.fn() };
+    createDatabaseResetPlanMock.mockResolvedValue({ ...executablePlan, operations: [{ model: "ProductPriceLog", domain: "productCatalog", mode: "selected", reason: "Riwayat Harga", count: 1, where: { storeId: "store-a" } }] });
+    dbMock.$transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => callback(tx));
+    const response = await POST(requestWith({ models: ["ProductPriceLog"], confirmation: "RESET DATABASE" }));
+    expect(response.status).toBe(200);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
 });

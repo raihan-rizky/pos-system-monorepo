@@ -3,17 +3,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   findExpenses: vi.fn(), countExpenses: vi.fn(), aggregateExpenses: vi.fn(),
   findTransactions: vi.fn(), findReceivables: vi.fn(), findShifts: vi.fn(),
-  findInventory: vi.fn(), findDebtPayments: vi.fn(), requirePermission: vi.fn(),
+  findInventory: vi.fn(), findDebtPayments: vi.fn(), findBackdated: vi.fn(), requirePermission: vi.fn(),
 }));
 
-vi.mock("@pos/db", () => ({ db: {
-  expense: { findMany: mocks.findExpenses, count: mocks.countExpenses, aggregate: mocks.aggregateExpenses },
-  transaction: { findMany: mocks.findTransactions },
-  customerReceivable: { findMany: mocks.findReceivables },
-  cashierShift: { findMany: mocks.findShifts },
-  inventoryLog: { findMany: mocks.findInventory },
-  debtPaymentLog: { findMany: mocks.findDebtPayments },
-} }));
+vi.mock("@pos/db", () => {
+  const tx = {
+    expense: { findMany: mocks.findExpenses, count: mocks.countExpenses, aggregate: mocks.aggregateExpenses },
+    transaction: { findMany: mocks.findTransactions },
+    customerReceivable: { findMany: mocks.findReceivables },
+    cashierShift: { findMany: mocks.findShifts },
+    inventoryLog: { findMany: mocks.findInventory },
+    debtPaymentLog: { findMany: mocks.findDebtPayments },
+    backdatedPurchase: { findMany: mocks.findBackdated },
+  };
+  return { db: { ...tx, $transaction: (callback: (value: typeof tx) => unknown) => callback(tx) } };
+});
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.requirePermission, handleAuthError: () => null }));
 vi.mock("@/features/financial-report/services/monthly-balances", () => ({
   getMonthlyBalances: async () => ({ openingInventoryBalance: null, inventoryBalance: null, supplierDebts: [], supplierDebtBalance: 0 }),
@@ -50,6 +54,7 @@ type ExpenseWhere = {
 
 // The in-memory adapter evaluates the Prisma predicates emitted by each real reader.
 function queryExpenses(where: ExpenseWhere) {
+  if ("backdatedPurchasePaymentId" in where) return [];
   return ledger.filter((row) => row.storeId === where.storeId && row.deletedAt === where.deletedAt
     && row.occurredAt >= where.occurredAt.gte && row.occurredAt < where.occurredAt.lt
     && (where.hasMissingCostSnapshot === undefined || row.hasMissingCostSnapshot === where.hasMissingCostSnapshot)
@@ -68,6 +73,13 @@ describe("pembacaan keuangan belanja terdahulu", () => {
     mocks.findShifts.mockResolvedValue([]);
     mocks.findInventory.mockResolvedValue([]);
     mocks.findDebtPayments.mockResolvedValue([]);
+    mocks.findBackdated.mockImplementation(async ({ where }) => where.storeId !== "store-1" ? [] : [{
+      ...purchase, purchaseDate: new Date("2026-10-01T00:00:00Z"), amount: "10000000",
+      payments: [
+        { id: "pay-oct", amount: "4000000", paidAt: new Date("2026-10-30T00:00:00Z") },
+        { id: "pay-nov", amount: "2000000", paidAt: new Date("2026-11-02T00:00:00Z") },
+      ],
+    }]);
     mocks.findExpenses.mockImplementation(async ({ where }) => queryExpenses(where));
     mocks.countExpenses.mockImplementation(async ({ where }) => queryExpenses(where).length);
     mocks.aggregateExpenses.mockImplementation(async ({ where }) => {
@@ -80,7 +92,7 @@ describe("pembacaan keuangan belanja terdahulu", () => {
   it.each([
     ["2026-11-09T16:59:59.999Z", 2_000_000, ["payment-nov"]],
     ["2026-11-09T17:00:00.000Z", 6_000_000, ["payment-nov", "due"]],
-  ])("menyelaraskan daftar, ringkasan, jurnal, laporan, ekspor bulanan, dan asisten pada %s", async (now, expected, ids) => {
+  ])("menyelaraskan pengakuan dan kas belanja terdahulu pada %s", async (now, expected, ids) => {
     vi.setSystemTime(new Date(now));
     const listResponse = await getExpenseList(new Request("http://localhost/api/finance/expenses?month=2026-11"));
     const summaryResponse = await getExpenseSummary(new Request("http://localhost/api/finance/expenses/summary?month=2026-11"));
@@ -100,8 +112,10 @@ describe("pembacaan keuangan belanja terdahulu", () => {
     // Journal expenses are represented as negative amounts.
     expect(journal.footer.totalPengeluaran).toBe(-expected);
     expect(report.summary.expenseTotal).toBe(expected);
-    expect(monthly.expenses.reduce((sum, row) => sum + row.amount, 0)).toBe(expected);
-    expect(monthly.expenses.map((row) => row.purchase?.reference)).toEqual(ids.map(() => "GIRO-123"));
+    expect(monthly.expenses).toEqual([]);
+    expect(monthly.purchaseExpenses).toEqual([expect.objectContaining({ amount: 10000000, date: "2026-11-10", purchase: expect.objectContaining({ reference: "GIRO-123", method: "GIRO" }) })]);
+    expect(monthly.giroPayments).toEqual([expect.objectContaining({ amount: 2000000, date: "2026-11-02" })]);
+    expect(monthly.supplierDebtBalance).toBe(4000000);
     expect(assistant.summary.expenseTotal).toBe(expected);
   });
 });

@@ -128,6 +128,22 @@ export async function createDatabaseResetPlan(input: {
   if (operations.has("Customer") && await input.db.customerReceivable.count({ where: { storeId: input.storeId } }) > 0) {
     requiredDependencies.push({ domain: "customers", model: "Customer", blocking: true, reason: "Pelanggan masih memiliki riwayat piutang manual yang dilindungi, termasuk yang sudah lunas. Data pelanggan ini tidak dapat di-reset." });
   }
+  if (operations.has("GoodsPurchase") && await input.db.supplierPayable.count({ where: { goodsPurchase: { is: { storeId: input.storeId } } } }) > 0) {
+    requiredDependencies.push({ domain: "supplierProcurement", model: "GoodsPurchase", blocking: true, reason: "Pembelian masih terhubung ke catatan hutang atau giro yang dilindungi. Pembelian ini tidak dapat di-reset." });
+  }
+  if (operations.has("Expense")) {
+    const [giroExpenses, backdatedExpenses] = await Promise.all([
+      input.db.expense.count({ where: { storeId: input.storeId, deletedAt: null, OR: [
+        { goodsPurchase: { is: { storeId: input.storeId, paymentMethod: "GIRO" } } },
+        { goodsPurchaseId: null, shoppingRequest: { is: { storeId: input.storeId, goodsPurchases: { some: { storeId: input.storeId, paymentMethod: "GIRO" } } } } },
+      ] } }),
+      input.db.expense.count({ where: { storeId: input.storeId, deletedAt: null, OR: [
+        { backdatedPurchaseDueId: { not: null } }, { backdatedPurchasePaymentId: { not: null } },
+      ] } }),
+    ]);
+    if (giroExpenses > 0) requiredDependencies.push({ domain: "salesFinance", model: "Expense", blocking: true, reason: "Pengeluaran masih terhubung ke catatan giro yang dilindungi. Pengeluaran ini tidak dapat di-reset." });
+    if (backdatedExpenses > 0) requiredDependencies.push({ domain: "salesFinance", model: "Expense", blocking: true, reason: "Pengeluaran masih terhubung ke belanja terdahulu yang dilindungi. Pengeluaran ini tidak dapat di-reset." });
+  }
 
   const prioritizedOperations = [...operations.values()].sort((left, right) => {
     const priorityDifference = DATABASE_RESET_MODELS[left.model].priority - DATABASE_RESET_MODELS[right.model].priority;

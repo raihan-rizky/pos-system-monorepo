@@ -20,17 +20,18 @@ import { formatRupiah } from "@/lib/utils";
 const FLOW_COLOR_INCOME = "#10B981";
 const FLOW_COLOR_EXPENSE = "#EF4444";
 
-function shortDay(date: string) {
-  return new Intl.DateTimeFormat("id-ID", { day: "2-digit" }).format(
+export function shortDay(date: string) {
+  return new Intl.DateTimeFormat("id-ID", { day: "2-digit", timeZone: "Asia/Jakarta" }).format(
     new Date(`${date}T00:00:00+07:00`),
   );
 }
 
-function fullDay(date: string) {
+export function fullDay(date: string) {
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Jakarta",
   }).format(new Date(`${date}T00:00:00+07:00`));
 }
 

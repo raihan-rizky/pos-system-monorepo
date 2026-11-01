@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useRole } from "@/components/providers/RoleProvider";
 import type {
   ExpenseCategoryKey,
   CategoryBucket,
@@ -12,6 +13,8 @@ export type IncomeSummary = {
   monthlyTotal: number;
   transactionCount: number;
   daily: { date: string; total: number; count: number }[];
+  cashDaily?: { date: string; total: number }[];
+  cashTotal?: number;
 };
 
 export type ExpenseSummary = {
@@ -24,7 +27,14 @@ export type ExpenseSummary = {
     total: number;
     byCategory: Partial<Record<ExpenseCategoryKey, number>>;
   }[];
-  netCashFlow: { income: number; expense: number; net: number };
+  cashDaily?: { date: string; total: number }[];
+  cashExpense?: { total: number | null; incomplete: boolean };
+};
+
+export type CashFlowSummary = {
+  month: string;
+  income: { total: number; daily: { date: string; total: number }[] };
+  expense: { total: number | null; incomplete: boolean; daily: { date: string; total: number }[] };
 };
 
 export type ExpenseListItem = {
@@ -69,29 +79,49 @@ async function getJSON<T>(url: string): Promise<T> {
   return res.json();
 }
 
-export function useIncomeSummary(month: string) {
+export function useCashFlowSummary(month: string, enabled = true) {
+  const { userId, storeId, authorizationFingerprint } = useRole();
   return useQuery({
-    queryKey: ["finance", "income-summary", month],
-    queryFn: () =>
-      getJSON<IncomeSummary>(`/api/finance/income/summary?month=${month}`),
-    staleTime: 60_000,
-  });
-}
-
-export function useExpenseSummary(month: string) {
-  return useQuery({
-    queryKey: ["finance", "expense-summary", month],
-    queryFn: () =>
-      getJSON<ExpenseSummary>(`/api/finance/expenses/summary?month=${month}`),
+    queryKey: ["finance", "cash-flow-summary", userId, storeId, authorizationFingerprint, month],
+    queryFn: () => getJSON<CashFlowSummary>(`/api/finance/cash-flow/summary?month=${month}`),
     staleTime: 30_000,
+    enabled,
   });
 }
 
-export function useCustomExpenseCategories() {
+export function useIncomeSummary(month: string, enabled = true, metricsOnly = false) {
+  const { userId, storeId, authorizationFingerprint } = useRole();
   return useQuery({
-    queryKey: ["finance", "expense-categories"],
+    queryKey: ["finance", "income-summary", userId, storeId, authorizationFingerprint, month, metricsOnly ? "metrics" : "full"],
+    queryFn: () =>
+      getJSON<IncomeSummary>(`/api/finance/income/summary?month=${month}${metricsOnly ? "&metricsOnly=1" : ""}`),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+export function useExpenseSummary(month: string, enabled = true, metricsOnly = false) {
+  const { userId, storeId, authorizationFingerprint } = useRole();
+  return useQuery({
+    queryKey: ["finance", "expense-summary", userId, storeId, authorizationFingerprint, month, metricsOnly ? "metrics" : "full"],
+    queryFn: () =>
+      getJSON<ExpenseSummary>(`/api/finance/expenses/summary?month=${month}${metricsOnly ? "&metricsOnly=1" : ""}`),
+    staleTime: 30_000,
+    enabled,
+  });
+}
+
+export function expenseCategoriesQueryKey(userId: string | null, storeId: string | null, authorizationFingerprint: string | null) {
+  return ["finance", "expense-categories", userId, storeId, authorizationFingerprint] as const;
+}
+
+export function useCustomExpenseCategories(enabled = true) {
+  const { userId, storeId, authorizationFingerprint } = useRole();
+  return useQuery({
+    queryKey: expenseCategoriesQueryKey(userId, storeId, authorizationFingerprint),
     queryFn: () => getJSON<{ data: CustomExpenseCategory[] }>("/api/finance/expense-categories"),
     staleTime: 30_000,
+    enabled,
   });
 }
 
@@ -99,15 +129,18 @@ export function useExpenseList(
   month: string,
   page: number,
   category?: ExpenseCategoryKey | null,
+  enabled = true,
 ) {
+  const { userId, storeId, authorizationFingerprint } = useRole();
   const params = new URLSearchParams({ month, page: String(page) });
   if (category) params.set("category", category);
   return useQuery({
-    queryKey: ["finance", "expense-list", month, page, category ?? "all"],
+    queryKey: ["finance", "expense-list", userId, storeId, authorizationFingerprint, month, page, category ?? "all"],
     queryFn: () =>
       getJSON<ExpenseListResponse>(
         `/api/finance/expenses?${params.toString()}`,
       ),
     staleTime: 15_000,
+    enabled,
   });
 }

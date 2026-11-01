@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Modal, Button } from "@pos/ui";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRole } from "@/components/providers/RoleProvider";
 import { Check, Plus } from "lucide-react";
 import {
   EXPENSE_CATEGORIES,
   type ExpenseCategoryKey,
 } from "@/features/keuangan/helpers/keuangan-core";
 import { CATEGORY_LABELS_ID, customExpenseCategoryId, customExpenseCategoryKey, expenseCategoryColor, type CustomExpenseCategory } from "@/features/keuangan/helpers/category-meta";
-import { useCustomExpenseCategories } from "@/features/keuangan/hooks/useKeuangan";
+import { expenseCategoriesQueryKey, useCustomExpenseCategories } from "@/features/keuangan/hooks/useKeuangan";
 import { formatRupiah } from "@/lib/utils";
 import { ProofImageUploader, deleteUploadedProof } from "@/features/proof-upload/components/ProofImageUploader";
 
@@ -87,7 +88,13 @@ export function ExpenseFormModal({
   canCreateCategory?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const categoryQuery = useCustomExpenseCategories();
+  const { userId, storeId, authorizationFingerprint } = useRole();
+  const identity = JSON.stringify([userId, storeId, authorizationFingerprint]);
+  const openedIdentity = useRef(identity);
+  const active = useRef(true);
+  const sameIdentity = identity === openedIdentity.current;
+  const categoryKey = expenseCategoriesQueryKey(userId, storeId, authorizationFingerprint);
+  const categoryQuery = useCustomExpenseCategories(sameIdentity);
   const customCategories = categoryQuery.data?.data ?? [];
   const today = useMemo(() => jakartaToday(), []);
   const minDate = useMemo(() => fiveYearsAgoJakarta(), []);
@@ -102,6 +109,18 @@ export function ExpenseFormModal({
   const [categoryName, setCategoryName] = useState("");
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [creatingCategory, setCreatingCategory] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!sameIdentity) {
+      active.current = false;
+      onClose();
+    }
+  }, [sameIdentity, onClose]);
+
+  useEffect(() => {
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -127,7 +146,7 @@ export function ExpenseFormModal({
   };
 
   const createCategory = async () => {
-    if (creatingCategory) return;
+    if (!sameIdentity || !active.current || creatingCategory) return;
     if (!categoryName.trim()) { setCategoryError("Isi nama kategori terlebih dahulu."); return; }
     setCreatingCategory(true);
     setCategoryError(null);
@@ -136,9 +155,10 @@ export function ExpenseFormModal({
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: categoryName }),
       });
       const body = await response.json().catch(() => null) as { data?: CustomExpenseCategory; message?: string } | null;
+      if (!active.current) return;
       if (!response.ok || !body?.data) throw new Error(body?.message || "Kategori belum dapat disimpan.");
       const created = body.data;
-      queryClient.setQueryData<{ data: CustomExpenseCategory[] }>(["finance", "expense-categories"], (current) => ({
+      queryClient.setQueryData<{ data: CustomExpenseCategory[] }>(categoryKey, (current) => ({
         data: [...(current?.data ?? []).filter((item) => item.id !== created.id), created].sort((a, b) => a.name.localeCompare(b.name, "id")),
       }));
       update("category", customExpenseCategoryKey(created.id));
@@ -146,14 +166,14 @@ export function ExpenseFormModal({
       setAddingCategory(false);
       void queryClient.invalidateQueries({ queryKey: ["finance", "expense-categories"] });
     } catch (cause) {
-      setCategoryError(cause instanceof Error ? cause.message : "Kategori belum dapat disimpan.");
+      if (active.current) setCategoryError(cause instanceof Error ? cause.message : "Kategori belum dapat disimpan.");
     } finally {
-      setCreatingCategory(false);
+      if (active.current) setCreatingCategory(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (submitting || creatingCategory) return;
+    if (!sameIdentity || !active.current || submitting || creatingCategory) return;
     if (addingCategory && categoryName.trim()) {
       setCategoryError("Simpan kategori baru terlebih dahulu atau tutup isian kategori.");
       return;
@@ -184,6 +204,7 @@ export function ExpenseFormModal({
         body: JSON.stringify(payload),
       });
       const body = await res.json();
+      if (!active.current) return;
       if (!res.ok) {
         if (body.errors && typeof body.errors === "object") {
           const map: Record<string, string> = {};
@@ -198,11 +219,13 @@ export function ExpenseFormModal({
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal menyimpan");
+      if (active.current) setError(err instanceof Error ? err.message : "Gagal menyimpan");
     } finally {
-      setSubmitting(false);
+      if (active.current) setSubmitting(false);
     }
   };
+
+  if (!sameIdentity) return null;
 
   return (
     <Modal

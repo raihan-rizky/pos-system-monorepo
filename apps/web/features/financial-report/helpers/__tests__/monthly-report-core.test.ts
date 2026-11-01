@@ -69,9 +69,9 @@ describe('normalisasi laporan bulanan', () => {
   it('menghitung net expense sekali, mempertahankan salary, serta mengecualikan belanja belum disetujui/deleted', () => {
     const expense = { id: 'e1', occurredAt: new Date('2026-09-02T03:00:00Z'), category: 'SUPPLIES', amount: 120, changeAmount: 20, description: 'Contoh', goodsPurchase: { number: 'PB-1', status: 'APPROVED', paymentMethod: 'GIRO', paymentDueDate: null, supplierNameSnapshot: 'Pemasok contoh' } };
     const result = report([], { expenses: [expense, expense, { ...expense, id: 'salary', category: 'SALARY', goodsPurchase: null }, { ...expense, id: 'pending', goodsPurchase: { ...expense.goodsPurchase, status: 'PENDING' } }, { ...expense, id: 'deleted', deletedAt: new Date() }] });
-    expect(result.expenses).toHaveLength(2);
-    expect(result.expenses.map(row => [row.amount, row.group])).toEqual([[100, 'OTHER'], [100, 'SALARY']]);
-    expect(result.expenses[0].purchase?.reference).toBe('PB-1');
+    expect(result.expenses).toHaveLength(1);
+    expect(result.expenses.map(row => [row.amount, row.group])).toEqual([[100, 'SALARY']]);
+    expect(result.purchaseExpenses?.[0]).toMatchObject({ amount: 100, purchase: { reference: 'PB-1' } });
     expect(result.inventoryBalance).toBeNull();
     expect(result.supplierDebtBalance).toBeNull();
     expect(result.warnings.join(' ')).toContain('Belum tersedia dari sistem');

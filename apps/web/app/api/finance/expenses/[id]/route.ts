@@ -81,7 +81,7 @@ export async function PATCH(
     const customCategoryId = body.customCategoryId === undefined
       ? (data.category === "OTHER" ? existing.customCategoryId : null)
       : body.customCategoryId;
-    if (customCategoryId !== null) {
+    if (customCategoryId != null) {
       if (typeof customCategoryId !== "string" || !customCategoryId || data.category !== "OTHER") {
         return apiError("Kategori tidak valid.", 422, { code: "ValidationError" });
       }

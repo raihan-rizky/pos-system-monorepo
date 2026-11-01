@@ -13,8 +13,9 @@ const postcss = require('postcss'), tailwind = require('tailwindcss');
 const bundle = await build({
   stdin: { contents: `
     import React from 'react'; import {createRoot} from 'react-dom/client';
+    import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
     import ProductsClientPage from './app/(main)/products/ProductsClientPage';
-    createRoot(document.getElementById('root')).render(<ProductsClientPage/>);
+    createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient()}><ProductsClientPage/></QueryClientProvider>);
   `, resolveDir: web, loader: 'tsx' },
   bundle:true, write:false, platform:'browser', format:'iife', jsx:'automatic',
   alias:{'@':web,'@pos/ui':path.join(repo,'packages/ui/src/index.ts')},
@@ -48,7 +49,7 @@ const bundle = await build({
       }
       export const useCategories=()=>({data:[{id:'paper',name:'Kertas',_count:{products:120}}]});
       export const useProductUnits=()=>({data:['pcs']});
-      export const useProductStats=()=>({data:{totalProducts:120,lowStock:0,negativeStock:0,inventoryValue:240000},refetch:()=>{}});
+      export const useProductStats=()=>({data:{totalProducts:120,lowStock:0,negativeStock:0,inventoryValue:${process.env.PRODUCT_STATS_UNKNOWN === '1' ? 'null' : '240000'}},refetch:()=>{}});
       export const useDeleteProduct=()=>({reset:()=>{},isPending:false});
       export const useBulkDeleteProducts=useDeleteProduct;
       export const useCustomerCategoryPricingRules=()=>({data:[{id:'special-rule',categoryId:'special',category:{id:'special',name:'Harga khusus'},customerType:'UMUM',mode:'FLAT_DISCOUNT',value:1500,isActive:true}]});
@@ -67,7 +68,21 @@ try {
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.setContent('<html lang="id"><body><main style="display:flex;height:100dvh;overflow:hidden"><div id="root" style="display:flex;flex:1;min-width:0"></div></main></body></html>');
   await page.addStyleTag({content:css.css}); await page.addScriptTag({content:bundle.outputFiles[0].text});
-  const pagers=page.getByRole('navigation',{name:/Pagination produk/}); await pagers.first().waitFor();
+  const pagers=page.getByRole('navigation',{name:/Pagination produk/});
+  try { await pagers.first().waitFor(); } catch (error) { throw new Error(`Product page did not render: ${JSON.stringify(errors)}`, { cause:error }); }
+  const inventoryCard=page.getByText('Nilai Inventaris',{exact:true}).locator('..');
+  if(process.env.PRODUCT_STATS_UNKNOWN === '1'){
+    assert.match(await inventoryCard.innerText(),/Belum tersedia/,'unknown inventory is not shown as zero');
+    assert.match(await inventoryCard.innerText(),/satuan dasar/i,'the user can identify why inventory is unavailable');
+  } else {
+    assert.match(await inventoryCard.innerText(),/240\.000/,'known inventory value remains visible');
+  }
+  if(process.env.PRODUCT_STATS_ONLY === '1'){
+    assert.deepEqual(errors,[]);
+    console.log('PASS: product inventory value is displayed correctly.');
+    await browser.close();
+    process.exit(0);
+  }
   const verifyMarkup=async()=>{
     for(const pattern of [/^MU : Rp\s*3\.500 \(35%\)$/,/^MU : Rp\s*2\.000 \(20%\)$/,/^MU : Rp\s*13\.500 \(—\)$/,/^MU : -Rp\s*2\.000 \(-20%\)\s*Di bawah HPP$/]){
       const matches=page.getByText(pattern).filter({visible:true});

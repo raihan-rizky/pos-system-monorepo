@@ -312,6 +312,18 @@ export async function mockApis(page: Page) {
     if (path === "/api/upload") return json(route, { url: "/images/icon.png" });
     if (path === "/api/push/subscriptions") return emptyOk(route);
 
+    if (path === "/api/finance/cash-flow/summary" && method === "GET") {
+      return json(route, {
+        month: "2026-05",
+        income: { total: 45_000_000, daily: [
+          { date: "2026-05-19", total: 20_000_000 },
+          { date: "2026-05-20", total: 25_000_000 },
+        ] },
+        expense: { total: 850_000, incomplete: false, daily: [
+          { date: "2026-05-20", total: 850_000 },
+        ] },
+      });
+    }
     if (path === "/api/finance/income/summary") {
       return json(route, {
         month: "2026-05",
@@ -321,6 +333,11 @@ export async function mockApis(page: Page) {
           { date: "2026-05-19", total: 1_250_000, count: 8 },
           { date: "2026-05-20", total: 2_100_000, count: 14 },
         ],
+        cashDaily: [
+          { date: "2026-05-19", total: 20_000_000 },
+          { date: "2026-05-20", total: 25_000_000 },
+        ],
+        cashTotal: 45_000_000,
       });
     }
     if (path === "/api/finance/expenses/summary" && method === "GET") {
@@ -339,7 +356,8 @@ export async function mockApis(page: Page) {
             byCategory: { SUPPLIES: 500_000, BEVERAGES: 350_000 },
           },
         ],
-        netCashFlow: { income: 45_000_000, expense: 850_000, net: 44_150_000 },
+        cashDaily: [{ date: "2026-05-20", total: 850_000 }],
+        cashExpense: { total: 850_000, incomplete: false },
       });
     }
     if (path === "/api/finance/expenses" && method === "POST") {

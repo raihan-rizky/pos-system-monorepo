@@ -20,6 +20,7 @@ function transaction(overrides: Record<string, unknown> = {}) {
   return {
     goodsPurchase: { findFirst: vi.fn().mockResolvedValue(purchase), update: vi.fn().mockResolvedValue({}) },
     expense: { create: vi.fn().mockResolvedValue({}) },
+    supplierPayable: { create: vi.fn().mockResolvedValue({}) },
   };
 }
 

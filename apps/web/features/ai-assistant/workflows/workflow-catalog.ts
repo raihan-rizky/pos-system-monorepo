@@ -423,7 +423,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Keuangan", description: "Masuk ke sidebar Keuangan, lalu buka halaman Keuangan." },
       { title: "Tambah pengeluaran", description: "Klik tombol Tambah Pengeluaran untuk membuka form." },
-      { title: "Isi nominal dan kategori", description: "Masukkan nama pemohon dan nominal. Pilih kategori yang tersedia atau klik Tambah kategori, isi nama, lalu pilih Simpan kategori agar dapat digunakan kembali." },
+      { title: "Isi nominal dan kategori", description: "Masukkan nama pemohon, nominal, kategori, dan catatan bila diperlukan. Untuk kategori baru, pilih Tambah kategori, isi namanya, lalu pilih Simpan kategori. Kategori tersimpan dapat digunakan kembali." },
       { title: "Pilih gambar bukti", description: "Jika ada foto nota, klik Pilih gambar bukti untuk mengunggahnya ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul sebagai fallback." },
       { title: "Simpan pengeluaran", description: "Periksa pratinjau lampiran dan klik Simpan." },
       { title: "Kenali sumber pengeluaran", description: "Badge Manual menandai input dari form. Badge Pembelian Barang, Belanja Terdahulu, dan Daftar Belanja (Legacy) menandai entri otomatis yang tidak dapat diedit atau dihapus dari Keuangan." },
@@ -443,7 +443,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka Laporan Keuangan", description: "Masuk ke halaman Laporan Keuangan." },
       { title: "Klik Ekspor", description: "Di kanan atas halaman, klik tombol Ekspor." },
       { title: "Pilih laporan bulanan", description: "Dialog awal memakai Laporan bulanan · Excel 8 sheet. Pilih bulan dan tahun lalu periksa daftar sheet dan rentang tanggal WIB. Bulan berjalan sampai hari ini; bulan mendatang belum dapat diekspor." },
-      { title: "Unduh laporan", description: "Klik Unduh Excel. Modal awal dan stok akhir memakai nilai inventaris, sementara hutang berasal dari catatan Keuangan. Stok negatif tidak dihitung dan riwayat inventaris yang belum tersedia tetap kosong, bukan nol. Buka PANDUAN untuk melihat alur dan rumus." },
+      { title: "Unduh laporan", description: "Klik Unduh Excel. Modal awal dan stok akhir memakai nilai inventaris; stok negatif tidak dihitung. Grup stok dihitung sekali memakai harga jual satuan dasar. Jika satuan dasar atau riwayat belum dapat dipastikan, nilainya tetap kosong. RP bulan berisi pengeluaran manual. Pengeluaran Belanja memuat transfer pembelian berdasarkan tanggal pengeluaran, transfer belanja terdahulu berdasarkan tanggal pembayaran, dan giro berdasarkan bulan jatuh tempo. Piutang & Hutang memuat sisa giro dan hutang manual. Kas memakai pembayaran aktual giro pada tanggal dibayar. Jika riwayat giro belum diketahui, nilai terkait belum lengkap. Buka PANDUAN untuk melihat alur dan rumus." },
       { title: "Pilih jurnal atau PDF", description: "Untuk ekspor sebelumnya, pilih Jurnal transaksi · Excel / PDF, lalu pilih format dan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Jika unduhan gagal, klik Coba lagi; pilihan tetap tersimpan." },
       { title: "Gunakan perintah AI", description: "Ekspor dari chat tetap berupa jurnal transaksi. Jika periode dan format tidak disebutkan, sistem memakai 30 hari terakhir dan PDF. Untuk template bulanan delapan sheet, gunakan dialog Ekspor di halaman Laporan Keuangan." },
       { title: "Unduh file dan baca saran", description: "File muncul sebagai kartu di chat tanpa auto-download. Klik Download PDF/Excel saat siap; setelah berhasil tombol berubah menjadi Download ulang dan saran Pak Teladan dibuat dari angka laporan yang sama." },
@@ -883,7 +883,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     faqNumber: 44,
     slug: "catat-hutang-pemasok",
     title: "Bagaimana cara mencatat hutang pemasok?",
-    aliases: ["tambah hutang", "hutang pemasok", "bayar hutang supplier", "pembayaran sebagian hutang"],
+    aliases: ["tambah hutang", "hutang pemasok", "bayar hutang supplier", "pembayaran sebagian hutang", "bayar giro", "periksa riwayat giro"],
     route: "/keuangan",
     actionLabel: "Buka Keuangan",
     iconKey: "wallet-cards",
@@ -892,7 +892,10 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka Keuangan", description: "Buka halaman Keuangan dan pilih Tambahkan Hutang pada bagian Hutang Pemasok." },
       { title: "Isi dan simpan", description: "Isi nama pemasok, nominal, dan tanggal hutang. Jatuh tempo, catatan, dan pembayaran awal bersifat opsional; klik Simpan hutang." },
       { title: "Catat pembayaran berikutnya", description: "Pada hutang yang belum lunas, pilih Catat pembayaran untuk menyimpan pembayaran sebagian atau pelunasan. Izin expense:update diperlukan." },
-      { title: "Unduh laporan", description: "Saldo hutang tercatat masuk ke laporan bulanan sesuai tanggal. Pembayaran hutang tidak otomatis dicatat sebagai pengeluaran; unduh ulang jika data berubah." },
+      { title: "Periksa giro lama", description: "Pada Giro Pembelian, giro lama berstatus Belum diketahui. Pilih Periksa riwayat, hubungkan hutang manual yang sama jika ada, periksa pembayaran yang sudah tercatat, dan tambahkan pembayaran sebelumnya beserta tanggalnya. Centang bahwa riwayat pembayaran sudah lengkap lalu simpan. Izin expense:update diperlukan." },
+      { title: "Hubungkan hutang manual", description: "Untuk giro yang sudah diperiksa, pilih Hubungkan hutang manual dan pilih hutang yang benar-benar sama dengan nominal yang sama. Periksa catatan kedua hutang, riwayat pembayaran, dan bukti; tentukan pembayaran yang sama atau transaksi berbeda untuk setiap pasangan yang cocok, centang konfirmasi, lalu simpan. Catatan kedua hutang disimpan pada giro. Periksa pengeluaran manual agar pembayaran yang dipindahkan tidak tercatat dua kali dalam arus kas." },
+      { title: "Bayar giro", description: "Untuk giro yang sudah diperiksa, pilih Catat pembayaran dan isi nominal serta tanggal pembayaran aktual. Pembayaran boleh sebagian atau lunas; nominal tidak boleh melebihi sisa. Giro berstatus Lunas setelah seluruhnya dibayar. Jika hasil belum pasti, gunakan Pastikan pembayaran pada peramban dan akun yang sama. Jika data peramban terhapus, periksa riwayat sebelum mencatat lagi." },
+      { title: "Unduh laporan", description: "Saldo hutang manual dan sisa giro masuk laporan bulanan sesuai tanggal. Kas memperhitungkan pembayaran aktual giro; pembayaran hutang manual tetap dicatat terpisah. Unduh ulang jika data berubah." },
     ],
   }),
   workflow({
@@ -923,7 +926,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "settings", action: "read" }],
     steps: [
       { title: "Pilih sub-data", description: "Sebagai Owner, buka Pengaturan > Reset Database. Klik Hapus Semua Pilihan bila perlu, lalu centang hanya Katalog Produk > Riwayat Harga. Produk, stok, dan harga saat ini tetap tersimpan. Checkbox kategori memilih atau melepas seluruh sub-data; tanda sebagian berarti hanya beberapa sub-data dipilih. Pilih Semua mencentang semua pilihan." },
-      { title: "Periksa dampak", description: "Klik Lihat Dampak Reset. Periksa jumlah data, data terkait yang wajib ikut terhapus (ikon kunci), dan dependensi yang harus dipilih. Jika Transaksi Penjualan terhubung ke nota, pilih juga Penjualan & Keuangan > Nota Percetakan. Memilih Nota Percetakan saja mempertahankan transaksi; urutan nomor nota tetap berlanjut. Memilih sub-data lain membatalkan preview serta teks konfirmasi; lihat dampak lagi. Data pelanggan dengan piutang manual tetap dilindungi dan tidak dapat di-reset." },
+      { title: "Periksa dampak", description: "Klik Lihat Dampak Reset. Periksa jumlah data, data terkait yang wajib ikut terhapus (ikon kunci), dan dependensi yang harus dipilih. Jika Transaksi Penjualan terhubung ke nota, pilih juga Penjualan & Keuangan > Nota Percetakan. Memilih Nota Percetakan saja mempertahankan transaksi; urutan nomor nota tetap berlanjut. Memilih sub-data lain membatalkan preview serta teks konfirmasi; lihat dampak lagi. Data pelanggan dengan piutang manual tetap dilindungi dan tidak dapat di-reset. Pengeluaran yang terhubung ke giro atau belanja terdahulu, termasuk giro yang belum memiliki catatan hutang, serta pembelian yang terhubung ke catatan hutang yang dilindungi, tidak dapat di-reset." },
       { title: "Konfirmasi reset", description: "Tutup shift kasir dan tunggu proses import atau batch selesai. Ketik RESET DATABASE persis, lalu klik Reset Data Terpilih. Penghapusan tidak dapat dikembalikan dan hanya berlaku pada toko yang sedang login. Pak Teladan hanya menjelaskan langkah; pemilihan, konfirmasi, dan eksekusi dilakukan sendiri oleh Owner." },
     ],
   })

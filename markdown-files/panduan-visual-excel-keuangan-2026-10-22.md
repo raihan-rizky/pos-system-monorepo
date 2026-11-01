@@ -1,18 +1,20 @@
 # Panduan visual pada ekspor Excel keuangan
 
 Tanggal rilis: 2026-10-22 (Asia/Jakarta).
+Pembaruan dokumentasi: 2026-11-01 (Asia/Jakarta).
 
 ## Penggunaan
 
 1. Buka **Laporan Keuangan → Ekspor → Laporan bulanan · Excel 8 sheet**.
 2. Pilih bulan dan tahun, unduh Excel, lalu buka tab terakhir **PANDUAN**.
-3. Ikuti tautan kuning untuk mengisi modal awal, nilai persediaan akhir,
-   dan total saldo hutang pemasok. Periksa hasil otomatis dan simpan file.
+3. Periksa modal awal, nilai persediaan akhir, dan saldo hutang yang tersedia.
+   Nilai tersebut diambil dari data aplikasi saat unduhan; jika riwayat belum
+   tersedia, bagian terkait tetap kosong sampai data dapat dipastikan.
 
 ## Isi dan tampilan
 
-- Biru menjelaskan alur, kuning menunjukkan langkah isian manual, hijau
-  menjelaskan hasil otomatis, dan oranye menunjukkan catatan penting.
+- Biru menjelaskan alur, hijau menjelaskan hasil hitungan, dan oranye
+  menunjukkan catatan penting.
 - Semua warna berasal dari token tema web dan palet status keuangan yang
   sudah dipakai ekspor. Warna panduan tidak mengubah warna sel laporan.
 - Diagram menjelaskan alur RC/RP → rekap bulan → BERSIH → LAP KEU;
@@ -20,23 +22,33 @@ Tanggal rilis: 2026-10-22 (Asia/Jakarta).
 - Contoh Rp10 juta − Rp7 juta = Rp3 juta diberi label **CONTOH SAJA**;
   angka tersebut bukan data pengguna dan tidak masuk perhitungan laporan.
 - Rumus jumlah harta dan kekayaan bersih dijelaskan sesuai rumus workbook.
-- Bahasa panduan dibuat santai dengan instruksi pendek, misalnya
-  “Cek bulan & tahun” dan “Isi tiga angka ini”; piutang dijelaskan sebagai
-  tagihan pelanggan yang belum dibayar dan persediaan sebagai nilai stok.
+- Bahasa panduan memakai instruksi pendek, misalnya “Cek bulan & tahun”;
+  piutang adalah tagihan pelanggan yang belum dibayar dan persediaan adalah
+  nilai stok.
 - Panduan membahas kosong versus nol, basis kas, pemetaan penerimaan,
-  gaji tercatat, belanja yang sudah termasuk RP, dan giro versus saldo hutang.
+  gaji tercatat, pemisahan pengeluaran manual dari belanja, dan giro versus saldo hutang.
 
-## Referensi isian
+## Referensi saldo otomatis
 
-| Isian | Tujuan tautan |
+| Saldo | Tujuan tautan |
 | --- | --- |
 | Modal awal | `LAP KEU!D8` |
 | Nilai persediaan akhir | `LAP KEU!D17` |
-| Total saldo hutang pemasok | Kolom D pada baris isian bagian HUTANG |
+| Total saldo hutang pemasok | Kolom D pada bagian HUTANG |
 
 Baris hutang mengikuti panjang daftar piutang dan tidak ditetapkan secara
 statis. Sel kosong berarti belum tersedia; angka 0 hanya dipakai bila
-nilainya benar-benar nol. Ringkasan harta menunggu isian lengkap.
+nilainya benar-benar nol. Ringkasan harta menunggu data lengkap. Nilai
+inventaris historis dapat kosong jika keadaan pada batas bulan belum terbukti.
+Nilai saat ini maupun historis juga dapat kosong jika grup dengan stok dasar
+positif tidak memiliki tepat satu produk dasar aktif yang sesuai. Periksa grup
+di halaman Produk; membetulkan data saat ini tidak otomatis membuktikan
+keadaan pada batas bulan yang sudah lewat.
+
+RP bulan berisi pengeluaran manual. Belanja transfer mengikuti tanggal
+pengeluaran; giro tampil pada bulan jatuh tempo. Sisa giro masuk hutang, dan
+rekap kas memakai pembayaran aktual pada tanggal dibayar. Periksa giro lama
+yang riwayatnya belum diketahui di halaman Keuangan sebelum mengunduh ulang.
 
 ## Implementasi
 

@@ -32,10 +32,17 @@ function decimalStringToNumber(value: string | number | null | undefined): numbe
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("product", "read");
+    if (!user.storeId) return NextResponse.json({ message: "Toko pengguna belum tersedia.", code: "Forbidden" }, { status: 403 });
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
-    const storeId = user.storeId || "store-main";
+    const storeId = user.storeId;
+
+    try {
+      await db.$executeRaw`SELECT pos_observe_inventory_valuation_v2(${storeId})`;
+    } catch (error) {
+      log.error("Gagal mencatat pengamatan inventaris", error);
+    }
 
     const conditions: Prisma.Sql[] = [
       Prisma.sql`"storeId" = ${storeId}`,
@@ -55,16 +62,14 @@ export async function GET(request: Request) {
 
     const whereClause = Prisma.join(conditions, " AND ");
 
-    // One round-trip with explicit numeric casts so Postgres doesn't trip
-    // over `double precision` (stock) * `numeric` (price). All counts come
-    // back as bigint, the SUM as numeric -> stringified `text` so we can
-    // safely parse on the JS side without losing precision on huge stores.
+    // Count matching products, but value shared stock only once using the
+    // same database function as the financial report.
     const query = Prisma.sql`
       SELECT
         COUNT(*)::bigint AS total_products,
         COUNT(*) FILTER (WHERE "stock" <= "minStock")::bigint AS low_stock,
         COUNT(*) FILTER (WHERE "stock" < 0)::bigint AS negative_stock,
-        COALESCE(SUM(GREATEST("stock"::numeric, 0) * "price"::numeric), 0)::text AS inventory_value
+        pos_current_inventory_valuation(${storeId}, ${search}, ${categoryId})::text AS inventory_value
       FROM pos_products
       WHERE ${whereClause}
     `;
@@ -75,7 +80,7 @@ export async function GET(request: Request) {
       totalProducts: bigintToNumber(row?.total_products ?? 0),
       lowStock: bigintToNumber(row?.low_stock ?? 0),
       negativeStock: bigintToNumber(row?.negative_stock ?? 0),
-      inventoryValue: decimalStringToNumber(row?.inventory_value ?? 0),
+      inventoryValue: row?.inventory_value == null ? null : decimalStringToNumber(row.inventory_value),
     });
     res.headers.set(
       "Cache-Control",

@@ -58,8 +58,8 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("E17:H17", "Nilai stok akhir", input, { solid: true });
   block("I17:L17", "Hutang ke pemasok", input, { solid: true });
   block("A18:D20", "Diambil dari nilai inventaris akhir bulan sebelumnya bila riwayat tersedia.", input);
-  block("E18:H20", "Diambil dari nilai inventaris akhir periode. Stok negatif tidak dihitung.", input);
-  block("I18:L20", "Diambil dari sisa hutang pemasok yang dicatat di halaman Keuangan hingga akhir periode.", input);
+  block("E18:H20", "Nilai inventaris akhir periode: stok negatif diabaikan; grup stok dihitung sekali memakai harga satuan dasar.", input);
+  block("I18:L20", "Sisa hutang pemasok dan giro hingga akhir periode; riwayat yang belum diperiksa membuat total belum tersedia.", input);
   block("A21:D22", "→ Lihat modal awal (D8)", input, { center: true, target: link("LAP KEU", "D8") });
   block("E21:H22", "→ Lihat nilai stok (D17)", input, { center: true, target: link("LAP KEU", "D17") });
   block("I21:L22", `→ Lihat hutang (D${debtRow})`, input, { center: true, target: link("PIUTANG & HUTANG", `D${debtRow}`) });
@@ -70,9 +70,9 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("E29:H29", "RP = UANG KELUAR", accent, { solid: true, target: link(`RP ${monthName}`, "A7") });
   block("I29:L29", "PIUTANG = BELUM DIBAYAR", brandDeep, { solid: true, target: link("PIUTANG & HUTANG", "A7") });
   block("A30:D32", "Rincian uang yang sudah diterima. Excel menjumlahkannya ke rekap harian dan total pendapatan.", success);
-  block("E30:H32", "Rincian uang yang sudah keluar, termasuk belanja dan gaji yang tercatat. Semuanya masuk ke total pengeluaran.", accent);
+  block("E30:H32", "RP berisi pengeluaran manual, termasuk gaji. Belanja dan pembayaran giro dirinci pada tab belanja.", accent);
   block("I30:L32", "Ini sisa tagihan pelanggan di tanggal akhir laporan. Masuk ke ringkasan harta, tapi belum jadi uang yang diterima.", brand);
-  block("A34:B36", "RC + RP", brandDeep, { solid: true, center: true });
+  block("A34:B36", "RC + RP + BELANJA", brandDeep, { solid: true, center: true });
   block("C34:C36", "→", surface, { size: 22, center: true });
   block("D34:E36", monthName, brand, { solid: true, center: true, target: link(monthName, "A5") });
   block("F34:F36", "→", surface, { size: 22, center: true });
@@ -94,10 +94,10 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("A52:L52", "Yang dihitung: uang yang sudah masuk dan keluar. Tagihan yang belum dibayar belum jadi uang masuk.", surface, { size: 11 });
 
   block("A54:L54", "05  Jangan sampai dihitung dua kali", brand, { solid: true, size: 13 });
-  block("A56:F58", "Belanja sudah masuk hitungan\nTab PENGELUARAN BELANJA cuma merinci belanjanya. Totalnya sudah ada di RP, jadi tidak perlu ditambah lagi.", accent);
+  block("A56:F58", "Jadwal berbeda dari kas\nGiro tampil pada bulan jatuh tempo. Kas hanya menghitung pembayaran giro dan transfer yang benar-benar tercatat.", accent);
   block("G56:L58", "Belum ada kategori? Tetap dihitung\nAngka di bagian Perlu pemetaan sudah masuk total. Cek kategorinya di aplikasi, lalu unduh ulang kalau ada perubahan.", accent);
   block("A60:F62", "Gaji juga sudah dihitung\nGaji/mingguan yang tercatat sudah masuk RP dan rekap. Jadi tidak perlu dihitung lagi, meski tidak ada tab gaji.", brand);
-  block("G60:L62", "Bayar pakai giro belum tentu hutang\nSaldo hutang berasal dari catatan hutang di Keuangan, bukan otomatis dari total giro.", accent);
+  block("G60:L62", "Sisa giro termasuk hutang\nPembayaran mengurangi hutang sesuai tanggal bayar. Riwayat lama perlu diperiksa di Keuangan.", accent);
   block("A64:L66", "Sudah siap disimpan?\nCek bulan, saldo yang tersedia, dan hasilnya. Hasil positif berarti ada sisa uang; hasil negatif berarti pengeluaran lebih besar.", success);
   return sheet;
 }

@@ -109,5 +109,5 @@ export interface DatabaseResetSummary {
   executedAt: string;
 }
 
-export type DatabaseResetReadClient = PrismaClient;
+export type DatabaseResetReadClient = PrismaClient | Prisma.TransactionClient;
 export type DatabaseResetTransactionClient = Prisma.TransactionClient;

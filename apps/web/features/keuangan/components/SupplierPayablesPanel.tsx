@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@pos/ui";
 import { Plus, X } from "lucide-react";
+import { useRole } from "@/components/providers/RoleProvider";
 import { jakartaToday } from "../helpers/supplier-payable-input";
+import { GiroPanel } from "./GiroPanel";
 
 type Payable = { id: string; supplierName: string; amount: number; paid: number; debtDate: string; dueDate: string | null; note: string | null };
 type PayablePage = { items: Payable[]; page: number; total: number };
@@ -38,8 +40,16 @@ function PayableDialog({ title, onClose, busy, children }: { title: string; onCl
 }
 
 export function SupplierPayablesPanel({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: boolean }) {
+  const { userId, storeId, authorizationFingerprint } = useRole();
+  const identity = JSON.stringify([storeId, userId, authorizationFingerprint, canCreate, canUpdate]);
+  return <SupplierPayablesPanelState key={identity} userId={userId} storeId={storeId} authorizationFingerprint={authorizationFingerprint} canCreate={canCreate} canUpdate={canUpdate} />;
+}
+
+function SupplierPayablesPanelState({ userId, storeId, authorizationFingerprint, canCreate, canUpdate }: { userId: string | null; storeId: string | null; authorizationFingerprint: string | null; canCreate: boolean; canUpdate: boolean }) {
   const queryClient = useQueryClient();
   const submitting = useRef(false);
+  const active = useRef(false);
+  const requestController = useRef<AbortController | null>(null);
   const [page, setPage] = useState(1);
   const [mode, setMode] = useState<"create" | "payment" | null>(null);
   const [selected, setSelected] = useState<Payable | null>(null);
@@ -52,9 +62,18 @@ export function SupplierPayablesPanel({ canCreate, canUpdate }: { canCreate: boo
   const [paidAt, setPaidAt] = useState(jakartaToday);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    active.current = true;
+    const controller = new AbortController();
+    requestController.current = controller;
+    return () => { active.current = false; controller.abort(); };
+  }, []);
+
   const list = useQuery({
-    queryKey: ["finance", "supplier-payables", page],
-    queryFn: async () => responseJson<PayablePage>(await fetch(`/api/finance/supplier-payables?page=${page}`, { cache: "no-store" })),
+    queryKey: ["finance", "supplier-payables", storeId, userId, authorizationFingerprint, page],
+    enabled: Boolean(storeId && userId),
+    queryFn: async ({ signal }) => responseJson<PayablePage>(await fetch(`/api/finance/supplier-payables?page=${page}`, { cache: "no-store", signal })),
   });
 
   function openCreate() {
@@ -65,20 +84,22 @@ export function SupplierPayablesPanel({ canCreate, canUpdate }: { canCreate: boo
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current || !mode || (mode === "payment" && !selected)) return;
+    const controller = requestController.current;
+    if (!active.current || !controller || controller.signal.aborted || submitting.current || !mode || (mode === "create" && !canCreate) || (mode === "payment" && (!canUpdate || !selected))) return;
     submitting.current = true; setBusy(true); setError(null);
     try {
       const url = mode === "create" ? "/api/finance/supplier-payables" : `/api/finance/supplier-payables/${encodeURIComponent(selected!.id)}/payments`;
       const body = mode === "create"
         ? { supplierName, amount, debtDate, dueDate, note, initialPayment: payment, initialPaidAt: paidAt }
         : { amount: payment, paidAt };
-      await responseJson(await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
+      await responseJson(await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal }));
+      if (!active.current) return;
       setMode(null);
       setPage(1);
-      await queryClient.invalidateQueries({ queryKey: ["finance", "supplier-payables"] });
+      await queryClient.invalidateQueries({ queryKey: ["finance"] });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Data belum dapat disimpan. Silakan coba lagi.");
-    } finally { submitting.current = false; setBusy(false); }
+      if (active.current) setError(cause instanceof Error ? cause.message : "Data belum dapat disimpan. Silakan coba lagi.");
+    } finally { submitting.current = false; if (active.current) setBusy(false); }
   }
 
   return (
@@ -88,7 +109,7 @@ export function SupplierPayablesPanel({ canCreate, canUpdate }: { canCreate: boo
         {canCreate && <Button type="button" variant="secondary" onClick={openCreate} icon={<Plus className="h-4 w-4" aria-hidden="true" />}>Tambahkan Hutang</Button>}
       </div>
       <p className="mt-2 text-xs text-surface-500">Pembayaran hutang dicatat terpisah dari pengeluaran agar tidak dihitung dua kali.</p>
-      {list.isLoading ? <p className="mt-4 text-sm text-surface-500" role="status">Memuat hutang...</p> : list.isError ? <p className="mt-4 text-sm text-red-700" role="alert">Hutang belum dapat dimuat. <button type="button" onClick={() => void list.refetch()} className="underline">Coba lagi</button></p> : !list.data?.items.length ? <p className="mt-4 text-sm text-surface-500">Belum ada hutang yang dicatat.</p> : (
+      {list.isLoading ? <p className="mt-4 text-sm text-surface-500" role="status">Memuat hutang...</p> : list.isError ? <p className="mt-4 text-sm text-red-700" role="alert">Hutang belum dapat dimuat. <button type="button" onClick={() => void list.refetch()} className="underline">Coba lagi</button></p> : !list.data?.items.length ? <p className="mt-4 text-sm text-surface-500">{page > 1 ? "Tidak ada hutang pada halaman ini." : "Belum ada hutang yang dicatat."}</p> : (
         <ul className="mt-3 divide-y divide-surface-100">
           {list.data.items.map(item => {
             const remaining = Math.max(0, (Math.round(item.amount * 100) - Math.round(item.paid * 100)) / 100);
@@ -99,7 +120,8 @@ export function SupplierPayablesPanel({ canCreate, canUpdate }: { canCreate: boo
           })}
         </ul>
       )}
-      {!!list.data && list.data.total > 20 && <div className="mt-3 flex items-center justify-end gap-2 text-xs"><span>Halaman {page}</span><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Sebelumnya</button><button type="button" disabled={page * 20 >= list.data.total} onClick={() => setPage(value => value + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Berikutnya</button></div>}
+      {!!list.data && (list.data.total > 20 || page > 1) && <div className="mt-3 flex items-center justify-end gap-2 text-xs"><span>Halaman {page}</span><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Sebelumnya</button><button type="button" disabled={page * 20 >= list.data.total} onClick={() => setPage(value => value + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Berikutnya</button></div>}
+      <GiroPanel canUpdate={canUpdate} />
       {mode && <PayableDialog title={mode === "create" ? "Tambahkan Hutang" : "Catat Pembayaran Hutang"} busy={busy} onClose={() => { if (!submitting.current) setMode(null); }}>
         <form onSubmit={event => void submit(event)} className="flex min-h-0 flex-col overflow-hidden" aria-busy={busy}>
           <div className="min-h-0 space-y-5 overflow-y-auto px-5 py-5">

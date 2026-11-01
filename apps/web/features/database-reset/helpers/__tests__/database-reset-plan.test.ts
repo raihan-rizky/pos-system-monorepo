@@ -16,7 +16,10 @@ function createFakeDb({ counts = {}, deleteOrder = [] }: FakeDbOptions = {}) {
     {
       get(_target, modelName: string) {
         return {
-          count: vi.fn(async () => counts[modelName] ?? 0),
+          // The generic count represents manual expenses; protected ledger
+          // relationships are covered separately in financial-ledger-guard.
+          count: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
+            modelName === "expense" && where.deletedAt === null && Array.isArray(where.OR) ? 0 : counts[modelName] ?? 0),
           deleteMany: vi.fn(async () => {
             deleteOrder.push(modelName);
             return { count: counts[modelName] ?? 0 };

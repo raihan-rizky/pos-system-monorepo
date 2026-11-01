@@ -23,6 +23,7 @@ describe("monthly financial export user guidance", () => {
     expect(content).toContain("bulan dan tahun");
     expect(content).toMatch(/modal awal/i);
     expect(content).toContain("nilai inventaris");
+    expect(content).toContain("satuan dasar");
     expect(content).toContain("Jurnal transaksi");
     const faq = readFileSync(path.join(process.cwd(), "features/ai-assistant/docs/help/faq.md"), "utf8");
     const exportFaq = faq.slice(faq.indexOf("### Q21:"), faq.indexOf("### Q22:"));
@@ -36,6 +37,7 @@ describe("monthly financial export user guidance", () => {
       const guideText = JSON.stringify(guide.steps);
       expect(guideText).toContain("bulan dan tahun");
       expect(guideText).toMatch(/modal awal/i);
+      expect(guideText).toContain("satuan dasar");
       expect(guideText).toContain("Jurnal transaksi");
       for (const step of guide.steps) {
         expect(step.visual?.page).toBe("finance");

@@ -28,6 +28,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "giro-payments-monthly-report", date: "2026-11-02", revision: 1,
+    highlight: { title: "Pembayaran giro", summary: "Catat pembayaran giro dan lihat sisa hutang dalam laporan bulanan." },
+    title: "Pantau pembayaran giro di Keuangan.",
+    summary: "Catat pembayaran giro sebagian atau lunas dan lihat sisa hutang pada laporan bulanan. Jadwal jatuh tempo dan pembayaran kas tercatat sesuai tanggal masing-masing.",
+    kind: "feature", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Periksa riwayat", detail: "Buka Keuangan > Giro Pembelian. Untuk giro lama, pilih Periksa riwayat, lengkapi pembayaran sebelumnya, lalu konfirmasi riwayat lengkap." },
+      { title: "Catat pembayaran", detail: "Pilih Catat pembayaran pada giro yang belum lunas, lalu isi nominal dan tanggal pembayaran." },
+      { title: "Unduh laporan", detail: "Buka Laporan Keuangan > Ekspor, pilih bulan, dan periksa jadwal belanja, sisa hutang, serta pembayaran kas di Excel." },
+    ],
+  },
+  {
     id: "pos-offline-sync-recovery", date: "2026-11-01", revision: 1,
     highlight: { title: "Siapkan POS offline", summary: "Siapkan PIN dan periksa transaksi yang menunggu sinkronisasi." },
     title: "Siapkan dan periksa POS offline.",

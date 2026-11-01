@@ -21,11 +21,15 @@ export async function GET(request: Request) {
         COALESCE(p.paid, 0)::text AS paid, COUNT(*) OVER() AS total
       FROM "pos_supplier_payables" d
       LEFT JOIN LATERAL (SELECT SUM("amount") AS paid FROM "pos_supplier_payable_payments" WHERE "payableId" = d."id") p ON true
-      WHERE d."storeId" = ${user.storeId}
+      WHERE d."storeId" = ${user.storeId} AND d."goodsPurchaseId" IS NULL
       ORDER BY (d."amount" > COALESCE(p.paid, 0)) DESC, d."debtDate" DESC, d."createdAt" DESC, d."id"
       LIMIT 20 OFFSET ${(page - 1) * 20}
     `;
-    return NextResponse.json({ items: rows.map(({ total: _total, amount, paid, ...row }) => ({ ...row, amount: Number(amount), paid: Number(paid) })), page, total: Number(rows[0]?.total ?? 0) }, { headers: { 'Cache-Control': 'private, no-store' } });
+    const total = rows.length ? rows[0].total : (await db.$queryRaw<{ total: bigint }[]>`
+      SELECT COUNT(*) AS total FROM "pos_supplier_payables" d
+      WHERE d."storeId" = ${user.storeId} AND d."goodsPurchaseId" IS NULL
+    `)[0]?.total ?? 0;
+    return NextResponse.json({ items: rows.map(({ total: _total, amount, paid, ...row }) => ({ ...row, amount: Number(amount), paid: Number(paid) })), page, total: Number(total) }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     const authError = handleAuthError(error);
     if (authError) return authError;

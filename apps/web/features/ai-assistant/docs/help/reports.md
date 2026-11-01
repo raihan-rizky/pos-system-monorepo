@@ -6,7 +6,7 @@ Buka **Operasi > Dashboard** (`/dashboard`) untuk ringkasan performa toko. Dashb
 
 ## Keuangan
 
-Buka **Keuangan > Keuangan** (`/keuangan`) untuk arus kas bulanan. Halaman ini menampilkan Net Cash Flow, grafik pemasukan/pengeluaran harian, pemasukan dari transaksi, serta daftar pengeluaran per kategori. Gunakan **Tambahkan Hutang** untuk mencatat hutang pemasok dan pembayaran awal opsional; pembayaran berikutnya dapat dicatat sebagian atau lunas. Pembayaran hutang tidak otomatis menjadi pengeluaran. Tambah, ubah, dan hapus pengeluaran mengikuti permission resource `expense`.
+Buka **Keuangan > Keuangan** (`/keuangan`) untuk arus kas bulanan. Halaman ini menampilkan Net Cash Flow, grafik pemasukan/pengeluaran harian, pemasukan dari transaksi, serta daftar pengeluaran per kategori. Gunakan **Tambahkan Hutang** untuk mencatat hutang pemasok dan pembayaran awal opsional; pembayaran berikutnya dapat dicatat sebagian atau lunas. Pembayaran hutang manual dicatat terpisah dari pengeluaran. Pada **Giro Pembelian**, periksa riwayat giro lama lalu catat pembayaran aktual; pembayaran giro mengurangi kas pada tanggal dibayar. Jika riwayat belum diketahui, ringkasan yang terdampak belum lengkap. Tambah, ubah, dan hapus pengeluaran mengikuti permission resource `expense`.
 
 ## Laporan Keuangan
 
@@ -21,6 +21,8 @@ Laporan memakai transaksi berstatus COMPLETED dan DP, lalu menampilkan:
 **Ekspor** mendukung Excel atau PDF untuk periode Harian, Mingguan (7 hari), atau Bulanan. Periode ekspor dipilih di menu Ekspor dan tidak otomatis mengikuti rentang manual yang sedang tampil.
 
 Excel bulanan mengambil modal awal dari nilai inventaris akhir bulan sebelumnya, inventaris akhir dari periode laporan, dan hutang dari catatan di Keuangan. Nilai inventaris dihitung dari stok produk aktif yang positif dan harga jual; stok negatif tidak mengurangi nilai. Riwayat yang belum tersedia ditampilkan kosong, bukan nol. Total harta adalah modal awal ditambah piutang; jumlah harta dikurangi total hutang dan nilai inventaris akhir.
+
+Sheet **RP bulan** hanya memuat pengeluaran manual. **PENGELUARAN BELANJA** memuat transfer pembelian berdasarkan tanggal pengeluaran, transfer belanja terdahulu berdasarkan tanggal pembayaran, dan giro berdasarkan bulan jatuh tempo. **PIUTANG & HUTANG** memuat sisa giro pada akhir periode. Kas memakai pembayaran giro yang tercatat pada tanggal sebenarnya. Giro dengan riwayat belum diketahui membuat nilai terkait belum lengkap.
 
 Semua halaman dan aksi laporan tunduk pada permission RBAC backend. Laba kotor bukan laba bersih: perhitungannya adalah omzet dikurangi HPP dan loss stok; item tanpa HPP memberi kontribusi gross profit 0.
 

@@ -19,6 +19,7 @@ const debt = { supplierName: "Pemasok", amount: "1000", debtDate: "2026-10-01", 
 describe("supplier payable endpoints", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.query.mockReset();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-20T03:00:00Z"));
     mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" });
@@ -36,6 +37,26 @@ describe("supplier payable endpoints", () => {
     expect(await response.json()).toMatchObject({ total: 1, items: [{ amount: 1000, paid: 200.5 }] });
     expect(mocks.query.mock.calls[0]).toContain("store-1");
     expect(mocks.query.mock.calls[0]).not.toContain("other");
+  });
+
+  it("excludes debts linked to giro from the manual supplier debt list", async () => {
+    const manual = { id: 'manual', supplierName: 'Pemasok', amount: '1000.00', paid: '0.00', debtDate: '2026-10-01', dueDate: null, note: null, total: 1n };
+    const linked = { ...manual, id: 'giro', total: 2n };
+    mocks.query.mockImplementationOnce((query: TemplateStringsArray) =>
+      Promise.resolve(query.join(' ').includes('d."goodsPurchaseId" IS NULL') ? [manual] : [manual, linked]));
+    const response = await GET(new Request('http://localhost/api/finance/supplier-payables'));
+    expect((await response.json()).items.map((item: { id: string }) => item.id)).toEqual(['manual']);
+  });
+
+  it("returns the remaining total when a page becomes empty after a debt is linked to a giro", async () => {
+    mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 20n }]);
+    const response = await GET(new Request("http://localhost/api/finance/supplier-payables?page=2&storeId=other"));
+
+    expect(await response.json()).toEqual({ items: [], page: 2, total: 20 });
+    const [query, ...values] = mocks.query.mock.calls[1];
+    expect(query.join(" ")).toContain('"goodsPurchaseId" IS NULL');
+    expect(values).toContain("store-1");
+    expect(values).not.toContain("other");
   });
 
   it("saves a debt and its optional initial payment together", async () => {

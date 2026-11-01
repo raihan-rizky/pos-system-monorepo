@@ -11,6 +11,13 @@ describe("FAQ workflow catalog", () => {
     for (const phrase of ["Riwayat Harga", "Hapus Semua Pilihan", "RESET DATABASE", "harga saat ini", "Lihat Dampak Reset"]) expect(text).toContain(phrase);
     expect(text).toContain("pilih juga Penjualan & Keuangan > Nota Percetakan");
     expect(text).toContain("Memilih Nota Percetakan saja mempertahankan transaksi");
+    expect(text).toContain("giro atau belanja terdahulu");
+    expect(text).toContain("giro yang belum memiliki catatan hutang");
+    expect(text).toContain("catatan hutang yang dilindungi");
+    const faq = readFileSync(new URL("../../docs/help/faq.md", import.meta.url), "utf8");
+    expect(faq).toContain("giro atau belanja terdahulu");
+    expect(faq).toContain("giro yang belum memiliki catatan hutang");
+    expect(faq).toContain("Nota Percetakan");
   });
   it("mempertahankan urutan nomor FAQ saat panduan pembulatan ditambahkan", () => {
     expect(FAQ_WORKFLOWS.map(workflow => workflow.faqNumber)).toEqual(

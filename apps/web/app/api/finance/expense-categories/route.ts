@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requirePermission("expense", "read");
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
     const data = await db.customExpenseCategory.findMany({
-      where: { storeId: user.storeId || "store-main" },
+      where: { storeId: user.storeId },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
@@ -23,7 +24,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requirePermission("expense", "create");
-    const body = await request.json();
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const body = await request.json().catch(() => null);
     const name = typeof body?.name === "string" ? body.name.normalize("NFKC").trim().replace(/\s+/gu, " ") : "";
     const normalizedName = normalizeExpenseCategoryName(name);
     if (!name || name.length > 50) return apiError("Isi nama kategori dengan maksimal 50 karakter.", 422);
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
       return apiError("Kategori tersebut sudah tersedia. Pilih dari daftar kategori.", 409);
     }
     const data = await db.customExpenseCategory.create({
-      data: { storeId: user.storeId || "store-main", name, normalizedName },
+      data: { storeId: user.storeId, name, normalizedName },
       select: { id: true, name: true },
     });
     return NextResponse.json({ data }, { status: 201 });

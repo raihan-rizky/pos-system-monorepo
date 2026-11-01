@@ -153,8 +153,8 @@ export function DatabaseResetView({
 
           {blockingDependencies.length > 0 && (
             <div className="rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-800">
-              <p className="font-bold">Wajib dipilih</p>
-              <p className="mt-1">Pilih sub-data yang diwajibkan terlebih dahulu, lalu lihat dampak reset lagi.</p>
+              <p className="font-bold">Reset belum dapat dilanjutkan</p>
+              <p className="mt-1">Periksa alasan di bawah, lalu ubah pilihan dan lihat dampaknya lagi.</p>
               {blockingDependencies.map((dependency, index) => <p key={`${dependency.domain}-${dependency.model ?? index}`} className="mt-1">{dependency.model ? DATABASE_RESET_MODEL_LABELS[dependency.model] : DATABASE_RESET_OPTIONS.find(option => option.id === dependency.domain)?.label}: {dependency.reason}</p>)}
             </div>
           )}

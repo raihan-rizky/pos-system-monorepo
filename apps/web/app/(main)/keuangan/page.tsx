@@ -11,6 +11,7 @@ import { ChevronRight, MoreVertical, Plus } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import { useAssistantModalAction } from "@/features/ai-assistant/hooks/useAssistantModalAction";
 import {
+  useCashFlowSummary,
   useIncomeSummary,
   useExpenseSummary,
   useExpenseList,
@@ -93,6 +94,8 @@ export default function KeuanganDashboardPage() {
   const month = searchParams.get("month") || currentJakartaMonth();
   const queryClient = useQueryClient();
   const { canPerform } = useRole();
+  const canReadIncome = canPerform("income", "read");
+  const canReadExpense = canPerform("expense", "read");
   const canCreate = canPerform("expense", "create");
   const canEdit = canPerform("expense", "update");
   const canDelete = canPerform("expense", "delete");
@@ -104,11 +107,16 @@ export default function KeuanganDashboardPage() {
   const [filterCategory, setFilterCategory] = useState<ExpenseCategoryKey | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
-  const pemasukan = useIncomeSummary(month);
-  const pengeluaran = useExpenseSummary(month);
-  const list = useExpenseList(month, page, filterCategory);
-  const categoryQuery = useCustomExpenseCategories();
-  const customCategories = categoryQuery.data?.data ?? [];
+  const canReadCashFlow = canReadIncome && canReadExpense;
+  const pemasukan = useIncomeSummary(month, canReadIncome, canReadCashFlow);
+  const pengeluaran = useExpenseSummary(month, canReadExpense, canReadCashFlow);
+  const cashFlow = useCashFlowSummary(month, canReadCashFlow);
+  const list = useExpenseList(month, page, filterCategory, canReadExpense);
+  const categoryQuery = useCustomExpenseCategories(canReadExpense);
+  const customCategories = canReadExpense ? categoryQuery.data?.data ?? [] : [];
+  const incomeData = canReadIncome && !pemasukan.isError ? pemasukan.data : undefined;
+  const expenseData = canReadExpense && !pengeluaran.isError ? pengeluaran.data : undefined;
+  const cashFlowData = canReadCashFlow && !cashFlow.isError ? cashFlow.data : undefined;
 
   const refresh = useCallback(
     () => queryClient.invalidateQueries({ queryKey: ["finance"] }),
@@ -147,17 +155,20 @@ export default function KeuanganDashboardPage() {
   }, [refresh]);
 
   const stripeData = useMemo(() => {
-    if (!pengeluaran.data || pengeluaran.data.byCategory.length === 0) return [];
-    const total = pengeluaran.data.byCategory.reduce((s, c) => s + c.total, 0);
-    return pengeluaran.data.byCategory.map((c) => ({
+    if (!expenseData || expenseData.byCategory.length === 0) return [];
+    const total = expenseData.byCategory.reduce((s, c) => s + c.total, 0);
+    return expenseData.byCategory.map((c) => ({
       ...c,
       pct: total > 0 ? (c.total / total) * 100 : 0,
     }));
-  }, [pengeluaran.data]);
+  }, [expenseData]);
 
-  const net = pengeluaran.data?.netCashFlow.net ?? 0;
-  const isNegative = net < 0;
-  const summaryLoading = pemasukan.isLoading || pengeluaran.isLoading;
+  const cashIncome = canReadCashFlow ? cashFlowData?.income.total : incomeData?.cashTotal;
+  const cashExpense = canReadCashFlow ? cashFlowData?.expense.total : expenseData?.cashExpense?.total;
+  const net = canReadCashFlow && cashIncome != null && cashExpense != null ? Math.round((cashIncome - cashExpense) * 100) / 100 : null;
+  const isNegative = net !== null && net < 0;
+  const cashIncomplete = canReadCashFlow ? cashFlowData?.expense.incomplete === true : expenseData?.cashExpense?.incomplete === true;
+  const summaryLoading = canReadCashFlow ? cashFlow.isLoading : (canReadIncome && pemasukan.isLoading) || (canReadExpense && pengeluaran.isLoading);
 
   return (
     <div className="px-2 sm:px-3 py-2 sm:py-3 max-w-6xl mx-auto space-y-3 sm:space-y-4">
@@ -182,19 +193,22 @@ export default function KeuanganDashboardPage() {
                   isNegative ? "text-red-600" : "text-emerald-700"
                 }`}
               >
-                {formatRupiah(net)}
+                {net === null ? "Belum tersedia" : formatRupiah(net)}
               </p>
             )}
             {!summaryLoading && (
               <p className="mt-1.5 text-[11px] sm:text-xs text-surface-500 tabular-nums">
                 <span className="block sm:inline">
-                  {formatRupiah(pengeluaran.data?.netCashFlow.income ?? 0)} pemasukan
+                  {!canReadIncome ? "Tidak memiliki akses pemasukan" : cashIncome == null ? "Pemasukan belum tersedia" : `${formatRupiah(cashIncome)} pemasukan`}
                 </span>
                 <span className="hidden sm:inline"> · </span>
                 <span className="block sm:inline">
-                  {formatRupiah(pengeluaran.data?.netCashFlow.expense ?? 0)} pengeluaran
+                  {!canReadExpense ? "Tidak memiliki akses pengeluaran" : cashExpense == null ? "Pengeluaran belum tersedia" : `${formatRupiah(cashExpense)} pengeluaran`}
                 </span>
               </p>
+            )}
+            {!summaryLoading && cashIncomplete && (
+              <p role="status" className="mt-1 text-xs text-amber-700">Riwayat giro atau belanja belum lengkap. Periksa riwayat giro untuk menghitung sisa kas.</p>
             )}
           </div>
           {canCreate && (
@@ -211,7 +225,7 @@ export default function KeuanganDashboardPage() {
         </div>
       </section>
 
-      {canPerform("expense", "read") && <SupplierPayablesPanel canCreate={canCreate} canUpdate={canEdit} />}
+      {canReadExpense && <SupplierPayablesPanel canCreate={canCreate} canUpdate={canEdit} />}
 
       {/* ───────── Bidirectional Daily Flow ───────── */}
       <section className="rounded-2xl border border-surface-200 bg-white p-3 sm:p-4 md:p-5 shadow-sm">
@@ -228,11 +242,18 @@ export default function KeuanganDashboardPage() {
             </span>
           </div>
         </div>
-        <DeferredCashFlowChart
-          incomeDaily={pemasukan.data?.daily}
-          expenseDaily={pengeluaran.data?.daily}
-          loading={summaryLoading}
-        />
+        {cashIncomplete && <p className="mb-2 text-xs text-amber-700">Grafik hanya menampilkan pembayaran yang diketahui; riwayat giro belum lengkap.</p>}
+        {!canReadIncome || !canReadExpense ? (
+          <p className="py-6 text-center text-sm text-surface-500">Grafik memerlukan akses pemasukan dan pengeluaran.</p>
+        ) : !summaryLoading && !cashFlowData ? (
+          <p className="py-6 text-center text-sm text-surface-500">Grafik belum tersedia.</p>
+        ) : (
+          <DeferredCashFlowChart
+            incomeDaily={cashFlowData?.income.daily.map((row) => ({ ...row, count: 0 }))}
+            expenseDaily={cashFlowData?.expense.daily.map((row) => ({ ...row, byCategory: {} }))}
+            loading={summaryLoading}
+          />
+        )}
       </section>
 
       {/* ───────── Two Columns: Pemasukan + Pengeluaran ───────── */}
@@ -244,34 +265,34 @@ export default function KeuanganDashboardPage() {
               <span className="w-1.5 h-5 rounded-full shrink-0" style={{ backgroundColor: FLOW_COLOR_INCOME }} />
               <h2 className="text-sm font-semibold text-surface-900 truncate">Pemasukan</h2>
             </div>
-            {pemasukan.data && (
+            {incomeData && (
               <span className="text-xs text-surface-500 shrink-0">
-                {pemasukan.data.transactionCount} trx
+                {incomeData.transactionCount} trx
               </span>
             )}
           </header>
           <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100">
-            {pemasukan.isLoading ? (
+            {canReadIncome && pemasukan.isLoading ? (
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
               <p className="text-xl sm:text-2xl font-bold text-emerald-700 tabular-nums break-words">
-                {formatRupiah(pemasukan.data?.monthlyTotal ?? 0)}
+                {!canReadIncome ? "Tidak memiliki akses pemasukan" : incomeData ? formatRupiah(incomeData.monthlyTotal) : "Pemasukan belum tersedia"}
               </p>
             )}
           </div>
-          {pemasukan.isLoading ? (
+          {!canReadIncome || (!pemasukan.isLoading && !incomeData) ? null : pemasukan.isLoading ? (
             <div className="divide-y divide-surface-100">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="h-12 bg-surface-50 animate-pulse" />
               ))}
             </div>
-          ) : !pemasukan.data || pemasukan.data.daily.length === 0 ? (
+          ) : !incomeData || incomeData.daily.length === 0 ? (
             <div className="px-3 sm:px-4 py-10 text-center text-sm text-surface-500">
               Belum ada pemasukan bulan ini
             </div>
           ) : (
               <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
-              {pemasukan.data.daily.map((row) => (
+              {incomeData.daily.map((row) => (
                 <li
                   key={row.date}
                   style={{
@@ -303,15 +324,17 @@ export default function KeuanganDashboardPage() {
         </section>
 
         {/* ─── Pengeluaran column ─── */}
-        <section className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
+        {!canReadExpense ? (
+          <section className="rounded-2xl border border-surface-200 bg-white p-4 text-sm text-surface-500">Tidak memiliki akses pengeluaran</section>
+        ) : <section className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
           <header className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-1.5 h-5 rounded-full shrink-0" style={{ backgroundColor: FLOW_COLOR_EXPENSE }} />
               <h2 className="text-sm font-semibold text-surface-900 truncate">Pengeluaran</h2>
             </div>
-            {pengeluaran.data && (
+            {expenseData && (
               <span className="text-xs text-surface-500 shrink-0">
-                {pengeluaran.data.entryCount} entri
+                {expenseData.entryCount} entri
               </span>
             )}
           </header>
@@ -320,7 +343,7 @@ export default function KeuanganDashboardPage() {
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
               <p className="text-xl sm:text-2xl font-bold text-red-600 tabular-nums break-words">
-                {formatRupiah(pengeluaran.data?.monthlyTotal ?? 0)}
+                {expenseData ? formatRupiah(expenseData.monthlyTotal) : "Pengeluaran belum tersedia"}
               </p>
             )}
 
@@ -405,7 +428,9 @@ export default function KeuanganDashboardPage() {
                 <div key={i} className="h-12 bg-surface-50 animate-pulse" />
               ))}
             </div>
-          ) : !list.data || list.data.data.length === 0 ? (
+          ) : list.isError || !list.data ? (
+            <div className="px-3 sm:px-4 py-10 text-center text-sm text-surface-500">Daftar pengeluaran belum tersedia</div>
+          ) : list.data.data.length === 0 ? (
             <div className="px-3 sm:px-4 py-10 text-center text-sm text-surface-500">
               {filterCategory
                 ? `Belum ada pengeluaran ${expenseCategoryLabel(filterCategory, customCategories)}`
@@ -571,7 +596,7 @@ export default function KeuanganDashboardPage() {
               )}
             </>
           )}
-        </section>
+        </section>}
       </div>
 
       {modalOpen && (

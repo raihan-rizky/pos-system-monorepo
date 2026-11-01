@@ -400,7 +400,7 @@ export default function ProductsClientPage() {
   const totalProducts = stats?.totalProducts ?? 0;
   const lowStock = stats?.lowStock ?? 0;
   const negativeStock = stats?.negativeStock ?? 0;
-  const totalValue = stats?.inventoryValue ?? 0;
+  const totalValue = stats?.inventoryValue;
 
   useEffect(() => {
     if (activeImportJob) {
@@ -737,7 +737,8 @@ export default function ProductsClientPage() {
           />
           <StatCard
             label="Nilai Inventaris"
-            value={statsReady ? fmt(totalValue) : "-"}
+            value={statsReady ? (totalValue == null ? "Belum tersedia" : fmt(totalValue)) : "-"}
+            sub={statsReady && totalValue == null ? "Periksa satuan dasar grup stok" : undefined}
             icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
             accent="bg-emerald-100"
             delay={200}
