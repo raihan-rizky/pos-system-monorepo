@@ -15,6 +15,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "finance-custom-expense-categories", date: "2026-11-01", revision: 1,
+    highlight: { title: "Kategori pengeluaran sendiri", summary: "Buat dan filter kategori pengeluaran sesuai kebutuhan toko." },
+    title: "Buat kategori pengeluaran sesuai kebutuhan.",
+    summary: "Simpan kategori sendiri untuk dipakai kembali dan temukan pengeluarannya lewat filter. Form hutang juga menampilkan sisa setelah pembayaran awal.",
+    kind: "feature", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka pengeluaran", detail: "Di Keuangan, pilih Tambah Pengeluaran." },
+      { title: "Buat kategori", detail: "Pilih Tambah kategori, isi nama, lalu klik Simpan kategori dan simpan pengeluaran." },
+      { title: "Gunakan filter", detail: "Di bagian Pengeluaran, pilih kategori tersebut pada Filter kategori." },
+    ],
+  },
+  {
     id: "history-actions-layout", date: "2026-11-01", revision: 1,
     highlight: { title: "Aksi Riwayat lebih rapi", summary: "Temukan struk dan pilihan transaksi dengan lebih mudah." },
     title: "Aksi transaksi lebih mudah ditemukan.",

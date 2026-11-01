@@ -170,7 +170,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   finish(rc, rcTotal + 2, 9);
 
   const rp = makeSheet(`RINCIAN PENGELUARAN BULAN ${month} ${report.year}`, report, [14, 25, 18, 16, 17, 17, 18]);
-  tableHeader(rp, 5, ["Tanggal", "Keterangan", "", "Nilai", "Gaji / Mingguan", "TOTAL", "Kelompok"]);
+  tableHeader(rp, 5, ["Tanggal", "Keterangan", "", "Nilai", "Gaji / Mingguan", "TOTAL", "Kategori / kelompok"]);
   merge(rp, 5, 2, 5, 3);
   const rpEnd = 6 + Math.max(1, expenses.length);
   expenses.forEach((entry, index) => {
@@ -181,7 +181,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
     put(rp, row, 4, entry.group === "SALARY" ? 0 : entry.amount);
     put(rp, row, 5, entry.group === "SALARY" ? entry.amount : 0);
     put(rp, row, 6, entry.amount, `SUM(D${row}:E${row})`);
-    put(rp, row, 7, GROUP_LABELS[entry.group]);
+    put(rp, row, 7, entry.categoryName || GROUP_LABELS[entry.group]);
     rp["!rows"]![row - 1] = { hpt: Math.max(28, Math.ceil(entry.description.length / 45) * 14) };
   });
   if (!expenses.length) { put(rp, 7, 2, "Belum ada pengeluaran"); for (let col = 4; col <= 6; col++) put(rp, 7, col, 0); }

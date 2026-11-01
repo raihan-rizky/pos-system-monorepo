@@ -27,7 +27,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
     }),
     db.expense.findMany({
       where: { storeId, deletedAt: null, occurredAt: bounds, ...recognizedExpenseFilter(now) },
-      select: { id: true, occurredAt: true, category: true, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true,
+      select: { id: true, occurredAt: true, category: true, customCategory: { select: { name: true } }, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true,
         shoppingRequest: { select: { status: true } },
         goodsPurchase: { select: { number: true, status: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true } },
         backdatedPurchaseDue: { select: { reference: true, paymentMethod: true, dueDate: true } },

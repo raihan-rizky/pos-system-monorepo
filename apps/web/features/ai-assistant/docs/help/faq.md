@@ -247,7 +247,7 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 **A:** Buka menu keuangan untuk mencatat pengeluaran harian:
 1. Buka sidebar **Keuangan > Keuangan** (`/keuangan`).
 2. Klik tombol **Tambah Pengeluaran** untuk memasukkan pengeluaran baru.
-3. Isi nominal pengeluaran, pilih kategori, dan tambahkan catatan pendukung (opsional).
+3. Isi nama pemohon dan nominal. Pilih kategori, atau pilih **Tambah kategori**, isi nama, lalu simpan agar dapat digunakan kembali. Tambahkan catatan bila perlu.
 4. **Unggah Bukti Pengeluaran:** Klik **Pilih gambar bukti** untuk mengunggah foto nota ke R2 dan periksa pratinjaunya. Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik **Simpan**.
 5. Kenali sumbernya: badge **Manual** berasal dari form, badge **Pembelian Barang** dibuat otomatis setelah approval final dan tidak dapat diedit atau dihapus dari Keuangan, sedangkan badge **Daftar Belanja (Legacy)** hanya menandai data lama.
 

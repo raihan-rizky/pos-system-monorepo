@@ -423,11 +423,11 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Keuangan", description: "Masuk ke sidebar Keuangan, lalu buka halaman Keuangan." },
       { title: "Tambah pengeluaran", description: "Klik tombol Tambah Pengeluaran untuk membuka form." },
-      { title: "Isi nominal dan kategori", description: "Masukkan nominal, kategori, dan catatan pendukung bila diperlukan." },
+      { title: "Isi nominal dan kategori", description: "Masukkan nama pemohon dan nominal. Pilih kategori yang tersedia atau klik Tambah kategori, isi nama, lalu pilih Simpan kategori agar dapat digunakan kembali." },
       { title: "Pilih gambar bukti", description: "Jika ada foto nota, klik Pilih gambar bukti untuk mengunggahnya ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul sebagai fallback." },
       { title: "Simpan pengeluaran", description: "Periksa pratinjau lampiran dan klik Simpan." },
       { title: "Kenali sumber pengeluaran", description: "Badge Manual menandai input dari form. Badge Pembelian Barang, Belanja Terdahulu, dan Daftar Belanja (Legacy) menandai entri otomatis yang tidak dapat diedit atau dihapus dari Keuangan." },
-      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori di Filter kategori untuk menyaring daftar. Pilih Semua kategori untuk menampilkan semua pengeluaran bulan tersebut. Jumlah dan grafik tetap mencakup seluruh bulan." },
+      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori bawaan atau kategori yang dibuat sendiri di Filter kategori untuk menyaring daftar. Pilih Semua kategori untuk menampilkan semua pengeluaran bulan tersebut. Jumlah dan grafik tetap mencakup seluruh bulan." },
     ],
   }),
   workflow({

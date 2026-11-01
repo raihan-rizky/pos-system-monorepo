@@ -14,7 +14,7 @@ Buka sidebar **Keuangan > Keuangan** (`/keuangan`) untuk memantau arus kas bulan
 - **Hutang Pemasok:** Catat pemasok, nominal, dan tanggal lewat **Tambahkan Hutang**. Pembayaran awal opsional; pilih **Catat pembayaran** untuk pembayaran sebagian atau pelunasan. Pembayaran hutang tidak otomatis menjadi pengeluaran. Saldo yang dicatat masuk laporan bulanan sesuai tanggal.
 
 ## Mengelola Pengeluaran & Bukti Transaksi
-- **Pencatatan Pengeluaran:** Catat nominal, pilih kategori, dan masukkan pengeluaran operasional toko. Langkah selengkapnya dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q18-bagaimana-cara-mencatat-pengeluaran-operasional-toko).
+- **Pencatatan Pengeluaran:** Catat nominal dan pilih kategori. Jika diperlukan, pilih **Tambah kategori**, isi namanya, lalu simpan; kategori tersimpan dapat dipilih kembali pada pengeluaran lain dan **Filter kategori**. Langkah selengkapnya dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q18-bagaimana-cara-mencatat-pengeluaran-operasional-toko).
 - **Mengunggah Bukti Pengeluaran:** Klik **Pilih gambar bukti** untuk mengunggah foto nota langsung ke R2. Jika penyimpanan R2 gagal, gunakan input prnt.sc yang muncul sebagai fallback. Langkah detail dibahas di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md#q20-bagaimana-cara-mencatat-pengeluaran-operasional-toko).
 
 ## Hak Akses (Role-Based Access Control)

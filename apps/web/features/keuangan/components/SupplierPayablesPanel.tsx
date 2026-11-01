@@ -4,12 +4,13 @@ import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } fr
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@pos/ui";
 import { Plus, X } from "lucide-react";
-import { formatRupiah } from "@/lib/utils";
 import { jakartaToday } from "../helpers/supplier-payable-input";
 
 type Payable = { id: string; supplierName: string; amount: number; paid: number; debtDate: string; dueDate: string | null; note: string | null };
 type PayablePage = { items: Payable[]; page: number; total: number };
-const control = "mt-1 w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500";
+const control = "mt-1.5 min-h-11 w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-base text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm";
+const payableCurrency = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const formatRupiah = (amount: number) => payableCurrency.format(amount);
 
 async function responseJson<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => null);
@@ -26,9 +27,9 @@ function PayableDialog({ title, onClose, busy, children }: { title: string; onCl
     return () => { if (dialog?.open) dialog.close(); };
   }, []);
   return (
-    <dialog ref={ref} aria-labelledby={titleId} onCancel={event => { if (busy) event.preventDefault(); else onClose(); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-2xl border border-surface-200 bg-white p-0 text-surface-900 shadow-xl backdrop:bg-surface-950/45">
-      <header className="flex items-center justify-between border-b border-surface-200 px-5 py-4">
-        <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
+    <dialog ref={ref} aria-labelledby={titleId} onCancel={event => { if (busy) event.preventDefault(); else onClose(); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-2xl border border-surface-200 bg-white p-0 text-surface-900 shadow-xl backdrop:bg-surface-950/45 open:flex open:flex-col">
+      <header className="flex shrink-0 items-start justify-between gap-3 border-b border-surface-200 px-5 py-4">
+        <div><h2 id={titleId} className="text-lg font-semibold">{title}</h2><p className="mt-1 text-xs leading-relaxed text-surface-500">{title === "Tambahkan Hutang" ? "Catat rincian hutang pemasok dan pembayaran awal jika ada." : "Catat pembayaran untuk mengurangi sisa hutang."}</p></div>
         <button type="button" onClick={onClose} disabled={busy} aria-label="Tutup" className="rounded-lg p-2 text-surface-500 hover:bg-surface-100 focus-visible:outline-2 focus-visible:outline-brand-500"><X className="h-5 w-5" aria-hidden="true" /></button>
       </header>
       {children}
@@ -100,17 +101,29 @@ export function SupplierPayablesPanel({ canCreate, canUpdate }: { canCreate: boo
       )}
       {!!list.data && list.data.total > 20 && <div className="mt-3 flex items-center justify-end gap-2 text-xs"><span>Halaman {page}</span><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Sebelumnya</button><button type="button" disabled={page * 20 >= list.data.total} onClick={() => setPage(value => value + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Berikutnya</button></div>}
       {mode && <PayableDialog title={mode === "create" ? "Tambahkan Hutang" : "Catat Pembayaran Hutang"} busy={busy} onClose={() => { if (!submitting.current) setMode(null); }}>
-        <form onSubmit={event => void submit(event)} className="space-y-4 p-5" aria-busy={busy}>
-          {mode === "create" ? <>
-            <label className="block text-sm font-medium">Nama pemasok<input autoFocus required maxLength={200} value={supplierName} onChange={event => setSupplierName(event.target.value)} className={control} /></label>
-            <label className="block text-sm font-medium">Nominal hutang (Rp)<input required type="number" min="0.01" max="9999999999.99" step="0.01" inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} className={control} /></label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block text-sm font-medium">Tanggal hutang<input required type="date" max={jakartaToday()} value={debtDate} onChange={event => setDebtDate(event.target.value)} className={control} /></label><label className="block text-sm font-medium">Jatuh tempo (opsional)<input type="date" min={debtDate} value={dueDate} onChange={event => setDueDate(event.target.value)} className={control} /></label></div>
-            <label className="block text-sm font-medium">Catatan (opsional)<textarea maxLength={1000} value={note} onChange={event => setNote(event.target.value)} className={control} rows={2} /></label>
-          </> : <p className="text-sm text-surface-700">{selected?.supplierName} · Sisa {formatRupiah(Math.max(0, (selected?.amount ?? 0) - (selected?.paid ?? 0)))}</p>}
-          <label className="block text-sm font-medium">{mode === "create" ? "Pembayaran awal (opsional)" : "Nominal pembayaran"} (Rp)<input autoFocus={mode === "payment"} required={mode === "payment"} type="number" min="0.01" step="0.01" max={mode === "payment" && selected ? Math.max(0, (Math.round(selected.amount * 100) - Math.round(selected.paid * 100)) / 100) : amount || undefined} inputMode="decimal" value={payment} onChange={event => setPayment(event.target.value)} className={control} /></label>
-          {(payment || mode === "payment") && <label className="block text-sm font-medium">Tanggal pembayaran<input required type="date" min={mode === "create" ? debtDate : selected?.debtDate} max={jakartaToday()} value={paidAt} onChange={event => setPaidAt(event.target.value)} className={control} /></label>}
-          {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-          <Button type="submit" loading={busy} disabled={busy} className="w-full">{busy ? "Menyimpan..." : mode === "create" ? "Simpan hutang" : "Simpan pembayaran"}</Button>
+        <form onSubmit={event => void submit(event)} className="flex min-h-0 flex-col overflow-hidden" aria-busy={busy}>
+          <div className="min-h-0 space-y-5 overflow-y-auto px-5 py-5">
+            {mode === "create" ? <>
+              <section aria-labelledby="payable-details-title" className="space-y-4">
+                <div><h3 id="payable-details-title" className="text-sm font-semibold text-surface-900">Rincian hutang</h3><p className="mt-1 text-xs text-surface-500">Isi data yang tercantum pada tagihan pemasok.</p></div>
+                <label className="block text-sm font-medium">Nama pemasok <span className="text-red-500">*</span><input autoFocus required maxLength={200} placeholder="Contoh: Toko Sumber Jaya" value={supplierName} onChange={event => setSupplierName(event.target.value)} className={control} /></label>
+                <label className="block text-sm font-medium">Nominal hutang (Rp) <span className="text-red-500">*</span><input required type="number" min="0.01" max="9999999999.99" step="0.01" inputMode="decimal" placeholder="0" value={amount} onChange={event => setAmount(event.target.value)} className={control} />{Number(amount) > 0 && <span className="mt-1 block text-xs font-normal text-surface-600">{formatRupiah(Number(amount))}</span>}</label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block text-sm font-medium">Tanggal hutang <span className="text-red-500">*</span><input required type="date" max={jakartaToday()} value={debtDate} onChange={event => setDebtDate(event.target.value)} className={control} /></label><label className="block text-sm font-medium">Jatuh tempo <span className="font-normal text-surface-500">(opsional)</span><input type="date" min={debtDate} value={dueDate} onChange={event => setDueDate(event.target.value)} className={control} /></label></div>
+                <label className="block text-sm font-medium">Catatan <span className="font-normal text-surface-500">(opsional)</span><textarea maxLength={1000} placeholder="Contoh: nomor tagihan atau keterangan" value={note} onChange={event => setNote(event.target.value)} className={control} rows={2} /></label>
+              </section>
+              <div className="border-t border-surface-200" />
+            </> : <div className="rounded-xl border border-surface-200 bg-surface-50 px-4 py-3"><p className="text-xs text-surface-500">Hutang pemasok</p><p className="mt-1 break-words text-sm font-semibold">{selected?.supplierName}</p><p className="mt-1 text-sm text-surface-700">Sisa {formatRupiah(Math.max(0, (selected?.amount ?? 0) - (selected?.paid ?? 0)))}</p></div>}
+            <section aria-labelledby="payable-payment-title" className="space-y-3">
+              <div><h3 id="payable-payment-title" className="text-sm font-semibold text-surface-900">{mode === "create" ? "Pembayaran awal" : "Pembayaran"}</h3><p className="mt-1 text-xs text-surface-500">{mode === "create" ? "Opsional. Isi jika sebagian hutang sudah dibayar." : "Masukkan nominal dan tanggal pembayaran."}</p></div>
+              <label className="block text-sm font-medium">{mode === "create" ? "Nominal pembayaran awal" : "Nominal pembayaran"} (Rp)<input autoFocus={mode === "payment"} required={mode === "payment"} type="number" min="0.01" step="0.01" max={mode === "payment" && selected ? Math.max(0, (Math.round(selected.amount * 100) - Math.round(selected.paid * 100)) / 100) : amount || undefined} inputMode="decimal" placeholder="0" value={payment} onChange={event => setPayment(event.target.value)} className={control} />{Number(payment) > 0 && <span className="mt-1 block text-xs font-normal text-surface-600">{formatRupiah(Number(payment))}</span>}</label>
+              {(payment || mode === "payment") && <label className="block text-sm font-medium">Tanggal pembayaran<input required type="date" min={mode === "create" ? debtDate : selected?.debtDate} max={jakartaToday()} value={paidAt} onChange={event => setPaidAt(event.target.value)} className={control} /></label>}
+              {mode === "create" && Number(amount) > 0 && Number(payment) > 0 && (Number(payment) > Number(amount)
+                ? <p className="text-xs text-red-700">Pembayaran awal tidak boleh melebihi nominal hutang.</p>
+                : <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3"><span className="text-sm font-medium text-brand-800">Sisa setelah pembayaran awal</span><strong className="text-sm tabular-nums text-brand-900">{formatRupiah((Math.round(Number(amount) * 100) - Math.round(Number(payment) * 100)) / 100)}</strong></div>)}
+            </section>
+            {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          </div>
+          <footer className="flex shrink-0 justify-end gap-2 border-t border-surface-200 bg-white px-5 py-3"><Button type="button" variant="ghost" onClick={() => setMode(null)} disabled={busy}>Batal</Button><Button type="submit" loading={busy} disabled={busy}>{busy ? "Menyimpan..." : mode === "create" ? "Simpan hutang" : "Simpan pembayaran"}</Button></footer>
         </form>
       </PayableDialog>}
     </section>

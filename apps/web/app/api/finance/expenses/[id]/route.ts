@@ -8,6 +8,7 @@ import { classifyAutomaticExpense } from "@/features/keuangan/helpers/automatic-
 import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
+import { customExpenseCategoryKey } from "@/features/keuangan/helpers/category-meta";
 
 const log = getLogger("api:finance:expenses:id");
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export async function PATCH(
         goodsPurchaseId: true,
         backdatedPurchaseDueId: true,
         backdatedPurchasePaymentId: true,
+        customCategoryId: true,
       },
     });
     if (!existing || existing.deletedAt) {
@@ -76,12 +78,23 @@ export async function PATCH(
     }
 
     const data = result.data;
+    const customCategoryId = body.customCategoryId === undefined
+      ? (data.category === "OTHER" ? existing.customCategoryId : null)
+      : body.customCategoryId;
+    if (customCategoryId !== null) {
+      if (typeof customCategoryId !== "string" || !customCategoryId || data.category !== "OTHER") {
+        return apiError("Kategori tidak valid.", 422, { code: "ValidationError" });
+      }
+      const category = await db.customExpenseCategory.findFirst({ where: { id: customCategoryId, storeId }, select: { id: true } });
+      if (!category) return apiError("Kategori tidak ditemukan.", 422, { code: "ValidationError" });
+    }
     const occurredAt = new Date(`${data.occurredAt}T00:00:00+07:00`);
     const updated = await db.expense.update({
       where: { id },
       data: {
         applicantName: data.applicantName.trim(),
         category: data.category,
+        customCategoryId,
         description: data.description?.trim() || null,
         amount: data.amount,
         changeAmount: data.changeAmount,
@@ -93,6 +106,7 @@ export async function PATCH(
         id: true,
         applicantName: true,
         category: true,
+        customCategoryId: true,
         description: true,
         amount: true,
         changeAmount: true,
@@ -108,6 +122,7 @@ export async function PATCH(
     return NextResponse.json({
       data: {
         ...updated,
+        category: updated.customCategoryId ? customExpenseCategoryKey(updated.customCategoryId) : updated.category,
         amount,
         changeAmount,
         netAmount: computeNetExpense(amount, changeAmount),

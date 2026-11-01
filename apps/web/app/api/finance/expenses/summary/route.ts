@@ -5,8 +5,8 @@ import {
   bucketExpensesByCategory,
   bucketExpensesByDay,
   buildKeuanganMonthRange,
-  type ExpenseCategory,
 } from "@/features/keuangan/helpers/keuangan-core";
+import { customExpenseCategoryKey } from "@/features/keuangan/helpers/category-meta";
 import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
@@ -54,6 +54,7 @@ export async function GET(request: Request) {
           amount: true,
           changeAmount: true,
           category: true,
+          customCategoryId: true,
         },
       }),
       db.transaction.findMany({
@@ -70,7 +71,7 @@ export async function GET(request: Request) {
       occurredAt: e.occurredAt,
       amount: e.amount.toString(),
       changeAmount: e.changeAmount.toString(),
-      category: e.category as ExpenseCategory,
+      category: e.customCategoryId ? customExpenseCategoryKey(e.customCategoryId) : e.category,
     }));
 
     const daily = bucketExpensesByDay(expenseRows);
