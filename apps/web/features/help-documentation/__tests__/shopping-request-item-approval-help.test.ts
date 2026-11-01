@@ -22,10 +22,12 @@ describe("Bantuan persetujuan Daftar Belanja", () => {
     expect(approvalGuide).toContain("Jumlah, Satuan, dan Harga Beli aktual");
     expect(approvalGuide).toContain("Jumlah nol berarti barang tidak disetujui");
     expect(approvalGuide).toContain("Setujui dan Catat Pembelian");
-    expect(approvalGuide).toContain("satu Pengeluaran kategori Bahan");
+    expect(approvalGuide).toContain("satu Pengeluaran sebesar total pembelian penuh dicatat saat penerimaan pertama yang berisi barang disetujui");
+    expect(approvalGuide).toContain("termasuk jika barang datang sebagian");
     expect(approvalGuide).toContain("Jumlah di atas kebutuhan perlu konfirmasi");
-    expect(approvalGuide).toContain("Persetujuan tidak mengubah stok");
-    expect(approvalGuide).toContain("stok bertambah setelah Penerimaan Barang disetujui");
+    expect(approvalGuide).toContain("Stok bertambah setelah Penerimaan Barang disetujui");
+    expect(approvalGuide).toContain("pilih Transfer atau Giro");
+    expect(approvalGuide).toContain("Metode yang ditetapkan pada penerimaan pertama yang berisi barang");
     expect(approvalGuide).toContain("supplier.goods_purchase.reject:update");
     expect(approvalGuide).toContain("Penolakan tidak mencatat pembelian atau Pengeluaran");
     expect(approvalGuide).not.toContain("Setujui Item");
