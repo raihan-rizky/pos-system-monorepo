@@ -66,6 +66,9 @@ Perubahan fitur dipisahkan dari checkout aktif dan diterapkan di atas origin/mai
 - Snapshot publikasi berisi 23 berkas fitur. Dependensi memakai junction ke instalasi checkout kerja dengan versi package/lockfile yang sama; dependency dan lockfile tidak diubah.
 - ESLint untuk seluruh berkas TypeScript yang berubah lulus.
 - Pengujian integrasi pada main lulus: 8 berkas, 87 tes (reset, endpoint, workflow AI, dan Catatan Perubahan). Kegagalan dokumentasi yang tercatat dari checkout kerja tidak muncul pada suite integrasi ini.
-- GitNexus `detect_changes --scope compare --base-ref origin/main` terakhir pada snapshot menunjukkan 22 berkas teks, 8 simbol terindeks, 0 alur terdampak, risiko LOW. Indeks bersama memiliki cakupan terbatas; diff juga diperiksa secara manual.
+- GitNexus `detect_changes --scope compare --base-ref origin/main` terakhir pada snapshot menunjukkan 23 berkas teks, 7 simbol terindeks, 0 alur terdampak, risiko LOW. Indeks bersama memiliki cakupan terbatas; diff juga diperiksa secara manual.
 - Cache incremental TypeScript dari checkout kerja digunakan kembali pada snapshot; pemeriksaan tetap menjalankan `tsc --noEmit` terhadap sumber snapshot.
+- Pemeriksaan TypeScript web pada snapshot lulus. Hook lint sebelum commit juga lulus tanpa mengubah hasil staging.
+- Hook suite penuh menemukan ekspektasi teks lama pada tes Bantuan Reset Database. Kegagalan direproduksi terpisah, lalu tes diselaraskan dengan istilah Indonesianya serta ditambah pemeriksaan Riwayat Harga, Hapus Semua Pilihan, dan pembatalan preview. Perbaikan menambah satu berkas tes pada cakupan publikasi.
+- Setelah penyesuaian tes Bantuan, suite integrasi diperluas menjadi 9 berkas dengan 116 tes; semuanya lulus.
 - Percobaan suite penuh dihentikan ketika memori mesin tersisa sekitar 300 MB dan beberapa sesi tes lain berjalan bersamaan. Hasil parsial memuat kegagalan di luar reset dengan durasi mendekati timeout bawaan 5 detik; tidak dipakai sebagai bukti suite penuh lulus. Pengujian fitur dijalankan ulang dengan batas waktu 30 detik.

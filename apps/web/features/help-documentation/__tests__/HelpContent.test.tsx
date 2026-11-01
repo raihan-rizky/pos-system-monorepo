@@ -295,8 +295,11 @@ describe('HelpContent', () => {
 
     expect(html).toContain('Reset Database');
     expect(html).toContain('RESET DATABASE');
-    expect(html).toContain('store yang sedang login');
-    expect(html).toContain('cascade');
+    expect(html).toContain('toko yang sedang login');
+    expect(html).toContain('data terkait yang wajib ikut terhapus');
+    expect(html).toContain('Katalog Produk &gt; Riwayat Harga');
+    expect(html).toContain('Hapus Semua Pilihan');
+    expect(html).toContain('Mengubah pilihan membatalkan preview dan teks konfirmasi');
     expect(html).toContain('tidak ada seed otomatis');
   });
 
