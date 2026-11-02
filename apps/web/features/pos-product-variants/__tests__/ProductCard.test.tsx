@@ -10,11 +10,20 @@ vi.mock('@/features/customer-category-pricing/hooks/useSpecialPricingSettings', 
 describe('ProductCard', () => {
   beforeEach(() => specialPricingEnabled.mockReturnValue(true));
 
-  it('uses regular prices when special pricing is disabled', () => {
+  it('keeps an explicit Agen price and ignores category rules when special pricing is disabled', () => {
     specialPricingEnabled.mockReturnValue(false);
-    const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 4200 })) }} onAddToCart={vi.fn()} customerType="AGEN" categoryPricingRules={[]} />);
-    expect(html).not.toContain('4.200');
-    expect(html).not.toContain('aria-label="Harga Khusus"');
+    const product = { ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 42000 })) };
+    const rule: CategoryPricingRule = { id: 'special', categoryId: 'cat1', customerType: 'ALL', mode: 'PERCENT_DISCOUNT', value: 15, unit: 'dus', isActive: true };
+    const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} customerType="AGEN" categoryPricingRules={[rule]} />);
+    const agenRow = html.match(/<p\b[^>]*><span\b[^>]*>Agen:<\/span>.*?<\/p>/)?.[0];
+    const dinasRow = html.match(/<p\b[^>]*><span\b[^>]*>Dinas:<\/span>.*?<\/p>/)?.[0];
+
+    expect(agenRow).toContain('42.000');
+    expect(agenRow).toContain('aria-label="Harga Khusus"');
+    expect(dinasRow).toContain('50.000');
+    expect(dinasRow).not.toContain('aria-label="Harga Khusus"');
+    expect(html).toMatch(/<p class="text-base font-bold text-emerald-800">Rp\s42\.000<\/p><span role="img" aria-label="Harga Khusus"/);
+    expect(html).not.toContain('42.500');
   });
   it('shows the rounded selling price with a disclosure and respects an inactive policy', () => {
     const product = { ...mockProduct, price: 4050, defaultVariant: undefined, variants: undefined };
@@ -381,16 +390,18 @@ describe('ProductCard', () => {
     expect(defaultRow).toContain('Mengikuti harga jual');
   });
 
-  it('shows an ALL rule in both member rows instead of their manual prices', () => {
+  it('prioritizes explicit member prices over an ALL rule in both rows', () => {
     const product = { ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 45000, hargaDinas: 47000 })) };
     const rule: CategoryPricingRule = { id: 'special', categoryId: 'cat1', customerType: 'ALL', mode: 'PERCENT_DISCOUNT', value: 15, unit: 'dus', isActive: true };
     const html = renderToStaticMarkup(<ProductCard product={product} onAddToCart={vi.fn()} customerType="AGEN" categoryPricingRules={[rule]} />);
 
     for (const label of ['Agen', 'Dinas']) {
       const row = html.match(new RegExp(`<p\\b[^>]*><span\\b[^>]*>${label}:<\\/span>.*?<\\/p>`))?.[0];
-      expect(row).toContain('42.500');
-      expect(row).not.toContain(label === 'Agen' ? '45.000' : '47.000');
+      expect(row).toContain(label === 'Agen' ? '45.000' : '47.000');
+      expect(row).toContain('aria-label="Harga Khusus"');
     }
+    expect(html).toMatch(/<p class="text-base font-bold text-emerald-800">Rp\s45\.000<\/p><span role="img" aria-label="Harga Khusus"/);
+    expect(html).not.toContain('42.500');
   });
 
   it.each(['inactive', 'other-category', 'other-unit', 'other-brand', 'other-customer', 'zero-result'] as const)('retains manual member prices for an %s rule', (scope) => {
