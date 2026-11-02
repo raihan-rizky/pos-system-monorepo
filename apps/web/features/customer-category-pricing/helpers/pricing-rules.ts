@@ -315,6 +315,8 @@ export function priceProductForCustomerType(
   _pricingPreference: PricingPreference = "SPECIAL",
   specialPricingEnabled = true,
 ): PricedProductLine {
+  const memberPrice = priceProductForMemberType(product, customerType);
+  if (memberPrice) return memberPrice;
   if (!specialPricingEnabled) return { unitPrice: roundCurrency(product.price), appliedPricing: null };
   const specialPrice = applyCategoryPricingRule(
     product,
@@ -326,13 +328,7 @@ export function priceProductForCustomerType(
       brandId: product.brandId,
     }),
   );
-  const memberPrice = priceProductForMemberType(product, customerType);
-
-  if (specialPrice.appliedPricing) {
-    return specialPrice;
-  }
-
-  return memberPrice ?? specialPrice;
+  return specialPrice;
 }
 
 export function countProductsAtOrBelowFlatDiscount(

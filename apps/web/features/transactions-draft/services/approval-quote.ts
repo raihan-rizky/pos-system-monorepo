@@ -355,8 +355,8 @@ export async function buildApprovalQuote(
       const appliedPricing = applied.appliedPricing;
       const references = {
         regular: roundSellingPriceLine({ unitPrice: regular, appliedPricing: null }, roundingSettings),
-        agent: !specialPricingEnabled || product.hargaAgen == null ? null : roundSellingPriceLine({ unitPrice: Number(product.hargaAgen), appliedPricing: null }, roundingSettings),
-        government: !specialPricingEnabled || product.hargaDinas == null ? null : roundSellingPriceLine({ unitPrice: Number(product.hargaDinas), appliedPricing: null }, roundingSettings),
+        agent: Number(product.hargaAgen) > 0 ? roundSellingPriceLine({ unitPrice: Number(product.hargaAgen), appliedPricing: null }, roundingSettings) : null,
+        government: Number(product.hargaDinas) > 0 ? roundSellingPriceLine({ unitPrice: Number(product.hargaDinas), appliedPricing: null }, roundingSettings) : null,
         special: automatic.appliedPricing &&
           automatic.appliedPricing.ruleId !== "harga-agen" &&
           automatic.appliedPricing.ruleId !== "harga-dinas"

@@ -61,10 +61,10 @@ describe.each(memberTypes)("$customerType legacy defaults and overrides", ({ cus
     }
   });
 
-  it("uses an applicable special rule ahead of the member override", () => {
+  it("uses the explicit member price ahead of an applicable special rule", () => {
     const result = priceProductForCustomerType({ ...product, [field]: 8000 }, customerType, [rule]);
-    expect(result.unitPrice).toBe(9000);
-    expect(result.appliedPricing?.ruleId).toBe(rule.id);
+    expect(result.unitPrice).toBe(8000);
+    expect(result.appliedPricing?.ruleId).toBe(ruleId);
     expect(isSpecialCategoryPricing(result.appliedPricing)).toBe(true);
   });
 

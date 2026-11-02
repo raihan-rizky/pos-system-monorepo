@@ -8,14 +8,25 @@ import {
 
 describe("buildApprovalFingerprint", () => {
   beforeEach(() => { roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 }); });
-  it("quotes only the regular price when Harga Khusus is disabled", async () => {
+  it("keeps the product Agen price when Harga Khusus and transaction overrides are disabled", async () => {
     const client = makeQuoteClient({ customerType: "AGEN", rules: [{ id: "r", categoryId: "paper-category", category: { name: "Paper" }, customerType: "ALL", mode: "FLAT_DISCOUNT", value: 10, isActive: true }] });
     client.storeSettings.findUnique.mockResolvedValue({ specialPricingEnabled: false });
     const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
       items: [{ productId: "paper", quantity: 1, submittedPrice: 20, priceIntent: "MANUAL" }],
     });
 
-    expect(quote.items[0]).toMatchObject({ regular: 100, agent: null, government: null, special: null, appliedUnitPrice: 100, appliedPricing: null });
+    expect(quote.items[0]).toMatchObject({ regular: 100, agent: 85, government: 90, special: null, appliedUnitPrice: 85, appliedPricing: { ruleId: "harga-agen" } });
+  });
+
+  it.each([false, true])("treats zero member references as unavailable with special pricing enabled: %s", async enabled => {
+    const client = makeQuoteClient({ customerType: "AGEN", rules: [] });
+    client.storeSettings.findUnique.mockResolvedValue({ specialPricingEnabled: enabled });
+    const product = (await client.product.findMany())[0];
+    client.product.findMany.mockResolvedValue([{ ...product, hargaAgen: 0, hargaDinas: 0 }]);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ productId: "paper", quantity: 1, priceIntent: "AUTOMATIC" }],
+    });
+    expect(quote.items[0]).toMatchObject({ regular: 100, agent: null, government: null, appliedUnitPrice: 100, appliedPricing: null });
   });
 
   it.each([

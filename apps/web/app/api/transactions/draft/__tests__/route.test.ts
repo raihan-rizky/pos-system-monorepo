@@ -613,7 +613,7 @@ describe("POST /api/transactions/draft", () => {
     });
   });
 
-  it("reprices new drafts from server rules without a legacy priority field", async () => {
+  it("reprices new drafts from the product Agen price without a legacy priority field", async () => {
     customerFindFirstMock.mockResolvedValue({
       id: "agen-1",
       type: "AGEN",
@@ -670,10 +670,10 @@ describe("POST /api/transactions/draft", () => {
     const createArgs = transactionCreateMock.mock.calls[0][0];
     expect(createArgs.data.items.create[0]).toEqual(
       expect.objectContaining({
-        unitPrice: 90000,
-        pricingRuleId: "rule-atk",
+        unitPrice: 95000,
+        pricingRuleId: "harga-agen",
         originalUnitPrice: 100000,
-        appliedUnitPrice: 90000,
+        appliedUnitPrice: 95000,
       }),
     );
     expect(productPriceLogCreateManyMock).not.toHaveBeenCalled();
@@ -750,7 +750,7 @@ describe("POST /api/transactions/draft", () => {
     expect(createArgs.data.items.create[0]).toEqual(
       expect.objectContaining({
         unitPrice: 80000,
-        pricingRuleId: "rule-atk",
+        pricingRuleId: "harga-agen",
         appliedUnitPrice: 80000,
       }),
     );
@@ -822,7 +822,7 @@ describe("POST /api/transactions/draft", () => {
     expect(createArgs.data.items.create[0]).toEqual(
       expect.objectContaining({
         unitPrice: 80000,
-        pricingRuleId: "rule-atk",
+        pricingRuleId: "harga-agen",
         appliedUnitPrice: 80000,
       }),
     );

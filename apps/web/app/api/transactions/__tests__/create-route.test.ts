@@ -86,7 +86,7 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
-  it.each(["AGEN", "PEMERINTAH"])("uses the regular price for %s when Harga Khusus is disabled", async (customerType) => {
+  it.each(["AGEN", "PEMERINTAH"])("uses the product member price for %s when Harga Khusus is disabled", async (customerType) => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
     customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: customerType });
     const product = (await productFindManyMock())[0];
@@ -101,7 +101,7 @@ describe("POST /api/transactions negative stock", () => {
     }) }));
 
     expect(response.status).toBe(201);
-    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000 });
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: customerType === "AGEN" ? 700 : 600 });
   });
 
   it("holds a mixed offline sale for approval when a product price changes", async () => {
@@ -230,7 +230,7 @@ describe("POST /api/transactions negative stock", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ id: "winning-sale" });
   });
-  it.each(["AGEN", "PEMERINTAH"])("uses the regular price for %s when Harga Khusus is disabled", async (customerType) => {
+  it.each(["AGEN", "PEMERINTAH"])("uses the product member price for %s when Harga Khusus is disabled", async (customerType) => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
     customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: customerType });
     const product = (await productFindManyMock())[0];
@@ -245,7 +245,7 @@ describe("POST /api/transactions negative stock", () => {
     }) }));
 
     expect(response.status).toBe(201);
-    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000 });
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: customerType === "AGEN" ? 700 : 600 });
   });
 
   it.each([0.001, 999.999, 1000.01, true, {}, []])("rejects malformed or over-precise item discount %j without changing stock", async discount => {
@@ -872,43 +872,43 @@ describe("POST /api/transactions negative stock", () => {
     );
   }
 
-  it("recalculates with Harga Khusus as the default priority", async () => {
+  it("recalculates with explicit Harga Agen as the default priority", async () => {
     const response = await createAgenPricingTransaction("SPECIAL");
 
     expect(response.status).toBe(201);
     const createArg = transactionCreateMock.mock.calls[0][0];
     expect(createArg.data.items.create[0]).toEqual(
       expect.objectContaining({
-        unitPrice: 90000,
-        pricingRuleId: "rule-atk",
+        unitPrice: 95000,
+        pricingRuleId: "harga-agen",
       }),
     );
   });
 
-  it("keeps Harga Khusus primary when a legacy MEMBER preference is selected", async () => {
+  it("keeps explicit Harga Agen primary with a legacy MEMBER preference", async () => {
     const response = await createAgenPricingTransaction("MEMBER");
 
     expect(response.status).toBe(201);
     const createArg = transactionCreateMock.mock.calls[0][0];
     expect(createArg.data.items.create[0]).toEqual(
       expect.objectContaining({
-        unitPrice: 90000,
-        pricingRuleId: "rule-atk",
-        appliedUnitPrice: 90000,
+        unitPrice: 95000,
+        pricingRuleId: "harga-agen",
+        appliedUnitPrice: 95000,
       }),
     );
   });
 
-  it("applies Harga Khusus when new transaction requests omit the priority field", async () => {
+  it("applies explicit Harga Agen when new transaction requests omit the priority field", async () => {
     const response = await createAgenPricingTransaction();
 
     expect(response.status).toBe(201);
     const createArg = transactionCreateMock.mock.calls[0][0];
     expect(createArg.data.items.create[0]).toEqual(
       expect.objectContaining({
-        unitPrice: 90000,
-        pricingRuleId: "rule-atk",
-        appliedUnitPrice: 90000,
+        unitPrice: 95000,
+        pricingRuleId: "harga-agen",
+        appliedUnitPrice: 95000,
       }),
     );
   });

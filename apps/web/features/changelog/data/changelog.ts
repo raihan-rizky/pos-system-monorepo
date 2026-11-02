@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "import-member-prices-first", date: "2026-11-02", revision: 1,
+    highlight: { title: "Prioritas harga Agen dan Dinas", summary: "Gunakan harga dari file; harga kosong atau 0 mengikuti harga jual." },
+    title: "Harga Agen dan Dinas dari file diprioritaskan.",
+    summary: "Harga Agen/Dinas di atas 0 tetap dipakai sesuai tipe pelanggan, termasuk saat Harga Khusus nonaktif. Pratinjau menjelaskan harga yang mengikuti harga jual karena datanya tidak tersedia di file atau bernilai 0.",
+    kind: "fix", area: "Produk & Harga", href: "/products", visual: "units",
+    screenshot: { src: "/images/changelog/prioritas-harga-agen-dinas-impor.png", alt: "Pratinjau impor Kertas HVS mempertahankan Harga Agen Rp10.000 dan Harga Dinas Rp20.000, serta menjelaskan harga kosong atau 0 yang mengikuti harga jual Rp15.000." },
+    steps: [
+      { title: "Unggah file produk", detail: "Buka Produk > Import > Impor Produk Massal, unggah CSV/XLSX, lalu petakan kolom Harga Agen dan Harga Dinas bila tersedia." },
+      { title: "Periksa sumber harga", detail: "Harga di atas 0 dari file diprioritaskan. Jika kolom tidak ada, kosong, atau bernilai 0, periksa keterangan Mengikuti harga jual pada masing-masing kolom." },
+      { title: "Terapkan dan gunakan", detail: "Selesaikan keputusan baris lalu klik Commit Import. Di POS, pilih pelanggan Agen atau Pemerintah untuk menggunakan harga terkait." },
+    ],
+  },
+  {
     id: "inventory-automatic-unit-hpp", date: "2026-11-02", revision: 1,
     highlight: { title: "Nilai inventaris dari HPP", summary: "HPP tiap satuan dihitung otomatis dengan stok bersama dihitung sekali." },
     title: "Nilai inventaris otomatis dari HPP satuan.",

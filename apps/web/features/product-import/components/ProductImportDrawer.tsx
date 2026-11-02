@@ -1118,7 +1118,7 @@ function ImportPreviewTable({
 }) {
   return (
     <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-200 bg-white relative">
-      <p className="p-3 text-xs text-slate-600">Harga impor disimpan sebagai harga asal. Harga jual berlaku mengikuti pembulatan saat transaksi.</p>
+      <p className="p-3 text-xs text-slate-600">Harga Agen dan Dinas dari file diprioritaskan jika lebih dari 0. Jika kolomnya tidak ada, kosong, atau bernilai 0, masing-masing mengikuti harga jual. Harga asal tetap disimpan; harga transaksi mengikuti pembulatan toko.</p>
       <table className="min-w-[1120px] w-full text-left text-sm border-collapse">
         <thead className="sticky top-0 text-[11px] uppercase tracking-widest text-slate-500 z-20 shadow-sm">
           <tr>
@@ -1168,10 +1168,12 @@ function ImportPreviewTable({
                   <PriceRoundingPreview price={row.pricingPreview?.price ?? row.price} settings={roundingSettings} />
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
-                  <PriceRoundingPreview price={row.hargaDinas ?? row.pricingPreview?.price ?? row.price} settings={roundingSettings} label={row.hargaDinas == null ? "Mengikuti harga jual" : "Harga Dinas berlaku"} />
+                  <PriceRoundingPreview price={(row.hargaDinas ?? 0) > 0 ? row.hargaDinas : row.pricingPreview?.price ?? row.price} settings={roundingSettings} label={(row.hargaDinas ?? 0) > 0 ? "Harga Dinas dari file" : "Mengikuti harga jual"} />
+                  {!((row.hargaDinas ?? 0) > 0) && <p className="ml-auto mt-1 max-w-[180px] text-[11px] text-slate-500">Harga Dinas di file tidak tersedia atau bernilai 0.</p>}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
-                  <PriceRoundingPreview price={row.hargaAgen ?? row.pricingPreview?.price ?? row.price} settings={roundingSettings} label={row.hargaAgen == null ? "Mengikuti harga jual" : "Harga Agen berlaku"} />
+                  <PriceRoundingPreview price={(row.hargaAgen ?? 0) > 0 ? row.hargaAgen : row.pricingPreview?.price ?? row.price} settings={roundingSettings} label={(row.hargaAgen ?? 0) > 0 ? "Harga Agen dari file" : "Mengikuti harga jual"} />
+                  {!((row.hargaAgen ?? 0) > 0) && <p className="ml-auto mt-1 max-w-[180px] text-[11px] text-slate-500">Harga Agen di file tidak tersedia atau bernilai 0.</p>}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">
                   <div className="flex items-center justify-end gap-1.5">

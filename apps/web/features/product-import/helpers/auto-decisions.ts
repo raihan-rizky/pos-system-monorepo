@@ -48,9 +48,7 @@ function unitMultiplierMatches(row: NormalizedImportRow, product: ExistingImport
 function optionalPriceMatches(
   rowValue: number | null | undefined,
   productValue: number | null | undefined,
-  provided?: boolean,
 ): boolean {
-  if (!provided && rowValue == null) return true;
   return normalizePrice(rowValue ?? null) === normalizePrice(productValue ?? null);
 }
 
@@ -58,8 +56,8 @@ function priceDataMatches(row: NormalizedImportRow, product: ExistingImportProdu
   return (
     normalizePrice(row.price) === normalizePrice(product.price) &&
     normalizePrice(row.costPrice ?? null) === normalizePrice(product.costPrice) &&
-    optionalPriceMatches(row.hargaDinas, product.hargaDinas, row.hargaDinasProvided) &&
-    optionalPriceMatches(row.hargaAgen, product.hargaAgen, row.hargaAgenProvided) &&
+    optionalPriceMatches(row.hargaDinas, product.hargaDinas) &&
+    optionalPriceMatches(row.hargaAgen, product.hargaAgen) &&
     unitMultiplierMatches(row, product)
   );
 }
@@ -69,13 +67,11 @@ function describePriceDataChanges(row: NormalizedImportRow, product: ExistingImp
   if (normalizePrice(row.price) !== normalizePrice(product.price)) changed.push("price");
   if (normalizePrice(row.costPrice ?? null) !== normalizePrice(product.costPrice)) changed.push("cost");
   if (
-    (row.hargaDinasProvided || row.hargaDinas != null) &&
     normalizePrice(row.hargaDinas ?? null) !== normalizePrice(product.hargaDinas ?? null)
   ) {
     changed.push("Harga Dinas");
   }
   if (
-    (row.hargaAgenProvided || row.hargaAgen != null) &&
     normalizePrice(row.hargaAgen) !== normalizePrice(product.hargaAgen ?? null)
   ) {
     changed.push("Harga Agen");

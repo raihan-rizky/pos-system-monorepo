@@ -371,18 +371,12 @@ describe("POST /api/products/import/commit/chunk", () => {
       }),
     );
 
-    const priceUpdateCall = txMock.$queryRaw.mock.calls.find((call) =>
-      Array.from(call[0] as TemplateStringsArray).join("").includes("\"hargaDinasProvided\""),
-    );
-    const priceUpdateSql = priceUpdateCall
-      ? Array.from(priceUpdateCall[0] as TemplateStringsArray).join("")
-      : "";
+    const batchItems = txMock.batchOperationItem.createMany.mock.calls.at(-1)?.[0]
+      .data;
 
     expect(response.status).toBe(200);
-    expect(priceUpdateSql).toContain(
-      "\"hargaDinas\" = CASE WHEN v.\"hargaDinasProvided\" THEN v.\"hargaDinas\" ELSE p.\"hargaDinas\" END",
-    );
-    expect(priceUpdateCall).toContainEqual([true]);
+    expect(batchItems[0].beforeSnapshot.hargaDinas).toBe(existingProduct.hargaDinas);
+    expect(batchItems[0].afterSnapshot.hargaDinas).toBeNull();
   });
 
   it("does not delete existing supplier links when provided supplier codes do not resolve", async () => {
@@ -561,7 +555,7 @@ describe("POST /api/products/import/commit/chunk", () => {
     expect(batchItems[0].afterSnapshot.supplierIds).toEqual(["supplier-new"]);
   });
 
-  it("preserves Harga Agen for full updates when the row omits it", async () => {
+  it("clears Harga Agen for full updates when the row omits it", async () => {
     const existingProduct = {
       id: "prod-1",
       name: "Amplop",
@@ -635,15 +629,12 @@ describe("POST /api/products/import/commit/chunk", () => {
       }),
     );
 
-    const productUpdateCall = txMock.$queryRaw.mock.calls.find((call) =>
-      Array.from(call[0] as TemplateStringsArray).join("").includes("UPDATE pos_products AS p SET"),
-    );
     const batchItems = txMock.batchOperationItem.createMany.mock.calls.at(-1)?.[0]
       .data;
 
     expect(response.status).toBe(200);
-    expect(productUpdateCall).toContainEqual([1500]);
-    expect(batchItems[0].afterSnapshot.hargaAgen).toBe(1500);
+    expect(batchItems[0].beforeSnapshot.hargaAgen).toBe(1500);
+    expect(batchItems[0].afterSnapshot.hargaAgen).toBeNull();
   });
 
   it("targets the matched variant for price updates when the source row reuses the base SKU", async () => {

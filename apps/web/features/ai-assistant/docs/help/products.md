@@ -44,6 +44,8 @@ Pak Teladan dapat mencari produk aktif berdasarkan nama, SKU, atau barcode serta
 
 ## Harga Khusus dan pratinjau pelanggan
 
+Harga Agen/Dinas yang lebih dari 0 menjadi pilihan pertama untuk tipe pelanggan dan satuan terkait, termasuk hasil impor CSV/XLSX. Harga tersebut tetap digunakan saat Harga Khusus nonaktif. Jika nilainya kosong atau 0, sistem memakai aturan Harga Khusus yang aktif bila cocok, lalu harga jual. Pada pratinjau impor, keterangan **Mengikuti harga jual** menjelaskan bahwa harga di file tidak tersedia atau bernilai 0.
+
 Owner membuka tab **Harga Khusus**, lalu memilih **Tambah aturan**. Formulir memuat kategori, pilihan satuan, tipe pelanggan, dan cara menghitung harga. Satu aturan dapat berlaku untuk beberapa tipe sekaligus, misalnya **Umum dan Agen**; **Semua pelanggan** dipilih sendiri. Pilihan satuan mengikuti kategori. Pilih **Semua satuan** agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Pilih satuan tertentu untuk membatasi aturan; aturan untuk Rim hanya berlaku saat satuan Rim dipilih.
 
 Lima cara menghitung harga tersedia: **Diskon rupiah**, **Diskon persen**, **Modal + rupiah**, **Modal + persen**, dan **Modal unit + persen − persen**. Pilihan terakhir memakai modal unit yang dipilih: Rp12.000/dus +10% lalu −5% = Rp12.540/dus. Isi tambahan dan potongan secara terpisah, lalu periksa pratinjau sebelum **Simpan aturan**. Pengaturan merek, tambah merek, dan status aktif tersedia di **Pengaturan tambahan**.
@@ -52,4 +54,4 @@ Lima cara menghitung harga tersedia: **Diskon rupiah**, **Diskon persen**, **Mod
 
 Rumus **Modal + rupiah** dan **Modal + persen** menggunakan nilai modal satuan terkecil dari grup produk yang sama di toko yang sama, tanpa perkalian isi kemasan. Contoh: modal **Rp700/pcs + Rp4.000** untuk **Rim** menghasilkan **Rp4.700/rim**. Tambahan **10%** menghasilkan **Rp770/rim**. Rumus dua persentase mengikuti modal unit yang dipilih. Jika sumber modal tidak tersedia atau tidak valid, harga Agen/Dinas yang sesuai atau harga normal tetap digunakan.
 
-Di tab **Produk**, pilih **Harga untuk: Umum/Agen/Industri/Pemerintah**; pilihan awalnya **Umum**. Harga hasil aturan ditandai **hijau** dan badge **Harga Khusus**. Harga Agen/Dinas biasa dan harga manual transaksi tidak memakai badge aturan otomatis. Aturan berlaku dinamis di Produk dan POS, tanpa mengubah modal akuntansi atau transaksi lama.
+Di tab **Produk**, pilih **Harga untuk: Umum/Agen/Industri/Pemerintah**; pilihan awalnya **Umum**. Harga hasil aturan ditandai **hijau** dan badge **Harga Khusus**. Harga Agen/Dinas di atas 0 juga ditandai badge Harga Khusus. Harga manual transaksi memakai penanda Hanya berlaku untuk transaksi ini. Aturan berlaku dinamis di Produk dan POS, tanpa mengubah modal akuntansi atau transaksi lama.

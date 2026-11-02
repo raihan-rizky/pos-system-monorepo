@@ -672,7 +672,7 @@ describe("POST /api/offline-sync/transactions", () => {
     ]);
   }
 
-  it("syncs queued SPECIAL preference with matching Harga Khusus", async () => {
+  it("syncs queued SPECIAL preference with explicit Harga Agen ahead of rules", async () => {
     setupAgenPricing();
 
     const response = await POST(
@@ -700,15 +700,15 @@ describe("POST /api/offline-sync/transactions", () => {
     const createArgs = transactionCreateMock.mock.calls[0][0];
     expect(createArgs.data.items.create[0]).toEqual(
       expect.objectContaining({
-        unitPrice: 90000,
-        pricingRuleId: "rule-atk",
+        unitPrice: 95000,
+        pricingRuleId: "harga-agen",
         originalUnitPrice: 100000,
-        appliedUnitPrice: 90000,
+        appliedUnitPrice: 95000,
       }),
     );
   });
 
-  it("keeps Harga Khusus primary for legacy queued MEMBER preference", async () => {
+  it("keeps explicit Harga Agen primary for legacy queued MEMBER preference", async () => {
     setupAgenPricing();
 
     const response = await POST(
@@ -736,9 +736,9 @@ describe("POST /api/offline-sync/transactions", () => {
     const createArgs = transactionCreateMock.mock.calls[0][0];
     expect(createArgs.data.items.create[0]).toEqual(
       expect.objectContaining({
-        unitPrice: 90000,
-        pricingRuleId: "rule-atk",
-        appliedUnitPrice: 90000,
+        unitPrice: 95000,
+        pricingRuleId: "harga-agen",
+        appliedUnitPrice: 95000,
       }),
     );
   });

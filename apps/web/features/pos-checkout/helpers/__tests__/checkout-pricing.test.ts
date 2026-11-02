@@ -150,7 +150,7 @@ describe("priceCartItemsForCheckout", () => {
     );
   });
 
-  it("uses scoped Harga Khusus ahead of Harga Agen by default", () => {
+  it("uses explicit Harga Agen ahead of scoped Harga Khusus", () => {
     const [priced] = priceCartItemsForCheckout({
       items: [
         {
@@ -171,20 +171,20 @@ describe("priceCartItemsForCheckout", () => {
       role: "CASHIER",
     });
 
-    expect(priced.price).toBe(5000);
+    expect(priced.price).toBe(9500);
     if (priced.lineType !== "PRODUCT") {
       throw new Error("Expected priced cart item to be a product line");
     }
     expect(priced.appliedPricing).toEqual(
       expect.objectContaining({
-        ruleId: "rule-all-paper-rim-brand",
+        ruleId: "harga-agen",
         originalUnitPrice: 10000,
-        appliedUnitPrice: 5000,
+        appliedUnitPrice: 9500,
       }),
     );
   });
 
-  it("keeps a matching Harga Khusus rule primary when legacy preference requests Harga Agen", () => {
+  it("keeps explicit Harga Agen primary with the legacy MEMBER preference", () => {
     const [priced] = priceCartItemsForCheckout({
       items: [
         {
@@ -205,15 +205,15 @@ describe("priceCartItemsForCheckout", () => {
       role: "CASHIER",
     });
 
-    expect(priced.price).toBe(5000);
+    expect(priced.price).toBe(9500);
     if (priced.lineType !== "PRODUCT") {
       throw new Error("Expected priced cart item to be a product line");
     }
     expect(priced.appliedPricing).toEqual(
       expect.objectContaining({
-        ruleId: "rule-all-paper-rim-brand",
+        ruleId: "harga-agen",
         originalUnitPrice: 10000,
-        appliedUnitPrice: 5000,
+        appliedUnitPrice: 9500,
       }),
     );
   });

@@ -71,7 +71,7 @@ export function importPricingDatabase() {
       const fields = full ? ["id", "name", "barcode", "description", "price", "costPrice", "hargaDinas", "hargaAgen", "minStock", "unit", "size", "material", "imageUrl", "categoryId", "stockGroupId"] : ["id", "price", "costPrice", "hargaDinas", "hargaAgen", "unitMultiplierToBase"];
       values[0].forEach((id: string, index: number) => {
         const p = products.find(p => p.id === id)!;
-        fields.forEach((key, i) => { if (!full && ((key === "hargaDinas" && !values[6][index]) || (["hargaAgen", "unitMultiplierToBase"].includes(key) && values[i][index] == null))) return; p[key] = values[i][index]; });
+        fields.forEach((key, i) => { if (!full && key === "unitMultiplierToBase" && values[i][index] == null) return; p[key] = values[i][index]; });
       });
     } else if (sql.includes("UPDATE pos_product_stock_groups")) values[0].forEach((id: string, i: number) => { groups.find(g => g.id === id).baseStock = values[1][i]; });
     return [];

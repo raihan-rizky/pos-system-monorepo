@@ -576,7 +576,6 @@ interface BulkPriceUpdate {
   price: number;
   costPrice: number | null;
   hargaDinas: number | null;
-  hargaDinasProvided: boolean;
   hargaAgen: number | null;
   unitMultiplierToBase: number | null;
 }
@@ -707,7 +706,6 @@ async function applyBulkPriceUpdates(tx: Tx, updates: BulkPriceUpdate[]) {
   const prices = updates.map((r) => r.price);
   const costPrices = updates.map((r) => r.costPrice);
   const hargaDinasArr = updates.map((r) => r.hargaDinas);
-  const hargaDinasProvidedArr = updates.map((r) => r.hargaDinasProvided);
   const hargaAgenArr = updates.map((r) => r.hargaAgen);
   const multipliers = updates.map((r) => r.unitMultiplierToBase);
 
@@ -715,15 +713,15 @@ async function applyBulkPriceUpdates(tx: Tx, updates: BulkPriceUpdate[]) {
     UPDATE pos_products AS p SET
       price = v.price,
       "costPrice" = v."costPrice",
-      "hargaDinas" = CASE WHEN v."hargaDinasProvided" THEN v."hargaDinas" ELSE p."hargaDinas" END,
-      "hargaAgen" = COALESCE(v."hargaAgen", p."hargaAgen"),
+      "hargaDinas" = v."hargaDinas",
+      "hargaAgen" = v."hargaAgen",
       "unitMultiplierToBase" = COALESCE(v."unitMultiplierToBase", p."unitMultiplierToBase"),
       "updatedAt" = NOW()
     FROM unnest(
       ${ids}::text[], ${prices}::float8[],
       ${costPrices}::float8[], ${hargaDinasArr}::float8[], ${hargaAgenArr}::float8[],
-      ${multipliers}::float8[], ${hargaDinasProvidedArr}::boolean[]
-    ) AS v(id, price, "costPrice", "hargaDinas", "hargaAgen", "unitMultiplierToBase", "hargaDinasProvided")
+      ${multipliers}::float8[]
+    ) AS v(id, price, "costPrice", "hargaDinas", "hargaAgen", "unitMultiplierToBase")
     WHERE p.id = v.id
   `;
 }
@@ -814,7 +812,6 @@ async function processFastPriceAndSkipRows(input: {
       price: row.price,
       costPrice: row.costPrice ?? null,
       hargaDinas: row.hargaDinas ?? null,
-      hargaDinasProvided: row.hargaDinasProvided ?? false,
       hargaAgen: row.hargaAgen ?? null,
       unitMultiplierToBase: row.unitMultiplierToBase ?? null,
     });
@@ -830,8 +827,8 @@ async function processFastPriceAndSkipRows(input: {
       ...(replacementSupplierIds ? { supplierIds: replacementSupplierIds } : {}),
       price: row.price,
       costPrice: row.costPrice,
-      ...(row.hargaDinasProvided ? { hargaDinas: row.hargaDinas ?? null } : {}),
-      ...(row.hargaAgenProvided ? { hargaAgen: row.hargaAgen ?? null } : {}),
+      hargaDinas: row.hargaDinas ?? null,
+      hargaAgen: row.hargaAgen ?? null,
       stock: beforeDisplayStock,
     };
 
@@ -1133,7 +1130,6 @@ async function processResolvedRows(input: {
       price: row.price,
       costPrice: row.costPrice ?? null,
       hargaDinas: row.hargaDinas ?? null,
-      hargaDinasProvided: row.hargaDinasProvided ?? false,
       hargaAgen: row.hargaAgen ?? null,
       unitMultiplierToBase: row.unitMultiplierToBase ?? null,
     });
@@ -1162,8 +1158,8 @@ async function processResolvedRows(input: {
         ...(replacementSupplierIds ? { supplierIds: replacementSupplierIds } : {}),
         price: row.price,
         costPrice: row.costPrice,
-        ...(row.hargaDinasProvided ? { hargaDinas: row.hargaDinas ?? null } : {}),
-        ...(row.hargaAgenProvided ? { hargaAgen: row.hargaAgen ?? null } : {}),
+        hargaDinas: row.hargaDinas ?? null,
+        hargaAgen: row.hargaAgen ?? null,
         stock: beforeDisplayStock,
       };
       batchItems.push({
@@ -1205,9 +1201,7 @@ async function processResolvedRows(input: {
         id: group.id,
         baseStock: row.stock * multiplier,
       });
-      const nextHargaAgen = row.hargaAgenProvided
-        ? row.hargaAgen ?? null
-        : numberOrNull(existing.hargaAgen);
+      const nextHargaAgen = row.hargaAgen ?? null;
 
       bulkProductUpdates.push({
         id: existing.id,

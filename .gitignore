@@ -73,3 +73,4 @@ markdown-files/*
 
 # Local agent worktrees
 .worktrees/
+!markdown-files/prioritas-harga-agen-dinas-impor-2026-11-02.md

@@ -11,9 +11,9 @@ Proses melayani penjualan langsung dapat dilakukan dengan cepat menggunakan laya
 
 ## Harga otomatis dan tanda Harga Khusus
 
-Saat POS dibuka, harga memakai tipe pelanggan Umum. Klik **Bayar**, lalu pilih pelanggan di modal **Pembayaran**. Harga di kartu produk, pilihan satuan, keranjang, dan pembayaran otomatis mengikuti tipe pelanggan serta satuan yang dipilih. Pilihan pelanggan tetap tersimpan ketika modal ditutup dan dibuka kembali dalam transaksi yang sama. Urutannya adalah **Harga Khusus yang dapat diterapkan → Harga Agen/Dinas yang sesuai → harga normal**. Kasir tidak memilih prioritas harga saat pembayaran.
+Saat POS dibuka, harga memakai tipe pelanggan Umum. Klik **Bayar**, lalu pilih pelanggan di modal **Pembayaran**. Harga di kartu produk, pilihan satuan, keranjang, dan pembayaran otomatis mengikuti tipe pelanggan serta satuan yang dipilih. Pilihan pelanggan tetap tersimpan ketika modal ditutup dan dibuka kembali dalam transaksi yang sama. Urutannya adalah **Harga Agen/Dinas di atas 0 → Harga Khusus yang aktif dan cocok → harga jual**. Harga Agen/Dinas di atas 0 tetap dipakai meskipun Harga Khusus nonaktif. Kasir tidak memilih prioritas harga saat pembayaran.
 
-Harga yang benar-benar berasal dari aturan ditandai **hijau** dan badge **Harga Khusus**, termasuk bila nominalnya sama dengan harga normal. Pada daftar pilihan satuan, keterangan Harga Khusus menandai satuan yang memakai aturan. Harga Agen/Dinas biasa tidak diberi badge ini.
+Harga yang benar-benar berasal dari aturan ditandai **hijau** dan badge **Harga Khusus**, termasuk bila nominalnya sama dengan harga normal. Pada daftar pilihan satuan, keterangan Harga Khusus menandai satuan yang memakai aturan. Harga Agen/Dinas di atas 0 juga ditandai badge Harga Khusus; harga yang mengikuti harga jual tidak diberi badge.
 
 Aturan **Modal + rupiah** atau **Modal + persen** memakai modal satuan terkecil terbaru secara langsung. Modal **Rp700/pcs + Rp4.000** untuk satuan **Rim** menghasilkan **Rp4.700/rim**, sehingga dua rim berjumlah **Rp9.400**; tambahan **10%** menghasilkan **Rp770/rim**. Modal tidak dikalikan isi rim. Aturan hanya berlaku untuk satuan dan tipe pelanggan yang ditentukan Owner. Jika sumber modal belum tersedia atau tidak valid, sistem memakai harga member atau normal.
 

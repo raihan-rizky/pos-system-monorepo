@@ -56,12 +56,12 @@ describe("smallest-unit cost formulas", () => {
 describe("multiple customer targets", () => {
   it("applies to Umum and Agen only", () => {
     expect(pricing.priceProductForCustomerType(product, "UMUM", [formula]).appliedPricing?.ruleId).toBe("formula");
-    expect(pricing.priceProductForCustomerType(product, "AGEN", [formula]).appliedPricing?.ruleId).toBe("formula");
+    expect(pricing.priceProductForCustomerType({ ...product, hargaAgen: null }, "AGEN", [formula]).appliedPricing?.ruleId).toBe("formula");
     expect(pricing.priceProductForCustomerType(product, "INDUSTRI", [formula]).appliedPricing).toBeNull();
   });
   it("keeps explicit customer targets ahead of ALL fallback", () => {
     const all = { ...formula, id: "all", customerTypes: ["ALL"], value: 1000 } as CategoryPricingRule;
-    expect(pricing.priceProductForCustomerType(product, "AGEN", [all, formula]).unitPrice).toBe(4700);
+    expect(pricing.priceProductForCustomerType({ ...product, hargaAgen: null }, "AGEN", [all, formula]).unitPrice).toBe(4700);
     expect(pricing.priceProductForCustomerType(product, "INDUSTRI", [all, formula]).unitPrice).toBe(1700);
   });
   it("preserves scalar legacy targeting, while empty database array means ALL", () => {

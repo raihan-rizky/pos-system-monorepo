@@ -90,7 +90,7 @@ describe("customer category pricing rules", () => {
     );
   });
 
-  it("uses matching Harga Khusus before Harga Dinas by default", () => {
+  it("uses explicit Harga Dinas before matching Harga Khusus", () => {
     const priced = priceProductForCustomerType(
       {
         categoryId: "cat-ink",
@@ -102,18 +102,18 @@ describe("customer category pricing rules", () => {
       rules,
     );
 
-    expect(priced.unitPrice).toBe(87500);
+    expect(priced.unitPrice).toBe(125000);
     expect(priced.appliedPricing).toEqual(
       expect.objectContaining({
-        ruleId: "rule-percent",
+        ruleId: "harga-dinas",
         customerType: "PEMERINTAH",
         originalUnitPrice: 100000,
-        appliedUnitPrice: 87500,
+        appliedUnitPrice: 125000,
       }),
     );
   });
 
-  it("uses matching Harga Khusus before Harga Agen by default", () => {
+  it("uses explicit Harga Agen before matching Harga Khusus", () => {
     const priced = priceProductForCustomerType(
       {
         categoryId: "cat-paper",
@@ -125,18 +125,18 @@ describe("customer category pricing rules", () => {
       rules,
     );
 
-    expect(priced.unitPrice).toBe(10000);
+    expect(priced.unitPrice).toBe(9000);
     expect(priced.appliedPricing).toEqual(
       expect.objectContaining({
-        ruleId: "rule-flat",
+        ruleId: "harga-agen",
         customerType: "AGEN",
         originalUnitPrice: 12000,
-        appliedUnitPrice: 10000,
+        appliedUnitPrice: 9000,
       }),
     );
   });
 
-  it("keeps matching Harga Khusus primary when legacy MEMBER preference asks for Harga Dinas", () => {
+  it("keeps explicit Harga Dinas primary with the legacy MEMBER preference", () => {
     const priced = priceProductForCustomerType(
       {
         categoryId: "cat-ink",
@@ -149,11 +149,11 @@ describe("customer category pricing rules", () => {
       "MEMBER",
     );
 
-    expect(priced.unitPrice).toBe(87500);
-    expect(priced.appliedPricing?.ruleId).toBe("rule-percent");
+    expect(priced.unitPrice).toBe(125000);
+    expect(priced.appliedPricing?.ruleId).toBe("harga-dinas");
   });
 
-  it("keeps matching Harga Khusus primary when legacy MEMBER preference asks for Harga Agen", () => {
+  it("keeps explicit Harga Agen primary with the legacy MEMBER preference", () => {
     const priced = priceProductForCustomerType(
       {
         categoryId: "cat-paper",
@@ -166,8 +166,8 @@ describe("customer category pricing rules", () => {
       "MEMBER",
     );
 
-    expect(priced.unitPrice).toBe(10000);
-    expect(priced.appliedPricing?.ruleId).toBe("rule-flat");
+    expect(priced.unitPrice).toBe(9000);
+    expect(priced.appliedPricing?.ruleId).toBe("harga-agen");
   });
 
   it("falls back to category pricing in MEMBER mode when Harga Dinas is empty", () => {
@@ -187,7 +187,7 @@ describe("customer category pricing rules", () => {
     expect(priced.appliedPricing?.ruleId).toBe("rule-percent");
   });
 
-  it("uses an ALL Harga Khusus rule before Harga Agen by default", () => {
+  it("uses explicit Harga Agen before an ALL Harga Khusus rule", () => {
     const priced = priceProductForCustomerType(
       {
         categoryId: "cat-atk",
@@ -208,8 +208,8 @@ describe("customer category pricing rules", () => {
       ],
     );
 
-    expect(priced.unitPrice).toBe(90000);
-    expect(priced.appliedPricing?.ruleId).toBe("rule-all-atk");
+    expect(priced.unitPrice).toBe(95000);
+    expect(priced.appliedPricing?.ruleId).toBe("harga-agen");
   });
 
   it("treats Harga Dinas 0 as empty for PEMERINTAH", () => {
