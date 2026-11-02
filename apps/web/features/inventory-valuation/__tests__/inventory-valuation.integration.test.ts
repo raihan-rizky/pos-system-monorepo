@@ -38,6 +38,7 @@ const modulePath = process.env.INVENTORY_PGLITE_MODULE;
 const root = path.resolve(process.cwd(), "../..");
 const oldMigration = path.join(root, "packages/db/prisma/migrations/20261031010000_financial_inventory_and_payables/migration.sql");
 const costMigration = path.join(root, "packages/db/prisma/migrations/20261102010000_inventory_unit_cost_valuation/migration.sql");
+const nameMigration = path.join(root, "packages/db/prisma/migrations/20261102120000_inventory_name_deduplication/migration.sql");
 
 describe.skipIf(!modulePath)("automatic inventory valuation in PostgreSQL", () => {
   let pg: {
@@ -57,7 +58,7 @@ describe.skipIf(!modulePath)("automatic inventory valuation in PostgreSQL", () =
 
   afterAll(async () => { await pg?.close(); });
 
-  beforeEach(async () => {
+  async function resetDatabase(withNameDeduplication = true) {
     await pg.exec(`
       DROP SCHEMA public CASCADE;
       CREATE SCHEMA public;
@@ -68,7 +69,8 @@ describe.skipIf(!modulePath)("automatic inventory valuation in PostgreSQL", () =
       CREATE TABLE pos_stores (id text PRIMARY KEY);
       CREATE TABLE pos_product_stock_groups (
         id text PRIMARY KEY, "storeId" text NOT NULL REFERENCES pos_stores(id),
-        "baseUnit" text NOT NULL, "baseStock" double precision NOT NULL
+        "baseUnit" text NOT NULL, "baseStock" double precision NOT NULL,
+        "createdAt" timestamp NOT NULL DEFAULT now(), "updatedAt" timestamp NOT NULL DEFAULT now()
       );
       CREATE TABLE pos_products (
         id text PRIMARY KEY, "storeId" text NOT NULL REFERENCES pos_stores(id),
@@ -77,7 +79,8 @@ describe.skipIf(!modulePath)("automatic inventory valuation in PostgreSQL", () =
         price numeric(12,2) NOT NULL, "costPrice" numeric(12,2), "isActive" boolean NOT NULL,
         unit text NOT NULL, "stockGroupId" text REFERENCES pos_product_stock_groups(id),
         "unitMultiplierToBase" double precision NOT NULL DEFAULT 1,
-        "conversionNeedsReview" boolean NOT NULL DEFAULT false
+        "conversionNeedsReview" boolean NOT NULL DEFAULT false,
+        "createdAt" timestamp NOT NULL DEFAULT now(), "updatedAt" timestamp NOT NULL DEFAULT now()
       );
       INSERT INTO pos_stores VALUES ('store-1'), ('store-2');
       INSERT INTO pos_product_stock_groups VALUES ('group-1', 'store-1', 'pcs', 25);
@@ -91,7 +94,10 @@ describe.skipIf(!modulePath)("automatic inventory valuation in PostgreSQL", () =
       await pg.exec(readFileSync(path.join(root, "packages/db/prisma/migrations", migration, "migration.sql"), "utf8"));
     }
     if (existsSync(costMigration)) await pg.exec(readFileSync(costMigration, "utf8"));
-  }, 15_000);
+    if (withNameDeduplication && existsSync(nameMigration)) await pg.exec(readFileSync(nameMigration, "utf8"));
+  }
+
+  beforeEach(async () => { await resetDatabase(); }, 15_000);
 
   async function stats(query = "") {
     const response = await GET(new Request(`http://localhost/api/products/stats${query}`));
@@ -221,6 +227,147 @@ describe.skipIf(!modulePath)("automatic inventory valuation in PostgreSQL", () =
     expect(await recorded()).toEqual({ value: 23_000, unvalued: 0 });
   });
 
+  async function addPaperDuplicates() {
+    await pg.exec(`INSERT INTO pos_products (id,"storeId",name,sku,"categoryId",stock,price,"costPrice","isActive",unit) VALUES
+      ('paper-original','store-1','Kertas-14','K-14','cat-1',10,2000,1000,true,'pcs');
+      INSERT INTO pos_products (id,"storeId",name,sku,"categoryId",stock,price,"costPrice","isActive",unit) VALUES
+      ('paper-new','store-1','  kertas-14-NEW-new  ','K-14-NEW','cat-2',10,2000,1000,true,'pcs');`);
+  }
+
+  it("counts equal normalized names and repeated NEW name suffixes once across product IDs", async () => {
+    await addPaperDuplicates();
+    expect((await stats()).inventoryValue).toBe(33_000);
+    expect(await recorded()).toEqual({ value: 33_000, unvalued: 0 });
+  });
+
+  it("resolves a searched or categorized duplicate to the same whole family", async () => {
+    await addPaperDuplicates();
+    expect(await stats('?search=K-14-NEW')).toMatchObject({ totalProducts: 1, inventoryValue: 10_000 });
+    expect(await stats('?categoryId=cat-1')).toMatchObject({ totalProducts: 3, inventoryValue: 33_000 });
+    expect(await stats('?categoryId=cat-2')).toMatchObject({ totalProducts: 1, inventoryValue: 10_000 });
+  });
+
+  it("preserves zero after the selected duplicate sells out instead of reviving old stock", async () => {
+    await addPaperDuplicates();
+    await pg.exec(`UPDATE pos_products SET stock=0 WHERE id='paper-new'`);
+    expect((await stats()).inventoryValue).toBe(23_000);
+    expect(await recorded()).toEqual({ value: 23_000, unvalued: 0 });
+    await pg.exec(`UPDATE pos_products SET "costPrice"=5000, "updatedAt"=now() WHERE id='paper-original'`);
+    expect((await stats()).inventoryValue).toBe(23_000);
+  });
+
+  it("automatically follows a later real stock change with that source's own HPP", async () => {
+    await addPaperDuplicates();
+    await pg.exec(`UPDATE pos_products SET stock=4,"costPrice"=1500 WHERE id='paper-original'`);
+    expect((await stats()).inventoryValue).toBe(29_000);
+    expect(await recorded()).toEqual({ value: 29_000, unvalued: 0 });
+    await pg.exec(`UPDATE pos_products SET price=9000,"costPrice"=7000 WHERE id='paper-new'`);
+    expect((await stats()).inventoryValue).toBe(29_000);
+  });
+
+  it("reads pending stock sources inside a transaction and rolls back all derived state", async () => {
+    await addPaperDuplicates();
+    await pg.exec("BEGIN");
+    try {
+      await pg.exec(`UPDATE pos_products SET stock=4,"costPrice"=1500 WHERE id='paper-original'`);
+      expect((await stats()).inventoryValue).toBe(29_000);
+      await pg.exec(`UPDATE pos_products SET stock=0 WHERE id='paper-original'`);
+      expect((await stats()).inventoryValue).toBe(23_000);
+    } finally {
+      await pg.exec("ROLLBACK");
+    }
+    expect((await stats()).inventoryValue).toBe(33_000);
+    expect(await recorded()).toEqual({ value: 33_000, unvalued: 0 });
+    const queue = await pg.query<{ count: number }>("SELECT count(*)::int AS count FROM pos_inventory_cost_refresh_queue");
+    expect(queue.rows[0].count).toBe(0);
+  });
+
+  it("revalues both old and new name families on rename", async () => {
+    await addPaperDuplicates();
+    await pg.exec(`UPDATE pos_products SET name='Kertas-15' WHERE id='paper-new'`);
+    expect((await stats()).inventoryValue).toBe(43_000);
+    expect(await recorded()).toEqual({ value: 43_000, unvalued: 0 });
+    await pg.exec(`UPDATE pos_products SET name='Kertas-14-new' WHERE id='paper-new'`);
+    expect((await stats()).inventoryValue).toBe(33_000);
+    expect(await recorded()).toEqual({ value: 33_000, unvalued: 0 });
+  });
+
+  it("automatically falls back when the selected duplicate is disabled or deleted", async () => {
+    await addPaperDuplicates();
+    await pg.exec(`UPDATE pos_products SET "isActive"=false WHERE id='paper-new'`);
+    expect((await stats()).inventoryValue).toBe(33_000);
+    expect(await recorded()).toEqual({ value: 33_000, unvalued: 0 });
+    await pg.exec(`DELETE FROM pos_products WHERE id='paper-original'`);
+    expect((await stats()).inventoryValue).toBe(23_000);
+    expect(await recorded()).toEqual({ value: 23_000, unvalued: 0 });
+  });
+
+  it("keeps different sizes and different products with NEW SKUs separate", async () => {
+    await pg.exec(`INSERT INTO pos_products (id,"storeId",name,sku,"categoryId",stock,price,"costPrice","isActive",unit) VALUES
+      ('thermal-57','store-1','Thermal 57 x 48','THERMAL','cat-1',2,2000,1000,true,'roll'),
+      ('thermal-58','store-1','Thermal 58 x 48','THERMAL-NEW','cat-1',3,2000,1000,true,'roll');`);
+    expect((await stats()).inventoryValue).toBe(28_000);
+  });
+
+  it("never merges equal names between stores", async () => {
+    await addPaperDuplicates();
+    await pg.exec(`INSERT INTO pos_products (id,"storeId",name,sku,"categoryId",stock,price,"costPrice","isActive",unit)
+      VALUES ('other-paper','store-2','Kertas-14','K-14','cat-1',20,2000,1000,true,'pcs')`);
+    expect((await stats()).inventoryValue).toBe(33_000);
+    expect(await recorded()).toEqual({ value: 33_000, unvalued: 0 });
+  });
+
+  async function addDuplicatePencilGroup() {
+    await pg.exec(`INSERT INTO pos_product_stock_groups (id,"storeId","baseUnit","baseStock") VALUES ('group-copy','store-1','pcs',25);
+      INSERT INTO pos_products (id,"storeId",name,sku,"categoryId",stock,price,"costPrice","isActive",unit,"stockGroupId","unitMultiplierToBase") VALUES
+      ('copy-pcs','store-1','Pensil-new','COPY-PCS','cat-1',25,4000,2000,true,'pcs','group-copy',1),
+      ('copy-dus','store-1','Pensil-new','COPY-DUS','cat-1',2.5,36000,18000,true,'dus','group-copy',10);`);
+  }
+
+  it("deduplicates separate shared pools while preserving each unit's own HPP", async () => {
+    await addDuplicatePencilGroup();
+    expect((await stats()).inventoryValue).toBe(46_000);
+    expect((await stats('?search=P-DUS')).inventoryValue).toBe(46_000);
+    expect(await recorded()).toEqual({ value: 46_000, unvalued: 0 });
+    await pg.exec(`UPDATE pos_products SET "costPrice"=NULL WHERE id='copy-dus'`);
+    expect((await stats()).inventoryValue).toBe(50_000);
+    await pg.exec(`UPDATE pos_products SET stock=999 WHERE "stockGroupId"='group-1'`);
+    expect((await stats()).inventoryValue).toBe(50_000);
+  });
+
+  it("keeps a depleted shared source selected until another real stock change", async () => {
+    await addDuplicatePencilGroup();
+    await pg.exec(`UPDATE pos_product_stock_groups SET "baseStock"=0 WHERE id='group-copy'`);
+    expect((await stats()).inventoryValue).toBe(0);
+    expect(await recorded()).toEqual({ value: 0, unvalued: 0 });
+    await pg.exec(`UPDATE pos_product_stock_groups SET "baseStock"=35 WHERE id='group-1'`);
+    expect((await stats()).inventoryValue).toBe(32_000);
+    expect(await recorded()).toEqual({ value: 32_000, unvalued: 0 });
+  });
+
+  it("reports missing HPP once without borrowing prices from an older duplicate", async () => {
+    await addDuplicatePencilGroup();
+    await pg.exec(`UPDATE pos_products SET "costPrice"=NULL WHERE "stockGroupId"='group-copy'`);
+    expect(await stats()).toMatchObject({ inventoryValue: 0, inventoryUnvaluedCount: 1 });
+    expect(await recorded()).toEqual({ value: 0, unvalued: 1 });
+  });
+
+  it("does not merge names that normalize to an empty string", async () => {
+    await pg.exec(`INSERT INTO pos_products (id,"storeId",name,sku,"categoryId",stock,price,"costPrice","isActive",unit) VALUES
+      ('empty-a','store-1','-new','EMPTY-A','cat-1',1,2000,1000,true,'pcs'),
+      ('empty-b','store-1','-NEW','EMPTY-B','cat-1',1,2000,1000,true,'pcs');`);
+    expect((await stats()).inventoryValue).toBe(25_000);
+  });
+
+  it("reconciles existing duplicate stock automatically when the migration runs", async () => {
+    await resetDatabase(false);
+    await addPaperDuplicates();
+    expect((await stats()).inventoryValue).toBe(43_000);
+    if (existsSync(nameMigration)) await pg.exec(readFileSync(nameMigration, 'utf8'));
+    expect((await stats()).inventoryValue).toBe(33_000);
+    expect(await recorded()).toEqual({ value: 33_000, unvalued: 0 });
+  });
+
   it("initializes HPP history for newly created stores", async () => {
     await pg.exec(`INSERT INTO pos_stores VALUES ('new-store');
       INSERT INTO pos_products (id,"storeId",name,sku,"categoryId",stock,price,"costPrice","isActive",unit)
@@ -253,10 +400,12 @@ describe.skipIf(!modulePath)("automatic inventory valuation in PostgreSQL", () =
     await pg.exec(`INSERT INTO pos_inventory_valuation_v2_closures VALUES
       ('2026-09-30T17:00:00Z', clock_timestamp()), ('2026-10-31T17:00:00Z', clock_timestamp()), ('2026-11-30T17:00:00Z', clock_timestamp());
       UPDATE pos_inventory_valuation_baselines SET "capturedAt" = '2026-09-30T17:00:00Z' WHERE method = 'unit_hpp';
-      UPDATE pos_product_stock_groups SET "baseStock" = 35;
-      UPDATE pos_inventory_valuation_changes SET "occurredAt" = '2026-10-15T00:00:00Z' WHERE method = 'unit_hpp';
-      UPDATE pos_product_stock_groups SET "baseStock" = 45;
-      UPDATE pos_inventory_valuation_changes SET "occurredAt" = '2026-10-31T17:00:00Z'
+      UPDATE pos_product_stock_groups SET "baseStock" = 35`);
+    // Each historical balance is a committed stock event. Deferred journals are
+    // backdated only after that event has committed.
+    await pg.exec(`UPDATE pos_inventory_valuation_changes SET "occurredAt" = '2026-10-15T00:00:00Z' WHERE method = 'unit_hpp';
+      UPDATE pos_product_stock_groups SET "baseStock" = 45`);
+    await pg.exec(`UPDATE pos_inventory_valuation_changes SET "occurredAt" = '2026-10-31T17:00:00Z'
         WHERE id = (SELECT max(id) FROM pos_inventory_valuation_changes WHERE method = 'unit_hpp')`);
     const now = new Date("2026-12-02T12:00:00+07:00");
     expect(await getMonthlyBalances("store-1", buildMonthlyPeriod(2026, 10, now), now))
@@ -298,7 +447,7 @@ describe.skipIf(!modulePath)("automatic inventory valuation in PostgreSQL", () =
       CREATE INDEX products_store_active ON pos_products ("storeId", "isActive");
       CREATE INDEX products_stock_group ON pos_products ("stockGroupId");
       INSERT INTO pos_products (id,"storeId",name,sku,"categoryId",stock,price,"costPrice","isActive",unit)
-      SELECT 'perf-' || i, 'store-1', 'Produk', 'PERF-' || i, 'cat-1', 1, 2, 1, true, 'pcs'
+      SELECT 'perf-' || i, 'store-1', 'Produk ' || i, 'PERF-' || i, 'cat-1', 1, 2, 1, true, 'pcs'
       FROM generate_series(1, 2000) i;
       ALTER TABLE pos_products ENABLE TRIGGER USER; ANALYZE pos_products;`);
     type Plan = { "Relation Name"?: string; "Actual Rows"?: number; "Rows Removed by Filter"?: number; Plans?: Plan[] };

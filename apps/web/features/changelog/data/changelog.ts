@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "inventory-automatic-name-deduplication", date: "2026-11-02", revision: 1,
+    highlight: { title: "Inventaris tanpa hitung ganda", summary: "Produk bernama sama otomatis dihitung sekali dalam nilai inventaris." },
+    title: "Produk duplikat dinilai sekali.",
+    summary: "Nama produk yang sama, termasuk akhiran -new pada nama, otomatis dinilai sekali dalam satu toko. Sistem memilih sumber stok dan HPP tanpa pengaturan tambahan, dan stok yang habis tetap bernilai nol.",
+    kind: "improvement", area: "Produk & Stok", href: "/products", visual: "stock-groups",
+    steps: [
+      { title: "Buka Produk", detail: "Lihat kartu Nilai Inventaris pada halaman Produk." },
+      { title: "Baca hasil otomatis", detail: "Nama duplikat dihitung sekali, sementara HPP dan konversi masing-masing satuan tetap digunakan dari sumber stok terpilih." },
+      { title: "Lihat laporan", detail: "Nilai inventaris di laporan bulanan mengikuti aturan deduplikasi yang sama secara otomatis." },
+    ],
+  },
+  {
     id: "import-member-prices-first", date: "2026-11-02", revision: 1,
     highlight: { title: "Prioritas harga Agen dan Dinas", summary: "Gunakan harga dari file; harga kosong atau 0 mengikuti harga jual." },
     title: "Harga Agen dan Dinas dari file diprioritaskan.",
