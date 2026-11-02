@@ -569,6 +569,7 @@ export function BulkStockImportProgressPanel({
   const totalRows = Math.max(0, job.totalRows);
   const processedRows = Math.min(Math.max(0, job.processedRows), totalRows);
   const percent = totalRows > 0 ? Math.round((processedRows / totalRows) * 100) : 0;
+  const isIndeterminate = isActiveCommitJob(job) && processedRows === 0;
   return (
     <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
       <div className="flex items-center justify-between gap-3">
@@ -578,17 +579,23 @@ export function BulkStockImportProgressPanel({
             {formatBulkStockImportPhase(job.phase)}
           </p>
         </div>
-        <span className="text-xs font-black tabular-nums">{percent}%</span>
+        <span className="text-xs font-black tabular-nums">
+          {isIndeterminate ? "Sedang diproses" : `${percent}%`}
+        </span>
       </div>
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-white"
-        role="progressbar" aria-label="Progres impor stok" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+        role="progressbar" aria-label="Progres impor stok" aria-valuemin={0} aria-valuemax={100}
+        aria-valuenow={isIndeterminate ? undefined : percent}
+        aria-valuetext={isIndeterminate ? "Impor sedang diproses" : `${percent}%`}>
         <div
-          className="h-full rounded-full bg-blue-600"
-          style={{ width: `${percent}%` }}
+          className={`h-full rounded-full bg-blue-600 ${isIndeterminate ? "animate-pulse" : ""}`}
+          style={{ width: isIndeterminate ? "35%" : `${percent}%` }}
         />
       </div>
       <p className="mt-2 text-xs font-semibold text-blue-800/80">
-        {processedRows} / {totalRows} baris
+        {isIndeterminate
+          ? `${totalRows} baris dalam proses impor. Hasil tampil setelah penyimpanan selesai.`
+          : `${processedRows} / ${totalRows} baris`}
       </p>
       {job.errorMessage && (
         <p className="mt-2 text-xs font-semibold text-red-700">

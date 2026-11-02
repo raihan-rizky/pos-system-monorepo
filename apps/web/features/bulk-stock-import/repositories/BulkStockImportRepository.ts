@@ -46,6 +46,7 @@ export interface BulkStockImportCommitInput {
   supplier: BulkStockImportSupplier | null;
   note: string;
   allowNegativeStock?: boolean;
+  transactionTimeoutMs?: number;
 }
 
 export interface BulkStockImportRepository {
@@ -602,6 +603,6 @@ export const bulkStockImportRepository: BulkStockImportRepository = {
         pendingApproval,
         undoAvailable: isOwner,
       };
-    }, { maxWait: 5000, timeout: 600000 });
+    }, { maxWait: 5000, timeout: input.transactionTimeoutMs ?? 600000 });
   },
 };

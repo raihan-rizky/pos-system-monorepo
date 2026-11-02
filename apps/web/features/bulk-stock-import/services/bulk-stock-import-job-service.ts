@@ -1,4 +1,5 @@
 import { db, Prisma } from "@pos/db";
+import { after } from "next/server";
 import { z } from "zod";
 
 import { getLogger } from "@/lib/logger";
@@ -15,6 +16,9 @@ const logger = getLogger("features:bulk-stock-import:jobs");
 const BULK_STOCK_IMPORT_JOB_RETENTION_DAYS = 7;
 const BULK_STOCK_IMPORT_JOB_MAX_ATTEMPTS = 3;
 const BULK_STOCK_IMPORT_JOB_RETRY_DELAY_MS = 750;
+// Leave time to persist the outcome before the route's 300-second deadline.
+const BULK_STOCK_IMPORT_JOB_RUN_BUDGET_MS = 260_000;
+const BULK_STOCK_IMPORT_JOB_STALE_MS = 360_000;
 
 export const bulkStockImportJobCreateSchema = z.object({
   mode: z.enum(["ADD", "SET"]),
@@ -120,7 +124,30 @@ export async function createBulkStockImportJob(
   return job;
 }
 
+async function expireStoppedBulkStockImportJobs(storeId: string) {
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - BULK_STOCK_IMPORT_JOB_STALE_MS);
+  await db.bulkStockImportJob.updateMany({
+    where: {
+      storeId,
+      status: { in: ["PENDING", "RUNNING"] },
+      OR: [
+        { lastHeartbeatAt: { lt: staleBefore } },
+        { lastHeartbeatAt: null, createdAt: { lt: staleBefore } },
+      ],
+    },
+    data: {
+      status: "FAILED",
+      phase: "FAILED",
+      errorCode: "JOB_EXECUTION_EXPIRED",
+      errorMessage: "Proses impor terhenti karena melewati batas waktu. Periksa stok dan riwayat sebelum mengimpor ulang.",
+      finishedAt: now,
+    },
+  });
+}
+
 export async function getActiveBulkStockImportJob(user: BulkStockImportUser) {
+  await expireStoppedBulkStockImportJobs(storeIdFor(user));
   return db.bulkStockImportJob.findFirst({
     where: {
       storeId: storeIdFor(user),
@@ -134,6 +161,7 @@ export async function getBulkStockImportJobStatus(
   jobId: string,
   user: BulkStockImportUser,
 ) {
+  await expireStoppedBulkStockImportJobs(storeIdFor(user));
   const job = await db.bulkStockImportJob.findFirst({
     where: { id: jobId, storeId: storeIdFor(user) },
   });
@@ -186,20 +214,30 @@ function readPayload(value: Prisma.JsonValue): BulkStockImportJobPayload {
 export async function processBulkStockImportJob(jobId: string) {
   const job = await db.bulkStockImportJob.findUnique({ where: { id: jobId } });
   if (!job) throw new Error("BULK_STOCK_IMPORT_JOB_NOT_FOUND");
-  if (!["PENDING", "RUNNING"].includes(job.status)) return job;
+  if (job.status !== "PENDING") return job;
 
-  await updateJobProgress(job.id, {
-    status: "RUNNING",
-    phase: "VALIDATING",
-    startedAt: job.startedAt ?? new Date(),
+  const startedAt = new Date();
+  const deadline = startedAt.getTime() + BULK_STOCK_IMPORT_JOB_RUN_BUDGET_MS;
+  const claim = await db.bulkStockImportJob.updateMany({
+    where: { id: job.id, status: "PENDING" },
+    data: {
+      status: "RUNNING",
+      phase: "VALIDATING",
+      startedAt,
+      lastHeartbeatAt: startedAt,
+    },
   });
+  if (claim.count === 0) {
+    return db.bulkStockImportJob.findUnique({ where: { id: job.id } });
+  }
 
   try {
+    await updateJobProgress(job.id, { phase: "VALIDATING" });
     const payload = readPayload(job.payload);
     await updateJobProgress(job.id, { phase: "BUILDING_IMPACTS" });
     await updateJobProgress(job.id, {
       phase: "UPDATING_STOCK",
-      processedRows: Math.max(0, Math.floor(job.totalRows * 0.35)),
+      processedRows: 0,
     });
 
     const actor = {
@@ -211,9 +249,14 @@ export async function processBulkStockImportJob(jobId: string) {
     let result: Awaited<ReturnType<typeof commitBulkStockImport>> | null = null;
     for (let attempt = 1; attempt <= BULK_STOCK_IMPORT_JOB_MAX_ATTEMPTS; attempt += 1) {
       try {
+        const remainingMs = deadline - Date.now() - 10_000;
+        if (remainingMs < 1000) {
+          throw new Error("Waktu pemrosesan impor habis. Periksa stok dan riwayat sebelum mengimpor ulang.");
+        }
         result = await commitBulkStockImport(bulkStockImportRepository, {
           ...payload,
           user: actor,
+          transactionTimeoutMs: Math.min(240_000, remainingMs),
         });
         break;
       } catch (error) {
@@ -248,7 +291,7 @@ export async function processBulkStockImportJob(jobId: string) {
 
     await updateJobProgress(job.id, {
       phase: "CREATING_LOGS",
-      processedRows: Math.max(0, Math.floor(job.totalRows * 0.75)),
+      processedRows: job.totalRows,
     });
     await updateJobProgress(job.id, {
       phase: "FINALIZING",
@@ -282,7 +325,11 @@ export async function processBulkStockImportJob(jobId: string) {
 }
 
 export function startBulkStockImportJobProcessing(jobId: string) {
-  setTimeout(() => {
-    void processBulkStockImportJob(jobId);
-  }, 0);
+  after(async () => {
+    try {
+      await processBulkStockImportJob(jobId);
+    } catch (error) {
+      logger.error("bulk_stock_import.job.background.failed", { jobId, error });
+    }
+  });
 }

@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "bulk-stock-import-background-lifecycle", date: "2026-11-02", revision: 1,
+    highlight: { title: "Proses latar belakang impor stok", summary: "Impor stok tetap diproses saat panel ditutup, dengan status kegagalan yang jelas." },
+    title: "Impor stok terus diproses setelah panel ditutup.",
+    summary: "Impor stok tetap berjalan di latar belakang setelah panel ditutup. Jika proses terhenti, status gagal muncul agar kamu bisa memeriksa stok sebelum mengimpor ulang.",
+    kind: "fix", area: "Produk & Stok", href: "/products", visual: "stock-groups",
+    steps: [
+      { title: "Jalankan impor", detail: "Buka Produk > Impor > Impor Stok Massal, unggah dan periksa berkas, lalu klik Terapkan Impor Stok." },
+      { title: "Pantau hasil", detail: "Panel boleh ditutup. Buka Progres Impor Stok; status Sedang diproses tampil sampai penyimpanan selesai." },
+      { title: "Periksa bila terhenti", detail: "Jika status gagal muncul, periksa stok dan riwayat sebelum mengimpor ulang, terutama saat memakai mode Tambah." },
+    ],
+  },
+  {
     id: "bulk-stock-import-progress-unchanged", date: "2026-11-02", revision: 1,
     highlight: { title: "Pantau progres impor stok", summary: "Tutup panel impor dan pantau job; stok yang sama otomatis dilewati." },
     title: "Pantau impor stok setelah panel ditutup.",

@@ -11,6 +11,7 @@ const dbMock = vi.hoisted(() => ({
     findFirst: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
 }));
 
@@ -73,6 +74,7 @@ describe("bulk stock import job service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     commitBulkStockImportMock.mockReset();
+    dbMock.bulkStockImportJob.updateMany.mockResolvedValue({ count: 1 });
     dbMock.bulkStockImportJob.create.mockImplementation(async ({ data }) => ({
       id: "job-1",
       ...data,
@@ -163,6 +165,7 @@ describe("bulk stock import job service", () => {
 
     expect(commitBulkStockImportMock).toHaveBeenCalledWith(expect.any(Object), {
       ...payload,
+      transactionTimeoutMs: expect.any(Number),
       user: expect.objectContaining({
         id: "owner-1",
         storeId: "store-1",

@@ -24,6 +24,7 @@ export interface CommitBulkStockImportInput {
   supplierId?: string;
   note?: string;
   allowNegativeStock?: boolean;
+  transactionTimeoutMs?: number;
 }
 
 export interface PreviewBulkStockImportInput {
@@ -86,6 +87,9 @@ export async function commitBulkStockImport(
     supplier,
     note: input.note?.trim() || DEFAULT_IMPORT_NOTE,
     allowNegativeStock: input.allowNegativeStock === true,
+    ...(input.transactionTimeoutMs !== undefined
+      ? { transactionTimeoutMs: input.transactionTimeoutMs }
+      : {}),
   });
 }
 

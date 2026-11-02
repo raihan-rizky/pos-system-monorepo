@@ -12,6 +12,8 @@ import {
 const logger = getLogger("api:inventory:bulk-import:commit:jobs");
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
