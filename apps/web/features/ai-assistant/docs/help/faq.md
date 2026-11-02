@@ -417,3 +417,15 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 1. Buka **Produk** dan lihat kartu **Nilai Inventaris**. Pencarian dan kategori menyaring grup yang dihitung; satu grup tetap masuk sekali meskipun hanya satu satuannya yang cocok. Produk dengan nama sama dalam satu toko, termasuk akhiran -new pada nama, otomatis dinilai sekali meskipun ID atau grup stoknya berbeda. Sumber saldo mengikuti perubahan stok nyata terakhir; edit harga tidak mengganti sumber dan saldo yang habis tetap nol. Angka, ukuran, dan model tetap dibedakan; akhiran -new pada SKU saja tidak menyatukan produk berbeda.
 2. Stok bersama diurai otomatis dari satuan terbesar ke terkecil, lalu tiap bagian memakai HPP satuannya. HPP kosong dihitung lewat konversi dari satuan terkecil yang memiliki HPP. Contoh 25 pcs dengan 1 dus = 10 pcs, HPP dus Rp9.000 dan pcs Rp1.000 bernilai **Rp23.000**. Jika HPP dus kosong, nilainya **Rp25.000**. HPP nol tetap terisi; penghitungan berjalan tanpa memilih acuan harga atau memperbaiki satuan dasar.
 3. **Nilai sebagian · HPP belum tersedia** menandai produk yang seluruh HPP-nya kosong. Stok nol atau negatif tidak menambah nilai. Laporan bulanan menggunakan metode yang sama; saldo historis HPP yang belum tercatat atau belum lengkap dibiarkan kosong, dan jumlah harta menunggu saldo lengkap.
+
+### Q48: Bagaimana cara mencatat pemasukan tanpa transaksi?
+
+1. Buka **Keuangan**, lalu klik **Tambah Pemasukan** di bagian **Pemasukan tanpa transaksi**.
+2. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: **ATK, Cetak, Spanduk, Print, Stempel**, lalu klik **Simpan**.
+3. Gunakan **Ubah/Hapus** sesuai izin bila perlu. **Unduh ulang** Excel bulanan agar RC serta ringkasan memuat data terbaru. File lama tidak berubah otomatis.
+
+### Q49: Bagaimana cara mencatat belanja manual via transfer?
+
+1. Buka **Keuangan** dan klik **Tambah Belanja Transfer** pada bagian Pengeluaran.
+2. Isi tanggal transfer, penerima / supplier, keterangan, dan nominal; bukti transfer opsional. Klik **Simpan** untuk mencatat keuangan tanpa menambah stok.
+3. Gunakan menu aksi pada badge **Belanja Transfer Manual** untuk koreksi sesuai izin. **Unduh ulang** Excel untuk melihat **PENGELUARAN BELANJA → VIA TRANSFER** dan RP. Pengeluaran dihitung sekali pada total.

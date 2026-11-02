@@ -202,8 +202,8 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
   },
   income: {
     read: ["OWNER", "ADMIN", "CASHIER"],
-    write: [],
-    delete: [],
+    write: ["OWNER", "ADMIN", "CASHIER"],
+    delete: ["OWNER", "ADMIN"],
   },
 };
 

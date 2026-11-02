@@ -16,7 +16,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   } satisfies Prisma.GoodsPurchaseSelect;
   // All inputs must see the same committed state, including giro payments and
   // their remaining debt. A payment can otherwise commit between the queries.
-  const [transactions, expenses, manualReceivables, balances, backdatedPurchases] = await db.$transaction(async tx => Promise.all([
+  const [transactions, expenses, manualReceivables, balances, backdatedPurchases, manualIncome] = await db.$transaction(async tx => Promise.all([
     tx.transaction.findMany({
       where: { storeId, status: { in: ['COMPLETED', 'DP'] }, OR: [
         { invoiceDate: { lt: period.end } },
@@ -42,7 +42,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
         { occurredAt: knownByNow, goodsPurchase: { is: { supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } },
         { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, status: 'APPROVED', supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } } } },
       ] },
-      select: { id: true, occurredAt: true, category: true, customCategory: { select: { name: true } }, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true, goodsPurchaseId: true, shoppingRequestId: true, backdatedPurchaseDueId: true, backdatedPurchasePaymentId: true,
+      select: { id: true, occurredAt: true, category: true, customCategory: { select: { name: true } }, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true, applicantName: true, manualPurchasePaymentMethod: true, goodsPurchaseId: true, shoppingRequestId: true, backdatedPurchaseDueId: true, backdatedPurchasePaymentId: true,
         shoppingRequest: { select: { status: true, number: true, goodsPurchases: { where: { storeId, status: 'APPROVED' }, select: purchaseSelect } } },
         goodsPurchase: { select: purchaseSelect } },
     }),
@@ -55,6 +55,11 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
       where: { storeId, purchaseDate: { lte: periodLastDate } },
       select: { id: true, purchaseDate: true, dueDate: true, reference: true, paymentMethod: true, amount: true,
         payments: { select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] } },
+    }),
+    tx.manualIncome.findMany({
+      where: { storeId, deletedAt: null, occurredAt: bounds },
+      select: { id: true, occurredAt: true, description: true, amount: true, category: true },
+      orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
     }),
   ]), { isolationLevel: 'RepeatableRead', timeout: 30_000 });
   const scopedExpenses = expenses.map(expense => {
@@ -72,7 +77,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
       } : null,
     };
   });
-  const report = buildMonthlyReport({ year, month, period, transactions, expenses: scopedExpenses, manualReceivables, backdatedPurchases });
+  const report = buildMonthlyReport({ year, month, period, transactions, expenses: scopedExpenses, manualReceivables, backdatedPurchases, manualIncome });
   const backdatedDebts = report.supplierDebts ?? [];
   Object.assign(report, balances);
   report.supplierDebts = [...balances.supplierDebts, ...backdatedDebts].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));

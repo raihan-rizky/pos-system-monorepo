@@ -31,6 +31,8 @@ import {
 import type { ExpenseFormInitial } from "@/features/keuangan/components/ExpenseFormModal";
 import { DeferredCashFlowChart } from "@/features/keuangan/components/DeferredCashFlowChart";
 import { SupplierPayablesPanel } from "@/features/keuangan/components/SupplierPayablesPanel";
+import { ManualIncomePanel } from "@/features/keuangan/components/ManualIncomePanel";
+import { ManualFinanceFormModal, type ManualFinanceInitial } from "@/features/keuangan/components/ManualFinanceFormModal";
 import { formatRupiah } from "@/lib/utils";
 
 const ExpenseFormModal = dynamic(
@@ -103,6 +105,7 @@ export default function KeuanganDashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editing, setEditing] = useState<ExpenseFormInitial | undefined>();
+  const [transferModal, setTransferModal] = useState<{ initial?: ManualFinanceInitial } | null>(null);
   const [page, setPage] = useState(1);
   const [filterCategory, setFilterCategory] = useState<ExpenseCategoryKey | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
@@ -130,8 +133,16 @@ export default function KeuanganDashboardPage() {
     setModalOpen(true);
   }, [canCreate]);
   useAssistantModalAction("expense-create", openCreateExpense);
+  const openCreateTransfer = useCallback(() => {
+    if (canCreate) setTransferModal({});
+  }, [canCreate]);
+  useAssistantModalAction("manual-transfer-create", openCreateTransfer);
 
   const handleEdit = useCallback((item: ExpenseListItem) => {
+    if (item.source.type === "MANUAL_TRANSFER_PURCHASE") {
+      setTransferModal({ initial: { id: item.id, applicantName: item.applicantName, description: item.description, amount: item.amount, occurredAt: item.occurredAt, attachmentUrl: item.attachmentUrl } });
+      return;
+    }
     setEditing({
       id: item.id,
       applicantName: item.applicantName,
@@ -301,14 +312,14 @@ export default function KeuanganDashboardPage() {
                   }}
                 >
                   <Link
-                    href={`/history?date=${row.date}`}
+                    href={row.count > 0 ? `/history?date=${row.date}` : '#manual-income'}
                     className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 min-h-11 hover:bg-surface-50 transition-colors cursor-pointer group focus:outline-none focus-visible:bg-surface-50"
                   >
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-semibold text-surface-900 truncate">
                         {fullDay(row.date)}
                       </span>
-                      <span className="text-xs text-surface-500">{row.count} transaksi</span>
+                      <span className="text-xs text-surface-500">{row.count} transaksi · {row.manualCount ?? 0} manual</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-sm font-semibold text-emerald-700 tabular-nums">
@@ -321,6 +332,7 @@ export default function KeuanganDashboardPage() {
               ))}
             </ul>
           )}
+          <div id="manual-income"><ManualIncomePanel key={month} month={month} /></div>
         </section>
 
         {/* ─── Pengeluaran column ─── */}
@@ -339,6 +351,7 @@ export default function KeuanganDashboardPage() {
             )}
           </header>
           <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 space-y-2">
+            {canCreate && <Button type="button" size="sm" onClick={openCreateTransfer}>Tambah Belanja Transfer</Button>}
             {pengeluaran.isLoading ? (
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
@@ -441,7 +454,7 @@ export default function KeuanganDashboardPage() {
             <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
                 {list.data.data.map((item) => {
                   const isAutomaticExpense =
-                    item.source.type !== "MANUAL";
+                    item.source.type !== "MANUAL" && item.source.type !== "MANUAL_TRANSFER_PURCHASE";
                   const sourceLabel =
                     item.source.type === "GOODS_PURCHASE"
                       ? "Pembelian Barang"
@@ -449,7 +462,9 @@ export default function KeuanganDashboardPage() {
                         ? "Belanja Terdahulu"
                       : item.source.type === "SHOPPING_REQUEST"
                         ? "Daftar Belanja (Legacy)"
-                        : "Manual";
+                        : item.source.type === "MANUAL_TRANSFER_PURCHASE"
+                          ? "Belanja Transfer Manual"
+                          : "Manual";
                   return (
                   <li
                     key={item.id}
@@ -609,6 +624,7 @@ export default function KeuanganDashboardPage() {
           canCreateCategory={canCreate}
         />
       )}
+      {transferModal && <ManualFinanceFormModal key={transferModal.initial?.id ?? 'transfer-create'} open kind="transfer" initial={transferModal.initial} onClose={() => setTransferModal(null)} onSaved={() => { void refresh(); }} />}
 
       {selectedImageUrl && (
         <Modal

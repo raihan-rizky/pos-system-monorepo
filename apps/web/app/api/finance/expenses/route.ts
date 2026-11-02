@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
 import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
+import { validateManualTransferExpense } from "@/features/keuangan/helpers/manual-transfer-expense";
 import { customExpenseCategoryId, customExpenseCategoryKey } from "@/features/keuangan/helpers/category-meta";
 
 const log = getLogger("api:finance:expenses");
@@ -89,6 +90,7 @@ export async function GET(request: Request) {
           createdAt: true,
           transactionId: true,
           attachmentUrl: true,
+          manualPurchasePaymentMethod: true,
           hasMissingCostSnapshot: true,
           shoppingRequest: { select: { id: true, number: true } },
           goodsPurchase: { select: { id: true, number: true } },
@@ -134,6 +136,8 @@ export async function GET(request: Request) {
               id: row.shoppingRequest.id,
               number: row.shoppingRequest.number,
             }
+          : row.manualPurchasePaymentMethod === "TRANSFER"
+          ? { type: "MANUAL_TRANSFER_PURCHASE" as const }
           : { type: "MANUAL" as const },
         recordedBy: row.recordedBy,
       };
@@ -153,8 +157,10 @@ export async function POST(request: Request) {
     const user = await requirePermission("expense", "create");
     if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
     const storeId = user.storeId;
-    const body = await request.json();
-    const result = validateExpensePayload(body, { now: new Date() });
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return apiError('Isian pengeluaran tidak valid.', 422, { code: 'ValidationError' });
+    const isManualTransfer = body.manualPurchasePaymentMethod != null;
+    const result = isManualTransfer ? validateManualTransferExpense(body) : validateExpensePayload(body, { now: new Date() });
     if (!result.success) {
       const errors: Record<string, string[]> = {};
       for (const err of result.errors) {
@@ -207,6 +213,7 @@ export async function POST(request: Request) {
         occurredAt,
         transactionId: data.transactionId || null,
         attachmentUrl: data.attachmentUrl || null,
+        manualPurchasePaymentMethod: isManualTransfer ? 'TRANSFER' : null,
       },
       select: {
         id: true,

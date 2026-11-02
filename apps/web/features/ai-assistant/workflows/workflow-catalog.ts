@@ -945,7 +945,28 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Kenali data yang belum lengkap", description: "Nilai sebagian dan HPP belum tersedia menandai produk yang seluruh HPP-nya kosong. Stok nol atau negatif tidak menambah nilai maupun jumlah produk tersebut. Laporan bulanan memakai metode HPP yang sama; saldo historis HPP yang belum tercatat atau belum lengkap dibiarkan kosong, dan jumlah harta menunggu saldo lengkap." },
     ],
   }),
-];
+  workflow({
+    faqNumber: 48, slug: "manual-income", title: "Bagaimana cara mencatat pemasukan tanpa transaksi?",
+    aliases: ["tambah pemasukan", "pemasukan tanpa transaksi", "input pendapatan RC", "pemasukan manual"],
+    route: "/keuangan", actionLabel: "Buka Keuangan", iconKey: "wallet-cards",
+    requiredCapabilities: [{ resource: "income", action: "create" }],
+    steps: [
+      { title: "Tambah Pemasukan", description: "Di Keuangan, cari Pemasukan tanpa transaksi dan klik Tambah Pemasukan." },
+      { title: "Isi empat isian", description: "Isi tanggal WIB, keterangan / sumber, nominal, dan Kategori RC: ATK, Cetak, Spanduk, Print, Stempel. Klik Simpan." },
+      { title: "Periksa dan unduh ulang", description: "Catatan masuk ke ringkasan dan RC sesuai kategori. Gunakan Ubah atau Hapus sesuai izin untuk koreksi. Unduh ulang Excel bulanan setelah perubahan; file lama tidak berubah otomatis." },
+    ],
+  }),
+  workflow({
+    faqNumber: 49, slug: "manual-transfer-purchase", title: "Bagaimana cara mencatat belanja manual via transfer?",
+    aliases: ["tambah belanja transfer", "belanja manual transfer", "pengeluaran belanja transfer tanpa stok"],
+    route: "/keuangan", actionLabel: "Buka Keuangan", iconKey: "wallet-cards",
+    requiredCapabilities: [{ resource: "expense", action: "create" }],
+    steps: [
+      { title: "Tambah Belanja Transfer", description: "Buka Keuangan, lalu klik Tambah Belanja Transfer pada bagian Pengeluaran." },
+      { title: "Isi belanja", description: "Isi tanggal transfer, nama penerima / supplier, keterangan belanja, dan nominal. Bukti transfer opsional. Klik Simpan untuk mencatat pengeluaran tanpa menambah stok." },
+      { title: "Periksa rincian belanja", description: "Catatan berbadge Belanja Transfer Manual dapat diubah atau dihapus sesuai izin. Unduh ulang Excel bulanan: PENGELUARAN BELANJA menampilkannya pada VIA TRANSFER dan RP menghitungnya satu kali." },
+    ],
+  }),];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {
   return {

@@ -1,5 +1,21 @@
 # Keuangan (Arus Kas & Pengeluaran)
 
+## Pemasukan tanpa transaksi
+
+1. Di bagian **Pemasukan tanpa transaksi**, klik **Tambah Pemasukan**.
+2. Isi tanggal, keterangan / sumber, nominal, serta kategori RC: **ATK, Cetak, Spanduk, Print, Stempel**. Klik **Simpan**.
+3. Catatan masuk ringkasan, grafik, arus kas, dan kolom kategori pada sheet **RC {BULAN}** di Excel bulanan. Jumlah transaksi tetap terpisah dari jumlah catatan manual.
+
+Gunakan **Ubah** atau **Hapus** sesuai izin untuk koreksi. Tanggal harus valid, dalam lima tahun terakhir sampai hari ini menurut WIB. Nominal harus positif, maksimal Rp9.999.999.999,99 dengan dua angka desimal. **Unduh ulang Excel** setelah perubahan; file yang sudah diunduh tidak berubah otomatis.
+
+## Belanja manual via transfer
+
+1. Pada bagian **Pengeluaran**, klik **Tambah Belanja Transfer**.
+2. Isi tanggal transfer, nama penerima / supplier, keterangan belanja, dan nominal. Bukti transfer opsional; gunakan pengunggah bukti yang tersedia bila diperlukan.
+3. Klik **Simpan**. Catatan menampilkan badge **Belanja Transfer Manual** dan dapat diubah atau dihapus sesuai izin. Fitur ini hanya mencatat keuangan, tanpa menambah stok.
+
+Pada Excel bulanan yang diunduh ulang, pengeluaran masuk sheet **PENGELUARAN BELANJA → VIA TRANSFER** serta RP. Total arus kas menghitung satu pengeluaran; rincian belanja tidak menambah total kedua kali. Izin create/update mengikuti `expense`; pemasukan mengikuti `income`. Default Owner/Admin/Cashier dapat membuat dan mengubah; default hapus hanya Owner/Admin, sesuai pengaturan RBAC toko.
+
 ## Lokasi dan Fungsi
 
 Buka sidebar **Keuangan > Keuangan** (`/keuangan`) untuk memantau arus kas bulanan toko. Halaman ini menyediakan:

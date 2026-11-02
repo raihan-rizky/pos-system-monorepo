@@ -52,6 +52,8 @@ export type AssistantToolName =
   | "openSupplierModal"
   | "openSalespersonModal"
   | "openExpenseModal"
+  | "openManualIncomeModal"
+  | "openManualTransferModal"
   | "openShiftModal"
   | "openStockUpdateModal"
   | "openInboundReceiptModal";
@@ -146,6 +148,8 @@ const assistantClientActionSchema = z.discriminatedUnion("kind", [
       "supplier-create",
       "salesperson-create",
       "expense-create",
+      "income-create",
+      "manual-transfer-create",
       "shift-open",
       "inventory-stock-single",
       "inventory-inbound",
@@ -549,6 +553,18 @@ export function createAssistantToolRegistry(
       allowedRoles: ["OWNER", "ADMIN", "CASHIER"],
       requiredCapabilities: [{ resource: "expense", action: "create" }],
       sourceLabel: "Aksi Tambah Pengeluaran",
+    }),
+    createModalActionTool({
+      name: "openManualIncomeModal", modal: "income-create", route: "/keuangan",
+      description: "Open the Tambah Pemasukan form. USE for: catat pemasukan tanpa transaksi ke RC ATK, Cetak, Spanduk, Print, atau Stempel. DO NOT USE for: POS sales, customer debt payments, or financial analysis.",
+      allowedRoles: ["OWNER", "ADMIN", "CASHIER"], requiredCapabilities: [{ resource: "income", action: "create" }],
+      sourceLabel: "Aksi Tambah Pemasukan",
+    }),
+    createModalActionTool({
+      name: "openManualTransferModal", modal: "manual-transfer-create", route: "/keuangan",
+      description: "Open the Tambah Belanja Transfer form. USE for: catat pengeluaran belanja manual via transfer tanpa mengubah stok. DO NOT USE for: inventory receiving, supplier debt payments, or automatic purchase records.",
+      allowedRoles: ["OWNER", "ADMIN", "CASHIER"], requiredCapabilities: [{ resource: "expense", action: "create" }],
+      sourceLabel: "Aksi Tambah Belanja Transfer",
     }),
     createModalActionTool({
       name: "openShiftModal",

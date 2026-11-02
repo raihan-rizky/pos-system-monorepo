@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "manual-finance-entries", date: "2026-11-03", revision: 1,
+    highlight: { title: "Pemasukan dan belanja manual", summary: "Catat pemasukan ke RC dan belanja transfer langsung dari Keuangan." },
+    title: "Catat pemasukan dan belanja transfer.",
+    summary: "Tambahkan pemasukan tanpa transaksi ke kategori RC pilihan. Catat belanja transfer tanpa menambah stok; Excel bulanan memasukkannya ke Pengeluaran Belanja.",
+    kind: "feature", area: "Keuangan", href: "/keuangan", visual: "financial",
+    screenshot: { src: "/images/changelog/pemasukan-manual-keuangan.png", alt: "Form Tambah Pemasukan di Keuangan dengan tanggal, keterangan contoh, nominal, dan pilihan kategori RC ATK." },
+    steps: [
+      { title: "Catat pemasukan", detail: "Klik Tambah Pemasukan di Keuangan. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: ATK, Cetak, Spanduk, Print, atau Stempel." },
+      { title: "Catat belanja transfer", detail: "Klik Tambah Belanja Transfer. Isi tanggal, penerima / supplier, keterangan, nominal, dan bukti opsional, lalu Simpan tanpa menambah stok." },
+      { title: "Periksa dan unduh", detail: "Ubah/Hapus catatan sesuai izin. Unduh ulang Excel bulanan untuk melihat pemasukan di RC serta belanja pada VIA TRANSFER di PENGELUARAN BELANJA; total pengeluaran dihitung sekali." },
+    ],
+  },
+  {
     id: "inventory-automatic-name-deduplication", date: "2026-11-02", revision: 1,
     highlight: { title: "Inventaris tanpa hitung ganda", summary: "Produk bernama sama otomatis dihitung sekali dalam nilai inventaris." },
     title: "Produk duplikat dinilai sekali.",

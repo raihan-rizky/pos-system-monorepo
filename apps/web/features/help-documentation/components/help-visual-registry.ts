@@ -279,6 +279,8 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
           { key: "finance-expense-form", label: "Form Pengeluaran" },
           { key: "finance-proof-url", label: "Unggah Bukti" },
           { key: "finance-save", label: "Simpan Pengeluaran" },
+          { key: "finance-manual-income-form", label: "Tambah Pemasukan" },
+          { key: "finance-manual-transfer-form", label: "Tambah Belanja Transfer" },
         ],
       },
     ],
