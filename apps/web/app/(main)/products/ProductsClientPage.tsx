@@ -60,12 +60,12 @@ import { useBulkStockImportJobTracking } from "@/features/bulk-stock-import/hook
 import { useProductSelection } from "./hooks/useProductSelection";
 import { useCustomerCategoryPricingRules } from "@/hooks/useCustomerCategoryPricingRules";
 import { mapCheckoutPricingRule } from "@/features/pos-checkout/helpers/checkout-pricing";
-import { priceCatalogProductForCustomer } from "@/features/customer-category-pricing/helpers/product-pricing";
+import { priceCatalogProductForCustomer, priceCatalogVariantForCustomer } from "@/features/customer-category-pricing/helpers/product-pricing";
 import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
 import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
 import { useSpecialPricingSettings } from "@/features/customer-category-pricing/hooks/useSpecialPricingSettings";
-import { DEFAULT_PRICE_ROUNDING_SETTINGS } from "@/features/product-price-rounding/rounding";
-import { CUSTOMER_TYPES, isSpecialCategoryPricing, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
+import { CUSTOMER_TYPES, isSpecialCategoryPricing, type CategoryPricingRule, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 
 const CategoryManagementTab = lazy(() =>
@@ -1133,6 +1133,9 @@ export default function ProductsClientPage() {
               {view === "grid" && (
                 <ProductGrid
                   products={processedProducts}
+                  categoryPricingRules={categoryPricingRules.map(mapCheckoutPricingRule)}
+                  roundingSettings={roundingSettings}
+                  specialPricingEnabled={specialPricingEnabled}
                   isLoading={isLoading}
                   onEdit={openEdit}
                   onChangePrice={openPriceChange}
@@ -1446,6 +1449,9 @@ export default function ProductsClientPage() {
 /* -- Redesigned Grid View -- */
 function ProductGrid({
   products,
+  categoryPricingRules,
+  roundingSettings,
+  specialPricingEnabled,
   isLoading,
   onEdit,
   onUpdateStock,
@@ -1460,6 +1466,9 @@ function ProductGrid({
   onToggleProduct,
 }: {
   products: Product[];
+  categoryPricingRules: CategoryPricingRule[];
+  roundingSettings: PriceRoundingSettings;
+  specialPricingEnabled: boolean;
   isLoading: boolean;
   onEdit: (id: string) => void;
   onUpdateStock?: (id: string) => void;
@@ -1511,6 +1520,8 @@ function ProductGrid({
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 p-5 md:p-6 items-stretch">
       {products.map((p) => {
         const effectivePrice = p.displayPrice ?? p.price;
+        const agenPrice = priceCatalogVariantForCustomer(p, undefined, "AGEN", categoryPricingRules, roundingSettings, specialPricingEnabled);
+        const dinasPrice = priceCatalogVariantForCustomer(p, undefined, "PEMERINTAH", categoryPricingRules, roundingSettings, specialPricingEnabled);
         const isLow = p.stock <= p.minStock;
         return (
           <div
@@ -1581,8 +1592,8 @@ function ProductGrid({
               </div>
             </div>
 
-            <div className="flex items-end justify-between pt-4 mt-2 border-t border-slate-100 relative z-10">
-              <div>
+            <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 pt-4 mt-2 border-t border-slate-100 relative z-10">
+              <div className="min-w-0">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                   Harga
                 </p>
@@ -1591,6 +1602,16 @@ function ProductGrid({
                 </p>
                 {isSpecialCategoryPricing(p.appliedPricing) && <SpecialPriceBadge />}
                 <PriceRoundingBadge rounding={p.priceRounding} />
+                <div className="mt-1 space-y-0.5 text-xs font-semibold text-slate-600">
+                  <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <span>Agen:</span><span className="break-all">{fmt(agenPrice.unitPrice)}</span>
+                    {isSpecialCategoryPricing(agenPrice.appliedPricing) && <SpecialPriceBadge />}
+                  </p>
+                  <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <span>Dinas:</span><span className="break-all">{fmt(dinasPrice.unitPrice)}</span>
+                    {isSpecialCategoryPricing(dinasPrice.appliedPricing) && <SpecialPriceBadge />}
+                  </p>
+                </div>
                 {canChangePrice && p.costPrice != null && (
                   <>
                     <p className="text-[10px] font-bold text-slate-500 mt-0.5">
