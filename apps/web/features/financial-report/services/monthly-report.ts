@@ -79,11 +79,10 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   report.supplierDebtBalance = (Math.round(balances.supplierDebtBalance * 100) + backdatedDebts.reduce((sum, debt) => sum + Math.round(debt.amount * 100), 0)) / 100;
   if (report.supplierDebtIncomplete) report.supplierDebtBalance = null;
   report.warnings = report.warnings.filter(warning => !warning.startsWith('Persediaan akhir dan hutang pemasok:'));
-  if (balances.openingInventoryBalance === null) report.warnings.push('Nilai inventaris akhir bulan sebelumnya belum tersedia.');
-  if (balances.inventoryBalance === null) report.warnings.push('Nilai inventaris akhir periode belum tersedia.');
-  if (balances.openingInventoryBalance === null || balances.inventoryBalance === null) {
-    report.warnings.push('Riwayat inventaris atau satuan dasar grup stok mungkin belum lengkap. Periksa satuan dasar di Produk.');
-  }
+  if (balances.openingInventoryBalance === null) report.warnings.push('Nilai inventaris akhir bulan sebelumnya belum tersedia dari riwayat.');
+  if (balances.inventoryBalance === null) report.warnings.push('Nilai inventaris akhir periode belum tersedia dari riwayat.');
+  if ((balances.openingInventoryUnvaluedCount ?? 0) > 0) report.warnings.push(`Modal awal belum lengkap: HPP belum tersedia untuk ${balances.openingInventoryUnvaluedCount} produk.`);
+  if ((balances.inventoryUnvaluedCount ?? 0) > 0) report.warnings.push(`Nilai inventaris akhir belum lengkap: HPP belum tersedia untuk ${balances.inventoryUnvaluedCount} produk.`);
   report.warnings.push('Saldo hutang mencakup hutang pemasok, belanja terdahulu, dan sisa giro yang riwayatnya telah diperiksa. Pembayaran hutang manual tidak otomatis menjadi pengeluaran.');
   return report;
 }

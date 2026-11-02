@@ -408,7 +408,7 @@ export default function ProductsClientPage() {
   const totalProducts = stats?.totalProducts ?? 0;
   const lowStock = stats?.lowStock ?? 0;
   const negativeStock = stats?.negativeStock ?? 0;
-  const totalValue = stats?.inventoryValue;
+  const totalValue = stats?.inventoryValue ?? 0;
 
   useEffect(() => {
     if (activeImportJob) {
@@ -751,8 +751,14 @@ export default function ProductsClientPage() {
           />
           <StatCard
             label="Nilai Inventaris"
-            value={statsReady ? (totalValue == null ? "Belum tersedia" : fmt(totalValue)) : "-"}
-            sub={statsReady && totalValue == null ? "Periksa satuan dasar grup stok" : undefined}
+            value={statsReady ? fmt(totalValue) : "-"}
+            sub={statsReady ? (
+              stats?.inventoryUnvaluedCount ? (
+                <span className="text-amber-700">
+                  Nilai sebagian · HPP belum tersedia: {intFmt.format(stats.inventoryUnvaluedCount)} produk
+                </span>
+              ) : "HPP per satuan · stok dihitung sekali"
+            ) : undefined}
             icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
             accent="bg-emerald-100"
             delay={200}

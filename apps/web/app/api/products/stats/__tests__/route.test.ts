@@ -18,11 +18,11 @@ describe("GET product statistics", () => {
     mocks.observe.mockResolvedValue(1);
   });
 
-  it("reports an unavailable inventory valuation as null rather than zero", async () => {
-    mocks.query.mockResolvedValue([{ total_products: 2n, low_stock: 0n, negative_stock: 0n, inventory_value: null }]);
+  it("reports the known HPP value with a count of products still missing HPP", async () => {
+    mocks.query.mockResolvedValue([{ total_products: 2n, low_stock: 0n, negative_stock: 0n, inventory_value: "0", inventory_unvalued_count: 2n }]);
     const response = await GET(new Request("http://localhost/api/products/stats"));
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ totalProducts: 2, inventoryValue: null });
+    expect(await response.json()).toMatchObject({ totalProducts: 2, inventoryValue: 0, inventoryUnvaluedCount: 2 });
   });
 
   it("returns a known zero without treating it as unavailable", async () => {
@@ -35,8 +35,8 @@ describe("GET product statistics", () => {
     mocks.query.mockResolvedValue([{ total_products: 1n, low_stock: 0n, negative_stock: 0n, inventory_value: "72000" }]);
     const response = await GET(new Request("http://localhost/api/products/stats?search=pak&categoryId=paper"));
     const query = mocks.query.mock.calls[0][0];
-    expect(query.sql).toContain("pos_current_inventory_valuation");
-    expect(query.values).toEqual(expect.arrayContaining(["store-1", "pak", "paper"]));
+    expect(query.sql).toContain("pos_inventory_cost_entities");
+    expect(query.values).toEqual(expect.arrayContaining(["store-1", "%pak%", "paper"]));
     expect(await response.json()).toMatchObject({ inventoryValue: 72000 });
   });
 

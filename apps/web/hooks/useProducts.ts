@@ -316,6 +316,7 @@ export interface ProductStats {
   lowStock: number;
   negativeStock: number;
   inventoryValue: number | null;
+  inventoryUnvaluedCount?: number;
 }
 
 async function fetchProductStats(

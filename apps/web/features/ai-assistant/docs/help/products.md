@@ -6,6 +6,15 @@ Buka sidebar **Katalog > Produk** (`/products`). Halaman **Pusat Produk** menamp
 
 Tab yang tersedia adalah **Produk**, **Riwayat Harga**, **Harga Khusus**, dan **Aktivitas Grup**. Riwayat Harga dan Harga Khusus hanya tampil jika role memiliki permission yang diperlukan.
 
+## Nilai Inventaris otomatis
+
+Nilai Inventaris memakai **HPP masing-masing satuan**. Stok bersama dihitung sekali, diurai dari satuan terbesar ke terkecil. HPP yang kosong dihitung melalui konversi dari satuan terkecil yang memiliki HPP; HPP nol tetap dianggap terisi. Perhitungan berjalan otomatis tanpa memilih acuan harga atau memperbaiki satuan dasar.
+
+Contoh: stok 25 pcs, 1 dus = 10 pcs, HPP dus Rp9.000 dan HPP pcs Rp1.000 menghasilkan **2 dus + 5 pcs = Rp23.000**. Jika HPP dus kosong, HPP dus dihitung menjadi Rp10.000 sehingga nilainya **Rp25.000**.
+
+Jika seluruh HPP suatu produk kosong, kartu menampilkan **Nilai sebagian · HPP belum tersedia** beserta jumlah produk yang belum dinilai. Satu grup masuk hitungan tersebut sekali. Stok nol dan negatif tidak menambah nilai. Pencarian dan kategori menyaring grup yang masuk perhitungan; seluruh satuan grup tetap digunakan dalam penghitungan HPP meskipun hanya satu satuan yang cocok dengan pencarian.
+
+
 ## Manajemen Produk & Harga
 Seluruh operasi katalog produk dan penyesuaian harga dapat diakses dari menu ini sesuai izin peran Anda.
 Langkah operasional detail dapat dilihat langsung di [FAQ](file:///d:/main_project/pos-system-monorepo/apps/web/features/ai-assistant/docs/help/faq.md):

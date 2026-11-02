@@ -26,11 +26,12 @@ function values(sheet: XLSX.WorkSheet): unknown[] {
 }
 
 describe("workbook payments and giro schedules", () => {
-  it("explains unavailable inventory and directs the user to the base unit", () => {
+  it("explains unavailable HPP history without asking for base-unit repairs", () => {
     const overview = buildMonthlyWorkbook(report()).Sheets["LAP KEU"];
     for (const cell of [overview.D8, overview.D17]) {
-      expect(cell.c?.[0]?.t).toContain("satuan dasar");
-      expect(cell.c?.[0]?.t).toContain("Produk");
+      expect(cell.c?.[0]?.t).toContain("HPP");
+      expect(cell.c?.[0]?.t).toContain("riwayat");
+      expect(cell.c?.[0]?.t).not.toContain("periksa satuan dasar");
       expect(cell.v ?? "").toBe("");
     }
   });

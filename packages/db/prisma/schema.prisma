@@ -73,8 +73,9 @@ model Store {
   customerReceivables           CustomerReceivable[]
   backdatedPurchases            BackdatedPurchase[]
   supplierPayables              SupplierPayable[]
-  inventoryValuationBaseline    InventoryValuationBaseline?
+  inventoryValuationBaseline    InventoryValuationBaseline[]
   inventoryValuationChanges     InventoryValuationChange[]
+  inventoryCostEntityValues     InventoryCostEntityValue[]
   inventoryValuationV2Baseline  InventoryValuationV2Baseline?
   inventoryValuationV2Events    InventoryValuationV2Event[]
   inventoryValuationV2Transactions InventoryValuationV2Transaction[]
@@ -139,11 +140,14 @@ model Brand {
 }
 
 model InventoryValuationBaseline {
-  storeId    String   @id
+  storeId    String
+  method     String   @default("selling_price")
   capturedAt DateTime @db.Timestamptz(6)
   value      Decimal  @db.Decimal(65, 20)
+  unvaluedCount Int   @default(0)
   store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
+  @@id([storeId, method])
   @@map("pos_inventory_valuation_baselines")
 }
 
@@ -152,10 +156,24 @@ model InventoryValuationChange {
   storeId    String
   occurredAt DateTime @db.Timestamptz(6)
   delta      Decimal  @db.Decimal(65, 20)
+  method     String   @default("selling_price")
+  unvaluedDelta Int   @default(0)
   store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, occurredAt])
+  @@index([storeId, method, occurredAt], map: "pos_inventory_valuation_changes_method_time_idx")
   @@map("pos_inventory_valuation_changes")
+}
+
+model InventoryCostEntityValue {
+  storeId       String
+  entityKey     String
+  value         Decimal @db.Decimal(65, 20)
+  unvaluedCount Int
+  store         Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, entityKey])
+  @@map("pos_inventory_cost_entity_values")
 }
 
 model InventoryValuationV2Baseline {

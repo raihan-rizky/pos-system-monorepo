@@ -58,6 +58,14 @@ describe("automatic monthly balances", () => {
     expect(workbook.Sheets["PIUTANG & HUTANG"].G16.v).toBe(0);
   });
 
+  it.each(["inventoryUnvaluedCount", "openingInventoryUnvaluedCount"])("does not present complete wealth when %s is positive", (field) => {
+    const data = Object.assign(report(), { [field]: 1 });
+    const overview = buildMonthlyWorkbook(data).Sheets["LAP KEU"];
+    expect(overview[field === "inventoryUnvaluedCount" ? "D17" : "D8"].v).toBe("");
+    expect(overview.G21.v).toBe("");
+    expect(overview.D32.v).toBe("");
+  });
+
   it("preserves the calculated values and formula when written to an Excel file", () => {
     const bytes = serializeMonthlyWorkbook(report());
     const workbook = XLSX.read(bytes, { type: "array", cellFormula: true });

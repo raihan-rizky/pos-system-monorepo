@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "inventory-automatic-unit-hpp", date: "2026-11-02", revision: 1,
+    highlight: { title: "Nilai inventaris dari HPP", summary: "HPP tiap satuan dihitung otomatis dengan stok bersama dihitung sekali." },
+    title: "Nilai inventaris otomatis dari HPP satuan.",
+    summary: "Stok bersama dihitung sekali dari satuan terbesar ke terkecil memakai HPP masing-masing. HPP yang kosong dihitung lewat konversi, dan produk yang seluruh HPP-nya kosong ditandai agar nilai sebagian terlihat jelas.",
+    kind: "improvement", area: "Produk & Stok", href: "/products", visual: "units",
+    steps: [
+      { title: "Buka Produk", detail: "Lihat kartu Nilai Inventaris pada halaman Produk." },
+      { title: "Baca nilai otomatis", detail: "Stok bersama diurai dari satuan terbesar ke terkecil dan tiap bagian memakai HPP satuannya; HPP kosong dihitung melalui konversi." },
+      { title: "Kenali nilai sebagian", detail: "Jika seluruh HPP suatu produk kosong, kartu menampilkan Nilai sebagian dan jumlah produk dengan HPP belum tersedia." },
+    ],
+  },
+  {
     id: "bulk-stock-import-background-lifecycle", date: "2026-11-02", revision: 1,
     highlight: { title: "Proses latar belakang impor stok", summary: "Impor stok tetap diproses saat panel ditutup, dengan status kegagalan yang jelas." },
     title: "Impor stok terus diproses setelah panel ditutup.",

@@ -58,12 +58,12 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("E17:H17", "Nilai stok akhir", input, { solid: true });
   block("I17:L17", "Hutang ke pemasok", input, { solid: true });
   block("A18:D20", "Diambil dari nilai inventaris akhir bulan sebelumnya bila riwayat tersedia.", input);
-  block("E18:H20", "Nilai inventaris akhir periode: stok negatif diabaikan; grup stok dihitung sekali memakai harga satuan dasar.", input);
+  block("E18:H20", "Nilai inventaris akhir periode memakai HPP tiap satuan, dengan konversi HPP otomatis dan stok bersama dihitung sekali.", input);
   block("I18:L20", "Sisa hutang pemasok dan giro hingga akhir periode; riwayat yang belum diperiksa membuat total belum tersedia.", input);
   block("A21:D22", "→ Lihat modal awal (D8)", input, { center: true, target: link("LAP KEU", "D8") });
   block("E21:H22", "→ Lihat nilai stok (D17)", input, { center: true, target: link("LAP KEU", "D17") });
   block("I21:L22", `→ Lihat hutang (D${debtRow})`, input, { center: true, target: link("PIUTANG & HUTANG", `D${debtRow}`) });
-  block("A24:L25", "Saldo inventaris historis yang belum tersedia dibiarkan kosong, bukan nol. Jumlah harta menunggu data lengkap.", accent);
+  block("A24:L25", "Nilai inventaris memakai HPP tiap satuan dan stok bersama dihitung sekali. HPP kosong dikonversi otomatis. Riwayat atau HPP belum lengkap tetap kosong; jumlah harta menunggu data lengkap.", accent);
 
   block("A27:L27", "03  Angka-angkanya dari mana?", brand, { solid: true, size: 13 });
   block("A29:D29", "RC = UANG MASUK", success, { solid: true, target: link(`RC ${monthName}`, "A7") });

@@ -45,7 +45,7 @@ Klik **Ekspor** di halaman Laporan Keuangan. Pilihan awal **Laporan bulanan · E
 
 Klik **Unduh Excel** untuk mendapatkan **LAP KEU**, **BERSIH**, **nama bulan**, **RC nama bulan**, **RP nama bulan**, **PENGELUARAN BELANJA**, **PIUTANG & HUTANG**, dan **PANDUAN**. Sheet Gaji dan Pengeluaran Non Teladan tidak disertakan, tetapi biaya gaji yang tercatat tetap masuk pengeluaran.
 
-**Modal awal** memakai nilai inventaris akhir bulan sebelumnya, dan **stok akhir** memakai nilai inventaris akhir periode. Nilai inventaris menghitung stok positif dikali harga jual; stok negatif tidak mengurangi total. Riwayat sebelum pencatatan tersedia tetap kosong, bukan nol. Hutang berasal dari catatan di halaman Keuangan dan berkurang sesuai tanggal pembayaran. Jumlah harta = modal awal + piutang − hutang − stok akhir.
+**Modal awal** memakai nilai inventaris akhir bulan sebelumnya, dan **stok akhir** memakai nilai inventaris akhir periode. Stok bersama diurai dari satuan terbesar ke terkecil memakai HPP tiap satuan dan dihitung sekali. HPP kosong dikonversi otomatis dari satuan terkecil yang memiliki HPP; seluruh HPP kosong atau riwayat HPP belum tersedia ditandai belum lengkap. Stok negatif tidak mengurangi total. Riwayat sebelum pencatatan tersedia tetap kosong, bukan nol. Hutang berasal dari catatan di halaman Keuangan dan berkurang sesuai tanggal pembayaran. Jumlah harta = modal awal + piutang − hutang − stok akhir.
 
 Sheet **RP bulan** hanya memuat pengeluaran manual. **PENGELUARAN BELANJA** memuat transfer pembelian berdasarkan tanggal pengeluaran, transfer belanja terdahulu berdasarkan tanggal pembayaran, dan giro berdasarkan bulan jatuh tempo. Nilai penuh giro ditampilkan meskipun belum dibayar. **PIUTANG & HUTANG** memuat sisa giro dan hutang manual pada akhir periode; hutang manual yang dihubungkan ke giro tidak dihitung dua kali. Rekap kas menghitung pembayaran aktual giro pada tanggal pembayaran, bukan nilai yang dijadwalkan. Jika riwayat giro belum diketahui, nilai yang bergantung padanya belum lengkap. Piutang mencakup saldo invoice dan piutang manual pada akhir periode. Penerimaan yang belum dikenali kategorinya ditampilkan sebagai **Perlu pemetaan** dan tetap dihitung pada total. Biaya belum lengkap serta keterbatasan riwayat perubahan nominal diberi catatan dalam file.
 
@@ -59,3 +59,8 @@ Laporan keuangan dapat diekspor ke file Excel atau PDF berdasarkan periode Haria
 Pak Teladan dapat menjalankan ekspor dengan fitur ekspor yang sama. Jika pengguna tidak menyebut periode atau format, default-nya adalah **30 hari terakhir** dan **PDF**. Permintaan seperti "analisis keuangan 30 hari" memeriksa seluruh bagian laporan—ringkasan, metode pembayaran, produk, kategori, sales, shift, loss stok, dan tren—sebelum memberikan temuan dan saran.
 
 Ekspor dari chat tidak mengunduh file otomatis. Pak Teladan menampilkan kartu file dengan tombol **Download PDF/Excel**; setelah unduhan pertama berhasil, tombol berubah menjadi **Download ulang** dan kartu menyertakan saran berbasis laporan yang sama. Role OWNER juga memiliki quick prompt **Rekap finansial bulanan**.
+
+
+## Nilai inventaris otomatis
+
+Nilai inventaris memakai HPP tiap satuan aktif. Stok bersama diurai dari satuan terbesar ke terkecil dan setiap bagian dihitung sekali. HPP kosong dihitung otomatis melalui konversi dari satuan terkecil yang memiliki HPP. Jika seluruh HPP kosong, nilainya ditandai belum lengkap. Riwayat HPP yang belum tersedia tetap kosong, bukan nol.

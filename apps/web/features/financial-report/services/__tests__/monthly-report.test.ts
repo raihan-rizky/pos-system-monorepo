@@ -56,13 +56,13 @@ describe('pembacaan data bulanan', () => {
     mocks.expense.mockRejectedValue(new Error('database unavailable'));
     await expect(getMonthlyFinancialReport('store-test', 2026, 9)).rejects.toThrow('database unavailable');
   });
-  it('menjelaskan bahwa inventaris belum tersedia dapat disebabkan satuan dasar grup stok', async () => {
+  it('menjelaskan riwayat inventaris yang belum tersedia tanpa meminta perbaikan satuan dasar', async () => {
     mocks.balances.mockResolvedValue({ openingInventoryBalance: null, inventoryBalance: null, supplierDebts: [], supplierDebtBalance: 0 });
     const result = await getMonthlyFinancialReport('store-test', 2026, 9, new Date('2026-10-21T00:00:00Z'));
     const guidance = result.warnings.join(' ');
     expect(guidance).toContain('riwayat');
-    expect(guidance).toContain('satuan dasar');
-    expect(guidance).toContain('Produk');
+    expect(guidance).toContain('belum tersedia dari riwayat');
+    expect(guidance).not.toContain('Periksa satuan dasar');
   });
   it('tidak menyajikan total hutang sebagai angka lengkap saat riwayat giro belum diketahui', async () => {
     mocks.expense.mockResolvedValue([{ id: 'giro-1', goodsPurchaseId: 'p1', shoppingRequestId: 's1', occurredAt: new Date('2026-08-01T03:00:00Z'), category: 'SUPPLIES', amount: 100, changeAmount: 0, description: 'Bahan', shoppingRequest: { status: 'APPROVED' }, goodsPurchase: { storeId: 'store-test', totalAmount: 100, number: 'PB-1', status: 'APPROVED', paymentMethod: 'GIRO', paymentDueDate: new Date('2026-09-30T00:00:00Z'), supplierNameSnapshot: 'Pemasok', supplierPayable: null } }]);

@@ -12,6 +12,7 @@ type StatsRow = {
   low_stock: bigint | number | null;
   negative_stock: bigint | number | null;
   inventory_value: string | number | null;
+  inventory_unvalued_count: bigint | number | null;
 };
 
 function bigintToNumber(value: bigint | number | null | undefined): number {
@@ -62,16 +63,25 @@ export async function GET(request: Request) {
 
     const whereClause = Prisma.join(conditions, " AND ");
 
-    // Count matching products, but value shared stock only once using the
-    // same database function as the financial report.
+    // Match catalog rows first, then value each matched physical stock pool
+    // using all of its units. Searching for one unit must not change its HPP.
     const query = Prisma.sql`
+      WITH matched AS (
+        SELECT * FROM pos_products WHERE ${whereClause}
+      ), entity_keys AS (
+        SELECT DISTINCT CASE WHEN g.id IS NULL THEN 'product:' || p.id ELSE 'group:' || g.id END AS key
+        FROM matched p LEFT JOIN pos_product_stock_groups g
+          ON g.id = p."stockGroupId" AND g."storeId" = p."storeId"
+      ), valuation AS (
+        SELECT * FROM pos_inventory_cost_entities(${storeId}, ARRAY(SELECT key FROM entity_keys))
+      )
       SELECT
-        COUNT(*)::bigint AS total_products,
-        COUNT(*) FILTER (WHERE "stock" <= "minStock")::bigint AS low_stock,
-        COUNT(*) FILTER (WHERE "stock" < 0)::bigint AS negative_stock,
-        pos_current_inventory_valuation(${storeId}, ${search}, ${categoryId})::text AS inventory_value
-      FROM pos_products
-      WHERE ${whereClause}
+        (SELECT COUNT(*) FROM matched)::bigint AS total_products,
+        (SELECT COUNT(*) FROM matched WHERE "stock" <= "minStock")::bigint AS low_stock,
+        (SELECT COUNT(*) FROM matched WHERE "stock" < 0)::bigint AS negative_stock,
+        COALESCE(SUM(value), 0)::text AS inventory_value,
+        COALESCE(SUM(unvalued_count), 0)::bigint AS inventory_unvalued_count
+      FROM valuation
     `;
 
     const [row] = await db.$queryRaw<StatsRow[]>(query);
@@ -80,7 +90,8 @@ export async function GET(request: Request) {
       totalProducts: bigintToNumber(row?.total_products ?? 0),
       lowStock: bigintToNumber(row?.low_stock ?? 0),
       negativeStock: bigintToNumber(row?.negative_stock ?? 0),
-      inventoryValue: row?.inventory_value == null ? null : decimalStringToNumber(row.inventory_value),
+      inventoryValue: decimalStringToNumber(row?.inventory_value ?? 0),
+      inventoryUnvaluedCount: bigintToNumber(row?.inventory_unvalued_count ?? 0),
     });
     res.headers.set(
       "Cache-Control",
@@ -93,7 +104,7 @@ export async function GET(request: Request) {
 
     log.error("Failed to fetch product stats:", error);
     return NextResponse.json(
-      { message: "Failed to fetch product stats" },
+      { message: "Statistik produk belum berhasil dimuat." },
       { status: 500 },
     );
   }

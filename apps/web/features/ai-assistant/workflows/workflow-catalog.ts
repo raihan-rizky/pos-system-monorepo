@@ -443,7 +443,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka Laporan Keuangan", description: "Masuk ke halaman Laporan Keuangan." },
       { title: "Klik Ekspor", description: "Di kanan atas halaman, klik tombol Ekspor." },
       { title: "Pilih laporan bulanan", description: "Dialog awal memakai Laporan bulanan · Excel 8 sheet. Pilih bulan dan tahun lalu periksa daftar sheet dan rentang tanggal WIB. Bulan berjalan sampai hari ini; bulan mendatang belum dapat diekspor." },
-      { title: "Unduh laporan", description: "Klik Unduh Excel. Modal awal dan stok akhir memakai nilai inventaris; stok negatif tidak dihitung. Grup stok dihitung sekali memakai harga jual satuan dasar. Jika satuan dasar atau riwayat belum dapat dipastikan, nilainya tetap kosong. RP bulan berisi pengeluaran manual. Pengeluaran Belanja memuat transfer pembelian berdasarkan tanggal pengeluaran, transfer belanja terdahulu berdasarkan tanggal pembayaran, dan giro berdasarkan bulan jatuh tempo. Piutang & Hutang memuat sisa giro dan hutang manual. Kas memakai pembayaran aktual giro pada tanggal dibayar. Jika riwayat giro belum diketahui, nilai terkait belum lengkap. Buka PANDUAN untuk melihat alur dan rumus." },
+      { title: "Unduh laporan", description: "Klik Unduh Excel. Modal awal dan stok akhir memakai nilai inventaris; stok negatif tidak dihitung. Stok bersama diurai dari satuan terbesar ke terkecil memakai HPP tiap satuan dan dihitung sekali. HPP kosong dikonversi otomatis dari satuan terkecil yang memiliki HPP; seluruh HPP kosong atau riwayat HPP belum tersedia ditandai belum lengkap. RP bulan berisi pengeluaran manual. Pengeluaran Belanja memuat transfer pembelian berdasarkan tanggal pengeluaran, transfer belanja terdahulu berdasarkan tanggal pembayaran, dan giro berdasarkan bulan jatuh tempo. Piutang & Hutang memuat sisa giro dan hutang manual. Kas memakai pembayaran aktual giro pada tanggal dibayar. Jika riwayat giro belum diketahui, nilai terkait belum lengkap. Buka PANDUAN untuk melihat alur dan rumus." },
       { title: "Pilih jurnal atau PDF", description: "Untuk ekspor sebelumnya, pilih Jurnal transaksi · Excel / PDF, lalu pilih format dan periode Harian, Mingguan, 30 hari terakhir, atau Bulanan. Jika unduhan gagal, klik Coba lagi; pilihan tetap tersimpan." },
       { title: "Gunakan perintah AI", description: "Ekspor dari chat tetap berupa jurnal transaksi. Jika periode dan format tidak disebutkan, sistem memakai 30 hari terakhir dan PDF. Untuk template bulanan delapan sheet, gunakan dialog Ekspor di halaman Laporan Keuangan." },
       { title: "Unduh file dan baca saran", description: "File muncul sebagai kartu di chat tanpa auto-download. Klik Download PDF/Excel saat siap; setelah berhasil tombol berubah menjadi Download ulang dan saran Pak Teladan dibuat dari angka laporan yang sama." },
@@ -929,7 +929,22 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Periksa dampak", description: "Klik Lihat Dampak Reset. Periksa jumlah data, data terkait yang wajib ikut terhapus (ikon kunci), dan dependensi yang harus dipilih. Jika Transaksi Penjualan terhubung ke nota, pilih juga Penjualan & Keuangan > Nota Percetakan. Memilih Nota Percetakan saja mempertahankan transaksi; urutan nomor nota tetap berlanjut. Memilih sub-data lain membatalkan preview serta teks konfirmasi; lihat dampak lagi. Data pelanggan dengan piutang manual tetap dilindungi dan tidak dapat di-reset. Pengeluaran yang terhubung ke giro atau belanja terdahulu, termasuk giro yang belum memiliki catatan hutang, serta pembelian yang terhubung ke catatan hutang yang dilindungi, tidak dapat di-reset." },
       { title: "Konfirmasi reset", description: "Tutup shift kasir dan tunggu proses import atau batch selesai. Ketik RESET DATABASE persis, lalu klik Reset Data Terpilih. Penghapusan tidak dapat dikembalikan dan hanya berlaku pada toko yang sedang login. Pak Teladan hanya menjelaskan langkah; pemilihan, konfirmasi, dan eksekusi dilakukan sendiri oleh Owner." },
     ],
-  })
+  }),
+  workflow({
+    faqNumber: 47,
+    slug: "nilai-inventaris-hpp-otomatis",
+    title: "Bagaimana cara membaca Nilai Inventaris dari HPP?",
+    aliases: ["nilai inventaris", "nilai stok hpp", "hpp satuan inventaris", "stok bersama dihitung sekali"],
+    route: "/products",
+    actionLabel: "Buka Produk",
+    iconKey: "package",
+    requiredCapabilities: [{ resource: "product", action: "read" }],
+    steps: [
+      { title: "Buka Nilai Inventaris", description: "Buka Produk dan lihat kartu Nilai Inventaris. Pencarian dan kategori menyaring produk yang masuk perhitungan; satu grup stok tetap dihitung sekali meskipun pencarian hanya menemukan salah satu satuannya." },
+      { title: "Baca HPP otomatis", description: "Stok bersama diurai dari satuan terbesar ke terkecil. Tiap bagian memakai HPP satuannya; HPP kosong dihitung lewat konversi dari satuan terkecil yang memiliki HPP. Contoh 25 pcs, 1 dus = 10 pcs, HPP dus Rp9.000 dan pcs Rp1.000 menghasilkan 2 dus + 5 pcs senilai Rp23.000. Jika HPP dus kosong, hasilnya Rp25.000. HPP nol tetap terisi. Penghitungan ini berjalan otomatis tanpa memilih acuan harga atau memperbaiki satuan dasar." },
+      { title: "Kenali data yang belum lengkap", description: "Nilai sebagian dan HPP belum tersedia menandai produk yang seluruh HPP-nya kosong. Stok nol atau negatif tidak menambah nilai maupun jumlah produk tersebut. Laporan bulanan memakai metode HPP yang sama; saldo historis HPP yang belum tercatat atau belum lengkap dibiarkan kosong, dan jumlah harta menunggu saldo lengkap." },
+    ],
+  }),
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {
