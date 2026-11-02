@@ -16,6 +16,7 @@ export interface ProductCartItem {
   description?: string | null;
   price: number;
   catalogPrice: number;
+  automaticPrice?: number;
   transactionPrice?: number | null;
   priceRounding?: PriceRoundingResult | null;
   priceError?: string | null;

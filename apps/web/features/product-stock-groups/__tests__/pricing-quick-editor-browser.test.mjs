@@ -17,14 +17,15 @@ const initial = { id: "snowman", displayName: "Snowman", baseUnit: "pcs", baseSt
 };
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
-  for (const mode of ["catalog", "pos", "pos-only"]) {
+  // Group prices are edited in Produk; the invoice-only POS editor has its own browser test.
+  for (const mode of ["catalog"]) {
     const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
     const errors = [], puts = [], previews = [], applies = []; let stale = true;
     const detail = structuredClone(initial);
     page.on("pageerror", e => errors.push(e.message));
     await page.route("http://localhost:3018/**", async route => {
       const req = route.request(), url = new URL(req.url());
-      if (url.pathname === "/fixture") return route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><div id="root"></div></body></html>' });
+      if (url.pathname === "/fixture") return route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><script>window.process={env:{NODE_ENV:"production"}};</script><div id="root"></div></body></html>' });
       if (req.method() === "GET") return route.fulfill({ json: detail });
       const payload = req.postDataJSON();
       if (url.pathname === "/api/products/pak") { puts.push(payload); return route.fulfill({ json: { ...variants[1], ...payload } }); }

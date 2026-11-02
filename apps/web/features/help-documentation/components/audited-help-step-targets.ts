@@ -72,7 +72,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "cashier-shift": [["shift", "shift-primary"], ["shift", "shift-open"], ["shift", "shift-close"]],
   "cashier-shift-settings": [["pos", "pos-primary"], ["pos", "pos-payment-modal"], ["pos", "pos-primary"]],
   "cashier-pos": [["pos", "pos-primary"], ["pos", "pos-products"], ["pos", "pos-cart"], ["pos", "pos-payment-modal"]],
-  "cashier-pos-quick-edit": [["pos", "pos-cart"], ["pos", "pos-cart"], ["products", "products-price-action"], ["products", "products-special-price-tab"]],
+  "cashier-pos-quick-edit": same("pos", "pos-cart", 4),
   "cashier-credit": [["customers", "customers-debt-tab"], ["customers", "customers-pay-debt"], ["history", "history-print-button"]],
   "cashier-return": [["history", "history-table"], ["history", "history-action-menu"], ["history", "history-approval-actions"]],
   "cashier-expense": [["pos", "pos-expense-button"], ["finance", "finance-expense-form"], ["finance", "finance-save"]],

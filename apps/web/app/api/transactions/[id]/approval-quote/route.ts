@@ -58,6 +58,7 @@ export async function POST(
       transactionId: (await params).id,
       actorRole: user.role,
       canViewCostPrice,
+      canEditTransactionPrice: canRolePerformAction(user.role, "product", "update", permissions),
       items: parsed.data.items,
     });
 
@@ -84,6 +85,7 @@ export async function POST(
         APPROVAL_ITEM_SOURCE_REQUIRED: { status: 422, message: "Pilih produk atau jasa untuk setiap baris" },
         APPROVAL_INVALID_QUANTITY: { status: 422, message: "Jumlah barang harus bilangan bulat positif" },
         APPROVAL_INVALID_PRICE: { status: 422, message: "Harga barang tidak valid" },
+        APPROVAL_CUSTOM_PRICE_FORBIDDEN: { status: 403, message: "Anda tidak memiliki izin mengubah harga custom pada nota ini." },
         APPROVAL_INVALID_RAW_MATERIAL_QUANTITY: { status: 422, message: "Jumlah bahan baku tidak valid" },
         APPROVAL_RAW_MATERIAL_QUANTITY_REQUIRED: { status: 422, message: "Jumlah bahan baku wajib diisi" },
       };

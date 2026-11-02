@@ -125,8 +125,8 @@ describe("CartSidebar quick product references", () => {
       />,
     );
 
-    expect(html).toContain("Harga khusus");
-    expect(html).toContain("Hanya berlaku untuk transaksi ini");
+    expect(html).toContain("Harga custom");
+    expect(html).toContain("Hanya untuk nota ini");
   });
 
   it("lets the cashier choose another product unit directly from the cart", () => {
@@ -222,12 +222,14 @@ describe("CartSidebar quick product references", () => {
       />,
     );
 
-    expect(html).toContain("Ubah Harga Produk");
-    expect(html).toContain("Harga Normal");
-    expect(html).toContain("Harga Agen");
-    expect(html).toContain("Harga Dinas");
-    expect(html).toContain("Harga Khusus");
-    expect(html).toContain("Hanya berlaku untuk transaksi ini");
+    expect(html).toContain("Ubah Harga Nota");
+    expect(html).toContain("Harga custom per satuan");
+    expect(html).toContain("Harga otomatis");
+    expect(html).toContain("Kembalikan harga otomatis");
+    expect(html).toContain("Hanya berlaku untuk nota ini");
+    expect(html).not.toContain("Harga Normal");
+    expect(html).not.toContain("Harga Agen");
+    expect(html).not.toContain("Harga Dinas");
   });
 
   it("warns when a transaction price is below HPP", async () => {
@@ -242,34 +244,39 @@ describe("CartSidebar quick product references", () => {
       />,
     );
 
-    expect(html).toContain("Harga khusus di bawah HPP");
+    expect(html).toContain("Harga custom di bawah HPP");
   });
 
-  it("explains the following default and marks manual member prices in the editor", async () => {
+  it("initializes the editor from the saved custom price and shows the automatic reference", async () => {
     const { PosPriceQuickEditModal } = await import("@/components/inventory/PriceUpdateModal");
     const html = renderToStaticMarkup(
-      <PosPriceQuickEditModal open item={productItem} onClose={vi.fn()} onSave={vi.fn()} />,
+      <PosPriceQuickEditModal
+        open
+        item={{ ...productItem, price: 8000, transactionPrice: 8000, automaticPrice: 9000 }}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
     );
-    expect(html).toContain('aria-label="Pengaturan Harga Agen"');
-    expect(html).toContain('aria-label="Ikuti harga jual untuk Harga Agen"');
-    expect(html).toContain('aria-label="Harga Khusus"');
-    expect(html).toContain("Mengikuti harga jual");
-    expect(html).toContain("diskon atau tambahan");
-    expect(html).toContain("Harga Khusus");
+    expect(html).toContain('value="8000"');
+    expect(html).toMatch(/Harga otomatis[\s\S]*?9\.000/);
+    expect(html).toContain("16.000");
+    expect(html).toContain("Nota berikutnya kembali memakai harga otomatis");
   });
 
-  it("warns when Harga Agen is below HPP", async () => {
+  it("calculates the subtotal from the selected invoice price", async () => {
     const priceModalModule = await import("@/components/inventory/PriceUpdateModal");
     const html = renderToStaticMarkup(
       <priceModalModule.PosPriceQuickEditModal
         open
-        item={{ ...productItem, hargaAgen: 6000 }}
+        item={{ ...productItem, price: 12000, transactionPrice: 12000, quantity: 3 }}
         onClose={vi.fn()}
         onSave={vi.fn()}
       />,
     );
 
-    expect(html).toContain("Harga Agen di bawah HPP");
+    expect(html).toContain("Subtotal item");
+    expect(html).toContain("36.000");
+    expect(html).not.toContain("di bawah HPP");
   });
 
   it("renders the focused POS product modal for all variants", async () => {

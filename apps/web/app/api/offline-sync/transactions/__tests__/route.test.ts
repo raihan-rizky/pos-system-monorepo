@@ -333,7 +333,7 @@ describe("POST /api/offline-sync/transactions", () => {
     expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
   });
 
-  it("reprices an offline manual special price and requests approval when Harga Khusus is disabled", async () => {
+  it("preserves an offline custom invoice price and its marker when Harga Khusus is disabled", async () => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
     const response = await POST(request([offlineTx({
       items: [{ productId: "product-1", name: "Product 1", price: 500, transactionPrice: 500, quantity: 1 }],
@@ -341,10 +341,11 @@ describe("POST /api/offline-sync/transactions", () => {
     })]));
 
     expect((await response.json()).results[0]).toMatchObject({ status: "PENDING_APPROVAL" });
-    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000 });
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 500, pricingRuleId: "transaction-custom-price", originalUnitPrice: 1000 });
   });
 
   it("honors online pricing authorization when a salesperson submits a transaction price", async () => {
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "product");
     requirePermissionMock.mockResolvedValue({ id: "cashier-1", role: "SALES", storeId: "store-main" });
     customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
     const response = await POST(request([offlineTx({
@@ -372,6 +373,19 @@ describe("POST /api/offline-sync/transactions", () => {
     expect(transactionCreateMock.mock.calls[0][0].data.items.create).toEqual([
       expect.objectContaining({ unitPrice: 4000, appliedUnitPrice: 4000, subtotal: 4000 }),
       expect.objectContaining({ unitPrice: 4500, appliedUnitPrice: 4500, subtotal: 4500 }),
+    ]);
+  });
+  it("keeps a custom marker off the other line of the same product", async () => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
+    await POST(request([offlineTx({
+      items: [
+        { productId: "product-1", name: "Product 1", price: 700, transactionPrice: 700, quantity: 1 },
+        { productId: "product-1", name: "Product 1", price: 1000, quantity: 1 },
+      ], amountPaid: 1700, originalSubtotal: 1700, originalTotal: 1700,
+    })]));
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create).toEqual([
+      expect.objectContaining({ unitPrice: 700, pricingRuleId: "transaction-custom-price" }),
+      expect.objectContaining({ unitPrice: 1000, pricingRuleId: null }),
     ]);
   });
   it.each([

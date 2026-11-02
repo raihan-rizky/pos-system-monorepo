@@ -70,6 +70,18 @@ vi.mock("@/features/rbac/helpers/rbac-server", () => ({
 }));
 
 describe("POST /api/transactions/[id]/approve", () => {
+  it.each([
+    ["APPROVAL_CUSTOM_PRICE_FORBIDDEN", 403],
+    ["APPROVAL_INVALID_PRICE", 422],
+  ] as const)("returns a client error for %s before persisting approval", async (code, status) => {
+    buildApprovalQuoteMock.mockRejectedValueOnce(new Error(code));
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approve", {
+      method: "POST", body: JSON.stringify({ quoteFingerprint: "fresh-quote", items: [{ productId: "paper", sourceItemId: "saved-line", quantity: 1, priceIntent: "MANUAL", submittedPrice: 0 }] }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(status);
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
   it.each(["SPANDUK", "PERCETAKAN", "PLAT", "STEMPEL", "PRINT"])(
     "menolak pembayaran persetujuan %s yang melampaui kapasitas nota",
     async (printingSubcategory) => {

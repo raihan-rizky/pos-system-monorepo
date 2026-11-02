@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "pos-transaction-custom-price", date: "2026-11-02", revision: 1,
+    highlight: { title: "Harga custom untuk satu nota", summary: "Ubah harga di keranjang untuk nota ini tanpa mengubah harga produk." },
+    title: "Ubah harga khusus untuk satu nota.",
+    summary: "Atur harga per satuan lewat dialog baru dengan acuan harga otomatis dan subtotal langsung. Badge Harga custom memudahkan pemeriksaan di keranjang, pembayaran, dan detail riwayat.",
+    kind: "improvement", area: "Kasir", href: "/pos", visual: "units",
+    screenshot: { src: "/images/changelog/harga-custom-nota.png", alt: "Dialog Ubah Harga Nota menampilkan harga custom Rp12.000, acuan harga otomatis Rp13.500, subtotal, dan tombol Kembalikan harga otomatis." },
+    steps: [
+      { title: "Buka harga di keranjang", detail: "Tambahkan produk di Kasir, lalu klik Harga pada kartu keranjang dengan akun yang memiliki izin edit produk." },
+      { title: "Terapkan harga nota", detail: "Isi Harga custom per satuan, periksa pembulatan dan subtotal, lalu klik Terapkan harga. Harga produk tetap sama meskipun Harga Khusus toko nonaktif." },
+      { title: "Periksa atau kembalikan", detail: "Lihat badge Harga custom di keranjang, pembayaran, dan detail riwayat. Untuk menghapusnya dari keranjang, buka Harga lalu Kembalikan harga otomatis; nota berikutnya memakai harga otomatis." },
+    ],
+  },
+  {
     id: "inventory-automatic-name-deduplication", date: "2026-11-02", revision: 1,
     highlight: { title: "Inventaris tanpa hitung ganda", summary: "Produk bernama sama otomatis dihitung sekali dalam nilai inventaris." },
     title: "Produk duplikat dinilai sekali.",

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useLayoutEffect, useRef, useState } from "react";
+import { TransactionCustomPriceSummary } from "@/features/pos-checkout/components/TransactionCustomPriceSummary";
 import { DraftReceiptModal } from "./DraftReceiptModal";
 import { InvoicePrintModal } from "./InvoicePrintModal";
 import { SuratJalanBundleButton } from "@/features/surat-jalan/components/SuratJalanBundleButton";
@@ -146,6 +147,7 @@ export function ReceiptModal({
   return (
     <Modal open={open} onClose={onClose} title={modalTitle} size="5xl">
       <div className="space-y-6">
+        <TransactionCustomPriceSummary items={items} />
         <TaxField tax={tax} />
         {/* ── Fix #1 & #2: print CSS is now a static import ─────── */}
         <div className="w-full overflow-x-auto pb-4">

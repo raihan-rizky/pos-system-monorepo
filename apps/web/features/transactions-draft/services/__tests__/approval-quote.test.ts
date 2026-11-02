@@ -7,6 +7,71 @@ import {
 } from "../approval-quote";
 
 describe("buildApprovalFingerprint", () => {
+  it.each([false, true])("authorizes changes to a saved custom price with product permission %s", async canEditTransactionPrice => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    client.storeSettings.findUnique.mockResolvedValue({ specialPricingEnabled: false });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [{
+      id: "custom-line", productId: "paper", printingServiceId: null, discount: 0,
+      unitPrice: 75, originalUnitPrice: 100, pricingRuleId: "transaction-custom-price",
+    }] } as never);
+    const input = { storeId: "store-1", transactionId: "tx-1", actorRole: "CASHIER", canViewCostPrice: false, canEditTransactionPrice,
+      items: [{ sourceItemId: "custom-line", productId: "paper", quantity: 1, priceIntent: "MANUAL" as const, submittedPrice: 60 }],
+    };
+    if (canEditTransactionPrice) {
+      const quote = await buildApprovalQuote(client as never, input);
+      expect(quote.items[0].appliedUnitPrice).toBe(60);
+    } else {
+      await expect(buildApprovalQuote(client as never, input)).rejects.toThrow("APPROVAL_CUSTOM_PRICE_FORBIDDEN");
+      const unchanged = await buildApprovalQuote(client as never, { ...input, items: [{ ...input.items[0], submittedPrice: 75 }] });
+      expect(unchanged.items[0].appliedUnitPrice).toBe(75);
+    }
+  });
+
+  it("approves a saved custom price rounded to zero", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [{
+      id: "custom-line", productId: "paper", printingServiceId: null, discount: 0,
+      unitPrice: 0, originalUnitPrice: 100, pricingRuleId: "transaction-custom-price",
+    }] } as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "CASHIER", canViewCostPrice: false,
+      items: [{ sourceItemId: "custom-line", productId: "paper", quantity: 1 }],
+    });
+    expect(quote.items[0]).toMatchObject({ appliedUnitPrice: 0, subtotal: 0, appliedPricing: { ruleId: "transaction-custom-price" } });
+  });
+
+  it("rejects a new manual zero price on a previously positive custom line", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [{
+      id: "custom-line", productId: "paper", printingServiceId: null, discount: 0,
+      unitPrice: 75, originalUnitPrice: 100, pricingRuleId: "transaction-custom-price",
+    }] } as never);
+    const input = { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true, canEditTransactionPrice: true,
+      items: [{ sourceItemId: "custom-line", productId: "paper", quantity: 1, priceIntent: "MANUAL" as const, submittedPrice: 0 }],
+    };
+    await expect(buildApprovalQuote(client as never, input)).rejects.toThrow("APPROVAL_INVALID_PRICE");
+  });
+
+  it("retains the saved custom invoice price during approval with Harga Khusus off", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    client.storeSettings.findUnique.mockResolvedValue({ specialPricingEnabled: false });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, items: [{
+      id: "custom-line", productId: "paper", printingServiceId: null, discount: 0,
+      unitPrice: 75, originalUnitPrice: 100, pricingRuleId: "transaction-custom-price",
+    }] } as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ sourceItemId: "custom-line", productId: "paper", quantity: 2 }],
+    });
+    expect(quote.items[0]).toMatchObject({ appliedUnitPrice: 75, subtotal: 150, appliedPricing: { ruleId: "transaction-custom-price" } });
+    const reset = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true,
+      items: [{ sourceItemId: "custom-line", productId: "paper", quantity: 2, priceIntent: "AUTOMATIC" }],
+    });
+    expect(reset.items[0]).toMatchObject({ appliedUnitPrice: 100, appliedPricing: null });
+  });
   beforeEach(() => { roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 }); });
   it("keeps the product Agen price when Harga Khusus and transaction overrides are disabled", async () => {
     const client = makeQuoteClient({ customerType: "AGEN", rules: [{ id: "r", categoryId: "paper-category", category: { name: "Paper" }, customerType: "ALL", mode: "FLAT_DISCOUNT", value: 10, isActive: true }] });

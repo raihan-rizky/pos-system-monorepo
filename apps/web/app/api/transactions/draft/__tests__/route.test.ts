@@ -58,7 +58,7 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions/draft", () => {
-  it("ignores a manual special price in a draft when Harga Khusus is disabled", async () => {
+  it("preserves a custom invoice price and its marker in a draft while Harga Khusus is disabled", async () => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
     const { POST } = await import("../route");
     const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
@@ -66,7 +66,7 @@ describe("POST /api/transactions/draft", () => {
     }) }));
 
     expect(response.status).toBe(201);
-    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 50000 });
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 20000, pricingRuleId: "transaction-custom-price", originalUnitPrice: 50000 });
   });
 
   it.each([
@@ -750,7 +750,8 @@ describe("POST /api/transactions/draft", () => {
     expect(createArgs.data.items.create[0]).toEqual(
       expect.objectContaining({
         unitPrice: 80000,
-        pricingRuleId: "harga-agen",
+        pricingRuleId: "transaction-custom-price",
+        originalUnitPrice: 95000,
         appliedUnitPrice: 80000,
       }),
     );
@@ -822,7 +823,8 @@ describe("POST /api/transactions/draft", () => {
     expect(createArgs.data.items.create[0]).toEqual(
       expect.objectContaining({
         unitPrice: 80000,
-        pricingRuleId: "harga-agen",
+        pricingRuleId: "transaction-custom-price",
+        originalUnitPrice: 95000,
         appliedUnitPrice: 80000,
       }),
     );

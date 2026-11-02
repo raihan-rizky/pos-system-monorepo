@@ -1,4 +1,5 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
+import { resolveTransactionCustomPrice } from "@/features/pos-checkout/helpers/transaction-custom-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -39,6 +40,7 @@ import { TRANSACTION_HISTORY_PAYMENT_METHODS } from "@/features/transaction-hist
 import {
   priceProductForCustomerType,
   resolveCustomPricedLine,
+  canEditCustomPriceForCustomer,
   type AppliedCategoryPricing,
   type CategoryPricingRule,
   CUSTOMER_TYPES,
@@ -74,6 +76,7 @@ const productTransactionItemSchema = z.object({
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   price: z.number().min(0).optional(),
+  transactionPrice: z.number().positive().max(9_999_999_999.99).optional().nullable(),
   quantity: z.number().int().min(1),
   discount: z.number().min(0).multipleOf(0.01).optional().default(0),
 });
@@ -871,6 +874,11 @@ export async function POST(request: Request) {
 
     const roundingSettings = await getPriceRoundingSettings();
     const specialPricingEnabled = await getSpecialPricingEnabled();
+    if (items.some(item => item.lineType === "PRODUCT" && item.transactionPrice != null) &&
+      !canRolePerformAction(user.role as Role, "product", "update", permissions) &&
+      !(specialPricingEnabled && canEditCustomPriceForCustomer(user.role, checkoutCustomerType))) {
+      return NextResponse.json({ message: "Akun Anda belum memiliki izin mengubah harga nota." }, { status: 403 });
+    }
     if (priceRoundingSettings && (
       priceRoundingSettings.enabled !== roundingSettings.enabled ||
       priceRoundingSettings.increment !== roundingSettings.increment ||
@@ -941,12 +949,19 @@ export async function POST(request: Request) {
             specialPricingEnabled,
           );
           const roundedAutomatic = roundSellingPriceLine(priced, roundingSettings);
-          const resolved = roundSellingPriceLine(resolveCustomPricedLine({
+          const legacyResolved = resolveCustomPricedLine({
             pricedLine: priced,
             submittedPrice: item.price === roundedAutomatic.unitPrice ? undefined : item.price,
             role: user.role,
             customerType: checkoutCustomerType,
             specialPricingEnabled,
+          });
+          const resolved = roundSellingPriceLine(resolveTransactionCustomPrice({
+            pricedLine: item.transactionPrice == null ? legacyResolved : roundedAutomatic,
+            transactionPrice: item.transactionPrice,
+            customerType: checkoutCustomerType,
+            categoryId: product.categoryId,
+            categoryName: product.category.name,
           }), roundingSettings);
           return {
             price: resolved.unitPrice,

@@ -17,17 +17,17 @@ Harga yang benar-benar berasal dari aturan ditandai **hijau** dan badge **Harga 
 
 Aturan **Modal + rupiah** atau **Modal + persen** memakai modal satuan terkecil terbaru secara langsung. Modal **Rp700/pcs + Rp4.000** untuk satuan **Rim** menghasilkan **Rp4.700/rim**, sehingga dua rim berjumlah **Rp9.400**; tambahan **10%** menghasilkan **Rp770/rim**. Modal tidak dikalikan isi rim. Aturan hanya berlaku untuk satuan dan tipe pelanggan yang ditentukan Owner. Jika sumber modal belum tersedia atau tidak valid, sistem memakai harga member atau normal.
 
-Harga manual untuk transaksi tetap berlaku sampai override dihapus. Penandanya adalah **Hanya berlaku untuk transaksi ini**, tanpa badge aturan otomatis. Rumus harga tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
+Harga custom untuk satu nota tetap berlaku sampai dikembalikan ke harga otomatis. Badge amber **Harga custom** tampil di keranjang, pembayaran, dan detail riwayat; penanda tidak dicetak pada nota atau PDF. Harga tersimpan pada draft dan transaksi, tanpa mengubah harga produk. Nota berikutnya memakai harga otomatis. Rumus harga tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
 
 Aturan **Modal unit + persen − persen** memakai modal satuan yang dipilih. Rumusnya `modal × (1 + tambahan/100) × (1 − potongan/100)`: modal Rp12.000/dus +10% lalu −5% menghasilkan Rp12.540/dus. Potongan dihitung setelah tambahan, dan harga memakai modal unit terbaru. Jika modal unit belum tersedia, harga member atau normal digunakan.
 
 ## Edit Cepat di keranjang
 
-- Pengguna dengan permission **edit produk** dapat mengaktifkan ikon **Edit Cepat** pada header keranjang.
+- Pengguna dengan izin **edit produk** langsung melihat tombol **Edit** dan **Harga** pada kartu keranjang.
 - Setiap produk menampilkan referensi **Harga Normal**, **Harga Agen**, dan **Harga Dinas**.
 - Ikon produk membuka modal untuk mengubah Nama, Deskripsi produk, Kategori, dan Merek seluruh varian dalam grup. Deskripsi opsional; kosongkan lalu simpan untuk menghapusnya.
-- Ikon harga membuka modal **Ubah Harga Produk**. Harga Normal/Agen/Dinas mengubah master varian terpilih, sedangkan **Harga Khusus** diberi keterangan **Hanya berlaku untuk transaksi ini**.
-- Harga Khusus transaksi menang atas harga otomatis sampai override dihapus.
+- Klik **Harga** untuk membuka **Ubah Harga Nota**. Isi **Harga custom per satuan**, periksa acuan harga otomatis, pembulatan dan subtotal, lalu klik **Terapkan harga**. Fitur ini tersedia meskipun Harga Khusus toko nonaktif.
+- Harga custom menang atas harga otomatis pada nota ini. Buka kembali **Harga**, lalu klik **Kembalikan harga otomatis** untuk memakai harga otomatis terbaru. Perubahan harga produk permanen dilakukan melalui halaman **Produk**.
 
 Deskripsi tampil di bawah nama pada kartu POS, maksimal dua baris, mengikuti varian terpilih. Arahkan kursor, fokuskan lewat keyboard, atau ketuk deskripsi untuk membaca teks lengkap dalam balon. Tekan Escape atau ketuk di luar untuk menutup. Interaksi deskripsi tidak menambahkan barang ke keranjang.
 

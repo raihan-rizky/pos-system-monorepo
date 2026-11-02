@@ -16,6 +16,7 @@ const harness = vi.hoisted(() => ({
   cart: null as any,
   rounding: { enabled: true, increment: 500, threshold: 50 },
   mutateTransaction: vi.fn(),
+  mutateProduct: vi.fn(),
   queueTransaction: vi.fn(),
   offlineRows: new Map<string, any>(),
   userId: "cashier-1" as string | null,
@@ -62,7 +63,7 @@ vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({ Cu
 vi.mock("@/hooks/useProducts", () => ({
   useProductsPage: () => ({ data: { data: harness.catalog }, isLoading: false, isFetching: false }),
   useCategories: () => ({ data: [] }),
-  useUpdateProduct: () => ({}),
+  useUpdateProduct: () => ({ mutateAsync: harness.mutateProduct }),
   useUpdateProductGroupMetadata: () => ({}),
 }));
 vi.mock("@/hooks/useCart", () => ({ useCart: () => ({ ...harness.cart }) }));
@@ -113,12 +114,14 @@ function render() {
     customer: findProps(tree, element => element.type === CustomerCheckoutSelect),
     payment: findProps(tree, element => typeof element.props.onCustomerSelectionChange === "function" && "initialCustomerSelection" in element.props),
     search: findProps(tree, element => element.type === "input" && typeof element.props.onChange === "function"),
+    priceEditor: findProps(tree, element => "item" in element.props && "roundingSettings" in element.props && typeof element.props.onSave === "function"),
   };
 }
 
 describe("POS pricing across unrelated renders", () => {
   beforeEach(() => {
     harness.mutateTransaction.mockReset();
+    harness.mutateProduct.mockReset();
     harness.queueTransaction.mockReset();
     harness.offlineRows.clear();
     harness.userId = "cashier-1";
@@ -137,10 +140,21 @@ describe("POS pricing across unrelated renders", () => {
       unit: "pcs", stock: 10, price: 2000, catalogPrice: 2000, quantity: 1,
       categoryId: "cat-paper", categoryName: "Kertas",
     };
-    harness.cart = { items: [item], totalItems: 1, subtotal: 2000, hasLoadedStorage: true, addItem: vi.fn(), clearCart: vi.fn() };
+    harness.cart = { items: [item], totalItems: 1, subtotal: 2000, hasLoadedStorage: true, addItem: vi.fn(), clearCart: vi.fn(), updateTransactionPrice: vi.fn() };
   });
 
   afterEach(() => vi.unstubAllGlobals());
+
+  it("saves quick prices only to the current cart and ignores legacy master updates", async () => {
+    render().cart.onEditPrice(harness.cart.items[0]);
+    const editor = render().priceEditor;
+    expect(editor.item.cartLineId).toBe("line-paper");
+    await editor.onSave({ transactionPrice: 1500, masterUpdate: { price: 1500, hargaAgen: null, hargaDinas: null } });
+    expect(harness.cart.updateTransactionPrice).toHaveBeenLastCalledWith("line-paper", 1500);
+    expect(harness.mutateProduct).not.toHaveBeenCalled();
+    await editor.onSave({ transactionPrice: null });
+    expect(harness.cart.updateTransactionPrice).toHaveBeenLastCalledWith("line-paper", null);
+  });
 
   it("uses the same checkout ID when an online response is lost and the sale is queued", async () => {
     render().cart.onCheckout();
@@ -206,13 +220,6 @@ describe("POS pricing across unrelated renders", () => {
 
     expect(harness.queueTransaction).not.toHaveBeenCalled();
     expect(harness.cart.clearCart).not.toHaveBeenCalled();
-  });
-
-  it("reprices the cart when the rounding policy changes", () => {
-    harness.catalog = [{ ...harness.catalog[0], price: 4050 }];
-    expect(render().cart.subtotal).toBe(4500);
-    harness.rounding = { enabled: false, increment: 500, threshold: 50 };
-    expect(render().cart.subtotal).toBe(4050);
   });
 
   it("reprices the cart when the rounding policy changes", () => {

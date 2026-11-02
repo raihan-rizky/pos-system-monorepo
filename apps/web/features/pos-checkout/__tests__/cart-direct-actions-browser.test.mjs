@@ -157,7 +157,7 @@ try {
     await dialog.waitFor({ state: "detached" });
     assert.equal(await committed.textContent(), "", "removed items cannot be confirmed from a stale popup");
     await page.evaluate(() => window.setCartItems([{cartLineId:'PRODUCT:long',lineType:'PRODUCT',productId:'long',name:'Produk contoh dengan nama yang sangat panjang untuk menguji ruang kartu keranjang',price:999999999,catalogPrice:999999999,hargaAgen:999999998,hargaDinas:null,quantity:1,unit:'Bh',stock:10,transactionPrice:999999999}]));
-    await page.getByText("Harga khusus", { exact: true }).waitFor();
+    await page.getByText("Harga custom", { exact: true }).waitFor();
     for (const width of [320, 360, 390]) {
       await page.setViewportSize({ width, height: 900 });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "no horizontal overflow at " + width);

@@ -1,4 +1,5 @@
 import { roundSellingPriceLine, type PriceRoundingResult } from "@/features/product-price-rounding/rounding";
+import { resolveTransactionCustomPrice, TRANSACTION_CUSTOM_PRICE_RULE_ID } from "@/features/pos-checkout/helpers/transaction-custom-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { createHash } from "node:crypto";
@@ -7,6 +8,7 @@ import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-dis
 import { calculateTransactionTax, getTransactionTaxMethod } from "@/features/transaction-tax/helpers/tax-calculation";
 import {
   priceProductForCustomerType,
+  canEditCustomPriceForCustomer,
   resolveCustomPricedLine,
   type CategoryCustomerPricingMode,
   type CategoryPricingRule,
@@ -32,6 +34,7 @@ export interface ApprovalQuoteInput {
   transactionId: string;
   actorRole: string;
   canViewCostPrice: boolean;
+  canEditTransactionPrice?: boolean;
   items: ApprovalItemInput[];
 }
 
@@ -154,7 +157,7 @@ export async function buildApprovalQuote(
       tax: true,
       taxRate: true,
       taxMethod: true,
-      items: { select: { id: true, productId: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true, discount: true } },
+      items: { select: { id: true, productId: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true, discount: true, pricingRuleId: true, unitPrice: true, originalUnitPrice: true } },
     },
   });
   if (!transaction) throw new Error("APPROVAL_TRANSACTION_NOT_FOUND");
@@ -341,7 +344,19 @@ export async function buildApprovalQuote(
         specialPricingEnabled,
       );
       const roundedAutomatic = roundSellingPriceLine(automatic, roundingSettings);
-      const applied = roundSellingPriceLine(resolveCustomPricedLine({
+      const sourcePrice = transaction.items.find(item => item.id === line.sourceItemId);
+      const hasSavedCustomPrice = sourcePrice?.pricingRuleId === TRANSACTION_CUSTOM_PRICE_RULE_ID && line.priceIntent !== "AUTOMATIC";
+      const changesSavedCustomPrice = hasSavedCustomPrice && line.priceIntent === "MANUAL" &&
+        line.submittedPrice != null && line.submittedPrice !== Number(sourcePrice.unitPrice);
+      if (changesSavedCustomPrice && !input.canEditTransactionPrice &&
+          !(specialPricingEnabled && canEditCustomPriceForCustomer(input.actorRole, customerType))) {
+        throw new Error("APPROVAL_CUSTOM_PRICE_FORBIDDEN");
+      }
+      if (changesSavedCustomPrice && line.submittedPrice! <= 0) throw new Error("APPROVAL_INVALID_PRICE");
+      const savedCustomPrice = hasSavedCustomPrice
+        ? changesSavedCustomPrice ? line.submittedPrice : Number(sourcePrice.unitPrice)
+        : null;
+      const legacyPrice = resolveCustomPricedLine({
         pricedLine: automatic,
         submittedPrice: line.priceIntent === "AUTOMATIC"
           ? undefined
@@ -351,6 +366,17 @@ export async function buildApprovalQuote(
         role: input.actorRole,
         customerType,
         specialPricingEnabled,
+      });
+      const applied = roundSellingPriceLine(resolveTransactionCustomPrice({
+        pricedLine: savedCustomPrice == null ? legacyPrice : {
+          ...roundedAutomatic,
+          unitPrice: Number(sourcePrice?.originalUnitPrice ?? roundedAutomatic.unitPrice),
+        },
+        transactionPrice: savedCustomPrice,
+        allowSavedZeroPrice: hasSavedCustomPrice && !changesSavedCustomPrice,
+        customerType,
+        categoryId: product.categoryId,
+        categoryName: product.category.name,
       }), roundingSettings);
       const appliedPricing = applied.appliedPricing;
       const references = {

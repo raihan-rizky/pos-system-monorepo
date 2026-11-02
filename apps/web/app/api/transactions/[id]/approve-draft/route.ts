@@ -170,6 +170,7 @@ export async function POST(
       transactionId: id,
       actorRole: user.role,
       canViewCostPrice,
+      canEditTransactionPrice: canRolePerformAction(user.role, "product", "update", permissions),
       items: approvalItems,
     });
     if (
@@ -266,6 +267,7 @@ export async function POST(
               transactionId: id,
               actorRole: user.role,
               canViewCostPrice,
+              canEditTransactionPrice: canRolePerformAction(user.role, "product", "update", permissions),
               items: approvalItems,
             });
             if (quoteForApproval.fingerprint !== approvalQuote.fingerprint) {
@@ -459,6 +461,10 @@ export async function POST(
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof Error && error.message === "APPROVAL_CUSTOM_PRICE_FORBIDDEN") {
+      return NextResponse.json({ message: "Anda tidak memiliki izin mengubah harga custom pada nota ini." }, { status: 403 });
+    }
 
     if (error instanceof ApprovalQuoteChangedError) {
       const { items, ...quoteWithoutCost } = error.quote;

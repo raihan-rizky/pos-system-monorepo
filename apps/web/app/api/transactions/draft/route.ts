@@ -1,4 +1,5 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
+import { resolveTransactionCustomPrice } from "@/features/pos-checkout/helpers/transaction-custom-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -26,6 +27,7 @@ import { buildDraftNumber, nextDraftSequence, normalizeDraftNumberInput } from "
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
+  canEditCustomPriceForCustomer,
   type CategoryPricingRule,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
@@ -279,6 +281,11 @@ export async function POST(request: Request) {
 
     const roundingSettings = await getPriceRoundingSettings();
     const specialPricingEnabled = await getSpecialPricingEnabled();
+    if (items.some(item => item.transactionPrice != null) &&
+      !canRolePerformAction(user.role as Role, "product", "update", permissions) &&
+      !(specialPricingEnabled && canEditCustomPriceForCustomer(user.role, checkoutCustomerType))) {
+      return NextResponse.json({ message: "Akun Anda belum memiliki izin mengubah harga nota." }, { status: 403 });
+    }
     const serverItems = items.map((item) => {
       const product = productById.get(item.productId);
       if (!product) throw new Error("PRODUCT_NOT_FOUND");
@@ -302,9 +309,13 @@ export async function POST(request: Request) {
         pricingPreference,
         specialPricingEnabled,
       );
-      const rounded = roundSellingPriceLine({ ...automaticPrice,
-        unitPrice: specialPricingEnabled ? item.transactionPrice ?? automaticPrice.unitPrice : automaticPrice.unitPrice,
-      }, roundingSettings);
+      const rounded = roundSellingPriceLine(resolveTransactionCustomPrice({
+        pricedLine: roundSellingPriceLine(automaticPrice, roundingSettings),
+        transactionPrice: item.transactionPrice,
+        customerType: checkoutCustomerType,
+        categoryId: product.categoryId,
+        categoryName: product.category.name,
+      }), roundingSettings);
       const price = rounded.unitPrice;
       const appliedPricing = rounded.appliedPricing;
 

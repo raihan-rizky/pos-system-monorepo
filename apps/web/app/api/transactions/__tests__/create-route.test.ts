@@ -86,22 +86,52 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
-  it.each(["AGEN", "PEMERINTAH"])("uses the product member price for %s when Harga Khusus is disabled", async (customerType) => {
-    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
-    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: customerType });
-    const product = (await productFindManyMock())[0];
-    productFindManyMock.mockResolvedValue([{ ...product, hargaAgen: 700, hargaDinas: 600 }]);
-    pricingRuleFindManyMock.mockResolvedValue([{ id: "rule-1", categoryId: "cat1", category: { name: "CAT1" }, customerType: "ALL", mode: "FLAT_DISCOUNT", value: 100, isActive: true }]);
+  it("denies a custom invoice price without permission to edit prices", async () => {
+    const { canRolePerformAction } = await import("@/features/rbac/helpers/rbac-core");
+    vi.mocked(canRolePerformAction).mockImplementation((_role, resource) => resource !== "product");
+    try {
+      const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+        paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1, price: 800, transactionPrice: 800 }],
+      }) }));
+      expect(response.status).toBe(403);
+      expect(transactionCreateMock).not.toHaveBeenCalled();
+    } finally { vi.mocked(canRolePerformAction).mockReturnValue(true); }
+  });
+  it.each([false, true])("saves a per-invoice custom price for a general customer with Harga Khusus %s", async enabled => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: enabled });
     requireRoleMock.mockResolvedValue({ id: "u1", role: "OWNER", storeId: "store-1", name: "Owner" });
     applyProductStockDeltasMock.mockResolvedValue([]);
-
     const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
-      customerId: "customer-1", paymentMethod: "CASH", amountPaid: 1000,
-      items: [{ productId: "p1", quantity: 1, price: 400 }],
+      paymentMethod: "CASH", amountPaid: 2000,
+      items: [{ productId: "p1", quantity: 2, price: 800, transactionPrice: 800 }],
     }) }));
-
     expect(response.status).toBe(201);
-    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: customerType === "AGEN" ? 700 : 600 });
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: 1600, total: 1600,
+      items: { create: [expect.objectContaining({ unitPrice: 800, pricingRuleId: "transaction-custom-price", originalUnitPrice: 1000, appliedUnitPrice: 800 })] },
+    });
+    transactionCreateMock.mockClear();
+    await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 2000, items: [{ productId: "p1", quantity: 1 }],
+    }) }));
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000, pricingRuleId: null });
+  });
+
+  it("keeps the custom marker when the explicit price equals the automatic price", async () => {
+    requireRoleMock.mockResolvedValue({ id: "u1", role: "OWNER", storeId: "store-1", name: "Owner" });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1, price: 1000, transactionPrice: 1000 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000, pricingRuleId: "transaction-custom-price" });
+  });
+
+  it.each([0, -1])("rejects an invalid explicit invoice price %s", async transactionPrice => {
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1, transactionPrice }],
+    }) }));
+    expect(response.status).toBe(422);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
   });
 
   it("holds a mixed offline sale for approval when a product price changes", async () => {

@@ -120,6 +120,7 @@ export async function POST(
 
     const hasApprovalItems = Boolean(parsed.data.items && parsed.data.quoteFingerprint);
     let approvalQuote: ApprovalQuote | null = null;
+    let canEditTransactionPrice = false;
     if (hasApprovalItems) {
       const permissions =
         process.env.NODE_ENV !== "production" && process.env.E2E_AUTH_BYPASS === "1"
@@ -131,11 +132,13 @@ export async function POST(
         "read",
         permissions,
       );
+      canEditTransactionPrice = canRolePerformAction(user.role, "product", "update", permissions);
       approvalQuote = await buildApprovalQuote(db as never, {
         storeId,
         transactionId: id,
         actorRole: user.role,
         canViewCostPrice,
+        canEditTransactionPrice,
         items: parsed.data.items as ApprovalItemInput[],
       });
       if (approvalQuote.fingerprint !== parsed.data.quoteFingerprint) {
@@ -265,6 +268,7 @@ export async function POST(
           transactionId: id,
           actorRole: user.role,
           canViewCostPrice: approvalQuote?.items.some((item) => item.modal !== null) ?? false,
+          canEditTransactionPrice,
           items: parsed.data.items as ApprovalItemInput[],
         });
         if (quoteForApproval.fingerprint !== parsed.data.quoteFingerprint) {
@@ -487,6 +491,13 @@ export async function POST(
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
+
+    if (error instanceof Error && error.message === "APPROVAL_CUSTOM_PRICE_FORBIDDEN") {
+      return NextResponse.json({ message: "Anda tidak memiliki izin mengubah harga custom pada nota ini." }, { status: 403 });
+    }
+    if (error instanceof Error && error.message === "APPROVAL_INVALID_PRICE") {
+      return NextResponse.json({ message: "Harga barang tidak valid." }, { status: 422 });
+    }
 
     if (error instanceof PrintingReceiptStockChangedError) {
       return NextResponse.json({ message: error.message }, { status: 409 });

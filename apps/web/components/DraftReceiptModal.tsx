@@ -14,6 +14,7 @@ import { DraftNumberField } from "@/features/transactions-draft/components/Draft
 import { useRole } from "@/components/providers/RoleProvider";
 import "./draft-receipt-print.css";
 import { useReceiptTax } from "@/features/transaction-tax/hooks/useReceiptTax";
+import { TransactionCustomPriceSummary } from "@/features/pos-checkout/components/TransactionCustomPriceSummary";
 import { TaxField } from "@/features/transaction-tax/components/TaxField";
 import { useDocumentItemNames } from "@/features/transactions-draft/hooks/useDocumentItemNames";
 
@@ -175,6 +176,7 @@ export function DraftReceiptModal({
         }
       `}</style>
       <div className="space-y-4">
+        <TransactionCustomPriceSummary items={transaction.items} />
         {/* ═══ EDITABLE FIELDS (not printed) ═══ */}
         <div className="print:hidden bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
           <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">

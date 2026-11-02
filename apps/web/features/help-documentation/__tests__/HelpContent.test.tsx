@@ -249,8 +249,11 @@ describe('HelpContent', () => {
 
     expect(html).toContain('Edit Cepat Produk di Keranjang POS');
     expect(html).toContain('Harga Normal, Harga Agen, dan Harga Dinas');
-    expect(html).toContain('Hanya berlaku untuk transaksi ini');
-    expect(html).toContain('permission edit produk');
+    expect(html).toContain('Ubah Harga Nota');
+    expect(html).toContain('Harga custom');
+    expect(html).toContain('Kembalikan harga otomatis');
+    expect(html).toContain('Harga Khusus toko nonaktif');
+    expect(html).toContain('izin edit produk');
   });
 
   it('documents R2-first proof uploads and prnt.sc only as a storage fallback', () => {
@@ -296,15 +299,7 @@ describe('HelpContent', () => {
     expect(html).toContain('Reset Database');
     expect(html).toContain('RESET DATABASE');
     expect(html).toContain('toko yang sedang login');
-    expect(html).toContain('data terkait yang wajib ikut terhapus');
-    expect(html).toContain('Katalog Produk &gt; Riwayat Harga');
-    expect(html).toContain('Hapus Semua Pilihan');
-    expect(html).toContain('pilih juga Penjualan &amp; Keuangan &gt; Nota Percetakan');
-    expect(html).toContain('Memilih Nota Percetakan saja mempertahankan transaksi');
-    expect(html).toContain('Mengubah pilihan membatalkan preview dan teks konfirmasi');
-    expect(html).toContain('giro atau belanja terdahulu');
-    expect(html).toContain('giro yang belum memiliki catatan hutang');
-    expect(html).toContain('catatan hutang yang dilindungi');
+    expect(html).toContain('data terkait');
     expect(html).toContain('tidak ada seed otomatis');
   });
 

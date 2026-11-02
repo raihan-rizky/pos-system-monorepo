@@ -83,6 +83,24 @@ describe("GET /api/transactions/[id]/approval-quote", () => {
     expect(buildApprovalQuoteMock).not.toHaveBeenCalled();
   });
 
+  it("returns 403 when a saved custom amount is changed without price-edit permission", async () => {
+    buildApprovalQuoteMock.mockRejectedValueOnce(new Error("APPROVAL_CUSTOM_PRICE_FORBIDDEN"));
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approval-quote", {
+      method: "POST", body: JSON.stringify({ type: "draft", items: [{ productId: "paper", sourceItemId: "saved-line", quantity: 1, priceIntent: "MANUAL", submittedPrice: 500 }] }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(403);
+    expect(buildApprovalQuoteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ canEditTransactionPrice: false }));
+  });
+
+  it("forwards product-update capability separately from cost visibility", async () => {
+    canRolePerformActionMock.mockImplementation((_role, resource, action) => resource === "product" && action === "update");
+    const response = await POST(new Request("http://localhost/api/transactions/tx-1/approval-quote", {
+      method: "POST", body: JSON.stringify({ type: "draft", items: [{ productId: "paper", quantity: 1 }] }),
+    }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(200);
+    expect(buildApprovalQuoteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ canEditTransactionPrice: true, canViewCostPrice: false }));
+  });
+
   it("requires draft approval permission and does not expose modal cost by default", async () => {
     const response = await POST(
       new Request("http://localhost/api/transactions/tx-1/approval-quote", {

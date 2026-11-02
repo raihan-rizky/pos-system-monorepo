@@ -6,6 +6,7 @@ import { Banknote, Smartphone, CreditCard, Landmark, CheckCircle2, Coins, FileCl
 import { Modal, Button, Input } from "@pos/ui";
 import { formatRupiah } from "@/lib/utils";
 import type { CartItem } from "@/hooks/useCart";
+import { TransactionCustomPriceBadge } from "@/features/pos-checkout/components/TransactionCustomPriceBadge";
 import { useCreateCustomer } from "@/hooks/useCustomers";
 import { useRole } from "@/components/providers/RoleProvider";
 import { useSalespersons } from "@/hooks/useSalespersons";
@@ -599,8 +600,8 @@ export function PaymentModal({
               )}
               {item.lineType === "PRODUCT" && item.transactionPrice != null && (
                 <div className="mt-1 text-[11px] text-brand-800">
-                  <span className="font-semibold">Harga khusus transaksi</span>
-                  <span> — Hanya berlaku untuk transaksi ini.</span>
+                  <TransactionCustomPriceBadge />
+                  <span className="ml-1 text-surface-500">Hanya untuk nota ini.</span>
                 </div>
               )}
               {item.lineType === "PRODUCT" && item.appliedPricing && (

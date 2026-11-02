@@ -12,6 +12,7 @@ import { CartStockWarningDialog } from "@/features/pos-checkout/components/CartS
 import styles from "./CartSidebar.module.css";
 import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
+import { TransactionCustomPriceBadge } from "@/features/pos-checkout/components/TransactionCustomPriceBadge";
 import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
 import { roundSellingPrice, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 
@@ -213,10 +214,8 @@ export function CartSidebar({
                   })()}
                   {item.lineType === "PRODUCT" && item.transactionPrice != null && (
                     <div className="mt-1 text-[10px] font-medium text-brand-700">
-                      <span className="rounded-full bg-brand-100 px-2 py-0.5 font-bold">
-                        Harga khusus
-                      </span>
-                      <span className="ml-1">Hanya berlaku untuk transaksi ini</span>
+                      <TransactionCustomPriceBadge />
+                      <span className="ml-1 text-surface-500">Hanya untuk nota ini</span>
                     </div>
                   )}
                   {item.lineType === "PRODUCT" && <PriceRoundingBadge rounding={item.priceRounding} />}
@@ -246,7 +245,7 @@ export function CartSidebar({
                       </div>}
                     </dl>
                   )}
-                  {item.lineType === "PRODUCT" && !specialPricingEnabled && (
+                  {item.lineType === "PRODUCT" && !specialPricingEnabled && item.transactionPrice == null && (
                     <p className="mt-1 text-[10px] text-surface-500">Harga Khusus nonaktif; transaksi memakai harga normal.</p>
                   )}
                   <p className={`text-sm font-bold mt-1 ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-brand-600"}`}>

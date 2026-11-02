@@ -34,7 +34,8 @@ const browser = await chromium.launch({channel:"chrome",headless:true});
 try {
   for (const [width, scenario] of [[375, "fractional-stock"], [375, "default"], [1280, "default"], [375, "legacy-zero"], [375, "legacy-override"], [375, "staff"], [375, "validation-cancel"]]) {
     const legacyZero = scenario === "legacy-zero";
-    for (const mode of ["catalog", "pos", "edit", "legacy"]) {
+    // POS now edits this invoice only; its apply/reset/validation flow is covered by custom-price-browser.test.mjs.
+    for (const mode of ["catalog", "edit", "legacy"]) {
       const page=await browser.newPage({viewport:{width,height:width===1280?1200:900}});
       const errors=[];
       page.on("pageerror",error=>errors.push(error.message));
@@ -82,8 +83,7 @@ try {
         assert.equal(saved.length,1);
         const payload=mode==="pos"?saved[0].masterUpdate:saved[0];
         assert.equal(payload.hargaDinas,null);
-        if(mode==="edit"||mode==="legacy")assert.equal(payload.hargaAgen,10000);
-        else assert.equal(Object.hasOwn(payload,"hargaAgen"),false,"unchanged explicit override is not rewritten");
+        assert.equal(Object.hasOwn(payload,"hargaAgen"),false,"unchanged explicit override is not rewritten");
         assert.equal(Object.hasOwn(payload,"price"),false);
         assert.deepEqual(errors,[]);
         console.log(`PASS ${mode} ${width}px: old equal-price override persists, Dinas keyboard reset and save`);
@@ -141,7 +141,7 @@ try {
       const payload=mode==="pos"?saved.masterUpdate:saved;
       assert.equal(payload.hargaDinas,11000);
       if(scenario==="fractional-stock"&&mode==="legacy")assert.equal(payload.stock,0.75,"editing member prices supports fractional stock");
-      if(mode==="edit"||mode==="legacy"||legacyZero)assert.equal(payload.hargaAgen,null);
+      if(mode==="catalog"&&legacyZero)assert.equal(payload.hargaAgen,null);
       else assert.equal(Object.hasOwn(payload,"hargaAgen"),false,"resetting an unchanged default does not write a price");
       assert.equal(Object.hasOwn(payload,"price"),false,"default UI does not write a copy of selling price");
       assert.deepEqual(errors,[]);

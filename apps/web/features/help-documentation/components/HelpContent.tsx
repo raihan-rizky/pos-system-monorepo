@@ -345,7 +345,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih Produk & Pelanggan", description: "Pilih kategori, lalu pilih Semua satuan agar diskon atau rumus modal berlaku untuk seluruh satuan dalam kategori tersebut, termasuk satuan yang ditambahkan nanti. Centang satu atau beberapa satuan untuk membatasi aturan. Centang satu atau beberapa tipe pelanggan, misalnya Umum dan Agen. Pilih Semua pelanggan jika aturan berlaku untuk setiap tipe.", icon: <Users className="w-8 h-8" /> },
         { title: "Pilih Cara Menghitung Harga", description: "Pilih Diskon rupiah, Diskon persen, HPP satuan terkecil + rupiah, HPP satuan terkecil + persen, atau HPP masing-masing satuan + persen − persen. Untuk tambahan 35% dari HPP setiap satuan, pilih metode terakhir, isi tambahan 35% dan potongan 0%; margin hasilnya 25,93%. Contoh dua persentase: Rp12.000/dus +10% lalu −5% menghasilkan Rp12.540/dus. Dua metode HPP satuan terkecil tetap tanpa konversi: Rp700/pcs + Rp4.000 menghasilkan Rp4.700/rim.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Periksa Contoh & Simpan", description: "Periksa harga aturan, HPP satuan, laba, dan margin pada contoh satuan yang tersedia. Harga di bawah HPP diberi peringatan merah; margin memakai HPP satuan jual meskipun sumber rumusnya satuan terkecil. Pratinjau menampilkan contoh hasil aturan ini; aturan yang lebih spesifik dapat diprioritaskan saat transaksi. Periksa juga aturan khusus pelanggan, termasuk Agen, dan aturan satuan seperti Rim. Buka Pengaturan tambahan untuk merek dan status aktif, lalu klik Simpan aturan setelah sesuai. Nonaktifkan menghentikan penerapan tanpa menghapus aturan; aktifkan kembali lewat Ubah. Jika sumber HPP belum tersedia, harga member atau normal tetap dipakai.", icon: <FileText className="w-8 h-8" /> },
-        { title: "Lihat Harga yang Berlaku", description: "Di Produk, pilih Harga untuk; pilihan awalnya Umum. Di POS, klik Bayar lalu pilih pelanggan agar harga mengikuti tipe pelanggan dan satuan. Harga dari aturan maupun override manual Agen/Dinas ditandai hijau dan badge Harga Khusus; default Mengikuti harga jual tidak diberi badge. Harga Agen/Dinas yang lebih dari 0 diprioritaskan, termasuk saat Harga Khusus nonaktif. Jika kosong atau 0, sistem memakai aturan Harga Khusus yang aktif bila cocok, lalu harga jual. Harga untuk satu transaksi tetap memakai penanda Hanya berlaku untuk transaksi ini.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Periksa Referensi Harga", description: "Setiap baris produk menampilkan Harga Normal, Harga Agen, dan Harga Dinas. Harga Agen/Dinas yang kosong atau 0 mengikuti harga jual.", icon: <DollarSign className="w-8 h-8" /> },
       ]
     },
     {
@@ -620,13 +620,13 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "cashier-pos-quick-edit",
       title: "Edit Cepat Produk di Keranjang POS",
-      description: "Periksa dan perbarui data produk langsung dari keranjang jika akun Anda memiliki permission edit produk.",
+      description: "Periksa produk dan gunakan harga custom untuk satu nota langsung dari keranjang jika akun Anda memiliki izin edit produk.",
       icon: <Tag className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Temukan Aksi di Kartu", description: "Tambahkan produk ke keranjang. Tombol Edit dan Harga langsung tampil di bagian bawah kartu, di sebelah kiri pengatur jumlah, jika akun memiliki izin edit produk.", icon: <ShoppingCart className="w-8 h-8" /> },
         { title: "Periksa Referensi Harga", description: "Setiap baris produk menampilkan Harga Normal, Harga Agen, dan Harga Dinas. Nilai yang belum tersedia ditandai 'Belum diatur'.", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Ubah Produk atau Harga", description: "Klik Edit untuk mengubah Nama, Kategori, dan Merek seluruh varian. Klik Harga untuk mengubah harga master varian terpilih.", icon: <Package className="w-8 h-8" /> },
-        { title: "Gunakan Harga Khusus", description: "Isi Harga Khusus bila harga hanya dipakai pada keranjang aktif. Badge 'Hanya berlaku untuk transaksi ini' menandakan harga tidak mengubah master produk.", icon: <ShoppingCart className="w-8 h-8" /> },
+        { title: "Ubah Harga Nota", description: "Klik Harga untuk membuka Ubah Harga Nota. Isi Harga custom per satuan, periksa harga otomatis, pembulatan dan subtotal item, lalu klik Terapkan harga. Harga ini hanya berlaku untuk nota tersebut dan tersedia meskipun Harga Khusus toko nonaktif. Untuk mengubah Nama, Kategori, dan Merek seluruh varian, gunakan Edit.", icon: <Package className="w-8 h-8" /> },
+        { title: "Kenali dan Kembalikan Harga", description: "Badge amber Harga custom tampil di keranjang, pembayaran, dan detail riwayat. Harga tetap tersimpan pada draft dan transaksi; nota berikutnya kembali memakai harga otomatis. Buka Harga lalu klik Kembalikan harga otomatis untuk menghapus harga custom. Penanda tidak ikut dicetak pada nota atau PDF. Perubahan harga produk permanen dilakukan melalui halaman Produk.", icon: <ShoppingCart className="w-8 h-8" /> },
       ]
     },
     {

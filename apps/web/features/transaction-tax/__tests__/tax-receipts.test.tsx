@@ -20,6 +20,18 @@ const store = { name: "Toko", address: "Cilegon", phone: "123" };
 const transaction = { id: "tx-1", subtotal: 706000, discount: 0, tax: 77660, total: 783660, taxRate: 12, taxMethod: "DPP_NILAI_LAIN", status: "DRAFT", amountPaid: 0, change: 0, paymentMethod: "CASH", items: [], createdAt: "2026-10-18T03:00:00Z" } as unknown as Transaction;
 
 describe("tax receipt output", () => {
+  it.each(["COMPLETED", "DRAFT"])("shows saved custom pricing in %s details outside the printed invoice", status => {
+    const custom = { ...transaction, status, items: [{
+      id: "custom-line", productId: "mouse", productName: "Alas Mouse Pad", quantity: 1,
+      unitPrice: 12000, originalUnitPrice: 13500, appliedUnitPrice: 12000, subtotal: 12000,
+      pricingRuleId: "transaction-custom-price", product: { unit: "Bh" }, size: null, material: null,
+    }] } as Transaction;
+    const html = renderToStaticMarkup(<ReceiptModal open onClose={vi.fn()} transaction={custom} />);
+    expect(html).toContain('aria-label="Harga custom pada nota"');
+    expect(html).toContain("Harga custom");
+    const printed = html.slice(html.indexOf(status === "DRAFT" ? 'id="draft-receipt-page"' : 'id="print-receipt"'));
+    expect(printed).not.toContain("Harga custom");
+  });
   it("places the regular PDF tax percentage in the header before the item table", () => {
     const data = buildInvoicePdfData({ ...transaction, status: "COMPLETED", taxRate: 12 } as Transaction, store);
     const text = (node: React.ReactNode): string => React.Children.toArray(node).map(child => React.isValidElement<{ children?: React.ReactNode }>(child) ? text(child.props.children) : String(child)).join(" ");

@@ -22,7 +22,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 1. Pada tabel **Produk**, buka **Ubah Harga** atau **Edit**, lalu klik **Atur harga grup / Manual**. Periksa **Sumber harga**: harga jual dan HPP sumber menjadi acuan pengikut **Auto**. Sesuaikan diskon/markup harga jual pengikut, atau pilih **Manual** untuk mengisi harga jual dan HPP sendiri.
 2. Klik **Pratinjau harga**, periksa dampak pada semua satuan, lalu **Terapkan harga grup**. Harga grup disimpan terpisah; draft formulir tetap ada. Jika data grup berubah, buat pratinjau baru. Buka **Riwayat Harga** untuk melihat perubahan.
 3. **Harga Agen** dan **Harga Dinas** yang kosong otomatis **mengikuti harga jual**, termasuk saat harga grup berubah. Isi manual untuk menetapkan harga tetap pada produk/satuan ini; override ditandai hijau dan badge **Harga Khusus**. Klik **Ikuti harga jual** atau kosongkan kolom, lalu **Simpan Harga**, untuk kembali otomatis. Harga manual lama tetap dipertahankan; tombol ini tidak menerapkan ulang harga grup. Untuk diskon atau tambahan otomatis, Owner memakai **Atur diskon / tambahan → Produk > Harga Khusus**; pengguna lain dapat meminta Owner mengaturnya.
-4. Di **POS**, aksi **Atur harga grup / Manual** memakai alur pratinjau yang sama. **Harga Khusus** hanya untuk transaksi ini dan tidak menulis master. Perubahan harga grup tidak mengganti harga transaksi yang sudah ada di keranjang.
+4. Di **POS**, tombol **Harga** pada kartu keranjang membuka **Ubah Harga Nota**. Isi **Harga custom per satuan**, periksa harga otomatis, pembulatan dan subtotal, lalu klik **Terapkan harga**. Harga ini hanya berlaku untuk nota tersebut, tersedia meskipun Harga Khusus toko nonaktif, dan tidak mengubah harga produk. Badge amber **Harga custom** tampil di keranjang, pembayaran, dan detail riwayat; penanda tidak dicetak pada nota/PDF. Harga tetap tersimpan pada draft dan transaksi. Klik **Kembalikan harga otomatis** untuk menghapusnya; nota berikutnya memakai harga otomatis.
 
 ### Q3: Bagaimana cara mengatur harga khusus/diskon bagi grup pelanggan (Agen, Industri, Dinas)?
 **A:** Owner dapat membuat satu aturan untuk satu atau beberapa tipe pelanggan:
@@ -38,7 +38,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 
 Harga dari aturan maupun override manual Agen/Dinas diberi **warna hijau** dan badge **Harga Khusus**, termasuk saat nilainya sama dengan harga jual. Status **Mengikuti harga jual** tidak diberi badge. Harga Agen/Dinas yang lebih dari 0 diprioritaskan, termasuk saat Harga Khusus nonaktif. Jika kosong atau 0, sistem memakai aturan Harga Khusus yang aktif bila cocok, lalu harga jual. Saat fitur dinonaktifkan, aturan otomatis dan input harga khusus manual tidak tersedia. Jika sumber modal satuan terkecil belum tersedia atau tidak valid, rumus tidak diterapkan dan harga member/normal digunakan. Kasir tidak memilih prioritas harga saat pembayaran.
 
-Harga yang dimasukkan manual untuk transaksi tetap memakai penanda **Hanya berlaku untuk transaksi ini** dan tidak diberi badge aturan otomatis. Pengaturan rumus tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
+Harga yang dimasukkan melalui **Ubah Harga Nota** memakai badge amber **Harga custom** di keranjang, pembayaran, dan detail riwayat, tanpa penanda di nota/PDF. Harga hanya berlaku untuk nota tersebut dan dapat dihapus lewat **Kembalikan harga otomatis**. Pengaturan rumus tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
 
 ### Q4: Bagaimana cara mengimpor data produk atau kuantitas stok secara massal lewat Excel?
 **A:** Untuk memproses data dalam jumlah banyak secara instan:
@@ -71,7 +71,7 @@ Sumber jual nol dengan faktor valid menghasilkan nol dan mempertahankan faktor; 
 1. Buka sidebar **Operasi > Kasir** (`/pos`).
 2. Pilih tab **ATK** untuk penjualan barang. Cari produk melalui kolom pencarian di bagian atas atau klik gambar produk di grid sebelah kiri. Untuk pesanan cetak, pilih **Percetakan** dan ikuti panduan nota pada **Q40**; pesanan diisi langsung pada lembar nota di subtab asalnya.
 3. Jika ada varian (seperti warna/ukuran), pilih varian yang sesuai di pop-up, lalu masukkan item ke **Keranjang**.
-4. Jika memiliki permission edit produk, gunakan **Edit Cepat** di header keranjang. Ikon produk mengubah Nama/Kategori/Merek seluruh varian, sedangkan ikon harga mengubah harga master atau **Harga Khusus** yang hanya berlaku untuk transaksi ini.
+4. Jika memiliki izin edit produk, tombol **Edit** dan **Harga** langsung tampil pada kartu keranjang. **Edit** mengubah Nama/Kategori/Merek seluruh varian. **Harga** membuka **Ubah Harga Nota**: isi harga per satuan, periksa harga otomatis, pembulatan dan subtotal, lalu **Terapkan harga**. Harga custom tetap tersimpan pada draft dan transaksi, tersedia meskipun Harga Khusus nonaktif, dan ditandai di keranjang, pembayaran, serta detail riwayat. Klik **Kembalikan harga otomatis** untuk menghapusnya; nota berikutnya memakai harga otomatis.
 5. Atur kuantitas atau hapus item di keranjang bila perlu, lalu klik tombol hijau besar **Bayar**.
 6. Di modal Pembayaran, pilih Pelanggan Umum atau pelanggan terdaftar. Sales dapat dipilih secara opsional.
 7. Pilih metode pembayaran: **Tunai**, **QRIS**, **Debit**, atau **Transfer** (maksimal 2 metode gabungan).

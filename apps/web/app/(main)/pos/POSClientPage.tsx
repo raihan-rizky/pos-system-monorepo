@@ -50,7 +50,6 @@ import { formatRupiah } from "@/lib/utils";
 import {
   useProductsPage,
   useCategories,
-  useUpdateProduct,
   useUpdateProductGroupMetadata,
   type Category,
   type Product,
@@ -257,7 +256,6 @@ export default function POSClientPage({
     [pricedCartItems],
   );
   const pricingRules = useMemo(() => categoryRules.map(mapCheckoutPricingRule), [categoryRules]);
-  const updateProduct = useUpdateProduct();
   const updateProductGroup = useUpdateProductGroupMetadata();
   const hasLoadedCartStorage = cart.hasLoadedStorage;
   const syncCartUnitOptions = cart.syncUnitOptions;
@@ -364,23 +362,12 @@ export default function POSClientPage({
     async (update: PosCartPriceUpdate) => {
       if (!priceEditItem) return;
 
-      if (update.masterUpdate) {
-        const updated = await updateProduct.mutateAsync(update.masterUpdate);
-        cart.syncProductPrices(updated.id, {
-          price: Number(updated.price),
-          hargaAgen:
-            updated.hargaAgen == null ? null : Number(updated.hargaAgen),
-          hargaDinas:
-            updated.hargaDinas == null ? null : Number(updated.hargaDinas),
-        });
-      }
-
       cart.updateTransactionPrice(
         priceEditItem.cartLineId,
         update.transactionPrice,
       );
     },
-    [cart, priceEditItem, updateProduct],
+    [cart, priceEditItem],
   );
 
   const handleSaveQuickProduct = useCallback(

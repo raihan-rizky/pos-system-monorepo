@@ -75,7 +75,7 @@ export function priceCartItemsForCheckout(input: {
     );
     const submittedManualPrice = input.manualPrices[item.cartLineId];
     const resolved =
-      input.specialPricingEnabled !== false && submittedManualPrice == null && item.transactionPrice != null
+      submittedManualPrice == null && item.transactionPrice != null
         ? {
             unitPrice: item.transactionPrice,
             appliedPricing: null,
@@ -93,7 +93,8 @@ export function priceCartItemsForCheckout(input: {
     return {
       ...item,
       price: rounded.unitPrice,
-      transactionPrice: input.specialPricingEnabled === false ? null : item.transactionPrice,
+      automaticPrice: roundCartPrice(priced, input.roundingSettings).unitPrice,
+      transactionPrice: item.transactionPrice,
       priceRounding: rounded.priceRounding,
       priceError: rounded.priceError,
       appliedPricing: rounded.manualOverrideApplied ? null : rounded.appliedPricing,

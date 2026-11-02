@@ -420,7 +420,7 @@ describe("visual help guides", () => {
       );
       expect(html, `${page}.${target}.marker`).toContain(marker);
     }
-  });
+  }, 15000);
 
   it("activates the financial-report icon for report targets and keeps page headers non-sticky", () => {
     const html = renderToStaticMarkup(

@@ -1,4 +1,5 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
+import { resolveTransactionCustomPrice } from "@/features/pos-checkout/helpers/transaction-custom-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -20,6 +21,7 @@ import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
   resolveCustomPricedLine,
+  canEditCustomPriceForCustomer,
   type AppliedCategoryPricing,
   type CategoryPricingRule,
   type CustomerType,
@@ -331,6 +333,9 @@ async function syncOne(
 
   const roundingSettings = await getPriceRoundingSettings();
   const specialPricingEnabled = await getSpecialPricingEnabled();
+  const pricingPermissions = await getGlobalRolePermissions();
+  const canUseTransactionPrice = canRolePerformAction(user.role as Role, "product", "update", pricingPermissions) ||
+    (specialPricingEnabled && canEditCustomPriceForCustomer(user.role, checkoutCustomerType));
   const serverItems: ServerOfflineItem[] = offlineTx.items.map((item) => {
     const product = productById.get(item.productId);
     if (!product) {
@@ -356,17 +361,27 @@ async function syncOne(
       offlineTx.pricingPreference,
       specialPricingEnabled,
     );
-    const resolved = resolveCustomPricedLine({
+    const legacyResolved = resolveCustomPricedLine({
       pricedLine: automaticPrice,
       submittedPrice: item.transactionPrice,
       role: user.role,
       customerType: checkoutCustomerType,
       specialPricingEnabled,
     });
+    const transactionPrice = canUseTransactionPrice ? item.transactionPrice ?? null : null;
+    const resolved = resolveTransactionCustomPrice({
+      pricedLine: transactionPrice == null ? legacyResolved : roundSellingPriceLine(automaticPrice, roundingSettings),
+      transactionPrice,
+      customerType: checkoutCustomerType,
+      categoryId: product.categoryId,
+      categoryName: product.category?.name,
+    });
     const rounded = roundSellingPriceLine(resolved, roundingSettings);
     const price = rounded.unitPrice;
     const appliedPricing = rounded.appliedPricing;
-    appliedPricingByProductId.set(product.id, appliedPricing);
+    // Distinct lines of the same product can use different invoice prices.
+    const snapshotKey = JSON.stringify([product.id, item.size ?? product.size ?? null, item.material ?? product.material ?? null, transactionPrice]);
+    appliedPricingByProductId.set(snapshotKey, appliedPricing);
     catalogPriceByProductId.set(product.id, Number(product.price));
 
     return {
@@ -375,7 +390,7 @@ async function syncOne(
       size: item.size ?? product.size ?? null,
       material: item.material ?? product.material ?? null,
       price,
-      transactionPrice: resolved.manualOverrideApplied ? item.transactionPrice : null,
+      transactionPrice,
       quantity: item.quantity,
       discount: Math.round((Math.min(item.discount, price * item.quantity) + Number.EPSILON) * 100) / 100,
     };
@@ -592,7 +607,7 @@ async function createSyncedTransaction({
             items: {
               create: decision.items.map((item) => {
                 const appliedPricing =
-                  appliedPricingByProductId.get(item.productId) ?? null;
+                  appliedPricingByProductId.get(JSON.stringify([item.productId, item.size ?? null, item.material ?? null, item.transactionPrice ?? null])) ?? null;
                 return {
                   productId: item.productId,
                   productName: item.name,

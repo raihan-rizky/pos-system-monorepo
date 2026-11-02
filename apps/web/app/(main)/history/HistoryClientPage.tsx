@@ -1,5 +1,5 @@
 "use client";
-
+import { TRANSACTION_CUSTOM_PRICE_RULE_ID } from "@/features/pos-checkout/helpers/transaction-custom-price";
 import React, { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
@@ -710,7 +710,7 @@ function PaymentBadge({ method }: { method: string }) {
 }
 
 function appliedPricingCount(tx: Transaction) {
-  return tx.items.filter((item) => item.pricingRuleId).length;
+  return tx.items.filter((item) => item.pricingRuleId && item.pricingRuleId !== TRANSACTION_CUSTOM_PRICE_RULE_ID).length;
 }
 
 function needsCashierApproval(tx: Transaction) {
