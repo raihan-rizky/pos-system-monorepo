@@ -9,6 +9,7 @@ const schema = `giro_test_${process.pid}_${Date.now()}`;
 const mocks = vi.hoisted(() => ({ db: null as PrismaClient | null, storeId: 'store-1' }));
 vi.mock('@pos/db', async importOriginal => ({ ...(await importOriginal()), get db() { return mocks.db; } }));
 vi.mock('@/lib/rbac/guard', () => ({
+  requireRole: async () => ({ id: 'user-1', storeId: mocks.storeId }),
   requirePermission: async () => ({ id: 'user-1', storeId: mocks.storeId }),
   handleAuthError: () => null,
 }));

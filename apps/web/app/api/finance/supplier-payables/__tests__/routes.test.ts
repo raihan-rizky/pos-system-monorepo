@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   permission: vi.fn(), authError: vi.fn(), query: vi.fn(), execute: vi.fn(), transaction: vi.fn(),
 }));
 vi.mock("@pos/db", () => ({ db: { $queryRaw: mocks.query, $transaction: mocks.transaction } }));
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+vi.mock("@/lib/rbac/guard", () => ({ requireRole: async () => ({ id: "user-1", storeId: "store-1" }), requirePermission: mocks.permission, handleAuthError: mocks.authError }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 
 import { GET, POST } from "../route";

@@ -8,7 +8,7 @@ const connection = process.env.GIRO_TEST_DATABASE_URL;
 const schema = `giro_link_test_${randomUUID().replaceAll('-', '')}`;
 const mocks = vi.hoisted(() => ({ db: null as PrismaClient | null, storeId: 'store-1', logError: vi.fn() }));
 vi.mock('@pos/db', async importOriginal => ({ ...(await importOriginal()), get db() { return mocks.db; } }));
-vi.mock('@/lib/rbac/guard', () => ({ requirePermission: async () => ({ id: 'user-1', storeId: mocks.storeId }), handleAuthError: () => null }));
+vi.mock('@/lib/rbac/guard', () => ({ requireRole: async () => ({ id: 'user-1', storeId: mocks.storeId }), requirePermission: async () => ({ id: 'user-1', storeId: mocks.storeId }), handleAuthError: () => null }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: mocks.logError }) }));
 import { POST as link } from '../[goodsPurchaseId]/link-manual/route';
 import { GET } from '../route';

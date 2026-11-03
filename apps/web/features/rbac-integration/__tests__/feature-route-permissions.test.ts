@@ -38,7 +38,6 @@ const cases: RouteCase[]=[
   ["app/api/finance/income/[id]/route.ts DELETE", () => import("../../../app/api/finance/income/[id]/route"), "DELETE", "income.manual", "delete"],
   ["app/api/finance/supplier-payables/route.ts GET", () => import("../../../app/api/finance/supplier-payables/route"), "GET", "expense.payable", "read"],
   ["app/api/finance/supplier-payables/route.ts POST", () => import("../../../app/api/finance/supplier-payables/route"), "POST", "expense.payable", "create"],
-  ["app/api/finance/supplier-payables/[id]/payments/route.ts POST", () => import("../../../app/api/finance/supplier-payables/[id]/payments/route"), "POST", "expense.payable", "update"],
   ["app/api/finance/giro/route.ts GET", () => import("../../../app/api/finance/giro/route"), "GET", "expense.giro", "read"],
   ["app/api/finance/giro/[goodsPurchaseId]/link-manual/route.ts POST", () => import("../../../app/api/finance/giro/[goodsPurchaseId]/link-manual/route"), "POST", "expense.giro", "update"],
   ["app/api/finance/giro/[goodsPurchaseId]/reconcile/route.ts POST", () => import("../../../app/api/finance/giro/[goodsPurchaseId]/reconcile/route"), "POST", "expense.giro", "update"],

@@ -39,7 +39,7 @@ describe("RBAC feature permission guidance", () => {
 
   it("announces the feature permissions in the existing release with compact usage steps", () => {
     const entry = CHANGELOG.find(item => item.id === "rbac-effective-access")!;
-    expect(entry).toMatchObject({ date: "2026-11-03", revision: 1, href: "/settings", visual: "rbac" });
+    expect(entry).toMatchObject({ date: "2026-11-04", revision: 1, href: "/settings", visual: "rbac" });
     expect(entry.steps).toHaveLength(3);
     expect(entry.highlight!.title.length).toBeLessThanOrEqual(40);
     expect(entry.highlight!.summary.length).toBeLessThanOrEqual(85);

@@ -44,11 +44,14 @@ Fitur yang hanya mengubah perhitungan atau tampilan, seperti valuasi HPP otomati
 
 Konfigurasi lama tetap mewarisi izin umum yang sesuai ketika baris fitur belum ada. Pada simpan pertama, nilai efektif sebelum perubahan ditetapkan secara atomik; penolakan eksplisit selalu berlaku. Pembatalan hasil impor memeriksa jenis batch tersimpan. Unggah bukti pengeluaran atau transfer manual memakai konteks buat/ubah yang sesuai dan memerlukan toko.
 
-## Catatan rilis 2026-11-03 (WIB)
+Endpoint pembayaran bersama memilih izin giro atau hutang manual dari hubungan pembelian yang tersimpan, setelah mengunci hutang dalam toko pengguna. Pemeriksaan izin dilakukan sebelum retry idempoten maupun penulisan; perubahan identitas atau toko sesi membatalkan pembayaran.
 
-- Entri belum diterbitkan `rbac-effective-access` tetap memakai tanggal `2026-11-03` dan revision `1`, dengan ilustrasi RBAC yang sudah sesuai.
+## Catatan rilis 2026-11-04 (WIB)
+
+- Entri baru `rbac-effective-access` memakai tanggal rilis `2026-11-04` dan revision `1`, dengan ilustrasi RBAC yang sudah sesuai. Persiapan dimulai 3 November dan melewati pergantian hari WIB sebelum publikasi; entri ini belum ada di origin/main saat tanggalnya disesuaikan.
 - Bantuan Owner, workflow `manage-rbac`, dan referensi `settings-rbac.md` menjelaskan izin fitur, prasyarat progres, serta transisi konfigurasi lama.
 - Validasi terarah: 128 tes helper, 63 tes integrasi awal, 78 tes dokumentasi, dan 37 tes regresi pada tujuh suite yang diselaraskan lulus. Sesudah integrasi PWA, 83 tes Bantuan, workflow, changelog, dan banner lulus. Pemeriksaan TypeScript web, database, UI, dan worker impor lulus. Hook pre-push menjalankan suite repository penuh sebelum publikasi.
+- Review akhir menemukan ketidaksesuaian izin endpoint pembayaran giro bersama. Regresi direproduksi sebelum perbaikan; 76 tes pembayaran, saldo, idempotensi, dan kontrol terkait kemudian lulus, disertai PASS pada review ulang. Penyesuaian tanggal rilis WIB juga melewati pengujian gagal-lalu-lulus, dengan 21 tes dokumentasi/changelog lulus.
 - Migrasi audit `20261103020000_rbac_permission_audit` tersedia tetapi belum diterapkan. Tabel audit harus tersedia sebelum memakai penyimpanan pengaturan RBAC yang baru.
 
 ## Catatan lingkungan

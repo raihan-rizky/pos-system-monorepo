@@ -15,7 +15,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    id: "rbac-effective-access", date: "2026-11-03", revision: 1,
+    id: "rbac-effective-access", date: "2026-11-04", revision: 1,
     highlight: { title: "Izin nota, keuangan, dan impor", summary: "Atur harga nota, keuangan, impor produk, dan stok massal per role." },
     title: "Atur izin fitur dengan pratinjau akses.",
     summary: "Atur harga khusus di nota, keuangan manual, ekspor, impor produk, dan stok massal per role dalam susunan RBAC yang sama. Sales berizin dapat mengubah Riwayat; konflik simpan dilindungi dan perubahan akses tercatat.",

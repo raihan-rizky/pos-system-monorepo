@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { db } from '@pos/db';
 import { apiError } from '@/lib/api/responses';
-import { handleAuthError, requirePermission } from '@/lib/rbac/guard';
+import { handleAuthError, requirePermission, requireRole } from '@/lib/rbac/guard';
+import { ALL_ROLES } from '@/features/rbac/helpers/rbac-core';
 import { getLogger } from '@/lib/logger';
 import { jakartaToday, parseAmount, validDate } from '@/features/keuangan/helpers/supplier-payable-input';
 
@@ -14,7 +15,7 @@ const validRequestKey = (value: string | null): value is string =>
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requirePermission("expense.payable", "update");
+    const user = await requireRole(...ALL_ROLES);
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const body = await request.json().catch(() => null) as { amount?: unknown; paidAt?: unknown; expectedBalance?: unknown } | null;
     const amount = parseAmount(body?.amount);
@@ -34,6 +35,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         SELECT "amount"::text, "debtDate"::text, "goodsPurchaseId", "giroHistoryVerifiedAt" FROM "pos_supplier_payables"
         WHERE "id" = ${id} AND "storeId" = ${user.storeId} FOR UPDATE
       `;
+      const authorizedUser = await requirePermission(debt?.goodsPurchaseId ? 'expense.giro' : 'expense.payable', 'update');
+      if (authorizedUser.id !== user.id || authorizedUser.storeId !== user.storeId) return 'forbidden' as const;
       if (!debt) return 'not-found' as const;
       let requestScope: string | null = null;
       if (debt.goodsPurchaseId) {
@@ -77,6 +80,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       return 'created' as const;
     });
+    if (result === 'forbidden') return apiError('Sesi pengguna berubah. Muat ulang halaman dan coba lagi.', 403, { code: 'Forbidden' });
     if (result === 'not-found') return apiError('Hutang tidak ditemukan.', 404, { code: 'NotFound' });
     if (result === 'history-unknown') return apiError('Periksa riwayat giro sebelum mencatat pembayaran.', 409, { code: 'Conflict' });
     if (result === 'invalid-key') return apiError('Kunci pembayaran giro tidak tersedia. Muat ulang halaman dan coba lagi.', 422, { code: 'ValidationError' });
